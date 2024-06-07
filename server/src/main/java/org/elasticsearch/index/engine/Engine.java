@@ -763,6 +763,7 @@ public abstract class Engine implements Closeable {
 
                 @Override
                 protected void doClose() {
+                    assert Transports.assertNotTransportThread("releasing from the reference manager and/or store may block");
                     try {
                         referenceManager.release(acquire);
                     } catch (IOException e) {

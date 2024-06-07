@@ -9,6 +9,7 @@
 package org.elasticsearch.env;
 
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.transport.Transports;
 
 import java.io.Closeable;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -38,6 +39,7 @@ public abstract class ShardLock implements Closeable {
 
     @Override
     public final void close() {
+        assert Transports.assertNotTransportThread("shard lock should not have been acquired on a transport thread");
         if (this.closed.compareAndSet(false, true)) {
             closeInternal();
         }

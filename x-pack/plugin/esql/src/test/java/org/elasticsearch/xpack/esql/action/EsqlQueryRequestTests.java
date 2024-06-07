@@ -192,7 +192,7 @@ public class EsqlQueryRequestTests extends ESTestCase {
         String json = """
             {
                 "query": "ROW x = 1",
-                "tables": {"a": {"c:keyword": ["a", "b", null, 1, 2.0, ["c", "d"], false]}}
+                "tables": {"a": {"c": {"keyword": ["a", "b", null, 1, 2.0, ["c", "d"], false]}}}
             }
             """;
         EsqlQueryRequest request = parseEsqlQueryRequest(json, randomBoolean());
@@ -223,7 +223,7 @@ public class EsqlQueryRequestTests extends ESTestCase {
         String json = """
             {
                 "query": "ROW x = 1",
-                "tables": {"a": {"c:integer": [1, 2, "3", null, [5, 6]]}}
+                "tables": {"a": {"c": {"integer": [1, 2, "3", null, [5, 6]]}}}
             }
             """;
 
@@ -251,7 +251,7 @@ public class EsqlQueryRequestTests extends ESTestCase {
         String json = """
             {
                 "query": "ROW x = 1",
-                "tables": {"a": {"c:long": [1, 2, "3", null, [5, 6]]}}
+                "tables": {"a": {"c": {"long": [1, 2, "3", null, [5, 6]]}}}
             }
             """;
 
@@ -279,7 +279,7 @@ public class EsqlQueryRequestTests extends ESTestCase {
         String json = """
             {
                 "query": "ROW x = 1",
-                "tables": {"a": {"c:double": [1.1, 2, "3.1415", null, [5.1, "-6"]]}}
+                "tables": {"a": {"c": {"double": [1.1, 2, "3.1415", null, [5.1, "-6"]]}}}
             }
             """;
 
@@ -309,16 +309,16 @@ public class EsqlQueryRequestTests extends ESTestCase {
                 "query": "ROW x = 1",
                 "tables": {
                     "t1": {
-                        "a:long": [1],
-                        "b:long": [1],
-                        "c:keyword": [1],
-                        "d:long": [1]
+                        "a": {"long": [1]},
+                        "b": {"long": [1]},
+                        "c": {"keyword": [1]},
+                        "d": {"long": [1]}
                     },
                     "t2": {
-                        "a:long": [1],
-                        "b:integer": [1],
-                        "c:long": [1],
-                        "d:long": [1]
+                        "a": {"long": [1]},
+                        "b": {"integer": [1]},
+                        "c": {"long": [1]},
+                        "d": {"long": [1]}
                     }
                 }
             }

@@ -41,7 +41,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
-import static org.elasticsearch.test.tasks.MockTaskManager.USE_SPY_TASK_MANAGER_SETTING;
+import static org.elasticsearch.test.tasks.MockTaskManager.SPY_TASK_MANAGER_SETTING;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -75,7 +75,7 @@ public class RemoteClusterAwareClientTests extends ESTestCase {
 
     public void testRemoteTaskCancellationOnFailedResponse() throws Exception {
         Settings.Builder remoteTransportSettingsBuilder = Settings.builder();
-        remoteTransportSettingsBuilder.put(USE_SPY_TASK_MANAGER_SETTING.getKey(), true);
+        remoteTransportSettingsBuilder.put(SPY_TASK_MANAGER_SETTING.getKey(), true);
         try (
             MockTransportService remoteTransport = RemoteClusterConnectionTests.startTransport(
                 "seed_node",

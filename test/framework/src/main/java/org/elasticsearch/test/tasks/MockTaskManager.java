@@ -39,7 +39,7 @@ public class MockTaskManager extends TaskManager {
         Property.NodeScope
     );
 
-    public static final Setting<Boolean> USE_SPY_TASK_MANAGER_SETTING = Setting.boolSetting(
+    public static final Setting<Boolean> SPY_TASK_MANAGER_SETTING = Setting.boolSetting(
         "tests.spy.taskmanager.enabled",
         false,
         Property.NodeScope

@@ -103,7 +103,7 @@ public class MockTransportService extends TransportService {
     public static class TestPlugin extends Plugin {
         @Override
         public List<Setting<?>> getSettings() {
-            return List.of(MockTaskManager.USE_MOCK_TASK_MANAGER_SETTING, MockTaskManager.USE_SPY_TASK_MANAGER_SETTING);
+            return List.of(MockTaskManager.USE_MOCK_TASK_MANAGER_SETTING, MockTaskManager.SPY_TASK_MANAGER_SETTING);
         }
     }
 
@@ -312,7 +312,7 @@ public class MockTransportService extends TransportService {
     }
 
     public static TaskManager createTaskManager(Settings settings, ThreadPool threadPool, Set<String> taskHeaders, Tracer tracer) {
-        if (MockTaskManager.USE_SPY_TASK_MANAGER_SETTING.get(settings)) {
+        if (MockTaskManager.SPY_TASK_MANAGER_SETTING.get(settings)) {
             return spy(createMockTaskManager(settings, threadPool, taskHeaders, tracer));
         } else {
             return createMockTaskManager(settings, threadPool, taskHeaders, tracer);

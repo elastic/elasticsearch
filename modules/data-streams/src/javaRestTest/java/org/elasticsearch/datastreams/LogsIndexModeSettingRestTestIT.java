@@ -8,57 +8,31 @@
 
 package org.elasticsearch.datastreams;
 
-import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
-
 import org.elasticsearch.Build;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
-import org.elasticsearch.common.settings.SecureString;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
-import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.rest.ESRestTestCase;
-import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
 import org.junit.Before;
 import org.junit.ClassRule;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 
 import static org.hamcrest.Matchers.equalTo;
 
 public class LogsIndexModeSettingRestTestIT extends ESRestTestCase {
 
-    private static final String USERNAME = Objects.requireNonNull(System.getProperty("tests.rest.cluster.username", "test_admin"));
-    private static final String PASSWORD = Objects.requireNonNull(
-        System.getProperty("tests.rest.cluster.password", "x-pack-test-password")
-    );
-
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
-        .distribution(DistributionType.INTEG_TEST)
-        .setting("xpack.security.enabled", "false")
         .module("x-pack-stack")
         .module("data-streams")
-        .user(USERNAME, PASSWORD)
+        .setting("stack.templates.enabled", "true")
         .build();
-
-    @ParametersFactory
-    public static Iterable<Object[]> parameters() throws Exception {
-        return ESClientYamlSuiteTestCase.createParameters();
-    }
-
-    @Override
-    protected Settings restClientSettings() {
-        String token = basicAuthHeaderValue(USERNAME, new SecureString(PASSWORD.toCharArray()));
-        return Settings.builder().put(super.restClientSettings()).put(ThreadContext.PREFIX + ".Authorization", token).build();
-    }
 
     @Override
     protected String getTestRestCluster() {

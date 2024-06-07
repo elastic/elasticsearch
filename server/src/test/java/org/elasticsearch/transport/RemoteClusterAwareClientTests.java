@@ -150,7 +150,13 @@ public class RemoteClusterAwareClientTests extends ESTestCase {
                 // assert remote task is cancelled
                 assertBusy(cancelChildSent::get);
                 assertBusy(cancelChildReceived::get);
-                verify(remoteTransport.getTaskManager()).cancelChildLocal(eq(parentTaskId), eq(searchShardsRequestId.get()), anyString());
+                assertBusy(
+                    () -> verify(remoteTransport.getTaskManager()).cancelChildLocal(
+                        eq(parentTaskId),
+                        eq(searchShardsRequestId.get()),
+                        anyString()
+                    )
+                );
             }
         }
     }

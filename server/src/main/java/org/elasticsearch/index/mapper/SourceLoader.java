@@ -99,13 +99,18 @@ public interface SourceLoader {
     };
 
     /**
-     * Load {@code _source} from doc values.
+     * Reconstructs {@code _source} from doc values anf stored fields.
      */
     class Synthetic implements SourceLoader {
         private final Supplier<SyntheticFieldLoader> syntheticFieldLoaderLeafSupplier;
         private final Set<String> requiredStoredFields;
         private final SourceFieldMetrics metrics;
 
+        /**
+         * Creates a {@link SourceLoader} to reconstruct {@code _source} from doc values anf stored fields.
+         * @param fieldLoaderSupplier A supplier to create {@link SyntheticFieldLoader}, one for each leaf.
+         * @param metrics Metrics for profiling.
+         */
         public Synthetic(Supplier<SyntheticFieldLoader> fieldLoaderSupplier, SourceFieldMetrics metrics) {
             this.syntheticFieldLoaderLeafSupplier = fieldLoaderSupplier;
             this.requiredStoredFields = syntheticFieldLoaderLeafSupplier.get()

@@ -169,7 +169,7 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
     }
 
     private static final Map<String, ComponentTemplate> COMPONENT_TEMPLATE_CONFIGS;
-    private static final Map<String, ComponentTemplate> UPDATED_COMPONENT_TEMPLATE_CONFIGS;
+    private static final Map<String, ComponentTemplate> LOGSDB_COMPONENT_TEMPLATE_CONFIGS;
 
     static {
         final Map<String, ComponentTemplate> componentTemplates = new HashMap<>();
@@ -256,7 +256,7 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
         }
         COMPONENT_TEMPLATE_CONFIGS = Map.copyOf(componentTemplates);
 
-        final Map<String, ComponentTemplate> updatedComponentTemplates = new HashMap<>();
+        final Map<String, ComponentTemplate> logsdbComponentTemplates = new HashMap<>();
         for (IndexTemplateConfig config : List.of(
             new IndexTemplateConfig(
                 DATA_STREAMS_MAPPINGS_COMPONENT_TEMPLATE_NAME,
@@ -330,7 +330,7 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
             )
         )) {
             try {
-                updatedComponentTemplates.put(
+                logsdbComponentTemplates.put(
                     config.getTemplateName(),
                     ComponentTemplate.parse(JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, config.loadBytes()))
                 );
@@ -338,13 +338,13 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
                 throw new AssertionError(e);
             }
         }
-        UPDATED_COMPONENT_TEMPLATE_CONFIGS = Map.copyOf(updatedComponentTemplates);
+        LOGSDB_COMPONENT_TEMPLATE_CONFIGS = Map.copyOf(logsdbComponentTemplates);
     }
 
     @Override
     protected Map<String, ComponentTemplate> getComponentTemplateConfigs() {
         if (logsIndexModeEnabled) {
-            return UPDATED_COMPONENT_TEMPLATE_CONFIGS;
+            return LOGSDB_COMPONENT_TEMPLATE_CONFIGS;
         }
         return COMPONENT_TEMPLATE_CONFIGS;
     }

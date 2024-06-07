@@ -21,6 +21,22 @@ dependencies {
   javaRestTestImplementation project(path: ':x-pack:plugin:stack')
   clusterModules project(':modules:mapper-extras')
   clusterModules project(xpackModule('wildcard'))
+  clusterModules project(':modules:data-streams')
+  clusterModules project(':modules:ingest-common')
+  clusterModules project(':modules:ingest-geoip')
+  clusterModules project(':modules:ingest-user-agent')
+  clusterModules project(':modules:lang-mustache')
+  clusterModules project(xpackModule('analytics'))
+  clusterModules project(xpackModule('ilm'))
+  clusterModules project(xpackModule('mapper-constant-keyword'))
+  clusterModules project(xpackModule('mapper-counted-keyword'))
+  clusterModules project(xpackModule('stack'))
+  clusterModules project(xpackModule('apm-data'))
+  clusterModules project(xpackModule('mapper-aggregate-metric'))
+}
+
+tasks.named('javaRestTest') {
+  usesDefaultDistribution()
 }
 
 // These tests are only invoked direclty as part of a dedicated build job

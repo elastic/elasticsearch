@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.datastreams;
+package org.elasticsearch.xpack.stack;
 
 import org.elasticsearch.Build;
 import org.elasticsearch.client.Request;
@@ -15,7 +15,6 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
-import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.junit.Before;
 import org.junit.ClassRule;
@@ -30,11 +29,21 @@ public class LogsIndexModeSettingRestTestIT extends ESRestTestCase {
 
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
-        .distribution(DistributionType.DEFAULT)
-        .module("x-pack-stack")
+        .module("constant-keyword")
+        .module("counted-keyword")
         .module("data-streams")
-        .setting("stack.templates.enabled", "true")
-        .setting("xpack.security.enabled", "false")
+        .module("ingest-common")
+        .module("ingest-geoip")
+        .module("ingest-user-agent")
+        .module("lang-mustache")
+        .module("mapper-extras")
+        .module("wildcard")
+        .module("x-pack-analytics")
+        .module("x-pack-apm-data")
+        .module("x-pack-aggregate-metric")
+        .module("x-pack-ilm")
+        .module("x-pack-stack")
+        .setting("ingest.geoip.downloader.enabled", "false")
         .build();
 
     @Override

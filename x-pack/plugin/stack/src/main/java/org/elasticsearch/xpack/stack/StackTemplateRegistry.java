@@ -259,42 +259,96 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
     @Override
     protected Map<String, ComponentTemplate> getComponentTemplateConfigs() {
         if (logsIndexModeEnabled) {
-            final IndexTemplateConfig override = new IndexTemplateConfig(
+            return getLogsIndexModeComponentTemplates();
+        }
+        return COMPONENT_TEMPLATE_CONFIGS;
+    }
+
+    private static Map<String, ComponentTemplate> getLogsIndexModeComponentTemplates() {
+        final Map<String, ComponentTemplate> updatedTemplates = new HashMap<>();
+        for (IndexTemplateConfig config : List.of(
+            new IndexTemplateConfig(
+                DATA_STREAMS_MAPPINGS_COMPONENT_TEMPLATE_NAME,
+                "/data-streams@mappings.json",
+                REGISTRY_VERSION,
+                TEMPLATE_VERSION_VARIABLE,
+                ADDITIONAL_TEMPLATE_VARIABLES
+            ),
+            new IndexTemplateConfig(
+                LOGS_MAPPINGS_COMPONENT_TEMPLATE_NAME,
+                "/logs@mappings.json",
+                REGISTRY_VERSION,
+                TEMPLATE_VERSION_VARIABLE,
+                ADDITIONAL_TEMPLATE_VARIABLES
+            ),
+            new IndexTemplateConfig(
+                ECS_DYNAMIC_MAPPINGS_COMPONENT_TEMPLATE_NAME,
+                "/ecs@mappings.json",
+                REGISTRY_VERSION,
+                TEMPLATE_VERSION_VARIABLE,
+                ADDITIONAL_TEMPLATE_VARIABLES
+            ),
+            // NOTE: template including index.mode = 'logs'
+            new IndexTemplateConfig(
                 LOGS_SETTINGS_COMPONENT_TEMPLATE_NAME,
                 "/logs@settings-logsdb.json",
                 REGISTRY_VERSION,
                 TEMPLATE_VERSION_VARIABLE,
                 ADDITIONAL_TEMPLATE_VARIABLES
-            );
-            final Map<String, ComponentTemplate> updatedComponentTemplates = new HashMap<>(COMPONENT_TEMPLATE_CONFIGS);
+            ),
+            new IndexTemplateConfig(
+                METRICS_MAPPINGS_COMPONENT_TEMPLATE_NAME,
+                "/metrics@mappings.json",
+                REGISTRY_VERSION,
+                TEMPLATE_VERSION_VARIABLE,
+                ADDITIONAL_TEMPLATE_VARIABLES
+            ),
+            new IndexTemplateConfig(
+                METRICS_SETTINGS_COMPONENT_TEMPLATE_NAME,
+                "/metrics@settings.json",
+                REGISTRY_VERSION,
+                TEMPLATE_VERSION_VARIABLE,
+                ADDITIONAL_TEMPLATE_VARIABLES
+            ),
+            new IndexTemplateConfig(
+                METRICS_TSDB_SETTINGS_COMPONENT_TEMPLATE_NAME,
+                "/metrics@tsdb-settings.json",
+                REGISTRY_VERSION,
+                TEMPLATE_VERSION_VARIABLE,
+                ADDITIONAL_TEMPLATE_VARIABLES
+            ),
+            new IndexTemplateConfig(
+                SYNTHETICS_MAPPINGS_COMPONENT_TEMPLATE_NAME,
+                "/synthetics@mappings.json",
+                REGISTRY_VERSION,
+                TEMPLATE_VERSION_VARIABLE,
+                ADDITIONAL_TEMPLATE_VARIABLES
+            ),
+            new IndexTemplateConfig(
+                SYNTHETICS_SETTINGS_COMPONENT_TEMPLATE_NAME,
+                "/synthetics@settings.json",
+                REGISTRY_VERSION,
+                TEMPLATE_VERSION_VARIABLE,
+                ADDITIONAL_TEMPLATE_VARIABLES
+            ),
+            new IndexTemplateConfig(
+                KIBANA_REPORTING_COMPONENT_TEMPLATE_NAME,
+                "/kibana-reporting@settings.json",
+                REGISTRY_VERSION,
+                TEMPLATE_VERSION_VARIABLE,
+                ADDITIONAL_TEMPLATE_VARIABLES
+            )
+        )) {
             try {
-                final ComponentTemplate originalComponentTemplate = updatedComponentTemplates.replace(
-                    override.getTemplateName(),
-                    ComponentTemplate.parse(JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, override.loadBytes()))
+                updatedTemplates.put(
+                    config.getTemplateName(),
+                    ComponentTemplate.parse(JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, config.loadBytes()))
                 );
-                if (originalComponentTemplate == null) {
-                    logger.error(
-                        "Failure while overriding the original ["
-                            + override.getTemplateName()
-                            + "] with ["
-                            + override.getFileName()
-                            + "]. Using default component template."
-                    );
-                }
             } catch (IOException e) {
-                logger.error(
-                    "Error while overriding template ["
-                        + override.getTemplateName()
-                        + "] with ["
-                        + override.getFileName()
-                        + "]. Error ["
-                        + e.getMessage()
-                        + "]"
-                );
+                throw new AssertionError(e);
             }
-            return Map.copyOf(updatedComponentTemplates);
         }
-        return COMPONENT_TEMPLATE_CONFIGS;
+        return updatedTemplates;
     }
 
     private static final Map<String, ComposableIndexTemplate> COMPOSABLE_INDEX_TEMPLATE_CONFIGS = parseComposableTemplates(

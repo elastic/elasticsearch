@@ -166,15 +166,17 @@ public class EnrichIT extends AbstractEsqlIntegTestCase {
             client().prepareIndex("songs").setSource("song_id", s.id, "title", s.title, "artist", s.artist, "length", s.length).get();
         }
         client().admin().indices().prepareRefresh("songs").get();
-        client().execute(PutEnrichPolicyAction.INSTANCE, new PutEnrichPolicyAction.Request("songs", policy)).actionGet();
-        client().execute(ExecuteEnrichPolicyAction.INSTANCE, new ExecuteEnrichPolicyAction.Request("songs")).actionGet();
+        client().execute(PutEnrichPolicyAction.INSTANCE, new PutEnrichPolicyAction.Request(TEST_REQUEST_TIMEOUT, "songs", policy))
+            .actionGet();
+        client().execute(ExecuteEnrichPolicyAction.INSTANCE, new ExecuteEnrichPolicyAction.Request(TEST_REQUEST_TIMEOUT, "songs"))
+            .actionGet();
         assertAcked(client().admin().indices().prepareDelete("songs"));
     }
 
     @After
     public void cleanEnrichPolicies() {
         cluster().wipe(Set.of());
-        client().execute(DeleteEnrichPolicyAction.INSTANCE, new DeleteEnrichPolicyAction.Request("songs"));
+        client().execute(DeleteEnrichPolicyAction.INSTANCE, new DeleteEnrichPolicyAction.Request(TEST_REQUEST_TIMEOUT, "songs"));
     }
 
     @Before
@@ -328,7 +330,7 @@ public class EnrichIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testProfile() {
-        EsqlQueryRequest request = AbstractEsqlIntegTestCase.syncRequestOnLatestVersion();
+        EsqlQueryRequest request = EsqlQueryRequest.syncEsqlQueryRequest();
         request.pragmas(randomPragmas());
         request.query("from listens* | sort timestamp DESC | limit 1 | " + enrichSongCommand() + " | KEEP timestamp, artist");
         request.profile(true);

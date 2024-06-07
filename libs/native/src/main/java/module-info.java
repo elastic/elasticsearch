@@ -13,6 +13,7 @@ import org.elasticsearch.nativeaccess.lib.NativeLibraryProvider;
 module org.elasticsearch.nativeaccess {
     requires org.elasticsearch.base;
     requires org.elasticsearch.logging;
+    requires java.management; // for access to heap size
 
     exports org.elasticsearch.nativeaccess
         to

@@ -108,6 +108,7 @@ public class KibanaThreadPoolIT extends ESIntegTestCase {
         });
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/107625")
     public void testBlockedThreadPoolsRejectUserRequests() throws Exception {
         assertAcked(client().admin().indices().prepareCreate(USER_INDEX));
 

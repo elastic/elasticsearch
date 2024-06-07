@@ -95,11 +95,11 @@ public abstract class CcrSingleNodeTestCase extends ESSingleNodeTestCase {
     }
 
     protected AutoFollowStats getAutoFollowStats() {
-        return client().execute(CcrStatsAction.INSTANCE, new CcrStatsAction.Request()).actionGet().getAutoFollowStats();
+        return client().execute(CcrStatsAction.INSTANCE, new CcrStatsAction.Request(TEST_REQUEST_TIMEOUT)).actionGet().getAutoFollowStats();
     }
 
     protected ResumeFollowAction.Request getResumeFollowRequest(String followerIndex) {
-        ResumeFollowAction.Request request = new ResumeFollowAction.Request();
+        ResumeFollowAction.Request request = new ResumeFollowAction.Request(TEST_REQUEST_TIMEOUT);
         request.setFollowerIndex(followerIndex);
         request.getParameters().setMaxRetryDelay(TimeValue.timeValueMillis(1));
         request.getParameters().setReadPollTimeout(TimeValue.timeValueMillis(1));
@@ -110,7 +110,7 @@ public abstract class CcrSingleNodeTestCase extends ESSingleNodeTestCase {
     }
 
     protected PutFollowAction.Request getPutFollowRequest(String leaderIndex, String followerIndex) {
-        PutFollowAction.Request request = new PutFollowAction.Request();
+        PutFollowAction.Request request = new PutFollowAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT);
         request.setRemoteCluster("local");
         request.setLeaderIndex(leaderIndex);
         request.setFollowerIndex(followerIndex);

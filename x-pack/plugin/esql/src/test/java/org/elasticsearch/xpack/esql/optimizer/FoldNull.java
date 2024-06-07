@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.esql.optimizer;
 
-import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
 
 public class FoldNull extends LogicalPlanOptimizer.FoldNull {
     @Override

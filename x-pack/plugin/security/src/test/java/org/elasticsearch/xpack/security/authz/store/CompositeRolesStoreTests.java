@@ -44,8 +44,9 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.license.LicenseStateListener;
 import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequest;
@@ -296,10 +297,9 @@ public class CompositeRolesStoreTests extends ESTestCase {
             effectiveRoleDescriptors::set
         );
 
-        final MockLogAppender mockAppender = new MockLogAppender();
-        try (var ignored = mockAppender.capturing(RoleDescriptorStore.class)) {
-            mockAppender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+        try (var mockLog = MockLog.capture(RoleDescriptorStore.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
                     "disabled role warning",
                     RoleDescriptorStore.class.getName(),
                     Level.WARN,
@@ -311,7 +311,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
             getRoleForRoleNames(compositeRolesStore, Collections.singleton("dls"), roleFuture);
             assertEquals(Role.EMPTY, roleFuture.actionGet());
             assertThat(effectiveRoleDescriptors.get(), empty());
-            mockAppender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
         }
     }
 
@@ -1618,10 +1618,13 @@ public class CompositeRolesStoreTests extends ESTestCase {
             true,
             true,
             null,
+            null,
+            null,
             concreteSecurityIndexName,
             healthStatus,
             IndexMetadata.State.OPEN,
-            "my_uuid"
+            "my_uuid",
+            Set.of()
         );
     }
 
@@ -1946,7 +1949,8 @@ public class CompositeRolesStoreTests extends ESTestCase {
                 mock(SecurityIndexManager.class),
                 clusterService,
                 mock(CacheInvalidatorRegistry.class),
-                mock(ThreadPool.class)
+                mock(ThreadPool.class),
+                MeterRegistry.NOOP
             )
         );
         NativePrivilegeStore nativePrivStore = mock(NativePrivilegeStore.class);
@@ -2029,7 +2033,8 @@ public class CompositeRolesStoreTests extends ESTestCase {
                 mock(SecurityIndexManager.class),
                 clusterService,
                 mock(CacheInvalidatorRegistry.class),
-                mock(ThreadPool.class)
+                mock(ThreadPool.class),
+                MeterRegistry.NOOP
             )
         );
         NativePrivilegeStore nativePrivStore = mock(NativePrivilegeStore.class);
@@ -2129,7 +2134,8 @@ public class CompositeRolesStoreTests extends ESTestCase {
                 mock(SecurityIndexManager.class),
                 clusterService,
                 mock(CacheInvalidatorRegistry.class),
-                mock(ThreadPool.class)
+                mock(ThreadPool.class),
+                MeterRegistry.NOOP
             )
         );
         final NativePrivilegeStore nativePrivStore = mock(NativePrivilegeStore.class);
@@ -2287,7 +2293,8 @@ public class CompositeRolesStoreTests extends ESTestCase {
             mock(SecurityIndexManager.class),
             clusterService,
             mock(CacheInvalidatorRegistry.class),
-            mock(ThreadPool.class)
+            mock(ThreadPool.class),
+            MeterRegistry.NOOP
         );
         final NativePrivilegeStore privilegeStore = mock(NativePrivilegeStore.class);
         doAnswer((invocationOnMock) -> {
@@ -2399,7 +2406,8 @@ public class CompositeRolesStoreTests extends ESTestCase {
             mock(SecurityIndexManager.class),
             clusterService,
             mock(CacheInvalidatorRegistry.class),
-            mock(ThreadPool.class)
+            mock(ThreadPool.class),
+            MeterRegistry.NOOP
         );
         final NativePrivilegeStore privilegeStore = mock(NativePrivilegeStore.class);
         doAnswer((invocationOnMock) -> {

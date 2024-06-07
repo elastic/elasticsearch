@@ -152,9 +152,9 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         // important: note that we pass the context object as lock object
         super(threadPool, initialState, initialPosition, jobStats, context);
         ExceptionsHelper.requireNonNull(transformServices, "transformServices");
-        this.transformsConfigManager = transformServices.getConfigManager();
+        this.transformsConfigManager = transformServices.configManager();
         this.checkpointProvider = ExceptionsHelper.requireNonNull(checkpointProvider, "checkpointProvider");
-        this.auditor = transformServices.getAuditor();
+        this.auditor = transformServices.auditor();
         this.transformConfig = ExceptionsHelper.requireNonNull(transformConfig, "transformConfig");
         this.progress = transformProgress != null ? transformProgress : new TransformProgress();
         this.lastCheckpoint = ExceptionsHelper.requireNonNull(lastCheckpoint, "lastCheckpoint");
@@ -654,22 +654,6 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
             IndexerState indexerState = getState();
             if (IndexerState.INDEXING.equals(indexerState) || IndexerState.STOPPING.equals(indexerState)) {
                 logger.debug("[{}] indexer for transform has state [{}]. Ignoring trigger.", getJobId(), indexerState);
-                return false;
-            }
-
-            /*
-             * ignore if indexer thread is shutting down (after finishing a checkpoint)
-             * shutting down means:
-             *  - indexer has finished a checkpoint and called onFinish
-             *  - indexer state has changed from indexing to started
-             *  - state persistence has been called but has _not_ returned yet
-             *
-             *  If we trigger the indexer in this situation the 2nd indexer thread might
-             *  try to save state at the same time, causing a version conflict
-             *  see gh#67121
-             */
-            if (indexerThreadShuttingDown) {
-                logger.debug("[{}] indexer thread is shutting down. Ignoring trigger.", getJobId());
                 return false;
             }
 

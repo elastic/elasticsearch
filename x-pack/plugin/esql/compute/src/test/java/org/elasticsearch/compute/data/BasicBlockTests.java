@@ -41,8 +41,8 @@ import java.util.stream.IntStream;
 import java.util.stream.LongStream;
 
 import static java.util.Collections.singletonList;
-import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.CARTESIAN;
-import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.GEO;
+import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.CARTESIAN;
+import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -166,7 +166,6 @@ public class BasicBlockTests extends ESTestCase {
             assertThat(block.asVector().getPositionCount(), is(positionCount));
             assertThat(block.asVector().asBlock().getTotalValueCount(), is(positionCount));
             assertThat(block.asVector().asBlock().getPositionCount(), is(positionCount));
-            assertThat(block.nullValuesCount(), is(0));
             assertThat(block.mayHaveNulls(), is(false));
             assertThat(block.areAllValuesNull(), is(false));
             assertThat(block.mayHaveMultivaluedFields(), is(false));
@@ -823,7 +822,6 @@ public class BasicBlockTests extends ESTestCase {
                     assertThat(block.getInt(i), is(values[i]));
                 }
             }
-            assertThat(block.nullValuesCount(), is(nullCount));
             assertThat(block.asVector(), nullCount > 0 ? is(nullValue()) : is(notNullValue()));
             block.close();
         }
@@ -857,7 +855,6 @@ public class BasicBlockTests extends ESTestCase {
                     assertThat(block.getLong(i), is(values[i]));
                 }
             }
-            assertThat(block.nullValuesCount(), is(nullCount));
             assertThat(block.asVector(), nullCount > 0 ? is(nullValue()) : is(notNullValue()));
             block.close();
         }
@@ -891,7 +888,6 @@ public class BasicBlockTests extends ESTestCase {
                     assertThat(block.getDouble(i), is(values[i]));
                 }
             }
-            assertThat(block.nullValuesCount(), is(nullCount));
             assertThat(block.asVector(), nullCount > 0 ? is(nullValue()) : is(notNullValue()));
             block.close();
         }
@@ -925,7 +921,6 @@ public class BasicBlockTests extends ESTestCase {
                     assertThat(block.getBoolean(i), is(values[i]));
                 }
             }
-            assertThat(block.nullValuesCount(), is(nullCount));
             assertThat(block.asVector(), nullCount > 0 ? is(nullValue()) : is(notNullValue()));
             block.close();
         }

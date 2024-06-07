@@ -11,7 +11,6 @@ import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
 
 import org.apache.http.HttpEntity;
 import org.apache.lucene.tests.util.TimeUnits;
-import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
@@ -28,11 +27,11 @@ import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.TestFeatureService;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.esql.CsvTestUtils;
+import org.elasticsearch.xpack.esql.EsqlTestUtils;
+import org.elasticsearch.xpack.esql.core.CsvSpecReader.CsvTestCase;
+import org.elasticsearch.xpack.esql.core.SpecReader;
 import org.elasticsearch.xpack.esql.plugin.EsqlFeatures;
 import org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.RequestObjectBuilder;
-import org.elasticsearch.xpack.esql.version.EsqlVersion;
-import org.elasticsearch.xpack.ql.CsvSpecReader.CsvTestCase;
-import org.elasticsearch.xpack.ql.SpecReader;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -40,12 +39,15 @@ import org.junit.Before;
 import java.io.IOException;
 import java.net.URL;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Set;
+import java.util.TreeMap;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
+import java.util.stream.LongStream;
 import java.util.stream.Stream;
 
 import static org.apache.lucene.geo.GeoEncodingUtils.decodeLatitude;
@@ -61,8 +63,8 @@ import static org.elasticsearch.xpack.esql.CsvTestUtils.isEnabled;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.loadCsvSpecValues;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.CSV_DATASET_MAP;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.loadDataSetIntoEs;
-import static org.elasticsearch.xpack.ql.CsvSpecReader.specParser;
-import static org.elasticsearch.xpack.ql.TestUtils.classpathResources;
+import static org.elasticsearch.xpack.esql.core.CsvSpecReader.specParser;
+import static org.elasticsearch.xpack.esql.core.TestUtils.classpathResources;
 
 // This test can run very long in serverless configurations
 @TimeoutSuite(millis = 30 * TimeUnits.MINUTE)
@@ -78,13 +80,6 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
     private final Integer lineNumber;
     protected final CsvTestCase testCase;
     protected final Mode mode;
-
-    public static Set<EsqlVersion> availableVersions() {
-        if ("true".equals(System.getProperty("tests.version_parameter_unsupported"))) {
-            return Set.of();
-        }
-        return Build.current().isSnapshot() ? Set.of(EsqlVersion.values()) : Set.of(EsqlVersion.releasedAscending());
-    }
 
     public enum Mode {
         SYNC,
@@ -202,18 +197,16 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
     protected final void doTest() throws Throwable {
         RequestObjectBuilder builder = new RequestObjectBuilder(randomFrom(XContentType.values()));
 
-        String versionString = null;
-        // TODO: Read version range from csv-spec and skip if none of the versions are available.
-        if (availableVersions().isEmpty() == false) {
-            EsqlVersion version = randomFrom(availableVersions());
-            versionString = randomBoolean() ? version.toString() : version.versionStringWithoutEmoji();
+        if (testCase.query.toUpperCase(Locale.ROOT).contains("LOOKUP")) {
+            builder.tables(tables());
         }
 
         Map<String, Object> answer = runEsql(
-            builder.query(testCase.query).version(versionString),
+            builder.query(testCase.query),
             testCase.expectedWarnings(false),
             testCase.expectedWarningsRegex()
         );
+
         var expectedColumnsWithValues = loadCsvSpecValues(testCase.expectedResults);
 
         var metadata = answer.get("columns");
@@ -322,5 +315,51 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
                 );
             }
         });
+    }
+
+    /**
+     * "tables" parameter sent if there is a LOOKUP in the request. If you
+     * add to this, you must also add to {@link EsqlTestUtils#tables};
+     */
+    private Map<String, Map<String, List<?>>> tables() {
+        Map<String, Map<String, List<?>>> tables = new TreeMap<>();
+        tables.put(
+            "int_number_names",
+            EsqlTestUtils.table(
+                Map.entry("int:integer", IntStream.range(0, 10).boxed().toList()),
+                Map.entry("name:keyword", IntStream.range(0, 10).mapToObj(EsqlTestUtils::numberName).toList())
+            )
+        );
+        tables.put(
+            "long_number_names",
+            EsqlTestUtils.table(
+                Map.entry("long:long", LongStream.range(0, 10).boxed().toList()),
+                Map.entry("name:keyword", IntStream.range(0, 10).mapToObj(EsqlTestUtils::numberName).toList())
+            )
+        );
+        tables.put(
+            "double_number_names",
+            EsqlTestUtils.table(
+                Map.entry("double:double", List.of(2.03, 2.08)),
+                Map.entry("name:keyword", List.of("two point zero three", "two point zero eight"))
+            )
+        );
+        tables.put(
+            "double_number_names_with_null",
+            EsqlTestUtils.table(
+                Map.entry("double:double", List.of(2.03, 2.08, 0.0)),
+                Map.entry("name:keyword", Arrays.asList("two point zero three", "two point zero eight", null))
+            )
+        );
+        tables.put(
+            "big",
+            EsqlTestUtils.table(
+                Map.entry("aa:keyword", List.of("foo", "bar", "baz", "foo")),
+                Map.entry("ab:keyword", List.of("zoo", "zop", "zoi", "foo")),
+                Map.entry("na:integer", List.of(1, 10, 100, 2)),
+                Map.entry("nb:integer", List.of(-1, -10, -100, -2))
+            )
+        );
+        return tables;
     }
 }

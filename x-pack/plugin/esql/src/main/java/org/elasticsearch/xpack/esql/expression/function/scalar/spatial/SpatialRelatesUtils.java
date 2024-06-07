@@ -23,12 +23,12 @@ import org.elasticsearch.lucene.spatial.CentroidCalculator;
 import org.elasticsearch.lucene.spatial.CoordinateEncoder;
 import org.elasticsearch.lucene.spatial.GeometryDocValueReader;
 import org.elasticsearch.lucene.spatial.GeometryDocValueWriter;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes;
 
 import java.io.IOException;
 
-import static org.elasticsearch.xpack.ql.planner.ExpressionTranslators.valueOf;
+import static org.elasticsearch.xpack.esql.core.planner.ExpressionTranslators.valueOf;
 
 public class SpatialRelatesUtils {
 

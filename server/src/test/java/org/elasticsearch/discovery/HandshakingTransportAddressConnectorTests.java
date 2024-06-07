@@ -23,7 +23,7 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransport;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -153,25 +153,25 @@ public class HandshakingTransportAddressConnectorTests extends ESTestCase {
 
         FailureListener failureListener = new FailureListener();
 
-        MockLogAppender mockAppender = new MockLogAppender();
-        mockAppender.addExpectation(
-            new MockLogAppender.SeenEventExpectation(
-                "message",
-                HandshakingTransportAddressConnector.class.getCanonicalName(),
-                Level.WARN,
-                "completed handshake with ["
-                    + remoteNode.descriptionWithoutAttributes()
-                    + "] at ["
-                    + discoveryAddress
-                    + "] but followup connection to ["
-                    + remoteNodeAddress
-                    + "] failed"
-            )
-        );
-        try (var ignored = mockAppender.capturing(HandshakingTransportAddressConnector.class)) {
+        try (var mockLog = MockLog.capture(HandshakingTransportAddressConnector.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "message",
+                    HandshakingTransportAddressConnector.class.getCanonicalName(),
+                    Level.WARN,
+                    "completed handshake with ["
+                        + remoteNode.descriptionWithoutAttributes()
+                        + "] at ["
+                        + discoveryAddress
+                        + "] but followup connection to ["
+                        + remoteNodeAddress
+                        + "] failed"
+                )
+            );
+
             handshakingTransportAddressConnector.connectToRemoteMasterNode(discoveryAddress, failureListener);
             assertThat(failureListener.getFailureMessage(), containsString("simulated"));
-            mockAppender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
         }
     }
 

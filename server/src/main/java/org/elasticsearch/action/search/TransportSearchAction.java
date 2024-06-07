@@ -14,6 +14,7 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
+import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.OriginalIndices;
@@ -137,6 +138,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     );
 
     private final ThreadPool threadPool;
+    private final Executor searchCoordinationExecutor;
     private final ClusterService clusterService;
     private final TransportService transportService;
     private final SearchTransportService searchTransportService;
@@ -169,6 +171,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     ) {
         super(TYPE.name(), transportService, actionFilters, SearchRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.threadPool = threadPool;
+        this.searchCoordinationExecutor = threadPool.executor(ThreadPool.Names.SEARCH_COORDINATION);
         this.circuitBreaker = circuitBreakerService.getBreaker(CircuitBreaker.REQUEST);
         this.searchPhaseController = searchPhaseController;
         this.searchTransportService = searchTransportService;
@@ -288,6 +291,11 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
 
     @Override
     protected void doExecute(Task task, SearchRequest searchRequest, ActionListener<SearchResponse> listener) {
+        // workaround for https://github.com/elastic/elasticsearch/issues/97916 - TODO remove this when we can
+        searchCoordinationExecutor.execute(ActionRunnable.wrap(listener, l -> doExecuteForked((SearchTask) task, searchRequest, l)));
+    }
+
+    private void doExecuteForked(SearchTask task, SearchRequest searchRequest, ActionListener<SearchResponse> listener) {
         ActionListener<SearchResponse> loggingAndMetrics = listener.delegateFailureAndWrap((l, searchResponse) -> {
             searchResponseMetrics.recordTookTime(searchResponse.getTookInMillis());
             if (searchResponse.getShardFailures() != null && searchResponse.getShardFailures().length > 0) {
@@ -306,7 +314,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             }
             l.onResponse(searchResponse);
         });
-        executeRequest((SearchTask) task, searchRequest, loggingAndMetrics, AsyncSearchActionProvider::new);
+        executeRequest(task, searchRequest, loggingAndMetrics, AsyncSearchActionProvider::new);
     }
 
     void executeRequest(

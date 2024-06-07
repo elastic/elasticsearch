@@ -71,10 +71,13 @@ import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
+import org.elasticsearch.xpack.esql.plan.logical.Lookup;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.RegexExtract;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
+import org.elasticsearch.xpack.esql.plan.logical.join.Join;
+import org.elasticsearch.xpack.esql.plan.logical.join.JoinType;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
@@ -124,6 +127,7 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
         return new Batch<>(
             "Substitutions",
             Limiter.ONCE,
+            new ReplaceLookupWithJoin(),
             new RemoveStatsOverride(),
             // first extract nested expressions inside aggs
             new ReplaceStatsNestedExpressionWithEval(),
@@ -660,6 +664,11 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
                             return new Limit(limit.source(), Literal.of(limit.limit(), l2), limit.child());
                         }
                     }
+                }
+            } else if (limit.child() instanceof Join join) {
+                if (join.config().type() == JoinType.LEFT && join.right() instanceof LocalRelation) {
+                    // This is a hash join from something like a lookup.
+                    return join.replaceChildren(limit.replaceChild(join.left()), join.right());
                 }
             }
             return limit;
@@ -1261,6 +1270,19 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
                 p = new TopN(plan.source(), o.child(), o.order(), plan.limit());
             }
             return p;
+        }
+    }
+
+    private static class ReplaceLookupWithJoin extends OptimizerRules.OptimizerRule<Lookup> {
+
+        ReplaceLookupWithJoin() {
+            super(TransformDirection.UP);
+        }
+
+        @Override
+        protected LogicalPlan rule(Lookup lookup) {
+            // left join between the main relation and the local, lookup relation
+            return new Join(lookup.source(), lookup.child(), lookup.localRelation(), lookup.joinConfig());
         }
     }
 

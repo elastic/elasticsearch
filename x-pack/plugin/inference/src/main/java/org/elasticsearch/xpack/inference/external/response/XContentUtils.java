@@ -7,10 +7,13 @@
 
 package org.elasticsearch.xpack.inference.external.response;
 
+import org.elasticsearch.common.xcontent.XContentParserUtils;
+import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 
+import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.elasticsearch.core.Strings.format;
 
 public class XContentUtils {
@@ -72,6 +75,27 @@ public class XContentUtils {
 
             token = parser.nextToken();
         }
+    }
+
+    /**
+     * Parses a single float.
+     * In the context of the inference API this method is usually used in conjunction
+     * with {@link XContentParserUtils#parseList(XContentParser, CheckedFunction)} to parse a list of floats of an embedding:
+     *
+     * <pre>
+     *     <code>
+     *       var floats = XContentParserUtils.parseList(parser, XContentUtils::parseFloat);
+     *     </code>
+     * </pre>
+     *
+     * @param parser
+     * @return single float
+     * @throws IOException
+     */
+    public static float parseFloat(XContentParser parser) throws IOException {
+        XContentParser.Token token = parser.currentToken();
+        ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, parser);
+        return parser.floatValue();
     }
 
     private XContentUtils() {}

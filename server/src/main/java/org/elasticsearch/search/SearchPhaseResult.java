@@ -15,6 +15,7 @@ import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.query.QuerySearchResult;
+import org.elasticsearch.search.rank.feature.RankFeatureResult;
 import org.elasticsearch.transport.TransportResponse;
 
 import java.io.IOException;
@@ -41,6 +42,14 @@ public abstract class SearchPhaseResult extends TransportResponse {
 
     protected SearchPhaseResult(StreamInput in) throws IOException {
         super(in);
+    }
+
+    /**
+     * Specifies whether the specific search phase results are associated with an opened SearchContext on the shards that
+     * executed the request.
+     */
+    public boolean hasSearchContext() {
+        return false;
     }
 
     /**
@@ -78,6 +87,13 @@ public abstract class SearchPhaseResult extends TransportResponse {
      * Returns the query result iff it's included in this response otherwise <code>null</code>
      */
     public QuerySearchResult queryResult() {
+        return null;
+    }
+
+    /**
+     * Returns the rank feature result iff it's included in this response otherwise <code>null</code>
+     */
+    public RankFeatureResult rankFeatureResult() {
         return null;
     }
 

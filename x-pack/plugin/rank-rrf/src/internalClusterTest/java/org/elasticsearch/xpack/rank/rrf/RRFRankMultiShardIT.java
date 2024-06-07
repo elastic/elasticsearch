@@ -29,7 +29,7 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 
-@ESIntegTestCase.ClusterScope(maxNumDataNodes = 3)
+@ESIntegTestCase.ClusterScope(minNumDataNodes = 2, maxNumDataNodes = 4)
 @ESIntegTestCase.SuiteScopeTestCase
 public class RRFRankMultiShardIT extends ESIntegTestCase {
 
@@ -970,6 +970,236 @@ public class RRFRankMultiShardIT extends ESIntegTestCase {
                         throw new IllegalArgumentException("unexpected bucket key [" + bucket.getKey() + "]");
                     }
                 }
+            }
+        );
+    }
+
+    public void testBasicRRFExplain() {
+        // our query here is a top-level knn query for vector [9] and a term query for "text0: 10"
+        // the first result should be the one present in both queries (i.e. doc with text0: 10 and vector: [10]) and the other ones
+        // should only match the knn query
+        float[] queryVector = { 9f };
+        KnnSearchBuilder knnSearch = new KnnSearchBuilder("vector_asc", queryVector, 101, 1001, null).queryName("my_knn_search");
+        assertResponse(
+            prepareSearch("nrd_index").setRankBuilder(new RRFRankBuilder(100, 1))
+                .setKnnSearch(List.of(knnSearch))
+                .setQuery(QueryBuilders.termQuery("text0", "10"))
+                .setExplain(true)
+                .setSize(3),
+            response -> {
+                // we cast to Number when looking at values in vector fields because different xContentTypes may return Float or Double
+                assertEquals(3, response.getHits().getHits().length);
+
+                // first result is the one which matches the term (10) so we should expect an explanation for both queries
+                SearchHit hit = response.getHits().getAt(0);
+                assertEquals(1, hit.getRank());
+                assertTrue(hit.getExplanation().isMatch());
+                assertTrue(hit.getExplanation().getDescription().contains("initial ranks"));
+                assertEquals(2, hit.getExplanation().getDetails().length);
+                assertTrue(hit.getExplanation().getDetails()[0].isMatch());
+                assertEquals(1, hit.getExplanation().getDetails()[0].getValue().intValue());
+                assertTrue(hit.getExplanation().getDetails()[0].getDescription().contains("query at index [0]"));
+                assertTrue(hit.getExplanation().getDetails()[0].getDetails().length > 0);
+                assertTrue(hit.getExplanation().getDetails()[1].isMatch());
+                assertTrue(hit.getExplanation().getDetails()[1].getDescription().contains("[my_knn_search]"));
+                assertTrue(hit.getExplanation().getDetails()[1].getDetails().length > 0);
+
+                // second result matched only on the knn query so no match should be expected for the term query
+                hit = response.getHits().getAt(1);
+                assertEquals(2, hit.getRank());
+                assertTrue(hit.getExplanation().isMatch());
+                assertTrue(hit.getExplanation().getDescription().contains("initial ranks"));
+                assertEquals(2, hit.getExplanation().getDetails().length);
+                assertFalse(hit.getExplanation().getDetails()[0].isMatch());
+                assertEquals(0, hit.getExplanation().getDetails()[0].getValue().intValue());
+                assertEquals(
+                    "rrf score: [0], result not found in query at index [0]",
+                    hit.getExplanation().getDetails()[0].getDescription()
+                );
+                assertEquals(0, hit.getExplanation().getDetails()[0].getDetails().length);
+                assertTrue(hit.getExplanation().getDetails()[1].isMatch());
+                assertTrue(hit.getExplanation().getDetails()[1].getDescription().contains("[my_knn_search]"));
+                assertTrue(hit.getExplanation().getDetails()[1].getDetails().length > 0);
+
+                // third result matched only on the knn query so no match should be expected for the term query
+                hit = response.getHits().getAt(2);
+                assertEquals(3, hit.getRank());
+                assertTrue(hit.getExplanation().isMatch());
+                assertTrue(hit.getExplanation().getDescription().contains("initial ranks"));
+                assertEquals(2, hit.getExplanation().getDetails().length);
+                assertFalse(hit.getExplanation().getDetails()[0].isMatch());
+                assertEquals(0, hit.getExplanation().getDetails()[0].getValue().intValue());
+                assertEquals(
+                    "rrf score: [0], result not found in query at index [0]",
+                    hit.getExplanation().getDetails()[0].getDescription()
+                );
+                assertEquals(0, hit.getExplanation().getDetails()[0].getDetails().length);
+                assertTrue(hit.getExplanation().getDetails()[1].isMatch());
+                assertTrue(hit.getExplanation().getDetails()[1].getDescription().contains("[my_knn_search]"));
+                assertTrue(hit.getExplanation().getDetails()[1].getDetails().length > 0);
+            }
+        );
+    }
+
+    public void testRRFExplainUnknownField() {
+        // in this test we try knn with a query on an unknown field that would be rewritten to MatchNoneQuery
+        // so we expect results and explanations only for the first part
+        float[] queryVector = { 9f };
+        KnnSearchBuilder knnSearch = new KnnSearchBuilder("vector_asc", queryVector, 101, 1001, null).queryName("my_knn_search");
+        assertResponse(
+            prepareSearch("nrd_index").setRankBuilder(new RRFRankBuilder(100, 1))
+                .setKnnSearch(List.of(knnSearch))
+                .setQuery(QueryBuilders.termQuery("unknown_field", "10"))
+                .setExplain(true)
+                .setSize(3),
+            response -> {
+                // we cast to Number when looking at values in vector fields because different xContentTypes may return Float or Double
+                assertEquals(3, response.getHits().getHits().length);
+
+                SearchHit hit = response.getHits().getAt(0);
+                assertEquals(1, hit.getRank());
+                assertTrue(hit.getExplanation().isMatch());
+                assertTrue(hit.getExplanation().getDescription().contains("initial ranks"));
+                assertEquals(2, hit.getExplanation().getDetails().length);
+                assertFalse(hit.getExplanation().getDetails()[0].isMatch());
+                assertEquals(0, hit.getExplanation().getDetails()[0].getValue().intValue());
+                assertEquals(
+                    "rrf score: [0], result not found in query at index [0]",
+                    hit.getExplanation().getDetails()[0].getDescription()
+                );
+                assertEquals(0, hit.getExplanation().getDetails()[0].getDetails().length);
+                assertTrue(hit.getExplanation().getDetails()[1].isMatch());
+                assertTrue(hit.getExplanation().getDetails()[1].getDescription().contains("[my_knn_search]"));
+                assertTrue(hit.getExplanation().getDetails()[1].getDetails().length > 0);
+
+                hit = response.getHits().getAt(1);
+                assertEquals(2, hit.getRank());
+                assertTrue(hit.getExplanation().isMatch());
+                assertTrue(hit.getExplanation().getDescription().contains("initial ranks"));
+                assertEquals(2, hit.getExplanation().getDetails().length);
+                assertFalse(hit.getExplanation().getDetails()[0].isMatch());
+                assertEquals(0, hit.getExplanation().getDetails()[0].getValue().intValue());
+                assertEquals(
+                    "rrf score: [0], result not found in query at index [0]",
+                    hit.getExplanation().getDetails()[0].getDescription()
+                );
+                assertEquals(0, hit.getExplanation().getDetails()[0].getDetails().length);
+                assertTrue(hit.getExplanation().getDetails()[1].isMatch());
+                assertTrue(hit.getExplanation().getDetails()[1].getDescription().contains("[my_knn_search]"));
+                assertTrue(hit.getExplanation().getDetails()[1].getDetails().length > 0);
+
+                hit = response.getHits().getAt(2);
+                assertEquals(3, hit.getRank());
+                assertTrue(hit.getExplanation().isMatch());
+                assertTrue(hit.getExplanation().getDescription().contains("initial ranks"));
+                assertEquals(2, hit.getExplanation().getDetails().length);
+                assertFalse(hit.getExplanation().getDetails()[0].isMatch());
+                assertEquals(0, hit.getExplanation().getDetails()[0].getValue().intValue());
+                assertEquals(
+                    "rrf score: [0], result not found in query at index [0]",
+                    hit.getExplanation().getDetails()[0].getDescription()
+                );
+                assertEquals(0, hit.getExplanation().getDetails()[0].getDetails().length, 0);
+                assertTrue(hit.getExplanation().getDetails()[1].isMatch());
+                assertTrue(hit.getExplanation().getDetails()[1].getDescription().contains("[my_knn_search]"));
+                assertTrue(hit.getExplanation().getDetails()[1].getDetails().length > 0);
+            }
+        );
+    }
+
+    public void testRRFExplainOneUnknownFieldSubSearches() {
+        // this test is similar to the above with the difference that we have a list of subsearches that one would fail,
+        // while the other one would produce a match.
+        // So, we'd have a total of 3 queries, a (rewritten) MatchNoneQuery, a TermQuery, and a kNN query
+        float[] queryVector = { 9f };
+        KnnSearchBuilder knnSearch = new KnnSearchBuilder("vector_asc", queryVector, 101, 1001, null).queryName("my_knn_search");
+        assertResponse(
+            prepareSearch("nrd_index").setRankBuilder(new RRFRankBuilder(100, 1))
+                .setKnnSearch(List.of(knnSearch))
+                .setSubSearches(
+                    List.of(
+                        new SubSearchSourceBuilder(QueryBuilders.termQuery("unknown_field", "10")),
+                        new SubSearchSourceBuilder(QueryBuilders.termQuery("text0", "10"))
+                    )
+                )
+                .setExplain(true)
+                .setSize(3),
+            response -> {
+                // we cast to Number when looking at values in vector fields because different xContentTypes may return Float or Double
+                assertEquals(3, response.getHits().getHits().length);
+
+                // first result is the one which matches the term (10) and is 3rd closest to our query vector (9)
+                SearchHit hit = response.getHits().getAt(0);
+                assertEquals(1, hit.getRank());
+                assertTrue(hit.getExplanation().isMatch());
+                assertTrue(hit.getExplanation().getDescription().contains("initial ranks"));
+                assertEquals(3, hit.getExplanation().getDetails().length);
+                // MatchNone query
+                assertFalse(hit.getExplanation().getDetails()[0].isMatch());
+                assertEquals(0, hit.getExplanation().getDetails()[0].getValue().intValue());
+                assertEquals(
+                    "rrf score: [0], result not found in query at index [0]",
+                    hit.getExplanation().getDetails()[0].getDescription()
+                );
+                assertEquals(0, hit.getExplanation().getDetails()[0].getDetails().length);
+                // Term query
+                assertTrue(hit.getExplanation().getDetails()[1].isMatch());
+                assertTrue(hit.getExplanation().getDetails()[1].getDescription().contains("query at index [1]"));
+                assertTrue(hit.getExplanation().getDetails()[1].getDetails().length > 0);
+                // knn query
+                assertTrue(hit.getExplanation().getDetails()[2].isMatch());
+                assertTrue(hit.getExplanation().getDetails()[2].getDescription().contains("[my_knn_search]"));
+                assertTrue(hit.getExplanation().getDetails()[2].getDetails().length > 0);
+
+                // rest of hits match only on the knn query so no match should be expected for the term query either
+                hit = response.getHits().getAt(1);
+                assertEquals(2, hit.getRank());
+                assertTrue(hit.getExplanation().isMatch());
+                assertTrue(hit.getExplanation().getDescription().contains("initial ranks"));
+                assertEquals(3, hit.getExplanation().getDetails().length);
+                // MatchNone query
+                assertFalse(hit.getExplanation().getDetails()[0].isMatch());
+                assertEquals(0, hit.getExplanation().getDetails()[0].getValue().intValue());
+                assertEquals(
+                    "rrf score: [0], result not found in query at index [0]",
+                    hit.getExplanation().getDetails()[0].getDescription()
+                );
+                // term query - should not match
+                assertFalse(hit.getExplanation().getDetails()[1].isMatch());
+                assertEquals(
+                    "rrf score: [0], result not found in query at index [1]",
+                    hit.getExplanation().getDetails()[1].getDescription()
+                );
+                assertEquals(0, hit.getExplanation().getDetails()[1].getDetails().length);
+                // knn query
+                assertTrue(hit.getExplanation().getDetails()[2].isMatch());
+                assertTrue(hit.getExplanation().getDetails()[2].getDescription().contains("[my_knn_search]"));
+                assertTrue(hit.getExplanation().getDetails()[2].getDetails().length > 0);
+
+                // rest of hits match only on the knn query so no match should be expected for the term query either
+                hit = response.getHits().getAt(2);
+                assertEquals(3, hit.getRank());
+                assertTrue(hit.getExplanation().isMatch());
+                assertTrue(hit.getExplanation().getDescription().contains("initial ranks"));
+                assertEquals(3, hit.getExplanation().getDetails().length);
+                // MatchNone query
+                assertFalse(hit.getExplanation().getDetails()[0].isMatch());
+                assertEquals(0, hit.getExplanation().getDetails()[0].getValue().intValue());
+                assertEquals(
+                    "rrf score: [0], result not found in query at index [0]",
+                    hit.getExplanation().getDetails()[0].getDescription()
+                );
+                // term query - should not match
+                assertFalse(hit.getExplanation().getDetails()[1].isMatch());
+                assertEquals(
+                    "rrf score: [0], result not found in query at index [1]",
+                    hit.getExplanation().getDetails()[1].getDescription()
+                );
+                assertEquals(0, hit.getExplanation().getDetails()[1].getDetails().length);
+                // knn query
+                assertTrue(hit.getExplanation().getDetails()[2].isMatch());
+                assertTrue(hit.getExplanation().getDetails()[2].getDescription().contains("[my_knn_search]"));
+                assertTrue(hit.getExplanation().getDetails()[2].getDetails().length > 0);
             }
         );
     }

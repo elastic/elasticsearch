@@ -34,6 +34,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Not
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
+import org.elasticsearch.xpack.esql.plan.logical.Lookup;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.RegexExtract;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
@@ -124,7 +125,21 @@ public class Verifier {
                 var aggs = agg.aggregates();
                 int size = aggs.size() - groupings.size();
                 aggs.subList(0, size).forEach(unresolvedExpressions);
-            } else {
+            }
+            // similar approach for Lookup
+            else if (p instanceof Lookup lookup) {
+                // first check the table
+                var tableName = lookup.tableName();
+                if (tableName instanceof Unresolvable u) {
+                    failures.add(fail(tableName, u.unresolvedMessage()));
+                }
+                // only after that check the match fields
+                else {
+                    lookup.matchFields().forEach(unresolvedExpressions);
+                }
+            }
+
+            else {
                 p.forEachExpression(unresolvedExpressions);
             }
         });

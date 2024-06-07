@@ -46,7 +46,6 @@ final class RequestXContent {
         PARAM_PARSER.declareString(constructorArg(), TYPE);
     }
 
-    static final ParseField ESQL_VERSION_FIELD = new ParseField("version");
     static final ParseField QUERY_FIELD = new ParseField("query");
     private static final ParseField COLUMNAR_FIELD = new ParseField("columnar");
     private static final ParseField FILTER_FIELD = new ParseField("filter");
@@ -74,7 +73,6 @@ final class RequestXContent {
     }
 
     private static void objectParserCommon(ObjectParser<EsqlQueryRequest, ?> parser) {
-        parser.declareString((str, consumer) -> {}, ESQL_VERSION_FIELD);
         parser.declareString(EsqlQueryRequest::query, QUERY_FIELD);
         parser.declareBoolean(EsqlQueryRequest::columnar, COLUMNAR_FIELD);
         parser.declareObject(EsqlQueryRequest::filter, (p, c) -> AbstractQueryBuilder.parseTopLevelQuery(p), FILTER_FIELD);

@@ -286,7 +286,7 @@ public class PrimaryShardAllocatorTests extends ESAllocationTestCase {
         List<ShardRouting> ignored = allocation.routingNodes().unassigned().ignored();
         assertEquals(ignored.size(), 1);
         assertEquals(
-            ignored.get(0).unassignedInfo().getLastAllocationStatus(),
+            ignored.get(0).unassignedInfo().lastAllocationStatus(),
             forceDecisionNo ? AllocationStatus.DECIDERS_NO : AllocationStatus.DECIDERS_THROTTLED
         );
         assertTrue(shardsWithState(allocation.routingNodes(), ShardRoutingState.INITIALIZING).isEmpty());
@@ -314,7 +314,7 @@ public class PrimaryShardAllocatorTests extends ESAllocationTestCase {
         assertThat(allocation.routingNodesChanged(), equalTo(true));
         List<ShardRouting> ignored = allocation.routingNodes().unassigned().ignored();
         assertEquals(ignored.size(), 1);
-        assertEquals(ignored.get(0).unassignedInfo().getLastAllocationStatus(), AllocationStatus.DECIDERS_THROTTLED);
+        assertEquals(ignored.get(0).unassignedInfo().lastAllocationStatus(), AllocationStatus.DECIDERS_THROTTLED);
         assertTrue(shardsWithState(allocation.routingNodes(), ShardRoutingState.INITIALIZING).isEmpty());
     }
 
@@ -454,7 +454,7 @@ public class PrimaryShardAllocatorTests extends ESAllocationTestCase {
         assertThat(allocation.routingNodesChanged(), equalTo(true));
         assertThat(allocation.routingNodes().unassigned().ignored().isEmpty(), equalTo(false));
         ShardRouting ignoredRouting = allocation.routingNodes().unassigned().ignored().get(0);
-        assertThat(ignoredRouting.unassignedInfo().getLastAllocationStatus(), equalTo(AllocationStatus.FETCHING_SHARD_DATA));
+        assertThat(ignoredRouting.unassignedInfo().lastAllocationStatus(), equalTo(AllocationStatus.FETCHING_SHARD_DATA));
         assertClusterHealthStatus(allocation, ClusterHealthStatus.YELLOW);
     }
 

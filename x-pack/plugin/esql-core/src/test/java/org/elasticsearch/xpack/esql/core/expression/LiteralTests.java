@@ -21,14 +21,14 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 
 import static java.util.Collections.emptyList;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.BOOLEAN;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.BYTE;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.DOUBLE;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.FLOAT;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.INTEGER;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.KEYWORD;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.LONG;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.SHORT;
+import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
+import static org.elasticsearch.xpack.esql.core.type.DataType.BYTE;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.DataType.FLOAT;
+import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
+import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
+import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
+import static org.elasticsearch.xpack.esql.core.type.DataType.SHORT;
 
 public class LiteralTests extends AbstractNodeTestCase<Literal, Expression> {
     static class ValueAndCompatibleTypes {

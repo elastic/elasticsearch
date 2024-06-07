@@ -15,7 +15,6 @@ import org.elasticsearch.xpack.esql.core.session.Configuration;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.type.DataTypes;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlConfigurationFunction;
@@ -60,7 +59,7 @@ public class Now extends EsqlConfigurationFunction {
 
     @Override
     public DataType dataType() {
-        return DataTypes.DATETIME;
+        return DataType.DATETIME;
     }
 
     @Evaluator

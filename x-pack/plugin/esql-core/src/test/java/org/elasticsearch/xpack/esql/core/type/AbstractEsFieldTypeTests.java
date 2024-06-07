@@ -15,10 +15,22 @@ import java.util.Map;
 import java.util.TreeMap;
 
 public abstract class AbstractEsFieldTypeTests<T extends EsField> extends AbstractNamedWriteableTestCase<EsField> {
+    public static EsField randomAnyEsField(int maxDepth) {
+        return switch (between(0, 5)) {
+            case 0 -> EsFieldTests.randomEsField(maxDepth);
+            case 1 -> DateEsFieldTests.randomDateEsField(maxDepth);
+            case 2 -> InvalidMappedFieldTests.randomInvalidMappedField(maxDepth);
+            case 3 -> KeywordEsFieldTests.randomKeywordEsField(maxDepth);
+            case 4 -> TextEsFieldTests.randomTextEsField(maxDepth);
+            case 5 -> UnsupportedEsFieldTests.randomUnsupportedEsField(maxDepth);
+            default -> throw new IllegalArgumentException();
+        };
+    }
+
     @Override
     protected abstract T createTestInstance();
 
-    protected abstract T mutate(T instance) throws IOException;
+    protected abstract T mutate(T instance);
 
     /**
      * Generate sub-properties.
@@ -34,15 +46,7 @@ public abstract class AbstractEsFieldTypeTests<T extends EsField> extends Abstra
         int targetSize = between(1, 5);
         Map<String, EsField> properties = new TreeMap<>();
         while (properties.size() < targetSize) {
-            properties.put(randomAlphaOfLength(properties.size() + 1), switch (between(0, 5)) {
-                case 0 -> EsFieldTests.randomEsField(maxDepth - 1);
-                case 1 -> DateEsFieldTests.randomDateEsField(maxDepth - 1);
-                case 2 -> InvalidMappedFieldTests.randomInvalidMappedField(maxDepth - 1);
-                case 3 -> KeywordEsFieldTests.randomKeywordEsField(maxDepth - 1);
-                case 4 -> TextEsFieldTests.randomTextEsField(maxDepth - 1);
-                case 5 -> UnsupportedEsFieldTests.randomUnsupportedEsField(maxDepth - 1);
-                default -> throw new IllegalArgumentException();
-            });
+            properties.put(randomAlphaOfLength(properties.size() + 1), randomAnyEsField(maxDepth - 1));
         }
         return properties;
     }

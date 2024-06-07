@@ -637,6 +637,40 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     }
 
     /**
+     * Replaces the specified failure store index with a new index and returns a new {@code DataStream} instance with
+     * the modified backing indices. An {@code IllegalArgumentException} is thrown if the index to be replaced
+     * is not a failure store index for this data stream or if it is the {@code DataStream}'s failure store write index.
+     *
+     * @param existingFailureIndex the failure store index to be replaced
+     * @param newFailureIndex      the new index that will be part of the {@code DataStream}
+     * @return new {@code DataStream} instance with failure store indices that contain replacement index instead of the specified
+     * existing index.
+     */
+    public DataStream replaceFailureStoreIndex(Index existingFailureIndex, Index newFailureIndex) {
+        List<Index> currentFailureIndices = new ArrayList<>(failureIndices.indices);
+        int failureIndexPosition = currentFailureIndices.indexOf(existingFailureIndex);
+        if (failureIndexPosition == -1) {
+            throw new IllegalArgumentException(
+                String.format(Locale.ROOT, "index [%s] is not part of data stream [%s] failure store", existingFailureIndex.getName(), name)
+            );
+        }
+        if (failureIndices.indices.size() == (failureIndexPosition + 1)) {
+            throw new IllegalArgumentException(
+                String.format(
+                    Locale.ROOT,
+                    "cannot replace failure index [%s] of data stream [%s] because it is the failure store write index",
+                    existingFailureIndex.getName(),
+                    name
+                )
+            );
+        }
+        currentFailureIndices.set(failureIndexPosition, newFailureIndex);
+        return copy().setFailureIndices(this.failureIndices.copy().setIndices(currentFailureIndices).build())
+            .setGeneration(generation + 1)
+            .build();
+    }
+
+    /**
      * Adds the specified index as a backing index and returns a new {@code DataStream} instance with the new combination
      * of backing indices.
      *

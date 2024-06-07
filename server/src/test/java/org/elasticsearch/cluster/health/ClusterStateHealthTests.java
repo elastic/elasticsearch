@@ -559,10 +559,10 @@ public class ClusterStateHealthTests extends ESTestCase {
                     && primaryShard.recoverySource().getType() == RecoverySource.Type.EXISTING_STORE) {
                     return false;
                 }
-                if (primaryShard.unassignedInfo().getNumFailedAllocations() > 0) {
+                if (primaryShard.unassignedInfo().failedAllocations() > 0) {
                     return false;
                 }
-                if (primaryShard.unassignedInfo().getLastAllocationStatus() == UnassignedInfo.AllocationStatus.DECIDERS_NO) {
+                if (primaryShard.unassignedInfo().lastAllocationStatus() == UnassignedInfo.AllocationStatus.DECIDERS_NO) {
                     return false;
                 }
             }

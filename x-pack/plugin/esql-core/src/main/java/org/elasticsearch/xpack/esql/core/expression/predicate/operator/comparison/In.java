@@ -16,7 +16,6 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.DataTypeConverter;
-import org.elasticsearch.xpack.esql.core.type.DataTypes;
 import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 
 import java.time.ZoneId;
@@ -71,7 +70,7 @@ public class In extends ScalarFunction {
 
     @Override
     public DataType dataType() {
-        return DataTypes.BOOLEAN;
+        return DataType.BOOLEAN;
     }
 
     @Override
@@ -110,7 +109,7 @@ public class In extends ScalarFunction {
     }
 
     protected boolean areCompatible(DataType left, DataType right) {
-        return DataTypes.areCompatible(left, right);
+        return DataType.areCompatible(left, right);
     }
 
     @Override

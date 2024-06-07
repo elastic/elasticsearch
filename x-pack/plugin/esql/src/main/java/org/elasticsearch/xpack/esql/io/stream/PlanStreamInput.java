@@ -12,7 +12,6 @@ import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -24,11 +23,8 @@ import org.elasticsearch.compute.data.IntBigArrayBlock;
 import org.elasticsearch.compute.data.LongBigArrayBlock;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.Column;
-import org.elasticsearch.xpack.esql.core.expression.Attribute;
-import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
-import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.io.stream.PlanNameRegistry.PlanNamedReader;
 import org.elasticsearch.xpack.esql.io.stream.PlanNameRegistry.PlanReader;
@@ -36,9 +32,7 @@ import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
 
 import java.io.IOException;
-import java.util.Collection;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Map;
 import java.util.function.LongFunction;
 
@@ -98,16 +92,9 @@ public final class PlanStreamInput extends NamedWriteableAwareStreamInput
         return readOptionalNamed(PhysicalPlan.class);
     }
 
+    @Override
     public Expression readExpression() throws IOException {
         return readNamed(Expression.class);
-    }
-
-    public NamedExpression readNamedExpression() throws IOException {
-        return readNamed(NamedExpression.class);
-    }
-
-    public Attribute readAttribute() throws IOException {
-        return readNamed(Attribute.class);
     }
 
     public <T> T readNamed(Class<T> type) throws IOException {
@@ -143,18 +130,6 @@ public final class PlanStreamInput extends NamedWriteableAwareStreamInput
         } else {
             return null;
         }
-    }
-
-    public AttributeSet readAttributeSet(Writeable.Reader<Attribute> reader) throws IOException {
-        int count = readArraySize();
-        if (count == 0) {
-            return new AttributeSet();
-        }
-        Collection<Attribute> builder = new HashSet<>();
-        for (int i = 0; i < count; i++) {
-            builder.add(reader.read(this));
-        }
-        return new AttributeSet(builder);
     }
 
     public EsqlConfiguration configuration() throws IOException {

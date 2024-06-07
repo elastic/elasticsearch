@@ -156,6 +156,8 @@ public class TopValuesList extends AggregateFunction implements ToAggregator, Su
             return null;
         }
 
+        // TODO: Replace with Max if bucket size = 1
+
         // Base, unoptimized implementation
         // TODO: VALUES() doesn't keep duplicates! So we can't surrogate this for foldable expressions
         return new MvSlice(

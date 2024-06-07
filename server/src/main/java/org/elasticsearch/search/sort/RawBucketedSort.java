@@ -150,11 +150,6 @@ public abstract class RawBucketedSort<T> implements Releasable {
     protected abstract void setNextGatherOffset(long rootIndex, int offset);
 
     /**
-     * Get the value at an index.
-     */
-    protected abstract SortValue getValue(long index);
-
-    /**
      * {@code true} if the entry at index {@code lhs} is "better" than
      * the entry at {@code rhs}. "Better" in this means "lower" for
      * {@link SortOrder#ASC} and "higher" for {@link SortOrder#DESC}.
@@ -336,11 +331,6 @@ public abstract class RawBucketedSort<T> implements Releasable {
         @Override
         protected final void setNextGatherOffset(long rootIndex, int offset) {
             values.set(rootIndex, offset);
-        }
-
-        @Override
-        protected final SortValue getValue(long index) {
-            return SortValue.from(values.get(index));
         }
 
         @Override

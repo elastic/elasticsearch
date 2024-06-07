@@ -148,7 +148,23 @@ class TopValuesListLongAggregator {
         }
 
         Block toBlock(BlockFactory blockFactory) {
-            return internalState.toBlock(blockFactory, blockFactory.newConstantIntVector(0, 1));
+            try (LongBlock.Builder builder = blockFactory.newLongBlockBuilder(1)) {
+                var values = internalState.sort.getValues(0);
+
+                if (values.isEmpty()) {
+                    builder.appendNull();
+                } else if (values.size() == 1) {
+                    builder.appendLong(values.get(0));
+                } else {
+                    builder.beginPositionEntry();
+
+                    values.forEach(builder::appendLong);
+
+                    builder.endPositionEntry();
+                }
+
+                return builder.build();
+            }
         }
 
         @Override

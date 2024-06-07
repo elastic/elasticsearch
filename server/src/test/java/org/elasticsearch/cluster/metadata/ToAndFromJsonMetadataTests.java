@@ -271,8 +271,10 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
                     "aliases" : { }
                   }
                 },
-                "index-graveyard" : {
-                  "tombstones" : [ ]
+                "project" : {
+                  "index-graveyard" : {
+                    "tombstones" : [ ]
+                  }
                 },
                 "reserved_state" : { }
               }
@@ -355,8 +357,10 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
                     }
                   }
                 },
-                "index-graveyard" : {
-                  "tombstones" : [ ]
+                "project" : {
+                  "index-graveyard" : {
+                    "tombstones" : [ ]
+                  }
                 },
                 "reserved_state" : { }
               }
@@ -421,8 +425,10 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
                     "aliases" : { }
                   }
                 },
-                "index-graveyard" : {
-                  "tombstones" : [ ]
+                "project" : {
+                  "index-graveyard" : {
+                    "tombstones" : [ ]
+                  }
                 },
                 "reserved_state" : { }
               }
@@ -525,8 +531,10 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
                     }
                   }
                 },
-                "index-graveyard" : {
-                  "tombstones" : [ ]
+                "project" : {
+                  "index-graveyard" : {
+                    "tombstones" : [ ]
+                  }
                 },
                 "reserved_state" : { }
               }
@@ -635,8 +643,10 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
                     }
                   }
                 },
-                "index-graveyard" : {
-                  "tombstones" : [ ]
+                "project" : {
+                  "index-graveyard" : {
+                    "tombstones" : [ ]
+                  }
                 },
                 "reserved_state" : { }
               }
@@ -771,8 +781,10 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
                     }
                   }
                 },
-                "index-graveyard" : {
-                  "tombstones" : [ ]
+                "project" : {
+                  "index-graveyard" : {
+                    "tombstones" : [ ]
+                  }
                 },
                 "reserved_state" : {
                   "namespace_one" : {

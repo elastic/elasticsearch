@@ -9,7 +9,12 @@ package org.elasticsearch.xpack.esql.expression.predicate.operator.comparison;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.ann.Evaluator;
+import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
+import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.IntBlock;
+import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -27,12 +32,10 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.math.Cast;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeRegistry;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 
-import java.util.Arrays;
 import java.util.BitSet;
 import java.util.Collections;
 import java.util.List;
 import java.util.function.Function;
-import java.util.stream.IntStream;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
@@ -233,28 +236,107 @@ public class In extends EsqlScalarFunction {
         }
     }
 
-    @Evaluator(extraName = "Boolean", skipNull = "false")
-    static void process(BooleanBlock.Builder builder, BitSet nulls, boolean lhs, boolean[] rhs) {
-        processCommon(builder, nulls, Boolean.valueOf(lhs), IntStream.range(0, rhs.length).mapToObj(idx -> rhs[idx]).toArray());
+    private static void checkMV(int p, Block field) {
+        if (field.getValueCount(p) > 1) {
+            throw new IllegalArgumentException("single-value function encountered multi-value");
+        }
     }
 
-    @Evaluator(extraName = "Int", skipNull = "false")
-    static void process(BooleanBlock.Builder builder, BitSet nulls, int lhs, int[] rhs) {
-        processCommon(builder, nulls, lhs, Arrays.stream(rhs).boxed().toArray(Integer[]::new));
+    @Evaluator(extraName = "Boolean", warnExceptions = { IllegalArgumentException.class })
+    static void process(BooleanBlock.Builder builder, int p, BooleanBlock lhs, BooleanBlock[] rhs) {
+        checkMV(p, lhs);
+        Boolean l = lhs.getBoolean(lhs.getFirstValueIndex(p));
+        Boolean[] r = new Boolean[rhs.length];
+        BitSet nulls = new BitSet(rhs.length);
+        int index;
+        for (int i = 0; i < rhs.length; i++) {
+            checkMV(p, rhs[i]);
+            if (rhs[i].isNull(p)) {
+                nulls.set(i);
+                continue;
+            }
+            index = rhs[i].getFirstValueIndex(p);
+            r[i] = rhs[i].getBoolean(index);
+        }
+        processCommon(builder, nulls, l, r);
     }
 
-    @Evaluator(extraName = "Long", skipNull = "false")
-    static void process(BooleanBlock.Builder builder, BitSet nulls, long lhs, long[] rhs) {
-        processCommon(builder, nulls, lhs, Arrays.stream(rhs).boxed().toArray(Long[]::new));
+    @Evaluator(extraName = "Int", warnExceptions = { IllegalArgumentException.class })
+    static void process(BooleanBlock.Builder builder, int p, IntBlock lhs, IntBlock[] rhs) {
+        checkMV(p, lhs);
+        Integer l = lhs.getInt(lhs.getFirstValueIndex(p));
+        Integer[] r = new Integer[rhs.length];
+        BitSet nulls = new BitSet(rhs.length);
+        int index;
+        for (int i = 0; i < rhs.length; i++) {
+            checkMV(p, rhs[i]);
+            if (rhs[i].isNull(p)) {
+                nulls.set(i);
+                continue;
+            }
+            index = rhs[i].getFirstValueIndex(p);
+            r[i] = rhs[i].getInt(index);
+        }
+        processCommon(builder, nulls, l, r);
     }
 
-    @Evaluator(extraName = "Double", skipNull = "false")
-    static void process(BooleanBlock.Builder builder, BitSet nulls, double lhs, double[] rhs) {
-        processCommon(builder, nulls, lhs, Arrays.stream(rhs).boxed().toArray(Double[]::new));
+    @Evaluator(extraName = "Long", warnExceptions = { IllegalArgumentException.class })
+    static void process(BooleanBlock.Builder builder, int p, LongBlock lhs, LongBlock[] rhs) {
+        checkMV(p, lhs);
+        Long l = lhs.getLong(lhs.getFirstValueIndex(p));
+        Long[] r = new Long[rhs.length];
+        BitSet nulls = new BitSet(rhs.length);
+        int index;
+        for (int i = 0; i < rhs.length; i++) {
+            checkMV(p, rhs[i]);
+            if (rhs[i].isNull(p)) {
+                nulls.set(i);
+                continue;
+            }
+            index = rhs[i].getFirstValueIndex(p);
+            r[i] = rhs[i].getLong(index);
+        }
+        processCommon(builder, nulls, l, r);
     }
 
-    @Evaluator(extraName = "BytesRef", skipNull = "false")
-    static void process(BooleanBlock.Builder builder, BitSet nulls, BytesRef lhs, BytesRef[] rhs) {
-        processCommon(builder, nulls, lhs, rhs);
+    @Evaluator(extraName = "Double", warnExceptions = { IllegalArgumentException.class })
+    static void process(BooleanBlock.Builder builder, int p, DoubleBlock lhs, DoubleBlock[] rhs) {
+        checkMV(p, lhs);
+        Double l = lhs.getDouble(lhs.getFirstValueIndex(p));
+        Double[] r = new Double[rhs.length];
+        BitSet nulls = new BitSet(rhs.length);
+        int index;
+        for (int i = 0; i < rhs.length; i++) {
+            checkMV(p, rhs[i]);
+            if (rhs[i].isNull(p)) {
+                nulls.set(i);
+                continue;
+            }
+            index = rhs[i].getFirstValueIndex(p);
+            r[i] = rhs[i].getDouble(index);
+        }
+        processCommon(builder, nulls, l, r);
+    }
+
+    @Evaluator(extraName = "BytesRef", warnExceptions = { IllegalArgumentException.class })
+    static void process(BooleanBlock.Builder builder, int p, BytesRefBlock lhs, BytesRefBlock[] rhs) {
+        checkMV(p, lhs);
+        BytesRef lhsScratch = new BytesRef();
+        BytesRef l = lhs.getBytesRef(lhs.getFirstValueIndex(p), lhsScratch);
+        BytesRef[] r = new BytesRef[rhs.length];
+        BytesRef[] rhsScratch = new BytesRef[rhs.length];
+        BitSet nulls = new BitSet(rhs.length);
+        int index;
+        for (int i = 0; i < rhs.length; i++) {
+            checkMV(p, rhs[i]);
+            if (rhs[i].isNull(p)) {
+                nulls.set(i);
+                continue;
+            }
+            rhsScratch[i] = new BytesRef();
+            index = rhs[i].getFirstValueIndex(p);
+            r[i] = rhs[i].getBytesRef(index, rhsScratch[i]);
+        }
+        processCommon(builder, nulls, l, r);
     }
 }

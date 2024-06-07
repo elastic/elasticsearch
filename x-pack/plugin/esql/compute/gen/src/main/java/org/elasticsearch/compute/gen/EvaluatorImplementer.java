@@ -19,7 +19,6 @@ import org.elasticsearch.compute.ann.Fixed;
 
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.BitSet;
 import java.util.List;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -60,23 +59,20 @@ public class EvaluatorImplementer {
     private final ProcessFunction processFunction;
     private final ClassName implementation;
     private final boolean processOutputsMultivalued;
-    private final boolean skipNull;
 
     public EvaluatorImplementer(
         Elements elements,
         javax.lang.model.util.Types types,
         ExecutableElement processFunction,
         String extraName,
-        List<TypeMirror> warnExceptions,
-        String skipNull
+        List<TypeMirror> warnExceptions
     ) {
         this.declarationType = (TypeElement) processFunction.getEnclosingElement();
+        this.processFunction = new ProcessFunction(elements, types, processFunction, warnExceptions);
         this.implementation = ClassName.get(
             elements.getPackageOf(declarationType).toString(),
             declarationType.getSimpleName() + extraName + "Evaluator"
         );
-        this.skipNull = skipNull.equalsIgnoreCase("true");
-        this.processFunction = new ProcessFunction(elements, types, processFunction, warnExceptions, this.skipNull);
         this.processOutputsMultivalued = this.processFunction.hasBlockType && (this.processFunction.builderArg != null);
     }
 
@@ -175,7 +171,6 @@ public class EvaluatorImplementer {
                 builder.addParameter(a.dataType(blockStyle), a.paramName(blockStyle));
             }
         });
-
         TypeName builderType = builderType(resultDataType);
         builder.beginControlFlow(
             "try($T result = driverContext.blockFactory().$L(positionCount))",
@@ -184,7 +179,6 @@ public class EvaluatorImplementer {
         );
         {
             processFunction.args.stream().forEach(a -> a.createScratch(builder));
-
             builder.beginControlFlow("position: for (int p = 0; p < positionCount; p++)");
             {
                 if (blockStyle) {
@@ -202,6 +196,15 @@ public class EvaluatorImplementer {
                                     builder.addStatement("allBlocksAreNulls = false");
                                 }
                                 builder.endControlFlow();
+                            } else if (a instanceof BlockArrayProcessFunctionArg aba) {
+                                builder.beginControlFlow("aba: for (int i = 0; i < $L.length; i++)", aba.paramName(true));
+                                builder.beginControlFlow("if (!$N[i].isNull(p))", aba.paramName(blockStyle));
+                                {
+                                    builder.addStatement("allBlocksAreNulls = false");
+                                    builder.addStatement("break aba");
+                                }
+                                builder.endControlFlow();
+                                builder.endControlFlow();
                             }
                         });
 
@@ -214,7 +217,6 @@ public class EvaluatorImplementer {
                     }
                 }
                 processFunction.args.stream().forEach(a -> a.unpackValues(builder, blockStyle));
-
                 StringBuilder pattern = new StringBuilder();
                 List<Object> args = new ArrayList<>();
                 pattern.append(processOutputsMultivalued ? "$T.$N(result, p, " : "$T.$N(");
@@ -238,7 +240,6 @@ public class EvaluatorImplementer {
                     builder.beginControlFlow("try");
                 }
                 builder.addStatement(builtPattern, args.toArray());
-
                 if (processFunction.warnExceptions.isEmpty() == false) {
                     String catchPattern = "catch ("
                         + processFunction.warnExceptions.stream().map(m -> "$T").collect(Collectors.joining(" | "))
@@ -275,20 +276,6 @@ public class EvaluatorImplementer {
                 );
             }
             builder.endControlFlow();
-            builder.addStatement("result.appendNull()");
-            builder.addStatement("continue position");
-        }
-        builder.endControlFlow();
-    }
-
-    private static void skipMV(MethodSpec.Builder builder, String value) {
-        builder.beginControlFlow("if ($N.getValueCount(p) > 1)", value);
-        {
-            builder.addStatement(
-                // TODO: reflection on SingleValueQuery.MULTI_VALUE_WARNING?
-                "warnings.registerException(new $T(\"single-value function encountered multi-value\"))",
-                IllegalArgumentException.class
-            );
             builder.addStatement("result.appendNull()");
             builder.addStatement("continue position");
         }
@@ -459,11 +446,11 @@ public class EvaluatorImplementer {
         String closeInvocation();
     }
 
-    private record StandardProcessFunctionArg(TypeName type, String name, boolean skipNull) implements ProcessFunctionArg {
+    private record StandardProcessFunctionArg(TypeName type, String name) implements ProcessFunctionArg {
         @Override
         public TypeName dataType(boolean blockStyle) {
             if (blockStyle) {
-                return isBlockType() ? type : blockType(type);
+                return EvaluatorImplementer.isBlockType(type) ? type : blockType(type);
             }
             return vectorType(type);
         }
@@ -502,7 +489,7 @@ public class EvaluatorImplementer {
 
         @Override
         public void evalToBlock(MethodSpec.Builder builder) {
-            TypeName blockType = isBlockType() ? type : blockType(type);
+            TypeName blockType = EvaluatorImplementer.isBlockType(type) ? type : blockType(type);
             builder.beginControlFlow("try ($T $LBlock = ($T) $L.eval(page))", blockType, name, blockType, name);
         }
 
@@ -534,10 +521,6 @@ public class EvaluatorImplementer {
             // nothing to do
         }
 
-        private boolean isBlockType() {
-            return EvaluatorImplementer.isBlockType(type);
-        }
-
         @Override
         public void buildInvocation(StringBuilder pattern, List<Object> args, boolean blockStyle) {
             if (type.equals(BYTES_REF)) {
@@ -552,7 +535,7 @@ public class EvaluatorImplementer {
                 return;
             }
             if (blockStyle) {
-                if (isBlockType()) {
+                if (EvaluatorImplementer.isBlockType(type)) {
                     pattern.append("$L");
                 } else {
                     pattern.append("$L.$L($L.getFirstValueIndex(p))");
@@ -561,7 +544,7 @@ public class EvaluatorImplementer {
                 pattern.append("$L.$L(p)");
             }
             args.add(paramName(blockStyle));
-            String method = isBlockType() ? null : getMethod(type);
+            String method = EvaluatorImplementer.isBlockType(type) ? null : getMethod(type);
             if (method != null) {
                 args.add(method);
                 if (blockStyle) {
@@ -583,7 +566,7 @@ public class EvaluatorImplementer {
         }
     }
 
-    private record ArrayProcessFunctionArg(TypeName componentType, String name, boolean skipNull) implements ProcessFunctionArg {
+    private record ArrayProcessFunctionArg(TypeName componentType, String name) implements ProcessFunctionArg {
         @Override
         public TypeName dataType(boolean blockStyle) {
             if (blockStyle) {
@@ -661,9 +644,6 @@ public class EvaluatorImplementer {
         @Override
         public void createScratch(MethodSpec.Builder builder) {
             builder.addStatement("$T[] $LValues = new $T[$L.length]", componentType, name, componentType, name);
-            if (skipNull == false) {
-                builder.addStatement("$T nulls = new $T($L.length)", BitSet.class, BitSet.class, name);
-            }
             if (componentType.equals(BYTES_REF)) {
                 builder.addStatement("$T[] $LScratch = new $T[$L.length]", componentType, name, componentType, name);
                 builder.beginControlFlow("for (int i = 0; i < $L.length; i++)", name);
@@ -675,32 +655,15 @@ public class EvaluatorImplementer {
         @Override
         public void skipNull(MethodSpec.Builder builder) {
             builder.beginControlFlow("for (int i = 0; i < $L.length; i++)", paramName(true));
-            if (skipNull == false) {
-                EvaluatorImplementer.skipMV(builder, paramName(true) + "[i]");
-            } else {
-                EvaluatorImplementer.skipNull(builder, paramName(true) + "[i]");
-            }
+            EvaluatorImplementer.skipNull(builder, paramName(true) + "[i]");
             builder.endControlFlow();
         }
 
         @Override
         public void unpackValues(MethodSpec.Builder builder, boolean blockStyle) {
             builder.addComment("unpack $L into $LValues", paramName(blockStyle), name);
-            if (skipNull == false) {
-                builder.addStatement("nulls.clear()");
-                builder.beginControlFlow("arrayArgs: for (int i = 0; i < $L.length; i++)", paramName(blockStyle));
-            } else {
-                builder.beginControlFlow("for (int i = 0; i < $L.length; i++)", paramName(blockStyle));
-            }
+            builder.beginControlFlow("for (int i = 0; i < $L.length; i++)", paramName(blockStyle));
             String lookupVar;
-            if (blockStyle && skipNull == false) {
-                builder.beginControlFlow("if ($L[i].isNull(p))", paramName(blockStyle));
-                {
-                    builder.addStatement("nulls.set(i)");
-                    builder.addStatement("continue arrayArgs");
-                }
-                builder.endControlFlow();
-            }
             if (blockStyle) {
                 lookupVar = "o";
                 builder.addStatement("int o = $LBlocks[i].getFirstValueIndex(p)", name);
@@ -833,7 +796,7 @@ public class EvaluatorImplementer {
         }
     }
 
-    private record BuilderProcessFunctionArg(ClassName type, String name, boolean skipNull) implements ProcessFunctionArg {
+    private record BuilderProcessFunctionArg(ClassName type, String name) implements ProcessFunctionArg {
         @Override
         public TypeName dataType(boolean blockStyle) {
             return type;
@@ -902,14 +865,8 @@ public class EvaluatorImplementer {
 
         @Override
         public void buildInvocation(StringBuilder pattern, List<Object> args, boolean blockStyle) {
-            if (skipNull == false) {
-                pattern.append("$L, $L");
-                args.add("result");
-                args.add("nulls");
-            } else {
-                pattern.append("$L");
-                args.add("result");
-            }
+            pattern.append("$L");
+            args.add("result");
         }
 
         @Override
@@ -923,7 +880,7 @@ public class EvaluatorImplementer {
         }
     }
 
-    private record BlockProcessFunctionArg(TypeName type, String name, boolean skipNull) implements ProcessFunctionArg {
+    private record BlockProcessFunctionArg(TypeName type, String name) implements ProcessFunctionArg {
         @Override
         public TypeName dataType(boolean blockStyle) {
             return type;
@@ -1010,27 +967,126 @@ public class EvaluatorImplementer {
         }
     }
 
+    private record BlockArrayProcessFunctionArg(TypeName componentType, String name) implements ProcessFunctionArg {
+        @Override
+        public TypeName dataType(boolean blockStyle) {
+            if (blockStyle) {
+                return ArrayTypeName.of(componentType);
+            }
+            return ArrayTypeName.of(componentType);
+        }
+
+        @Override
+        public String paramName(boolean blockStyle) {
+            return name + (blockStyle ? "Block" : "Vector") + "s";
+        }
+
+        @Override
+        public void declareField(TypeSpec.Builder builder) {
+            builder.addField(ArrayTypeName.of(EXPRESSION_EVALUATOR), name, Modifier.PRIVATE, Modifier.FINAL);
+        }
+
+        @Override
+        public void declareFactoryField(TypeSpec.Builder builder) {
+            builder.addField(ArrayTypeName.of(EXPRESSION_EVALUATOR_FACTORY), name, Modifier.PRIVATE, Modifier.FINAL);
+        }
+
+        @Override
+        public void implementCtor(MethodSpec.Builder builder) {
+            builder.addParameter(ArrayTypeName.of(EXPRESSION_EVALUATOR), name);
+            builder.addStatement("this.$L = $L", name, name);
+        }
+
+        @Override
+        public void implementFactoryCtor(MethodSpec.Builder builder) {
+            builder.addParameter(ArrayTypeName.of(EXPRESSION_EVALUATOR_FACTORY), name);
+            builder.addStatement("this.$L = $L", name, name);
+        }
+
+        @Override
+        public String factoryInvocation(MethodSpec.Builder factoryMethodBuilder) {
+            factoryMethodBuilder.addStatement(
+                "$T[] $L = Arrays.stream(this.$L).map(a -> a.get(context)).toArray($T[]::new)",
+                EXPRESSION_EVALUATOR,
+                name,
+                name,
+                EXPRESSION_EVALUATOR
+            );
+            return name;
+        }
+
+        @Override
+        public void evalToBlock(MethodSpec.Builder builder) {
+            builder.addStatement("$T[] $LBlocks = new $T[$L.length]", componentType, name, componentType, name);
+            builder.beginControlFlow("try ($T $LRelease = $T.wrap($LBlocks))", RELEASABLE, name, RELEASABLES, name);
+            builder.beginControlFlow("for (int i = 0; i < $LBlocks.length; i++)", name);
+            {
+                builder.addStatement("$LBlocks[i] = ($T)$L[i].eval(page)", name, componentType, name);
+            }
+            builder.endControlFlow();
+        }
+
+        @Override
+        public void closeEvalToBlock(MethodSpec.Builder builder) {
+            builder.endControlFlow();
+        }
+
+        @Override
+        public void resolveVectors(MethodSpec.Builder builder, String invokeBlockEval) {}
+
+        @Override
+        public void createScratch(MethodSpec.Builder builder) {
+            if (componentType.equals(BYTES_REF)) {
+                builder.addStatement("$T[] $LScratch = new $T[$L.length]", componentType, name, componentType, name);
+                builder.beginControlFlow("for (int i = 0; i < $L.length; i++)", name);
+                builder.addStatement("$LScratch[i] = new $T()", name, BYTES_REF);
+                builder.endControlFlow();
+            }
+        }
+
+        @Override
+        public void skipNull(MethodSpec.Builder builder) {}
+
+        @Override
+        public void unpackValues(MethodSpec.Builder builder, boolean blockStyle) {}
+
+        @Override
+        public void buildInvocation(StringBuilder pattern, List<Object> args, boolean blockStyle) {
+            pattern.append("$L");
+            args.add(paramName(blockStyle));
+        }
+
+        @Override
+        public void buildToStringInvocation(StringBuilder pattern, List<Object> args, String prefix) {
+            pattern.append(" + $S + $T.toString($L)");
+            args.add(prefix + name + "=");
+            args.add(Arrays.class);
+            args.add(name);
+        }
+
+        @Override
+        public String closeInvocation() {
+            return "() -> Releasables.close(" + name + ")";
+        }
+    }
+
     private static class ProcessFunction {
         private final ExecutableElement function;
         private final List<ProcessFunctionArg> args;
         private final BuilderProcessFunctionArg builderArg;
         private final List<TypeMirror> warnExceptions;
-        private final boolean skipNull;
-
         private boolean hasBlockType;
 
         private ProcessFunction(
             Elements elements,
             javax.lang.model.util.Types types,
             ExecutableElement function,
-            List<TypeMirror> warnExceptions,
-            boolean skipNull
+            List<TypeMirror> warnExceptions
         ) {
             this.function = function;
             args = new ArrayList<>();
             BuilderProcessFunctionArg builderArg = null;
             hasBlockType = false;
-            boolean processedNullFlag = false;
             for (VariableElement v : function.getParameters()) {
                 TypeName type = TypeName.get(v.asType());
                 String name = v.getSimpleName().toString();
@@ -1054,32 +1110,31 @@ public class EvaluatorImplementer {
                     if (builderArg != null) {
                         throw new IllegalArgumentException("only one builder allowed");
                     }
-                    builderArg = new BuilderProcessFunctionArg(c, name, skipNull);
+                    builderArg = new BuilderProcessFunctionArg(c, name);
                     args.add(builderArg);
-                    continue;
-                }
-                if (builderArg != null && args.size() == 1 && builderArg.skipNull == false && processedNullFlag == false) {
-                    processedNullFlag = true;
                     continue;
                 }
                 if (v.asType().getKind() == TypeKind.ARRAY) {
                     TypeMirror componentType = ((ArrayType) v.asType()).getComponentType();
-                    args.add(new ArrayProcessFunctionArg(TypeName.get(componentType), name, skipNull));
+                    if (isBlockType(TypeName.get(componentType))) {
+                        args.add(new BlockArrayProcessFunctionArg(TypeName.get(componentType), name));
+                    } else {
+                        args.add(new ArrayProcessFunctionArg(TypeName.get(componentType), name));
+                    }
                     continue;
                 }
-                if (isBlockType(type)) {
+                if (EvaluatorImplementer.isBlockType(type)) {
                     if (builderArg != null && args.size() == 2 && hasBlockType == false) {
                         args.clear();
                         hasBlockType = true;
                     }
-                    args.add(new BlockProcessFunctionArg(type, name, skipNull));
+                    args.add(new BlockProcessFunctionArg(type, name));
                     continue;
                 }
-                args.add(new StandardProcessFunctionArg(type, name, skipNull));
+                args.add(new StandardProcessFunctionArg(type, name));
             }
             this.builderArg = builderArg;
             this.warnExceptions = warnExceptions;
-            this.skipNull = skipNull;
         }
 
         private ClassName resultDataType(boolean blockStyle) {

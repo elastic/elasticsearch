@@ -8,6 +8,7 @@
 
 package org.elasticsearch.search.rank;
 
+import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -16,6 +17,8 @@ import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.rank.context.QueryPhaseRankCoordinatorContext;
 import org.elasticsearch.search.rank.context.QueryPhaseRankShardContext;
+import org.elasticsearch.search.rank.context.RankFeaturePhaseRankCoordinatorContext;
+import org.elasticsearch.search.rank.context.RankFeaturePhaseRankShardContext;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -32,7 +35,7 @@ public abstract class RankBuilder implements VersionedNamedWriteable, ToXContent
 
     public static final ParseField RANK_WINDOW_SIZE_FIELD = new ParseField("rank_window_size");
 
-    public static final int DEFAULT_WINDOW_SIZE = SearchService.DEFAULT_SIZE;
+    public static final int DEFAULT_RANK_WINDOW_SIZE = SearchService.DEFAULT_SIZE;
 
     private final int rankWindowSize;
 
@@ -69,6 +72,19 @@ public abstract class RankBuilder implements VersionedNamedWriteable, ToXContent
     }
 
     /**
+     * Specify whether this rank builder is a compound builder or not. A compound builder is a rank builder that requires
+     * two or more queries to be executed in order to generate the final result.
+     */
+    public abstract boolean isCompoundBuilder();
+
+    /**
+     * Generates an {@code Explanation} on how the final score for the provided {@code RankDoc} is computed for the given `RankBuilder`.
+     * In addition to the base explanation to enrich, we also have access to the query names that were provided in the request,
+     * so that we can have direct association with the user provided query.
+     */
+    public abstract Explanation explainHit(Explanation baseExplanation, RankDoc scoreDoc, List<String> queryNames);
+
+    /**
      * Generates a context used to execute required searches during the query phase on the shard.
      */
     public abstract QueryPhaseRankShardContext buildQueryPhaseShardContext(List<Query> queries, int from);
@@ -77,6 +93,19 @@ public abstract class RankBuilder implements VersionedNamedWriteable, ToXContent
      * Generates a context used to be executed on the coordinating node, that would combine all individual shard results.
      */
     public abstract QueryPhaseRankCoordinatorContext buildQueryPhaseCoordinatorContext(int size, int from);
+
+    /**
+     * Generates a context used to execute the rank feature phase on the shard. This is responsible for retrieving any needed
+     * feature data, and passing them back to the coordinator through the appropriate {@link  RankShardResult}.
+     */
+    public abstract RankFeaturePhaseRankShardContext buildRankFeaturePhaseShardContext();
+
+    /**
+     * Generates a context used to perform global ranking during the RankFeature phase,
+     * on the coordinator based on all the individual shard results. The output of this will be a `size` ranked list of ordered results,
+     * which will then be passed to fetch phase.
+     */
+    public abstract RankFeaturePhaseRankCoordinatorContext buildRankFeaturePhaseCoordinatorContext(int size, int from);
 
     @Override
     public final boolean equals(Object obj) {

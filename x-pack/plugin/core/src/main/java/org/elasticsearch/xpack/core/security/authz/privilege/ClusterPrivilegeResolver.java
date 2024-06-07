@@ -24,6 +24,7 @@ import org.elasticsearch.action.ingest.SimulatePipelineAction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.tasks.TaskCancellationService;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.action.XPackInfoAction;
@@ -183,6 +184,8 @@ public class ClusterPrivilegeResolver {
     private static final Set<String> CROSS_CLUSTER_SEARCH_PATTERN = Set.of(
         RemoteClusterService.REMOTE_CLUSTER_HANDSHAKE_ACTION_NAME,
         RemoteClusterNodesAction.TYPE.name(),
+        TaskCancellationService.REMOTE_CLUSTER_BAN_PARENT_ACTION_NAME,
+        TaskCancellationService.REMOTE_CLUSTER_CANCEL_CHILD_ACTION_NAME,
         XPackInfoAction.NAME,
         // esql enrich
         "cluster:monitor/xpack/enrich/esql/resolve_policy",
@@ -192,6 +195,8 @@ public class ClusterPrivilegeResolver {
     private static final Set<String> CROSS_CLUSTER_REPLICATION_PATTERN = Set.of(
         RemoteClusterService.REMOTE_CLUSTER_HANDSHAKE_ACTION_NAME,
         RemoteClusterNodesAction.TYPE.name(),
+        TaskCancellationService.REMOTE_CLUSTER_BAN_PARENT_ACTION_NAME,
+        TaskCancellationService.REMOTE_CLUSTER_CANCEL_CHILD_ACTION_NAME,
         XPackInfoAction.NAME,
         ClusterStateAction.NAME
     );

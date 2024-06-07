@@ -25,7 +25,6 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.Column;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
-import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.io.stream.PlanNameRegistry.PlanNamedReader;
 import org.elasticsearch.xpack.esql.io.stream.PlanNameRegistry.PlanReader;
@@ -93,12 +92,9 @@ public final class PlanStreamInput extends NamedWriteableAwareStreamInput
         return readOptionalNamed(PhysicalPlan.class);
     }
 
+    @Override
     public Expression readExpression() throws IOException {
         return readNamed(Expression.class);
-    }
-
-    public NamedExpression readNamedExpression() throws IOException {
-        return readNamed(NamedExpression.class);
     }
 
     public <T> T readNamed(Class<T> type) throws IOException {

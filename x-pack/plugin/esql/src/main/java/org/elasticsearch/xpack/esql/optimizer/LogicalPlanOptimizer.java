@@ -32,7 +32,9 @@ import org.elasticsearch.xpack.esql.core.expression.Order;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.predicate.Predicates;
 import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Or;
+import org.elasticsearch.xpack.esql.core.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RegexMatch;
+import org.elasticsearch.xpack.esql.core.expression.predicate.regex.StringPattern;
 import org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules;
 import org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules.ConstantFolding;
 import org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules.LiteralsOnTheRight;
@@ -66,10 +68,13 @@ import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
+import org.elasticsearch.xpack.esql.plan.logical.Lookup;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.RegexExtract;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
+import org.elasticsearch.xpack.esql.plan.logical.join.Join;
+import org.elasticsearch.xpack.esql.plan.logical.join.JoinType;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
@@ -119,6 +124,7 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
         return new Batch<>(
             "Substitutions",
             Limiter.ONCE,
+            new ReplaceLookupWithJoin(),
             new RemoveStatsOverride(),
             // first extract nested expressions inside aggs
             new ReplaceStatsNestedExpressionWithEval(),
@@ -655,6 +661,11 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
                             return new Limit(limit.source(), Literal.of(limit.limit(), l2), limit.child());
                         }
                     }
+                }
+            } else if (limit.child() instanceof Join join) {
+                if (join.config().type() == JoinType.LEFT && join.right() instanceof LocalRelation) {
+                    // This is a hash join from something like a lookup.
+                    return join.replaceChildren(limit.replaceChild(join.left()), join.right());
                 }
             }
             return limit;
@@ -1259,6 +1270,19 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
         }
     }
 
+    private static class ReplaceLookupWithJoin extends OptimizerRules.OptimizerRule<Lookup> {
+
+        ReplaceLookupWithJoin() {
+            super(TransformDirection.UP);
+        }
+
+        @Override
+        protected LogicalPlan rule(Lookup lookup) {
+            // left join between the main relation and the local, lookup relation
+            return new Join(lookup.source(), lookup.child(), lookup.localRelation(), lookup.joinConfig());
+        }
+    }
+
     /**
      * This adds an explicit TopN node to a plan that only has an OrderBy right before Lucene.
      * To date, the only known use case that "needs" this is a query of the form
@@ -1293,7 +1317,28 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
         }
     }
 
-    public static class ReplaceRegexMatch extends OptimizerRules.ReplaceRegexMatch {
+    public static class ReplaceRegexMatch extends org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules.OptimizerExpressionRule<
+        RegexMatch<?>> {
+
+        ReplaceRegexMatch() {
+            super(org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules.TransformDirection.DOWN);
+        }
+
+        @Override
+        public Expression rule(RegexMatch<?> regexMatch) {
+            Expression e = regexMatch;
+            StringPattern pattern = regexMatch.pattern();
+            if (pattern.matchesAll()) {
+                e = new IsNotNull(e.source(), regexMatch.field());
+            } else {
+                String match = pattern.exactMatch();
+                if (match != null) {
+                    Literal literal = new Literal(regexMatch.source(), match, DataType.KEYWORD);
+                    e = regexToEquals(regexMatch, literal);
+                }
+            }
+            return e;
+        }
 
         protected Expression regexToEquals(RegexMatch<?> regexMatch, Literal literal) {
             return new Equals(regexMatch.source(), regexMatch.field(), literal);

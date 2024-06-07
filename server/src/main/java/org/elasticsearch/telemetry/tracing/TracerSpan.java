@@ -11,11 +11,11 @@ package org.elasticsearch.telemetry.tracing;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Map;
 import java.util.function.Consumer;
-import java.util.function.Supplier;
 
 public class TracerSpan {
 
@@ -31,29 +31,26 @@ public class TracerSpan {
         }
     }
 
-    public static void span(ThreadPool threadPool, Tracer tracer, String name, Runnable action) {
-        span(threadPool, tracer, name, Map.of(), action);
+    public static Releasable span(ThreadPool threadPool, Tracer tracer, String name) {
+        return span(threadPool, tracer, name, Map.of());
     }
 
-    public static void span(ThreadPool threadPool, Tracer tracer, String name, Map<String, Object> attributes, Runnable action) {
-        span(threadPool, tracer, name, attributes, () -> {
-            action.run();
-            return null;
-        });
-    }
-
-    public static <T> T span(ThreadPool threadPool, Tracer tracer, String name, Supplier<T> action) {
-        return span(threadPool, tracer, name, Map.of(), action);
-    }
-
-    public static <T> T span(ThreadPool threadPool, Tracer tracer, String name, Map<String, Object> attributes, Supplier<T> action) {
-        var span = Span.create();
-        try (var ctx = threadPool.getThreadContext().newTraceContext()) {
-            tracer.startTrace(threadPool.getThreadContext(), span, name, attributes);
-            return action.get();
-        } finally {
-            tracer.stopTrace(span);
+    /**
+     * Creates a new span for a synchronous block of code.
+     * @return a span that needs to be released once block of code is completed
+     */
+    public static Releasable span(ThreadPool threadPool, Tracer tracer, String name, Map<String, Object> attributes) {
+        if (tracer.isEnabled() == false) {
+            return () -> {};
         }
+        var span = Span.create();
+        var ctx = threadPool.getThreadContext().newTraceContext();
+        tracer.startTrace(threadPool.getThreadContext(), span, name, attributes);
+
+        return () -> {
+            tracer.stopTrace(span);
+            ctx.restore();
+        };
     }
 
     public static <T> void span(

@@ -495,7 +495,7 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
                 logger.info("{}, term: {}, version: {}, reason: {}", summary, newClusterState.term(), newClusterState.version(), source);
             }
         }
-        TracerSpan.span(threadPool, tracer, "applying_cluster_state", () -> {
+        try (var span = TracerSpan.span(threadPool, tracer, "applying_cluster_state")) {
             logger.trace("connecting to nodes of cluster state with version {}", newClusterState.version());
             try (Releasable ignored = stopWatch.record("connecting to new nodes")) {
                 connectToNodesAndWait(newClusterState);
@@ -519,7 +519,8 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
             state.set(newClusterState);
 
             callClusterStateListeners(clusterChangedEvent, stopWatch);
-        });
+        }
+        ;
     }
 
     protected void connectToNodesAndWait(ClusterState newClusterState) {
@@ -552,12 +553,11 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
         for (ClusterStateApplier applier : clusterStateAppliers) {
             logger.trace("calling [{}] with change to version [{}]", applier, clusterChangedEvent.state().version());
             final String name = applier.toString();
-            TracerSpan.span(threadPool, tracer, "cluster-state-applier:" + name, () -> {
-                try (Releasable ignored = stopWatch.record(name)) {
-                    applier.applyClusterState(clusterChangedEvent);
-                }
+            try (var span = TracerSpan.span(threadPool, tracer, "cluster-state-applier:" + name); var ignored = stopWatch.record(name)) {
+                applier.applyClusterState(clusterChangedEvent);
                 // TODO assert "ClusterStateApplier must not set response headers in the ClusterApplierService"
-            });
+            }
+            ;
         }
     }
 
@@ -574,14 +574,15 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
         for (ClusterStateListener listener : listeners) {
             logger.trace("calling [{}] with change to version [{}]", listener, clusterChangedEvent.state().version());
             final String name = listener.toString();
-            TracerSpan.span(threadPool, tracer, "cluster-state-listener:" + name, () -> {
-                try (Releasable ignored = stopWatch.record(name)) {
-                    listener.clusterChanged(clusterChangedEvent);
-                } catch (Exception ex) {
-                    logger.warn("failed to notify ClusterStateListener", ex);
-                }
+            try (
+                var span = TracerSpan.span(threadPool, tracer, "cluster-state-listener:" + name);
+                Releasable ignored = stopWatch.record(name)
+            ) {
+                listener.clusterChanged(clusterChangedEvent);
                 // TODO assert "ClusterStateApplier must not set response headers in the ClusterStateListener"
-            });
+            } catch (Exception ex) {
+                logger.warn("failed to notify ClusterStateListener", ex);
+            }
         }
     }
 

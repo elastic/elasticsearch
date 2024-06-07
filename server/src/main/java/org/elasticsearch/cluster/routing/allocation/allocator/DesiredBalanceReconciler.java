@@ -136,13 +136,16 @@ public class DesiredBalanceReconciler {
         var nodeIds = allocation.routingNodes().getAllNodeIds();
         allocationOrdering.retainNodes(nodeIds);
         moveOrdering.retainNodes(nodeIds);
-        TracerSpan.span(
-            threadPool,
-            tracer,
-            "reconcile-desired-balance",
-            Map.of("desired-balance-index", desiredBalance.lastConvergedIndex()),
-            new Reconciliation(desiredBalance, allocation)::run
-        );
+        try (
+            var span = TracerSpan.span(
+                threadPool,
+                tracer,
+                "reconcile-desired-balance",
+                Map.of("desired-balance-index", desiredBalance.lastConvergedIndex())
+            )
+        ) {
+            new Reconciliation(desiredBalance, allocation).run();
+        }
     }
 
     public void clear() {
@@ -183,22 +186,22 @@ public class DesiredBalanceReconciler {
                 // compute next moves towards current desired balance:
 
                 // 1. allocate unassigned shards first
-                TracerSpan.span(threadPool, tracer, "allocate-unassigned-shards", () -> {
+                try (var span = TracerSpan.span(threadPool, tracer, "allocate-unassigned-shards")) {
                     logger.trace("Reconciler#allocateUnassigned");
                     allocateUnassigned();
                     assert allocateUnassignedInvariant();
-                });
+                }
 
                 // 2. move any shards that cannot remain where they are
-                TracerSpan.span(threadPool, tracer, "move-shards", () -> {
+                try (var span = TracerSpan.span(threadPool, tracer, "move-shards")) {
                     logger.trace("Reconciler#moveShards");
                     moveShards();
-                });
+                }
                 // 3. move any other shards that are desired elsewhere
-                TracerSpan.span(threadPool, tracer, "balance-shards", () -> {
+                try (var span = TracerSpan.span(threadPool, tracer, "balance-shards")) {
                     logger.trace("Reconciler#balance");
                     balance();
-                });
+                }
 
                 logger.debug("Reconciliation is complete");
             }

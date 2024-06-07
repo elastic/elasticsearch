@@ -238,15 +238,13 @@ public class MasterService extends AbstractLifecycleComponent {
         }
 
         final long computationStartTime = threadPool.rawRelativeTimeInMillis();
-        final var newClusterState = TracerSpan.span(
-            threadPool,
-            tracer,
-            "computing-cluster-state:" + executor,
-            () -> patchVersions(
+        ClusterState newClusterState;
+        try (var span = TracerSpan.span(threadPool, tracer, "computing-cluster-state:" + executor)) {
+            newClusterState = patchVersions(
                 previousClusterState,
                 executeTasks(previousClusterState, executionResults, executor, summary, threadPool.getThreadContext())
-            )
-        );
+            );
+        }
         final TimeValue computationTime = getTimeSince(computationStartTime);
         logExecutionTime(computationTime, "compute cluster state update", summary);
 

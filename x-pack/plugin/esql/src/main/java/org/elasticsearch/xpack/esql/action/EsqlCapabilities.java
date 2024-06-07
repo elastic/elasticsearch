@@ -53,9 +53,9 @@ public class EsqlCapabilities {
     private static final String METADATA_IGNORED_FIELD = "metadata_field_ignored";
 
     /**
-     * Support for requesting the "LOOKUP" command.
+     * Support for the "LOOKUP" command.
      */
-    private static final String LOOKUP = "lookup";
+    private static final String LOOKUP_COMMAND = "lookup_command";
 
     /**
      * Support for requesting the "REPEAT" command.
@@ -83,7 +83,7 @@ public class EsqlCapabilities {
         caps.add(IN_EVALUATORMAPPER);
 
         if (Build.current().isSnapshot()) {
-            caps.add(LOOKUP);
+            caps.add(LOOKUP_COMMAND);
         }
 
         /*

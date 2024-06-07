@@ -16,10 +16,10 @@ import java.util.ArrayList;
 
 import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig.DEFAULT_RESULTS_FIELD;
 
-public class ChunkedTextExpansionResultsTests extends AbstractWireSerializingTestCase<ChunkedTextExpansionResults> {
+public class InferenceChunkedTextExpansionResultsTests extends AbstractWireSerializingTestCase<InferenceChunkedTextExpansionResults> {
 
-    public static ChunkedTextExpansionResults createRandomResults() {
-        var chunks = new ArrayList<ChunkedTextExpansionResults.ChunkedResult>();
+    public static InferenceChunkedTextExpansionResults createRandomResults() {
+        var chunks = new ArrayList<InferenceChunkedTextExpansionResults.ChunkedResult>();
         int numChunks = randomIntBetween(1, 5);
 
         for (int i = 0; i < numChunks; i++) {
@@ -28,24 +28,24 @@ public class ChunkedTextExpansionResultsTests extends AbstractWireSerializingTes
             for (int j = 0; j < numTokens; j++) {
                 tokenWeights.add(new WeightedToken(Integer.toString(j), (float) randomDoubleBetween(0.0, 5.0, false)));
             }
-            chunks.add(new ChunkedTextExpansionResults.ChunkedResult(randomAlphaOfLength(6), tokenWeights));
+            chunks.add(new InferenceChunkedTextExpansionResults.ChunkedResult(randomAlphaOfLength(6), tokenWeights));
         }
 
-        return new ChunkedTextExpansionResults(DEFAULT_RESULTS_FIELD, chunks, randomBoolean());
+        return new InferenceChunkedTextExpansionResults(DEFAULT_RESULTS_FIELD, chunks, randomBoolean());
     }
 
     @Override
-    protected Writeable.Reader<ChunkedTextExpansionResults> instanceReader() {
-        return ChunkedTextExpansionResults::new;
+    protected Writeable.Reader<InferenceChunkedTextExpansionResults> instanceReader() {
+        return InferenceChunkedTextExpansionResults::new;
     }
 
     @Override
-    protected ChunkedTextExpansionResults createTestInstance() {
+    protected InferenceChunkedTextExpansionResults createTestInstance() {
         return createRandomResults();
     }
 
     @Override
-    protected ChunkedTextExpansionResults mutateInstance(ChunkedTextExpansionResults instance) throws IOException {
+    protected InferenceChunkedTextExpansionResults mutateInstance(InferenceChunkedTextExpansionResults instance) throws IOException {
         return null;
     }
 }

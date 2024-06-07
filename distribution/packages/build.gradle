@@ -274,7 +274,9 @@ Closure commonPackageConfig(String type, boolean oss, boolean jdk, String archit
     // ========= sysV init =========
     configurationFile '/etc/init.d/elasticsearch'
     into('/etc/init.d') {
-      fileMode 0750
+      filePermissions {
+        unix(0755)
+      }
       fileType CONFIG | NOREPLACE
       from "${packagingFiles}/init.d/elasticsearch"
     }

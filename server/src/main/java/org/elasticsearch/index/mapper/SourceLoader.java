@@ -57,6 +57,14 @@ public interface SourceLoader {
          * @param docId the doc to load
          */
         Source source(LeafStoredFieldLoader storedFields, int docId) throws IOException;
+
+        /**
+         * Write the {@code _source} for a document in the provided {@link XContentBuilder}.
+         * @param storedFields a loader for stored fields
+         * @param docId the doc to load
+         * @param b the builder to write the xcontent
+         */
+        void write(LeafStoredFieldLoader storedFields, int docId, XContentBuilder b) throws IOException;
     }
 
     /**
@@ -70,7 +78,18 @@ public interface SourceLoader {
 
         @Override
         public Leaf leaf(LeafReader reader, int[] docIdsInLeaf) {
-            return (storedFieldLoader, docId) -> Source.fromBytes(storedFieldLoader.source());
+            return new Leaf() {
+                @Override
+                public Source source(LeafStoredFieldLoader storedFields, int docId) throws IOException {
+                    return Source.fromBytes(storedFields.source());
+                }
+
+                @Override
+                public void write(LeafStoredFieldLoader storedFields, int docId, XContentBuilder builder) throws IOException {
+                    Source source = source(storedFields, docId);
+                    builder.rawValue(source.internalSourceRef().streamInput(), source.sourceContentType());
+                }
+            };
         }
 
         @Override
@@ -87,8 +106,8 @@ public interface SourceLoader {
         private final Set<String> requiredStoredFields;
         private final SourceFieldMetrics metrics;
 
-        public Synthetic(Mapping mapping, SourceFieldMetrics metrics) {
-            this.syntheticFieldLoaderLeafSupplier = mapping::syntheticFieldLoader;
+        public Synthetic(Supplier<SyntheticFieldLoader> fieldLoaderSupplier, SourceFieldMetrics metrics) {
+            this.syntheticFieldLoaderLeafSupplier = fieldLoaderSupplier;
             this.requiredStoredFields = syntheticFieldLoaderLeafSupplier.get()
                 .storedFieldLoaders()
                 .map(Map.Entry::getKey)
@@ -126,6 +145,16 @@ public interface SourceLoader {
 
                 return source;
             }
+
+            @Override
+            public void write(LeafStoredFieldLoader storedFields, int docId, XContentBuilder b) throws IOException {
+                long startTime = metrics.getRelativeTimeSupplier().getAsLong();
+
+                leaf.write(storedFields, docId, b);
+
+                TimeValue duration = TimeValue.timeValueMillis(metrics.getRelativeTimeSupplier().getAsLong() - startTime);
+                metrics.recordSyntheticSourceLoadLatency(duration);
+            }
         }
 
         private static class SyntheticLeaf implements Leaf {
@@ -143,6 +172,14 @@ public interface SourceLoader {
 
             @Override
             public Source source(LeafStoredFieldLoader storedFieldLoader, int docId) throws IOException {
+                try (XContentBuilder b = new XContentBuilder(JsonXContent.jsonXContent, new ByteArrayOutputStream())) {
+                    write(storedFieldLoader, docId, b);
+                    return Source.fromBytes(BytesReference.bytes(b), b.contentType());
+                }
+            }
+
+            @Override
+            public void write(LeafStoredFieldLoader storedFieldLoader, int docId, XContentBuilder b) throws IOException {
                 // Maps the names of existing objects to lists of ignored fields they contain.
                 Map<String, List<IgnoredSourceFieldMapper.NameValue>> objectsWithIgnoredFields = null;
 
@@ -168,13 +205,10 @@ public interface SourceLoader {
                     docValuesLoader.advanceToDoc(docId);
                 }
                 // TODO accept a requested xcontent type
-                try (XContentBuilder b = new XContentBuilder(JsonXContent.jsonXContent, new ByteArrayOutputStream())) {
-                    if (loader.hasValue()) {
-                        loader.write(b);
-                    } else {
-                        b.startObject().endObject();
-                    }
-                    return Source.fromBytes(BytesReference.bytes(b), b.contentType());
+                if (loader.hasValue()) {
+                    loader.write(b);
+                } else {
+                    b.startObject().endObject();
                 }
             }
         }

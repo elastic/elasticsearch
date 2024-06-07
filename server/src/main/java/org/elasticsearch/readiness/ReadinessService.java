@@ -22,6 +22,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.reservedstate.service.FileSettingsFeatures;
 import org.elasticsearch.reservedstate.service.FileSettingsService;
 import org.elasticsearch.shutdown.PluginShutdownService;
 import org.elasticsearch.transport.BindTransportException;
@@ -277,7 +278,15 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
     // protected to allow mock service to override
     protected boolean areFileSettingsApplied(ClusterState clusterState) {
         ReservedStateMetadata fileSettingsMetadata = clusterState.metadata().reservedStateMetadata().get(FileSettingsService.NAMESPACE);
-        return fileSettingsMetadata != null && fileSettingsMetadata.version().equals(ReservedStateMetadata.NO_VERSION) == false;
+        if (fileSettingsMetadata == null) {
+            // In order to block readiness on file settings being applied, we need to know that the master node has written an initial
+            // version, or a marker that file settings don't exist. When upgrading from a version that did not have file settings, the
+            // current master node may not be the first node upgraded. To be safe, we wait to consider file settings application for
+            // readiness until the whole cluster supports file settings.
+            return clusterState.clusterFeatures().clusterHasFeature(FileSettingsFeatures.FILE_SETTINGS_SUPPORTED) == false;
+        } else {
+            return fileSettingsMetadata.version().equals(ReservedStateMetadata.NO_VERSION) == false;
+        }
     }
 
     private void setReady(boolean ready) {

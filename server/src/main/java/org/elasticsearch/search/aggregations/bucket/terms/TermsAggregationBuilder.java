@@ -35,8 +35,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.Version.V_7_17_22;
-
 public class TermsAggregationBuilder extends ValuesSourceAggregationBuilder<TermsAggregationBuilder> {
     public static final String NAME = "terms";
     public static final ValuesSourceRegistry.RegistryKey<TermsAggregatorSupplier> REGISTRY_KEY = new ValuesSourceRegistry.RegistryKey<>(
@@ -156,9 +154,14 @@ public class TermsAggregationBuilder extends ValuesSourceAggregationBuilder<Term
         includeExclude = in.readOptionalWriteable(IncludeExclude::new);
         order = InternalOrder.Streams.readOrder(in);
         showTermDocCountError = in.readBoolean();
-        if (in.getVersion().onOrAfter(V_7_17_22)) {
-            excludeDeletedDocs = in.readBoolean();
+        // 7.17.x serialization compatibility
+        // due to a long-standing issue with transport serialization, you can not introduce new serialization in 7.17.x since it will break
+        // serialization for mixed clusters with 7.17.x and earlier versions of 8.x. This hack uses the metadata field to serialize
+        // the excludeDeletedDocs flag.
+        if (metadata != null && metadata.get("exclude_deleted_docs") != null) {
+            excludeDeletedDocs = true;
         }
+        // end 7.17.x serialization compatibility
     }
 
     @Override
@@ -174,9 +177,7 @@ public class TermsAggregationBuilder extends ValuesSourceAggregationBuilder<Term
         out.writeOptionalWriteable(includeExclude);
         order.writeTo(out);
         out.writeBoolean(showTermDocCountError);
-        if (out.getVersion().onOrAfter(V_7_17_22)) {
-            out.writeBoolean(excludeDeletedDocs);
-        }
+
     }
 
     /**

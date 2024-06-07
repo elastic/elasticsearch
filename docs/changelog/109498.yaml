@@ -1,0 +1,5 @@
+pr: 109498
+summary: Add test case for index aliasing
+area: Index
+type: test
+issues: []

@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -35,7 +36,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.index.IndexSettings.LOGS_INDEX_MODE_ENABLED;
+import static org.elasticsearch.index.IndexSettings.CLUSTER_LOGSDB_ENABLED_SETTING;
 
 public class StackTemplateRegistry extends IndexTemplateRegistry {
     private static final Logger logger = LogManager.getLogger(StackTemplateRegistry.class);
@@ -57,6 +58,17 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
         true,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
+    );
+
+    private static final FeatureFlag LOGS_INDEX_MODE_ENABLED_FEATURE_FLAG = new FeatureFlag("logs_index_mode_enabled");
+
+    /**
+     * if index.mode "logs" is applied by default in logs@settings for 'logs-*-*'
+     */
+    public static final Setting<Boolean> CLUSTER_LOGSDB_ENABLED_SETTING = Setting.boolSetting(
+        "cluster.logsdb.enabled",
+        LOGS_INDEX_MODE_ENABLED_FEATURE_FLAG.isEnabled(),
+        Setting.Property.NodeScope
     );
 
     private final ClusterService clusterService;
@@ -125,7 +137,7 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
         this.clusterService = clusterService;
         this.featureService = featureService;
         this.stackTemplateEnabled = STACK_TEMPLATES_ENABLED.get(nodeSettings);
-        this.logsIndexModeEnabled = LOGS_INDEX_MODE_ENABLED.get(nodeSettings);
+        this.logsIndexModeEnabled = CLUSTER_LOGSDB_ENABLED_SETTING.get(nodeSettings);
     }
 
     @Override

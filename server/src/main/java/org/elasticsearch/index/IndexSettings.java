@@ -23,7 +23,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.ingest.IngestService;
@@ -594,17 +593,6 @@ public final class IndexSettings {
         Property.IndexScope,
         Property.Final,
         Property.ServerlessPublic
-    );
-
-    private static final FeatureFlag LOGS_INDEX_MODE_ENABLED_FEATURE_FLAG = new FeatureFlag("logs_index_mode_enabled");
-
-    /**
-     * if index.mode "logs" is applied by default in logs@settings for 'logs-*-*'
-     */
-    public static final Setting<Boolean> LOGS_INDEX_MODE_ENABLED = Setting.boolSetting(
-        "index.mode.logs.enabled",
-        LOGS_INDEX_MODE_ENABLED_FEATURE_FLAG.isEnabled(),
-        Setting.Property.NodeScope
     );
 
     /**

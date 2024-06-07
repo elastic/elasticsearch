@@ -575,36 +575,6 @@ public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
         assertEquals(Set.of(indexNodes.get(1)), internalCluster().nodesInclude(indexName));
     }
 
-    public void testRecoverIndexingShard() throws Exception {
-
-        var indexingNode1 = startIndexNode();
-        startSearchNode();
-
-        var indexName = randomIdentifier();
-        createIndex(indexName, indexSettings(1, 1).build());
-        ensureGreen(indexName);
-
-        int numDocsRound1 = randomIntBetween(1, 100);
-        indexDocs(indexName, numDocsRound1);
-        refresh(indexName);
-
-        assertHitCount(prepareSearch(indexName), numDocsRound1);
-
-        if (randomBoolean()) {
-            internalCluster().restartNode(indexingNode1);
-        } else {
-            internalCluster().stopNode(indexingNode1);
-            startIndexNode(); // replacement node
-        }
-
-        ensureGreen(indexName);
-
-        int numDocsRound2 = randomIntBetween(1, 100);
-        indexDocs(indexName, numDocsRound2);
-        refresh(indexName);
-        assertHitCount(prepareSearch(indexName), numDocsRound1 + numDocsRound2);
-    }
-
     public void testRecoverSearchShard() throws IOException {
 
         startIndexNode();

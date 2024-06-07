@@ -1,0 +1,5 @@
+pr: 109492
+summary: Add hexstring support byte painless scorers
+area: "Infra/Scripting, Vector Search"
+type: bug
+issues: []

@@ -64,6 +64,7 @@ import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.startsWith;
 
 public class FullClusterRestartIT extends AbstractXpackFullClusterRestartTestCase {
@@ -899,7 +900,8 @@ public class FullClusterRestartIT extends AbstractXpackFullClusterRestartTestCas
         // check that the rollup job is started using the Cluster State API
         final Request clusterStateRequest = new Request("GET", "_cluster/state/metadata");
         Map<String, Object> clusterStateResponse = entityAsMap(client().performRequest(clusterStateRequest));
-        List<Map<String, Object>> rollupJobTasks = ObjectPath.eval("metadata.persistent_tasks.tasks", clusterStateResponse);
+        List<Map<String, Object>> rollupJobTasks = ObjectPath.eval("metadata.project.persistent_tasks.tasks", clusterStateResponse);
+        assertThat(rollupJobTasks, notNullValue());
 
         boolean hasRollupTask = false;
         for (Map<String, Object> task : rollupJobTasks) {

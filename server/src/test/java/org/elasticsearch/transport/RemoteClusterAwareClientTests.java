@@ -34,13 +34,14 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
+import static org.elasticsearch.test.tasks.MockTaskManager.USE_SPY_TASK_MANAGER_SETTING;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -74,7 +75,7 @@ public class RemoteClusterAwareClientTests extends ESTestCase {
 
     public void testRemoteTaskCancellationOnFailedResponse() throws Exception {
         Settings.Builder remoteTransportSettingsBuilder = Settings.builder();
-        remoteTransportSettingsBuilder.put("tests.mock.taskmanager.enabled", true);
+        remoteTransportSettingsBuilder.put(USE_SPY_TASK_MANAGER_SETTING.getKey(), true);
         try (
             MockTransportService remoteTransport = RemoteClusterConnectionTests.startTransport(
                 "seed_node",
@@ -122,22 +123,22 @@ public class RemoteClusterAwareClientTests extends ESTestCase {
                     randomBoolean()
                 );
 
-                AtomicBoolean cancelChildReceived = new AtomicBoolean(false);
+                CountDownLatch cancelChildReceived = new CountDownLatch(1);
                 remoteTransport.addRequestHandlingBehavior(
                     TaskCancellationService.CANCEL_CHILD_ACTION_NAME,
                     (handler, request, channel, task) -> {
                         handler.messageReceived(request, channel, task);
-                        cancelChildReceived.set(true);
+                        cancelChildReceived.countDown();
                     }
                 );
                 AtomicLong searchShardsRequestId = new AtomicLong(-1);
-                AtomicBoolean cancelChildSent = new AtomicBoolean(false);
+                CountDownLatch cancelChildSent = new CountDownLatch(1);
                 localService.addSendBehavior(remoteTransport, (connection, requestId, action, request, options) -> {
                     connection.sendRequest(requestId, action, request, options);
                     if (action.equals("indices:admin/search/search_shards")) {
                         searchShardsRequestId.set(requestId);
                     } else if (action.equals(TaskCancellationService.CANCEL_CHILD_ACTION_NAME)) {
-                        cancelChildSent.set(true);
+                        cancelChildSent.countDown();
                     }
                 });
 
@@ -148,15 +149,9 @@ public class RemoteClusterAwareClientTests extends ESTestCase {
                 assertThat(e.getCause(), instanceOf(RemoteTransportException.class));
 
                 // assert remote task is cancelled
-                assertBusy(cancelChildSent::get);
-                assertBusy(cancelChildReceived::get);
-                assertBusy(
-                    () -> verify(remoteTransport.getTaskManager()).cancelChildLocal(
-                        eq(parentTaskId),
-                        eq(searchShardsRequestId.get()),
-                        anyString()
-                    )
-                );
+                safeAwait(cancelChildSent);
+                safeAwait(cancelChildReceived);
+                verify(remoteTransport.getTaskManager()).cancelChildLocal(eq(parentTaskId), eq(searchShardsRequestId.get()), anyString());
             }
         }
     }

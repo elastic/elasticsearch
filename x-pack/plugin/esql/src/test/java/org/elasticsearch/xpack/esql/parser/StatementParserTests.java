@@ -1111,7 +1111,8 @@ public class StatementParserTests extends ESTestCase {
                 new QueryParam("n3", 100, INTEGER),
                 new QueryParam("n4", 10, INTEGER)
             ),
-            "Inconsistent parameter declaration, use either named or anonymous params but not both."
+            "Inconsistent parameter declaration, "
+                + "use one of positional, named or anonymous params but not a combination of named and anonymous"
         );
 
         expectError(
@@ -1122,7 +1123,8 @@ public class StatementParserTests extends ESTestCase {
                 new QueryParam("n3", 100, INTEGER),
                 new QueryParam("n4", 10, INTEGER)
             ),
-            "Inconsistent parameter declaration, use either named or positional params but not both."
+            "Inconsistent parameter declaration, "
+                + "use one of positional, named or anonymous params but not a combination of named and positional"
         );
 
         expectError(
@@ -1133,7 +1135,8 @@ public class StatementParserTests extends ESTestCase {
                 new QueryParam("n3", 100, INTEGER),
                 new QueryParam("n4", 10, INTEGER)
             ),
-            "Inconsistent parameter declaration, use either positional or anonymous params but not both."
+            "Inconsistent parameter declaration, "
+                + "use one of positional, named or anonymous params but not a combination of positional and anonymous"
         );
     }
 

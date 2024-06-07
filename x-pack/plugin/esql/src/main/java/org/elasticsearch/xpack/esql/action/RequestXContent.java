@@ -144,13 +144,11 @@ final class RequestXContent {
             TempObjects param;
 
             while ((token = p.nextToken()) != XContentParser.Token.END_ARRAY) {
-                XContentLocation loc = p.getTokenLocation();
+                ContentLocation loc = toProto(p.getTokenLocation());
 
                 if (token == XContentParser.Token.START_OBJECT) {
-                    // we are at the start of a value/type pair... hopefully
                     param = PARAM_PARSER.apply(p, null);
                     if (param.fields.size() > 1) {
-
                         errors.add(loc + " Cannot parse more than one key:value pair as parameter, found [" + param.fields() + "]");
                     }
                     for (Map.Entry<String, Object> entry : param.fields.entrySet()) {
@@ -165,9 +163,10 @@ final class RequestXContent {
                         }
                         type = EsqlDataTypes.fromJava(entry.getValue());
                         if (type == null) {
-                            errors.add(loc + " " + entry + " is not supported as a parameter.");
+                            errors.add(loc + " " + entry + " is not supported as a parameter");
                         }
                         currentParam = new QueryParam(entry.getKey(), entry.getValue(), type);
+                        currentParam.tokenLocation(loc);
                         namedParameter = true;
                         if (unnamedParameter && namedParameter) {
                             errors.add(
@@ -180,16 +179,6 @@ final class RequestXContent {
                                     + Arrays.toString(result.stream().map(QueryParam::value).toArray())
                             );
                         }
-                    }
-
-                    /*
-                     * Always set the xcontentlocation for the first param just in case the first one happens to not meet the parsing rules
-                     * that are checked later in validateParams method.
-                     * Also, set the xcontentlocation of the param that is different from the previous param in list when it comes to
-                     * its type being explicitly set or inferred.
-                     */
-                    if (result.isEmpty()) {
-                        currentParam.tokenLocation(toProto(loc));
                     }
                 } else {
                     if (token == XContentParser.Token.VALUE_STRING) {
@@ -216,6 +205,8 @@ final class RequestXContent {
                     } else {
                         errors.add(loc + " " + token + " is not supported as a parameter.");
                     }
+                    currentParam = new QueryParam(null, value, type);
+                    currentParam.tokenLocation(loc);
                     unnamedParameter = true;
                     if (unnamedParameter && namedParameter) {
                         errors.add(
@@ -226,17 +217,12 @@ final class RequestXContent {
                                 + Arrays.toString(result.stream().map(QueryParam::nameValue).toArray())
                         );
                     }
-                    currentParam = new QueryParam(null, value, type);
-                    if (result.isEmpty()) {
-                        currentParam.tokenLocation(toProto(loc));
-                    }
-
                 }
                 result.add(currentParam);
             }
         }
         if (errors.size() > 0) {
-            throw new XContentParseException("Failed to parse params: " + Arrays.toString(errors.toArray()));
+            throw new XContentParseException("Failed to parse params: " + String.join("; ", errors.stream().toArray(String[]::new)));
         }
         return new QueryParams(result);
     }

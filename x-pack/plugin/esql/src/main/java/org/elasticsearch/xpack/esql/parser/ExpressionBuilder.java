@@ -707,9 +707,6 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
     private Object visitParam(EsqlBaseParser.ParamsContext ctx, QueryParam param) {
         Source source = source(ctx);
         DataType type = param.type();
-        if (type == null) {
-            throw new ParsingException(source, "Invalid parameter data type [{}]", type);
-        }
         return new Literal(source, param.value(), type);
     }
 
@@ -738,7 +735,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
                 if (np > 0) {
                     message = ", did you mean " + (np == 1 ? "position 1?" : "any position between 1 and " + np + "?");
                 }
-                params.addParsingErrors(new Failure(null, "No parameter is defined for position " + index + message));
+                params.addParsingError(new Failure(null, "No parameter is defined for position " + index + message));
             }
             return params.get(index);
         } else {
@@ -749,7 +746,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
                     message = ", did you mean "
                         + (potentialMatches.size() == 1 ? "[" + potentialMatches.get(0) + "]?" : "any of " + potentialMatches + "?");
                 }
-                params.addParsingErrors(new Failure(null, "Unknown query parameter [" + nameOrPosition + "]" + message));
+                params.addParsingError(new Failure(null, "Unknown query parameter [" + nameOrPosition + "]" + message));
             }
             return params.get(nameOrPosition);
         }

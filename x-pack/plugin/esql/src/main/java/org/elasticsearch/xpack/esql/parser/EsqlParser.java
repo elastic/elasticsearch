@@ -123,6 +123,8 @@ public class EsqlParser {
         private int param;
         private QueryParams params;
         private BitSet paramTypes = new BitSet(3);
+        private static String message = "Inconsistent parameter declaration, "
+            + "use one of positional, named or anonymous params but not a combination of ";
 
         ParametrizedTokenSource(TokenSource delegate, Map<Token, QueryParam> paramTokens, QueryParams params) {
             this.delegate = delegate;
@@ -135,7 +137,7 @@ public class EsqlParser {
         public Token nextToken() {
             Token token = delegate.nextToken();
             if (token.getType() == EsqlBaseLexer.PARAM) {
-                hasOnlyAnonymousParam();
+                checkAnonymousParam();
                 if (param >= params.positionalParams().size()) {
                     throw new ParsingException("Not enough actual parameters {}", params.positionalParams().size());
                 }
@@ -145,9 +147,9 @@ public class EsqlParser {
 
             if (token.getType() == EsqlBaseLexer.NAMED_OR_POSITIONAL_PARAM) {
                 if (isInteger(token.getText().substring(1))) {
-                    hasOnlyPositionalParam();
+                    checkPositionalParam();
                 } else {
-                    hasOnlyNamedParam();
+                    checkNamedParam();
                 }
             }
             return token;
@@ -183,31 +185,24 @@ public class EsqlParser {
             return delegate.getTokenFactory();
         }
 
-        private void hasOnlyAnonymousParam() {
+        private void checkAnonymousParam() {
             paramTypes.set(0);
             if (paramTypes.cardinality() > 1) {
-                String error = paramTypes.get(1) ? "named" : "positional";
-                throw new ParsingException(
-                    "Inconsistent parameter declaration, use either anonymous or " + error + " params but not both."
-                );
+                throw new ParsingException(message + "anonymous and " + (paramTypes.get(1) ? "named" : "positional"));
             }
         }
 
-        private void hasOnlyNamedParam() {
+        private void checkNamedParam() {
             paramTypes.set(1);
             if (paramTypes.cardinality() > 1) {
-                String error = paramTypes.get(0) ? "anonymous" : "positional";
-                throw new ParsingException("Inconsistent parameter declaration, use either named or " + error + " params but not both.");
+                throw new ParsingException(message + "named and " + (paramTypes.get(0) ? "anonymous" : "positional"));
             }
         }
 
-        private void hasOnlyPositionalParam() {
+        private void checkPositionalParam() {
             paramTypes.set(2);
             if (paramTypes.cardinality() > 1) {
-                String error = paramTypes.get(0) ? "anonymous" : "named";
-                throw new ParsingException(
-                    "Inconsistent parameter declaration, use either positional or " + error + " params but not both."
-                );
+                throw new ParsingException(message + "positional and " + (paramTypes.get(0) ? "anonymous" : "named"));
             }
         }
     }

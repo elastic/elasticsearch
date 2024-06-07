@@ -78,7 +78,7 @@ public class QueryParams {
         return this.parsingErrors;
     }
 
-    public void addParsingErrors(Failure e) {
+    public void addParsingError(Failure e) {
         this.parsingErrors.add(e);
     }
 }

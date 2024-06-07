@@ -547,7 +547,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
             ResponseException.class,
             () -> runEsql(requestObjectBuilder().query("row a = 1 | eval x = ?").params("[{\"n1\": [5, 6, 7]}]"))
         );
-        assertThat(EntityUtils.toString(re.getResponse().getEntity()), containsString("n1=[5, 6, 7] is not supported as a parameter."));
+        assertThat(EntityUtils.toString(re.getResponse().getEntity()), containsString("n1=[5, 6, 7] is not supported as a parameter"));
     }
 
     private static String expectedTextBody(String format, int count, @Nullable Character csvDelimiter) {

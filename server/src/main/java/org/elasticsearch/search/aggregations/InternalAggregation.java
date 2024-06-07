@@ -359,8 +359,11 @@ public abstract class InternalAggregation implements Aggregation, NamedWriteable
             builder.startObject(getName());
         }
         if (this.metadata != null) {
-            builder.field(CommonFields.META.getPreferredName());
-            builder.map(this.metadata);
+            this.metadata.remove("exclude_deleted_docs");
+            if (this.metadata.isEmpty() == false) {
+                builder.field(CommonFields.META.getPreferredName());
+                builder.map(this.metadata);
+            }
         }
         doXContentBody(builder, params);
         builder.endObject();

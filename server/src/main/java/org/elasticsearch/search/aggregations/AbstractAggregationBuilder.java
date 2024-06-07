@@ -142,10 +142,7 @@ public abstract class AbstractAggregationBuilder<AB extends AbstractAggregationB
         builder.startObject(name);
 
         if (this.metadata != null) {
-            this.metadata.remove("exclude_delete_docs");
-            if (this.metadata.isEmpty() == false) {
-                builder.field("meta", this.metadata);
-            }
+            builder.field("meta", this.metadata);
         }
         builder.field(getType());
         internalXContent(builder, params);

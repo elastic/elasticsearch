@@ -74,7 +74,6 @@ import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.security.LocalStateSecurity;
 import org.elasticsearch.xpack.spatial.SpatialPlugin;
 import org.elasticsearch.xpack.spatial.index.query.ShapeQueryBuilder;
-import org.hamcrest.Matchers;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -104,6 +103,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 
 @LuceneTestCase.SuppressCodecs("*") // suppress test codecs otherwise test using completion suggester fails
@@ -1036,6 +1036,7 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
             )
             .get();
 
+        assertThat(response.toString(), not(containsString("exclude_deleted_docs")));
         assertThat(
             response.toString(),
             allOf(containsString("apple"), containsString("grape"), containsString("red"), containsString("-1"), containsString("-4"))
@@ -1043,11 +1044,11 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
         assertThat(
             response.toString(),
             allOf(
-                Matchers.not(containsString("banana")),
-                Matchers.not(containsString("yellow")),
-                Matchers.not(containsString("green")),
-                Matchers.not(containsString("-2")),
-                Matchers.not(containsString("-3"))
+                not(containsString("banana")),
+                not(containsString("yellow")),
+                not(containsString("green")),
+                not(containsString("-2")),
+                not(containsString("-3"))
             )
         );
         assertHitCount(response, 1);

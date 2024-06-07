@@ -110,7 +110,7 @@ public class MultiFeatureMigrationIT extends AbstractFeatureMigrationIntegTest {
             metadata.put("stringKey", "first plugin value");
 
             // We shouldn't have any results in the cluster state given no features have finished yet.
-            FeatureMigrationResults currentResults = clusterState.metadata().custom(FeatureMigrationResults.TYPE);
+            FeatureMigrationResults currentResults = FeatureMigrationResults.get(clusterState);
             assertThat(currentResults, nullValue());
 
             preMigrationHookCalled.set(true);
@@ -127,7 +127,7 @@ public class MultiFeatureMigrationIT extends AbstractFeatureMigrationIntegTest {
             assertThat(metadata, hasEntry("stringKey", "first plugin value"));
 
             // We shouldn't have any results in the cluster state given no features have finished yet.
-            FeatureMigrationResults currentResults = clusterState.metadata().custom(FeatureMigrationResults.TYPE);
+            FeatureMigrationResults currentResults = FeatureMigrationResults.get(clusterState);
             assertThat(currentResults, nullValue());
 
             postMigrationHookCalled.set(true);
@@ -144,7 +144,7 @@ public class MultiFeatureMigrationIT extends AbstractFeatureMigrationIntegTest {
             metadata.put("stringKey", "second plugin value");
 
             // But now, we should have results, as we're in a new feature!
-            FeatureMigrationResults currentResults = clusterState.metadata().custom(FeatureMigrationResults.TYPE);
+            FeatureMigrationResults currentResults = FeatureMigrationResults.get(clusterState);
             assertThat(currentResults, notNullValue());
             assertThat(currentResults.getFeatureStatuses(), allOf(aMapWithSize(1), hasKey(FEATURE_NAME)));
             assertThat(currentResults.getFeatureStatuses().get(FEATURE_NAME).succeeded(), is(true));
@@ -165,7 +165,7 @@ public class MultiFeatureMigrationIT extends AbstractFeatureMigrationIntegTest {
             assertThat(metadata, hasEntry("stringKey", "second plugin value"));
 
             // And here, the results should be the same, as we haven't updated the state with this feature's status yet.
-            FeatureMigrationResults currentResults = clusterState.metadata().custom(FeatureMigrationResults.TYPE);
+            FeatureMigrationResults currentResults = FeatureMigrationResults.get(clusterState);
             assertThat(currentResults, notNullValue());
             assertThat(currentResults.getFeatureStatuses(), allOf(aMapWithSize(1), hasKey(FEATURE_NAME)));
             assertThat(currentResults.getFeatureStatuses().get(FEATURE_NAME).succeeded(), is(true));
@@ -203,9 +203,9 @@ public class MultiFeatureMigrationIT extends AbstractFeatureMigrationIntegTest {
         assertTrue("the second plugin's pre-migration hook wasn't actually called", secondPluginPreMigrationHookCalled.get());
         assertTrue("the second plugin's post-migration hook wasn't actually called", secondPluginPostMigrationHookCalled.get());
 
-        Metadata finalMetadata = clusterAdmin().prepareState().get().getState().metadata();
+        final ClusterState clusterState = clusterAdmin().prepareState().get().getState();
         // Check that the results metadata is what we expect
-        FeatureMigrationResults currentResults = finalMetadata.custom(FeatureMigrationResults.TYPE);
+        FeatureMigrationResults currentResults = FeatureMigrationResults.get(clusterState);
         assertThat(currentResults, notNullValue());
         assertThat(currentResults.getFeatureStatuses(), allOf(aMapWithSize(2), hasKey(FEATURE_NAME), hasKey(SECOND_FEATURE_NAME)));
         assertThat(currentResults.getFeatureStatuses().get(FEATURE_NAME).succeeded(), is(true));
@@ -215,6 +215,7 @@ public class MultiFeatureMigrationIT extends AbstractFeatureMigrationIntegTest {
         assertThat(currentResults.getFeatureStatuses().get(SECOND_FEATURE_NAME).getFailedIndexName(), nullValue());
         assertThat(currentResults.getFeatureStatuses().get(SECOND_FEATURE_NAME).getException(), nullValue());
 
+        Metadata finalMetadata = clusterState.metadata();
         // Finally, verify that all the indices exist and have the properties we expect.
         assertIndexHasCorrectProperties(
             finalMetadata,

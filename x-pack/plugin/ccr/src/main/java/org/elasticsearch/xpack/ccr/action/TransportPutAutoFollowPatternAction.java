@@ -154,7 +154,7 @@ public class TransportPutAutoFollowPatternAction extends AcknowledgedTransportMa
         // auto patterns are always overwritten
         // only already followed index uuids are updated
 
-        AutoFollowMetadata currentAutoFollowMetadata = localState.metadata().custom(AutoFollowMetadata.TYPE);
+        AutoFollowMetadata currentAutoFollowMetadata = localState.metadata().projectCustom(AutoFollowMetadata.TYPE);
         Map<String, List<String>> followedLeaderIndices;
         Map<String, AutoFollowPattern> patterns;
         Map<String, Map<String, String>> headers;

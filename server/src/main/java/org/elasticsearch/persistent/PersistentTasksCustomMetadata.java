@@ -52,7 +52,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg
 /**
  * A cluster state record that contains a list of all running persistent tasks
  */
-public final class PersistentTasksCustomMetadata extends AbstractNamedDiffable<Metadata.Custom> implements Metadata.Custom {
+public final class PersistentTasksCustomMetadata extends AbstractNamedDiffable<Metadata.ProjectCustom> implements Metadata.ProjectCustom {
 
     public static final String TYPE = "persistent_tasks";
     private static final String API_CONTEXT = Metadata.XContentContext.API.toString();
@@ -130,7 +130,11 @@ public final class PersistentTasksCustomMetadata extends AbstractNamedDiffable<M
     }
 
     public static PersistentTasksCustomMetadata getPersistentTasksCustomMetadata(ClusterState clusterState) {
-        return clusterState.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
+        return get(clusterState.getMetadata());
+    }
+
+    static PersistentTasksCustomMetadata get(Metadata metadata) {
+        return metadata.projectCustom(TYPE);
     }
 
     /**
@@ -214,7 +218,7 @@ public final class PersistentTasksCustomMetadata extends AbstractNamedDiffable<M
 
     @SuppressWarnings("unchecked")
     public static <Params extends PersistentTaskParams> PersistentTask<Params> getTaskWithId(ClusterState clusterState, String taskId) {
-        PersistentTasksCustomMetadata tasks = clusterState.metadata().custom(PersistentTasksCustomMetadata.TYPE);
+        PersistentTasksCustomMetadata tasks = PersistentTasksCustomMetadata.get(clusterState.metadata());
         if (tasks != null) {
             return (PersistentTask<Params>) tasks.getTask(taskId);
         }
@@ -546,8 +550,8 @@ public final class PersistentTasksCustomMetadata extends AbstractNamedDiffable<M
         out.writeMap(filteredTasks, StreamOutput::writeWriteable);
     }
 
-    public static NamedDiff<Metadata.Custom> readDiffFrom(StreamInput in) throws IOException {
-        return readDiffFrom(Metadata.Custom.class, TYPE, in);
+    public static NamedDiff<Metadata.ProjectCustom> readDiffFrom(StreamInput in) throws IOException {
+        return readDiffFrom(Metadata.ProjectCustom.class, TYPE, in);
     }
 
     @Override

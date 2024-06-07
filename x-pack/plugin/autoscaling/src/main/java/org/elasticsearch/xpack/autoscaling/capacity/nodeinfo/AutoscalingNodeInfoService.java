@@ -195,7 +195,7 @@ public class AutoscalingNodeInfoService {
     }
 
     private static Set<Set<DiscoveryNodeRole>> calculateAutoscalingRoleSets(ClusterState state) {
-        AutoscalingMetadata autoscalingMetadata = state.metadata().custom(AutoscalingMetadata.NAME);
+        AutoscalingMetadata autoscalingMetadata = state.metadata().clusterCustom(AutoscalingMetadata.NAME);
         if (autoscalingMetadata != null) {
             return autoscalingMetadata.policies()
                 .values()

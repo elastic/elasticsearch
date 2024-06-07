@@ -322,7 +322,7 @@ public class ProfilingIndexTemplateRegistry extends IndexTemplateRegistry {
             }
         }
         if (isDataStreamsLifecycleOnlyMode(settings) == false) {
-            IndexLifecycleMetadata ilmMetadata = state.metadata().custom(IndexLifecycleMetadata.TYPE);
+            IndexLifecycleMetadata ilmMetadata = state.metadata().projectCustom(IndexLifecycleMetadata.TYPE);
             if (ilmMetadata == null) {
                 return false;
             }

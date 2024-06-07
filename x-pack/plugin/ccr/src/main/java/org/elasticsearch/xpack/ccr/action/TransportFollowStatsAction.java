@@ -124,7 +124,7 @@ public class TransportFollowStatsAction extends TransportTasksAction<
     }
 
     static Set<String> findFollowerIndicesFromShardFollowTasks(ClusterState state, String[] indices) {
-        final PersistentTasksCustomMetadata persistentTasksMetadata = state.metadata().custom(PersistentTasksCustomMetadata.TYPE);
+        final PersistentTasksCustomMetadata persistentTasksMetadata = PersistentTasksCustomMetadata.getPersistentTasksCustomMetadata(state);
         if (persistentTasksMetadata == null) {
             return Collections.emptySet();
         }

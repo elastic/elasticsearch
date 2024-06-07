@@ -1485,11 +1485,13 @@ public final class RestoreService implements ClusterStateApplier {
             }
 
             // override existing restorable customs (as there might be nothing in snapshot to override them)
-            mdBuilder.removeCustomIf((key, value) -> value.isRestorable());
+            mdBuilder.removeClusterCustomIf((key, value) -> value.isRestorable());
+            mdBuilder.removeProjectCustomIf((key, value) -> value.isRestorable());
 
             // restore customs from the snapshot
-            if (metadata.customs() != null) {
-                for (var entry : metadata.customs().entrySet()) {
+            // [TODO:MultiProject] We assume that there are no cluster customs that need to be included in SNAPSHOTS
+            if (metadata.projectCustoms() != null) {
+                for (var entry : metadata.projectCustoms().entrySet()) {
                     if (entry.getValue().isRestorable()) {
                         // TODO: Check request.skipOperatorOnly for Autoscaling policies (NonRestorableCustom)
                         // Don't restore repositories while we are working with them

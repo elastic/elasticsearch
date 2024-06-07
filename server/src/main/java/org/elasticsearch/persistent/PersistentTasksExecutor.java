@@ -65,7 +65,7 @@ public abstract class PersistentTasksExecutor<Params extends PersistentTaskParam
     ) {
         long minLoad = Long.MAX_VALUE;
         DiscoveryNode minLoadedNode = null;
-        PersistentTasksCustomMetadata persistentTasks = clusterState.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
+        PersistentTasksCustomMetadata persistentTasks = PersistentTasksCustomMetadata.getPersistentTasksCustomMetadata(clusterState);
         for (DiscoveryNode node : candidateNodes) {
             if (selector.test(node)) {
                 if (persistentTasks == null) {

@@ -49,10 +49,13 @@ public class TransportSetResetModeAction extends AbstractTransportSetResetModeAc
         if (request.shouldDeleteMetadata()) {
             assert request.isEnabled() == false; // SetResetModeActionRequest should have enforced this
             newState.metadata(
-                Metadata.builder(oldState.getMetadata()).removeCustom(MlMetadata.TYPE).removeCustom(ModelAliasMetadata.NAME).build()
+                Metadata.builder(oldState.getMetadata())
+                    .removeProjectCustom(MlMetadata.TYPE)
+                    .removeProjectCustom(ModelAliasMetadata.NAME)
+                    .build()
             );
         } else {
-            MlMetadata.Builder builder = MlMetadata.Builder.from(oldState.metadata().custom(MlMetadata.TYPE))
+            MlMetadata.Builder builder = MlMetadata.Builder.from(oldState.metadata().projectCustom(MlMetadata.TYPE))
                 .isResetMode(request.isEnabled());
             newState.metadata(Metadata.builder(oldState.getMetadata()).putCustom(MlMetadata.TYPE, builder.build()).build());
         }

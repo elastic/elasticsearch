@@ -155,7 +155,7 @@ public class TransportDeleteDataFrameAnalyticsAction extends AcknowledgedTranspo
         ActionListener<AcknowledgedResponse> listener
     ) {
         String id = request.getId();
-        PersistentTasksCustomMetadata tasks = state.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
+        PersistentTasksCustomMetadata tasks = PersistentTasksCustomMetadata.getPersistentTasksCustomMetadata(state);
         DataFrameAnalyticsState taskState = MlTasks.getDataFrameAnalyticsState(id, tasks);
         if (taskState != DataFrameAnalyticsState.STOPPED) {
             listener.onFailure(

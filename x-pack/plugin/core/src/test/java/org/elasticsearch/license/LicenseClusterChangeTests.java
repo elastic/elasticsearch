@@ -74,7 +74,7 @@ public class LicenseClusterChangeTests extends AbstractClusterStateLicenseServic
         ArgumentCaptor<ClusterStateUpdateTask> stateUpdater = ArgumentCaptor.forClass(ClusterStateUpdateTask.class);
         verify(clusterService, times(1)).submitUnbatchedStateUpdateTask(any(), stateUpdater.capture());
         ClusterState stateWithLicense = stateUpdater.getValue().execute(newState);
-        LicensesMetadata licenseMetadata = stateWithLicense.metadata().custom(LicensesMetadata.TYPE);
+        LicensesMetadata licenseMetadata = LicensesMetadata.getLicensesMetadata(stateWithLicense);
         assertNotNull(licenseMetadata);
         assertNotNull(licenseMetadata.getLicense());
         assertEquals(licenseType, licenseMetadata.getLicense().type());

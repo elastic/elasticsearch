@@ -111,7 +111,7 @@ public class TransportDeleteTrainedModelAliasAction extends AcknowledgedTranspor
                 request.getModelId()
             );
         }
-        IngestMetadata currentIngestMetadata = currentState.metadata().custom(IngestMetadata.TYPE);
+        IngestMetadata currentIngestMetadata = currentState.metadata().projectCustom(IngestMetadata.TYPE);
         Set<String> referencedModels = InferenceProcessorInfoExtractor.getModelIdsFromInferenceProcessors(currentIngestMetadata);
         if (referencedModels.contains(request.getModelAlias())) {
             throw new ElasticsearchStatusException(

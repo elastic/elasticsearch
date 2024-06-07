@@ -189,7 +189,10 @@ public class TransportDeleteJobAction extends AcknowledgedTransportMasterNodeAct
             response -> deleteDatafeedIfNecessary(request, datafeedDeleteListener),
             e -> {
                 if (request.isForce()
-                    && MlTasks.getJobTask(request.getJobId(), state.getMetadata().custom(PersistentTasksCustomMetadata.TYPE)) != null) {
+                    && MlTasks.getJobTask(
+                        request.getJobId(),
+                        PersistentTasksCustomMetadata.getPersistentTasksCustomMetadata(state)
+                    ) != null) {
                     logger.info("[{}] config is missing but task exists. Attempting to delete tasks and stop process", request.getJobId());
                     forceDeleteJob(parentTaskClient, request, state, finalListener);
                 } else {
@@ -285,7 +288,7 @@ public class TransportDeleteJobAction extends AcknowledgedTransportMasterNodeAct
     }
 
     private void removePersistentTask(String jobId, ClusterState currentState, ActionListener<Boolean> listener) {
-        PersistentTasksCustomMetadata tasks = currentState.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
+        PersistentTasksCustomMetadata tasks = PersistentTasksCustomMetadata.getPersistentTasksCustomMetadata(currentState);
 
         PersistentTasksCustomMetadata.PersistentTask<?> jobTask = MlTasks.getJobTask(jobId, tasks);
         if (jobTask == null) {
@@ -296,7 +299,7 @@ public class TransportDeleteJobAction extends AcknowledgedTransportMasterNodeAct
     }
 
     private static void checkJobIsNotOpen(String jobId, ClusterState state) {
-        PersistentTasksCustomMetadata tasks = state.metadata().custom(PersistentTasksCustomMetadata.TYPE);
+        PersistentTasksCustomMetadata tasks = PersistentTasksCustomMetadata.getPersistentTasksCustomMetadata(state);
         PersistentTasksCustomMetadata.PersistentTask<?> jobTask = MlTasks.getJobTask(jobId, tasks);
         if (jobTask != null) {
             JobTaskState jobTaskState = (JobTaskState) jobTask.getState();

@@ -52,6 +52,7 @@ import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Consumer;
 import java.util.function.LongSupplier;
 
+import static org.elasticsearch.persistent.PersistentTasksCustomMetadata.getPersistentTasksCustomMetadata;
 import static org.elasticsearch.persistent.PersistentTasksService.WaitForPersistentTaskListener;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
@@ -569,7 +570,7 @@ public class DatafeedRunner {
 
         private void closeJob() {
             ClusterState clusterState = clusterService.state();
-            PersistentTasksCustomMetadata tasks = clusterState.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
+            PersistentTasksCustomMetadata tasks = getPersistentTasksCustomMetadata(clusterState);
             JobState jobState = MlTasks.getJobState(getJobId(), tasks);
             if (jobState != JobState.OPENED) {
                 logger.debug("[{}] No need to auto-close job as job state is [{}]", getJobId(), jobState);
@@ -635,7 +636,7 @@ public class DatafeedRunner {
 
         private void runWhenJobIsOpened(TransportStartDatafeedAction.DatafeedTask datafeedTask, String jobId) {
             ClusterState clusterState = clusterService.state();
-            PersistentTasksCustomMetadata tasks = clusterState.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
+            PersistentTasksCustomMetadata tasks = getPersistentTasksCustomMetadata(clusterState);
             if (getJobState(tasks, jobId) == JobState.OPENED && jobHasOpenAutodetectCommunicator(tasks, jobId)) {
                 runTask(datafeedTask);
             } else {
@@ -667,8 +668,8 @@ public class DatafeedRunner {
             if (tasksToRun.isEmpty() || event.metadataChanged() == false) {
                 return;
             }
-            PersistentTasksCustomMetadata previousTasks = event.previousState().getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
-            PersistentTasksCustomMetadata currentTasks = event.state().getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
+            PersistentTasksCustomMetadata previousTasks = getPersistentTasksCustomMetadata(event.previousState());
+            PersistentTasksCustomMetadata currentTasks = getPersistentTasksCustomMetadata(event.state());
             if (Objects.equals(previousTasks, currentTasks)) {
                 return;
             }

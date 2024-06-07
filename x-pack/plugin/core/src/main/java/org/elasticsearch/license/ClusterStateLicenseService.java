@@ -256,13 +256,12 @@ public class ClusterStateLicenseService extends AbstractLifecycleComponent
                             )
                         );
                     }
-                    Metadata currentMetadata = currentState.metadata();
-                    LicensesMetadata licensesMetadata = currentMetadata.custom(LicensesMetadata.TYPE);
+                    LicensesMetadata licensesMetadata = LicensesMetadata.getLicensesMetadata(currentState);
                     TrialLicenseVersion trialVersion = null;
                     if (licensesMetadata != null) {
                         trialVersion = licensesMetadata.getMostRecentTrialVersion();
                     }
-                    Metadata.Builder mdBuilder = Metadata.builder(currentMetadata);
+                    Metadata.Builder mdBuilder = Metadata.builder(currentState.metadata());
                     mdBuilder.putCustom(LicensesMetadata.TYPE, new LicensesMetadata(newLicense, trialVersion));
                     return ClusterState.builder(currentState).metadata(mdBuilder).build();
                 }
@@ -324,7 +323,7 @@ public class ClusterStateLicenseService extends AbstractLifecycleComponent
     }
 
     private LicensesMetadata getLicensesMetadata() {
-        return this.clusterService.state().metadata().custom(LicensesMetadata.TYPE);
+        return LicensesMetadata.getLicensesMetadata(this.clusterService.state());
     }
 
     @Override
@@ -385,7 +384,7 @@ public class ClusterStateLicenseService extends AbstractLifecycleComponent
             if (clusterState.blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK) == false
                 && clusterState.nodes().getMasterNode() != null
                 && XPackPlugin.isReadyForXPackCustomMetadata(clusterState)) {
-                final LicensesMetadata currentMetadata = clusterState.metadata().custom(LicensesMetadata.TYPE);
+                final LicensesMetadata currentMetadata = LicensesMetadata.getLicensesMetadata(clusterState);
                 boolean noLicense = currentMetadata == null || currentMetadata.getLicense() == null;
                 if (clusterState.getNodes().isLocalNodeElectedMaster()
                     && (noLicense || LicenseUtils.licenseNeedsExtended(currentMetadata.getLicense()))) {
@@ -416,8 +415,8 @@ public class ClusterStateLicenseService extends AbstractLifecycleComponent
         final ClusterState previousClusterState = event.previousState();
         final ClusterState currentClusterState = event.state();
         if (currentClusterState.blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK) == false) {
-            final LicensesMetadata prevLicensesMetadata = previousClusterState.getMetadata().custom(LicensesMetadata.TYPE);
-            final LicensesMetadata currentLicensesMetadata = currentClusterState.getMetadata().custom(LicensesMetadata.TYPE);
+            final LicensesMetadata prevLicensesMetadata = LicensesMetadata.getLicensesMetadata(previousClusterState);
+            final LicensesMetadata currentLicensesMetadata = LicensesMetadata.getLicensesMetadata(currentClusterState);
             // notify all interested plugins
             if (previousClusterState.blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK) || prevLicensesMetadata == null) {
                 if (currentLicensesMetadata != null) {
@@ -456,8 +455,8 @@ public class ClusterStateLicenseService extends AbstractLifecycleComponent
     }
 
     private void maybeRegisterOrUpdateLicense(ClusterState previousClusterState, ClusterState currentClusterState) {
-        final LicensesMetadata prevLicensesMetadata = previousClusterState.getMetadata().custom(LicensesMetadata.TYPE);
-        final LicensesMetadata currentLicensesMetadata = currentClusterState.getMetadata().custom(LicensesMetadata.TYPE);
+        final LicensesMetadata prevLicensesMetadata = LicensesMetadata.getLicensesMetadata(previousClusterState);
+        final LicensesMetadata currentLicensesMetadata = LicensesMetadata.getLicensesMetadata(currentClusterState);
         License currentLicense = null;
         boolean noLicenseInPrevMetadata = prevLicensesMetadata == null || prevLicensesMetadata.getLicense() == null;
         if (noLicenseInPrevMetadata == false) {
@@ -536,7 +535,7 @@ public class ClusterStateLicenseService extends AbstractLifecycleComponent
     }
 
     public License getLicense(final Metadata metadata) {
-        final LicensesMetadata licensesMetadata = metadata.custom(LicensesMetadata.TYPE);
+        final LicensesMetadata licensesMetadata = metadata.clusterCustom(LicensesMetadata.TYPE);
         return getLicenseFromLicensesMetadata(licensesMetadata);
     }
 

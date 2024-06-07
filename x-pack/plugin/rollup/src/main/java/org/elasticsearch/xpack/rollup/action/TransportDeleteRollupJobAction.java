@@ -56,7 +56,7 @@ public class TransportDeleteRollupJobAction extends TransportTasksAction<
         final DiscoveryNodes nodes = state.nodes();
 
         if (nodes.isLocalNodeElectedMaster()) {
-            PersistentTasksCustomMetadata pTasksMeta = state.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
+            PersistentTasksCustomMetadata pTasksMeta = PersistentTasksCustomMetadata.getPersistentTasksCustomMetadata(state);
             if (pTasksMeta != null && pTasksMeta.getTask(request.getId()) != null) {
                 super.doExecute(task, request, listener);
             } else {

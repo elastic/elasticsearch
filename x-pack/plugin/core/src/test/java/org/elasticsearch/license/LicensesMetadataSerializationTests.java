@@ -84,8 +84,8 @@ public class LicensesMetadataSerializationTests extends ESTestCase {
         // deserialize metadata again
         Metadata metadata = Metadata.Builder.fromXContent(createParser(builder));
         // check that custom metadata still present
-        assertThat(metadata.custom(licensesMetadata.getWriteableName()), notNullValue());
-        assertThat(metadata.custom(repositoriesMetadata.getWriteableName()), notNullValue());
+        assertThat(metadata.clusterCustom(licensesMetadata.getWriteableName()), notNullValue());
+        assertThat(metadata.projectCustom(repositoriesMetadata.getWriteableName()), notNullValue());
     }
 
     public void testXContentSerializationOneTrial() throws Exception {

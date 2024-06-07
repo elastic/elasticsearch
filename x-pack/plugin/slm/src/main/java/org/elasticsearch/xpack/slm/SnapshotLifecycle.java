@@ -166,7 +166,7 @@ public class SnapshotLifecycle extends Plugin implements ActionPlugin, HealthPlu
         return Arrays.asList(
             // Custom Metadata
             new NamedXContentRegistry.Entry(
-                Metadata.Custom.class,
+                Metadata.ProjectCustom.class,
                 new ParseField(SnapshotLifecycleMetadata.TYPE),
                 parser -> SnapshotLifecycleMetadata.PARSER.parse(parser, null)
             )

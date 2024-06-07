@@ -74,7 +74,7 @@ public class RepositoriesIT extends AbstractSnapshotIntegTestCase {
         logger.info("--> check that repository is really there");
         ClusterStateResponse clusterStateResponse = client.admin().cluster().prepareState().clear().setMetadata(true).get();
         Metadata metadata = clusterStateResponse.getState().getMetadata();
-        RepositoriesMetadata repositoriesMetadata = metadata.custom(RepositoriesMetadata.TYPE);
+        RepositoriesMetadata repositoriesMetadata = metadata.projectCustom(RepositoriesMetadata.TYPE);
         assertThat(repositoriesMetadata, notNullValue());
         assertThat(repositoriesMetadata.repository("test-repo-1"), notNullValue());
         assertThat(repositoriesMetadata.repository("test-repo-1").type(), equalTo("fs"));
@@ -85,7 +85,7 @@ public class RepositoriesIT extends AbstractSnapshotIntegTestCase {
         logger.info("--> check that both repositories are in cluster state");
         clusterStateResponse = client.admin().cluster().prepareState().clear().setMetadata(true).get();
         metadata = clusterStateResponse.getState().getMetadata();
-        repositoriesMetadata = metadata.custom(RepositoriesMetadata.TYPE);
+        repositoriesMetadata = metadata.projectCustom(RepositoriesMetadata.TYPE);
         assertThat(repositoriesMetadata, notNullValue());
         assertThat(repositoriesMetadata.repositories().size(), equalTo(2));
         assertThat(repositoriesMetadata.repository("test-repo-1"), notNullValue());

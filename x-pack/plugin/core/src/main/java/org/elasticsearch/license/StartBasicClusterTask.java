@@ -123,7 +123,7 @@ public class StartBasicClusterTask implements ClusterStateTaskListener {
         public ClusterState execute(BatchExecutionContext<StartBasicClusterTask> batchExecutionContext) throws Exception {
             final var initialState = batchExecutionContext.initialState();
             XPackPlugin.checkReadyForXPackCustomMetadata(initialState);
-            final LicensesMetadata originalLicensesMetadata = initialState.metadata().custom(LicensesMetadata.TYPE);
+            final LicensesMetadata originalLicensesMetadata = LicensesMetadata.getLicensesMetadata(initialState);
             var currentLicensesMetadata = originalLicensesMetadata;
             for (final var taskContext : batchExecutionContext.taskContexts()) {
                 try (var ignored = taskContext.captureResponseHeaders()) {

@@ -73,7 +73,7 @@ class MlAutoscalingContext {
     }
 
     MlAutoscalingContext(ClusterState clusterState) {
-        persistentTasks = clusterState.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
+        persistentTasks = PersistentTasksCustomMetadata.getPersistentTasksCustomMetadata(clusterState);
 
         anomalyDetectionTasks = anomalyDetectionTasks(persistentTasks);
         snapshotUpgradeTasks = snapshotUpgradeTasks(persistentTasks);

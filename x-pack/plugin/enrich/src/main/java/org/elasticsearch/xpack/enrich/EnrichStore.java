@@ -157,7 +157,7 @@ public final class EnrichStore {
      */
     public static Map<String, EnrichPolicy> getPolicies(ClusterState state) {
         final Map<String, EnrichPolicy> policies;
-        final EnrichMetadata enrichMetadata = state.metadata().custom(EnrichMetadata.TYPE);
+        final EnrichMetadata enrichMetadata = state.metadata().projectCustom(EnrichMetadata.TYPE);
         if (enrichMetadata != null) {
             // Make a copy, because policies map inside custom metadata is read only:
             policies = new HashMap<>(enrichMetadata.getPolicies());

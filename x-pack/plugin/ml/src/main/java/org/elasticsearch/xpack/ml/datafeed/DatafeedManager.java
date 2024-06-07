@@ -265,7 +265,7 @@ public final class DatafeedManager {
     }
 
     private static PersistentTasksCustomMetadata.PersistentTask<?> getDatafeedTask(ClusterState state, String datafeedId) {
-        PersistentTasksCustomMetadata tasks = state.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
+        PersistentTasksCustomMetadata tasks = PersistentTasksCustomMetadata.getPersistentTasksCustomMetadata(state);
         return MlTasks.getDatafeedTask(datafeedId, tasks);
     }
 

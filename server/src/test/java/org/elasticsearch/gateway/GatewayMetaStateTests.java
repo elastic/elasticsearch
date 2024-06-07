@@ -22,7 +22,7 @@ import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.plugins.ClusterCoordinationPlugin;
 import org.elasticsearch.plugins.MetadataUpgrader;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.TestCustomMetadata;
+import org.elasticsearch.test.TestClusterCustomMetadata;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -204,7 +204,7 @@ public class GatewayMetaStateTests extends ESTestCase {
         }
     }
 
-    private static class CustomMetadata1 extends TestCustomMetadata {
+    private static class CustomMetadata1 extends TestClusterCustomMetadata {
         public static final String TYPE = "custom_md_1";
 
         CustomMetadata1(String data) {
@@ -227,9 +227,9 @@ public class GatewayMetaStateTests extends ESTestCase {
         }
     }
 
-    private static Metadata randomMetadata(TestCustomMetadata... customMetadatas) {
+    private static Metadata randomMetadata(TestClusterCustomMetadata... customMetadatas) {
         Metadata.Builder builder = Metadata.builder();
-        for (TestCustomMetadata customMetadata : customMetadatas) {
+        for (TestClusterCustomMetadata customMetadata : customMetadatas) {
             builder.putCustom(customMetadata.getWriteableName(), customMetadata);
         }
         for (int i = 0; i < randomIntBetween(1, 5); i++) {

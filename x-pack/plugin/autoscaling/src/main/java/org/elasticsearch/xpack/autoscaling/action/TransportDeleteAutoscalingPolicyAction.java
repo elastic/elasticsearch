@@ -98,8 +98,8 @@ public class TransportDeleteAutoscalingPolicyAction extends AcknowledgedTranspor
     static ClusterState deleteAutoscalingPolicy(final ClusterState currentState, final String name, final Logger logger) {
         final ClusterState.Builder builder = ClusterState.builder(currentState);
         final AutoscalingMetadata currentMetadata;
-        if (currentState.metadata().custom(AutoscalingMetadata.NAME) != null) {
-            currentMetadata = currentState.metadata().custom(AutoscalingMetadata.NAME);
+        if (currentState.metadata().clusterCustom(AutoscalingMetadata.NAME) != null) {
+            currentMetadata = currentState.metadata().clusterCustom(AutoscalingMetadata.NAME);
         } else {
             // we will reject the request below when we try to look up the policy by name
             currentMetadata = AutoscalingMetadata.EMPTY;

@@ -112,7 +112,7 @@ public class AutoscalingCalculateCapacityService implements PolicyValidator {
         AutoscalingNodesInfo autoscalingNodesInfo,
         Runnable ensureNotCancelled
     ) {
-        AutoscalingMetadata autoscalingMetadata = state.metadata().custom(AutoscalingMetadata.NAME);
+        AutoscalingMetadata autoscalingMetadata = state.metadata().clusterCustom(AutoscalingMetadata.NAME);
         if (autoscalingMetadata != null) {
             return new TreeMap<>(
                 autoscalingMetadata.policies()

@@ -50,7 +50,7 @@ public class TransportGetBasicStatusAction extends TransportMasterNodeReadAction
         ClusterState state,
         ActionListener<GetBasicStatusResponse> listener
     ) throws Exception {
-        LicensesMetadata licensesMetadata = state.metadata().custom(LicensesMetadata.TYPE);
+        LicensesMetadata licensesMetadata = LicensesMetadata.getLicensesMetadata(state);
         if (licensesMetadata == null) {
             listener.onResponse(new GetBasicStatusResponse(true));
         } else {

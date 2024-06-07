@@ -39,7 +39,7 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.metadata.Metadata.ALL_CONTEXTS;
 
-public class TrainedModelAssignmentMetadata implements Metadata.Custom {
+public class TrainedModelAssignmentMetadata implements Metadata.ProjectCustom {
 
     private static final TrainedModelAssignmentMetadata EMPTY = new TrainedModelAssignmentMetadata(Collections.emptyMap());
     public static final String DEPRECATED_NAME = "trained_model_allocation";
@@ -59,11 +59,11 @@ public class TrainedModelAssignmentMetadata implements Metadata.Custom {
         return new TrainedModelAssignmentMetadata(input, DEPRECATED_NAME);
     }
 
-    public static NamedDiff<Metadata.Custom> readDiffFrom(StreamInput in) throws IOException {
+    public static NamedDiff<Metadata.ProjectCustom> readDiffFrom(StreamInput in) throws IOException {
         return new TrainedModelAssignmentMetadata.TrainedModeAssignmentDiff(in);
     }
 
-    public static NamedDiff<Metadata.Custom> readDiffFromOld(StreamInput in) throws IOException {
+    public static NamedDiff<Metadata.ProjectCustom> readDiffFromOld(StreamInput in) throws IOException {
         return new TrainedModelAssignmentMetadata.TrainedModeAssignmentDiff(in, DEPRECATED_NAME);
     }
 
@@ -72,9 +72,9 @@ public class TrainedModelAssignmentMetadata implements Metadata.Custom {
     }
 
     public static TrainedModelAssignmentMetadata fromState(ClusterState clusterState) {
-        TrainedModelAssignmentMetadata trainedModelAssignmentMetadata = clusterState.getMetadata().custom(NAME);
+        TrainedModelAssignmentMetadata trainedModelAssignmentMetadata = clusterState.getMetadata().projectCustom(NAME);
         if (trainedModelAssignmentMetadata == null) {
-            trainedModelAssignmentMetadata = clusterState.getMetadata().custom(DEPRECATED_NAME);
+            trainedModelAssignmentMetadata = clusterState.getMetadata().projectCustom(DEPRECATED_NAME);
         }
         return trainedModelAssignmentMetadata == null ? EMPTY : trainedModelAssignmentMetadata;
     }
@@ -139,7 +139,7 @@ public class TrainedModelAssignmentMetadata implements Metadata.Custom {
     }
 
     @Override
-    public Diff<Metadata.Custom> diff(Metadata.Custom previousState) {
+    public Diff<Metadata.ProjectCustom> diff(Metadata.ProjectCustom previousState) {
         return new TrainedModeAssignmentDiff((TrainedModelAssignmentMetadata) previousState, this);
     }
 
@@ -267,7 +267,7 @@ public class TrainedModelAssignmentMetadata implements Metadata.Custom {
         }
     }
 
-    public static class TrainedModeAssignmentDiff implements NamedDiff<Metadata.Custom> {
+    public static class TrainedModeAssignmentDiff implements NamedDiff<Metadata.ProjectCustom> {
 
         private final Diff<Map<String, TrainedModelAssignment>> modelRoutingEntries;
         private final String writeableName;
@@ -306,7 +306,7 @@ public class TrainedModelAssignmentMetadata implements Metadata.Custom {
         }
 
         @Override
-        public Metadata.Custom apply(Metadata.Custom part) {
+        public Metadata.ProjectCustom apply(Metadata.ProjectCustom part) {
             return new TrainedModelAssignmentMetadata(
                 new TreeMap<>(modelRoutingEntries.apply(((TrainedModelAssignmentMetadata) part).deploymentRoutingEntries)),
                 writeableName

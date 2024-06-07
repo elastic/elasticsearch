@@ -103,8 +103,8 @@ public class MlAssignmentNotifier implements ClusterStateListener {
 
     private void auditChangesToMlTasks(ClusterChangedEvent event) {
 
-        PersistentTasksCustomMetadata previousTasks = event.previousState().getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
-        PersistentTasksCustomMetadata currentTasks = event.state().getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
+        PersistentTasksCustomMetadata previousTasks = PersistentTasksCustomMetadata.getPersistentTasksCustomMetadata(event.previousState());
+        PersistentTasksCustomMetadata currentTasks = PersistentTasksCustomMetadata.getPersistentTasksCustomMetadata(event.state());
 
         if (Objects.equals(previousTasks, currentTasks)) {
             return;
@@ -262,7 +262,7 @@ public class MlAssignmentNotifier implements ClusterStateListener {
     }
 
     private void logLongTimeUnassigned(Instant now, ClusterState state) {
-        PersistentTasksCustomMetadata tasks = state.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
+        PersistentTasksCustomMetadata tasks = PersistentTasksCustomMetadata.getPersistentTasksCustomMetadata(state);
         if (tasks == null) {
             return;
         }

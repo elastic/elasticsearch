@@ -148,7 +148,7 @@ public class TransportDeleteInferenceEndpointAction extends TransportMasterNodeA
             // Unsure why the ClusterState metadata would ever be null, but in this case it seems safer to assume the endpoint is referenced
             return true;
         }
-        IngestMetadata ingestMetadata = metadata.custom(IngestMetadata.TYPE);
+        IngestMetadata ingestMetadata = metadata.projectCustom(IngestMetadata.TYPE);
         if (ingestMetadata == null) {
             logger.debug("No ingest metadata found in cluster state while attempting to delete inference endpoint");
         } else {

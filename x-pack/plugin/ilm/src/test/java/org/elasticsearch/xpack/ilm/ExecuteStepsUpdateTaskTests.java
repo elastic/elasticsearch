@@ -162,7 +162,7 @@ public class ExecuteStepsUpdateTaskTests extends ESTestCase {
             .metadata(metadata)
             .nodes(DiscoveryNodes.builder().localNodeId(nodeId).masterNodeId(nodeId).add(masterNode).build())
             .build();
-        policyStepsRegistry.update(clusterState.metadata().custom(IndexLifecycleMetadata.TYPE));
+        policyStepsRegistry.update(clusterState.metadata().projectCustom(IndexLifecycleMetadata.TYPE));
     }
 
     public void testNeverExecuteNonClusterStateStep() throws Exception {
@@ -225,7 +225,7 @@ public class ExecuteStepsUpdateTaskTests extends ESTestCase {
             )
             .build();
 
-        policyStepsRegistry.update(clusterState.metadata().custom(IndexLifecycleMetadata.TYPE));
+        policyStepsRegistry.update(clusterState.metadata().projectCustom(IndexLifecycleMetadata.TYPE));
 
         Step invalidStep = new MockClusterStateActionStep(firstStepKey, secondStepKey);
         long now = randomNonNegativeLong();
@@ -341,6 +341,6 @@ public class ExecuteStepsUpdateTaskTests extends ESTestCase {
                     )
             )
             .build();
-        policyStepsRegistry.update(clusterState.metadata().custom(IndexLifecycleMetadata.TYPE));
+        policyStepsRegistry.update(clusterState.metadata().projectCustom(IndexLifecycleMetadata.TYPE));
     }
 }

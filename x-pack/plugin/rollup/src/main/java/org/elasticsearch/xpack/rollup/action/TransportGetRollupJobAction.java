@@ -93,7 +93,7 @@ public class TransportGetRollupJobAction extends TransportTasksAction<
      */
     static boolean stateHasRollupJobs(GetRollupJobsAction.Request request, ClusterState state) {
         boolean hasRollupJobs = false;
-        PersistentTasksCustomMetadata pTasksMeta = state.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
+        PersistentTasksCustomMetadata pTasksMeta = PersistentTasksCustomMetadata.getPersistentTasksCustomMetadata(state);
 
         if (pTasksMeta != null) {
             // If the request was for _all rollup jobs, we need to look through the list of

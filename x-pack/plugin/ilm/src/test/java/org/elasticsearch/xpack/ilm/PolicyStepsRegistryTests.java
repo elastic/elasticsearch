@@ -233,7 +233,7 @@ public class PolicyStepsRegistryTests extends ESTestCase {
         PolicyStepsRegistry registry = new PolicyStepsRegistry(NamedXContentRegistry.EMPTY, client, null);
 
         // add new policy
-        registry.update(currentState.metadata().custom(IndexLifecycleMetadata.TYPE));
+        registry.update(currentState.metadata().projectCustom(IndexLifecycleMetadata.TYPE));
 
         assertThat(registry.getFirstStep(newPolicy.getName()), equalTo(policySteps.get(0)));
         assertThat(registry.getLifecyclePolicyMap().size(), equalTo(1));
@@ -257,7 +257,7 @@ public class PolicyStepsRegistryTests extends ESTestCase {
                 )
                 .nodes(DiscoveryNodes.builder().localNodeId(nodeId).masterNodeId(nodeId).add(masterNode).build())
                 .build();
-            registry.update(currentState.metadata().custom(IndexLifecycleMetadata.TYPE));
+            registry.update(currentState.metadata().projectCustom(IndexLifecycleMetadata.TYPE));
             assertThat(registeredStepsForPolicy.get(step.getKey()), equalTo(step));
             assertThat(registry.getStep(metadata.index(index), step.getKey()), equalTo(step));
         }
@@ -265,7 +265,7 @@ public class PolicyStepsRegistryTests extends ESTestCase {
         Map<String, LifecyclePolicyMetadata> registryPolicyMap = registry.getLifecyclePolicyMap();
         Map<String, Step> registryFirstStepMap = registry.getFirstStepMap();
         Map<String, Map<Step.StepKey, Step>> registryStepMap = registry.getStepMap();
-        registry.update(currentState.metadata().custom(IndexLifecycleMetadata.TYPE));
+        registry.update(currentState.metadata().projectCustom(IndexLifecycleMetadata.TYPE));
         assertThat(registry.getLifecyclePolicyMap(), equalTo(registryPolicyMap));
         assertThat(registry.getFirstStepMap(), equalTo(registryFirstStepMap));
         assertThat(registry.getStepMap(), equalTo(registryStepMap));
@@ -275,7 +275,7 @@ public class PolicyStepsRegistryTests extends ESTestCase {
         currentState = ClusterState.builder(currentState)
             .metadata(Metadata.builder(metadata).putCustom(IndexLifecycleMetadata.TYPE, lifecycleMetadata))
             .build();
-        registry.update(currentState.metadata().custom(IndexLifecycleMetadata.TYPE));
+        registry.update(currentState.metadata().projectCustom(IndexLifecycleMetadata.TYPE));
         assertTrue(registry.getLifecyclePolicyMap().isEmpty());
         assertTrue(registry.getFirstStepMap().isEmpty());
         assertTrue(registry.getStepMap().isEmpty());
@@ -311,7 +311,7 @@ public class PolicyStepsRegistryTests extends ESTestCase {
             .build();
         PolicyStepsRegistry registry = new PolicyStepsRegistry(NamedXContentRegistry.EMPTY, client, null);
         // add new policy
-        registry.update(currentState.metadata().custom(IndexLifecycleMetadata.TYPE));
+        registry.update(currentState.metadata().projectCustom(IndexLifecycleMetadata.TYPE));
 
         // swap out policy
         newPolicy = LifecyclePolicyTests.randomTestLifecyclePolicy(policyName);
@@ -325,7 +325,7 @@ public class PolicyStepsRegistryTests extends ESTestCase {
         currentState = ClusterState.builder(currentState)
             .metadata(Metadata.builder(metadata).putCustom(IndexLifecycleMetadata.TYPE, lifecycleMetadata))
             .build();
-        registry.update(currentState.metadata().custom(IndexLifecycleMetadata.TYPE));
+        registry.update(currentState.metadata().projectCustom(IndexLifecycleMetadata.TYPE));
         // TODO(talevy): assert changes... right now we do not support updates to policies. will require internal cleanup
     }
 
@@ -397,7 +397,7 @@ public class PolicyStepsRegistryTests extends ESTestCase {
         PolicyStepsRegistry registry = new PolicyStepsRegistry(REGISTRY, client, null);
 
         // add new policy
-        registry.update(currentState.metadata().custom(IndexLifecycleMetadata.TYPE));
+        registry.update(currentState.metadata().projectCustom(IndexLifecycleMetadata.TYPE));
 
         Map<Step.StepKey, Step> registeredStepsForPolicy = registry.getStepMap().get(newPolicy.getName());
         Step shrinkStep = registeredStepsForPolicy.entrySet()
@@ -426,7 +426,7 @@ public class PolicyStepsRegistryTests extends ESTestCase {
         currentState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).build();
 
         // Update the policies
-        registry.update(currentState.metadata().custom(IndexLifecycleMetadata.TYPE));
+        registry.update(currentState.metadata().projectCustom(IndexLifecycleMetadata.TYPE));
 
         registeredStepsForPolicy = registry.getStepMap().get(newPolicy.getName());
         shrinkStep = registeredStepsForPolicy.entrySet()

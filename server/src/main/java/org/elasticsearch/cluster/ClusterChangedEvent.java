@@ -119,12 +119,23 @@ public class ClusterChangedEvent {
      * between the previous cluster state and the new cluster state. custom meta data types are
      * returned iff they have been added, updated or removed between the previous and the current state
      */
-    public Set<String> changedCustomMetadataSet() {
+    public Set<String> changedCustomClusterMetadataSet() {
+        return changedCustoms(state.metadata().clusterCustoms(), previousState.metadata().clusterCustoms());
+    }
+
+    /**
+     * Returns a set of custom meta data types when any custom metadata for the cluster has changed
+     * between the previous cluster state and the new cluster state. custom meta data types are
+     * returned iff they have been added, updated or removed between the previous and the current state
+     */
+    public Set<String> changedCustomProjectMetadataSet() {
+        return changedCustoms(state.metadata().projectCustoms(), previousState.metadata().projectCustoms());
+    }
+
+    private <C extends Metadata._Custom<C>> Set<String> changedCustoms(Map<String, C> currentCustoms, Map<String, C> previousCustoms) {
         Set<String> result = new HashSet<>();
-        Map<String, Metadata.Custom> currentCustoms = state.metadata().customs();
-        Map<String, Metadata.Custom> previousCustoms = previousState.metadata().customs();
         if (currentCustoms.equals(previousCustoms) == false) {
-            for (Map.Entry<String, Metadata.Custom> currentCustomMetadata : currentCustoms.entrySet()) {
+            for (var currentCustomMetadata : currentCustoms.entrySet()) {
                 // new custom md added or existing custom md changed
                 if (previousCustoms.containsKey(currentCustomMetadata.getKey()) == false
                     || currentCustomMetadata.getValue().equals(previousCustoms.get(currentCustomMetadata.getKey())) == false) {
@@ -132,7 +143,7 @@ public class ClusterChangedEvent {
                 }
             }
             // existing custom md deleted
-            for (Map.Entry<String, Metadata.Custom> previousCustomMetadata : previousCustoms.entrySet()) {
+            for (var previousCustomMetadata : previousCustoms.entrySet()) {
                 if (currentCustoms.containsKey(previousCustomMetadata.getKey()) == false) {
                     result.add(previousCustomMetadata.getKey());
                 }

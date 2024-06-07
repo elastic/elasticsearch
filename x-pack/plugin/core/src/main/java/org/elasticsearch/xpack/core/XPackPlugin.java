@@ -295,12 +295,12 @@ public class XPackPlugin extends XPackClientPlugin
 
     private static boolean alreadyContainsXPackCustomMetadata(ClusterState clusterState) {
         final Metadata metadata = clusterState.metadata();
-        return metadata.custom(LicensesMetadata.TYPE) != null
-            || metadata.custom(MlMetadata.TYPE) != null
-            || metadata.custom(WatcherMetadata.TYPE) != null
+        return metadata.clusterCustom(LicensesMetadata.TYPE) != null
+            || metadata.projectCustom(MlMetadata.TYPE) != null
+            || metadata.projectCustom(WatcherMetadata.TYPE) != null
             || RoleMappingMetadata.getFromClusterState(clusterState).isEmpty() == false
             || clusterState.custom(TokenMetadata.TYPE) != null
-            || metadata.custom(TransformMetadata.TYPE) != null;
+            || metadata.projectCustom(TransformMetadata.TYPE) != null;
     }
 
     @Override

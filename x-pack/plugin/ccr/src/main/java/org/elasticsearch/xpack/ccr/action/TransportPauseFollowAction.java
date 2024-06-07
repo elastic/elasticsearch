@@ -73,7 +73,7 @@ public class TransportPauseFollowAction extends AcknowledgedTransportMasterNodeA
             listener.onFailure(new IllegalArgumentException("index [" + request.getFollowIndex() + "] is not a follower index"));
             return;
         }
-        PersistentTasksCustomMetadata persistentTasksMetadata = state.metadata().custom(PersistentTasksCustomMetadata.TYPE);
+        PersistentTasksCustomMetadata persistentTasksMetadata = PersistentTasksCustomMetadata.getPersistentTasksCustomMetadata(state);
         if (persistentTasksMetadata == null) {
             listener.onFailure(new IllegalArgumentException("no shard follow tasks found"));
             return;

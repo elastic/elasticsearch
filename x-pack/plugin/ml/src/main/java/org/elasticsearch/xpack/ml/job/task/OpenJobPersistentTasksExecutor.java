@@ -406,7 +406,7 @@ public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksEx
             }
 
             String datafeedId = datafeeds.iterator().next();
-            PersistentTasksCustomMetadata tasks = clusterState.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
+            PersistentTasksCustomMetadata tasks = PersistentTasksCustomMetadata.getPersistentTasksCustomMetadata(clusterState);
             PersistentTasksCustomMetadata.PersistentTask<?> datafeedTask = MlTasks.getDatafeedTask(datafeedId, tasks);
             delegate.onResponse(datafeedTask != null ? datafeedId : null);
         });

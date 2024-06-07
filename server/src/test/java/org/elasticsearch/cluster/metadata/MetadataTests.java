@@ -1055,15 +1055,23 @@ public class MetadataTests extends ESTestCase {
     public void testBuilderRejectsNullCustom() {
         final Metadata.Builder builder = Metadata.builder();
         final String key = randomAlphaOfLength(10);
-        assertThat(expectThrows(NullPointerException.class, () -> builder.putCustom(key, null)).getMessage(), containsString(key));
+        assertThat(expectThrows(NullPointerException.class, () -> builder.putClusterCustom(key, null)).getMessage(), containsString(key));
+        assertThat(expectThrows(NullPointerException.class, () -> builder.putProjectCustom(key, null)).getMessage(), containsString(key));
     }
 
     public void testBuilderRejectsNullInCustoms() {
         final Metadata.Builder builder = Metadata.builder();
         final String key = randomAlphaOfLength(10);
-        final Map<String, Metadata.Custom> map = new HashMap<>();
-        map.put(key, null);
-        assertThat(expectThrows(NullPointerException.class, () -> builder.customs(map)).getMessage(), containsString(key));
+        {
+            final Map<String, Metadata.ClusterCustom> map = new HashMap<>();
+            map.put(key, null);
+            assertThat(expectThrows(NullPointerException.class, () -> builder.clusterCustoms(map)).getMessage(), containsString(key));
+        }
+        {
+            final Map<String, Metadata.ProjectCustom> map = new HashMap<>();
+            map.put(key, null);
+            assertThat(expectThrows(NullPointerException.class, () -> builder.projectCustoms(map)).getMessage(), containsString(key));
+        }
     }
 
     public void testCopyAndUpdate() throws IOException {
@@ -1076,18 +1084,32 @@ public class MetadataTests extends ESTestCase {
         assertThat(copy.clusterUUID(), equalTo(newClusterUuid));
     }
 
-    public void testBuilderRemoveCustomIf() {
-        var custom1 = new TestCustomMetadata();
-        var custom2 = new TestCustomMetadata();
+    public void testBuilderRemoveClusterCustomIf() {
+        var custom1 = new TestClusterCustomMetadata();
+        var custom2 = new TestClusterCustomMetadata();
         var builder = Metadata.builder();
         builder.putCustom("custom1", custom1);
         builder.putCustom("custom2", custom2);
 
-        builder.removeCustomIf((key, value) -> Objects.equals(key, "custom1"));
+        builder.removeClusterCustomIf((key, value) -> Objects.equals(key, "custom1"));
 
         var metadata = builder.build();
-        assertThat(metadata.custom("custom1"), nullValue());
-        assertThat(metadata.custom("custom2"), sameInstance(custom2));
+        assertThat(metadata.clusterCustom("custom1"), nullValue());
+        assertThat(metadata.clusterCustom("custom2"), sameInstance(custom2));
+    }
+
+    public void testBuilderRemoveProjectCustomIf() {
+        var custom1 = new TestProjectCustomMetadata();
+        var custom2 = new TestProjectCustomMetadata();
+        var builder = Metadata.builder();
+        builder.putCustom("custom1", custom1);
+        builder.putCustom("custom2", custom2);
+
+        builder.removeProjectCustomIf((key, value) -> Objects.equals(key, "custom1"));
+
+        var metadata = builder.build();
+        assertThat(metadata.projectCustom("custom1"), nullValue());
+        assertThat(metadata.projectCustom("custom2"), sameInstance(custom2));
     }
 
     public void testBuilderRejectsDataStreamThatConflictsWithIndex() {
@@ -1345,7 +1367,7 @@ public class MetadataTests extends ESTestCase {
     public void testValidateDataStreamsNoConflicts() {
         Metadata metadata = createIndices(5, 10, "foo-datastream").metadata;
         // don't expect any exception when validating a system without indices that would conflict with future backing indices
-        assertDataStreams(metadata.getIndices(), (DataStreamMetadata) metadata.customs().get(DataStreamMetadata.TYPE));
+        assertDataStreams(metadata.getIndices(), (DataStreamMetadata) metadata.projectCustoms().get(DataStreamMetadata.TYPE));
     }
 
     public void testValidateDataStreamsIgnoresIndicesWithoutCounter() {
@@ -1371,7 +1393,7 @@ public class MetadataTests extends ESTestCase {
             .build();
         // don't expect any exception when validating against non-backing indices that don't conform to the backing indices naming
         // convention
-        assertDataStreams(metadata.getIndices(), (DataStreamMetadata) metadata.customs().get(DataStreamMetadata.TYPE));
+        assertDataStreams(metadata.getIndices(), (DataStreamMetadata) metadata.projectCustoms().get(DataStreamMetadata.TYPE));
     }
 
     public void testValidateDataStreamsAllowsNamesThatStartsWithPrefix() {
@@ -1385,7 +1407,7 @@ public class MetadataTests extends ESTestCase {
             .build();
         // don't expect any exception when validating against (potentially backing) indices that can't create conflict because of
         // additional text before number
-        assertDataStreams(metadata.getIndices(), (DataStreamMetadata) metadata.customs().get(DataStreamMetadata.TYPE));
+        assertDataStreams(metadata.getIndices(), (DataStreamMetadata) metadata.projectCustoms().get(DataStreamMetadata.TYPE));
     }
 
     public void testValidateDataStreamsForNullDataStreamMetadata() {
@@ -2272,25 +2294,33 @@ public class MetadataTests extends ESTestCase {
         // 1 chunk for each index + 2 to wrap the indices field
         chunkCount += 2 + metadata.indices().size();
 
-        for (Metadata.Custom custom : metadata.customs().values()) {
+        for (Metadata.ClusterCustom custom : metadata.clusterCustoms().values()) {
             chunkCount += 2;
-
+            if (custom instanceof DesiredNodesMetadata) {
+                chunkCount += 1;
+            } else if (custom instanceof NodesShutdownMetadata nodesShutdownMetadata) {
+                chunkCount += 2 + nodesShutdownMetadata.getAll().size();
+            } else {
+                // could be anything, we have to just try it
+                chunkCount += Iterables.size(
+                    (Iterable<ToXContent>) (() -> Iterators.map(custom.toXContentChunked(params), Function.identity()))
+                );
+            }
+        }
+        for (Metadata.ProjectCustom custom : metadata.projectCustoms().values()) {
+            chunkCount += 2;
             if (custom instanceof ComponentTemplateMetadata componentTemplateMetadata) {
                 chunkCount += 2 + componentTemplateMetadata.componentTemplates().size();
             } else if (custom instanceof ComposableIndexTemplateMetadata composableIndexTemplateMetadata) {
                 chunkCount += 2 + composableIndexTemplateMetadata.indexTemplates().size();
             } else if (custom instanceof DataStreamMetadata dataStreamMetadata) {
                 chunkCount += 4 + dataStreamMetadata.dataStreams().size() + dataStreamMetadata.getDataStreamAliases().size();
-            } else if (custom instanceof DesiredNodesMetadata) {
-                chunkCount += 1;
             } else if (custom instanceof FeatureMigrationResults featureMigrationResults) {
                 chunkCount += 2 + featureMigrationResults.getFeatureStatuses().size();
             } else if (custom instanceof IndexGraveyard indexGraveyard) {
                 chunkCount += 2 + indexGraveyard.getTombstones().size();
             } else if (custom instanceof IngestMetadata ingestMetadata) {
                 chunkCount += 2 + ingestMetadata.getPipelines().size();
-            } else if (custom instanceof NodesShutdownMetadata nodesShutdownMetadata) {
-                chunkCount += 2 + nodesShutdownMetadata.getAll().size();
             } else if (custom instanceof PersistentTasksCustomMetadata persistentTasksCustomMetadata) {
                 chunkCount += 3 + persistentTasksCustomMetadata.tasks().size();
             } else if (custom instanceof RepositoriesMetadata repositoriesMetadata) {
@@ -2470,7 +2500,7 @@ public class MetadataTests extends ESTestCase {
         }
     }
 
-    private static class TestCustomMetadata implements Metadata.Custom {
+    private abstract static class AbstractCustomMetadata<C extends Metadata._Custom<C>> implements Metadata._Custom<C> {
 
         @Override
         public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
@@ -2478,7 +2508,7 @@ public class MetadataTests extends ESTestCase {
         }
 
         @Override
-        public Diff<Metadata.Custom> diff(Metadata.Custom previousState) {
+        public Diff<C> diff(C previousState) {
             return null;
         }
 
@@ -2502,4 +2532,12 @@ public class MetadataTests extends ESTestCase {
 
         }
     }
+
+    private static class TestClusterCustomMetadata extends AbstractCustomMetadata<Metadata.ClusterCustom>
+        implements
+            Metadata.ClusterCustom {}
+
+    private static class TestProjectCustomMetadata extends AbstractCustomMetadata<Metadata.ClusterCustom>
+        implements
+            Metadata.ClusterCustom {}
 }

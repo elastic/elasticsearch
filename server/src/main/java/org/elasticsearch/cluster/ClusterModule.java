@@ -207,31 +207,31 @@ public class ClusterModule extends AbstractModule {
             RepositoryCleanupInProgress::readDiffFrom
         );
         // Metadata
-        registerMetadataCustom(entries, RepositoriesMetadata.TYPE, RepositoriesMetadata::new, RepositoriesMetadata::readDiffFrom);
-        registerMetadataCustom(entries, IngestMetadata.TYPE, IngestMetadata::new, IngestMetadata::readDiffFrom);
-        registerMetadataCustom(entries, ScriptMetadata.TYPE, ScriptMetadata::new, ScriptMetadata::readDiffFrom);
-        registerMetadataCustom(entries, IndexGraveyard.TYPE, IndexGraveyard::new, IndexGraveyard::readDiffFrom);
-        registerMetadataCustom(
+        registerProjectCustom(entries, RepositoriesMetadata.TYPE, RepositoriesMetadata::new, RepositoriesMetadata::readDiffFrom);
+        registerProjectCustom(entries, IngestMetadata.TYPE, IngestMetadata::new, IngestMetadata::readDiffFrom);
+        registerProjectCustom(entries, ScriptMetadata.TYPE, ScriptMetadata::new, ScriptMetadata::readDiffFrom);
+        registerProjectCustom(entries, IndexGraveyard.TYPE, IndexGraveyard::new, IndexGraveyard::readDiffFrom);
+        registerProjectCustom(
             entries,
             PersistentTasksCustomMetadata.TYPE,
             PersistentTasksCustomMetadata::new,
             PersistentTasksCustomMetadata::readDiffFrom
         );
-        registerMetadataCustom(
+        registerProjectCustom(
             entries,
             ComponentTemplateMetadata.TYPE,
             ComponentTemplateMetadata::new,
             ComponentTemplateMetadata::readDiffFrom
         );
-        registerMetadataCustom(
+        registerProjectCustom(
             entries,
             ComposableIndexTemplateMetadata.TYPE,
             ComposableIndexTemplateMetadata::new,
             ComposableIndexTemplateMetadata::readDiffFrom
         );
-        registerMetadataCustom(entries, DataStreamMetadata.TYPE, DataStreamMetadata::new, DataStreamMetadata::readDiffFrom);
+        registerProjectCustom(entries, DataStreamMetadata.TYPE, DataStreamMetadata::new, DataStreamMetadata::readDiffFrom);
+        registerProjectCustom(entries, FeatureMigrationResults.TYPE, FeatureMigrationResults::new, FeatureMigrationResults::readDiffFrom);
         registerMetadataCustom(entries, NodesShutdownMetadata.TYPE, NodesShutdownMetadata::new, NodesShutdownMetadata::readDiffFrom);
-        registerMetadataCustom(entries, FeatureMigrationResults.TYPE, FeatureMigrationResults::new, FeatureMigrationResults::readDiffFrom);
         registerMetadataCustom(entries, DesiredNodesMetadata.TYPE, DesiredNodesMetadata::new, DesiredNodesMetadata::readDiffFrom);
 
         // Task Status (not Diffable)
@@ -248,58 +248,58 @@ public class ClusterModule extends AbstractModule {
         // Metadata
         entries.add(
             new NamedXContentRegistry.Entry(
-                Metadata.Custom.class,
+                Metadata.ProjectCustom.class,
                 new ParseField(RepositoriesMetadata.TYPE),
                 RepositoriesMetadata::fromXContent
             )
         );
         entries.add(
-            new NamedXContentRegistry.Entry(Metadata.Custom.class, new ParseField(IngestMetadata.TYPE), IngestMetadata::fromXContent)
+            new NamedXContentRegistry.Entry(Metadata.ProjectCustom.class, new ParseField(IngestMetadata.TYPE), IngestMetadata::fromXContent)
         );
         entries.add(
-            new NamedXContentRegistry.Entry(Metadata.Custom.class, new ParseField(ScriptMetadata.TYPE), ScriptMetadata::fromXContent)
+            new NamedXContentRegistry.Entry(Metadata.ProjectCustom.class, new ParseField(ScriptMetadata.TYPE), ScriptMetadata::fromXContent)
         );
         entries.add(
-            new NamedXContentRegistry.Entry(Metadata.Custom.class, new ParseField(IndexGraveyard.TYPE), IndexGraveyard::fromXContent)
+            new NamedXContentRegistry.Entry(Metadata.ProjectCustom.class, new ParseField(IndexGraveyard.TYPE), IndexGraveyard::fromXContent)
         );
         entries.add(
             new NamedXContentRegistry.Entry(
-                Metadata.Custom.class,
+                Metadata.ProjectCustom.class,
                 new ParseField(PersistentTasksCustomMetadata.TYPE),
                 PersistentTasksCustomMetadata::fromXContent
             )
         );
         entries.add(
             new NamedXContentRegistry.Entry(
-                Metadata.Custom.class,
+                Metadata.ProjectCustom.class,
                 new ParseField(ComponentTemplateMetadata.TYPE),
                 ComponentTemplateMetadata::fromXContent
             )
         );
         entries.add(
             new NamedXContentRegistry.Entry(
-                Metadata.Custom.class,
+                Metadata.ProjectCustom.class,
                 new ParseField(ComposableIndexTemplateMetadata.TYPE),
                 ComposableIndexTemplateMetadata::fromXContent
             )
         );
         entries.add(
             new NamedXContentRegistry.Entry(
-                Metadata.Custom.class,
+                Metadata.ProjectCustom.class,
                 new ParseField(DataStreamMetadata.TYPE),
                 DataStreamMetadata::fromXContent
             )
         );
         entries.add(
             new NamedXContentRegistry.Entry(
-                Metadata.Custom.class,
+                Metadata.ClusterCustom.class,
                 new ParseField(NodesShutdownMetadata.TYPE),
                 NodesShutdownMetadata::fromXContent
             )
         );
         entries.add(
             new NamedXContentRegistry.Entry(
-                Metadata.Custom.class,
+                Metadata.ClusterCustom.class,
                 new ParseField(DesiredNodesMetadata.TYPE),
                 DesiredNodesMetadata::fromXContent
             )
@@ -316,13 +316,22 @@ public class ClusterModule extends AbstractModule {
         registerCustom(entries, ClusterState.Custom.class, name, reader, diffReader);
     }
 
-    private static <T extends Metadata.Custom> void registerMetadataCustom(
+    private static <T extends Metadata.ClusterCustom> void registerMetadataCustom(
         List<Entry> entries,
         String name,
         Reader<? extends T> reader,
         Reader<NamedDiff<?>> diffReader
     ) {
-        registerCustom(entries, Metadata.Custom.class, name, reader, diffReader);
+        registerCustom(entries, Metadata.ClusterCustom.class, name, reader, diffReader);
+    }
+
+    private static <T extends Metadata.ProjectCustom> void registerProjectCustom(
+        List<Entry> entries,
+        String name,
+        Reader<? extends T> reader,
+        Reader<NamedDiff<?>> diffReader
+    ) {
+        registerCustom(entries, Metadata.ProjectCustom.class, name, reader, diffReader);
     }
 
     private static <T extends NamedWriteable> void registerCustom(

@@ -25,7 +25,8 @@ import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.TestCustomMetadata;
+import org.elasticsearch.test.TestClusterCustomMetadata;
+import org.elasticsearch.test.TestProjectCustomMetadata;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -33,10 +34,11 @@ import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
@@ -225,80 +227,114 @@ public class ClusterChangedEventTests extends ESTestCase {
         final int numNodesInCluster = 3;
 
         final ClusterState originalState = createState(numNodesInCluster, randomBoolean(), initialIndices);
-        CustomMetadata1 customMetadata1 = new CustomMetadata1("data");
-        final ClusterState stateWithCustomMetadata = nextState(originalState, Collections.singletonList(customMetadata1));
+        CustomClusterMetadata1 customClusterMetadata1 = new CustomClusterMetadata1("data");
+        final ClusterState stateWithCustomMetadata = nextState(originalState, Collections.singletonList(customClusterMetadata1));
 
         // no custom metadata present in any state
         ClusterState nextState = ClusterState.builder(originalState).build();
         ClusterChangedEvent event = new ClusterChangedEvent("_na_", originalState, nextState);
-        assertTrue(event.changedCustomMetadataSet().isEmpty());
+        assertTrue(event.changedCustomClusterMetadataSet().isEmpty());
+        assertTrue(event.changedCustomProjectMetadataSet().isEmpty());
 
         // next state has new custom metadata
-        nextState = nextState(originalState, Collections.singletonList(customMetadata1));
+        nextState = nextState(originalState, Collections.singletonList(customClusterMetadata1));
         event = new ClusterChangedEvent("_na_", originalState, nextState);
-        Set<String> changedCustomMetadataTypeSet = event.changedCustomMetadataSet();
+        Set<String> changedCustomMetadataTypeSet = event.changedCustomClusterMetadataSet();
         assertTrue(changedCustomMetadataTypeSet.size() == 1);
-        assertTrue(changedCustomMetadataTypeSet.contains(customMetadata1.getWriteableName()));
+        assertTrue(changedCustomMetadataTypeSet.contains(customClusterMetadata1.getWriteableName()));
+        assertTrue(event.changedCustomProjectMetadataSet().isEmpty());
 
         // next state has same custom metadata
-        nextState = nextState(originalState, Collections.singletonList(customMetadata1));
+        nextState = nextState(originalState, Collections.singletonList(customClusterMetadata1));
         event = new ClusterChangedEvent("_na_", stateWithCustomMetadata, nextState);
-        changedCustomMetadataTypeSet = event.changedCustomMetadataSet();
+        changedCustomMetadataTypeSet = event.changedCustomClusterMetadataSet();
         assertTrue(changedCustomMetadataTypeSet.isEmpty());
+        assertTrue(event.changedCustomProjectMetadataSet().isEmpty());
 
         // next state has equivalent custom metadata
-        nextState = nextState(originalState, Collections.singletonList(new CustomMetadata1("data")));
+        nextState = nextState(originalState, Collections.singletonList(new CustomClusterMetadata1("data")));
         event = new ClusterChangedEvent("_na_", stateWithCustomMetadata, nextState);
-        changedCustomMetadataTypeSet = event.changedCustomMetadataSet();
+        changedCustomMetadataTypeSet = event.changedCustomClusterMetadataSet();
         assertTrue(changedCustomMetadataTypeSet.isEmpty());
+        assertTrue(event.changedCustomProjectMetadataSet().isEmpty());
 
         // next state removes custom metadata
         nextState = originalState;
         event = new ClusterChangedEvent("_na_", stateWithCustomMetadata, nextState);
-        changedCustomMetadataTypeSet = event.changedCustomMetadataSet();
+        changedCustomMetadataTypeSet = event.changedCustomClusterMetadataSet();
         assertTrue(changedCustomMetadataTypeSet.size() == 1);
-        assertTrue(changedCustomMetadataTypeSet.contains(customMetadata1.getWriteableName()));
+        assertTrue(changedCustomMetadataTypeSet.contains(customClusterMetadata1.getWriteableName()));
+        assertTrue(event.changedCustomProjectMetadataSet().isEmpty());
 
         // next state updates custom metadata
-        nextState = nextState(stateWithCustomMetadata, Collections.singletonList(new CustomMetadata1("data1")));
+        nextState = nextState(stateWithCustomMetadata, Collections.singletonList(new CustomClusterMetadata1("data1")));
         event = new ClusterChangedEvent("_na_", stateWithCustomMetadata, nextState);
-        changedCustomMetadataTypeSet = event.changedCustomMetadataSet();
+        changedCustomMetadataTypeSet = event.changedCustomClusterMetadataSet();
         assertTrue(changedCustomMetadataTypeSet.size() == 1);
-        assertTrue(changedCustomMetadataTypeSet.contains(customMetadata1.getWriteableName()));
+        assertTrue(changedCustomMetadataTypeSet.contains(customClusterMetadata1.getWriteableName()));
+        assertTrue(event.changedCustomProjectMetadataSet().isEmpty());
 
         // next state adds new custom metadata type
-        CustomMetadata2 customMetadata2 = new CustomMetadata2("data2");
-        nextState = nextState(stateWithCustomMetadata, Arrays.asList(customMetadata1, customMetadata2));
+        CustomClusterMetadata2 customClusterMetadata2 = new CustomClusterMetadata2("data2");
+        nextState = nextState(stateWithCustomMetadata, Arrays.asList(customClusterMetadata1, customClusterMetadata2));
         event = new ClusterChangedEvent("_na_", stateWithCustomMetadata, nextState);
-        changedCustomMetadataTypeSet = event.changedCustomMetadataSet();
+        changedCustomMetadataTypeSet = event.changedCustomClusterMetadataSet();
         assertTrue(changedCustomMetadataTypeSet.size() == 1);
-        assertTrue(changedCustomMetadataTypeSet.contains(customMetadata2.getWriteableName()));
+        assertTrue(changedCustomMetadataTypeSet.contains(customClusterMetadata2.getWriteableName()));
+        assertTrue(event.changedCustomProjectMetadataSet().isEmpty());
 
         // next state adds two custom metadata type
-        nextState = nextState(originalState, Arrays.asList(customMetadata1, customMetadata2));
+        nextState = nextState(originalState, Arrays.asList(customClusterMetadata1, customClusterMetadata2));
         event = new ClusterChangedEvent("_na_", originalState, nextState);
-        changedCustomMetadataTypeSet = event.changedCustomMetadataSet();
+        changedCustomMetadataTypeSet = event.changedCustomClusterMetadataSet();
         assertTrue(changedCustomMetadataTypeSet.size() == 2);
-        assertTrue(changedCustomMetadataTypeSet.contains(customMetadata2.getWriteableName()));
-        assertTrue(changedCustomMetadataTypeSet.contains(customMetadata1.getWriteableName()));
+        assertTrue(changedCustomMetadataTypeSet.contains(customClusterMetadata2.getWriteableName()));
+        assertTrue(changedCustomMetadataTypeSet.contains(customClusterMetadata1.getWriteableName()));
+        assertTrue(event.changedCustomProjectMetadataSet().isEmpty());
 
         // next state removes two custom metadata type
         nextState = originalState;
-        event = new ClusterChangedEvent("_na_", nextState(originalState, Arrays.asList(customMetadata1, customMetadata2)), nextState);
-        changedCustomMetadataTypeSet = event.changedCustomMetadataSet();
+        event = new ClusterChangedEvent(
+            "_na_",
+            nextState(originalState, Arrays.asList(customClusterMetadata1, customClusterMetadata2)),
+            nextState
+        );
+        changedCustomMetadataTypeSet = event.changedCustomClusterMetadataSet();
         assertTrue(changedCustomMetadataTypeSet.size() == 2);
-        assertTrue(changedCustomMetadataTypeSet.contains(customMetadata2.getWriteableName()));
-        assertTrue(changedCustomMetadataTypeSet.contains(customMetadata1.getWriteableName()));
+        assertTrue(changedCustomMetadataTypeSet.contains(customClusterMetadata2.getWriteableName()));
+        assertTrue(changedCustomMetadataTypeSet.contains(customClusterMetadata1.getWriteableName()));
+        assertTrue(event.changedCustomProjectMetadataSet().isEmpty());
+
+        CustomProjectMetadata customProjectMetadata = new CustomProjectMetadata("proj");
+        // next state has new project custom
+        nextState = nextState(originalState, List.of(), List.of(customProjectMetadata));
+        event = new ClusterChangedEvent("_na_", originalState, nextState);
+        assertThat(event.changedCustomClusterMetadataSet(), empty());
+        assertThat(event.changedCustomProjectMetadataSet(), containsInAnyOrder(customProjectMetadata.getWriteableName()));
+
+        // next state has cluster custom + same project custom
+        var prevState = nextState;
+        nextState = nextState(originalState, List.of(customClusterMetadata1), List.of(customProjectMetadata));
+        event = new ClusterChangedEvent("_na_", prevState, nextState);
+        assertThat(event.changedCustomClusterMetadataSet(), containsInAnyOrder(customClusterMetadata1.getWriteableName()));
+        assertThat(event.changedCustomProjectMetadataSet(), empty());
+
+        // next state has same cluster custom + remove project custom
+        prevState = nextState;
+        nextState = nextState(originalState, List.of(customClusterMetadata1), List.of());
+        event = new ClusterChangedEvent("_na_", prevState, nextState);
+        assertThat(event.changedCustomClusterMetadataSet(), empty());
+        assertThat(event.changedCustomProjectMetadataSet(), containsInAnyOrder(customProjectMetadata.getWriteableName()));
     }
 
-    private static class CustomMetadata2 extends TestCustomMetadata {
-        protected CustomMetadata2(String data) {
+    private static class CustomClusterMetadata2 extends TestClusterCustomMetadata {
+        protected CustomClusterMetadata2(String data) {
             super(data);
         }
 
         @Override
         public String getWriteableName() {
-            return "2";
+            return "c2";
         }
 
         @Override
@@ -312,14 +348,35 @@ public class ClusterChangedEventTests extends ESTestCase {
         }
     }
 
-    private static class CustomMetadata1 extends TestCustomMetadata {
-        protected CustomMetadata1(String data) {
+    private static class CustomClusterMetadata1 extends TestClusterCustomMetadata {
+        protected CustomClusterMetadata1(String data) {
             super(data);
         }
 
         @Override
         public String getWriteableName() {
-            return "1";
+            return "c1";
+        }
+
+        @Override
+        public TransportVersion getMinimalSupportedVersion() {
+            return TransportVersion.current();
+        }
+
+        @Override
+        public EnumSet<Metadata.XContentContext> context() {
+            return EnumSet.of(Metadata.XContentContext.GATEWAY);
+        }
+    }
+
+    private static class CustomProjectMetadata extends TestProjectCustomMetadata {
+        protected CustomProjectMetadata(String data) {
+            super(data);
+        }
+
+        @Override
+        public String getWriteableName() {
+            return "p1";
         }
 
         @Override
@@ -355,18 +412,22 @@ public class ClusterChangedEventTests extends ESTestCase {
             .build();
     }
 
-    private static ClusterState nextState(final ClusterState previousState, List<TestCustomMetadata> customMetadataList) {
+    private static ClusterState nextState(final ClusterState previousState, List<TestClusterCustomMetadata> customMetadataList) {
+        return nextState(previousState, customMetadataList, List.of());
+    }
+
+    private static ClusterState nextState(
+        final ClusterState previousState,
+        List<TestClusterCustomMetadata> clusterCustoms,
+        List<TestProjectCustomMetadata> projectCustoms
+    ) {
         final ClusterState.Builder builder = ClusterState.builder(previousState);
         builder.stateUUID(UUIDs.randomBase64UUID());
         Metadata.Builder metadataBuilder = Metadata.builder(previousState.metadata());
-        for (Map.Entry<String, Metadata.Custom> customMetadata : previousState.metadata().customs().entrySet()) {
-            if (customMetadata.getValue() instanceof TestCustomMetadata) {
-                metadataBuilder.removeCustom(customMetadata.getKey());
-            }
-        }
-        for (TestCustomMetadata testCustomMetadata : customMetadataList) {
-            metadataBuilder.putCustom(testCustomMetadata.getWriteableName(), testCustomMetadata);
-        }
+        metadataBuilder.removeClusterCustomIf((ignore, custom) -> custom instanceof TestClusterCustomMetadata);
+        metadataBuilder.removeProjectCustomIf((ignore, custom) -> custom instanceof TestProjectCustomMetadata);
+        clusterCustoms.forEach(clusterCustom -> metadataBuilder.putCustom(clusterCustom.getWriteableName(), clusterCustom));
+        projectCustoms.forEach(projectCustom -> metadataBuilder.putCustom(projectCustom.getWriteableName(), projectCustom));
         builder.metadata(metadataBuilder);
         return builder.build();
     }

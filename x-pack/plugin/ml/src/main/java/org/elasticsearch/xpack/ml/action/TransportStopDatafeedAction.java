@@ -189,7 +189,7 @@ public class TransportStopDatafeedAction extends TransportTasksAction<
                 );
             }
         } else {
-            PersistentTasksCustomMetadata tasks = state.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
+            PersistentTasksCustomMetadata tasks = PersistentTasksCustomMetadata.getPersistentTasksCustomMetadata(state);
             datafeedConfigProvider.expandDatafeedIds(
                 request.getDatafeedId(),
                 request.allowNoMatch(),

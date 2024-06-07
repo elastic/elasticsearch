@@ -212,7 +212,9 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
                 perDeploymentMemoryBytes.get(),
                 perAllocationMemoryBytes.get()
             );
-            PersistentTasksCustomMetadata persistentTasks = clusterService.state().getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
+            PersistentTasksCustomMetadata persistentTasks = PersistentTasksCustomMetadata.getPersistentTasksCustomMetadata(
+                clusterService.state()
+            );
             memoryTracker.refresh(
                 persistentTasks,
                 ActionListener.wrap(

@@ -43,7 +43,7 @@ public class StartupSelfGeneratedLicenseTask extends ClusterStateUpdateTask {
 
     @Override
     public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
-        LicensesMetadata licensesMetadata = newState.metadata().custom(LicensesMetadata.TYPE);
+        LicensesMetadata licensesMetadata = LicensesMetadata.getLicensesMetadata(newState);
         if (logger.isDebugEnabled()) {
             logger.debug("registered self generated license: {}", licensesMetadata);
         }
@@ -52,8 +52,7 @@ public class StartupSelfGeneratedLicenseTask extends ClusterStateUpdateTask {
     @Override
     public ClusterState execute(ClusterState currentState) throws Exception {
         XPackPlugin.checkReadyForXPackCustomMetadata(currentState);
-        final Metadata metadata = currentState.metadata();
-        final LicensesMetadata currentLicensesMetadata = metadata.custom(LicensesMetadata.TYPE);
+        final LicensesMetadata currentLicensesMetadata = LicensesMetadata.getLicensesMetadata(currentState);
         // do not generate a license if any license is present
         if (currentLicensesMetadata == null) {
             License.LicenseType type = SelfGeneratedLicense.validateSelfGeneratedType(

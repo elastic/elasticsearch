@@ -16,7 +16,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.RepositoryMissingException;
-import org.elasticsearch.test.TestCustomMetadata;
+import org.elasticsearch.test.TestProjectCustomMetadata;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
@@ -94,7 +94,7 @@ public class CustomMetadataContextIT extends AbstractSnapshotIntegTestCase {
             if (isSnapshotMetadataSet == false || randomBoolean()) {
                 metadataBuilder.putCustom(SnapshotMetadata.TYPE, new SnapshotMetadata("after_snapshot_s"));
             } else {
-                metadataBuilder.removeCustom(SnapshotMetadata.TYPE);
+                metadataBuilder.removeProjectCustom(SnapshotMetadata.TYPE);
             }
             metadataBuilder.putCustom(ApiMetadata.TYPE, new ApiMetadata("after_snapshot_ns"));
         }));
@@ -109,11 +109,11 @@ public class CustomMetadataContextIT extends AbstractSnapshotIntegTestCase {
         var metadata = clusterAdmin().prepareState().get().getState().getMetadata();
         logger.info("check that custom persistent metadata [{}] is correctly restored", metadata);
         if (isSnapshotMetadataSet) {
-            assertThat(metadata.<SnapshotMetadata>custom(SnapshotMetadata.TYPE).getData(), equalTo("before_snapshot_s"));
+            assertThat(metadata.<SnapshotMetadata>projectCustom(SnapshotMetadata.TYPE).getData(), equalTo("before_snapshot_s"));
         } else {
-            assertThat(metadata.<SnapshotMetadata>custom(SnapshotMetadata.TYPE), nullValue());
+            assertThat(metadata.<SnapshotMetadata>projectCustom(SnapshotMetadata.TYPE), nullValue());
         }
-        assertThat(metadata.<ApiMetadata>custom(ApiMetadata.TYPE).getData(), equalTo("after_snapshot_ns"));
+        assertThat(metadata.<ApiMetadata>projectCustom(ApiMetadata.TYPE).getData(), equalTo("after_snapshot_ns"));
     }
 
     public void testShouldKeepGatewayMetadataAfterRestart() throws Exception {
@@ -129,8 +129,8 @@ public class CustomMetadataContextIT extends AbstractSnapshotIntegTestCase {
 
         var metadata = clusterAdmin().prepareState().get().getState().getMetadata();
         logger.info("check that gateway custom metadata [{}] survived full cluster restart", metadata);
-        assertThat(metadata.<GatewayMetadata>custom(GatewayMetadata.TYPE).getData(), equalTo("before_restart_s_gw"));
-        assertThat(metadata.<ApiMetadata>custom(ApiMetadata.TYPE), nullValue());
+        assertThat(metadata.<GatewayMetadata>projectCustom(GatewayMetadata.TYPE).getData(), equalTo("before_restart_s_gw"));
+        assertThat(metadata.<ApiMetadata>projectCustom(ApiMetadata.TYPE), nullValue());
     }
 
     public void testShouldExposeApiMetadata() throws Exception {
@@ -142,8 +142,8 @@ public class CustomMetadataContextIT extends AbstractSnapshotIntegTestCase {
 
         var metadata = clusterAdmin().prepareState().get().getState().getMetadata();
         logger.info("check that api custom metadata [{}] is visible via api", metadata);
-        assertThat(metadata.<ApiMetadata>custom(ApiMetadata.TYPE).getData(), equalTo("before_restart_s_gw"));
-        assertThat(metadata.<NonApiMetadata>custom(NonApiMetadata.TYPE), nullValue());
+        assertThat(metadata.<ApiMetadata>projectCustom(ApiMetadata.TYPE).getData(), equalTo("before_restart_s_gw"));
+        assertThat(metadata.<NonApiMetadata>projectCustom(NonApiMetadata.TYPE), nullValue());
     }
 
     public static class TestCustomMetadataPlugin extends Plugin {
@@ -155,19 +155,19 @@ public class CustomMetadataContextIT extends AbstractSnapshotIntegTestCase {
             registerBuiltinWritables();
         }
 
-        private <T extends Metadata.Custom> void registerMetadataCustom(
+        private <T extends Metadata.ProjectCustom> void registerMetadataCustom(
             String name,
             Writeable.Reader<T> reader,
             Writeable.Reader<NamedDiff<?>> diffReader,
             CheckedFunction<XContentParser, T, IOException> parser
         ) {
-            namedWritables.add(new NamedWriteableRegistry.Entry(Metadata.Custom.class, name, reader));
+            namedWritables.add(new NamedWriteableRegistry.Entry(Metadata.ProjectCustom.class, name, reader));
             namedWritables.add(new NamedWriteableRegistry.Entry(NamedDiff.class, name, diffReader));
-            namedXContents.add(new NamedXContentRegistry.Entry(Metadata.Custom.class, new ParseField(name), parser));
+            namedXContents.add(new NamedXContentRegistry.Entry(Metadata.ProjectCustom.class, new ParseField(name), parser));
         }
 
         private void registerBuiltinWritables() {
-            Map.<String, Function<String, TestCustomMetadata>>of(
+            Map.<String, Function<String, TestProjectCustomMetadata>>of(
                 SnapshotMetadata.TYPE,
                 SnapshotMetadata::new,
                 GatewayMetadata.TYPE,
@@ -180,9 +180,9 @@ public class CustomMetadataContextIT extends AbstractSnapshotIntegTestCase {
                 .forEach(
                     (type, constructor) -> registerMetadataCustom(
                         type,
-                        in -> TestCustomMetadata.readFrom(constructor, in),
-                        in -> TestCustomMetadata.readDiffFrom(type, in),
-                        parser -> TestCustomMetadata.fromXContent(constructor, parser)
+                        in -> TestProjectCustomMetadata.readFrom(constructor, in),
+                        in -> TestProjectCustomMetadata.readDiffFrom(type, in),
+                        parser -> TestProjectCustomMetadata.fromXContent(constructor, parser)
                     )
                 );
         }
@@ -198,7 +198,7 @@ public class CustomMetadataContextIT extends AbstractSnapshotIntegTestCase {
         }
     }
 
-    private abstract static class ThisTestCustomMetadata extends TestCustomMetadata {
+    private abstract static class ThisTestCustomMetadata extends TestProjectCustomMetadata {
         private final String type;
         private final EnumSet<Metadata.XContentContext> context;
 

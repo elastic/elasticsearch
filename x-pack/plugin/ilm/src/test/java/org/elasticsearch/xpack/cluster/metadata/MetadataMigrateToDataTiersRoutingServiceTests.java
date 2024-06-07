@@ -134,7 +134,7 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
         assertThat(migratedPolicies.get(0), is(lifecycleName));
 
         ClusterState newState = ClusterState.builder(state).metadata(newMetadata).build();
-        IndexLifecycleMetadata updatedLifecycleMetadata = newState.metadata().custom(IndexLifecycleMetadata.TYPE);
+        IndexLifecycleMetadata updatedLifecycleMetadata = newState.metadata().projectCustom(IndexLifecycleMetadata.TYPE);
         LifecyclePolicy lifecyclePolicy = updatedLifecycleMetadata.getPolicies().get(lifecycleName);
         Map<String, LifecycleAction> warmActions = lifecyclePolicy.getPhases().get("warm").getActions();
         assertThat(
@@ -202,7 +202,7 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
         assertThat(migratedPolicies.get(0), is(lifecycleName));
 
         ClusterState newState = ClusterState.builder(state).metadata(newMetadata).build();
-        IndexLifecycleMetadata updatedLifecycleMetadata = newState.metadata().custom(IndexLifecycleMetadata.TYPE);
+        IndexLifecycleMetadata updatedLifecycleMetadata = newState.metadata().projectCustom(IndexLifecycleMetadata.TYPE);
         LifecyclePolicy lifecyclePolicy = updatedLifecycleMetadata.getPolicies().get(lifecycleName);
         Map<String, LifecycleAction> warmActions = lifecyclePolicy.getPhases().get("warm").getActions();
         assertThat(

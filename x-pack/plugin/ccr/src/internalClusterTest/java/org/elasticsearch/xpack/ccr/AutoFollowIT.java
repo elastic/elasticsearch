@@ -170,7 +170,7 @@ public class AutoFollowIT extends CcrIntegTestCase {
             String leaderIndexUUID = metadata.index("copy-logs-201901")
                 .getCustomData(Ccr.CCR_CUSTOM_METADATA_KEY)
                 .get(Ccr.CCR_CUSTOM_METADATA_LEADER_INDEX_UUID_KEY);
-            AutoFollowMetadata autoFollowMetadata = metadata.custom(AutoFollowMetadata.TYPE);
+            AutoFollowMetadata autoFollowMetadata = metadata.projectCustom(AutoFollowMetadata.TYPE);
             assertThat(autoFollowMetadata, notNullValue());
             List<String> followedLeaderIndixUUIDs = autoFollowMetadata.getFollowedLeaderIndexUUIDs().get("my-pattern");
             assertThat(followedLeaderIndixUUIDs.size(), equalTo(1));
@@ -184,7 +184,7 @@ public class AutoFollowIT extends CcrIntegTestCase {
             AutoFollowMetadata autoFollowMetadata = getFollowerCluster().clusterService()
                 .state()
                 .metadata()
-                .custom(AutoFollowMetadata.TYPE);
+                .projectCustom(AutoFollowMetadata.TYPE);
             assertThat(autoFollowMetadata, notNullValue());
             List<String> followedLeaderIndixUUIDs = autoFollowMetadata.getFollowedLeaderIndexUUIDs().get("my-pattern");
             assertThat(followedLeaderIndixUUIDs.size(), equalTo(0));
@@ -211,7 +211,7 @@ public class AutoFollowIT extends CcrIntegTestCase {
                 autoFollowStats[0] = getAutoFollowStats();
 
                 assertThat(metadata[0].indices().size(), equalTo((int) expectedVal1));
-                AutoFollowMetadata autoFollowMetadata = metadata[0].custom(AutoFollowMetadata.TYPE);
+                AutoFollowMetadata autoFollowMetadata = metadata[0].projectCustom(AutoFollowMetadata.TYPE);
                 assertThat(autoFollowMetadata.getFollowedLeaderIndexUUIDs().get("my-pattern"), hasSize((int) expectedVal1));
                 assertThat(autoFollowStats[0].getNumberOfSuccessfulFollowIndices(), equalTo(expectedVal1));
             });
@@ -230,7 +230,7 @@ public class AutoFollowIT extends CcrIntegTestCase {
                 autoFollowStats[0] = getAutoFollowStats();
 
                 assertThat(metadata[0].indices().size(), equalTo((int) expectedVal1));
-                AutoFollowMetadata autoFollowMetadata = metadata[0].custom(AutoFollowMetadata.TYPE);
+                AutoFollowMetadata autoFollowMetadata = metadata[0].projectCustom(AutoFollowMetadata.TYPE);
                 assertThat(autoFollowMetadata.getFollowedLeaderIndexUUIDs().get("my-pattern"), nullValue());
                 assertThat(autoFollowStats[0].getAutoFollowedClusters().size(), equalTo(0));
             });
@@ -254,7 +254,7 @@ public class AutoFollowIT extends CcrIntegTestCase {
             autoFollowStats[0] = getAutoFollowStats();
 
             assertThat(metadata[0].indices().size(), equalTo((int) expectedVal2));
-            AutoFollowMetadata autoFollowMetadata = metadata[0].custom(AutoFollowMetadata.TYPE);
+            AutoFollowMetadata autoFollowMetadata = metadata[0].projectCustom(AutoFollowMetadata.TYPE);
             // expectedVal2 + 1, because logs-does-not-count is also marked as auto followed.
             // (This is because indices created before a pattern exists are not auto followed and are just marked as such.)
             assertThat(autoFollowMetadata.getFollowedLeaderIndexUUIDs().get("my-pattern"), hasSize((int) expectedVal2 + 1));

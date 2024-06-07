@@ -981,8 +981,12 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
         assertNull(indicesToMarkReadOnly.get());
         assertNull(indicesToRelease.get());
 
+        final Metadata metadataNoShutdown = Metadata.builder(clusterState.metadata())
+            .put(indexMetadata, true)
+            .removeClusterCustom(NodesShutdownMetadata.TYPE)
+            .build();
         final ClusterState clusterStateNoShutdown = ClusterState.builder(clusterState)
-            .metadata(Metadata.builder(clusterState.metadata()).put(indexMetadata, true).removeCustom(NodesShutdownMetadata.TYPE).build())
+            .metadata(metadataNoShutdown)
             .blocks(ClusterBlocks.builder().addBlocks(indexMetadata).build())
             .build();
 

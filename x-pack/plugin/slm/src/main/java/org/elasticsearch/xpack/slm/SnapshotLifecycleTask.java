@@ -187,7 +187,7 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
      * For the given job id, return an optional policy metadata object, if one exists
      */
     static Optional<SnapshotLifecyclePolicyMetadata> getSnapPolicyMetadata(final String jobId, final ClusterState state) {
-        return Optional.ofNullable((SnapshotLifecycleMetadata) state.metadata().custom(SnapshotLifecycleMetadata.TYPE))
+        return Optional.ofNullable((SnapshotLifecycleMetadata) state.metadata().projectCustom(SnapshotLifecycleMetadata.TYPE))
             .map(SnapshotLifecycleMetadata::getSnapshotConfigurations)
             .flatMap(
                 configMap -> configMap.values()
@@ -239,7 +239,7 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
 
         @Override
         public ClusterState execute(ClusterState currentState) throws Exception {
-            SnapshotLifecycleMetadata snapMeta = currentState.metadata().custom(SnapshotLifecycleMetadata.TYPE);
+            SnapshotLifecycleMetadata snapMeta = currentState.metadata().projectCustom(SnapshotLifecycleMetadata.TYPE);
 
             assert snapMeta != null : "this should never be called while the snapshot lifecycle cluster metadata is null";
             if (snapMeta == null) {

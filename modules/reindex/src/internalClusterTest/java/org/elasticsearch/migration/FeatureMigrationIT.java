@@ -165,7 +165,7 @@ public class FeatureMigrationIT extends AbstractFeatureMigrationIntegTest {
             assertThat(innerMap, hasEntry("innerKey", "innerValue"));
 
             // We shouldn't have any results in the cluster state as no features have fully finished yet.
-            FeatureMigrationResults currentResults = clusterState.metadata().custom(FeatureMigrationResults.TYPE);
+            FeatureMigrationResults currentResults = FeatureMigrationResults.get(clusterState);
             assertThat(currentResults, nullValue());
             postUpgradeHookCalled.set(true);
         });
@@ -196,9 +196,10 @@ public class FeatureMigrationIT extends AbstractFeatureMigrationIntegTest {
         assertTrue("the pre-migration hook wasn't actually called", preUpgradeHookCalled.get());
         assertTrue("the post-migration hook wasn't actually called", postUpgradeHookCalled.get());
 
-        Metadata finalMetadata = clusterAdmin().prepareState().get().getState().metadata();
+        final ClusterState finalState = clusterAdmin().prepareState().get().getState();
+        final Metadata finalMetadata = finalState.metadata();
         // Check that the results metadata is what we expect.
-        FeatureMigrationResults currentResults = finalMetadata.custom(FeatureMigrationResults.TYPE);
+        FeatureMigrationResults currentResults = FeatureMigrationResults.get(finalState);
         assertThat(currentResults, notNullValue());
         assertThat(currentResults.getFeatureStatuses(), allOf(aMapWithSize(1), hasKey(FEATURE_NAME)));
         assertThat(currentResults.getFeatureStatuses().get(FEATURE_NAME).succeeded(), is(true));

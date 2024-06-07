@@ -91,7 +91,7 @@ public class TransportDeleteLifecycleAction extends TransportMasterNodeAction<Re
                 );
             }
             ClusterState.Builder newState = ClusterState.builder(currentState);
-            IndexLifecycleMetadata currentMetadata = currentState.metadata().custom(IndexLifecycleMetadata.TYPE);
+            IndexLifecycleMetadata currentMetadata = currentState.metadata().projectCustom(IndexLifecycleMetadata.TYPE);
             if (currentMetadata == null || currentMetadata.getPolicyMetadatas().containsKey(request.getPolicyName()) == false) {
                 throw new ResourceNotFoundException("Lifecycle policy not found: {}", request.getPolicyName());
             }

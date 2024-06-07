@@ -188,7 +188,7 @@ public abstract class CcrIntegTestCase extends ESTestCase {
         leaderCluster.ensureAtLeastNumDataNodes(numberOfNodesPerCluster());
         assertBusy(() -> {
             ClusterService clusterService = leaderCluster.getInstance(ClusterService.class);
-            assertNotNull(clusterService.state().metadata().custom(LicensesMetadata.TYPE));
+            assertNotNull(clusterService.state().metadata().clusterCustom(LicensesMetadata.TYPE));
         }, 60, TimeUnit.SECONDS);
 
         String address = leaderCluster.getDataNodeInstance(TransportService.class).boundAddress().publishAddress().toString();
@@ -212,7 +212,7 @@ public abstract class CcrIntegTestCase extends ESTestCase {
         followerCluster.ensureAtLeastNumDataNodes(numberOfNodesPerCluster());
         assertBusy(() -> {
             ClusterService clusterService = followerCluster.getInstance(ClusterService.class);
-            assertNotNull(clusterService.state().metadata().custom(LicensesMetadata.TYPE));
+            assertNotNull(clusterService.state().metadata().clusterCustom(LicensesMetadata.TYPE));
         }, 60, TimeUnit.SECONDS);
         setupMasterNodeRequestsValidatorOnFollowerCluster();
     }
@@ -503,7 +503,7 @@ public abstract class CcrIntegTestCase extends ESTestCase {
             );
 
             final ClusterState clusterState = followerClient().admin().cluster().prepareState().get().getState();
-            PersistentTasksCustomMetadata tasks = clusterState.metadata().custom(PersistentTasksCustomMetadata.TYPE);
+            PersistentTasksCustomMetadata tasks = PersistentTasksCustomMetadata.getPersistentTasksCustomMetadata(clusterState);
             Collection<PersistentTasksCustomMetadata.PersistentTask<?>> ccrTasks = tasks.tasks()
                 .stream()
                 .filter(t -> t.getTaskName().equals(ShardFollowTask.NAME))
@@ -864,7 +864,7 @@ public abstract class CcrIntegTestCase extends ESTestCase {
                 newState.metadata(
                     Metadata.builder(currentState.getMetadata())
                         .putCustom(AutoFollowMetadata.TYPE, empty)
-                        .removeCustom(PersistentTasksCustomMetadata.TYPE)
+                        .removeProjectCustom(PersistentTasksCustomMetadata.TYPE)
                         .build()
                 );
                 return newState.build();

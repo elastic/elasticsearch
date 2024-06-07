@@ -33,7 +33,7 @@ public class LicenseRegistrationTests extends AbstractClusterStateLicenseService
         ArgumentCaptor<ClusterStateUpdateTask> stateUpdater = ArgumentCaptor.forClass(ClusterStateUpdateTask.class);
         verify(clusterService, Mockito.times(1)).submitUnbatchedStateUpdateTask(any(), stateUpdater.capture());
         ClusterState stateWithLicense = stateUpdater.getValue().execute(state);
-        LicensesMetadata licenseMetadata = stateWithLicense.metadata().custom(LicensesMetadata.TYPE);
+        LicensesMetadata licenseMetadata = LicensesMetadata.getLicensesMetadata(stateWithLicense);
         assertNotNull(licenseMetadata);
         assertNotNull(licenseMetadata.getLicense());
         assertFalse(licenseMetadata.isEligibleForTrial());
@@ -54,7 +54,7 @@ public class LicenseRegistrationTests extends AbstractClusterStateLicenseService
         ArgumentCaptor<ClusterStateUpdateTask> stateUpdater = ArgumentCaptor.forClass(ClusterStateUpdateTask.class);
         verify(clusterService, Mockito.times(1)).submitUnbatchedStateUpdateTask(any(), stateUpdater.capture());
         ClusterState stateWithLicense = stateUpdater.getValue().execute(state);
-        LicensesMetadata licenseMetadata = stateWithLicense.metadata().custom(LicensesMetadata.TYPE);
+        LicensesMetadata licenseMetadata = LicensesMetadata.getLicensesMetadata(stateWithLicense);
         assertNotNull(licenseMetadata);
         assertNotNull(licenseMetadata.getLicense());
         assertTrue(licenseMetadata.isEligibleForTrial());
@@ -88,7 +88,7 @@ public class LicenseRegistrationTests extends AbstractClusterStateLicenseService
         ArgumentCaptor<ClusterStateUpdateTask> stateUpdater = ArgumentCaptor.forClass(ClusterStateUpdateTask.class);
         verify(clusterService, Mockito.times(1)).submitUnbatchedStateUpdateTask(any(), stateUpdater.capture());
         ClusterState stateWithLicense = stateUpdater.getValue().execute(state);
-        LicensesMetadata licenseMetadata = stateWithLicense.metadata().custom(LicensesMetadata.TYPE);
+        LicensesMetadata licenseMetadata = LicensesMetadata.getLicensesMetadata(stateWithLicense);
         assertNotNull(licenseMetadata);
         assertNotNull(licenseMetadata.getLicense());
         assertTrue(licenseMetadata.isEligibleForTrial());
@@ -120,7 +120,7 @@ public class LicenseRegistrationTests extends AbstractClusterStateLicenseService
         ArgumentCaptor<ClusterStateUpdateTask> stateUpdater = ArgumentCaptor.forClass(ClusterStateUpdateTask.class);
         verify(clusterService, Mockito.times(1)).submitUnbatchedStateUpdateTask(any(), stateUpdater.capture());
         ClusterState stateWithLicense = stateUpdater.getValue().execute(state);
-        LicensesMetadata licenseMetadata = stateWithLicense.metadata().custom(LicensesMetadata.TYPE);
+        LicensesMetadata licenseMetadata = LicensesMetadata.getLicensesMetadata(stateWithLicense);
         assertNotNull(licenseMetadata);
         assertNotNull(licenseMetadata.getLicense());
         assertTrue(licenseMetadata.isEligibleForTrial());

@@ -34,7 +34,7 @@ import java.util.Set;
 import static org.elasticsearch.cluster.metadata.Metadata.ALL_CONTEXTS;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
-public final class RoleMappingMetadata extends AbstractNamedDiffable<Metadata.Custom> implements Metadata.Custom {
+public final class RoleMappingMetadata extends AbstractNamedDiffable<Metadata.ProjectCustom> implements Metadata.ProjectCustom {
 
     public static final String TYPE = "role_mappings";
 
@@ -81,14 +81,14 @@ public final class RoleMappingMetadata extends AbstractNamedDiffable<Metadata.Cu
     public ClusterState updateClusterState(ClusterState clusterState) {
         if (isEmpty()) {
             // prefer no role mapping custom metadata to the empty role mapping metadata
-            return clusterState.copyAndUpdateMetadata(b -> b.removeCustom(RoleMappingMetadata.TYPE));
+            return clusterState.copyAndUpdateMetadata(b -> b.removeProjectCustom(RoleMappingMetadata.TYPE));
         } else {
-            return clusterState.copyAndUpdateMetadata(b -> b.putCustom(RoleMappingMetadata.TYPE, this));
+            return clusterState.copyAndUpdateMetadata(b -> b.putProjectCustom(RoleMappingMetadata.TYPE, this));
         }
     }
 
-    public static NamedDiff<Metadata.Custom> readDiffFrom(StreamInput streamInput) throws IOException {
-        return readDiffFrom(Metadata.Custom.class, TYPE, streamInput);
+    public static NamedDiff<Metadata.ProjectCustom> readDiffFrom(StreamInput streamInput) throws IOException {
+        return readDiffFrom(Metadata.ProjectCustom.class, TYPE, streamInput);
     }
 
     @Override

@@ -158,7 +158,7 @@ public class TransportDeleteForecastAction extends HandledTransportAction<Delete
             return;
         }
         final ClusterState state = clusterService.state();
-        PersistentTasksCustomMetadata persistentTasks = state.metadata().custom(PersistentTasksCustomMetadata.TYPE);
+        PersistentTasksCustomMetadata persistentTasks = PersistentTasksCustomMetadata.getPersistentTasksCustomMetadata(state);
         JobState jobState = MlTasks.getJobState(jobId, persistentTasks);
         final List<String> forecastIds;
         try {

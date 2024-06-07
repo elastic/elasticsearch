@@ -67,8 +67,11 @@ public abstract class ElasticsearchNodeCommand extends EnvironmentAwareCommand {
         @SuppressWarnings("unchecked")
         @Override
         public <T, C> T parseNamedObject(Class<T> categoryClass, String name, XContentParser parser, C context) throws IOException {
-            // Currently, two unknown top-level objects are present
-            if (Metadata.Custom.class.isAssignableFrom(categoryClass)) {
+            // Currently, three unknown top-level objects are present
+            if (Metadata.ClusterCustom.class.isAssignableFrom(categoryClass)) {
+                return (T) new UnknownMetadataCustom(name, parser.mapOrdered());
+            }
+            if (Metadata.ProjectCustom.class.isAssignableFrom(categoryClass)) {
                 if (DataStreamMetadata.TYPE.equals(name)
                     || ComposableIndexTemplateMetadata.TYPE.equals(name)
                     || ComponentTemplateMetadata.TYPE.equals(name)) {
@@ -78,7 +81,7 @@ public abstract class ElasticsearchNodeCommand extends EnvironmentAwareCommand {
                     // TODO: Try to parse other named objects (e.g. stored scripts, ingest pipelines) that are part of core es as well?
                     // Note that supporting PersistentTasksCustomMetadata is trickier, because PersistentTaskParams is a named object too.
                 } else {
-                    return (T) new UnknownMetadataCustom(name, parser.mapOrdered());
+                    return (T) new UnknownProjectCustom(name, parser.mapOrdered());
                 }
             }
             if (Condition.class.isAssignableFrom(categoryClass)) {
@@ -201,7 +204,15 @@ public abstract class ElasticsearchNodeCommand extends EnvironmentAwareCommand {
         return parser;
     }
 
-    public record UnknownMetadataCustom(String name, Map<String, Object> contents) implements Metadata.Custom {
+    public abstract static class AbstractUnknownCustom<T> implements Metadata._Custom<T> {
+
+        private final String name;
+        private final Map<String, Object> contents;
+
+        public AbstractUnknownCustom(String name, Map<String, Object> contents) {
+            this.name = name;
+            this.contents = contents;
+        }
 
         @Override
         public EnumSet<Metadata.XContentContext> context() {
@@ -209,7 +220,7 @@ public abstract class ElasticsearchNodeCommand extends EnvironmentAwareCommand {
         }
 
         @Override
-        public Diff<Metadata.Custom> diff(Metadata.Custom previousState) {
+        public Diff<T> diff(T previousState) {
             assert false;
             throw new UnsupportedOperationException();
         }
@@ -234,6 +245,18 @@ public abstract class ElasticsearchNodeCommand extends EnvironmentAwareCommand {
         @Override
         public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params ignored) {
             return Iterators.single(((builder, params) -> builder.mapContents(contents)));
+        }
+    }
+
+    public static class UnknownMetadataCustom extends AbstractUnknownCustom<Metadata.ClusterCustom> {
+        public UnknownMetadataCustom(String name, Map<String, Object> contents) {
+            super(name, contents);
+        }
+    }
+
+    public static class UnknownProjectCustom extends AbstractUnknownCustom<Metadata.ProjectCustom> {
+        public UnknownProjectCustom(String name, Map<String, Object> contents) {
+            super(name, contents);
         }
     }
 

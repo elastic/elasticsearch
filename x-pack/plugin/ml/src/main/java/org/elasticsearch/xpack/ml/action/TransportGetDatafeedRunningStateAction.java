@@ -89,7 +89,7 @@ public class TransportGetDatafeedRunningStateAction extends TransportTasksAction
     @Override
     protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
         DiscoveryNodes nodes = clusterService.state().nodes();
-        PersistentTasksCustomMetadata tasks = clusterService.state().getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
+        PersistentTasksCustomMetadata tasks = PersistentTasksCustomMetadata.getPersistentTasksCustomMetadata(clusterService.state());
         if (tasks == null) {
             listener.onResponse(new Response(Collections.emptyMap()));
             return;

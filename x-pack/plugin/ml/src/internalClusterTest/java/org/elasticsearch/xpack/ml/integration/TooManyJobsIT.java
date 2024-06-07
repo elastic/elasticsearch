@@ -213,13 +213,9 @@ public class TooManyJobsIT extends BaseMlIntegTestCase {
                 client().execute(OpenJobAction.INSTANCE, openJobRequest).actionGet();
                 assertBusy(() -> {
                     for (Client client : clients()) {
-                        PersistentTasksCustomMetadata tasks = client.admin()
-                            .cluster()
-                            .prepareState()
-                            .get()
-                            .getState()
-                            .getMetadata()
-                            .custom(PersistentTasksCustomMetadata.TYPE);
+                        PersistentTasksCustomMetadata tasks = PersistentTasksCustomMetadata.getPersistentTasksCustomMetadata(
+                            client.admin().cluster().prepareState().get().getState()
+                        );
                         assertEquals(MlTasks.getJobState(job.getId(), tasks), JobState.OPENED);
                     }
                 });

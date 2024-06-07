@@ -123,7 +123,7 @@ public class TransportUpgradeJobModelSnapshotAction extends TransportMasterNodeA
             return;
         }
 
-        PersistentTasksCustomMetadata customMetadata = state.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
+        PersistentTasksCustomMetadata customMetadata = PersistentTasksCustomMetadata.getPersistentTasksCustomMetadata(state);
         if (customMetadata != null
             && (customMetadata.findTasks(
                 MlTasks.JOB_SNAPSHOT_UPGRADE_TASK_NAME,

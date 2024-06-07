@@ -30,6 +30,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.collect.Iterators;
+import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
@@ -79,6 +80,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
+import java.util.function.BiConsumer;
 import java.util.function.BiPredicate;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -139,11 +141,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
      */
     public static EnumSet<XContentContext> ALL_CONTEXTS = EnumSet.allOf(XContentContext.class);
 
-    /**
-     * Custom metadata that persists (via XContent) across restarts. The deserialization method for each implementation must be registered
-     * with the {@link NamedXContentRegistry}.
-     */
-    public interface Custom extends NamedDiffable<Custom>, ChunkedToXContent {
+    public interface _Custom<SELF> extends NamedDiffable<SELF>, ChunkedToXContent {
 
         EnumSet<XContentContext> context();
 
@@ -153,7 +151,20 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
         default boolean isRestorable() {
             return context().contains(XContentContext.SNAPSHOT);
         }
+
     }
+
+    /**
+     * Cluster-level custom metadata that persists (via XContent) across restarts.
+     * The deserialization method for each implementation must be registered with the {@link NamedXContentRegistry}.
+     */
+    public interface ClusterCustom extends _Custom<ClusterCustom> {}
+
+    /**
+     * Project-level custom metadata that persists (via XContent) across restarts.
+     * The deserialization method for each implementation must be registered with the {@link NamedXContentRegistry}.
+     */
+    public interface ProjectCustom extends _Custom<ProjectCustom> {}
 
     public static final Setting<Boolean> SETTING_READ_ONLY_SETTING = Setting.boolSetting(
         "cluster.blocks.read_only",
@@ -202,7 +213,12 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
     public static final String DEDUPLICATED_MAPPINGS_PARAM = "deduplicated_mappings";
     public static final String GLOBAL_STATE_FILE_PREFIX = "global-";
 
-    private static final NamedDiffableValueSerializer<Custom> CUSTOM_VALUE_SERIALIZER = new NamedDiffableValueSerializer<>(Custom.class);
+    private static final NamedDiffableValueSerializer<ClusterCustom> CLUSTER_CUSTOM_VALUE_SERIALIZER = new NamedDiffableValueSerializer<>(
+        ClusterCustom.class
+    );
+    private static final NamedDiffableValueSerializer<ProjectCustom> PROJECT_CUSTOM_VALUE_SERIALIZER = new NamedDiffableValueSerializer<>(
+        ProjectCustom.class
+    );
 
     private final String clusterUUID;
     private final boolean clusterUUIDCommitted;
@@ -217,7 +233,8 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
     private final ImmutableOpenMap<String, IndexMetadata> indices;
     private final ImmutableOpenMap<String, Set<Index>> aliasedIndices;
     private final ImmutableOpenMap<String, IndexTemplateMetadata> templates;
-    private final ImmutableOpenMap<String, Custom> customs;
+    private final ImmutableOpenMap<String, ClusterCustom> clusterCustoms;
+    private final ImmutableOpenMap<String, ProjectCustom> projectCustoms;
     private final Map<String, ReservedStateMetadata> reservedStateMetadata;
 
     private final transient int totalNumberOfShards; // Transient ? not serializable anyway?
@@ -259,7 +276,8 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
         ImmutableOpenMap<String, IndexMetadata> indices,
         ImmutableOpenMap<String, Set<Index>> aliasedIndices,
         ImmutableOpenMap<String, IndexTemplateMetadata> templates,
-        ImmutableOpenMap<String, Custom> customs,
+        ImmutableOpenMap<String, ClusterCustom> clusterCustoms,
+        ImmutableOpenMap<String, ProjectCustom> projectCustoms,
         String[] allIndices,
         String[] visibleIndices,
         String[] allOpenIndices,
@@ -281,7 +299,8 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
         this.hashesOfConsistentSettings = hashesOfConsistentSettings;
         this.indices = indices;
         this.aliasedIndices = aliasedIndices;
-        this.customs = customs;
+        this.clusterCustoms = clusterCustoms;
+        this.projectCustoms = projectCustoms;
         this.templates = templates;
         this.totalNumberOfShards = totalNumberOfShards;
         this.totalOpenIndexShards = totalOpenIndexShards;
@@ -339,7 +358,8 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
             indices,
             aliasedIndices,
             templates,
-            customs,
+            clusterCustoms,
+            projectCustoms,
             allIndices,
             visibleIndices,
             allOpenIndices,
@@ -400,7 +420,8 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
             builder.build(),
             aliasedIndices,
             templates,
-            customs,
+            clusterCustoms,
+            projectCustoms,
             allIndices,
             visibleIndices,
             allOpenIndices,
@@ -440,7 +461,8 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
             builder.build(),
             aliasedIndices,
             templates,
-            customs,
+            clusterCustoms,
+            projectCustoms,
             allIndices,
             visibleIndices,
             allOpenIndices,
@@ -469,7 +491,8 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
             indices,
             aliasedIndices,
             templates,
-            customs,
+            clusterCustoms,
+            projectCustoms,
             allIndices,
             visibleIndices,
             allOpenIndices,
@@ -505,7 +528,8 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
             indices,
             aliasedIndices,
             templates,
-            customs,
+            clusterCustoms,
+            projectCustoms,
             allIndices,
             visibleIndices,
             allOpenIndices,
@@ -546,7 +570,8 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
             updatedIndicesBuilder.build(),
             aliasedIndices,
             templates,
-            customs,
+            clusterCustoms,
+            projectCustoms,
             allIndices,
             visibleIndices,
             allOpenIndices,
@@ -641,7 +666,8 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
             indicesMap,
             updatedAliases,
             templates,
-            customs,
+            clusterCustoms,
+            projectCustoms,
             updatedAllIndices,
             updatedVisibleIndices,
             updatedOpenIndices,
@@ -1295,13 +1321,13 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
     }
 
     public Map<String, ComponentTemplate> componentTemplates() {
-        return Optional.ofNullable((ComponentTemplateMetadata) this.custom(ComponentTemplateMetadata.TYPE))
+        return Optional.ofNullable(ComponentTemplateMetadata.get(this))
             .map(ComponentTemplateMetadata::componentTemplates)
             .orElse(Collections.emptyMap());
     }
 
     public Map<String, ComposableIndexTemplate> templatesV2() {
-        return Optional.ofNullable((ComposableIndexTemplateMetadata) this.custom(ComposableIndexTemplateMetadata.TYPE))
+        return Optional.ofNullable((ComposableIndexTemplateMetadata) this.projectCustom(ComposableIndexTemplateMetadata.TYPE))
             .map(ComposableIndexTemplateMetadata::indexTemplates)
             .orElse(Collections.emptyMap());
     }
@@ -1386,8 +1412,12 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
         return true;
     }
 
-    public Map<String, Custom> customs() {
-        return this.customs;
+    public Map<String, ClusterCustom> clusterCustoms() {
+        return this.clusterCustoms;
+    }
+
+    public Map<String, ProjectCustom> projectCustoms() {
+        return this.projectCustoms;
     }
 
     /**
@@ -1403,17 +1433,27 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
      * The collection of index deletions in the cluster.
      */
     public IndexGraveyard indexGraveyard() {
-        return custom(IndexGraveyard.TYPE);
+        return projectCustom(IndexGraveyard.TYPE);
     }
 
     @SuppressWarnings("unchecked")
-    public <T extends Custom> T custom(String type) {
-        return (T) customs.get(type);
+    public <T extends ClusterCustom> T clusterCustom(String type) {
+        return (T) clusterCustoms.get(type);
     }
 
     @SuppressWarnings("unchecked")
-    public <T extends Custom> T custom(String type, T defaultValue) {
-        return (T) customs.getOrDefault(type, defaultValue);
+    public <T extends ClusterCustom> T custom(String type, T defaultValue) {
+        return (T) clusterCustoms.getOrDefault(type, defaultValue);
+    }
+
+    @SuppressWarnings("unchecked")
+    public <T extends ProjectCustom> T projectCustom(String type) {
+        return (T) projectCustoms.get(type);
+    }
+
+    @SuppressWarnings("unchecked")
+    public <T extends ProjectCustom> T custom(String type, T defaultValue) {
+        return (T) projectCustoms.getOrDefault(type, defaultValue);
     }
 
     /**
@@ -1466,29 +1506,36 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
         if (metadata1.clusterUUIDCommitted != metadata2.clusterUUIDCommitted) {
             return false;
         }
-        // Check if any persistent metadata needs to be saved
-        int customCount1 = 0;
-        for (Map.Entry<String, Custom> cursor : metadata1.customs.entrySet()) {
-            if (cursor.getValue().context().contains(XContentContext.GATEWAY)) {
-                if (cursor.getValue().equals(metadata2.custom(cursor.getKey())) == false) {
-                    return false;
-                }
-                customCount1++;
-            }
+        if (customsEqual(metadata1.clusterCustoms, metadata2.clusterCustoms) == false) {
+            return false;
         }
-        int customCount2 = 0;
-        for (Custom custom : metadata2.customs.values()) {
-            if (custom.context().contains(XContentContext.GATEWAY)) {
-                customCount2++;
-            }
-        }
-        if (customCount1 != customCount2) {
+        if (customsEqual(metadata1.projectCustoms, metadata2.projectCustoms) == false) {
             return false;
         }
         if (Objects.equals(metadata1.reservedStateMetadata, metadata2.reservedStateMetadata) == false) {
             return false;
         }
         return true;
+    }
+
+    private static <C extends _Custom<C>> boolean customsEqual(ImmutableOpenMap<String, C> customs1, ImmutableOpenMap<String, C> customs2) {
+        // Check if any persistent metadata needs to be saved
+        int customCount1 = 0;
+        for (Map.Entry<String, C> cursor : customs1.entrySet()) {
+            if (cursor.getValue().context().contains(XContentContext.GATEWAY)) {
+                if (cursor.getValue().equals(customs2.get(cursor.getKey())) == false) {
+                    return false;
+                }
+                customCount1++;
+            }
+        }
+        int customCount2 = 0;
+        for (C custom : customs2.values()) {
+            if (custom.context().contains(XContentContext.GATEWAY)) {
+                customCount2++;
+            }
+        }
+        return customCount1 == customCount2;
     }
 
     @Override
@@ -1543,7 +1590,13 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
             ),
             indices,
             Iterators.flatMap(
-                customs.entrySet().iterator(),
+                clusterCustoms.entrySet().iterator(),
+                entry -> entry.getValue().context().contains(context)
+                    ? ChunkedToXContentHelper.wrapWithObject(entry.getKey(), entry.getValue().toXContentChunked(p))
+                    : Collections.emptyIterator()
+            ),
+            Iterators.flatMap(
+                projectCustoms.entrySet().iterator(),
                 entry -> entry.getValue().context().contains(context)
                     ? ChunkedToXContentHelper.wrapWithObject(entry.getKey(), entry.getValue().toXContentChunked(p))
                     : Collections.emptyIterator()
@@ -1572,7 +1625,8 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
         private final Diff<DiffableStringMap> hashesOfConsistentSettings;
         private final Diff<ImmutableOpenMap<String, IndexMetadata>> indices;
         private final Diff<ImmutableOpenMap<String, IndexTemplateMetadata>> templates;
-        private final Diff<ImmutableOpenMap<String, Custom>> customs;
+        private final Diff<ImmutableOpenMap<String, ClusterCustom>> clusterCustoms;
+        private final Diff<ImmutableOpenMap<String, ProjectCustom>> projectCustoms;
         private final Diff<Map<String, ReservedStateMetadata>> reservedStateMetadata;
 
         /**
@@ -1592,17 +1646,24 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
                 hashesOfConsistentSettings = DiffableStringMap.DiffableStringMapDiff.EMPTY;
                 indices = DiffableUtils.emptyDiff();
                 templates = DiffableUtils.emptyDiff();
-                customs = DiffableUtils.emptyDiff();
+                clusterCustoms = DiffableUtils.emptyDiff();
+                projectCustoms = DiffableUtils.emptyDiff();
                 reservedStateMetadata = DiffableUtils.emptyDiff();
             } else {
                 hashesOfConsistentSettings = after.hashesOfConsistentSettings.diff(before.hashesOfConsistentSettings);
                 indices = DiffableUtils.diff(before.indices, after.indices, DiffableUtils.getStringKeySerializer());
                 templates = DiffableUtils.diff(before.templates, after.templates, DiffableUtils.getStringKeySerializer());
-                customs = DiffableUtils.diff(
-                    before.customs,
-                    after.customs,
+                clusterCustoms = DiffableUtils.diff(
+                    before.clusterCustoms,
+                    after.clusterCustoms,
                     DiffableUtils.getStringKeySerializer(),
-                    CUSTOM_VALUE_SERIALIZER
+                    CLUSTER_CUSTOM_VALUE_SERIALIZER
+                );
+                projectCustoms = DiffableUtils.diff(
+                    before.projectCustoms,
+                    after.projectCustoms,
+                    DiffableUtils.getStringKeySerializer(),
+                    PROJECT_CUSTOM_VALUE_SERIALIZER
                 );
                 reservedStateMetadata = DiffableUtils.diff(
                     before.reservedStateMetadata,
@@ -1634,7 +1695,16 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
             }
             indices = DiffableUtils.readImmutableOpenMapDiff(in, DiffableUtils.getStringKeySerializer(), INDEX_METADATA_DIFF_VALUE_READER);
             templates = DiffableUtils.readImmutableOpenMapDiff(in, DiffableUtils.getStringKeySerializer(), TEMPLATES_DIFF_VALUE_READER);
-            customs = DiffableUtils.readImmutableOpenMapDiff(in, DiffableUtils.getStringKeySerializer(), CUSTOM_VALUE_SERIALIZER);
+            clusterCustoms = DiffableUtils.readImmutableOpenMapDiff(
+                in,
+                DiffableUtils.getStringKeySerializer(),
+                CLUSTER_CUSTOM_VALUE_SERIALIZER
+            );
+            projectCustoms = DiffableUtils.readImmutableOpenMapDiff(
+                in,
+                DiffableUtils.getStringKeySerializer(),
+                PROJECT_CUSTOM_VALUE_SERIALIZER
+            );
             if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
                 reservedStateMetadata = DiffableUtils.readJdkMapDiff(
                     in,
@@ -1669,7 +1739,8 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
             }
             indices.writeTo(out);
             templates.writeTo(out);
-            customs.writeTo(out);
+            clusterCustoms.writeTo(out);
+            projectCustoms.writeTo(out);
             if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
                 reservedStateMetadata.writeTo(out);
             }
@@ -1693,7 +1764,8 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
             builder.hashesOfConsistentSettings(hashesOfConsistentSettings.apply(part.hashesOfConsistentSettings));
             builder.indices(updatedIndices);
             builder.templates(templates.apply(part.templates));
-            builder.customs(customs.apply(part.customs));
+            builder.clusterCustoms(clusterCustoms.apply(part.clusterCustoms));
+            builder.projectCustoms(projectCustoms.apply(part.projectCustoms));
             builder.put(reservedStateMetadata.apply(part.reservedStateMetadata));
             if (part.indices == updatedIndices
                 && builder.dataStreamMetadata() == part.custom(DataStreamMetadata.TYPE, DataStreamMetadata.EMPTY)) {
@@ -1735,11 +1807,8 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
         for (int i = 0; i < size; i++) {
             builder.put(IndexTemplateMetadata.readFrom(in));
         }
-        int customSize = in.readVInt();
-        for (int i = 0; i < customSize; i++) {
-            Custom customIndexMetadata = in.readNamedWriteable(Custom.class);
-            builder.putCustom(customIndexMetadata.getWriteableName(), customIndexMetadata);
-        }
+        readNamedWriteables(in, ClusterCustom.class, builder::putClusterCustom);
+        readNamedWriteables(in, ProjectCustom.class, builder::putProjectCustom);
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
             int reservedStateSize = in.readVInt();
             for (int i = 0; i < reservedStateSize; i++) {
@@ -1747,6 +1816,15 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
             }
         }
         return builder.build();
+    }
+
+    private static <T extends NamedWriteable> void readNamedWriteables(StreamInput in, Class<T> type, BiConsumer<String, T> consumer)
+        throws IOException {
+        int customSize = in.readVInt();
+        for (int i = 0; i < customSize; i++) {
+            T customIndexMetadata = in.readNamedWriteable(type);
+            consumer.accept(customIndexMetadata.getWriteableName(), customIndexMetadata);
+        }
     }
 
     @Override
@@ -1771,7 +1849,8 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
             indexMetadata.writeTo(out, writeMappingsHash);
         }
         out.writeCollection(templates.values());
-        VersionedNamedWriteable.writeVersionedWritables(out, customs);
+        VersionedNamedWriteable.writeVersionedWritables(out, clusterCustoms);
+        VersionedNamedWriteable.writeVersionedWritables(out, projectCustoms);
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
             out.writeCollection(reservedStateMetadata.values());
         }
@@ -1805,7 +1884,8 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
         private final ImmutableOpenMap.Builder<String, IndexMetadata> indices;
         private final ImmutableOpenMap.Builder<String, Set<Index>> aliasedIndices;
         private final ImmutableOpenMap.Builder<String, IndexTemplateMetadata> templates;
-        private final ImmutableOpenMap.Builder<String, Custom> customs;
+        private final ImmutableOpenMap.Builder<String, ClusterCustom> clusterCustoms;
+        private final ImmutableOpenMap.Builder<String, ProjectCustom> projectCustoms;
 
         private SortedMap<String, IndexAbstraction> previousIndicesLookup;
 
@@ -1835,7 +1915,8 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
             this.indices = ImmutableOpenMap.builder(metadata.indices);
             this.aliasedIndices = ImmutableOpenMap.builder(metadata.aliasedIndices);
             this.templates = ImmutableOpenMap.builder(metadata.templates);
-            this.customs = ImmutableOpenMap.builder(metadata.customs);
+            this.clusterCustoms = ImmutableOpenMap.builder(metadata.clusterCustoms);
+            this.projectCustoms = ImmutableOpenMap.builder(metadata.projectCustoms);
             this.previousIndicesLookup = metadata.indicesLookup;
             this.mappingsByHash = new HashMap<>(metadata.mappingsByHash);
             this.checkForUnusedMappings = false;
@@ -1848,7 +1929,8 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
             indices = ImmutableOpenMap.builder(indexCountHint);
             aliasedIndices = ImmutableOpenMap.builder();
             templates = ImmutableOpenMap.builder();
-            customs = ImmutableOpenMap.builder();
+            clusterCustoms = ImmutableOpenMap.builder();
+            projectCustoms = ImmutableOpenMap.builder();
             reservedStateMetadata = new HashMap<>();
             indexGraveyard(IndexGraveyard.builder().build()); // create new empty index graveyard to initialize
             previousIndicesLookup = null;
@@ -2067,30 +2149,30 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
             Objects.requireNonNull(componentTemplate, "it is invalid to add a null component template: " + name);
             // ಠ_ಠ at ImmutableOpenMap
             Map<String, ComponentTemplate> existingTemplates = Optional.ofNullable(
-                (ComponentTemplateMetadata) this.customs.get(ComponentTemplateMetadata.TYPE)
+                (ComponentTemplateMetadata) this.projectCustoms.get(ComponentTemplateMetadata.TYPE)
             ).map(ctm -> new HashMap<>(ctm.componentTemplates())).orElse(new HashMap<>());
             existingTemplates.put(name, componentTemplate);
-            this.customs.put(ComponentTemplateMetadata.TYPE, new ComponentTemplateMetadata(existingTemplates));
+            this.projectCustoms.put(ComponentTemplateMetadata.TYPE, new ComponentTemplateMetadata(existingTemplates));
             return this;
         }
 
         public Builder removeComponentTemplate(String name) {
             // ಠ_ಠ at ImmutableOpenMap
             Map<String, ComponentTemplate> existingTemplates = Optional.ofNullable(
-                (ComponentTemplateMetadata) this.customs.get(ComponentTemplateMetadata.TYPE)
+                (ComponentTemplateMetadata) this.projectCustoms.get(ComponentTemplateMetadata.TYPE)
             ).map(ctm -> new HashMap<>(ctm.componentTemplates())).orElse(new HashMap<>());
             existingTemplates.remove(name);
-            this.customs.put(ComponentTemplateMetadata.TYPE, new ComponentTemplateMetadata(existingTemplates));
+            this.projectCustoms.put(ComponentTemplateMetadata.TYPE, new ComponentTemplateMetadata(existingTemplates));
             return this;
         }
 
         public Builder componentTemplates(Map<String, ComponentTemplate> componentTemplates) {
-            this.customs.put(ComponentTemplateMetadata.TYPE, new ComponentTemplateMetadata(componentTemplates));
+            this.projectCustoms.put(ComponentTemplateMetadata.TYPE, new ComponentTemplateMetadata(componentTemplates));
             return this;
         }
 
         public Builder indexTemplates(Map<String, ComposableIndexTemplate> indexTemplates) {
-            this.customs.put(ComposableIndexTemplateMetadata.TYPE, new ComposableIndexTemplateMetadata(indexTemplates));
+            this.projectCustoms.put(ComposableIndexTemplateMetadata.TYPE, new ComposableIndexTemplateMetadata(indexTemplates));
             return this;
         }
 
@@ -2098,20 +2180,20 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
             Objects.requireNonNull(indexTemplate, "it is invalid to add a null index template: " + name);
             // ಠ_ಠ at ImmutableOpenMap
             Map<String, ComposableIndexTemplate> existingTemplates = Optional.ofNullable(
-                (ComposableIndexTemplateMetadata) this.customs.get(ComposableIndexTemplateMetadata.TYPE)
+                (ComposableIndexTemplateMetadata) this.projectCustoms.get(ComposableIndexTemplateMetadata.TYPE)
             ).map(itmd -> new HashMap<>(itmd.indexTemplates())).orElse(new HashMap<>());
             existingTemplates.put(name, indexTemplate);
-            this.customs.put(ComposableIndexTemplateMetadata.TYPE, new ComposableIndexTemplateMetadata(existingTemplates));
+            this.projectCustoms.put(ComposableIndexTemplateMetadata.TYPE, new ComposableIndexTemplateMetadata(existingTemplates));
             return this;
         }
 
         public Builder removeIndexTemplate(String name) {
             // ಠ_ಠ at ImmutableOpenMap
             Map<String, ComposableIndexTemplate> existingTemplates = Optional.ofNullable(
-                (ComposableIndexTemplateMetadata) this.customs.get(ComposableIndexTemplateMetadata.TYPE)
+                (ComposableIndexTemplateMetadata) this.projectCustoms.get(ComposableIndexTemplateMetadata.TYPE)
             ).map(itmd -> new HashMap<>(itmd.indexTemplates())).orElse(new HashMap<>());
             existingTemplates.remove(name);
-            this.customs.put(ComposableIndexTemplateMetadata.TYPE, new ComposableIndexTemplateMetadata(existingTemplates));
+            this.projectCustoms.put(ComposableIndexTemplateMetadata.TYPE, new ComposableIndexTemplateMetadata(existingTemplates));
             return this;
         }
 
@@ -2127,7 +2209,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
                 dataStream.validate(indices::get);
             }
 
-            this.customs.put(
+            this.projectCustoms.put(
                 DataStreamMetadata.TYPE,
                 new DataStreamMetadata(
                     ImmutableOpenMap.<String, DataStream>builder().putAllFromMap(dataStreams).build(),
@@ -2147,12 +2229,12 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
             // trigger this validation on each new Metadata creation, even if there are no changes to data streams.
             dataStream.validate(indices::get);
 
-            this.customs.put(DataStreamMetadata.TYPE, dataStreamMetadata().withAddedDatastream(dataStream));
+            this.projectCustoms.put(DataStreamMetadata.TYPE, dataStreamMetadata().withAddedDatastream(dataStream));
             return this;
         }
 
         public DataStreamMetadata dataStreamMetadata() {
-            return (DataStreamMetadata) this.customs.getOrDefault(DataStreamMetadata.TYPE, DataStreamMetadata.EMPTY);
+            return (DataStreamMetadata) this.projectCustoms.getOrDefault(DataStreamMetadata.TYPE, DataStreamMetadata.EMPTY);
         }
 
         public boolean put(String aliasName, String dataStream, Boolean isWriteDataStream, String filter) {
@@ -2162,13 +2244,13 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
             if (existing == updated) {
                 return false;
             }
-            this.customs.put(DataStreamMetadata.TYPE, updated);
+            this.projectCustoms.put(DataStreamMetadata.TYPE, updated);
             return true;
         }
 
         public Builder removeDataStream(String name) {
             previousIndicesLookup = null;
-            this.customs.put(DataStreamMetadata.TYPE, dataStreamMetadata().withRemovedDataStream(name));
+            this.projectCustoms.put(DataStreamMetadata.TYPE, dataStreamMetadata().withRemovedDataStream(name));
             return this;
         }
 
@@ -2180,32 +2262,66 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
             if (existing == updated) {
                 return false;
             }
-            this.customs.put(DataStreamMetadata.TYPE, updated);
+            this.projectCustoms.put(DataStreamMetadata.TYPE, updated);
             return true;
         }
 
-        public Custom getCustom(String type) {
-            return customs.get(type);
+        public Builder putCustom(String type, ClusterCustom custom) {
+            return putClusterCustom(type, custom);
         }
 
-        public Builder putCustom(String type, Custom custom) {
-            customs.put(type, Objects.requireNonNull(custom, type));
+        public Builder putCustom(String type, ProjectCustom custom) {
+            return putProjectCustom(type, custom);
+        }
+
+        public ClusterCustom getClusterCustom(String type) {
+            return clusterCustoms.get(type);
+        }
+
+        public Builder putClusterCustom(String type, ClusterCustom custom) {
+            // TODO[MultiProject] Should we disallow SNAPSHOT context here?
+            clusterCustoms.put(type, Objects.requireNonNull(custom, type));
             return this;
         }
 
-        public Builder removeCustom(String type) {
-            customs.remove(type);
+        public Builder removeClusterCustom(String type) {
+            clusterCustoms.remove(type);
             return this;
         }
 
-        public Builder removeCustomIf(BiPredicate<String, Custom> p) {
-            customs.removeAll(p);
+        public Builder removeClusterCustomIf(BiPredicate<String, ? super ClusterCustom> p) {
+            clusterCustoms.removeAll(p);
             return this;
         }
 
-        public Builder customs(Map<String, Custom> customs) {
+        public Builder clusterCustoms(Map<String, ClusterCustom> customs) {
             customs.forEach((key, value) -> Objects.requireNonNull(value, key));
-            this.customs.putAllFromMap(customs);
+            this.clusterCustoms.putAllFromMap(customs);
+            return this;
+        }
+
+        public ProjectCustom getProjectCustom(String type) {
+            return projectCustoms.get(type);
+        }
+
+        public Builder putProjectCustom(String type, ProjectCustom custom) {
+            projectCustoms.put(type, Objects.requireNonNull(custom, type));
+            return this;
+        }
+
+        public Builder removeProjectCustom(String type) {
+            projectCustoms.remove(type);
+            return this;
+        }
+
+        public Builder removeProjectCustomIf(BiPredicate<String, ? super ProjectCustom> p) {
+            projectCustoms.removeAll(p);
+            return this;
+        }
+
+        public Builder projectCustoms(Map<String, ProjectCustom> customs) {
+            customs.forEach((key, value) -> Objects.requireNonNull(value, key));
+            this.projectCustoms.putAllFromMap(customs);
             return this;
         }
 
@@ -2240,12 +2356,12 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
         }
 
         public Builder indexGraveyard(final IndexGraveyard indexGraveyard) {
-            putCustom(IndexGraveyard.TYPE, indexGraveyard);
+            putProjectCustom(IndexGraveyard.TYPE, indexGraveyard);
             return this;
         }
 
         public IndexGraveyard indexGraveyard() {
-            return (IndexGraveyard) getCustom(IndexGraveyard.TYPE);
+            return (IndexGraveyard) getProjectCustom(IndexGraveyard.TYPE);
         }
 
         public Builder updateSettings(Settings settings, String... indices) {
@@ -2442,7 +2558,8 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
                 indicesMap,
                 aliasedIndices,
                 templates.build(),
-                customs.build(),
+                clusterCustoms.build(),
+                projectCustoms.build(),
                 allIndicesArray,
                 visibleIndicesArray,
                 allOpenIndicesArray,
@@ -2786,11 +2903,17 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
                         }
                     } else {
                         try {
-                            Custom custom = parser.namedObject(Custom.class, currentFieldName, null);
-                            builder.putCustom(custom.getWriteableName(), custom);
+                            ClusterCustom custom = parser.namedObject(ClusterCustom.class, currentFieldName, null);
+                            builder.putClusterCustom(custom.getWriteableName(), custom);
                         } catch (NamedObjectNotFoundException ex) {
-                            logger.warn("Skipping unknown custom object with type {}", currentFieldName);
-                            parser.skipChildren();
+                            // TODO: This is horrible but it should go away when project data gets moved to it own XContent object
+                            try {
+                                ProjectCustom custom = parser.namedObject(ProjectCustom.class, currentFieldName, null);
+                                builder.putProjectCustom(custom.getWriteableName(), custom);
+                            } catch (NamedObjectNotFoundException _ex) {
+                                logger.warn("Skipping unknown custom object with type {}", currentFieldName);
+                                parser.skipChildren();
+                            }
                         }
                     }
                 } else if (token.isValue()) {

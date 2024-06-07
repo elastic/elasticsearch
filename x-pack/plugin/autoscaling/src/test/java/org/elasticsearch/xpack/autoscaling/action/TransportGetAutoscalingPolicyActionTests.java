@@ -98,7 +98,7 @@ public class TransportGetAutoscalingPolicyActionTests extends AutoscalingTestCas
             );
             state = builder.build();
         }
-        final AutoscalingMetadata metadata = state.metadata().custom(AutoscalingMetadata.NAME);
+        final AutoscalingMetadata metadata = state.metadata().clusterCustom(AutoscalingMetadata.NAME);
         final String name = randomFrom(metadata.policies().keySet());
         final AutoscalingPolicy policy = TransportGetAutoscalingPolicyAction.getAutoscalingPolicy(state, name);
 
@@ -114,7 +114,7 @@ public class TransportGetAutoscalingPolicyActionTests extends AutoscalingTestCas
             );
             state = builder.build();
         }
-        final AutoscalingMetadata metadata = state.metadata().custom(AutoscalingMetadata.NAME);
+        final AutoscalingMetadata metadata = state.metadata().clusterCustom(AutoscalingMetadata.NAME);
         final String name = randomValueOtherThanMany(metadata.policies().keySet()::contains, () -> randomAlphaOfLength(8));
         final ResourceNotFoundException e = expectThrows(
             ResourceNotFoundException.class,

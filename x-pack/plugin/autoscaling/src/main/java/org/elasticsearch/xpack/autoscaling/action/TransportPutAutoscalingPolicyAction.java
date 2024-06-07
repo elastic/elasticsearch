@@ -143,8 +143,8 @@ public class TransportPutAutoscalingPolicyAction extends AcknowledgedTransportMa
         // AutoscalingCalculateCapacityService#hasUnknownRoles where we shortcut decision making if master node does not know all roles.
         final ClusterState.Builder builder = ClusterState.builder(currentState);
         final AutoscalingMetadata currentMetadata;
-        if (currentState.metadata().custom(AutoscalingMetadata.NAME) != null) {
-            currentMetadata = currentState.metadata().custom(AutoscalingMetadata.NAME);
+        if (currentState.metadata().clusterCustom(AutoscalingMetadata.NAME) != null) {
+            currentMetadata = currentState.metadata().clusterCustom(AutoscalingMetadata.NAME);
         } else {
             currentMetadata = AutoscalingMetadata.EMPTY;
         }

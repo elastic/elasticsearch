@@ -250,7 +250,7 @@ public final class DatabaseNodeService implements GeoIpDatabaseProvider, Closeab
             return;
         }
 
-        PersistentTasksCustomMetadata persistentTasks = state.metadata().custom(PersistentTasksCustomMetadata.TYPE);
+        PersistentTasksCustomMetadata persistentTasks = PersistentTasksCustomMetadata.getPersistentTasksCustomMetadata(state);
         if (persistentTasks == null) {
             logger.trace("Not checking databases because persistent tasks are null");
             return;

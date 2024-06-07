@@ -71,7 +71,7 @@ public class MigrationResultsUpdateTask extends ClusterStateUpdateTask {
 
     @Override
     public ClusterState execute(ClusterState currentState) throws Exception {
-        FeatureMigrationResults currentResults = currentState.metadata().custom(FeatureMigrationResults.TYPE);
+        FeatureMigrationResults currentResults = FeatureMigrationResults.get(currentState);
         if (currentResults == null) {
             currentResults = new FeatureMigrationResults(new HashMap<>());
         }

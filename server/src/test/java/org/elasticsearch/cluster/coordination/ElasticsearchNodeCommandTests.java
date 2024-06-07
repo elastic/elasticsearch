@@ -73,8 +73,8 @@ public class ElasticsearchNodeCommandTests extends ESTestCase {
 
         // make sure the index tombstones are the same too
         if (hasMissingCustoms) {
-            assertNotNull(loadedMetadata.custom(IndexGraveyard.TYPE));
-            assertThat(loadedMetadata.custom(IndexGraveyard.TYPE), instanceOf(ElasticsearchNodeCommand.UnknownMetadataCustom.class));
+            assertNotNull(loadedMetadata.indexGraveyard());
+            assertThat(loadedMetadata.indexGraveyard(), instanceOf(ElasticsearchNodeCommand.UnknownMetadataCustom.class));
 
             if (preserveUnknownCustoms) {
                 // check that we reserialize unknown metadata correctly again

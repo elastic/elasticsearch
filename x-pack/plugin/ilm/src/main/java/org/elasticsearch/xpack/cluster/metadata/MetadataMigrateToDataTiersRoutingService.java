@@ -186,7 +186,7 @@ public final class MetadataMigrateToDataTiersRoutingService {
         boolean dryRun
     ) {
         if (dryRun == false) {
-            IndexLifecycleMetadata currentMetadata = currentState.metadata().custom(IndexLifecycleMetadata.TYPE);
+            IndexLifecycleMetadata currentMetadata = currentState.metadata().projectCustom(IndexLifecycleMetadata.TYPE);
             if (currentMetadata != null && currentILMMode(currentState) != STOPPED) {
                 throw new IllegalStateException(
                     "stop ILM before migrating to data tiers, current state is [" + currentILMMode(currentState) + "]"
@@ -250,7 +250,7 @@ public final class MetadataMigrateToDataTiersRoutingService {
         Client client,
         XPackLicenseState licenseState
     ) {
-        IndexLifecycleMetadata currentLifecycleMetadata = currentState.metadata().custom(IndexLifecycleMetadata.TYPE);
+        IndexLifecycleMetadata currentLifecycleMetadata = currentState.metadata().projectCustom(IndexLifecycleMetadata.TYPE);
         if (currentLifecycleMetadata == null) {
             return Collections.emptyList();
         }

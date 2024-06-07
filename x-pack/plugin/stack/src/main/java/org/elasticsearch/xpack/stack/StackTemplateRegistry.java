@@ -169,6 +169,7 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
     }
 
     private static final Map<String, ComponentTemplate> COMPONENT_TEMPLATE_CONFIGS;
+    private static final Map<String, ComponentTemplate> UPDATED_COMPONENT_TEMPLATE_CONFIGS;
 
     static {
         final Map<String, ComponentTemplate> componentTemplates = new HashMap<>();
@@ -254,18 +255,8 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
             }
         }
         COMPONENT_TEMPLATE_CONFIGS = Map.copyOf(componentTemplates);
-    }
 
-    @Override
-    protected Map<String, ComponentTemplate> getComponentTemplateConfigs() {
-        if (logsIndexModeEnabled) {
-            return getLogsIndexModeComponentTemplates();
-        }
-        return COMPONENT_TEMPLATE_CONFIGS;
-    }
-
-    private static Map<String, ComponentTemplate> getLogsIndexModeComponentTemplates() {
-        final Map<String, ComponentTemplate> updatedTemplates = new HashMap<>();
+        final Map<String, ComponentTemplate> updatedComponentTemplates = new HashMap<>();
         for (IndexTemplateConfig config : List.of(
             new IndexTemplateConfig(
                 DATA_STREAMS_MAPPINGS_COMPONENT_TEMPLATE_NAME,
@@ -288,7 +279,6 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
                 TEMPLATE_VERSION_VARIABLE,
                 ADDITIONAL_TEMPLATE_VARIABLES
             ),
-            // NOTE: template including index.mode = 'logs'
             new IndexTemplateConfig(
                 LOGS_SETTINGS_COMPONENT_TEMPLATE_NAME,
                 "/logs@settings-logsdb.json",
@@ -340,7 +330,7 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
             )
         )) {
             try {
-                updatedTemplates.put(
+                updatedComponentTemplates.put(
                     config.getTemplateName(),
                     ComponentTemplate.parse(JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, config.loadBytes()))
                 );
@@ -348,7 +338,15 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
                 throw new AssertionError(e);
             }
         }
-        return updatedTemplates;
+        UPDATED_COMPONENT_TEMPLATE_CONFIGS = Map.copyOf(updatedComponentTemplates);
+    }
+
+    @Override
+    protected Map<String, ComponentTemplate> getComponentTemplateConfigs() {
+        if (logsIndexModeEnabled) {
+            return UPDATED_COMPONENT_TEMPLATE_CONFIGS;
+        }
+        return COMPONENT_TEMPLATE_CONFIGS;
     }
 
     private static final Map<String, ComposableIndexTemplate> COMPOSABLE_INDEX_TEMPLATE_CONFIGS = parseComposableTemplates(

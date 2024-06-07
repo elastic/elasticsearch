@@ -73,7 +73,18 @@ public class RemoteClusterAwareClientTests extends ESTestCase {
     }
 
     public void testRemoteTaskCancellationOnFailedResponse() throws Exception {
-        try (MockTransportService remoteTransport = startTransport("seed_node", new CopyOnWriteArrayList<>())) {
+        Settings.Builder remoteTransportSettingsBuilder = Settings.builder();
+        remoteTransportSettingsBuilder.put("tests.mock.taskmanager.enabled", true);
+        try (
+            MockTransportService remoteTransport = RemoteClusterConnectionTests.startTransport(
+                "seed_node",
+                new CopyOnWriteArrayList<>(),
+                VersionInformation.CURRENT,
+                TransportVersion.current(),
+                threadPool,
+                remoteTransportSettingsBuilder.build()
+            )
+        ) {
             remoteTransport.getTaskManager().setTaskCancellationService(new TaskCancellationService(remoteTransport));
             Settings.Builder builder = Settings.builder();
             builder.putList("cluster.remote.cluster1.seeds", remoteTransport.getLocalDiscoNode().getAddress().toString());

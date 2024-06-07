@@ -315,7 +315,7 @@ public class MockTransportService extends TransportService {
         if (MockTaskManager.USE_MOCK_TASK_MANAGER_SETTING.get(settings)) {
             return spy(new MockTaskManager(settings, threadPool, taskHeaders));
         } else {
-            return spy(new TaskManager(settings, threadPool, taskHeaders, tracer));
+            return new TaskManager(settings, threadPool, taskHeaders, tracer);
         }
     }
 

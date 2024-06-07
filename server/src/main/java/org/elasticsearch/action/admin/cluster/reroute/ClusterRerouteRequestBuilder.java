@@ -14,7 +14,10 @@ import org.elasticsearch.cluster.routing.allocation.command.AllocationCommand;
 
 /**
  * Builder for a cluster reroute request
+ *
+ * @deprecated just build the request directly
  */
+@Deprecated(forRemoval = true)
 public class ClusterRerouteRequestBuilder extends AcknowledgedRequestBuilder<
     ClusterRerouteRequest,
     ClusterRerouteResponse,

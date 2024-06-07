@@ -203,14 +203,26 @@ public class ClusterAdminClient implements ElasticsearchClient {
         return new ClusterUpdateSettingsRequestBuilder(this);
     }
 
+    /**
+     * @deprecated use {@code ClusterRerouteUtils} in tests, or just run the action directly
+     */
+    @Deprecated(forRemoval = true)
     public ActionFuture<ClusterRerouteResponse> reroute(final ClusterRerouteRequest request) {
         return execute(TransportClusterRerouteAction.TYPE, request);
     }
 
+    /**
+     * @deprecated use {@code ClusterRerouteUtils} in tests, or just run the action directly
+     */
+    @Deprecated(forRemoval = true)
     public void reroute(final ClusterRerouteRequest request, final ActionListener<ClusterRerouteResponse> listener) {
         execute(TransportClusterRerouteAction.TYPE, request, listener);
     }
 
+    /**
+     * @deprecated use {@code ClusterRerouteUtils} in tests, or just run the action directly
+     */
+    @Deprecated(forRemoval = true)
     public ClusterRerouteRequestBuilder prepareReroute() {
         return new ClusterRerouteRequestBuilder(this);
     }

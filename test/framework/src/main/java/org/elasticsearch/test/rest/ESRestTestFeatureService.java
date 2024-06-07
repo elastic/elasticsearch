@@ -89,7 +89,7 @@ class ESRestTestFeatureService implements TestFeatureService {
                     Strings.format(
                         "Synthetic version features are only available before [%s] for migration purposes! "
                             + "Please add a cluster feature to an appropriate FeatureSpecification; test-only historical-features  "
-                            + "can be supplied via ESRestTestCase#additionalTestOnlyHistoricalFeatures()",
+                            + "can be supplied via ESRestTestCase#createAdditionalFeatureSpecifications()",
                         "8.15.0"
                     )
                 );

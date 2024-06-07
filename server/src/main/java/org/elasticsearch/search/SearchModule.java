@@ -663,7 +663,7 @@ public class SearchModule {
             new AggregationSpec(
                 ScriptedMetricAggregationBuilder.NAME,
                 ScriptedMetricAggregationBuilder::new,
-                ScriptedMetricAggregationBuilder.createParser(SCRIPTED_METRICS_AGG_ALLOWED_SCRIPTS_SETTING.get(settings))
+                ScriptedMetricAggregationBuilder.PARSER
             ).addResultReader(InternalScriptedMetric::new),
             builder
         );

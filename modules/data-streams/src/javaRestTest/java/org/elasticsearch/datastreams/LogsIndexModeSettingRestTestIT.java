@@ -26,7 +26,7 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class LogsIndexModeSettingRestTest extends ESRestTestCase {
+public class LogsIndexModeSettingRestTestIT extends ESRestTestCase {
 
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()

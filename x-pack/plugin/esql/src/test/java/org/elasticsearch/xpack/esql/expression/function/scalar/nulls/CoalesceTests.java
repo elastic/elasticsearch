@@ -72,8 +72,10 @@ public class CoalesceTests extends AbstractFunctionTestCase {
             );
         }));
         suppliers.add(new TestCaseSupplier(List.of(DataType.VERSION, DataType.VERSION), () -> {
-            var first = randomBoolean() ? null : EsqlDataTypeConverter.stringToVersion(randomInt(10) + "" + randomInt(10) + randomInt(10));
-            var second = EsqlDataTypeConverter.stringToVersion(randomInt(10) + "" + randomInt(10) + randomInt(10));
+            var first = randomBoolean()
+                ? null
+                : EsqlDataTypeConverter.stringToVersion(randomInt(10) + "." + randomInt(10) + "." + randomInt(10));
+            var second = EsqlDataTypeConverter.stringToVersion(randomInt(10) + "." + randomInt(10) + "." + randomInt(10));
             return new TestCaseSupplier.TestCase(
                 List.of(
                     new TestCaseSupplier.TypedData(first, DataType.VERSION, "first"),

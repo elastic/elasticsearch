@@ -32,6 +32,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
+import static org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder.MAGIC_VALUE_MIN_DOC_COUNT_0_EXCLUDE_DELETED_DOCS;
+
 public abstract class TermsAggregator extends DeferableBucketAggregator {
 
     public static class BucketCountThresholds implements Writeable, ToXContentFragment {
@@ -41,7 +43,7 @@ public abstract class TermsAggregator extends DeferableBucketAggregator {
         private int shardSize;
 
         public BucketCountThresholds(long minDocCount, long shardMinDocCount, int requiredSize, int shardSize) {
-            this.minDocCount = minDocCount;
+            this.minDocCount = minDocCount == MAGIC_VALUE_MIN_DOC_COUNT_0_EXCLUDE_DELETED_DOCS ? 0 : minDocCount;
             this.shardMinDocCount = shardMinDocCount;
             this.requiredSize = requiredSize;
             this.shardSize = shardSize;
@@ -82,19 +84,34 @@ public abstract class TermsAggregator extends DeferableBucketAggregator {
                 setShardSize(requiredSize);
             }
 
-            // shard_min_doc_count should not be larger than min_doc_count because this can cause buckets to be removed that would match
-            // the min_doc_count criteria
-            if (shardMinDocCount > minDocCount) {
-                setShardMinDocCount(minDocCount);
+            if (minDocCount != MAGIC_VALUE_MIN_DOC_COUNT_0_EXCLUDE_DELETED_DOCS) {
+                // shard_min_doc_count should not be larger than min_doc_count because this can cause buckets to be removed that would match
+                // the min_doc_count criteria
+                if (shardMinDocCount > minDocCount) {
+                    setShardMinDocCount(minDocCount);
+                }
+            } else if (shardMinDocCount > 0) {
+                // the only way minDocCount == MAGIC_VALUE_HACK_FOR_EXCLUDE_DELETED_DOCS is if minDocCount == 0
+                setShardMinDocCount(0);
             }
 
             if (requiredSize <= 0 || shardSize <= 0) {
                 throw new ElasticsearchException("parameters [required_size] and [shard_size] must be >0 in terms aggregation.");
             }
 
-            if (minDocCount < 0 || shardMinDocCount < 0) {
-                throw new ElasticsearchException("parameter [min_doc_count] and [shardMinDocCount] must be >=0 in terms aggregation.");
+            if (minDocCount != MAGIC_VALUE_MIN_DOC_COUNT_0_EXCLUDE_DELETED_DOCS) {
+                if (minDocCount < 0) {
+                    throw new ElasticsearchException(
+                        "parameter [min_doc_count] must be >=0 in terms aggregation. " + "found [" + minDocCount + "]"
+                    );
+                }
             }
+            if (shardMinDocCount < 0) {
+                throw new ElasticsearchException(
+                    "parameter [shardMinDocCount] must be >=0 in terms aggregation. " + "found [" + shardMinDocCount + "]"
+                );
+            }
+
         }
 
         /**

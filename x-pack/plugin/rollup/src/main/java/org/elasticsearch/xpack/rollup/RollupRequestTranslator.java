@@ -329,7 +329,10 @@ public class RollupRequestTranslator {
             if (source.collectMode() != null) {
                 rolledTerms.collectMode(source.collectMode());
             }
-            rolledTerms.minDocCount(source.minDocCount());
+            long minDocCount = source.minDocCount() == TermsAggregationBuilder.MAGIC_VALUE_MIN_DOC_COUNT_0_EXCLUDE_DELETED_DOCS
+                ? 0
+                : source.minDocCount();
+            rolledTerms.minDocCount(minDocCount);
             rolledTerms.executionHint(source.executionHint());
             if (source.order() != null) {
                 rolledTerms.order(source.order());

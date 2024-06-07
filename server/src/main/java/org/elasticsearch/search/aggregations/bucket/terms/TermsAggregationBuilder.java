@@ -35,10 +35,21 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.Version.V_7_17_22;
-
 public class TermsAggregationBuilder extends ValuesSourceAggregationBuilder<TermsAggregationBuilder> {
     public static final String NAME = "terms";
+    /**
+     * This is a hack to signal that the terms aggregation should exclude deleted documents for when min_doc_count=0.
+     * Due to a long-standing issue with transport serialization it is not possible to introduce new transport serialization to
+     * 7.17.x since it would break mixed clusters against all earlier versions of 8.x that don't also speak the new serialization.
+     * We can't break all terms aggs when running in a mixed clusters of versions 7.17.23 -> 8.14.0, so we need a hack to express
+     * that we should exclude deleted documents from terms aggs. We exclude deleted docs to better support Document Level Security(DLS).
+     * Since we can not push the excludeDeleteDocs boolean across the wire, we need to use a magic value to signal that we want to exclude
+     * deleted docs. This value can only ever be set as the value for min_doc_count when min_doc_count=0, DLS is in use, and the user
+     * has not explicitly set `xpack.security.dls.force_terms_aggs_to_exclude_deleted_docs.enabled` to false. This means that this
+     * magic value is synonymous with min_doc_count=0, since the only way to set this value is when min_doc_count=0. This value is
+     * converted back to 0 after deserialization.
+     */
+    public static final long MAGIC_VALUE_MIN_DOC_COUNT_0_EXCLUDE_DELETED_DOCS = -99999;
     public static final ValuesSourceRegistry.RegistryKey<TermsAggregatorSupplier> REGISTRY_KEY = new ValuesSourceRegistry.RegistryKey<>(
         NAME,
         TermsAggregatorSupplier.class
@@ -156,8 +167,10 @@ public class TermsAggregationBuilder extends ValuesSourceAggregationBuilder<Term
         includeExclude = in.readOptionalWriteable(IncludeExclude::new);
         order = InternalOrder.Streams.readOrder(in);
         showTermDocCountError = in.readBoolean();
-        if (in.getVersion().onOrAfter(V_7_17_22)) {
-            excludeDeletedDocs = in.readBoolean();
+        // TODO: ensure the REST API prevents setting this magic value
+        if (bucketCountThresholds.getMinDocCount() == MAGIC_VALUE_MIN_DOC_COUNT_0_EXCLUDE_DELETED_DOCS) {
+            excludeDeletedDocs = true;
+            bucketCountThresholds.setMinDocCount(0);
         }
     }
 
@@ -174,9 +187,6 @@ public class TermsAggregationBuilder extends ValuesSourceAggregationBuilder<Term
         out.writeOptionalWriteable(includeExclude);
         order.writeTo(out);
         out.writeBoolean(showTermDocCountError);
-        if (out.getVersion().onOrAfter(V_7_17_22)) {
-            out.writeBoolean(excludeDeletedDocs);
-        }
     }
 
     /**
@@ -224,10 +234,12 @@ public class TermsAggregationBuilder extends ValuesSourceAggregationBuilder<Term
      * the response.
      */
     public TermsAggregationBuilder minDocCount(long minDocCount) {
-        if (minDocCount < 0) {
-            throw new IllegalArgumentException(
-                "[minDocCount] must be greater than or equal to 0. Found [" + minDocCount + "] in [" + name + "]"
-            );
+        if (minDocCount != MAGIC_VALUE_MIN_DOC_COUNT_0_EXCLUDE_DELETED_DOCS) {
+            if (minDocCount < 0) {
+                throw new IllegalArgumentException(
+                    "[minDocCount] must be greater than or equal to 0. Found [" + minDocCount + "] in [" + name + "]"
+                );
+            }
         }
         bucketCountThresholds.setMinDocCount(minDocCount);
         return this;

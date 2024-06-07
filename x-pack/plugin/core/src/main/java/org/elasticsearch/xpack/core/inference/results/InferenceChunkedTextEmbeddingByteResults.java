@@ -8,51 +8,56 @@
 package org.elasticsearch.xpack.core.inference.results;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.inference.ChunkedInferenceServiceResults;
 import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.ml.inference.results.ChunkedNlpInferenceResults;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.xpack.core.inference.results.TextEmbeddingUtils.validateInputSizeAgainstEmbeddings;
 
-public record ChunkedTextEmbeddingByteResults(List<EmbeddingChunk> chunks, boolean isTruncated) implements ChunkedInferenceServiceResults {
+public record InferenceChunkedTextEmbeddingByteResults(List<InferenceByteEmbeddingChunk> chunks, boolean isTruncated)
+    implements
+        ChunkedInferenceServiceResults {
 
     public static final String NAME = "chunked_text_embedding_service_byte_results";
     public static final String FIELD_NAME = "text_embedding_byte_chunk";
 
     /**
-     * Returns a list of {@link ChunkedTextEmbeddingByteResults}. The number of entries in the list will match the input list size.
-     * Each {@link ChunkedTextEmbeddingByteResults} will have a single chunk containing the entire results from the
-     * {@link TextEmbeddingByteResults}.
+     * Returns a list of {@link InferenceChunkedTextEmbeddingByteResults}. The number of entries in the list will match the input list size.
+     * Each {@link InferenceChunkedTextEmbeddingByteResults} will have a single chunk containing the entire results from the
+     * {@link InferenceTextEmbeddingByteResults}.
      */
-    public static List<ChunkedInferenceServiceResults> of(List<String> inputs, TextEmbeddingByteResults textEmbeddings) {
+    public static List<ChunkedInferenceServiceResults> listOf(List<String> inputs, InferenceTextEmbeddingByteResults textEmbeddings) {
         validateInputSizeAgainstEmbeddings(inputs, textEmbeddings.embeddings().size());
 
         var results = new ArrayList<ChunkedInferenceServiceResults>(inputs.size());
         for (int i = 0; i < inputs.size(); i++) {
-            results.add(of(inputs.get(i), textEmbeddings.embeddings().get(i).values()));
+            results.add(ofSingle(inputs.get(i), textEmbeddings.embeddings().get(i).values()));
         }
 
         return results;
     }
 
-    public static ChunkedTextEmbeddingByteResults of(String input, byte[] byteEmbeddings) {
-        return new ChunkedTextEmbeddingByteResults(List.of(new EmbeddingChunk(input, byteEmbeddings)), false);
+    private static InferenceChunkedTextEmbeddingByteResults ofSingle(String input, byte[] byteEmbeddings) {
+        return new InferenceChunkedTextEmbeddingByteResults(List.of(new InferenceByteEmbeddingChunk(input, byteEmbeddings)), false);
     }
 
-    public ChunkedTextEmbeddingByteResults(StreamInput in) throws IOException {
-        this(in.readCollectionAsList(EmbeddingChunk::new), in.readBoolean());
+    public InferenceChunkedTextEmbeddingByteResults(StreamInput in) throws IOException {
+        this(in.readCollectionAsList(InferenceByteEmbeddingChunk::new), in.readBoolean());
     }
 
     @Override
@@ -92,7 +97,7 @@ public record ChunkedTextEmbeddingByteResults(List<EmbeddingChunk> chunks, boole
         return NAME;
     }
 
-    public List<EmbeddingChunk> getChunks() {
+    public List<InferenceByteEmbeddingChunk> getChunks() {
         return chunks;
     }
 
@@ -100,7 +105,7 @@ public record ChunkedTextEmbeddingByteResults(List<EmbeddingChunk> chunks, boole
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        ChunkedTextEmbeddingByteResults that = (ChunkedTextEmbeddingByteResults) o;
+        InferenceChunkedTextEmbeddingByteResults that = (InferenceChunkedTextEmbeddingByteResults) o;
         return isTruncated == that.isTruncated && Objects.equals(chunks, that.chunks);
     }
 
@@ -109,9 +114,9 @@ public record ChunkedTextEmbeddingByteResults(List<EmbeddingChunk> chunks, boole
         return Objects.hash(chunks, isTruncated);
     }
 
-    public record EmbeddingChunk(String matchedText, byte[] embedding) implements Writeable, ToXContentObject {
+    public record InferenceByteEmbeddingChunk(String matchedText, byte[] embedding) implements Writeable, ToXContentObject {
 
-        public EmbeddingChunk(StreamInput in) throws IOException {
+        public InferenceByteEmbeddingChunk(StreamInput in) throws IOException {
             this(in.readString(), in.readByteArray());
         }
 
@@ -145,7 +150,7 @@ public record ChunkedTextEmbeddingByteResults(List<EmbeddingChunk> chunks, boole
         public boolean equals(Object o) {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
-            EmbeddingChunk that = (EmbeddingChunk) o;
+            InferenceByteEmbeddingChunk that = (InferenceByteEmbeddingChunk) o;
             return Objects.equals(matchedText, that.matchedText) && Arrays.equals(embedding, that.embedding);
         }
 
@@ -154,6 +159,24 @@ public record ChunkedTextEmbeddingByteResults(List<EmbeddingChunk> chunks, boole
             int result = Objects.hash(matchedText);
             result = 31 * result + Arrays.hashCode(embedding);
             return result;
+        }
+    }
+
+    public Iterator<Chunk> chunksAsMatchedTextAndByteReference(XContent xcontent) {
+        return chunks.stream().map(chunk -> new Chunk(chunk.matchedText(), toBytesReference(xcontent, chunk.embedding()))).iterator();
+    }
+
+    private static BytesReference toBytesReference(XContent xContent, byte[] value) {
+        try {
+            XContentBuilder b = XContentBuilder.builder(xContent);
+            b.startArray();
+            for (byte v : value) {
+                b.value(v);
+            }
+            b.endArray();
+            return BytesReference.bytes(b);
+        } catch (IOException exc) {
+            throw new RuntimeException(exc);
         }
     }
 }

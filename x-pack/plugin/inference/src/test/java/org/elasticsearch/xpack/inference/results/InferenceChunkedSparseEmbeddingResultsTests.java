@@ -10,10 +10,10 @@ package org.elasticsearch.xpack.inference.results;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
-import org.elasticsearch.xpack.core.inference.results.ChunkedSparseEmbeddingResults;
+import org.elasticsearch.xpack.core.inference.results.InferenceChunkedSparseEmbeddingResults;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.inference.results.ChunkedNlpInferenceResults;
-import org.elasticsearch.xpack.core.ml.inference.results.ChunkedTextExpansionResults;
+import org.elasticsearch.xpack.core.ml.inference.results.InferenceChunkedTextExpansionResults;
 import org.elasticsearch.xpack.core.ml.search.WeightedToken;
 
 import java.io.IOException;
@@ -23,10 +23,10 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.is;
 
-public class ChunkedSparseEmbeddingResultsTests extends AbstractWireSerializingTestCase<ChunkedSparseEmbeddingResults> {
+public class InferenceChunkedSparseEmbeddingResultsTests extends AbstractWireSerializingTestCase<InferenceChunkedSparseEmbeddingResults> {
 
-    public static ChunkedSparseEmbeddingResults createRandomResults() {
-        var chunks = new ArrayList<ChunkedTextExpansionResults.ChunkedResult>();
+    public static InferenceChunkedSparseEmbeddingResults createRandomResults() {
+        var chunks = new ArrayList<InferenceChunkedTextExpansionResults.ChunkedResult>();
         int numChunks = randomIntBetween(1, 5);
 
         for (int i = 0; i < numChunks; i++) {
@@ -35,22 +35,22 @@ public class ChunkedSparseEmbeddingResultsTests extends AbstractWireSerializingT
             for (int j = 0; j < numTokens; j++) {
                 tokenWeights.add(new WeightedToken(Integer.toString(j), (float) randomDoubleBetween(0.0, 5.0, false)));
             }
-            chunks.add(new ChunkedTextExpansionResults.ChunkedResult(randomAlphaOfLength(6), tokenWeights));
+            chunks.add(new InferenceChunkedTextExpansionResults.ChunkedResult(randomAlphaOfLength(6), tokenWeights));
         }
 
-        return new ChunkedSparseEmbeddingResults(chunks);
+        return new InferenceChunkedSparseEmbeddingResults(chunks);
     }
 
     public void testToXContent_CreatesTheRightJsonForASingleChunk() {
-        var entity = new ChunkedSparseEmbeddingResults(
-            List.of(new ChunkedTextExpansionResults.ChunkedResult("text", List.of(new WeightedToken("token", 0.1f))))
+        var entity = new InferenceChunkedSparseEmbeddingResults(
+            List.of(new InferenceChunkedTextExpansionResults.ChunkedResult("text", List.of(new WeightedToken("token", 0.1f))))
         );
 
         assertThat(
             entity.asMap(),
             is(
                 Map.of(
-                    ChunkedSparseEmbeddingResults.FIELD_NAME,
+                    InferenceChunkedSparseEmbeddingResults.FIELD_NAME,
                     List.of(Map.of(ChunkedNlpInferenceResults.TEXT, "text", ChunkedNlpInferenceResults.INFERENCE, Map.of("token", 0.1f)))
                 )
             )
@@ -71,7 +71,7 @@ public class ChunkedSparseEmbeddingResultsTests extends AbstractWireSerializingT
     }
 
     public void testToXContent_CreatesTheRightJsonForASingleChunk_FromSparseEmbeddingResults() {
-        var entity = ChunkedSparseEmbeddingResults.of(
+        var entity = InferenceChunkedSparseEmbeddingResults.listOf(
             List.of("text"),
             new SparseEmbeddingResults(List.of(new SparseEmbeddingResults.Embedding(List.of(new WeightedToken("token", 0.1f)), false)))
         );
@@ -84,7 +84,7 @@ public class ChunkedSparseEmbeddingResultsTests extends AbstractWireSerializingT
             firstEntry.asMap(),
             is(
                 Map.of(
-                    ChunkedSparseEmbeddingResults.FIELD_NAME,
+                    InferenceChunkedSparseEmbeddingResults.FIELD_NAME,
                     List.of(Map.of(ChunkedNlpInferenceResults.TEXT, "text", ChunkedNlpInferenceResults.INFERENCE, Map.of("token", 0.1f)))
                 )
             )
@@ -107,7 +107,7 @@ public class ChunkedSparseEmbeddingResultsTests extends AbstractWireSerializingT
     public void testToXContent_ThrowsWhenInputSizeIsDifferentThanEmbeddings() {
         var exception = expectThrows(
             IllegalArgumentException.class,
-            () -> ChunkedSparseEmbeddingResults.of(
+            () -> InferenceChunkedSparseEmbeddingResults.listOf(
                 List.of("text", "text2"),
                 new SparseEmbeddingResults(List.of(new SparseEmbeddingResults.Embedding(List.of(new WeightedToken("token", 0.1f)), false)))
             )
@@ -117,17 +117,17 @@ public class ChunkedSparseEmbeddingResultsTests extends AbstractWireSerializingT
     }
 
     @Override
-    protected Writeable.Reader<ChunkedSparseEmbeddingResults> instanceReader() {
-        return ChunkedSparseEmbeddingResults::new;
+    protected Writeable.Reader<InferenceChunkedSparseEmbeddingResults> instanceReader() {
+        return InferenceChunkedSparseEmbeddingResults::new;
     }
 
     @Override
-    protected ChunkedSparseEmbeddingResults createTestInstance() {
+    protected InferenceChunkedSparseEmbeddingResults createTestInstance() {
         return createRandomResults();
     }
 
     @Override
-    protected ChunkedSparseEmbeddingResults mutateInstance(ChunkedSparseEmbeddingResults instance) throws IOException {
-        return randomValueOtherThan(instance, ChunkedSparseEmbeddingResultsTests::createRandomResults);
+    protected InferenceChunkedSparseEmbeddingResults mutateInstance(InferenceChunkedSparseEmbeddingResults instance) throws IOException {
+        return randomValueOtherThan(instance, InferenceChunkedSparseEmbeddingResultsTests::createRandomResults);
     }
 }

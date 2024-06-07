@@ -23,7 +23,7 @@ import java.util.List;
 import static org.hamcrest.Matchers.is;
 
 @SuppressWarnings("deprecation")
-public class LegacyTextEmbeddingResultsTests extends AbstractWireSerializingTestCase<LegacyTextEmbeddingResults> {
+public class LegacyMlTextEmbeddingResultsTests extends AbstractWireSerializingTestCase<LegacyTextEmbeddingResults> {
     public static LegacyTextEmbeddingResults createRandomResults() {
         int embeddings = randomIntBetween(1, 10);
         List<LegacyTextEmbeddingResults.Embedding> embeddingResults = new ArrayList<>(embeddings);

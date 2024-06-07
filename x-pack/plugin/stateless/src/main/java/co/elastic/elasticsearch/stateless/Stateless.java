@@ -482,8 +482,10 @@ public class Stateless extends Plugin
                 writeLoadSampler,
                 ingestLoadPublisher,
                 ingestLoadProbe::getIngestionLoad,
+                ingestLoadProbe::getExecutorIngestionLoad,
                 EsExecutors.nodeProcessors(settings).count(),
-                clusterService.getClusterSettings()
+                clusterService.getClusterSettings(),
+                services.telemetryProvider().getMeterRegistry()
             );
             clusterService.addListener(ingestLoadSampler);
             components.add(ingestLoadSampler);

@@ -25,13 +25,18 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.cluster.coordination.stateless.StoreHeartbeatService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.TaskExecutionTimeTrackingEsThreadPoolExecutor;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.PluginsService;
+import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TestTransportChannel;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -50,6 +55,12 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class AutoscalingIndexingMetricsIT extends AbstractStatelessIntegTestCase {
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return CollectionUtils.concatLists(List.of(TestTelemetryPlugin.class), super.nodePlugins());
+    }
+
     public void testIndexingMetricsArePublishedEventually() throws Exception {
         startMasterOnlyNode();
         // Reduce the time between publications, so we can expect at least one publication per second.
@@ -421,6 +432,56 @@ public class AutoscalingIndexingMetricsIT extends AbstractStatelessIntegTestCase
             assertThat(loadsAfterIndexing.size(), equalTo(1));
             assertThat(loadsAfterIndexing.get(0).metricQuality(), equalTo(MetricQuality.EXACT));
             assertThat(loadsAfterIndexing.get(0).load(), greaterThan(0.0));
+        });
+    }
+
+    public void testAutoscalingExecutorIngestionLoadMetrics() throws Exception {
+        startMasterOnlyNode();
+        var indexNode = startIndexNode();
+        var indexName = randomIdentifier();
+        createIndex(indexName, indexSettings(1, 0).build());
+        ensureGreen(indexName);
+
+        final TestTelemetryPlugin plugin = internalCluster().getInstance(PluginsService.class, indexNode)
+            .filterPlugins(TestTelemetryPlugin.class)
+            .findFirst()
+            .orElseThrow();
+
+        // Make sure all metrics are there
+        plugin.collect();
+        for (String executor : AverageWriteLoadSampler.WRITE_EXECUTORS) {
+            assertFalse(
+                plugin.getDoubleGaugeMeasurement("es.autoscaling.indexing.thread_pool." + executor + ".average_write_load.current")
+                    .isEmpty()
+            );
+            assertFalse(
+                plugin.getDoubleGaugeMeasurement("es.autoscaling.indexing.thread_pool." + executor + ".average_task_execution_time.current")
+                    .isEmpty()
+            );
+            assertFalse(
+                plugin.getDoubleGaugeMeasurement(
+                    "es.autoscaling.indexing.thread_pool." + executor + ".threads_needed_to_handle_queue.current"
+                ).isEmpty()
+            );
+            assertFalse(
+                plugin.getLongGaugeMeasurement("es.autoscaling.indexing.thread_pool." + executor + ".queue_size.current").isEmpty()
+            );
+        }
+
+        assertBusy(() -> {
+            // Reset so there is only one measurement
+            plugin.resetMeter();
+            // Create some load and collect metric values
+            indexDocsAndRefresh(indexName, randomIntBetween(100, 1000));
+            plugin.collect();
+            var measurements = plugin.getDoubleGaugeMeasurement("es.autoscaling.indexing.thread_pool.write.average_write_load.current");
+            assertThat(measurements.size(), equalTo(1));
+            assertThat(measurements.get(0).value().doubleValue(), greaterThan(0.0));
+            measurements = plugin.getDoubleGaugeMeasurement(
+                "es.autoscaling.indexing.thread_pool.write.average_task_execution_time.current"
+            );
+            assertThat(measurements.size(), equalTo(1));
+            assertThat(measurements.get(0).value().doubleValue(), greaterThan(0.0));
         });
     }
 

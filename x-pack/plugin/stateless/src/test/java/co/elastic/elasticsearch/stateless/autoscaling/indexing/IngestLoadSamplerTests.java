@@ -23,6 +23,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -73,8 +74,10 @@ public class IngestLoadSamplerTests extends ESTestCase {
             writeLoadSampler,
             ingestLoadPublisher,
             () -> nodeIngestLoad,
+            executor -> new IngestLoadProbe.ExecutorIngestionLoad(0.0, 0.0),
             numProcessors,
-            clusterSettings
+            clusterSettings,
+            MeterRegistry.NOOP
         );
         sampler.setNodeId(randomIdentifier());
         sampler.start();
@@ -123,8 +126,10 @@ public class IngestLoadSamplerTests extends ESTestCase {
             writeLoadSampler,
             ingestLoadPublisher,
             currentIndexLoadSupplier::next,
+            executor -> new IngestLoadProbe.ExecutorIngestionLoad(0.0, 0.0),
             numProcessors,
-            clusterSettings
+            clusterSettings,
+            MeterRegistry.NOOP
         );
         sampler.setNodeId(randomIdentifier());
         sampler.start();
@@ -190,8 +195,10 @@ public class IngestLoadSamplerTests extends ESTestCase {
             writeLoadSampler,
             ingestLoadPublisher,
             ingestLoadProbe,
+            executor -> new IngestLoadProbe.ExecutorIngestionLoad(0.0, 0.0),
             numProcessors,
-            clusterSettings
+            clusterSettings,
+            MeterRegistry.NOOP
         );
         sampler.setNodeId(randomIdentifier());
         sampler.start();
@@ -238,8 +245,10 @@ public class IngestLoadSamplerTests extends ESTestCase {
             writeLoadSampler,
             ingestLoadPublisher,
             readingIter::next,
+            executor -> new IngestLoadProbe.ExecutorIngestionLoad(0.0, 0.0),
             numProcessors,
-            clusterSettings
+            clusterSettings,
+            MeterRegistry.NOOP
         );
         sampler.setNodeId(randomIdentifier());
         sampler.start();
@@ -314,8 +323,10 @@ public class IngestLoadSamplerTests extends ESTestCase {
             writeLoadSampler,
             ingestLoadPublisher,
             currentIndexLoadSupplier,
+            executor -> new IngestLoadProbe.ExecutorIngestionLoad(0.0, 0.0),
             numProcessors,
-            clusterSettings
+            clusterSettings,
+            MeterRegistry.NOOP
         );
         sampler.setNodeId(randomIdentifier());
         sampler.start();
@@ -342,7 +353,16 @@ public class IngestLoadSamplerTests extends ESTestCase {
         var writeLoadSampler = new RandomAverageWriteLoadSampler(threadPool);
 
         var clusterSettings = clusterSettings(Settings.EMPTY);
-        var sampler = new IngestLoadSampler(threadPool, writeLoadSampler, ingestLoadPublisher, () -> indexLoad, 8, clusterSettings);
+        var sampler = new IngestLoadSampler(
+            threadPool,
+            writeLoadSampler,
+            ingestLoadPublisher,
+            () -> indexLoad,
+            executor -> new IngestLoadProbe.ExecutorIngestionLoad(0.0, 0.0),
+            8,
+            clusterSettings,
+            MeterRegistry.NOOP
+        );
         sampler.setNodeId(randomIdentifier());
 
         // The sampler does not schedule any task before starting the service or publish any metrics
@@ -408,8 +428,10 @@ public class IngestLoadSamplerTests extends ESTestCase {
             writeLoadSampler,
             ingestLoadPublisher,
             currentIndexLoadSupplier::next,
+            executor -> new IngestLoadProbe.ExecutorIngestionLoad(0.0, 0.0),
             numProcessors,
-            clusterSettings
+            clusterSettings,
+            MeterRegistry.NOOP
         );
         sampler.setNodeId(randomIdentifier());
         sampler.start();

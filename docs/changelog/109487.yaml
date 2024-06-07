@@ -1,5 +1,5 @@
 pr: 109487
-summary: Perform checks on request values regardless of the existence of a body
+summary: `StartTrainedModelDeployment`request query params now override body params
 area: Machine Learning
 type: bug
 issues: []

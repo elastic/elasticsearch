@@ -36,8 +36,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.index.IndexSettings.CLUSTER_LOGSDB_ENABLED_SETTING;
-
 public class StackTemplateRegistry extends IndexTemplateRegistry {
     private static final Logger logger = LogManager.getLogger(StackTemplateRegistry.class);
 

@@ -75,7 +75,7 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
     private final FeatureService featureService;
     private volatile boolean stackTemplateEnabled;
 
-    private final boolean logsIndexModeEnabled;
+    private final boolean logsIndexModeTemplateEnabled;
 
     public static final Map<String, String> ADDITIONAL_TEMPLATE_VARIABLES = Map.of("xpack.stack.template.deprecated", "false");
 
@@ -137,7 +137,7 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
         this.clusterService = clusterService;
         this.featureService = featureService;
         this.stackTemplateEnabled = STACK_TEMPLATES_ENABLED.get(nodeSettings);
-        this.logsIndexModeEnabled = CLUSTER_LOGSDB_ENABLED_SETTING.get(nodeSettings);
+        this.logsIndexModeTemplateEnabled = CLUSTER_LOGSDB_ENABLED_SETTING.get(nodeSettings);
     }
 
     @Override
@@ -355,7 +355,7 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
 
     @Override
     protected Map<String, ComponentTemplate> getComponentTemplateConfigs() {
-        if (logsIndexModeEnabled) {
+        if (logsIndexModeTemplateEnabled) {
             return LOGSDB_COMPONENT_TEMPLATE_CONFIGS;
         }
         return COMPONENT_TEMPLATE_CONFIGS;

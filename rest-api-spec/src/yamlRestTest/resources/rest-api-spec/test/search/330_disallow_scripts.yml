@@ -1,0 +1,206 @@
+# TODO: test also saved scripts
+setup:
+  - do:
+      indices.create:
+        index:  test_index
+        body:
+          mappings:
+            properties:
+              some_value:
+                type: long
+  - do:
+      bulk:
+        index: test_index
+        refresh: true
+        body:
+          - '{"index": {}}'
+          - '{"some_value": 1}'
+          - '{"index": {}}'
+          - '{"some_value": 2}'
+          - '{"index": {}}'
+          - '{"some_value": 3}'
+---
+"all scripts allowed by default":
+  - do:
+      search:
+        index: test_index
+        size: 0
+        body:
+          aggs:
+            some_of_values:
+              scripted_metric:
+                init_script: 'state.transactions = []'
+                map_script: 'state.transactions.add(doc.some_value.value)'
+                combine_script: 'long sum = 0; for (t in state.transactions) { sum += t } return sum'
+                reduce_script: 'long sum = 0; for (a in states) { sum += a } return sum'
+
+  - match: { hits.total.value: 3 }
+  - match: { aggregations.some_of_values.value: 6}
+
+  - do:
+      cluster.put_settings:
+        body: >
+          {
+            "persistent": {
+              "search.aggs.allowed_metric_scripts": []
+            }
+          }
+
+  - do:
+      search:
+        index: test_index
+        size: 0
+        body:
+          aggs:
+            some_of_values:
+              scripted_metric:
+                init_script: 'state.transactions = []'
+                map_script: 'state.transactions.add(doc.some_value.value)'
+                combine_script: 'long sum = 0; for (t in state.transactions) { sum += t } return sum'
+                reduce_script: 'long sum = 0; for (a in states) { sum += a } return sum'
+
+  - match: { hits.total.value: 3 }
+  - match: { aggregations.some_of_values.value: 6}
+---
+"explicitly allowed scripts work":
+  - do:
+      cluster.put_settings:
+        body: >
+          {
+            "persistent": {
+              "search.aggs.allowed_metric_scripts": [
+                "state.transactions = []",
+                "state.transactions.add(doc.some_value.value)",
+                "long sum = 0; for (t in state.transactions) { sum += t } return sum",
+                "long sum = 0; for (a in states) { sum += a } return sum"
+              ]
+            }
+          }
+
+  - do:
+      search:
+        index: test_index
+        size: 0
+        body:
+          aggs:
+            some_of_values:
+              scripted_metric:
+                init_script: 'state.transactions = []'
+                map_script: 'state.transactions.add(doc.some_value.value)'
+                combine_script: 'long sum = 0; for (t in state.transactions) { sum += t } return sum'
+                reduce_script: 'long sum = 0; for (a in states) { sum += a } return sum'
+
+  - match: { hits.total.value: 3 }
+  - match: { aggregations.some_of_values.value: 6}
+---
+"init_script must be allowed":
+  - do:
+      cluster.put_settings:
+        body: >
+          {
+            "persistent": {
+              "search.aggs.allowed_metric_scripts": [
+                "state.transactions.add(doc.some_value.value)",
+                "long sum = 0; for (t in state.transactions) { sum += t } return sum",
+                "long sum = 0; for (a in states) { sum += a } return sum"
+              ]
+            }
+          }
+
+  - do:
+      catch: '/type=illegal_argument_exception, reason=\[init_script\] contains not allowed script: \[some_of_values\]/'
+      search:
+        index: test_index
+        size: 0
+        body:
+          aggs:
+            some_of_values:
+              scripted_metric:
+                init_script: 'state.transactions = []'
+                map_script: 'state.transactions.add(doc.some_value.value)'
+                combine_script: 'long sum = 0; for (t in state.transactions) { sum += t } return sum'
+                reduce_script: 'long sum = 0; for (a in states) { sum += a } return sum'
+---
+"map_script must be allowed":
+  - do:
+      cluster.put_settings:
+        body: >
+          {
+            "persistent": {
+              "search.aggs.allowed_metric_scripts": [
+                "state.transactions = []",
+                "long sum = 0; for (t in state.transactions) { sum += t } return sum",
+                "long sum = 0; for (a in states) { sum += a } return sum"
+              ]
+            }
+          }
+
+  - do:
+      catch: '/type=illegal_argument_exception, reason=\[map_script\] contains not allowed script: \[some_of_values\]/'
+      search:
+        index: test_index
+        size: 0
+        body:
+          aggs:
+            some_of_values:
+              scripted_metric:
+                init_script: 'state.transactions = []'
+                map_script: 'state.transactions.add(doc.some_value.value)'
+                combine_script: 'long sum = 0; for (t in state.transactions) { sum += t } return sum'
+                reduce_script: 'long sum = 0; for (a in states) { sum += a } return sum'
+---
+"combine_script must be allowed":
+  - do:
+      cluster.put_settings:
+        body: >
+          {
+            "persistent": {
+              "search.aggs.allowed_metric_scripts": [
+                "state.transactions = []",
+                "state.transactions.add(doc.some_value.value)",
+                "long sum = 0; for (a in states) { sum += a } return sum"
+              ]
+            }
+          }
+
+  - do:
+      catch: '/type=illegal_argument_exception, reason=\[combine_script\] contains not allowed script: \[some_of_values\]/'
+      search:
+        index: test_index
+        size: 0
+        body:
+          aggs:
+            some_of_values:
+              scripted_metric:
+                init_script: 'state.transactions = []'
+                map_script: 'state.transactions.add(doc.some_value.value)'
+                combine_script: 'long sum = 0; for (t in state.transactions) { sum += t } return sum'
+                reduce_script: 'long sum = 0; for (a in states) { sum += a } return sum'
+---
+"reduce_script must be allowed":
+  - do:
+      cluster.put_settings:
+        body: >
+          {
+            "persistent": {
+              "search.aggs.allowed_metric_scripts": [
+                "state.transactions = []",
+                "state.transactions.add(doc.some_value.value)",
+                "long sum = 0; for (t in state.transactions) { sum += t } return sum"
+              ]
+            }
+          }
+
+  - do:
+      catch: '/type=illegal_argument_exception, reason=\[reduce_script\] contains not allowed script: \[some_of_values\]/'
+      search:
+        index: test_index
+        size: 0
+        body:
+          aggs:
+            some_of_values:
+              scripted_metric:
+                init_script: 'state.transactions = []'
+                map_script: 'state.transactions.add(doc.some_value.value)'
+                combine_script: 'long sum = 0; for (t in state.transactions) { sum += t } return sum'
+                reduce_script: 'long sum = 0; for (a in states) { sum += a } return sum'

@@ -294,12 +294,7 @@ public class SearchModule {
     public static final Setting<List<String>> SCRIPTED_METRICS_AGG_ALLOWED_SCRIPTS_SETTING = Setting.stringListSetting(
         "search.aggs.allowed_metric_scripts",
         Setting.Property.NodeScope,
-        // TODO: remove, only for testing
         Setting.Property.Dynamic
-    // TODO: Potentially we could also the following, but that prevented
-    // ./gradlew run
-    // from working (node dies while waiting on ports).
-    // Setting.Property.Consistent
     );
 
     /**

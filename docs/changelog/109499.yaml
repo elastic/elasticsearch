@@ -1,0 +1,5 @@
+pr: 109499
+summary: Add test case for Index Lifecycle Management (ILM)
+area: ILM
+type: test
+issues: []

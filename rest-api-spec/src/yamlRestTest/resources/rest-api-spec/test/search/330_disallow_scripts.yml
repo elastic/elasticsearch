@@ -21,6 +21,9 @@ setup:
           - '{"some_value": 3}'
 ---
 "all scripts allowed by default":
+  - requires:
+      cluster_features: ["gte_v8.15.0"]
+      reason: search.aggs.allowed_metric_scripts introduced in 8.15.0
   - do:
       search:
         index: test_index
@@ -63,6 +66,9 @@ setup:
   - match: { aggregations.some_of_values.value: 6}
 ---
 "explicitly allowed scripts work":
+  - requires:
+      cluster_features: ["gte_v8.15.0"]
+      reason: search.aggs.allowed_metric_scripts introduced in 8.15.0
   - do:
       cluster.put_settings:
         body: >
@@ -94,6 +100,9 @@ setup:
   - match: { aggregations.some_of_values.value: 6}
 ---
 "init_script must be allowed":
+  - requires:
+      cluster_features: ["gte_v8.15.0"]
+      reason: search.aggs.allowed_metric_scripts introduced in 8.15.0
   - do:
       cluster.put_settings:
         body: >
@@ -122,6 +131,9 @@ setup:
                 reduce_script: 'long sum = 0; for (a in states) { sum += a } return sum'
 ---
 "map_script must be allowed":
+  - requires:
+      cluster_features: ["gte_v8.15.0"]
+      reason: search.aggs.allowed_metric_scripts introduced in 8.15.0
   - do:
       cluster.put_settings:
         body: >
@@ -150,6 +162,9 @@ setup:
                 reduce_script: 'long sum = 0; for (a in states) { sum += a } return sum'
 ---
 "combine_script must be allowed":
+  - requires:
+      cluster_features: ["gte_v8.15.0"]
+      reason: search.aggs.allowed_metric_scripts introduced in 8.15.0
   - do:
       cluster.put_settings:
         body: >
@@ -178,6 +193,9 @@ setup:
                 reduce_script: 'long sum = 0; for (a in states) { sum += a } return sum'
 ---
 "reduce_script must be allowed":
+  - requires:
+      cluster_features: ["gte_v8.15.0"]
+      reason: search.aggs.allowed_metric_scripts introduced in 8.15.0
   - do:
       cluster.put_settings:
         body: >

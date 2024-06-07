@@ -17,25 +17,28 @@
 
 package co.elastic.elasticsearch.stateless.autoscaling.indexing;
 
+import co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestLoadProbe.ExecutorIngestionLoad;
+
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateListener;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
-import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.telemetry.metric.DoubleWithAttributes;
+import org.elasticsearch.telemetry.metric.LongWithAttributes;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.DoubleSupplier;
+import java.util.function.Function;
 
 import static co.elastic.elasticsearch.stateless.autoscaling.AutoscalingDataTransmissionLogging.getExceptionLogLevel;
 
@@ -83,14 +86,17 @@ public class IngestLoadSampler extends AbstractLifecycleComponent implements Clu
     private final AtomicLong lastPublicationRelativeTimeInMillis = new AtomicLong();
     private final AtomicReference<Object> inFlightPublicationTicket = new AtomicReference<>();
     private volatile String nodeId;
+    private final Function<String, ExecutorIngestionLoad> executorIngestionLoadProvider;
 
     public IngestLoadSampler(
         ThreadPool threadPool,
         AverageWriteLoadSampler writeLoadSampler,
         IngestLoadPublisher ingestionLoadPublisher,
         DoubleSupplier currentIndexLoadSupplier,
+        Function<String, ExecutorIngestionLoad> executorIngestionLoadProvider,
         double numProcessors,
-        ClusterSettings clusterSettings
+        ClusterSettings clusterSettings,
+        MeterRegistry meterRegistry
     ) {
         if (numProcessors <= 0) {
             throw new IllegalArgumentException("Processors must be positive but was " + numProcessors);
@@ -100,7 +106,7 @@ public class IngestLoadSampler extends AbstractLifecycleComponent implements Clu
         clusterSettings.initializeAndWatch(SAMPLING_FREQUENCY_SETTING, value -> this.samplingFrequency = value);
         clusterSettings.initializeAndWatch(MAX_TIME_BETWEEN_METRIC_PUBLICATIONS_SETTING, value -> this.maxTimeBetweenPublications = value);
         this.numProcessors = numProcessors;
-
+        this.executorIngestionLoadProvider = executorIngestionLoadProvider;
         this.threadPool = threadPool;
         this.executor = threadPool.generic();
         this.writeLoadSampler = writeLoadSampler;
@@ -108,37 +114,48 @@ public class IngestLoadSampler extends AbstractLifecycleComponent implements Clu
         this.currentIndexLoadSupplier = currentIndexLoadSupplier;
         // To ensure that the first sample is published right away
         lastPublicationRelativeTimeInMillis.set(threadPool.relativeTimeInMillis() - maxTimeBetweenPublications.getMillis());
+        setupMetrics(meterRegistry, AverageWriteLoadSampler.WRITE_EXECUTORS);
     }
 
-    public static IngestLoadSampler create(
-        ThreadPool threadPool,
-        AverageWriteLoadSampler writeLoadSampler,
-        IngestLoadPublisher ingestLoadPublisher,
-        DoubleSupplier getIngestionLoad,
-        Settings settings,
-        ClusterService clusterService
-    ) {
-        var loadSampler = new IngestLoadSampler(
-            threadPool,
-            writeLoadSampler,
-            ingestLoadPublisher,
-            getIngestionLoad,
-            EsExecutors.nodeProcessors(settings).count(),
-            clusterService.getClusterSettings()
-        );
-        clusterService.addLifecycleListener(new LifecycleListener() {
-            @Override
-            public void afterStart() {
-                loadSampler.start();
-            }
-
-            @Override
-            public void beforeStop() {
-                loadSampler.stop();
-            }
-        });
-        clusterService.addListener(loadSampler);
-        return loadSampler;
+    private void setupMetrics(MeterRegistry meterRegistry, Set<String> writeExecutors) {
+        for (String executor : writeExecutors) {
+            meterRegistry.registerDoubleGauge(
+                "es.autoscaling.indexing.thread_pool." + executor + ".average_write_load.current",
+                "The last sampled average number of busy threads for the executor",
+                "threads",
+                () -> {
+                    var ingestionLoad = executorIngestionLoadProvider.apply(executor);
+                    return new DoubleWithAttributes(ingestionLoad.averageWriteLoad());
+                }
+            );
+            meterRegistry.registerDoubleGauge(
+                "es.autoscaling.indexing.thread_pool." + executor + ".average_task_execution_time.current",
+                "The moving average task execution time for the executor",
+                "nanoseconds",
+                () -> {
+                    var stats = writeLoadSampler.getExecutorStats(executor);
+                    return new DoubleWithAttributes(stats.averageTaskExecutionEWMA());
+                }
+            );
+            meterRegistry.registerLongGauge(
+                "es.autoscaling.indexing.thread_pool." + executor + ".queue_size.current",
+                "The queue size for the executor",
+                "tasks",
+                () -> {
+                    var stats = writeLoadSampler.getExecutorStats(executor);
+                    return new LongWithAttributes(stats.currentQueueSize());
+                }
+            );
+            meterRegistry.registerDoubleGauge(
+                "es.autoscaling.indexing.thread_pool." + executor + ".threads_needed_to_handle_queue.current",
+                "The estimated number of threads needed to handle queued tasks",
+                "threads",
+                () -> {
+                    var ingestionLoad = executorIngestionLoadProvider.apply(executor);
+                    return new DoubleWithAttributes(ingestionLoad.queueThreadsNeeded());
+                }
+            );
+        }
     }
 
     @Override

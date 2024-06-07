@@ -40,12 +40,13 @@ public class IngestLoadProbeTests extends ESTestCase {
         // Initially average task execution time is 0.0.
         double randomQueueContribution = randomDoubleBetween(0.1, 100.0, true);
         assertThat(
-            calculateIngestionLoadForExecutor("test", 0.0, 0.0, 0, maxTimeToClearQueue, randomQueueContribution),
+            calculateIngestionLoadForExecutor("test", 0.0, 0.0, 0, maxTimeToClearQueue, randomQueueContribution).total(),
             closeTo(0.0, 1e-3)
         );
         // When there is nothing in the queue, we'd still want to keep up with average load
         assertThat(
-            calculateIngestionLoadForExecutor("test", 1.0, timeValueMillis(100).nanos(), 0, maxTimeToClearQueue, randomQueueContribution),
+            calculateIngestionLoadForExecutor("test", 1.0, timeValueMillis(100).nanos(), 0, maxTimeToClearQueue, randomQueueContribution)
+                .total(),
             closeTo(1.0, 1e-3)
         );
         // A threadpool of 2 with average task time of 100ms can run 200 tasks per 10 seconds.
@@ -57,7 +58,7 @@ public class IngestLoadProbeTests extends ESTestCase {
                 100,
                 maxTimeToClearQueue,
                 randomDoubleBetween(1.0, 100.0, true)
-            ),
+            ).total(),
             closeTo(1.00, 1e-3)
         );
         // We have 1 task in the queue, we'd need roughly 1/100th of a thread more since each thread can do 100 tasks
@@ -70,7 +71,7 @@ public class IngestLoadProbeTests extends ESTestCase {
                 1,
                 maxTimeToClearQueue,
                 randomDoubleBetween(0.01, 100, true)
-            ),
+            ).total(),
             closeTo(1.01, 1e-3)
         );
         assertThat(
@@ -81,7 +82,7 @@ public class IngestLoadProbeTests extends ESTestCase {
                 100,
                 maxTimeToClearQueue,
                 randomDoubleBetween(1.00, 100, true)
-            ),
+            ).total(),
             closeTo(2.00, 1e-3)
         );
         assertThat(
@@ -92,7 +93,7 @@ public class IngestLoadProbeTests extends ESTestCase {
                 200,
                 maxTimeToClearQueue,
                 randomDoubleBetween(2.00, 100, true)
-            ),
+            ).total(),
             closeTo(4.00, 1e-3)
         );
         assertThat(
@@ -103,7 +104,7 @@ public class IngestLoadProbeTests extends ESTestCase {
                 400,
                 maxTimeToClearQueue,
                 randomDoubleBetween(4.00, 100, true)
-            ),
+            ).total(),
             closeTo(6.0, 1e-3)
         );
         assertThat(
@@ -114,11 +115,11 @@ public class IngestLoadProbeTests extends ESTestCase {
                 1000,
                 maxTimeToClearQueue,
                 randomDoubleBetween(10.00, 100, true)
-            ),
+            ).total(),
             closeTo(12.0, 1e-3)
         );
         assertThat(
-            calculateIngestionLoadForExecutor("test", 2.0, timeValueMillis(100).nanos(), 1000, maxTimeToClearQueue, 4.00),
+            calculateIngestionLoadForExecutor("test", 2.0, timeValueMillis(100).nanos(), 1000, maxTimeToClearQueue, 4.00).total(),
             closeTo(6.0, 1e-3)
         );
     }

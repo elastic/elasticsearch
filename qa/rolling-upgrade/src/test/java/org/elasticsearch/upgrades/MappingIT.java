@@ -71,6 +71,12 @@ public class MappingIT extends AbstractRollingTestCase {
                 break;
             case MIXED:
             case UPGRADED:
+                // During the upgrade my-index shards may be allocated to not upgraded nodes, these then fail to allocate.
+                // If allocation fails more than 5 times, allocation is not retried immediately, this reroute triggers allocation
+                // any failed allocations. So that my-index health will be green.
+                Request rerouteRequest = new Request("POST", "cluster/reroute");
+                rerouteRequest.addParameter("retry_failed", "true");
+                assertOK(client().performRequest(rerouteRequest));
                 ensureGreen("my-index");
                 break;
         }

@@ -33,6 +33,11 @@ import java.util.Map;
 public interface Tracer {
 
     /**
+     * @return {@code if service is enabled}
+     */
+    boolean isEnabled();
+
+    /**
      * Called when a span starts.
      * @param traceContext the current context. Required for tracing parent/child span activity.
      * @param traceable provides a unique identifier for the activity, and will not be sent to the tracing system. Add the ID
@@ -144,6 +149,12 @@ public interface Tracer {
      * in order to avoid null checks everywhere.
      */
     Tracer NOOP = new Tracer() {
+
+        @Override
+        public boolean isEnabled() {
+            return false;
+        }
+
         @Override
         public void startTrace(TraceContext traceContext, Traceable traceable, String name, Map<String, Object> attributes) {}
 

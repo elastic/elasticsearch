@@ -68,7 +68,7 @@ public class SynonymsManagementAPIService {
 
     private static final Logger logger = LogManager.getLogger(SynonymsManagementAPIService.class);
     private static final String SYNONYMS_INDEX_NAME_PATTERN = ".synonyms-*";
-    private static final int SYNONYMS_INDEX_FORMAT = 3;
+    private static final int SYNONYMS_INDEX_FORMAT = 2;
     private static final String SYNONYMS_INDEX_CONCRETE_NAME = ".synonyms-" + SYNONYMS_INDEX_FORMAT;
     private static final String SYNONYMS_ALIAS_NAME = ".synonyms";
     public static final String SYNONYMS_FEATURE_NAME = "synonyms";

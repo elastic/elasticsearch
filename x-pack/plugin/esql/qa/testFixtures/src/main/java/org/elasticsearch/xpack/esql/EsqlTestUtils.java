@@ -17,6 +17,7 @@ import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
@@ -54,8 +55,12 @@ import org.elasticsearch.xpack.esql.stats.SearchStats;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeRegistry;
 import org.junit.Assert;
 
+import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.net.URL;
+import java.net.URLConnection;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -381,5 +386,17 @@ public final class EsqlTestUtils {
             );
         }
         return unmodifiableMap(tables);
+    }
+
+    @SuppressForbidden(reason = "need to open stream")
+    public static InputStream inputStream(URL resource) throws IOException {
+        URLConnection con = resource.openConnection();
+        // do not to cache files (to avoid keeping file handles around)
+        con.setUseCaches(false);
+        return con.getInputStream();
+    }
+
+    public static BufferedReader reader(URL resource) throws IOException {
+        return new BufferedReader(new InputStreamReader(inputStream(resource), StandardCharsets.UTF_8));
     }
 }

@@ -32,7 +32,6 @@ import org.elasticsearch.xcontent.XContent;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.esql.core.TestUtils;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -48,6 +47,7 @@ import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.COMMA_ESCAPING_REGEX;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.ESCAPED_COMMA_SEQUENCE;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.multiValuesAwareCsvToStringArray;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.reader;
 
 public class CsvTestsDataLoader {
     private static final int BULK_DATA_SIZE = 100_000;
@@ -293,7 +293,7 @@ public class CsvTestsDataLoader {
     }
 
     public static String readTextFile(URL resource) throws IOException {
-        try (BufferedReader reader = TestUtils.reader(resource)) {
+        try (BufferedReader reader = reader(resource)) {
             StringBuilder b = new StringBuilder();
             String line;
             while ((line = reader.readLine()) != null) {
@@ -328,7 +328,7 @@ public class CsvTestsDataLoader {
     ) throws IOException {
         ArrayList<String> failures = new ArrayList<>();
         StringBuilder builder = new StringBuilder();
-        try (BufferedReader reader = org.elasticsearch.xpack.esql.core.TestUtils.reader(resource)) {
+        try (BufferedReader reader = reader(resource)) {
             String line;
             int lineNumber = 1;
             String[] columns = null; // list of column names. If one column name contains dot, it is a subfield and its value will be null

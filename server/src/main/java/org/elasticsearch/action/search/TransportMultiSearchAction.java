@@ -102,7 +102,7 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
         final AtomicInteger responseCounter = new AtomicInteger(numRequests);
         int numConcurrentSearches = Math.min(numRequests, maxConcurrentSearches);
         for (int i = 0; i < numConcurrentSearches; i++) {
-            executeSearch(searchRequestSlots, responses, responseCounter, listener, relativeStartTime);
+            threadPool.generic().execute(() -> executeSearch(searchRequestSlots, responses, responseCounter, listener, relativeStartTime));
         }
     }
 
@@ -145,15 +145,6 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
              */
             return;
         }
-
-        /*
-         * With a request in hand, we are now prepared to execute the search request. There are two possibilities, either we go asynchronous
-         * or we do not (this can happen if the request does not resolve to any shards). If we do not go asynchronous, we are going to come
-         * back on the same thread that attempted to execute the search request. At this point, or any other point where we come back on the
-         * same thread as when the request was submitted, we should not recurse lest we might descend into a stack overflow. To avoid this,
-         * when we handle the response rather than going recursive, we fork to another thread, otherwise we recurse.
-         */
-        final Thread thread = Thread.currentThread();
         client.search(request.request, new ActionListener<>() {
             @Override
             public void onResponse(final SearchResponse searchResponse) {
@@ -175,14 +166,11 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
                     assert requests.isEmpty();
                     finish();
                 } else {
-                    if (thread == Thread.currentThread()) {
-                        // we are on the same thread, we need to fork to another thread to avoid recursive stack overflow on a single thread
-                        threadPool.generic()
-                            .execute(() -> executeSearch(requests, responses, responseCounter, listener, relativeStartTime));
-                    } else {
-                        // we are on a different thread (we went asynchronous), it's safe to recurse
-                        executeSearch(requests, responses, responseCounter, listener, relativeStartTime);
-                    }
+                    /*
+                     * We always fork a new thread to execute the next search request. This is because the search response may or may not
+                     * be on a transport thread, and we don't want to block any transport threads, no matter how long.
+                     */
+                    threadPool.generic().execute(() -> executeSearch(requests, responses, responseCounter, listener, relativeStartTime));
                 }
             }
 

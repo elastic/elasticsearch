@@ -78,7 +78,7 @@ public class RemoteClusterAwareClientTests extends ESTestCase {
             Settings.Builder builder = Settings.builder();
             builder.putList("cluster.remote.cluster1.seeds", remoteTransport.getLocalDiscoNode().getAddress().toString());
             try (
-                MockTransportService service = MockTransportService.createNewService(
+                MockTransportService localService = MockTransportService.createNewService(
                     builder.build(),
                     VersionInformation.CURRENT,
                     TransportVersion.current(),
@@ -88,9 +88,9 @@ public class RemoteClusterAwareClientTests extends ESTestCase {
             ) {
                 // the TaskCancellationService references the same TransportService instance
                 // this is identically to how it works in the Node constructor
-                service.getTaskManager().setTaskCancellationService(new TaskCancellationService(service));
-                service.start();
-                service.acceptIncomingRequests();
+                localService.getTaskManager().setTaskCancellationService(new TaskCancellationService(localService));
+                localService.start();
+                localService.acceptIncomingRequests();
 
                 SearchShardsRequest searchShardsRequest = new SearchShardsRequest(
                     new String[] { "test-index" },
@@ -101,28 +101,28 @@ public class RemoteClusterAwareClientTests extends ESTestCase {
                     randomBoolean(),
                     null
                 );
-                Task parentTask = service.getTaskManager().register("test_type", "test_action", searchShardsRequest);
+                Task parentTask = localService.getTaskManager().register("test_type", "test_action", searchShardsRequest);
                 TaskId parentTaskId = new TaskId("test-mock-node-id", parentTask.getId());
                 searchShardsRequest.setParentTask(parentTaskId);
-                var client = new RemoteClusterAwareClient(service, "cluster1", threadPool.executor(TEST_THREAD_POOL_NAME), randomBoolean());
+                var client = new RemoteClusterAwareClient(localService, "cluster1", threadPool.executor(TEST_THREAD_POOL_NAME), randomBoolean());
 
                 AtomicBoolean cancelChildReceived = new AtomicBoolean(false);
                 remoteTransport.addRequestHandlingBehavior(
                     TaskCancellationService.CANCEL_CHILD_ACTION_NAME,
                     (handler, request, channel, task) -> {
-                        cancelChildReceived.set(true);
                         handler.messageReceived(request, channel, task);
+                        cancelChildReceived.set(true);
                     }
                 );
                 AtomicLong searchShardsRequestId = new AtomicLong(-1);
                 AtomicBoolean cancelChildSent = new AtomicBoolean(false);
-                service.addSendBehavior(remoteTransport, (connection, requestId, action, request, options) -> {
+                localService.addSendBehavior(remoteTransport, (connection, requestId, action, request, options) -> {
+                    connection.sendRequest(requestId, action, request, options);
                     if (action.equals("indices:admin/search/search_shards")) {
                         searchShardsRequestId.set(requestId);
                     } else if (action.equals(TaskCancellationService.CANCEL_CHILD_ACTION_NAME)) {
                         cancelChildSent.set(true);
                     }
-                    connection.sendRequest(requestId, action, request, options);
                 });
 
                 // assert original request failed

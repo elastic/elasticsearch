@@ -218,7 +218,7 @@ class ProgressListenableActionFuture extends PlainActionFuture<Long> {
     }
 
     @Override
-    public String toString() {
+    public synchronized String toString() {
         return "ProgressListenableActionFuture[start="
             + start
             + ", end="

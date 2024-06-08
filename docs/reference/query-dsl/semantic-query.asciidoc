@@ -100,9 +100,11 @@ GET my-index/_search
           }
         },
         {
-          "semantic": {
-            "field": "semantic_field",
-            "query": "shoes"
+          "standard": {
+            "semantic": {
+              "field": "semantic_field",
+              "query": "shoes"
+            }
           }
         }
       ],

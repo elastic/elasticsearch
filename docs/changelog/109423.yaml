@@ -1,0 +1,5 @@
+pr: 109423
+summary: Correct how hex strings are handled when dynamically updating vector dims
+area: Vector Search
+type: bug
+issues: []

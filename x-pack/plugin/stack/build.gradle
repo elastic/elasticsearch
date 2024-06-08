@@ -16,7 +16,6 @@ base {
 
 dependencies {
   compileOnly project(path: xpackModule('core'))
-  testImplementation project(':modules:data-streams')
   javaRestTestImplementation(testArtifact(project(xpackModule('core'))))
   javaRestTestImplementation project(path: ':x-pack:plugin:stack')
   clusterModules project(':modules:mapper-extras')

@@ -33,6 +33,7 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.junit.Before;
 import org.junit.ClassRule;
@@ -47,6 +48,7 @@ public class LogsIndexModeSettingRestTestIT extends ESRestTestCase {
 
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
+        .distribution(DistributionType.DEFAULT)
         .module("constant-keyword")
         .module("counted-keyword")
         .module("data-streams")
@@ -62,6 +64,8 @@ public class LogsIndexModeSettingRestTestIT extends ESRestTestCase {
         .module("x-pack-ilm")
         .module("x-pack-stack")
         .setting("ingest.geoip.downloader.enabled", "false")
+        .setting("xpack.security.enabled", "false")
+        .setting("xpack.license.self_generated.type", "trial")
         .build();
 
     @Override

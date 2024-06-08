@@ -21,6 +21,7 @@ import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.reservedstate.service.FileSettingsFeatures;
 import org.elasticsearch.reservedstate.service.FileSettingsService;
@@ -283,10 +284,15 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
             // version, or a marker that file settings don't exist. When upgrading from a version that did not have file settings, the
             // current master node may not be the first node upgraded. To be safe, we wait to consider file settings application for
             // readiness until the whole cluster supports file settings.
-            return clusterState.clusterFeatures().clusterHasFeature(FileSettingsFeatures.FILE_SETTINGS_SUPPORTED) == false;
+            return supportsFileSettings(clusterState) == false;
         } else {
             return fileSettingsMetadata.version().equals(ReservedStateMetadata.NO_VERSION) == false;
         }
+    }
+
+    @SuppressForbidden(reason = "need to check file settings support on exact cluster state")
+    private static boolean supportsFileSettings(ClusterState clusterState) {
+        return clusterState.clusterFeatures().clusterHasFeature(FileSettingsFeatures.FILE_SETTINGS_SUPPORTED);
     }
 
     private void setReady(boolean ready) {

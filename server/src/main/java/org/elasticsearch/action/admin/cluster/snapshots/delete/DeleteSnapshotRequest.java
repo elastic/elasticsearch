@@ -61,6 +61,8 @@ public class DeleteSnapshotRequest extends MasterNodeRequest<DeleteSnapshotReque
         out.writeStringArray(snapshots);
         if (out.getTransportVersion().onOrAfter(TransportVersions.DELETE_SNAPSHOTS_ASYNC_ADDED)) {
             out.writeBoolean(waitForCompletion);
+        } else {
+            assert waitForCompletion : "Using wait_for_completion parameter when it should have been disallowed";
         }
     }
 

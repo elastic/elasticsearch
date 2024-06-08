@@ -231,7 +231,7 @@ public final class NodeEnvironment implements Closeable {
                         locks[dirIndex] = luceneDir.obtainLock(NODE_LOCK_FILENAME);
                         this.dataPaths[dirIndex] = new DataPath(dir);
                     } catch (IOException e) {
-                        logger.trace(() -> format("failed to obtain node lock on %s", dir.toAbsolutePath()), e);
+                        logger.error(() -> format("failed to obtain node lock on %s", dir.toAbsolutePath()), e);
                         // release all the ones that were obtained up until now
                         throw (e instanceof LockObtainFailedException
                             ? e

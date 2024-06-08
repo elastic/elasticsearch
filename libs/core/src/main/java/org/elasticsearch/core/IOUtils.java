@@ -20,6 +20,8 @@
 
 package org.elasticsearch.core;
 
+import org.elasticsearch.logging.LogManager;
+
 import java.io.Closeable;
 import java.io.IOException;
 import java.nio.channels.FileChannel;
@@ -167,7 +169,9 @@ public final class IOUtils {
         // noinspection EmptyCatchBlock
         try {
             close(closeable);
-        } catch (final IOException | RuntimeException e) {}
+        } catch (final IOException | RuntimeException e) {
+            LogManager.getLogger(IOUtils.class).error("failed to close", e);
+        }
     }
 
     /**

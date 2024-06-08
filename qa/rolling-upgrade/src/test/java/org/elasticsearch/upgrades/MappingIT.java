@@ -60,7 +60,9 @@ public class MappingIT extends AbstractRollingTestCase {
                 createIndex("my-index", Settings.EMPTY);
 
                 Request request = new Request("PUT", "/my-index/_settings");
-                request.setJsonEntity(Strings.toString(Settings.builder().put("index.mapper.dynamic", true).build()));
+                request.setJsonEntity(
+                    Strings.toString(Settings.builder().put("index.mapper.dynamic", true).put("index.number_of_replicas", 2).build())
+                );
                 request.setOptions(
                     expectWarnings(
                         "[index.mapper.dynamic] setting was deprecated in Elasticsearch and will be removed in a future release! "

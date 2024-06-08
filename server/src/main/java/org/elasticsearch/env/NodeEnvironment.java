@@ -227,7 +227,7 @@ public final class NodeEnvironment implements Closeable {
                         continue;
                     }
                     try (Directory luceneDir = FSDirectory.open(dir, NativeFSLockFactory.INSTANCE)) {
-                        logger.trace("obtaining node lock on {} ...", dir.toAbsolutePath());
+                        logger.warn("obtaining node lock on {} ...", dir.toAbsolutePath());
                         locks[dirIndex] = luceneDir.obtainLock(NODE_LOCK_FILENAME);
                         this.dataPaths[dirIndex] = new DataPath(dir);
                     } catch (IOException e) {

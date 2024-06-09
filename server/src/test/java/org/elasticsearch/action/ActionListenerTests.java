@@ -383,7 +383,7 @@ public class ActionListenerTests extends ESTestCase {
         listenerRef.set(null);
         assertBusy(() -> {
             System.gc();
-            assertLeakDetected(".*LEAK: resource was not cleaned up before it was garbage\\-collected\\.(.*|\\s)*");
+            assertLeakDetected("LEAK: resource was not cleaned up before it was garbage-collected\\.(.*|\\s)*");
         });
     }
 

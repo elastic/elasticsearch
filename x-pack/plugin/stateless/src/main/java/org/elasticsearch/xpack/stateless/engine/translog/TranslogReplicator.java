@@ -46,6 +46,7 @@ import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -856,6 +857,9 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
         }
 
         private static boolean allShardsAtLeastYellow(BlobTranslogFile fileToDelete, ClusterState state) {
+            if (state.blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)) {
+                return false;
+            }
             for (ShardId shardId : fileToDelete.includedShards) {
                 if (isShardRed(state, shardId)) {
                     return false;
@@ -868,7 +872,14 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
             var indexRoutingTable = state.routingTable().index(shardId.getIndex());
             if (indexRoutingTable == null) {
                 logger.debug("index not found while checking if shard {} is red", shardId);
-                return false;
+                if (state.getMetadata().hasIndex(shardId.getIndex()) == false) {
+                    return false;
+                } else {
+                    logger.warn("found no index routing for {} but found it in metadata", shardId);
+                    assert false;
+                    // better safe than sorry in this case.
+                    return true;
+                }
             }
             var shardRoutingTable = indexRoutingTable.shard(shardId.id());
             assert shardRoutingTable != null;

@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.logging.LogManager;
@@ -187,7 +188,7 @@ public class StatelessCommitCleaner extends AbstractLifecycleComponent implement
             switch (shardDeletionState) {
                 case LOCAL_NODE_IS_PRIMARY:
                 case INDEX_DELETED:
-                    logger.debug("Delete shard file {}", staleCompoundCommit);
+                    logger.debug("Delete shard file {}, reason {}", staleCompoundCommit, shardDeletionState);
                     objectStoreService.asyncDeleteShardFile(staleCompoundCommit);
                     break;
                 case LOCAL_NODE_IS_RELOCATING_TARGET_PRIMARY:
@@ -217,9 +218,20 @@ public class StatelessCommitCleaner extends AbstractLifecycleComponent implement
     }
 
     private ShardDeletionState getShardDeletionState(ShardId shardId, long allocationPrimaryTerm, ClusterState state) {
+        if (state.blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)) {
+            // new master has not found out what to do yet, but this is essentially unassigned.
+            return ShardDeletionState.LOCAL_NODE_IS_NOT_PRIMARY;
+        }
         var indexRoutingTable = state.routingTable().index(shardId.getIndex());
         if (indexRoutingTable == null) {
-            return ShardDeletionState.INDEX_DELETED;
+            if (state.getMetadata().hasIndex(shardId.getIndex()) == false) {
+                return ShardDeletionState.INDEX_DELETED;
+            } else {
+                logger.warn("found no index routing for {} but found it in metadata", shardId);
+                assert false;
+                // better safe than sorry in this case.
+                return ShardDeletionState.LOCAL_NODE_IS_NOT_PRIMARY;
+            }
         }
 
         var primaryShard = indexRoutingTable.shard(shardId.getId()).primaryShard();

@@ -439,7 +439,7 @@ public class SearchTransportService {
         };
         transportService.registerRequestHandler(
             FREE_CONTEXT_SCROLL_ACTION_NAME,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            transportService.getThreadPool().generic(),
             ScrollFreeContextRequest::new,
             instrumentedHandler(FREE_CONTEXT_SCROLL_ACTION_METRIC, transportService, searchTransportMetrics, freeContextHandler)
         );
@@ -447,7 +447,7 @@ public class SearchTransportService {
 
         transportService.registerRequestHandler(
             FREE_CONTEXT_ACTION_NAME,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            transportService.getThreadPool().generic(),
             SearchFreeContextRequest::new,
             instrumentedHandler(FREE_CONTEXT_ACTION_METRIC, transportService, searchTransportMetrics, freeContextHandler)
         );
@@ -455,7 +455,7 @@ public class SearchTransportService {
 
         transportService.registerRequestHandler(
             CLEAR_SCROLL_CONTEXTS_ACTION_NAME,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            transportService.getThreadPool().generic(),
             TransportRequest.Empty::new,
             instrumentedHandler(CLEAR_SCROLL_CONTEXTS_ACTION_METRIC, transportService, searchTransportMetrics, (request, channel, task) -> {
                 searchService.freeAllScrollContexts();

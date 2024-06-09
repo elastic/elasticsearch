@@ -40,6 +40,7 @@ import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
+import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.planner.AbstractPhysicalOperationProviders;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
@@ -123,7 +124,7 @@ public class LocalLogicalPlanOptimizer extends ParameterizedRuleExecutor<Logical
         }
 
         private LogicalPlan missingToNull(LogicalPlan plan, SearchStats stats) {
-            if (plan instanceof EsRelation) {
+            if (plan instanceof EsRelation || plan instanceof LocalRelation) {
                 return plan;
             }
 

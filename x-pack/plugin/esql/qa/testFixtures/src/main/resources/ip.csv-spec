@@ -531,7 +531,7 @@ required_capability: fn_ip_prefix
 from hosts
 | where host == "alpha"
 | sort card
-| eval prefix = ip_prefix(ip0, 24, 128)
+| eval prefix = ip_prefix(ip0, 24, 120)
 | keep card, ip0, prefix;
 
 card:keyword | ip0:ip    | prefix:ip

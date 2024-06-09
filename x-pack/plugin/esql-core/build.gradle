@@ -1,5 +1,6 @@
 apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.internal-test-artifact'
+apply plugin: 'elasticsearch.publish'
 
 esplugin {
   name 'x-pack-esql-core'

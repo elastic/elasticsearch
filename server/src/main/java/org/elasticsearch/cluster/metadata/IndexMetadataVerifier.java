@@ -187,6 +187,9 @@ public class IndexMetadataVerifier {
                     () -> null,
                     indexSettings.getMode().idFieldMapperWithoutFieldData(),
                     scriptService,
+                    query -> {
+                        throw new UnsupportedOperationException("IndexMetadataVerifier");
+                    },
                     mapperMetrics
                 )
             ) {

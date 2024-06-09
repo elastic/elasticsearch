@@ -125,6 +125,7 @@ import org.elasticsearch.transport.RemoteClusterPortSettings;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.RemoteConnectionStrategy;
 import org.elasticsearch.transport.SniffConnectionStrategy;
+import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.TransportSettings;
 import org.elasticsearch.watcher.ResourceWatcherService;
 
@@ -593,6 +594,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
         IngestSettings.GROK_WATCHDOG_MAX_EXECUTION_TIME,
         TDigestExecutionHint.SETTING,
         MergePolicyConfig.DEFAULT_MAX_MERGED_SEGMENT_SETTING,
-        MergePolicyConfig.DEFAULT_MAX_TIME_BASED_MERGED_SEGMENT_SETTING
+        MergePolicyConfig.DEFAULT_MAX_TIME_BASED_MERGED_SEGMENT_SETTING,
+        TransportService.ENABLE_STACK_OVERFLOW_AVOIDANCE
     ).filter(Objects::nonNull).collect(Collectors.toSet());
 }

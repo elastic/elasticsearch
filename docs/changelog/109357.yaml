@@ -1,0 +1,5 @@
+pr: 109357
+summary: Fix task cancellation authz on fulfilling cluster
+area: Authorization
+type: bug
+issues: []

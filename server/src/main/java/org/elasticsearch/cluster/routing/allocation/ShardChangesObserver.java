@@ -36,7 +36,7 @@ public class ShardChangesObserver implements RoutingChangesObserver {
 
     @Override
     public void shardFailed(ShardRouting failedShard, UnassignedInfo unassignedInfo) {
-        logger.debug("{} has failed on [{}]: {}", shardIdentifier(failedShard), failedShard.currentNodeId(), unassignedInfo.getReason());
+        logger.debug("{} has failed on [{}]: {}", shardIdentifier(failedShard), failedShard.currentNodeId(), unassignedInfo.reason());
     }
 
     @Override

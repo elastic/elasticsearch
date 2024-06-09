@@ -33,6 +33,8 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 
 public class ActionListenerTests extends ESTestCase {
 
@@ -402,6 +404,23 @@ public class ActionListenerTests extends ESTestCase {
         // Nullify reference so it becomes unreachable
         listenerRef.set(null);
         reachabilityChecker.ensureUnreachable();
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testAssertAtLeastOnceWillDelegateResponses() {
+        ActionListener<Object> delegate = mock(ActionListener.class);
+        ActionListener<Object> listener = ActionListener.assertAtLeastOnce(delegate);
+        listener.onResponse("succeeded");
+        verify(delegate).onResponse("succeeded");
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testAssertAtLeastOnceWillDelegateFailures() {
+        ActionListener<Object> delegate = mock(ActionListener.class);
+        ActionListener<Object> listener = ActionListener.assertAtLeastOnce(delegate);
+        RuntimeException exception = new RuntimeException();
+        listener.onFailure(exception);
+        verify(delegate).onFailure(exception);
     }
 
     /**

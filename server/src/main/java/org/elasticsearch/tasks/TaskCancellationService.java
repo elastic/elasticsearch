@@ -47,7 +47,9 @@ import static org.elasticsearch.core.Strings.format;
 
 public class TaskCancellationService {
     public static final String BAN_PARENT_ACTION_NAME = "internal:admin/tasks/ban";
+    public static final String REMOTE_CLUSTER_BAN_PARENT_ACTION_NAME = "cluster:internal/admin/tasks/ban";
     public static final String CANCEL_CHILD_ACTION_NAME = "internal:admin/tasks/cancel_child";
+    public static final String REMOTE_CLUSTER_CANCEL_CHILD_ACTION_NAME = "cluster:internal/admin/tasks/cancel_child";
     public static final TransportVersion VERSION_SUPPORTING_CANCEL_CHILD_ACTION = TransportVersions.V_8_8_0;
     private static final Logger logger = LogManager.getLogger(TaskCancellationService.class);
     private final TransportService transportService;
@@ -65,7 +67,19 @@ public class TaskCancellationService {
             new BanParentRequestHandler()
         );
         transportService.registerRequestHandler(
+            REMOTE_CLUSTER_BAN_PARENT_ACTION_NAME,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            BanParentTaskRequest::new,
+            new BanParentRequestHandler()
+        );
+        transportService.registerRequestHandler(
             CANCEL_CHILD_ACTION_NAME,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            CancelChildRequest::new,
+            new CancelChildRequestHandler()
+        );
+        transportService.registerRequestHandler(
+            REMOTE_CLUSTER_CANCEL_CHILD_ACTION_NAME,
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
             CancelChildRequest::new,
             new CancelChildRequestHandler()
@@ -425,7 +439,7 @@ public class TaskCancellationService {
                 reason
             );
             final CancelChildRequest request = CancelChildRequest.createCancelChildRequest(parentTask, childRequestId, reason);
-            transportService.sendRequest(childNode, CANCEL_CHILD_ACTION_NAME, request, TransportRequestOptions.EMPTY, NOOP_HANDLER);
+            transportService.sendRequest(childConnection, CANCEL_CHILD_ACTION_NAME, request, TransportRequestOptions.EMPTY, NOOP_HANDLER);
         }
     }
 

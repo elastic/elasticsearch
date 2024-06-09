@@ -52,7 +52,6 @@ public class LogsIndexModeSettingRestTestIT extends ESRestTestCase {
         .module("constant-keyword")
         .module("counted-keyword")
         .module("data-streams")
-        .module("ingest-common")
         .module("ingest-geoip")
         .module("ingest-user-agent")
         .module("lang-mustache")

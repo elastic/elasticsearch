@@ -69,6 +69,7 @@ tasks.withType(ShadowJar) {
     exclude(dependency("io.netty:.*:.*"))
     exclude(dependency("com.nimbusds:nimbus-jose-jwt:.*"))
     exclude(dependency("commons-cli:commons-cli:1.2"))
+    exclude(dependency("commons-io:commons-io:.*"))
     exclude(dependency("net.java.dev.jna:jna:.*"))
     exclude(dependency("org.objenesis:objenesis:.*"))
     exclude(dependency('com.fasterxml.jackson.core:.*:.*'))

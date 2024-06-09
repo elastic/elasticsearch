@@ -30,6 +30,10 @@ import java.util.concurrent.atomic.AtomicLong;
 /**
  * Watchdog mechanism for making sure that no transport thread spends too long blocking the event loop.
  */
+// Today we only use this to track activity processing reads on network threads. Tracking time when we're busy processing writes is a little
+// trickier because that code is more re-entrant, both within the network layer and also it may complete a listener from the wider codebase
+// that ends up calling back into the network layer again. But also we don't see many network threads blocking for ages on the write path,
+// so we focus on reads for now.
 public class ThreadWatchdog {
 
     public static final Setting<TimeValue> NETWORK_THREAD_WATCHDOG_INTERVAL = Setting.timeSetting(
@@ -61,10 +65,6 @@ public class ThreadWatchdog {
     /**
      * @return an activity tracker for activities on the current thread.
      */
-    // Today we only use this to track activity processing reads on network threads. Tracking time when we're busy processing writes is
-    // a little trickier because that code is more re-entrant, both within the network layer and also it may complete a listener from the
-    // wider codebase that ends up calling back into the network layer again. But also we don't see many network threads blocking for ages
-    // on the write path, so we focus on reads for now.
     public ActivityTracker getActivityTrackerForCurrentThread() {
         var result = activityTrackerThreadLocal.get();
         if (result == null) {

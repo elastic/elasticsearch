@@ -24,6 +24,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.lang.ref.WeakReference;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -97,7 +98,12 @@ public class ThreadWatchdog {
                 }
             }
         }
-        return stuckThreadNames == null ? List.of() : stuckThreadNames;
+        if (stuckThreadNames == null) {
+            return List.of();
+        } else {
+            stuckThreadNames.sort(Comparator.naturalOrder());
+            return stuckThreadNames;
+        }
     }
 
     /**

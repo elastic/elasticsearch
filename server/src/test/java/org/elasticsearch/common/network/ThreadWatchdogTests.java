@@ -17,6 +17,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
 
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
@@ -103,6 +104,41 @@ public class ThreadWatchdogTests extends ESTestCase {
         safeAwait(barrier);
 
         thread.join();
+    }
+
+    public void testMultipleBlockedThreads() throws InterruptedException {
+        final var threadNames = randomList(2, 10, ESTestCase::randomIdentifier);
+
+        final var watchdog = new ThreadWatchdog();
+        final var barrier = new CyclicBarrier(threadNames.size() + 1);
+        final var threads = new Thread[threadNames.size()];
+        for (int i = 0; i < threads.length; i++) {
+            threads[i] = new Thread(() -> {
+                safeAwait(barrier);
+                final var activityTracker = watchdog.getActivityTrackerForCurrentThread();
+                activityTracker.startActivity();
+                safeAwait(barrier);
+                // wait for main test thread
+                safeAwait(barrier);
+                activityTracker.stopActivity();
+            }, threadNames.get(i));
+            threads[i].start();
+        }
+
+        safeAwait(barrier);
+        safeAwait(barrier);
+
+        try {
+            assertEquals(List.of(), watchdog.getStuckThreadNames());
+            threadNames.sort(Comparator.naturalOrder()); // stuck threads are sorted by name
+            assertEquals(threadNames, watchdog.getStuckThreadNames());
+            assertEquals(threadNames, watchdog.getStuckThreadNames()); // just to check they're all still reported as stuck
+        } finally {
+            safeAwait(barrier);
+            for (final var thread : threads) {
+                thread.join();
+            }
+        }
     }
 
     public void testConcurrency() throws Exception {

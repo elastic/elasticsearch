@@ -120,7 +120,8 @@ can be used to identify the message that took unreasonably long to process.
 if sending an outbound message takes longer than expected. This duration
 includes time spent waiting for network congestion to clear, and time spent
 processing other work on the same network thread, so does not always indicate
-the presence of a bug.
+the presence of a bug related to the outbound message specified in the log
+entry.
 
 `org.elasticsearch.common.network.ThreadWatchdog`:: This logger reports a
 warning and a thread dump when it notices that a network thread has not made

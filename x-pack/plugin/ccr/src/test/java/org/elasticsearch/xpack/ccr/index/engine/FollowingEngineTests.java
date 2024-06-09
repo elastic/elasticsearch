@@ -177,7 +177,7 @@ public class FollowingEngineTests extends ESTestCase {
                 final String id = "id";
                 final Engine.Delete delete = new Engine.Delete(
                     id,
-                    new BytesRef(id),
+                    BytesRef.deepCopyOf(new BytesRef(id)),
                     seqNo,
                     primaryTerm.get(),
                     randomNonNegativeLong(),

@@ -14,7 +14,9 @@ $if(long)$
 import org.elasticsearch.compute.data.IntVector;
 $endif$
 import org.elasticsearch.compute.data.$Type$Block;
+$if(int)$
 import org.elasticsearch.compute.data.$Type$Vector;
+$endif$
 $if(double)$
 import org.elasticsearch.compute.data.IntVector;
 $endif$
@@ -72,9 +74,9 @@ $endif$
 
     Block toValuesBlock(org.elasticsearch.compute.data.IntVector selected, DriverContext driverContext) {
         if (false == trackingGroupIds()) {
-            try ($Type$Vector.Builder builder = driverContext.blockFactory().new$Type$VectorFixedBuilder(selected.getPositionCount())) {
+            try (var builder = driverContext.blockFactory().new$Type$VectorFixedBuilder(selected.getPositionCount())) {
                 for (int i = 0; i < selected.getPositionCount(); i++) {
-                    builder.append$Type$(values.get(selected.getInt(i)));
+                    builder.append$Type$(i, values.get(selected.getInt(i)));
                 }
                 return builder.build().asBlock();
             }
@@ -120,7 +122,7 @@ $endif$
                 } else {
                     valuesBuilder.append$Type$(0); // TODO can we just use null?
                 }
-                hasValueBuilder.appendBoolean(hasValue(group));
+                hasValueBuilder.appendBoolean(i, hasValue(group));
             }
             blocks[offset + 0] = valuesBuilder.build();
             blocks[offset + 1] = hasValueBuilder.build().asBlock();

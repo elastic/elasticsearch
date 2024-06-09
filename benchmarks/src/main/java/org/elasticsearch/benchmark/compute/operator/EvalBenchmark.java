@@ -15,6 +15,8 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BooleanVector;
+import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
@@ -84,7 +86,17 @@ public class EvalBenchmark {
     }
 
     @Param(
-        { "abs", "add", "date_trunc", "equal_to_const", "long_equal_to_long", "long_equal_to_int", "mv_min", "mv_min_ascending", "rlike" }
+        {
+            "abs",
+            "add",
+            "add_double",
+            "date_trunc",
+            "equal_to_const",
+            "long_equal_to_long",
+            "long_equal_to_int",
+            "mv_min",
+            "mv_min_ascending",
+            "rlike" }
     )
     public String operation;
 
@@ -103,6 +115,13 @@ public class EvalBenchmark {
                 yield EvalMapper.toEvaluator(
                     new Add(Source.EMPTY, longField, new Literal(Source.EMPTY, 1L, DataType.LONG)),
                     layout(longField)
+                ).get(driverContext);
+            }
+            case "add_double" -> {
+                FieldAttribute doubleField = doubleField();
+                yield EvalMapper.toEvaluator(
+                    new Add(Source.EMPTY, doubleField, new Literal(Source.EMPTY, 1D, DataType.DOUBLE)),
+                    layout(doubleField)
                 ).get(driverContext);
             }
             case "date_trunc" -> {
@@ -150,6 +169,10 @@ public class EvalBenchmark {
         return new FieldAttribute(Source.EMPTY, "long", new EsField("long", DataType.LONG, Map.of(), true));
     }
 
+    private static FieldAttribute doubleField() {
+        return new FieldAttribute(Source.EMPTY, "double", new EsField("double", DataType.DOUBLE, Map.of(), true));
+    }
+
     private static FieldAttribute intField() {
         return new FieldAttribute(Source.EMPTY, "int", new EsField("int", DataType.INTEGER, Map.of(), true));
     }
@@ -179,6 +202,16 @@ public class EvalBenchmark {
                 for (int i = 0; i < BLOCK_LENGTH; i++) {
                     if (v.getLong(i) != i * 100_000 + 1) {
                         throw new AssertionError("[" + operation + "] expected [" + (i * 100_000 + 1) + "] but was [" + v.getLong(i) + "]");
+                    }
+                }
+            }
+            case "add_double" -> {
+                DoubleVector v = actual.<DoubleBlock>getBlock(1).asVector();
+                for (int i = 0; i < BLOCK_LENGTH; i++) {
+                    if (v.getDouble(i) != i * 100_000 + 1D) {
+                        throw new AssertionError(
+                            "[" + operation + "] expected [" + (i * 100_000 + 1D) + "] but was [" + v.getDouble(i) + "]"
+                        );
                     }
                 }
             }
@@ -236,6 +269,13 @@ public class EvalBenchmark {
                 var builder = blockFactory.newLongBlockBuilder(BLOCK_LENGTH);
                 for (int i = 0; i < BLOCK_LENGTH; i++) {
                     builder.appendLong(i * 100_000);
+                }
+                yield new Page(builder.build());
+            }
+            case "add_double" -> {
+                var builder = blockFactory.newDoubleBlockBuilder(BLOCK_LENGTH);
+                for (int i = 0; i < BLOCK_LENGTH; i++) {
+                    builder.appendDouble(i * 100_000D);
                 }
                 yield new Page(builder.build());
             }

@@ -16,35 +16,35 @@ import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceCo
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 
-public class TextEmbeddingResultsTests extends InferenceResultsTestCase<TextEmbeddingResults> {
+public class MlTextEmbeddingResultsTests extends InferenceResultsTestCase<MlTextEmbeddingResults> {
 
-    public static TextEmbeddingResults createRandomResults() {
+    public static MlTextEmbeddingResults createRandomResults() {
         int columns = randomIntBetween(1, 10);
         double[] arr = new double[columns];
         for (int i = 0; i < columns; i++) {
             arr[i] = randomDouble();
         }
 
-        return new TextEmbeddingResults(DEFAULT_RESULTS_FIELD, arr, randomBoolean());
+        return new MlTextEmbeddingResults(DEFAULT_RESULTS_FIELD, arr, randomBoolean());
     }
 
     @Override
-    protected Writeable.Reader<TextEmbeddingResults> instanceReader() {
-        return TextEmbeddingResults::new;
+    protected Writeable.Reader<MlTextEmbeddingResults> instanceReader() {
+        return MlTextEmbeddingResults::new;
     }
 
     @Override
-    protected TextEmbeddingResults createTestInstance() {
+    protected MlTextEmbeddingResults createTestInstance() {
         return createRandomResults();
     }
 
     @Override
-    protected TextEmbeddingResults mutateInstance(TextEmbeddingResults instance) {
+    protected MlTextEmbeddingResults mutateInstance(MlTextEmbeddingResults instance) {
         return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     public void testAsMap() {
-        TextEmbeddingResults testInstance = createTestInstance();
+        MlTextEmbeddingResults testInstance = createTestInstance();
         Map<String, Object> asMap = testInstance.asMap();
         int size = testInstance.isTruncated ? 2 : 1;
         assertThat(asMap.keySet(), hasSize(size));
@@ -55,7 +55,7 @@ public class TextEmbeddingResultsTests extends InferenceResultsTestCase<TextEmbe
     }
 
     @Override
-    void assertFieldValues(TextEmbeddingResults createdInstance, IngestDocument document, String parentField, String resultsField) {
+    void assertFieldValues(MlTextEmbeddingResults createdInstance, IngestDocument document, String parentField, String resultsField) {
         assertArrayEquals(document.getFieldValue(parentField + resultsField, double[].class), createdInstance.getInference(), 1e-10);
     }
 }

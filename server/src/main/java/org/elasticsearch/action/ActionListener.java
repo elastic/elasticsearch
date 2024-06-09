@@ -431,8 +431,7 @@ public interface ActionListener<Response> {
      */
     static <Response> ActionListener<Response> assertAtLeastOnce(ActionListener<Response> delegate) {
         if (Assertions.ENABLED) {
-            LeakTracker.Leak track = LeakTracker.INSTANCE.track(delegate);
-            return ActionListener.runBefore(delegate, track::close);
+            return ActionListener.runBefore(delegate, LeakTracker.INSTANCE.track(delegate)::close);
         }
         return delegate;
     }

@@ -82,7 +82,7 @@ public class ThreadWatchdogTests extends ESTestCase {
         // step 2: thread is active
         assertEquals(List.of(), watchdog.getStuckThreadNames());
         assertEquals(List.of(threadName), watchdog.getStuckThreadNames());
-        assertEquals(List.of(threadName), watchdog.getStuckThreadNames());
+        assertEquals(List.of(threadName), watchdog.getStuckThreadNames()); // just to check it's still reported as stuck
 
         safeAwait(barrier);
         safeAwait(barrier);
@@ -90,7 +90,7 @@ public class ThreadWatchdogTests extends ESTestCase {
         // step 3: thread still active, but made progress
         assertEquals(List.of(), watchdog.getStuckThreadNames());
         assertEquals(List.of(threadName), watchdog.getStuckThreadNames());
-        assertEquals(List.of(threadName), watchdog.getStuckThreadNames());
+        assertEquals(List.of(threadName), watchdog.getStuckThreadNames()); // just to check it's still reported as stuck
 
         safeAwait(barrier);
         safeAwait(barrier);

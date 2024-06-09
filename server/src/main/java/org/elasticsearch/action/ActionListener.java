@@ -18,6 +18,7 @@ import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.transport.LeakTracker;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -430,19 +431,8 @@ public interface ActionListener<Response> {
      */
     static <Response> ActionListener<Response> assertAtLeastOnce(ActionListener<Response> delegate) {
         if (Assertions.ENABLED) {
-            return new ActionListenerImplementations.AssertAtLeastOnceActionListener<>(
-                delegate,
-                // We use maybeDieOnAnotherThread here because this will get executed
-                // on the Cleaner thread, which silently swallows Throwable
-                (listener, createdAt) -> ExceptionsHelper.maybeDieOnAnotherThread(
-                    new AssertionError(
-                        "Expected listener "
-                            + delegate
-                            + " to be called at least once, but it was never called. Created:"
-                            + ExceptionsHelper.formatStackTrace(createdAt.getStackTrace())
-                    )
-                )
-            );
+            LeakTracker.Leak track = LeakTracker.INSTANCE.track(delegate);
+            return ActionListener.runBefore(delegate, track::close);
         }
         return delegate;
     }

@@ -16,12 +16,10 @@ import org.apache.lucene.util.CloseableThreadLocal;
 import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.Assertions;
-import org.elasticsearch.index.mapper.IdFieldMapper;
 
 import java.io.IOException;
 import java.util.Base64;
 import java.util.List;
-import java.util.Objects;
 import java.util.concurrent.ConcurrentMap;
 
 /** Utility class to resolve the Lucene doc ID, version, seqNo and primaryTerms for a given uid. */
@@ -63,7 +61,7 @@ public final class VersionsAndSeqNoResolver {
         if (lookupState == null) {
             lookupState = new PerThreadIDVersionAndSeqNoLookup[reader.leaves().size()];
             for (LeafReaderContext leaf : reader.leaves()) {
-                lookupState[leaf.ord] = new PerThreadIDVersionAndSeqNoLookup(leaf.reader(), IdFieldMapper.NAME, loadTimestampRange);
+                lookupState[leaf.ord] = new PerThreadIDVersionAndSeqNoLookup(leaf.reader(), loadTimestampRange);
             }
             ctl.set(lookupState);
         } else {
@@ -85,12 +83,6 @@ public final class VersionsAndSeqNoResolver {
 
         if (lookupState.length != reader.leaves().size()) {
             throw new AssertionError("Mismatched numbers of leaves: " + lookupState.length + " != " + reader.leaves().size());
-        }
-
-        if (lookupState.length > 0 && Objects.equals(lookupState[0].uidField, IdFieldMapper.NAME) == false) {
-            throw new AssertionError(
-                "Index does not consistently use the same uid field: [" + IdFieldMapper.NAME + "] != [" + lookupState[0].uidField + "]"
-            );
         }
 
         return lookupState;
@@ -203,7 +195,7 @@ public final class VersionsAndSeqNoResolver {
         List<LeafReaderContext> leaves = reader.leaves();
         for (int i = leaves.size() - 1; i >= 0; i--) {
             final LeafReaderContext leaf = leaves.get(i);
-            PerThreadIDVersionAndSeqNoLookup lookup = new PerThreadIDVersionAndSeqNoLookup(leaf.reader(), IdFieldMapper.NAME, false, false);
+            PerThreadIDVersionAndSeqNoLookup lookup = new PerThreadIDVersionAndSeqNoLookup(leaf.reader(), false, false);
             DocIdAndVersion result = lookup.lookupVersion(term, loadSeqNo, leaf);
             if (result != null) {
                 return result;

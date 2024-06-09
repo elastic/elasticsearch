@@ -3371,13 +3371,14 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             }
         );
 
+        final var responseLatch = new CountDownLatch(1);
         submitRequest(
             serviceB,
             nodeA,
             actionName,
             new TransportRequest.Empty(),
             new ActionListenerResponseHandler<TransportResponse>(
-                ActionTestUtils.assertNoFailureListener(t -> {}),
+                ActionTestUtils.assertNoFailureListener(t -> responseLatch.countDown()),
                 in -> TransportResponse.Empty.INSTANCE,
                 EsExecutors.DIRECT_EXECUTOR_SERVICE
             )
@@ -3403,6 +3404,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             )
         );
         safeAwait(barrier);
+        safeAwait(responseLatch);
     }
 
     private static long[] getConstantMessageSizeHistogram(int count, long size) {

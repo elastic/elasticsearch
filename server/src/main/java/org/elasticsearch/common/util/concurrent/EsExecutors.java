@@ -106,10 +106,10 @@ public class EsExecutors {
         ThreadContext contextHolder,
         TaskTrackingConfig config
     ) {
+        ExecutorScalingQueue<Runnable> queue = new ExecutorScalingQueue<>();
+        EsThreadPoolExecutor executor;
         if (config.trackOngoingTasks()) {
-
-            ExecutorScalingQueue<Runnable> queue = new ExecutorScalingQueue<>();
-            return new TaskExecutionTimeTrackingEsThreadPoolExecutor(
+            executor = new TaskExecutionTimeTrackingEsThreadPoolExecutor(
                 name,
                 min,
                 max,
@@ -123,8 +123,7 @@ public class EsExecutors {
                 config
             );
         } else {
-            ExecutorScalingQueue<Runnable> queue = new ExecutorScalingQueue<>();
-            EsThreadPoolExecutor executor = new EsThreadPoolExecutor(
+            executor = new EsThreadPoolExecutor(
                 name,
                 min,
                 max,
@@ -135,9 +134,9 @@ public class EsExecutors {
                 new ForceQueuePolicy(rejectAfterShutdown),
                 contextHolder
             );
-            queue.executor = executor;
-            return executor;
         }
+        queue.executor = executor;
+        return executor;
     }
 
     public static EsThreadPoolExecutor newScaling(

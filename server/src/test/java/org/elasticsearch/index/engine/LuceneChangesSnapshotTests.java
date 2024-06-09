@@ -66,8 +66,7 @@ public class LuceneChangesSnapshotTests extends EngineTestCase {
             if (randomBoolean()) {
                 engine.index(indexForDoc(doc));
             } else {
-                String id1 = doc.id();
-                engine.delete(new Engine.Delete(doc.id(), Uid.encodeId(id1), primaryTerm.get()));
+                engine.delete(new Engine.Delete(doc.id(), Uid.encodeId(doc.id()), primaryTerm.get()));
             }
             if (rarely()) {
                 if (randomBoolean()) {
@@ -272,8 +271,7 @@ public class LuceneChangesSnapshotTests extends EngineTestCase {
                 if (randomBoolean()) {
                     op = new Engine.Index(newUid(doc), primaryTerm.get(), doc);
                 } else {
-                    String id1 = doc.id();
-                    op = new Engine.Delete(doc.id(), Uid.encodeId(id1), primaryTerm.get());
+                    op = new Engine.Delete(doc.id(), Uid.encodeId(doc.id()), primaryTerm.get());
                 }
             } else {
                 if (randomBoolean()) {

@@ -495,8 +495,7 @@ public class Netty4HttpPipeliningHandlerTests extends ESTestCase {
             }
         };
 
-        final List<Object> messagesSeen = new ArrayList<>();
-        final EmbeddedChannel embeddedChannel = new EmbeddedChannel(capturingHandler(messagesSeen), handler);
+        final EmbeddedChannel embeddedChannel = new EmbeddedChannel(new ChannelDuplexHandler(), handler);
         embeddedChannel.writeInbound(createHttpRequest("/test"));
         assertTrue(requestHandled.get());
 

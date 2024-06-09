@@ -9,6 +9,7 @@
 package org.elasticsearch.common.network;
 
 import org.apache.logging.log4j.Level;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
@@ -210,7 +211,11 @@ public class ThreadWatchdogTests extends ESTestCase {
                 "stuck threads logging",
                 LOGGER_NAME,
                 Level.WARN,
-                "the following threads are active but did not make progress since the last scan: [" + Thread.currentThread().getName() + "]"
+                Strings.format(
+                    "the following threads are active but did not make progress in the preceding [%s]: [%s]",
+                    TimeValue.timeValueMillis(checkIntervalMillis),
+                    Thread.currentThread().getName()
+                )
             ),
             new MockLog.SeenEventExpectation(
                 "thread dump",

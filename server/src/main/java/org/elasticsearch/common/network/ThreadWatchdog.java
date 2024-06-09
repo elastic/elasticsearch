@@ -180,7 +180,11 @@ public class ThreadWatchdog {
             try {
                 final var stuckThreadNames = getStuckThreadNames();
                 if (stuckThreadNames.isEmpty() == false) {
-                    logger.warn("the following threads are active but did not make progress since the last scan: {}", stuckThreadNames);
+                    logger.warn(
+                        "the following threads are active but did not make progress in the preceding [{}]: {}",
+                        interval,
+                        stuckThreadNames
+                    );
                     rescheduleImmediately = false;
                     threadPool.generic().execute(threadDumper);
                 }

@@ -110,7 +110,7 @@ public class ThreadWatchdogIT extends ESIntegTestCase {
             @Override
             public void match(LogEvent event) {
                 final var formattedMessage = event.getMessage().getFormattedMessage();
-                if (formattedMessage.contains("the following threads are active but did not make progress since the last scan")
+                if (formattedMessage.contains("the following threads are active but did not make progress in the preceding [100ms]:")
                     && formattedMessage.contains(threadName)) {
                     warningSeen.run();
                 }

@@ -125,15 +125,12 @@ public class Netty4HttpPipeliningHandlerTests extends ESTestCase {
     }
 
     private EmbeddedChannel makeEmbeddedChannelWithSimulatedWork(int numberOfRequests) {
-        return new EmbeddedChannel(
-            new Netty4HttpPipeliningHandler(numberOfRequests, null, new ThreadWatchdog.ActivityTracker(Thread.currentThread())) {
-                @Override
-                protected void handlePipelinedRequest(ChannelHandlerContext ctx, Netty4HttpRequest pipelinedRequest) {
-                    ctx.fireChannelRead(pipelinedRequest);
-                }
-            },
-            new WorkEmulatorHandler()
-        );
+        return new EmbeddedChannel(new Netty4HttpPipeliningHandler(numberOfRequests, null, new ThreadWatchdog.ActivityTracker()) {
+            @Override
+            protected void handlePipelinedRequest(ChannelHandlerContext ctx, Netty4HttpRequest pipelinedRequest) {
+                ctx.fireChannelRead(pipelinedRequest);
+            }
+        }, new WorkEmulatorHandler());
     }
 
     public void testThatPipeliningWorksWhenSlowRequestsInDifferentOrder() throws InterruptedException {
@@ -195,7 +192,7 @@ public class Netty4HttpPipeliningHandlerTests extends ESTestCase {
     public void testPipeliningRequestsAreReleased() {
         final int numberOfRequests = 10;
         final EmbeddedChannel embeddedChannel = new EmbeddedChannel(
-            new Netty4HttpPipeliningHandler(numberOfRequests + 1, null, new ThreadWatchdog.ActivityTracker(Thread.currentThread()))
+            new Netty4HttpPipeliningHandler(numberOfRequests + 1, null, new ThreadWatchdog.ActivityTracker())
         );
 
         for (int i = 0; i < numberOfRequests; i++) {
@@ -532,7 +529,7 @@ public class Netty4HttpPipeliningHandlerTests extends ESTestCase {
         return new Netty4HttpPipeliningHandler(
             Integer.MAX_VALUE,
             mock(Netty4HttpServerTransport.class),
-            new ThreadWatchdog.ActivityTracker(Thread.currentThread())
+            new ThreadWatchdog.ActivityTracker()
         ) {
             @Override
             protected void handlePipelinedRequest(ChannelHandlerContext ctx, Netty4HttpRequest pipelinedRequest) {

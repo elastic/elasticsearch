@@ -69,7 +69,7 @@ public class ThreadWatchdog {
         var result = activityTrackerThreadLocal.get();
         if (result == null) {
             // this is a previously-untracked thread; thread creation is assumed to be very rare, no need to optimize this path at all
-            result = new ActivityTracker(Thread.currentThread());
+            result = new ActivityTracker();
             synchronized (knownTrackers) {
                 knownTrackers.add(new WeakReference<>(result));
             }
@@ -110,8 +110,8 @@ public class ThreadWatchdog {
         private final Thread trackedThread;
         private long lastObservedValue;
 
-        public ActivityTracker(Thread trackedThread) {
-            this.trackedThread = trackedThread;
+        public ActivityTracker() {
+            this.trackedThread = Thread.currentThread();
         }
 
         public void startActivity() {

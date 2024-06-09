@@ -140,7 +140,13 @@ public class TransportBulkShardOperationsAction extends TransportWriteAction<
             }
             case DELETE -> {
                 final Translog.Delete delete = (Translog.Delete) operation;
-                operationWithPrimaryTerm = new Translog.Delete(delete.id(), delete.seqNo(), primaryTerm, delete.version());
+                operationWithPrimaryTerm = new Translog.Delete(
+                    delete.id(),
+                    delete.seqNo(),
+                    primaryTerm,
+                    delete.version(),
+                    delete.routing()
+                );
             }
             case NO_OP -> {
                 final Translog.NoOp noOp = (Translog.NoOp) operation;

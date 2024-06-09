@@ -117,7 +117,7 @@ public class NoOpEngineTests extends EngineTestCase {
                 for (int i = 0; i < numDocs; i++) {
                     if (randomBoolean()) {
                         String delId = Integer.toString(i);
-                        Engine.DeleteResult result = engine.delete(new Engine.Delete(delId, newUid(delId), primaryTerm.get()));
+                        Engine.DeleteResult result = engine.delete(new Engine.Delete(delId, newUid(delId), primaryTerm.get(), null));
                         assertTrue(result.isFound());
                         engine.syncTranslog(); // advance persisted local checkpoint
                         globalCheckpoint.set(engine.getPersistedLocalCheckpoint());

@@ -1981,7 +1981,13 @@ public class RecoverySourceHandlerTests extends MapperServiceTestCase {
                 randomNonNegativeLong()
             );
         } else if (randomBoolean()) {
-            op = new Translog.Delete("id", seqNo, randomNonNegativeLong(), randomNonNegativeLong());
+            op = new Translog.Delete(
+                "id",
+                seqNo,
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                randomBoolean() ? randomAlphaOfLengthBetween(1, 5) : null
+            );
         } else {
             op = new Translog.NoOp(seqNo, randomNonNegativeLong(), "test");
         }

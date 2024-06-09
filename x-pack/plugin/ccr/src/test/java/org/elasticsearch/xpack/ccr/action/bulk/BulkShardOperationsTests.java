@@ -62,7 +62,7 @@ public class BulkShardOperationsTests extends IndexShardTestCase {
             );
             switch (type) {
                 case INDEX -> operations.add(new Translog.Index(id, seqNo, primaryTerm, 0, SOURCE, null, -1));
-                case DELETE -> operations.add(new Translog.Delete(id, seqNo, primaryTerm, 0));
+                case DELETE -> operations.add(new Translog.Delete(id, seqNo, primaryTerm, 0, null));
                 case NO_OP -> operations.add(new Translog.NoOp(seqNo, primaryTerm, "test"));
                 default -> throw new IllegalStateException("unexpected operation type [" + type + "]");
             }
@@ -115,7 +115,7 @@ public class BulkShardOperationsTests extends IndexShardTestCase {
             if (randomBoolean()) {
                 op = new Translog.Index(id, seqno++, primaryTerm, 0, SOURCE, null, -1);
             } else if (randomBoolean()) {
-                op = new Translog.Delete(id, seqno++, primaryTerm, 0);
+                op = new Translog.Delete(id, seqno++, primaryTerm, 0, null);
             } else {
                 op = new Translog.NoOp(seqno++, primaryTerm, "test-" + i);
             }

@@ -958,7 +958,8 @@ public abstract class EngineTestCase extends ESTestCase {
             Engine.Operation.Origin.REPLICA,
             startTime,
             SequenceNumbers.UNASSIGNED_SEQ_NO,
-            0
+            0,
+            null
         );
     }
 
@@ -1024,7 +1025,8 @@ public abstract class EngineTestCase extends ESTestCase {
                     forReplica ? REPLICA : PRIMARY,
                     System.currentTimeMillis(),
                     SequenceNumbers.UNASSIGNED_SEQ_NO,
-                    0
+                    0,
+                    null
                 );
             }
             ops.add(op);
@@ -1089,7 +1091,8 @@ public abstract class EngineTestCase extends ESTestCase {
                             randomFrom(REPLICA, PEER_RECOVERY),
                             startTime,
                             SequenceNumbers.UNASSIGNED_SEQ_NO,
-                            0
+                            0,
+                            null
                         )
                     );
                     case NO_OP -> operations.add(

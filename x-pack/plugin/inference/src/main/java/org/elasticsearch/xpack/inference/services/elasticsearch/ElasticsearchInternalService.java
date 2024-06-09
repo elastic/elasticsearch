@@ -28,18 +28,21 @@ import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.ClientHelper;
-import org.elasticsearch.xpack.core.inference.results.ChunkedTextEmbeddingResults;
 import org.elasticsearch.xpack.core.inference.results.ErrorChunkedInferenceResults;
+import org.elasticsearch.xpack.core.inference.results.InferenceChunkedTextEmbeddingFloatResults;
+import org.elasticsearch.xpack.core.inference.results.InferenceTextEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.inference.results.RankedDocsResults;
-import org.elasticsearch.xpack.core.inference.results.TextEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
-import org.elasticsearch.xpack.core.ml.action.InferTrainedModelDeploymentAction;
+import org.elasticsearch.xpack.core.ml.action.InferModelAction;
 import org.elasticsearch.xpack.core.ml.action.PutTrainedModelAction;
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.action.StopTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelInput;
+import org.elasticsearch.xpack.core.ml.inference.TrainedModelPrefixStrings;
 import org.elasticsearch.xpack.core.ml.inference.results.ErrorInferenceResults;
+import org.elasticsearch.xpack.core.ml.inference.results.MlChunkedTextEmbeddingFloatResults;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextEmbeddingConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextSimilarityConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TokenizationConfigUpdate;
@@ -239,7 +242,7 @@ public class ElasticsearchInternalService implements InferenceService {
         if (TaskType.TEXT_EMBEDDING.equals(taskType)) {
             inferTextEmbedding(model, input, inputType, timeout, listener);
         } else if (TaskType.RERANK.equals(taskType)) {
-            inferRerank(model, query, input, timeout, taskSettings, listener);
+            inferRerank(model, query, input, inputType, timeout, taskSettings, listener);
         } else {
             throw new ElasticsearchStatusException(TaskType.unsupportedTaskTypeErrorMsg(taskType, NAME), RestStatus.BAD_REQUEST);
         }
@@ -247,22 +250,26 @@ public class ElasticsearchInternalService implements InferenceService {
 
     public void inferTextEmbedding(
         Model model,
-        List<String> input,
+        List<String> inputs,
         InputType inputType,
         TimeValue timeout,
         ActionListener<InferenceServiceResults> listener
     ) {
-        var request = InferTrainedModelDeploymentAction.Request.forTextInput(
+        var request = buildInferenceRequest(
             model.getConfigurations().getInferenceEntityId(),
             TextEmbeddingConfigUpdate.EMPTY_INSTANCE,
-            input,
-            timeout
+            inputs,
+            inputType,
+            timeout,
+            false
         );
 
         client.execute(
-            InferTrainedModelDeploymentAction.INSTANCE,
+            InferModelAction.INSTANCE,
             request,
-            listener.delegateFailureAndWrap((l, inferenceResult) -> l.onResponse(TextEmbeddingResults.of(inferenceResult.getResults())))
+            listener.delegateFailureAndWrap(
+                (l, inferenceResult) -> l.onResponse(InferenceTextEmbeddingFloatResults.of(inferenceResult.getInferenceResults()))
+            )
         );
     }
 
@@ -270,16 +277,18 @@ public class ElasticsearchInternalService implements InferenceService {
         Model model,
         String query,
         List<String> inputs,
+        InputType inputType,
         TimeValue timeout,
         Map<String, Object> requestTaskSettings,
         ActionListener<InferenceServiceResults> listener
     ) {
-        var config = new TextSimilarityConfigUpdate(query);
-        var request = InferTrainedModelDeploymentAction.Request.forTextInput(
+        var request = buildInferenceRequest(
             model.getConfigurations().getInferenceEntityId(),
-            config,
+            new TextSimilarityConfigUpdate(query),
             inputs,
-            timeout
+            inputType,
+            timeout,
+            false
         );
 
         var modelSettings = (CustomElandRerankTaskSettings) model.getTaskSettings();
@@ -289,10 +298,12 @@ public class ElasticsearchInternalService implements InferenceService {
         Function<Integer, String> inputSupplier = returnDocs == Boolean.TRUE ? inputs::get : i -> null;
 
         client.execute(
-            InferTrainedModelDeploymentAction.INSTANCE,
+            InferModelAction.INSTANCE,
             request,
             listener.delegateFailureAndWrap(
-                (l, inferenceResult) -> l.onResponse(textSimilarityResultsToRankedDocs(inferenceResult.getResults(), inputSupplier))
+                (l, inferenceResult) -> l.onResponse(
+                    textSimilarityResultsToRankedDocs(inferenceResult.getInferenceResults(), inputSupplier)
+                )
             )
         );
     }
@@ -331,18 +342,21 @@ public class ElasticsearchInternalService implements InferenceService {
             ? new TokenizationConfigUpdate(chunkingOptions.windowSize(), chunkingOptions.span())
             : new TokenizationConfigUpdate(null, null);
 
-        var request = InferTrainedModelDeploymentAction.Request.forTextInput(
+        var request = buildInferenceRequest(
             model.getConfigurations().getInferenceEntityId(),
             configUpdate,
             input,
-            timeout
+            inputType,
+            timeout,
+            true
         );
-        request.setChunkResults(true);
 
         client.execute(
-            InferTrainedModelDeploymentAction.INSTANCE,
+            InferModelAction.INSTANCE,
             request,
-            listener.delegateFailureAndWrap((l, inferenceResult) -> l.onResponse(translateToChunkedResults(inferenceResult.getResults())))
+            listener.delegateFailureAndWrap(
+                (l, inferenceResult) -> l.onResponse(translateToChunkedResults(inferenceResult.getInferenceResults()))
+            )
         );
     }
 
@@ -357,12 +371,12 @@ public class ElasticsearchInternalService implements InferenceService {
     }
 
     private static ChunkedInferenceServiceResults translateToChunkedResult(InferenceResults inferenceResult) {
-        if (inferenceResult instanceof org.elasticsearch.xpack.core.ml.inference.results.ChunkedTextEmbeddingResults mlChunkedResult) {
-            return ChunkedTextEmbeddingResults.ofMlResult(mlChunkedResult);
+        if (inferenceResult instanceof MlChunkedTextEmbeddingFloatResults mlChunkedResult) {
+            return InferenceChunkedTextEmbeddingFloatResults.ofMlResults(mlChunkedResult);
         } else if (inferenceResult instanceof ErrorInferenceResults error) {
             return new ErrorChunkedInferenceResults(error.getException());
         } else {
-            throw createInvalidChunkedResultException(inferenceResult.getWriteableName());
+            throw createInvalidChunkedResultException(MlChunkedTextEmbeddingFloatResults.NAME, inferenceResult.getWriteableName());
         }
     }
 
@@ -532,4 +546,20 @@ public class ElasticsearchInternalService implements InferenceService {
         return new RankedDocsResults(rankings);
     }
 
+    public static InferModelAction.Request buildInferenceRequest(
+        String id,
+        InferenceConfigUpdate update,
+        List<String> inputs,
+        InputType inputType,
+        TimeValue timeout,
+        boolean chunk
+    ) {
+        var request = InferModelAction.Request.forTextInput(id, update, inputs, true, timeout);
+        request.setPrefixType(
+            InputType.SEARCH == inputType ? TrainedModelPrefixStrings.PrefixType.SEARCH : TrainedModelPrefixStrings.PrefixType.INGEST
+        );
+        request.setHighPriority(InputType.SEARCH == inputType);
+        request.setChunked(chunk);
+        return request;
+    }
 }

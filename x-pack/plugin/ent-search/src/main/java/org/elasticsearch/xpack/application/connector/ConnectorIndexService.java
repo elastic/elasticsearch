@@ -550,6 +550,33 @@ public class ConnectorIndexService {
     }
 
     /**
+     * Updates the features of a given {@link Connector}.
+     *
+     * @param connectorId The ID of the {@link Connector} to be updated.
+     * @param features    An instance of {@link ConnectorFeatures}
+     * @param listener    Listener to respond to a successful response or an error.
+     */
+    public void updateConnectorFeatures(String connectorId, ConnectorFeatures features, ActionListener<UpdateResponse> listener) {
+        try {
+            final UpdateRequest updateRequest = new UpdateRequest(CONNECTOR_INDEX_NAME, connectorId).doc(
+                new IndexRequest(CONNECTOR_INDEX_NAME).opType(DocWriteRequest.OpType.INDEX)
+                    .id(connectorId)
+                    .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+                    .source(Map.of(Connector.FEATURES_FIELD.getPreferredName(), features))
+            );
+            client.update(updateRequest, new DelegatingIndexNotFoundActionListener<>(connectorId, listener, (l, updateResponse) -> {
+                if (updateResponse.getResult() == UpdateResponse.Result.NOT_FOUND) {
+                    l.onFailure(new ResourceNotFoundException(connectorNotFoundErrorMsg(connectorId)));
+                    return;
+                }
+                l.onResponse(updateResponse);
+            }));
+        } catch (Exception e) {
+            listener.onFailure(e);
+        }
+    }
+
+    /**
      * Updates the draft filtering in a given {@link Connector}.
      *
      * @param connectorId     The ID of the {@link Connector} to be updated.

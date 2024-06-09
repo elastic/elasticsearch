@@ -12,7 +12,6 @@ import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.type.DataTypes;
 import org.elasticsearch.xpack.esql.expression.function.scalar.UnaryScalarFunction;
 
 import java.util.function.Function;
@@ -28,11 +27,14 @@ abstract class AbstractTrigonometricFunction extends UnaryScalarFunction {
         super(source, field);
     }
 
+    /**
+     * Build an evaluator for this function given the evaluator for it's input.
+     */
     protected abstract EvalOperator.ExpressionEvaluator.Factory doubleEvaluator(EvalOperator.ExpressionEvaluator.Factory field);
 
     @Override
     public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
-        return doubleEvaluator(Cast.cast(source(), field().dataType(), DataTypes.DOUBLE, toEvaluator.apply(field())));
+        return doubleEvaluator(Cast.cast(source(), field().dataType(), DataType.DOUBLE, toEvaluator.apply(field())));
     }
 
     @Override
@@ -46,6 +48,6 @@ abstract class AbstractTrigonometricFunction extends UnaryScalarFunction {
 
     @Override
     public final DataType dataType() {
-        return DataTypes.DOUBLE;
+        return DataType.DOUBLE;
     }
 }

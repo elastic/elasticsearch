@@ -792,7 +792,7 @@ public abstract class ESTestCase extends LuceneTestCase {
     /**
      * Assert that a leak was detected, also remove the leak from the list of detected leaks
      * so the test won't fail for that specific leak.
-     * 
+     *
      * @param expectedPattern A pattern that matches the detected leak's exception
      */
     protected static void assertLeakDetected(String expectedPattern) {

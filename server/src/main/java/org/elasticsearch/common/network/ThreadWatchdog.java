@@ -93,7 +93,7 @@ public class ThreadWatchdog {
                     if (stuckThreadNames == null) {
                         stuckThreadNames = new ArrayList<>();
                     }
-                    stuckThreadNames.add(tracker.trackedThread.getName());
+                    stuckThreadNames.add(tracker.getTrackedThreadName());
                 }
             }
         }
@@ -112,6 +112,10 @@ public class ThreadWatchdog {
 
         public ActivityTracker() {
             this.trackedThread = Thread.currentThread();
+        }
+
+        String getTrackedThreadName() {
+            return trackedThread.getName();
         }
 
         public void startActivity() {

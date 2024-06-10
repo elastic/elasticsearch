@@ -1,0 +1,5 @@
+pr: 108171
+summary: "[logstash bridge]: stableapi bootstrap"
+area: Infra/Core
+type: enhancement
+issues: []

@@ -22,7 +22,6 @@ import co.elastic.elasticsearch.stateless.action.NewCommitNotificationRequest;
 import co.elastic.elasticsearch.stateless.action.NewCommitNotificationResponse;
 import co.elastic.elasticsearch.stateless.action.TransportGetVirtualBatchedCompoundCommitChunkAction;
 import co.elastic.elasticsearch.stateless.action.TransportNewCommitNotificationAction;
-import co.elastic.elasticsearch.stateless.cache.SharedBlobCacheWarmingService;
 import co.elastic.elasticsearch.stateless.cluster.coordination.StatelessClusterConsistencyService;
 import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
 import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
@@ -34,7 +33,6 @@ import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
 import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreTestUtils;
 import co.elastic.elasticsearch.stateless.recovery.RegisterCommitRequest;
 import co.elastic.elasticsearch.stateless.recovery.TransportRegisterCommitForRecoveryAction;
-import co.elastic.elasticsearch.stateless.recovery.metering.RecoveryMetricsCollector;
 
 import org.apache.logging.log4j.Level;
 import org.apache.lucene.store.AlreadyClosedException;
@@ -44,12 +42,8 @@ import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
-import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
-import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
-import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
 import org.elasticsearch.action.admin.indices.refresh.TransportUnpromotableShardRefreshAction;
-import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -60,7 +54,6 @@ import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.CountDownActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.SubscribableListener;
-import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
@@ -76,7 +69,6 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
-import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
@@ -95,7 +87,6 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.MergePolicyConfig;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.index.recovery.RecoveryStats;
 import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.shard.IllegalIndexShardStateException;
 import org.elasticsearch.index.shard.IndexShard;
@@ -108,12 +99,9 @@ import org.elasticsearch.indices.recovery.RecoveryCommitTooNewException;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.indices.recovery.StatelessPrimaryRelocationAction;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
-import org.elasticsearch.telemetry.Measurement;
-import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.MockLog;
@@ -133,7 +121,6 @@ import org.elasticsearch.xpack.shutdown.ShutdownPlugin;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
@@ -150,7 +137,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.LockSupport;
-import java.util.function.Function;
 import java.util.function.IntConsumer;
 import java.util.stream.IntStream;
 
@@ -158,7 +144,6 @@ import static co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit
 import static co.elastic.elasticsearch.stateless.recovery.TransportStatelessPrimaryRelocationAction.PRIMARY_CONTEXT_HANDOFF_ACTION_NAME;
 import static co.elastic.elasticsearch.stateless.recovery.TransportStatelessPrimaryRelocationAction.START_RELOCATION_ACTION_NAME;
 import static java.util.stream.Collectors.toList;
-import static org.elasticsearch.blobcache.shared.SharedBytes.PAGE_SIZE;
 import static org.elasticsearch.cluster.coordination.FollowersChecker.FOLLOWER_CHECK_INTERVAL_SETTING;
 import static org.elasticsearch.cluster.coordination.FollowersChecker.FOLLOWER_CHECK_RETRY_COUNT_SETTING;
 import static org.elasticsearch.cluster.coordination.LeaderChecker.LEADER_CHECK_INTERVAL_SETTING;
@@ -178,13 +163,11 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasItem;
-import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.oneOf;
 import static org.hamcrest.Matchers.sameInstance;
 
@@ -193,7 +176,7 @@ public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return CollectionUtils.concatLists(
-            List.of(MockRepository.Plugin.class, InternalSettingsPlugin.class, ShutdownPlugin.class, TestTelemetryPlugin.class),
+            List.of(MockRepository.Plugin.class, InternalSettingsPlugin.class, ShutdownPlugin.class),
             super.nodePlugins()
         );
     }
@@ -415,7 +398,7 @@ public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
         }
     }
 
-    public void testFailedRelocatingIndexShardHasNoCurrentRecoveries() throws Exception {
+    public void testFailedRelocatingIndexShardHasNoCurrentRecoveries() {
         final var indexNodeA = startIndexNode();
 
         final String indexName = randomIdentifier();
@@ -750,217 +733,6 @@ public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
         assertThat(commit.translogRecoveryStartFile(), greaterThan(initialRecoveryCommitStartingFile));
     }
 
-    public void testRerouteRecoveryOfIndexShard() throws Exception {
-        final String nodeA = startIndexNode();
-        logger.info("--> started index node A [{}]", nodeA);
-
-        logger.info("--> create index on node: {}", nodeA);
-        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
-        createIndex(indexName, indexSettings(1, 0).build());
-        ensureGreen(indexName);
-        indexDocs(indexName, between(1000, 1500));
-        refresh(indexName);
-
-        final String nodeB = startIndexNode();
-        ensureGreen();
-        logger.info("--> started index node B [{}]", nodeB);
-
-        logger.info("--> blocking recoveries on " + nodeB);
-        ObjectStoreService objectStoreService = internalCluster().getInstance(ObjectStoreService.class, nodeB);
-        MockRepository repository = ObjectStoreTestUtils.getObjectStoreMockRepository(objectStoreService);
-        repository.setBlockOnAnyFiles();
-
-        logger.info("--> move shard from: {} to: {}", nodeA, nodeB);
-        clusterAdmin().prepareReroute().add(new MoveAllocationCommand(indexName, 0, nodeA, nodeB)).execute().actionGet().getState();
-
-        logger.info("--> waiting for recovery to start both on source and target");
-        final Index index = resolveIndex(indexName);
-        assertBusy(() -> {
-            IndicesService indicesService = internalCluster().getInstance(IndicesService.class, nodeA);
-            assertThat(indicesService.indexServiceSafe(index).getShard(0).recoveryStats().currentAsSource(), equalTo(1));
-            indicesService = internalCluster().getInstance(IndicesService.class, nodeB);
-            assertThat(indicesService.indexServiceSafe(index).getShard(0).recoveryStats().currentAsTarget(), equalTo(1));
-        });
-
-        logger.info("--> request recoveries");
-        RecoveryResponse response = indicesAdmin().prepareRecoveries(indexName).execute().actionGet();
-
-        List<RecoveryState> recoveryStates = response.shardRecoveryStates().get(indexName);
-        List<RecoveryState> nodeARecoveryStates = findRecoveriesForTargetNode(nodeA, recoveryStates);
-        assertThat(nodeARecoveryStates.size(), equalTo(1));
-        List<RecoveryState> nodeBRecoveryStates = findRecoveriesForTargetNode(nodeB, recoveryStates);
-        assertThat(nodeBRecoveryStates.size(), equalTo(1));
-
-        assertRecoveryState(
-            nodeARecoveryStates.get(0),
-            0,
-            RecoverySource.EmptyStoreRecoverySource.INSTANCE,
-            true,
-            RecoveryState.Stage.DONE,
-            null,
-            nodeA
-        );
-        validateIndexRecoveryState(nodeARecoveryStates.get(0).getIndex());
-
-        assertOnGoingRecoveryState(nodeBRecoveryStates.get(0), 0, RecoverySource.PeerRecoverySource.INSTANCE, true, nodeA, nodeB);
-        validateIndexRecoveryState(nodeBRecoveryStates.get(0).getIndex());
-
-        logger.info("--> request node recovery stats");
-        NodesStatsResponse statsResponse = clusterAdmin().prepareNodesStats()
-            .clear()
-            .setIndices(new CommonStatsFlags(CommonStatsFlags.Flag.Recovery))
-            .get();
-        for (NodeStats nodeStats : statsResponse.getNodes()) {
-            final RecoveryStats recoveryStats = nodeStats.getIndices().getRecoveryStats();
-            if (nodeStats.getNode().getName().equals(nodeA)) {
-                assertThat("node A should have ongoing recovery as source", recoveryStats.currentAsSource(), equalTo(1));
-                assertThat("node A should not have ongoing recovery as target", recoveryStats.currentAsTarget(), equalTo(0));
-            }
-            if (nodeStats.getNode().getName().equals(nodeB)) {
-                assertThat("node B should not have ongoing recovery as source", recoveryStats.currentAsSource(), equalTo(0));
-                assertThat("node B should have ongoing recovery as target", recoveryStats.currentAsTarget(), equalTo(1));
-            }
-        }
-
-        logger.info("--> unblocking recoveries on " + nodeB);
-        repository.unblock();
-
-        // wait for it to be finished
-        ensureGreen();
-
-        response = indicesAdmin().prepareRecoveries(indexName).execute().actionGet();
-
-        recoveryStates = response.shardRecoveryStates().get(indexName);
-        assertThat(recoveryStates.size(), equalTo(1));
-
-        assertRecoveryState(
-            recoveryStates.get(0),
-            0,
-            RecoverySource.PeerRecoverySource.INSTANCE,
-            true,
-            RecoveryState.Stage.DONE,
-            nodeA,
-            nodeB
-        );
-        validateIndexRecoveryState(recoveryStates.get(0).getIndex());
-        assertBusy(() -> assertNodeHasNoCurrentRecoveries(nodeA));
-        assertBusy(() -> assertNodeHasNoCurrentRecoveries(nodeB));
-    }
-
-    public void testRerouteRecoveryOfSearchShard() throws Exception {
-        final String nodeA = startIndexNode();
-        logger.info("--> started index node A [{}]", nodeA);
-
-        logger.info("--> create index on node: {}", nodeA);
-        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
-        createIndex(indexName, indexSettings(1, 0).build());
-        ensureGreen(indexName);
-        indexDocs(indexName, between(1000, 1500));
-        refresh(indexName);
-
-        String nodeB = startSearchNode();
-        ensureGreen();
-        logger.info("--> started search node B [{}]", nodeB);
-        logger.info("--> bump replica count");
-        setReplicaCount(1, indexName);
-        ensureGreen();
-
-        String nodeC = startSearchNode();
-        ensureGreen();
-        logger.info("--> started search node C [{}]", nodeC);
-
-        assertBusy(() -> assertNodeHasNoCurrentRecoveries(nodeA));
-        assertBusy(() -> assertNodeHasNoCurrentRecoveries(nodeB));
-        assertFalse(clusterAdmin().prepareHealth().setWaitForNodes("4").get().isTimedOut()); // including master node
-
-        ObjectStoreService objectStoreService = internalCluster().getInstance(ObjectStoreService.class, nodeC);
-        MockRepository repository = ObjectStoreTestUtils.getObjectStoreMockRepository(objectStoreService);
-        logger.info("--> block recoveries on " + nodeC);
-        repository.setBlockOnAnyFiles();
-
-        logger.info("--> move replica shard from: {} to: {}", nodeB, nodeC);
-        clusterAdmin().prepareReroute().add(new MoveAllocationCommand(indexName, 0, nodeB, nodeC)).execute().actionGet().getState();
-
-        RecoveryResponse response = indicesAdmin().prepareRecoveries(indexName).execute().actionGet();
-        List<RecoveryState> recoveryStates = response.shardRecoveryStates().get(indexName);
-        List<RecoveryState> nodeARecoveryStates = findRecoveriesForTargetNode(nodeA, recoveryStates);
-        List<RecoveryState> nodeBRecoveryStates = findRecoveriesForTargetNode(nodeB, recoveryStates);
-        List<RecoveryState> nodeCRecoveryStates = findRecoveriesForTargetNode(nodeC, recoveryStates);
-
-        assertThat(nodeARecoveryStates.size(), equalTo(1));
-        assertThat(nodeBRecoveryStates.size(), equalTo(1));
-        assertThat(nodeCRecoveryStates.size(), equalTo(1));
-
-        assertRecoveryState(
-            nodeARecoveryStates.get(0),
-            0,
-            RecoverySource.EmptyStoreRecoverySource.INSTANCE,
-            true,
-            RecoveryState.Stage.DONE,
-            null,
-            nodeA
-        );
-        validateIndexRecoveryState(nodeARecoveryStates.get(0).getIndex());
-
-        assertRecoveryState(
-            nodeBRecoveryStates.get(0),
-            0,
-            RecoverySource.PeerRecoverySource.INSTANCE,
-            false,
-            RecoveryState.Stage.DONE,
-            nodeA,
-            nodeB
-        );
-        validateIndexRecoveryState(nodeBRecoveryStates.get(0).getIndex());
-
-        assertOnGoingRecoveryState(nodeCRecoveryStates.get(0), 0, RecoverySource.PeerRecoverySource.INSTANCE, false, nodeA, nodeC);
-        validateIndexRecoveryState(nodeCRecoveryStates.get(0).getIndex());
-
-        if (randomBoolean()) {
-            // shutdown nodeB and check if recovery continues
-            internalCluster().stopNode(nodeB);
-            ensureStableCluster(3);
-
-            response = indicesAdmin().prepareRecoveries(indexName).execute().actionGet();
-            recoveryStates = response.shardRecoveryStates().get(indexName);
-
-            nodeARecoveryStates = findRecoveriesForTargetNode(nodeA, recoveryStates);
-            assertThat(nodeARecoveryStates.size(), equalTo(1));
-            nodeBRecoveryStates = findRecoveriesForTargetNode(nodeB, recoveryStates);
-            assertThat(nodeBRecoveryStates.size(), equalTo(0));
-            nodeCRecoveryStates = findRecoveriesForTargetNode(nodeC, recoveryStates);
-            assertThat(nodeCRecoveryStates.size(), equalTo(1));
-
-            assertOnGoingRecoveryState(nodeCRecoveryStates.get(0), 0, RecoverySource.PeerRecoverySource.INSTANCE, false, nodeA, nodeC);
-            validateIndexRecoveryState(nodeCRecoveryStates.get(0).getIndex());
-        }
-
-        logger.info("--> unblocking recoveries on " + nodeC);
-        repository.unblock();
-        ensureGreen();
-
-        response = indicesAdmin().prepareRecoveries(indexName).execute().actionGet();
-        recoveryStates = response.shardRecoveryStates().get(indexName);
-
-        nodeARecoveryStates = findRecoveriesForTargetNode(nodeA, recoveryStates);
-        assertThat(nodeARecoveryStates.size(), equalTo(1));
-        nodeBRecoveryStates = findRecoveriesForTargetNode(nodeB, recoveryStates);
-        assertThat(nodeBRecoveryStates.size(), equalTo(0));
-        nodeCRecoveryStates = findRecoveriesForTargetNode(nodeC, recoveryStates);
-        assertThat(nodeCRecoveryStates.size(), equalTo(1));
-
-        assertRecoveryState(
-            nodeCRecoveryStates.get(0),
-            0,
-            RecoverySource.PeerRecoverySource.INSTANCE,
-            false,
-            RecoveryState.Stage.DONE,
-            nodeA,
-            nodeC
-        );
-        validateIndexRecoveryState(nodeCRecoveryStates.get(0).getIndex());
-    }
-
     public void testRecoveryMarksNewNodeInCommit() throws Exception {
         String initialNode = startIndexNodes(1).get(0);
         startSearchNode();
@@ -992,154 +764,6 @@ public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
         ensureGreen(indexName);
 
         assertHitCount(prepareSearch(indexName), numDocsRound1 + numDocsRound2);
-    }
-
-    private List<RecoveryState> findRecoveriesForTargetNode(String nodeName, List<RecoveryState> recoveryStates) {
-        List<RecoveryState> nodeResponses = new ArrayList<>();
-        for (RecoveryState recoveryState : recoveryStates) {
-            if (recoveryState.getTargetNode().getName().equals(nodeName)) {
-                nodeResponses.add(recoveryState);
-            }
-        }
-        return nodeResponses;
-    }
-
-    private void assertRecoveryState(
-        RecoveryState state,
-        int shardId,
-        RecoverySource type,
-        boolean primary,
-        RecoveryState.Stage stage,
-        String sourceNode,
-        String targetNode
-    ) {
-        assertRecoveryStateWithoutStage(state, shardId, type, primary, sourceNode, targetNode);
-        assertThat(state.getStage(), equalTo(stage));
-    }
-
-    private void assertOnGoingRecoveryState(
-        RecoveryState state,
-        int shardId,
-        RecoverySource type,
-        boolean primary,
-        String sourceNode,
-        String targetNode
-    ) {
-        assertRecoveryStateWithoutStage(state, shardId, type, primary, sourceNode, targetNode);
-        assertThat(state.getStage(), not(equalTo(RecoveryState.Stage.DONE)));
-    }
-
-    private void assertRecoveryStateWithoutStage(
-        RecoveryState state,
-        int shardId,
-        RecoverySource recoverySource,
-        boolean primary,
-        String sourceNode,
-        String targetNode
-    ) {
-        assertThat(state.getShardId().getId(), equalTo(shardId));
-        assertThat(state.getRecoverySource(), equalTo(recoverySource));
-        assertThat(state.getPrimary(), equalTo(primary));
-        if (sourceNode == null) {
-            assertNull(state.getSourceNode());
-        } else {
-            assertNotNull(state.getSourceNode());
-            assertThat(state.getSourceNode().getName(), equalTo(sourceNode));
-        }
-        if (targetNode == null) {
-            assertNull(state.getTargetNode());
-        } else {
-            assertNotNull(state.getTargetNode());
-            assertThat(state.getTargetNode().getName(), equalTo(targetNode));
-        }
-    }
-
-    private void validateIndexRecoveryState(RecoveryState.Index indexState) {
-        assertThat(indexState.time(), greaterThanOrEqualTo(0L));
-        assertThat(indexState.recoveredFilesPercent(), greaterThanOrEqualTo(0.0f));
-        assertThat(indexState.recoveredFilesPercent(), lessThanOrEqualTo(100.0f));
-        assertThat(indexState.recoveredBytesPercent(), greaterThanOrEqualTo(0.0f));
-        assertThat(indexState.recoveredBytesPercent(), lessThanOrEqualTo(100.0f));
-    }
-
-    private void assertNodeHasNoCurrentRecoveries(String nodeName) {
-        NodesStatsResponse nodesStatsResponse = clusterAdmin().prepareNodesStats()
-            .setNodesIds(nodeName)
-            .clear()
-            .setIndices(new CommonStatsFlags(CommonStatsFlags.Flag.Recovery))
-            .get();
-        assertThat(nodesStatsResponse.getNodes(), hasSize(1));
-        NodeStats nodeStats = nodesStatsResponse.getNodes().get(0);
-        final RecoveryStats recoveryStats = nodeStats.getIndices().getRecoveryStats();
-        assertThat(recoveryStats.currentAsSource(), equalTo(0));
-        assertThat(recoveryStats.currentAsTarget(), equalTo(0));
-    };
-
-    public void testRecoverIndexingShardWithObjectStoreFailuresDuringIndexing() throws Exception {
-        final String indexNodeA = startIndexNode();
-        ensureStableCluster(2);
-        final String indexName = SYSTEM_INDEX_NAME;
-        createSystemIndex(indexSettings(1, 0).put(IndexSettings.INDEX_FAST_REFRESH_SETTING.getKey(), true).build());
-        final String indexNodeB = startIndexNode();
-        ensureStableCluster(3);
-
-        ObjectStoreService objectStoreService = internalCluster().getInstance(ObjectStoreService.class, indexNodeA);
-        MockRepository repository = ObjectStoreTestUtils.getObjectStoreMockRepository(objectStoreService);
-        repository.setRandomControlIOExceptionRate(1.0);
-        repository.setRandomDataFileIOExceptionRate(1.0);
-        repository.setMaximumNumberOfFailures(Long.MAX_VALUE);
-        // This pattern starts failing from file 10. Because file name has 19 digits, and final digit should not be preceded by 18 zeroes.
-        repository.setRandomIOExceptionPattern(".*translog/\\d{18,18}(?<!000000000000000000)\\d.*");
-
-        final AtomicInteger docIdGenerator = new AtomicInteger();
-        final AtomicInteger docsAcknowledged = new AtomicInteger();
-        final AtomicInteger docsFailed = new AtomicInteger();
-        final IntConsumer docIndexer = numDocs -> {
-            var bulkRequest = client().prepareBulk();
-            for (int i = 0; i < numDocs; i++) {
-                bulkRequest.add(
-                    new IndexRequest(indexName).id("doc-" + docIdGenerator.incrementAndGet())
-                        .source("field", randomUnicodeOfCodepointLengthBetween(1, 25))
-                );
-            }
-            BulkResponse response = bulkRequest.get(TimeValue.timeValueSeconds(15));
-            assertThat(response.getItems().length, equalTo(numDocs));
-            for (BulkItemResponse itemResponse : response.getItems()) {
-                if (itemResponse.isFailed()) {
-                    docsFailed.incrementAndGet();
-                } else {
-                    docsAcknowledged.incrementAndGet();
-                }
-            }
-        };
-
-        final AtomicBoolean running = new AtomicBoolean(true);
-        final Thread[] threads = new Thread[scaledRandomIntBetween(1, 3)];
-        for (int j = 0; j < threads.length; j++) {
-            threads[j] = new Thread(() -> {
-                while (running.get()) {
-                    docIndexer.accept(between(1, 20));
-                }
-            });
-            threads[j].start();
-        }
-
-        try {
-            assertBusy(() -> assertThat(repository.getFailureCount(), greaterThan(0L)));
-        } finally {
-            running.set(false);
-            internalCluster().stopNode(indexNodeA);
-            for (Thread thread : threads) {
-                thread.join();
-            }
-        }
-
-        logger.info("--> [{}] documents acknowledged, [{}] documents failed", docsAcknowledged, docsFailed);
-        ensureGreen();
-
-        refresh(indexName); // so that any translog ops become visible for searching
-        final long totalHits = SearchResponseUtils.getTotalHitsValue(prepareSearch(indexName));
-        assertThat(totalHits, greaterThanOrEqualTo((long) docsAcknowledged.get()));
     }
 
     public void testRecoverIndexingShardWithStaleIndexingShard() throws Exception {
@@ -1423,129 +1047,6 @@ public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
         ensureGreen(indexName);
     }
 
-    public void testRecoverSearchShardWithObjectStoreFailures() throws Exception {
-        final String indexName = "test";
-        startIndexNode();
-        final String searchNode = startSearchNode();
-        ensureStableCluster(3);
-        createIndex(indexName, indexSettings(1, 0).build());
-        int numDocs = scaledRandomIntBetween(25, 250);
-        indexDocsAndRefresh(indexName, numDocs);
-        ensureSearchable(indexName);
-
-        ObjectStoreService objectStoreService = internalCluster().getInstance(ObjectStoreService.class, searchNode);
-        MockRepository repository = ObjectStoreTestUtils.getObjectStoreMockRepository(objectStoreService);
-        repository.setRandomControlIOExceptionRate(1.0);
-        repository.setRandomDataFileIOExceptionRate(1.0);
-        repository.setMaximumNumberOfFailures(1);
-        if (randomBoolean()) repository.setRandomIOExceptionPattern(".*stateless_commit_.*");
-
-        logger.info("--> starting search shard");
-        setReplicaCount(1, indexName);
-
-        ensureGreen();
-        assertThat(repository.getFailureCount(), greaterThan(0L));
-        assertHitCount(prepareSearch(indexName), numDocs);
-    }
-
-    public void testRelocateSearchShardWithObjectStoreFailures() throws Exception {
-        final String indexName = "test";
-        startIndexNode();
-        final String searchNodeA = startSearchNode();
-        ensureStableCluster(3);
-        createIndex(indexName, indexSettings(1, 1).build());
-        int numDocs = scaledRandomIntBetween(25, 250);
-        indexDocsAndRefresh(indexName, numDocs);
-        final String searchNodeB = startSearchNode();
-        ensureStableCluster(4);
-
-        ObjectStoreService objectStoreService = internalCluster().getInstance(ObjectStoreService.class, searchNodeB);
-        MockRepository repository = ObjectStoreTestUtils.getObjectStoreMockRepository(objectStoreService);
-        repository.setRandomControlIOExceptionRate(1.0);
-        repository.setRandomDataFileIOExceptionRate(1.0);
-        repository.setMaximumNumberOfFailures(1);
-        if (randomBoolean()) repository.setRandomIOExceptionPattern(".*stateless_commit_.*");
-
-        logger.info("--> move replica shard from: {} to: {}", searchNodeA, searchNodeB);
-        clusterAdmin().prepareReroute().add(new MoveAllocationCommand(indexName, 0, searchNodeA, searchNodeB)).execute().actionGet();
-
-        ensureGreen();
-        assertThat(repository.getFailureCount(), greaterThan(0L));
-        assertNodeHasNoCurrentRecoveries(searchNodeB);
-        assertThat(findSearchShard(resolveIndex(indexName), 0).routingEntry().currentNodeId(), equalTo(getNodeId(searchNodeB)));
-        assertHitCount(client(searchNodeB).prepareSearch(indexName).setPreference("_local"), numDocs);
-    }
-
-    public void testRecoverIndexingShardWithObjectStoreFailures() throws Exception {
-        final String indexNodeA = startIndexNode();
-        ensureStableCluster(2);
-        final String indexName = "test";
-        createIndex(indexName, indexSettings(1, 0).build());
-        int numDocs = scaledRandomIntBetween(1, 10);
-        indexDocs(indexName, numDocs);
-
-        final String indexNodeB = startIndexNode();
-        ensureStableCluster(3);
-
-        ObjectStoreService objectStoreService = internalCluster().getInstance(ObjectStoreService.class, indexNodeB);
-        MockRepository repository = ObjectStoreTestUtils.getObjectStoreMockRepository(objectStoreService);
-        repository.setRandomControlIOExceptionRate(1.0);
-        repository.setRandomDataFileIOExceptionRate(1.0);
-        repository.setMaximumNumberOfFailures(1);
-        if (randomBoolean()) {
-            repository.setRandomIOExceptionPattern(".*stateless_commit_.*");
-        } else if (randomBoolean()) {
-            repository.setRandomIOExceptionPattern(".*translog.*");
-        }
-
-        logger.info("--> stopping node [{}]", indexNodeA);
-        internalCluster().stopNode(indexNodeA);
-        ensureStableCluster(2);
-
-        ensureGreen();
-        assertNodeHasNoCurrentRecoveries(indexNodeB);
-        assertThat(repository.getFailureCount(), greaterThan(0L));
-        assertThat(findIndexShard(resolveIndex(indexName), 0).docStats().getCount(), equalTo((long) numDocs));
-    }
-
-    public void testRelocateIndexingShardWithObjectStoreFailures() throws Exception {
-        final String indexNodeA = startIndexNode();
-        ensureStableCluster(2);
-        final String indexName = "test";
-        createIndex(
-            indexName,
-            indexSettings(1, 0).put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), new TimeValue(1, TimeUnit.MINUTES)).build()
-        );
-
-        final String indexNodeB = startIndexNode();
-        ensureStableCluster(3);
-
-        int numDocs = scaledRandomIntBetween(1, 10);
-        indexDocs(indexName, numDocs);
-
-        boolean failuresOnSource = randomBoolean(); // else failures on target node
-        logger.info("--> failures will be on source node? [{}]", failuresOnSource);
-        ObjectStoreService objectStoreService = internalCluster().getInstance(
-            ObjectStoreService.class,
-            failuresOnSource ? indexNodeA : indexNodeB
-        );
-        MockRepository repository = ObjectStoreTestUtils.getObjectStoreMockRepository(objectStoreService);
-        repository.setRandomControlIOExceptionRate(1.0);
-        repository.setRandomDataFileIOExceptionRate(1.0);
-        repository.setMaximumNumberOfFailures(1);
-
-        logger.info("--> failures will be on stateless commits");
-        repository.setRandomIOExceptionPattern(".*stateless_commit_.*");
-
-        logger.info("--> move primary shard from: {} to: {}", indexNodeA, indexNodeB);
-        clusterAdmin().prepareReroute().add(new MoveAllocationCommand(indexName, 0, indexNodeA, indexNodeB)).execute().actionGet();
-
-        ensureGreen();
-        assertThat(repository.getFailureCount(), greaterThan(0L));
-        assertNodeHasNoCurrentRecoveries(indexNodeB);
-        assertThat(findIndexShard(resolveIndex(indexName), 0).docStats().getCount(), equalTo((long) numDocs));
-    }
-
     public void testRelocateIndexingShardDoesNotReadFromTranslog() throws Exception {
         final String indexNodeA = startIndexNode();
         ensureStableCluster(2);
@@ -1740,7 +1241,7 @@ public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
         assertThat(findIndexShard(resolveIndex(indexName), 0).docStats().getCount(), equalTo((long) numDocs));
     }
 
-    private CountDownLatch startBreakingActions(String nodeA, String nodeB, String recoveryActionToBlock) throws Exception {
+    private CountDownLatch startBreakingActions(String nodeA, String nodeB, String recoveryActionToBlock) {
         logger.info("--> will break requests between node [{}] & node [{}] for actions [{}]", nodeA, nodeB, recoveryActionToBlock);
 
         final MockTransportService nodeAMockTransportService = MockTransportService.getInstance(nodeA);
@@ -1778,7 +1279,7 @@ public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
         return requestFailed;
     }
 
-    private void stopBreakingActions(String... nodes) throws Exception {
+    private void stopBreakingActions(String... nodes) {
         for (String node : nodes) {
             MockTransportService.getInstance(node).clearAllRules();
         }
@@ -2335,393 +1836,6 @@ public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
         } finally {
             indexNodeATransportService.clearAllRules();
         }
-    }
-
-    public void testRecoveryMetricPublicationOnIndexingShardRelocation() throws Exception {
-
-        var indexingNode1 = startIndexNode();
-        var indexingNode2 = startIndexNode();
-
-        var indexName = randomIdentifier();
-        createIndex(indexName, indexSettings(1, 0).build());
-        ensureGreen(indexName);
-
-        // ensure that index shard is allocated on `indexingNode1` and not on `indexingNode2`
-        assertAcked(
-            admin().indices()
-                .prepareUpdateSettings(indexName)
-                .setSettings(Settings.builder().put(IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_PREFIX + "._name", indexingNode2))
-        );
-
-        int numDocs = randomIntBetween(100, 1000);
-        indexDocs(indexName, numDocs);
-        refresh(indexName);
-
-        final TestTelemetryPlugin plugin = internalCluster().getInstance(PluginsService.class, indexingNode2)
-            .filterPlugins(TestTelemetryPlugin.class)
-            .findFirst()
-            .orElseThrow();
-        plugin.resetMeter();
-
-        // trigger primary relocation from `indexingNode1` to `indexingNode2`
-        // hence start recovery of the shard on a new node
-        assertAcked(
-            admin().indices()
-                .prepareUpdateSettings(indexName)
-                .setSettings(Settings.builder().put(IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_PREFIX + "._name", indexingNode1))
-        );
-
-        assertBusy(() -> {
-            final List<Measurement> measurements = plugin.getLongHistogramMeasurement(RecoveryMetricsCollector.RECOVERY_TOTAL_TIME_METRIC);
-            assertFalse("Total recovery time metric is not recorded", measurements.isEmpty());
-            assertThat(measurements.size(), equalTo(1));
-            final Measurement metric = measurements.get(0);
-            assertThat(metric.value().longValue(), greaterThan(0L));
-            assertThat(metric.attributes().get("indexName"), equalTo(indexName));
-            assertThat(metric.attributes().get("shardId"), equalTo(0));
-            assertThat(metric.attributes().get("primary"), equalTo(true));
-            assertThat(metric.attributes().get("recoveryType"), equalTo("PEER"));
-        });
-
-        assertBusy(() -> {
-            final List<Measurement> measurements = plugin.getLongHistogramMeasurement(RecoveryMetricsCollector.RECOVERY_INDEX_TIME_METRIC);
-            assertFalse("Index recovery time metric is not recorded", measurements.isEmpty());
-            assertThat(measurements.size(), equalTo(1));
-            final Measurement metric = measurements.get(0);
-            assertThat(metric.value().longValue(), greaterThanOrEqualTo(0L));
-            assertThat(metric.attributes().get("indexName"), equalTo(indexName));
-            assertThat(metric.attributes().get("shardId"), equalTo(0));
-            assertThat(metric.attributes().get("primary"), equalTo(true));
-            assertThat(metric.attributes().get("recoveryType"), equalTo("PEER"));
-        });
-
-        assertBusy(() -> {
-            final List<Measurement> measurements = plugin.getLongHistogramMeasurement(
-                RecoveryMetricsCollector.RECOVERY_TRANSLOG_TIME_METRIC
-            );
-            assertFalse("Translog recovery time metric is not recorded", measurements.isEmpty());
-            assertThat(measurements.size(), equalTo(1));
-            final Measurement metric = measurements.get(0);
-            assertThat(metric.value().longValue(), greaterThanOrEqualTo(0L));
-            assertThat(metric.attributes().get("indexName"), equalTo(indexName));
-            assertThat(metric.attributes().get("shardId"), equalTo(0));
-            assertThat(metric.attributes().get("primary"), equalTo(true));
-            assertThat(metric.attributes().get("recoveryType"), equalTo("PEER"));
-        });
-    }
-
-    public void testRecoveryMetricPublicationOnIndexingShardStartedAndThenRecovered() throws Exception {
-
-        var indexingNode1 = startIndexNode();
-
-        final TestTelemetryPlugin pluginOnNode1 = internalCluster().getInstance(PluginsService.class, indexingNode1)
-            .filterPlugins(TestTelemetryPlugin.class)
-            .findFirst()
-            .orElseThrow();
-        pluginOnNode1.resetMeter();
-
-        var indexName = randomIdentifier();
-        createIndex(indexName, indexSettings(1, 0).build());
-        ensureGreen(indexName);
-
-        // check that a brand new shard went thru `EMPTY_STORE` recovery type
-        assertBusy(() -> {
-            final List<Measurement> measurements = pluginOnNode1.getLongHistogramMeasurement(
-                RecoveryMetricsCollector.RECOVERY_TOTAL_TIME_METRIC
-            );
-            assertFalse("Total recovery time metric is not recorded", measurements.isEmpty());
-            assertThat(measurements.size(), equalTo(1));
-            final Measurement metric = measurements.get(0);
-            assertThat(metric.attributes().get("indexName"), equalTo(indexName));
-            assertThat(metric.attributes().get("shardId"), equalTo(0));
-            assertThat(metric.attributes().get("primary"), equalTo(true));
-            assertThat(metric.attributes().get("recoveryType"), equalTo("EMPTY_STORE"));
-        });
-
-        // ensure that index shard is allocated on `indexingNode1` only
-        assertAcked(
-            admin().indices()
-                .prepareUpdateSettings(indexName)
-                .setSettings(Settings.builder().put(IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_PREFIX + "._name", indexingNode1))
-        );
-
-        int numDocs = randomIntBetween(100, 1000);
-        indexDocs(indexName, numDocs);
-        refresh(indexName);
-
-        internalCluster().stopNode(indexingNode1);
-
-        // master only node exists
-        assertBusy(() -> assertThat(internalCluster().size(), equalTo(1)));
-
-        var indexingNode2 = startIndexNode();
-
-        final TestTelemetryPlugin pluginOnNode2 = internalCluster().getInstance(PluginsService.class, indexingNode2)
-            .filterPlugins(TestTelemetryPlugin.class)
-            .findFirst()
-            .orElseThrow();
-        pluginOnNode2.resetMeter();
-
-        // start recovery of the shard on a new node
-        assertAcked(
-            admin().indices()
-                .prepareUpdateSettings(indexName)
-                .setSettings(Settings.builder().putNull(IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_PREFIX + "._name"))
-        );
-
-        assertBusy(() -> {
-            final List<Measurement> measurements = pluginOnNode2.getLongHistogramMeasurement(
-                RecoveryMetricsCollector.RECOVERY_TOTAL_TIME_METRIC
-            );
-            assertFalse("Total recovery time metric is not recorded", measurements.isEmpty());
-            assertThat(measurements.size(), equalTo(1));
-            final Measurement metric = measurements.get(0);
-            assertThat(metric.value().longValue(), greaterThan(0L));
-            assertThat(metric.attributes().get("indexName"), equalTo(indexName));
-            assertThat(metric.attributes().get("shardId"), equalTo(0));
-            assertThat(metric.attributes().get("primary"), equalTo(true));
-            assertThat(metric.attributes().get("recoveryType"), equalTo("EXISTING_STORE"));
-        });
-
-        assertBusy(() -> {
-            final List<Measurement> measurements = pluginOnNode2.getLongHistogramMeasurement(
-                RecoveryMetricsCollector.RECOVERY_INDEX_TIME_METRIC
-            );
-            assertFalse("Index recovery time metric is not recorded", measurements.isEmpty());
-            assertThat(measurements.size(), equalTo(1));
-            final Measurement metric = measurements.get(0);
-            assertThat(metric.value().longValue(), greaterThanOrEqualTo(0L));
-            assertThat(metric.attributes().get("indexName"), equalTo(indexName));
-            assertThat(metric.attributes().get("shardId"), equalTo(0));
-            assertThat(metric.attributes().get("primary"), equalTo(true));
-            assertThat(metric.attributes().get("recoveryType"), equalTo("EXISTING_STORE"));
-        });
-
-        assertBusy(() -> {
-            final List<Measurement> measurements = pluginOnNode2.getLongHistogramMeasurement(
-                RecoveryMetricsCollector.RECOVERY_TRANSLOG_TIME_METRIC
-            );
-            assertFalse("Translog recovery time metric is not recorded", measurements.isEmpty());
-            assertThat(measurements.size(), equalTo(1));
-            final Measurement metric = measurements.get(0);
-            assertThat(metric.value().longValue(), greaterThanOrEqualTo(0L));
-            assertThat(metric.attributes().get("indexName"), equalTo(indexName));
-            assertThat(metric.attributes().get("shardId"), equalTo(0));
-            assertThat(metric.attributes().get("primary"), equalTo(true));
-            assertThat(metric.attributes().get("recoveryType"), equalTo("EXISTING_STORE"));
-        });
-    }
-
-    public void testRecoveryMetricPublicationOnSearchingShardStart() throws Exception {
-
-        var indexNode = startIndexNode();
-
-        var indexName = randomIdentifier();
-        createIndex(indexName, indexSettings(1, 0).build());
-        ensureGreen(indexName);
-
-        int numDocs = randomIntBetween(100, 1000);
-        indexDocs(indexName, numDocs);
-        refresh(indexName);
-
-        var searchNode = startSearchNode();
-
-        final TestTelemetryPlugin plugin = internalCluster().getInstance(PluginsService.class, searchNode)
-            .filterPlugins(TestTelemetryPlugin.class)
-            .findFirst()
-            .orElseThrow();
-        plugin.resetMeter();
-
-        // initiate allocation and shard recovery on `searchNode`
-        updateIndexSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1));
-
-        assertBusy(() -> {
-            final List<Measurement> measurements = plugin.getLongHistogramMeasurement(RecoveryMetricsCollector.RECOVERY_TOTAL_TIME_METRIC);
-            assertFalse("Total recovery time metric is not recorded", measurements.isEmpty());
-            assertThat(measurements.size(), equalTo(1));
-            final Measurement metric = measurements.get(0);
-            assertThat(metric.value().longValue(), greaterThan(0L));
-            assertThat(metric.attributes().get("indexName"), equalTo(indexName));
-            assertThat(metric.attributes().get("shardId"), equalTo(0));
-            assertThat(metric.attributes().get("primary"), equalTo(false));
-            assertThat(metric.attributes().get("recoveryType"), equalTo("PEER"));
-        });
-    }
-
-    public void testRecoveryMetricPublicationBytesReadToCache() {
-
-        // in scenarios where cache is disabled (see AbstractStatelessIntegTestCase#settingsForRoles)
-        // nothing is copied to cache and so metric in SharedBlobCacheWarmingService is not incremented
-        var cacheSettings = Settings.builder()
-            .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofMb(randomIntBetween(1, 8)).getStringRep())
-            .put(
-                SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(),
-                ByteSizeValue.ofBytes(randomIntBetween(1, 10) * PAGE_SIZE).getStringRep()
-            )
-            .build();
-
-        var indexingNode1 = startIndexNode(cacheSettings);
-        var indexingNode2 = startIndexNode(cacheSettings);
-
-        var indexName = randomIdentifier();
-        // ensure that index shard is allocated on `indexingNode1` and not on `indexingNode2`
-        createIndex(
-            indexName,
-            Settings.builder()
-                .put(indexSettings(1, 0).build())
-                .put(IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_PREFIX + "._name", indexingNode2)
-                .build()
-        );
-        ensureGreen(indexName);
-
-        int numDocs = randomIntBetween(100, 1000);
-        indexDocs(indexName, numDocs);
-        refresh(indexName);
-
-        var plugin = internalCluster().getInstance(PluginsService.class, indexingNode2)
-            .filterPlugins(TestTelemetryPlugin.class)
-            .findFirst()
-            .orElseThrow();
-        plugin.resetMeter();
-
-        // trigger primary relocation from `indexingNode1` to `indexingNode2`
-        // hence start recovery of the shard on a new node
-        assertAcked(
-            admin().indices()
-                .prepareUpdateSettings(indexName)
-                .setSettings(Settings.builder().put(IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_PREFIX + "._name", indexingNode1))
-        );
-
-        ensureGreen(indexName);
-
-        if (STATELESS_UPLOAD_DELAYED) {
-            boolean warmedBytes;
-            boolean readBytes;
-            {
-                var metric = getSingleRecordedMetric(
-                    plugin::getLongCounterMeasurement,
-                    RecoveryMetricsCollector.RECOVERY_BYTES_WARMED_FROM_OBJECT_STORE_METRIC
-                );
-                warmedBytes = metric.getLong() > 0;
-                assertMetricAttributes(metric, indexName, 0, true);
-            }
-            {
-                var metric = getSingleRecordedMetric(
-                    plugin::getLongCounterMeasurement,
-                    RecoveryMetricsCollector.RECOVERY_BYTES_READ_FROM_OBJECT_STORE_METRIC
-                );
-                readBytes = metric.getLong() > 0;
-                assertMetricAttributes(metric, indexName, 0, true);
-            }
-            assertThat("No bytes read or warmed from object store", warmedBytes || readBytes, equalTo(true));
-            // 2 metrics below are expected to report zeros since all files should be fetched from object store at this time
-            {
-                var metric = getSingleRecordedMetric(
-                    plugin::getLongCounterMeasurement,
-                    RecoveryMetricsCollector.RECOVERY_BYTES_WARMED_FROM_INDEXING_METRIC
-                );
-                assertThat("No bytes warmed from indexing", metric.getLong(), equalTo(0L));
-                assertMetricAttributes(metric, indexName, 0, true);
-            }
-            {
-                var metric = getSingleRecordedMetric(
-                    plugin::getLongCounterMeasurement,
-                    RecoveryMetricsCollector.RECOVERY_BYTES_READ_FROM_INDEXING_METRIC
-                );
-                assertThat("No bytes read from indexing", metric.getLong(), equalTo(0L));
-                assertMetricAttributes(metric, indexName, 0, true);
-            }
-        }
-
-        // in non-RCO setup, cache warming goes directly through `BlobContainer` bypassing `CacheBlobReader`
-        // hence metrics above might not be emitted if all needed files were already fetched
-        // note that this metrics tracks copied bytes both for RCO and non-RCO environments
-        {
-            var metric = getSingleRecordedMetric(
-                plugin::getLongCounterMeasurement,
-                SharedBlobCacheWarmingService.BLOB_CACHE_WARMING_PAGE_ALIGNED_BYTES_TOTAL_METRIC
-            );
-            assertThat(metric.getLong(), greaterThan(0L));
-            assertMetricAttributes(metric, indexName, 0, true);
-        }
-    }
-
-    public void testRecoveryMetricPublicationBytesReadToCacheFromIndexing() throws Exception {
-        assumeTrue("Test only works when uploads are delayed", STATELESS_UPLOAD_DELAYED);
-        // prevent implicit refreshes
-        startIndexNode(
-            Settings.builder()
-                .put(StatelessCommitService.STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.getKey(), Integer.MAX_VALUE)
-                .put(StatelessCommitService.STATELESS_UPLOAD_VBCC_MAX_AGE.getKey(), TimeValue.MAX_VALUE)
-                .put(StatelessCommitService.STATELESS_UPLOAD_MAX_SIZE.getKey(), ByteSizeValue.ofGb(1))
-                .build()
-        );
-
-        var indexName = randomIdentifier();
-        createIndex(indexName, indexSettings(1, 0).build());
-        // have commits both uploaded to object store and pending in vbcc
-
-        var indexShard = findIndexShard(indexName);
-        var indexEngine = asInstanceOf(IndexEngine.class, indexShard.getEngineOrNull());
-        var commitService = indexEngine.getStatelessCommitService();
-
-        indexDocs(indexName, randomIntBetween(10, 20));
-        flush(indexName);   // upload via flush
-        assertThat(commitService.getCurrentVirtualBcc(indexShard.shardId()), nullValue());
-
-        indexDocs(indexName, randomIntBetween(10, 20));
-        // create vbcc but do not upload: upload is disabled and index engine flush does not do upload since it is originated from refresh
-        refresh(indexName);
-        assertThat(commitService.getCurrentVirtualBcc(indexShard.shardId()), notNullValue());
-        ensureGreen(indexName);
-
-        var searchNode = startSearchNode();
-
-        var plugin = internalCluster().getInstance(PluginsService.class, searchNode)
-            .filterPlugins(TestTelemetryPlugin.class)
-            .findFirst()
-            .orElseThrow();
-        plugin.resetMeter();
-
-        // initiate allocation and shard recovery on `searchNode`
-        updateIndexSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1));
-        ensureGreen(indexName);
-
-        if (STATELESS_UPLOAD_DELAYED) {
-            boolean warmedBytes;
-            boolean readBytes;
-            {
-                var metric = getSingleRecordedMetric(
-                    plugin::getLongCounterMeasurement,
-                    RecoveryMetricsCollector.RECOVERY_BYTES_WARMED_FROM_INDEXING_METRIC
-                );
-                warmedBytes = metric.getLong() > 0;
-                assertMetricAttributes(metric, indexName, 0, false);
-            }
-            {
-                var metric = getSingleRecordedMetric(
-                    plugin::getLongCounterMeasurement,
-                    RecoveryMetricsCollector.RECOVERY_BYTES_READ_FROM_INDEXING_METRIC
-                );
-                readBytes = metric.getLong() > 0;
-                assertMetricAttributes(metric, indexName, 0, false);
-            }
-            assertThat("No bytes read or warmed from indexing", warmedBytes || readBytes, equalTo(true));
-        }
-    }
-
-    private static Measurement getSingleRecordedMetric(Function<String, List<Measurement>> metricGetter, String name) {
-        final List<Measurement> measurements = metricGetter.apply(name);
-        assertFalse("Metric is not recorded", measurements.isEmpty());
-        assertThat(measurements.size(), equalTo(1));
-        return measurements.get(0);
-    }
-
-    private void assertMetricAttributes(Measurement metric, String indexName, int shardId, boolean isPrimary) {
-        assertThat(metric.attributes().get("indexName"), equalTo(indexName));
-        assertThat(metric.attributes().get("shardId"), equalTo(shardId));
-        assertThat(metric.attributes().get("primary"), equalTo(isPrimary));
-
     }
 
     public void testCanCreateAnEmptyStoreWithMissingClusterStateUpdates() {

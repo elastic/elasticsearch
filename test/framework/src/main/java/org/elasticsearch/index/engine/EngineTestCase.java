@@ -914,12 +914,8 @@ public abstract class EngineTestCase extends ESTestCase {
         return new BytesArray(string.getBytes(Charset.defaultCharset()));
     }
 
-    public static Term newUid(String id) {
-        return new Term("_id", Uid.encodeId(id));
-    }
-
-    public static Term newUid(ParsedDocument doc) {
-        return newUid(doc.id());
+    public static BytesRef newUid(ParsedDocument doc) {
+        return Uid.encodeId(doc.id());
     }
 
     protected Engine.Get newGet(boolean realtime, ParsedDocument doc) {
@@ -950,7 +946,7 @@ public abstract class EngineTestCase extends ESTestCase {
     protected Engine.Delete replicaDeleteForDoc(String id, long version, long seqNo, long startTime) {
         return new Engine.Delete(
             id,
-            newUid(id),
+            Uid.encodeId(id),
             seqNo,
             1,
             version,
@@ -987,7 +983,7 @@ public abstract class EngineTestCase extends ESTestCase {
     ) {
         final int numOfOps = randomIntBetween(minOpCount, maxOpCount);
         final List<Engine.Operation> ops = new ArrayList<>();
-        final Term id = newUid(docId);
+        final BytesRef id = Uid.encodeId(docId);
         final int startWithSeqNo = 0;
         final String valuePrefix = (forReplica ? "r_" : "p_") + docId + "_";
         final boolean incrementTermWhenIntroducingSeqNo = randomBoolean();

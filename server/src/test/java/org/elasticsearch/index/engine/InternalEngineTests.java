@@ -1105,7 +1105,10 @@ public class InternalEngineTests extends EngineTestCase {
                 new Engine.Get(true, true, "1"),
                 mappingLookup,
                 documentParser,
-                searcher -> SearcherHelper.wrapSearcher(searcher, reader -> new MatchingDirectoryReader(reader, new TermQuery(newUid("1"))))
+                searcher -> SearcherHelper.wrapSearcher(
+                    searcher,
+                    reader -> new MatchingDirectoryReader(reader, new TermQuery(new Term(IdFieldMapper.NAME, Uid.encodeId("1"))))
+                )
             )
         ) {
             assertTrue(get.exists());
@@ -1119,7 +1122,10 @@ public class InternalEngineTests extends EngineTestCase {
                 new Engine.Get(true, true, "1"),
                 mappingLookup,
                 documentParser,
-                searcher -> SearcherHelper.wrapSearcher(searcher, reader -> new MatchingDirectoryReader(reader, new TermQuery(newUid("2"))))
+                searcher -> SearcherHelper.wrapSearcher(
+                    searcher,
+                    reader -> new MatchingDirectoryReader(reader, new TermQuery(new Term(IdFieldMapper.NAME, Uid.encodeId("2"))))
+                )
             )
         ) {
             assertFalse(get.exists());
@@ -1604,7 +1610,7 @@ public class InternalEngineTests extends EngineTestCase {
                 writer.forceMerge(1);
                 try (DirectoryReader reader = DirectoryReader.open(writer)) {
                     assertEquals(1, reader.leaves().size());
-                    assertNull(VersionsAndSeqNoResolver.timeSeriesLoadDocIdAndVersion(reader, new Term(IdFieldMapper.NAME, "1"), false));
+                    assertNull(VersionsAndSeqNoResolver.timeSeriesLoadDocIdAndVersion(reader, new BytesRef("1"), false));
                 }
             }
         }
@@ -1658,7 +1664,8 @@ public class InternalEngineTests extends EngineTestCase {
             for (int i = 0; i < numDocs; i++) {
                 ParsedDocument doc = testParsedDocument(Integer.toString(i), null, testDocument(), B_1, null);
                 if (randomBoolean()) {
-                    engine.delete(new Engine.Delete(doc.id(), newUid(doc.id()), primaryTerm.get()));
+                    String id = doc.id();
+                    engine.delete(new Engine.Delete(doc.id(), Uid.encodeId(id), primaryTerm.get()));
                     liveDocs.remove(doc.id());
                 }
                 if (randomBoolean()) {
@@ -1739,7 +1746,8 @@ public class InternalEngineTests extends EngineTestCase {
                 boolean useRecoverySource = randomBoolean() || omitSourceAllTheTime;
                 ParsedDocument doc = testParsedDocument(Integer.toString(i), null, testDocument(), B_1, null, useRecoverySource);
                 if (randomBoolean()) {
-                    engine.delete(new Engine.Delete(doc.id(), newUid(doc.id()), primaryTerm.get()));
+                    String id = doc.id();
+                    engine.delete(new Engine.Delete(doc.id(), Uid.encodeId(id), primaryTerm.get()));
                     liveDocs.remove(doc.id());
                     liveDocsWithSource.remove(doc.id());
                 }
@@ -2373,7 +2381,7 @@ public class InternalEngineTests extends EngineTestCase {
         final long finalReplicaSeqNo = lastReplicaOp.seqNo();
         assertOpsOnReplica(replicaOps, replicaEngine, true, logger);
         final int opsOnPrimary = assertOpsOnPrimary(primaryOps, finalReplicaVersion, deletedOnReplica, replicaEngine);
-        final long currentSeqNo = getSequenceID(replicaEngine, new Engine.Get(false, false, lastReplicaOp.uid().text())).v1();
+        final long currentSeqNo = getSequenceID(replicaEngine, new Engine.Get(false, false, Term.toString(lastReplicaOp.uid()))).v1();
         try (Engine.Searcher searcher = engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL)) {
             final TotalHitCountCollector collector = new TotalHitCountCollector();
             searcher.search(new MatchAllDocsQuery(), collector);
@@ -2428,7 +2436,7 @@ public class InternalEngineTests extends EngineTestCase {
         final AtomicInteger idGenerator = new AtomicInteger();
         final Queue<OpAndVersion> history = ConcurrentCollections.newQueue();
         ParsedDocument doc = testParsedDocument("1", null, testDocument(), bytesArray(""), null);
-        final Term uidTerm = newUid(doc);
+        final BytesRef uidTerm = newUid(doc);
         engine.index(indexForDoc(doc));
         for (int i = 0; i < thread.length; i++) {
             thread[i] = new Thread(() -> {
@@ -2721,7 +2729,7 @@ public class InternalEngineTests extends EngineTestCase {
                     id = randomFrom(indexedIds);
                     final Engine.Delete delete = new Engine.Delete(
                         id,
-                        newUid(id),
+                        Uid.encodeId(id),
                         UNASSIGNED_SEQ_NO,
                         primaryTerm.get(),
                         rarely() ? 100 : Versions.MATCH_ANY,
@@ -3063,7 +3071,7 @@ public class InternalEngineTests extends EngineTestCase {
             engine.delete(
                 new Engine.Delete(
                     "2",
-                    newUid("2"),
+                    Uid.encodeId("2"),
                     UNASSIGNED_SEQ_NO,
                     0,
                     10,
@@ -3855,7 +3863,10 @@ public class InternalEngineTests extends EngineTestCase {
             try (InternalEngine engine = createEngine(indexWriterFactory, null, null, config)) {
                 final ParsedDocument doc = testParsedDocument("1", null, testDocumentWithTextField(), SOURCE, null);
                 engine.index(indexForDoc(doc));
-                expectThrows(IllegalStateException.class, () -> engine.delete(new Engine.Delete("1", newUid("1"), primaryTerm.get())));
+                expectThrows(
+                    IllegalStateException.class,
+                    () -> engine.delete(new Engine.Delete("1", Uid.encodeId("1"), primaryTerm.get()))
+                );
                 assertTrue(engine.isClosed.get());
                 assertSame(tragicException, engine.failedEngine.get());
             }
@@ -4730,7 +4741,10 @@ public class InternalEngineTests extends EngineTestCase {
                     assertThat(getDocIds(engine, true).stream().collect(Collectors.toMap(e -> e.id(), e -> e.seqNo())), equalTo(liveOps));
                     for (String id : latestOps.keySet()) {
                         String msg = "latestOps=" + latestOps + " op=" + id;
-                        DocIdAndSeqNo docIdAndSeqNo = VersionsAndSeqNoResolver.loadDocIdAndSeqNo(searcher.getIndexReader(), newUid(id));
+                        DocIdAndSeqNo docIdAndSeqNo = VersionsAndSeqNoResolver.loadDocIdAndSeqNo(
+                            searcher.getIndexReader(),
+                            Uid.encodeId(id)
+                        );
                         if (liveOps.containsKey(id) == false) {
                             assertNull(msg, docIdAndSeqNo);
                         } else {
@@ -4739,7 +4753,7 @@ public class InternalEngineTests extends EngineTestCase {
                         }
                     }
                     String notFoundId = randomValueOtherThanMany(liveOps::containsKey, () -> Long.toString(randomNonNegativeLong()));
-                    assertNull(VersionsAndSeqNoResolver.loadDocIdAndSeqNo(searcher.getIndexReader(), newUid(notFoundId)));
+                    assertNull(VersionsAndSeqNoResolver.loadDocIdAndSeqNo(searcher.getIndexReader(), Uid.encodeId(notFoundId)));
                 }
             };
             for (Engine.Operation op : operations) {
@@ -4880,7 +4894,7 @@ public class InternalEngineTests extends EngineTestCase {
             document.add(new Field(SourceFieldMapper.NAME, BytesReference.toBytes(B_1), SourceFieldMapper.Defaults.FIELD_TYPE));
             return testParsedDocument("1", null, document, B_1, null);
         };
-        final Term uid = newUid("1");
+        final BytesRef uid = Uid.encodeId("1");
         final BiFunction<String, Engine.SearcherScope, Engine.Searcher> searcherFactory = engine::acquireSearcher;
         for (int i = 0; i < numberOfOperations; i++) {
             if (randomBoolean()) {
@@ -4970,12 +4984,12 @@ public class InternalEngineTests extends EngineTestCase {
      */
     public void testVersionConflictIgnoreDeletedDoc() throws IOException {
         ParsedDocument doc = testParsedDocument("1", null, testDocument(), new BytesArray("{}".getBytes(Charset.defaultCharset())), null);
-        engine.delete(new Engine.Delete("1", newUid("1"), 1));
+        engine.delete(new Engine.Delete("1", Uid.encodeId("1"), 1));
         for (long seqNo : new long[] { 0, 1, randomNonNegativeLong() }) {
             assertDeletedVersionConflict(
                 engine.index(
                     new Engine.Index(
-                        newUid("1"),
+                        Uid.encodeId("1"),
                         doc,
                         UNASSIGNED_SEQ_NO,
                         1,
@@ -4996,7 +5010,7 @@ public class InternalEngineTests extends EngineTestCase {
                 engine.delete(
                     new Engine.Delete(
                         "1",
-                        newUid("1"),
+                        Uid.encodeId("1"),
                         UNASSIGNED_SEQ_NO,
                         1,
                         Versions.MATCH_ANY,
@@ -5539,7 +5553,7 @@ public class InternalEngineTests extends EngineTestCase {
             );
 
             final Engine.Index index = new Engine.Index(
-                new Term("_id", parsedDocument.id()),
+                BytesRef.deepCopyOf(new BytesRef(parsedDocument.id())),
                 parsedDocument,
                 UNASSIGNED_SEQ_NO,
                 randomIntBetween(1, 8),
@@ -5558,7 +5572,7 @@ public class InternalEngineTests extends EngineTestCase {
 
             final Engine.Delete delete = new Engine.Delete(
                 id,
-                new Term("_id", parsedDocument.id()),
+                BytesRef.deepCopyOf(new BytesRef(parsedDocument.id())),
                 UNASSIGNED_SEQ_NO,
                 randomIntBetween(1, 8),
                 Versions.MATCH_ANY,
@@ -6547,7 +6561,8 @@ public class InternalEngineTests extends EngineTestCase {
                     );
                 }
             } else {
-                Engine.DeleteResult result = engine.delete(new Engine.Delete(doc.id(), newUid(doc.id()), primaryTerm.get()));
+                String id = doc.id();
+                Engine.DeleteResult result = engine.delete(new Engine.Delete(doc.id(), Uid.encodeId(id), primaryTerm.get()));
                 liveDocIds.remove(doc.id());
                 assertThat(
                     "delete operations on primary must advance max_seq_no_of_updates",
@@ -6895,7 +6910,7 @@ public class InternalEngineTests extends EngineTestCase {
                 index(engine, i);
             }
             engine.forceMerge(true, 1, false, UUIDs.randomBase64UUID());
-            engine.delete(new Engine.Delete("0", newUid("0"), primaryTerm.get()));
+            engine.delete(new Engine.Delete("0", Uid.encodeId("0"), primaryTerm.get()));
             engine.refresh("test");
             // now we have 2 segments since we now added a tombstone plus the old segment with the delete
             try (Engine.Searcher searcher = engine.acquireSearcher("test")) {
@@ -7106,8 +7121,8 @@ public class InternalEngineTests extends EngineTestCase {
             iw.set(new ThrowingIndexWriter(dir, iwc));
             return iw.get();
         }, null, null, config(defaultSettings, store, createTempDir(), NoMergePolicy.INSTANCE, null))) {
-            engine.index(new Engine.Index(newUid("0"), primaryTerm.get(), InternalEngineTests.createParsedDoc("0", null)));
-            final Engine.Delete op = new Engine.Delete("0", newUid("0"), primaryTerm.get());
+            engine.index(new Engine.Index(Uid.encodeId("0"), primaryTerm.get(), InternalEngineTests.createParsedDoc("0", null)));
+            final Engine.Delete op = new Engine.Delete("0", Uid.encodeId("0"), primaryTerm.get());
             consumer.accept(engine, op);
             iw.get().setThrowFailure(() -> new IllegalArgumentException("fatal"));
             final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> engine.delete(op));
@@ -7385,7 +7400,7 @@ public class InternalEngineTests extends EngineTestCase {
                 if (randomBoolean()) {
                     operations.add(indexForDoc(createParsedDoc(id, null)));
                 } else {
-                    operations.add(new Engine.Delete(id, newUid(id), primaryTerm.get()));
+                    operations.add(new Engine.Delete(id, Uid.encodeId(id), primaryTerm.get()));
                 }
             }
             for (int i = 0; i < numDocs; i++) {

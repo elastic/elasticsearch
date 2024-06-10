@@ -4,6 +4,8 @@ import org.elasticsearch.gradle.internal.precommit.CheckForbiddenApisTask;
 apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.internal-cluster-test'
 apply plugin: 'elasticsearch.string-templates'
+apply plugin: 'elasticsearch.publish'
+
 esplugin {
   name 'x-pack-esql'
   description 'The plugin that powers ESQL for Elasticsearch'
@@ -47,24 +49,34 @@ tasks.named("compileJava").configure {
   exclude { it.file.toString().startsWith("${projectDir}/src/main/generated-src/generated") }
 }
 
+interface Injected {
+  @Inject FileSystemOperations getFs()
+}
+
 tasks.named("test").configure {
   if (BuildParams.isCi() == false) {
     systemProperty 'generateDocs', true
+    def injected = project.objects.newInstance(Injected)
     doFirst {
-      project.delete(
-        files("${projectDir}/build/testrun/test/temp/esql/functions")
-      )
+      injected.fs.delete {
+        it.delete("build/testrun/test/temp/esql/functions")
+      }
     }
+    File functionsFolder = file("build/testrun/test/temp/esql/functions")
+    File signatureFolder = file("build/testrun/test/temp/esql/functions/signature")
+    File typesFolder = file("build/testrun/test/temp/esql/functions/types")
+    def functionsDocFolder = file("${rootDir}/docs/reference/esql/functions")
+    def effectiveProjectDir = projectDir
+
     doLast {
-      List signatures = file("${projectDir}/build/testrun/test/temp/esql/functions/signature").list().findAll {it.endsWith("svg")}
-      List types = file("${projectDir}/build/testrun/test/temp/esql/functions/types").list().findAll {it.endsWith("asciidoc")}
+      List types = typesFolder.list().findAll {it.endsWith("asciidoc")}
       int count = types == null ? 0 : types.size()
       Closure readExample = line -> {
         line.replaceAll(/read-example::([^\[]+)\[tag=([^,\]]+)(, ?json)?\]/, {
           String file = it[1]
           String tag = it[2]
           boolean isJson = it[3]
-          String allExamples = new File("${projectDir}/qa/testFixtures/src/main/resources/${file}").text
+          String allExamples = new File("${effectiveProjectDir}/qa/testFixtures/src/main/resources/${file}").text
             .replaceAll(System.lineSeparator(), "\n")
           int start = allExamples.indexOf("tag::${tag}[]")
           int end = allExamples.indexOf("end::${tag}[]", start)
@@ -85,9 +97,9 @@ tasks.named("test").configure {
         logger.quiet("ESQL Docs: No function signatures created. Skipping sync.")
       } else if (count == 1) {
         logger.quiet("ESQL Docs: Only files related to $types, patching them into place")
-        project.sync {
-          from "${projectDir}/build/testrun/test/temp/esql/functions"
-          into "${rootDir}/docs/reference/esql/functions"
+        injected.fs.sync {
+          from functionsFolder
+          into functionsDocFolder
           include '**/*.asciidoc', '**/*.svg', '**/*.md', '**/*.json'
           preserve {
             include '/*.asciidoc', '**/*.asciidoc', '**/*.md', '**/*.json', '**/*.svg', 'README.md'
@@ -95,9 +107,9 @@ tasks.named("test").configure {
           filter readExample
         }
       } else {
-        project.sync {
-          from "${projectDir}/build/testrun/test/temp/esql/functions"
-          into "${rootDir}/docs/reference/esql/functions"
+        injected.fs.sync {
+          from functionsFolder
+          into functionsDocFolder
           include '**/*.asciidoc', '**/*.svg', '**/*.md', '**/*.json'
           preserve {
             include '/*.asciidoc', 'README.md'

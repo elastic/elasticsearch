@@ -7,11 +7,10 @@
 
 package org.elasticsearch.xpack.esql.core.type;
 
-import java.io.IOException;
 import java.util.Map;
 
 public class UnsupportedEsFieldTests extends AbstractEsFieldTypeTests<UnsupportedEsField> {
-    static UnsupportedEsField randomUnsupportedEsField(int maxPropertiesDepth) {
+    public static UnsupportedEsField randomUnsupportedEsField(int maxPropertiesDepth) {
         String name = randomAlphaOfLength(4);
         String originalType = randomAlphaOfLength(5);
         String inherited = randomBoolean() ? null : randomAlphaOfLength(5);
@@ -25,7 +24,7 @@ public class UnsupportedEsFieldTests extends AbstractEsFieldTypeTests<Unsupporte
     }
 
     @Override
-    protected UnsupportedEsField mutate(UnsupportedEsField instance) throws IOException {
+    protected UnsupportedEsField mutate(UnsupportedEsField instance) {
         String name = instance.getName();
         String originalType = randomAlphaOfLength(5);
         String inherited = randomBoolean() ? null : randomAlphaOfLength(5);

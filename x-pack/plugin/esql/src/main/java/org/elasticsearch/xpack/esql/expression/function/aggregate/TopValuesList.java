@@ -15,7 +15,6 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.type.DataTypes;
 import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
@@ -102,7 +101,7 @@ public class TopValuesList extends AggregateFunction implements ToAggregator, Su
         var typeResolution = isType(field(), EsqlDataTypes::isRepresentable, sourceText(), FIRST, "representable").and(
             isFoldable(limitField(), sourceText(), SECOND)
         )
-            .and(isType(limitField(), dt -> dt == DataTypes.INTEGER, sourceText(), SECOND, "integer"))
+            .and(isType(limitField(), dt -> dt == DataType.INTEGER, sourceText(), SECOND, "integer"))
             .and(isFoldable(orderField(), sourceText(), THIRD))
             .and(isString(orderField(), sourceText(), THIRD));
 
@@ -142,7 +141,7 @@ public class TopValuesList extends AggregateFunction implements ToAggregator, Su
     @Override
     public AggregatorFunctionSupplier supplier(List<Integer> inputChannels) {
         DataType type = field().dataType();
-        if (type == DataTypes.LONG || type == DataTypes.DATETIME) {
+        if (type == DataType.LONG || type == DataType.DATETIME) {
             return new TopValuesListLongAggregatorFunctionSupplier(inputChannels, limitValue(), orderValue());
         }
         throw EsqlIllegalArgumentException.illegalDataType(type);
@@ -152,7 +151,7 @@ public class TopValuesList extends AggregateFunction implements ToAggregator, Su
     public Expression surrogate() {
         var s = source();
 
-        if (field().dataType() == DataTypes.LONG) {
+        if (field().dataType() == DataType.LONG) {
             return null;
         }
 
@@ -163,8 +162,8 @@ public class TopValuesList extends AggregateFunction implements ToAggregator, Su
         return new MvSlice(
             s,
             new MvSort(s, new Values(s, field()), orderField()),
-            new Literal(s, 0, DataTypes.INTEGER),
-            new Literal(s, limitValue() - 1, DataTypes.INTEGER)
+            new Literal(s, 0, DataType.INTEGER),
+            new Literal(s, limitValue() - 1, DataType.INTEGER)
         );
     }
 }

@@ -69,6 +69,14 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         IndexMode.TIME_SERIES
     );
 
+    private static final SourceFieldMapper LOGS_DEFAULT = new SourceFieldMapper(
+        Mode.SYNTHETIC,
+        Explicit.IMPLICIT_TRUE,
+        Strings.EMPTY_ARRAY,
+        Strings.EMPTY_ARRAY,
+        IndexMode.LOGS
+    );
+
     /*
      * Synthetic source was added as the default for TSDB in v.8.7. The legacy field mapper below
      * is used in bwc tests and mixed clusters containing time series indexes created in an earlier version.
@@ -156,7 +164,8 @@ public class SourceFieldMapper extends MetadataFieldMapper {
 
         private boolean isDefault() {
             Mode m = mode.get();
-            if (m != null && (((indexMode == IndexMode.TIME_SERIES && m == Mode.SYNTHETIC) == false) || m == Mode.DISABLED)) {
+            if (m != null
+                && (((indexMode != null && indexMode.isSyntheticSourceEnabled() && m == Mode.SYNTHETIC) == false) || m == Mode.DISABLED)) {
                 return false;
             }
             return enabled.get().value() && includes.getValue().isEmpty() && excludes.getValue().isEmpty();
@@ -165,15 +174,19 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         @Override
         public SourceFieldMapper build() {
             if (enabled.getValue().explicit()) {
-                if (indexMode == IndexMode.TIME_SERIES) {
-                    throw new MapperParsingException("Time series indices only support synthetic source");
+                if (indexMode != null && indexMode.isSyntheticSourceEnabled()) {
+                    throw new MapperParsingException("Indices with with index mode [" + indexMode + "] only support synthetic source");
                 }
                 if (mode.get() != null) {
                     throw new MapperParsingException("Cannot set both [mode] and [enabled] parameters");
                 }
             }
             if (isDefault()) {
-                return indexMode == IndexMode.TIME_SERIES ? TSDB_DEFAULT : DEFAULT;
+                return switch (indexMode) {
+                    case TIME_SERIES -> TSDB_DEFAULT;
+                    case LOGS -> LOGS_DEFAULT;
+                    default -> DEFAULT;
+                };
             }
             if (supportsNonDefaultParameterValues == false) {
                 List<String> disallowed = new ArrayList<>();
@@ -212,10 +225,21 @@ public class SourceFieldMapper extends MetadataFieldMapper {
 
     }
 
-    public static final TypeParser PARSER = new ConfigurableTypeParser(
-        c -> c.getIndexSettings().getMode() == IndexMode.TIME_SERIES
-            ? c.getIndexSettings().getIndexVersionCreated().onOrAfter(IndexVersions.V_8_7_0) ? TSDB_DEFAULT : TSDB_LEGACY_DEFAULT
-            : DEFAULT,
+    public static final TypeParser PARSER = new ConfigurableTypeParser(c -> {
+        var indexMode = c.getIndexSettings().getMode();
+        if (indexMode.isSyntheticSourceEnabled()) {
+            if (indexMode == IndexMode.TIME_SERIES) {
+                if (c.getIndexSettings().getIndexVersionCreated().onOrAfter(IndexVersions.V_8_7_0)) {
+                    return TSDB_DEFAULT;
+                } else {
+                    return TSDB_LEGACY_DEFAULT;
+                }
+            } else if (indexMode == IndexMode.LOGS) {
+                return LOGS_DEFAULT;
+            }
+        }
+        return DEFAULT;
+    },
         c -> new Builder(
             c.getIndexSettings().getMode(),
             c.getSettings(),
@@ -323,6 +347,9 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         final BytesReference adaptedSource = applyFilters(originalSource, contentType);
 
         if (adaptedSource != null) {
+            assert context.indexSettings().getIndexVersionCreated().before(IndexVersions.V_8_7_0)
+                || indexMode == null
+                || indexMode.isSyntheticSourceEnabled() == false;
             final BytesRef ref = adaptedSource.toBytesRef();
             context.doc().add(new StoredField(fieldType().name(), ref.bytes, ref.offset, ref.length));
         }
@@ -363,7 +390,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
      */
     public SourceLoader newSourceLoader(Mapping mapping, SourceFieldMetrics metrics) {
         if (mode == Mode.SYNTHETIC) {
-            return new SourceLoader.Synthetic(mapping, metrics);
+            return new SourceLoader.Synthetic(mapping::syntheticFieldLoader, metrics);
         }
         return SourceLoader.FROM_STORED_SOURCE;
     }

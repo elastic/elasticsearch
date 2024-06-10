@@ -15,6 +15,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
@@ -25,7 +26,6 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.type.DataTypes;
 import org.elasticsearch.xpack.esql.core.type.DateUtils;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.TypesTests;
@@ -45,12 +45,13 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.regex.Pattern;
 
 import static java.util.Collections.emptyList;
@@ -269,9 +270,13 @@ public final class EsqlTestUtils {
         }
     }
 
-    static Map<String, Map<String, Column>> tables() {
+    /**
+     * "tables" provided in the context for the LOOKUP command. If you
+     * add to this, you must also add to {@code EsqlSpecTestCase#tables};
+     */
+    public static Map<String, Map<String, Column>> tables() {
         BlockFactory factory = new BlockFactory(new NoopCircuitBreaker(CircuitBreaker.REQUEST), BigArrays.NON_RECYCLING_INSTANCE);
-        Map<String, Map<String, Column>> tables = new HashMap<>();
+        Map<String, Map<String, Column>> tables = new TreeMap<>();
         try (
             IntBlock.Builder ints = factory.newIntBlockBuilder(10);
             LongBlock.Builder longs = factory.newLongBlockBuilder(10);
@@ -280,19 +285,7 @@ public final class EsqlTestUtils {
             for (int i = 0; i < 10; i++) {
                 ints.appendInt(i);
                 longs.appendLong(i);
-                names.appendBytesRef(new BytesRef(switch (i) {
-                    case 0 -> "zero";
-                    case 1 -> "one";
-                    case 2 -> "two";
-                    case 3 -> "three";
-                    case 4 -> "four";
-                    case 5 -> "five";
-                    case 6 -> "six";
-                    case 7 -> "seven";
-                    case 8 -> "eight";
-                    case 9 -> "nine";
-                    default -> throw new IllegalArgumentException();
-                }));
+                names.appendBytesRef(new BytesRef(numberName(i)));
             }
 
             IntBlock intsBlock = ints.build();
@@ -300,13 +293,104 @@ public final class EsqlTestUtils {
             BytesRefBlock namesBlock = names.build();
             tables.put(
                 "int_number_names",
-                Map.of("int", new Column(DataTypes.INTEGER, intsBlock), "name", new Column(DataTypes.KEYWORD, namesBlock))
+                table(
+                    Map.entry("int", new Column(DataType.INTEGER, intsBlock)),
+                    Map.entry("name", new Column(DataType.KEYWORD, namesBlock))
+                )
             );
             tables.put(
                 "long_number_names",
-                Map.of("long", new Column(DataTypes.LONG, longsBlock), "name", new Column(DataTypes.KEYWORD, namesBlock))
+                table(Map.entry("long", new Column(DataType.LONG, longsBlock)), Map.entry("name", new Column(DataType.KEYWORD, namesBlock)))
             );
         }
+        for (boolean hasNull : new boolean[] { true, false }) {
+            try (
+                DoubleBlock.Builder doubles = factory.newDoubleBlockBuilder(2);
+                BytesRefBlock.Builder names = factory.newBytesRefBlockBuilder(2);
+            ) {
+                doubles.appendDouble(2.03);
+                names.appendBytesRef(new BytesRef("two point zero three"));
+                doubles.appendDouble(2.08);
+                names.appendBytesRef(new BytesRef("two point zero eight"));
+                if (hasNull) {
+                    doubles.appendDouble(0.0);
+                    names.appendNull();
+                }
+                tables.put(
+                    "double_number_names" + (hasNull ? "_with_null" : ""),
+                    table(
+                        Map.entry("double", new Column(DataType.DOUBLE, doubles.build())),
+                        Map.entry("name", new Column(DataType.KEYWORD, names.build()))
+                    )
+                );
+            }
+        }
+        try (
+            BytesRefBlock.Builder aa = factory.newBytesRefBlockBuilder(3);
+            BytesRefBlock.Builder ab = factory.newBytesRefBlockBuilder(3);
+            IntBlock.Builder na = factory.newIntBlockBuilder(3);
+            IntBlock.Builder nb = factory.newIntBlockBuilder(3);
+        ) {
+            aa.appendBytesRef(new BytesRef("foo"));
+            ab.appendBytesRef(new BytesRef("zoo"));
+            na.appendInt(1);
+            nb.appendInt(-1);
+
+            aa.appendBytesRef(new BytesRef("bar"));
+            ab.appendBytesRef(new BytesRef("zop"));
+            na.appendInt(10);
+            nb.appendInt(-10);
+
+            aa.appendBytesRef(new BytesRef("baz"));
+            ab.appendBytesRef(new BytesRef("zoi"));
+            na.appendInt(100);
+            nb.appendInt(-100);
+
+            aa.appendBytesRef(new BytesRef("foo"));
+            ab.appendBytesRef(new BytesRef("foo"));
+            na.appendInt(2);
+            nb.appendInt(-2);
+
+            tables.put(
+                "big",
+                table(
+                    Map.entry("aa", new Column(DataType.KEYWORD, aa.build())),
+                    Map.entry("ab", new Column(DataType.KEYWORD, ab.build())),
+                    Map.entry("na", new Column(DataType.INTEGER, na.build())),
+                    Map.entry("nb", new Column(DataType.INTEGER, nb.build()))
+                )
+            );
+        }
+
         return unmodifiableMap(tables);
+    }
+
+    /**
+     * Builds a table from the provided parameters. This isn't just a call to
+     * {@link Map#of} because we want to maintain sort order of the columns
+     */
+    @SafeVarargs
+    public static <T> Map<String, T> table(Map.Entry<String, T>... kv) {
+        Map<String, T> table = new LinkedHashMap<>();
+        for (Map.Entry<String, T> stringTEntry : kv) {
+            table.put(stringTEntry.getKey(), stringTEntry.getValue());
+        }
+        return table;
+    }
+
+    public static String numberName(int i) {
+        return switch (i) {
+            case 0 -> "zero";
+            case 1 -> "one";
+            case 2 -> "two";
+            case 3 -> "three";
+            case 4 -> "four";
+            case 5 -> "five";
+            case 6 -> "six";
+            case 7 -> "seven";
+            case 8 -> "eight";
+            case 9 -> "nine";
+            default -> throw new IllegalArgumentException();
+        };
     }
 }

@@ -30,9 +30,9 @@ public final class AbsLongEvaluator implements EvalOperator.ExpressionEvaluator 
 
   public AbsLongEvaluator(Source source, EvalOperator.ExpressionEvaluator fieldVal,
       DriverContext driverContext) {
-    this.warnings = new Warnings(source);
     this.fieldVal = fieldVal;
     this.driverContext = driverContext;
+    this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
   }
 
   @Override
@@ -67,9 +67,9 @@ public final class AbsLongEvaluator implements EvalOperator.ExpressionEvaluator 
   }
 
   public LongVector eval(int positionCount, LongVector fieldValVector) {
-    try(LongVector.Builder result = driverContext.blockFactory().newLongVectorBuilder(positionCount)) {
+    try(LongVector.FixedBuilder result = driverContext.blockFactory().newLongVectorFixedBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendLong(Abs.process(fieldValVector.getLong(p)));
+        result.appendLong(p, Abs.process(fieldValVector.getLong(p)));
       }
       return result.build();
     }

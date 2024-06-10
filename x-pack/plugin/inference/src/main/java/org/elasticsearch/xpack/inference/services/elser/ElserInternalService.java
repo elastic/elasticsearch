@@ -29,19 +29,19 @@ import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.ClientHelper;
-import org.elasticsearch.xpack.core.inference.results.ChunkedSparseEmbeddingResults;
 import org.elasticsearch.xpack.core.inference.results.ErrorChunkedInferenceResults;
+import org.elasticsearch.xpack.core.inference.results.InferenceChunkedSparseEmbeddingResults;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.action.CreateTrainedModelAssignmentAction;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
-import org.elasticsearch.xpack.core.ml.action.InferTrainedModelDeploymentAction;
+import org.elasticsearch.xpack.core.ml.action.InferModelAction;
 import org.elasticsearch.xpack.core.ml.action.PutTrainedModelAction;
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.action.StopTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelInput;
-import org.elasticsearch.xpack.core.ml.inference.results.ChunkedTextExpansionResults;
 import org.elasticsearch.xpack.core.ml.inference.results.ErrorInferenceResults;
+import org.elasticsearch.xpack.core.ml.inference.results.InferenceChunkedTextExpansionResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextExpansionConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TokenizationConfigUpdate;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
@@ -58,6 +58,7 @@ import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 import static org.elasticsearch.xpack.core.ml.inference.assignment.AllocationStatus.State.STARTED;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrThrowIfNull;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwIfNotEmptyMap;
+import static org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalService.buildInferenceRequest;
 
 public class ElserInternalService implements InferenceService {
 
@@ -259,7 +260,7 @@ public class ElserInternalService implements InferenceService {
     public void infer(
         Model model,
         @Nullable String query,
-        List<String> input,
+        List<String> inputs,
         Map<String, Object> taskSettings,
         InputType inputType,
         TimeValue timeout,
@@ -274,16 +275,21 @@ public class ElserInternalService implements InferenceService {
             return;
         }
 
-        var request = InferTrainedModelDeploymentAction.Request.forTextInput(
+        var request = buildInferenceRequest(
             model.getConfigurations().getInferenceEntityId(),
             TextExpansionConfigUpdate.EMPTY_UPDATE,
-            input,
-            timeout
+            inputs,
+            inputType,
+            timeout,
+            false // chunk
         );
+
         client.execute(
-            InferTrainedModelDeploymentAction.INSTANCE,
+            InferModelAction.INSTANCE,
             request,
-            listener.delegateFailureAndWrap((l, inferenceResult) -> l.onResponse(SparseEmbeddingResults.of(inferenceResult.getResults())))
+            listener.delegateFailureAndWrap(
+                (l, inferenceResult) -> l.onResponse(SparseEmbeddingResults.of(inferenceResult.getInferenceResults()))
+            )
         );
     }
 
@@ -303,7 +309,7 @@ public class ElserInternalService implements InferenceService {
     public void chunkedInfer(
         Model model,
         @Nullable String query,
-        List<String> input,
+        List<String> inputs,
         Map<String, Object> taskSettings,
         InputType inputType,
         @Nullable ChunkingOptions chunkingOptions,
@@ -321,18 +327,21 @@ public class ElserInternalService implements InferenceService {
             ? new TokenizationConfigUpdate(chunkingOptions.windowSize(), chunkingOptions.span())
             : new TokenizationConfigUpdate(null, null);
 
-        var request = InferTrainedModelDeploymentAction.Request.forTextInput(
+        var request = buildInferenceRequest(
             model.getConfigurations().getInferenceEntityId(),
             configUpdate,
-            input,
-            timeout
+            inputs,
+            inputType,
+            timeout,
+            true // chunk
         );
-        request.setChunkResults(true);
 
         client.execute(
-            InferTrainedModelDeploymentAction.INSTANCE,
+            InferModelAction.INSTANCE,
             request,
-            listener.delegateFailureAndWrap((l, inferenceResult) -> l.onResponse(translateChunkedResults(inferenceResult.getResults())))
+            listener.delegateFailureAndWrap(
+                (l, inferenceResult) -> l.onResponse(translateChunkedResults(inferenceResult.getInferenceResults()))
+            )
         );
     }
 
@@ -407,15 +416,15 @@ public class ElserInternalService implements InferenceService {
         var translated = new ArrayList<ChunkedInferenceServiceResults>();
 
         for (var inferenceResult : inferenceResults) {
-            if (inferenceResult instanceof ChunkedTextExpansionResults mlChunkedResult) {
-                translated.add(ChunkedSparseEmbeddingResults.ofMlResult(mlChunkedResult));
+            if (inferenceResult instanceof InferenceChunkedTextExpansionResults mlChunkedResult) {
+                translated.add(InferenceChunkedSparseEmbeddingResults.ofMlResult(mlChunkedResult));
             } else if (inferenceResult instanceof ErrorInferenceResults error) {
                 translated.add(new ErrorChunkedInferenceResults(error.getException()));
             } else {
                 throw new ElasticsearchStatusException(
                     "Expected a chunked inference [{}] received [{}]",
                     RestStatus.INTERNAL_SERVER_ERROR,
-                    ChunkedTextExpansionResults.NAME,
+                    InferenceChunkedTextExpansionResults.NAME,
                     inferenceResult.getWriteableName()
                 );
             }

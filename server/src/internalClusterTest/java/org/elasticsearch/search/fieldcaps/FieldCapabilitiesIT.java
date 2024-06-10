@@ -25,8 +25,8 @@ import org.elasticsearch.client.Cancellable;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
+import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -185,6 +185,14 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return List.of(TestMapperPlugin.class, ExceptionOnRewriteQueryPlugin.class, BlockingOnRewriteQueryPlugin.class);
+    }
+
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+        return Settings.builder()
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
+            .put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), EnableAllocationDecider.Rebalance.NONE)
+            .build();
     }
 
     @Override
@@ -529,23 +537,31 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
                     closeShardNoCheck(indexShard, randomBoolean());
                 } else if (randomBoolean()) {
                     final ShardId shardId = indexShard.shardId();
-                    final String[] nodeNames = internalCluster().getNodeNames();
-                    final String newNodeName = randomValueOtherThanMany(n -> nodeName.equals(n) == false, () -> randomFrom(nodeNames));
-                    DiscoveryNode fromNode = null;
-                    DiscoveryNode toNode = null;
-                    for (DiscoveryNode node : clusterService().state().nodes()) {
-                        if (node.getName().equals(nodeName)) {
-                            fromNode = node;
-                        }
-                        if (node.getName().equals(newNodeName)) {
-                            toNode = node;
+
+                    final var targetNodes = new ArrayList<String>();
+                    for (final var targetIndicesService : internalCluster().getInstances(IndicesService.class)) {
+                        final var targetNode = targetIndicesService.clusterService().localNode();
+                        if (targetNode.canContainData() && targetIndicesService.getShardOrNull(shardId) == null) {
+                            targetNodes.add(targetNode.getId());
                         }
                     }
-                    assertNotNull(fromNode);
-                    assertNotNull(toNode);
-                    clusterAdmin().prepareReroute()
-                        .add(new MoveAllocationCommand(shardId.getIndexName(), shardId.id(), fromNode.getId(), toNode.getId()))
-                        .get();
+
+                    if (targetNodes.isEmpty()) {
+                        continue;
+                    }
+
+                    safeGet(
+                        clusterAdmin().prepareReroute()
+                            .add(
+                                new MoveAllocationCommand(
+                                    shardId.getIndexName(),
+                                    shardId.id(),
+                                    indicesService.clusterService().localNode().getId(),
+                                    randomFrom(targetNodes)
+                                )
+                            )
+                            .execute()
+                    );
                 }
             }
         }
@@ -570,7 +586,7 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
             if (randomBoolean()) {
                 request.indexFilter(QueryBuilders.rangeQuery("timestamp").gte("2020-01-01"));
             }
-            final FieldCapabilitiesResponse response = client().execute(TransportFieldCapabilitiesAction.TYPE, request).actionGet();
+            final FieldCapabilitiesResponse response = safeGet(client().execute(TransportFieldCapabilitiesAction.TYPE, request));
             assertThat(response.getIndices(), arrayContainingInAnyOrder("log-index-1", "log-index-2"));
             assertThat(response.getField("field1"), aMapWithSize(2));
             assertThat(response.getField("field1"), hasKey("long"));

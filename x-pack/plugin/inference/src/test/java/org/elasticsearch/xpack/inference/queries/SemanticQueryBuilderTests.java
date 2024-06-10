@@ -44,9 +44,10 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
+import org.elasticsearch.xpack.core.inference.results.InferenceTextEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
-import org.elasticsearch.xpack.core.ml.inference.results.TextEmbeddingResults;
+import org.elasticsearch.xpack.core.ml.inference.results.MlTextEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
 import org.elasticsearch.xpack.core.ml.search.WeightedToken;
 import org.elasticsearch.xpack.inference.InferencePlugin;
@@ -258,11 +259,9 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
     private InferenceAction.Response generateTextEmbeddingInferenceResponse() {
         double[] inference = new double[TEXT_EMBEDDING_DIMENSION_COUNT];
         Arrays.fill(inference, 1.0);
-        TextEmbeddingResults textEmbeddingResults = new TextEmbeddingResults(DEFAULT_RESULTS_FIELD, inference, false);
+        MlTextEmbeddingResults textEmbeddingResults = new MlTextEmbeddingResults(DEFAULT_RESULTS_FIELD, inference, false);
 
-        return new InferenceAction.Response(
-            org.elasticsearch.xpack.core.inference.results.TextEmbeddingResults.of(List.of(textEmbeddingResults))
-        );
+        return new InferenceAction.Response(InferenceTextEmbeddingFloatResults.of(List.of(textEmbeddingResults)));
     }
 
     @Override

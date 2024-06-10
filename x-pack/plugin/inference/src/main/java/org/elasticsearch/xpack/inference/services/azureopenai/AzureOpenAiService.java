@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.inference.services.azureopenai;
 
+import java.util.concurrent.ConcurrentHashMap;
+
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
@@ -51,6 +53,7 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwIfNot
 
 public class AzureOpenAiService extends SenderService {
     public static final String NAME = "azureopenai";
+    private static final ConcurrentHashMap<String, InferenceServiceResults> embeddingsCache = new ConcurrentHashMap<>();
 
     public AzureOpenAiService(HttpRequestSender.Factory factory, ServiceComponents serviceComponents) {
         super(factory, serviceComponents);
@@ -181,16 +184,34 @@ public class AzureOpenAiService extends SenderService {
         TimeValue timeout,
         ActionListener<InferenceServiceResults> listener
     ) {
-        if (model instanceof AzureOpenAiModel == false) {
+        if (!(model instanceof AzureOpenAiModel azureOpenAiModel)) {
             listener.onFailure(createInvalidModelException(model));
             return;
         }
 
-        AzureOpenAiModel azureOpenAiModel = (AzureOpenAiModel) model;
         var actionCreator = new AzureOpenAiActionCreator(getSender(), getServiceComponents());
 
+        String cacheKey = String.join(",", input);
+        InferenceServiceResults cachedResults = embeddingsCache.get(cacheKey);
+
+        if (cachedResults != null) {
+            listener.onResponse(cachedResults);
+            return;
+        }
+
         var action = azureOpenAiModel.accept(actionCreator, taskSettings);
-        action.execute(new DocumentsOnlyInput(input), timeout, listener);
+        action.execute(new DocumentsOnlyInput(input), timeout, new ActionListener<>() {
+          @Override
+          public void onResponse(InferenceServiceResults inferenceResults) {
+            embeddingsCache.put(cacheKey, inferenceResults);
+            listener.onResponse(inferenceResults);
+          }
+
+          @Override
+          public void onFailure(Exception e) {
+            listener.onFailure(e);
+          }
+        });
     }
 
     @Override

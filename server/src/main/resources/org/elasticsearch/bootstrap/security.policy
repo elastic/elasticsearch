@@ -29,6 +29,9 @@ grant codeBase "${codebase.elasticsearch}" {
   permission java.lang.RuntimePermission "createClassLoader";
   permission java.lang.RuntimePermission "getClassLoader";
 
+  // to change locales
+  permission java.lang.RuntimePermission "localeServiceProvider";
+
   // for plugin api dynamic settings instances
   permission java.lang.RuntimePermission "accessClassInPackage.jdk.internal.reflect";
 };

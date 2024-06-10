@@ -79,8 +79,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-import java.util.jar.JarInputStream;
 import java.util.TreeMap;
+import java.util.jar.JarInputStream;
 import java.util.regex.Pattern;
 import java.util.zip.ZipEntry;
 
@@ -504,6 +504,7 @@ public final class EsqlTestUtils {
     public static BufferedReader reader(URL resource) throws IOException {
         return new BufferedReader(new InputStreamReader(inputStream(resource), StandardCharsets.UTF_8));
     }
+
     /**
      * Returns the classpath resources matching a simple pattern ("*.csv").
      * It supports folders separated by "/" (e.g. "/some/folder/*.txt").
@@ -580,6 +581,5 @@ public final class EsqlTestUtils {
         }
         return new Tuple<>(folder, file);
     }
-
 
 }

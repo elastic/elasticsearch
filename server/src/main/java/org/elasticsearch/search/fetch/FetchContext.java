@@ -25,6 +25,7 @@ import org.elasticsearch.search.fetch.subphase.highlight.SearchHighlightContext;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.lookup.Source;
+import org.elasticsearch.search.rank.RankBuilder;
 import org.elasticsearch.search.rescore.RescoreContext;
 
 import java.util.Collections;
@@ -153,6 +154,19 @@ public class FetchContext {
      */
     public List<RescoreContext> rescore() {
         return searchContext.rescore();
+    }
+
+    /**
+     * The rank builder used in the original search
+     */
+    public RankBuilder rankBuilder() {
+        return searchContext.request().source() == null ? null : searchContext.request().source().rankBuilder();
+    }
+
+    public List<String> queryNames() {
+        return searchContext.request().source() == null
+            ? Collections.emptyList()
+            : searchContext.request().source().subSearches().stream().map(x -> x.getQueryBuilder().queryName()).toList();
     }
 
     /**

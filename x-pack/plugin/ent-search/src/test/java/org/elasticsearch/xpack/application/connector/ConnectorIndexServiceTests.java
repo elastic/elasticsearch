@@ -14,6 +14,7 @@ import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.MockScriptEngine;
@@ -56,7 +57,9 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import static org.elasticsearch.xpack.application.connector.ConnectorTestUtils.getRandomConnectorFeatures;
 import static org.elasticsearch.xpack.application.connector.ConnectorTestUtils.getRandomCronExpression;
+import static org.elasticsearch.xpack.application.connector.ConnectorTestUtils.randomConnectorFeatureEnabled;
 import static org.elasticsearch.xpack.application.connector.ConnectorTestUtils.registerSimplifiedConnectorIndexTemplates;
 import static org.hamcrest.CoreMatchers.anyOf;
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -238,6 +241,51 @@ public class ConnectorIndexServiceTests extends ESSingleNodeTestCase {
         assertThat(updateResponse.status(), equalTo(RestStatus.OK));
         Connector indexedConnector = awaitGetConnector(connectorId);
         assertThat(updatedPipeline, equalTo(indexedConnector.getPipeline()));
+    }
+
+    public void testUpdateConnectorFeatures() throws Exception {
+        Connector connector = ConnectorTestUtils.getRandomConnector();
+        String connectorId = randomUUID();
+
+        ConnectorCreateActionResponse resp = awaitCreateConnector(connectorId, connector);
+        assertThat(resp.status(), anyOf(equalTo(RestStatus.CREATED), equalTo(RestStatus.OK)));
+
+        ConnectorFeatures newFeatures = getRandomConnectorFeatures();
+
+        DocWriteResponse updateResponse = awaitUpdateConnectorFeatures(connectorId, newFeatures);
+        assertThat(updateResponse.status(), equalTo(RestStatus.OK));
+        Connector indexedConnector = awaitGetConnector(connectorId);
+        assertThat(newFeatures, equalTo(indexedConnector.getFeatures()));
+
+    }
+
+    public void testUpdateConnectorFeatures_partialUpdate() throws Exception {
+        Connector connector = ConnectorTestUtils.getRandomConnector();
+        String connectorId = randomUUID();
+
+        ConnectorCreateActionResponse resp = awaitCreateConnector(connectorId, connector);
+        assertThat(resp.status(), anyOf(equalTo(RestStatus.CREATED), equalTo(RestStatus.OK)));
+
+        ConnectorFeatures features = getRandomConnectorFeatures();
+
+        awaitUpdateConnectorFeatures(connectorId, features);
+
+        Connector indexedConnector = awaitGetConnector(connectorId);
+        assertThat(features, equalTo(indexedConnector.getFeatures()));
+
+        // Partial update of DLS feature
+        ConnectorFeatures dlsFeature = new ConnectorFeatures.Builder().setDocumentLevelSecurityEnabled(randomConnectorFeatureEnabled())
+            .build();
+        awaitUpdateConnectorFeatures(connectorId, dlsFeature);
+        indexedConnector = awaitGetConnector(connectorId);
+
+        // Assert that partial update was applied
+        assertThat(dlsFeature.getDocumentLevelSecurityEnabled(), equalTo(indexedConnector.getFeatures().getDocumentLevelSecurityEnabled()));
+
+        // Assert other features are unchanged
+        assertThat(features.getSyncRulesFeatures(), equalTo(indexedConnector.getFeatures().getSyncRulesFeatures()));
+        assertThat(features.getNativeConnectorAPIKeysEnabled(), equalTo(indexedConnector.getFeatures().getNativeConnectorAPIKeysEnabled()));
+        assertThat(features.getIncrementalSyncEnabled(), equalTo(indexedConnector.getFeatures().getIncrementalSyncEnabled()));
     }
 
     public void testUpdateConnectorFiltering() throws Exception {
@@ -464,7 +512,9 @@ public class ConnectorIndexServiceTests extends ESSingleNodeTestCase {
 
         ConnectorSyncInfo syncStats = ConnectorTestUtils.getRandomConnectorSyncInfo();
 
-        UpdateConnectorLastSyncStatsAction.Request lastSyncStats = new UpdateConnectorLastSyncStatsAction.Request(connectorId, syncStats);
+        UpdateConnectorLastSyncStatsAction.Request lastSyncStats = new UpdateConnectorLastSyncStatsAction.Request.Builder().setConnectorId(
+            connectorId
+        ).setSyncInfo(syncStats).build();
 
         DocWriteResponse updateResponse = awaitUpdateConnectorLastSyncStats(lastSyncStats);
         assertThat(updateResponse.status(), equalTo(RestStatus.OK));
@@ -486,7 +536,9 @@ public class ConnectorIndexServiceTests extends ESSingleNodeTestCase {
             .setLastDeletedDocumentCount(randomLong())
             .build();
 
-        UpdateConnectorLastSyncStatsAction.Request lastSyncStats = new UpdateConnectorLastSyncStatsAction.Request(connectorId, syncStats);
+        UpdateConnectorLastSyncStatsAction.Request lastSyncStats = new UpdateConnectorLastSyncStatsAction.Request.Builder().setConnectorId(
+            connectorId
+        ).setSyncInfo(syncStats).build();
 
         DocWriteResponse updateResponse = awaitUpdateConnectorLastSyncStats(lastSyncStats);
         assertThat(updateResponse.status(), equalTo(RestStatus.OK));
@@ -500,7 +552,9 @@ public class ConnectorIndexServiceTests extends ESSingleNodeTestCase {
 
         ConnectorSyncInfo nextSyncStats = new ConnectorSyncInfo.Builder().setLastIndexedDocumentCount(randomLong()).build();
 
-        lastSyncStats = new UpdateConnectorLastSyncStatsAction.Request(connectorId, nextSyncStats);
+        lastSyncStats = new UpdateConnectorLastSyncStatsAction.Request.Builder().setConnectorId(connectorId)
+            .setSyncInfo(nextSyncStats)
+            .build();
 
         updateResponse = awaitUpdateConnectorLastSyncStats(lastSyncStats);
         assertThat(updateResponse.status(), equalTo(RestStatus.OK));
@@ -514,6 +568,27 @@ public class ConnectorIndexServiceTests extends ESSingleNodeTestCase {
         assertThat(syncStats.getLastSyncError(), equalTo(indexedConnector.getSyncInfo().getLastSyncError()));
         assertThat(syncStats.getLastDeletedDocumentCount(), equalTo(indexedConnector.getSyncInfo().getLastDeletedDocumentCount()));
 
+    }
+
+    public void testUpdateConnectorLastSyncStats_syncCursor() throws Exception {
+        Connector connector = ConnectorTestUtils.getRandomConnector();
+        String connectorId = randomUUID();
+
+        ConnectorCreateActionResponse resp = awaitCreateConnector(connectorId, connector);
+        assertThat(resp.status(), anyOf(equalTo(RestStatus.CREATED), equalTo(RestStatus.OK)));
+
+        Map<String, String> syncCursor = randomMap(2, 3, () -> new Tuple<>(randomAlphaOfLength(4), randomAlphaOfLength(4)));
+
+        UpdateConnectorLastSyncStatsAction.Request lastSyncStats = new UpdateConnectorLastSyncStatsAction.Request.Builder().setConnectorId(
+            connectorId
+        ).setSyncInfo(new ConnectorSyncInfo.Builder().build()).setSyncCursor(syncCursor).build();
+
+        DocWriteResponse updateResponse = awaitUpdateConnectorLastSyncStats(lastSyncStats);
+        assertThat(updateResponse.status(), equalTo(RestStatus.OK));
+
+        Connector indexedConnector = awaitGetConnector(connectorId);
+        // Check sync_cursor got updated
+        assertThat(syncCursor, equalTo(indexedConnector.getSyncCursor()));
     }
 
     public void testUpdateConnectorScheduling() throws Exception {
@@ -887,6 +962,32 @@ public class ConnectorIndexServiceTests extends ESSingleNodeTestCase {
             throw exc.get();
         }
         assertNotNull("Received null response from update configuration request", resp.get());
+        return resp.get();
+    }
+
+    private UpdateResponse awaitUpdateConnectorFeatures(String connectorId, ConnectorFeatures features) throws Exception {
+        CountDownLatch latch = new CountDownLatch(1);
+        final AtomicReference<UpdateResponse> resp = new AtomicReference<>(null);
+        final AtomicReference<Exception> exc = new AtomicReference<>(null);
+        connectorIndexService.updateConnectorFeatures(connectorId, features, new ActionListener<>() {
+            @Override
+            public void onResponse(UpdateResponse indexResponse) {
+                resp.set(indexResponse);
+                latch.countDown();
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                exc.set(e);
+                latch.countDown();
+            }
+        });
+
+        assertTrue("Timeout waiting for update features request", latch.await(REQUEST_TIMEOUT_SECONDS, TimeUnit.SECONDS));
+        if (exc.get() != null) {
+            throw exc.get();
+        }
+        assertNotNull("Received null response from update features request", resp.get());
         return resp.get();
     }
 

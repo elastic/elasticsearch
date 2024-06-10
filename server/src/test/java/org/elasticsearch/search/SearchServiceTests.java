@@ -13,6 +13,8 @@ import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.ScoreDoc;
+import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TotalHitCountCollectorManager;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.SetOnce;
@@ -27,6 +29,7 @@ import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsResp
 import org.elasticsearch.action.search.ClearScrollRequest;
 import org.elasticsearch.action.search.ClosePointInTimeRequest;
 import org.elasticsearch.action.search.OpenPointInTimeRequest;
+import org.elasticsearch.action.search.SearchPhaseController;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
@@ -92,6 +95,7 @@ import org.elasticsearch.search.collapse.CollapseBuilder;
 import org.elasticsearch.search.dfs.AggregatedDfs;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.fetch.ShardFetchRequest;
+import org.elasticsearch.search.fetch.ShardFetchSearchRequest;
 import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
@@ -102,12 +106,26 @@ import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.query.NonCountingTermQuery;
 import org.elasticsearch.search.query.QuerySearchRequest;
 import org.elasticsearch.search.query.QuerySearchResult;
+import org.elasticsearch.search.rank.RankBuilder;
+import org.elasticsearch.search.rank.RankShardResult;
+import org.elasticsearch.search.rank.TestRankBuilder;
+import org.elasticsearch.search.rank.TestRankDoc;
+import org.elasticsearch.search.rank.TestRankShardResult;
+import org.elasticsearch.search.rank.context.QueryPhaseRankCoordinatorContext;
+import org.elasticsearch.search.rank.context.QueryPhaseRankShardContext;
+import org.elasticsearch.search.rank.context.RankFeaturePhaseRankCoordinatorContext;
+import org.elasticsearch.search.rank.context.RankFeaturePhaseRankShardContext;
+import org.elasticsearch.search.rank.feature.RankFeatureDoc;
+import org.elasticsearch.search.rank.feature.RankFeatureResult;
+import org.elasticsearch.search.rank.feature.RankFeatureShardRequest;
+import org.elasticsearch.search.rank.feature.RankFeatureShardResult;
 import org.elasticsearch.search.slice.SliceBuilder;
 import org.elasticsearch.search.suggest.SuggestBuilder;
 import org.elasticsearch.tasks.TaskCancelHelper;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -115,8 +133,10 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Locale;
@@ -136,8 +156,8 @@ import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
-import static org.elasticsearch.indices.cluster.AbstractIndicesClusterStateServiceTestCase.awaitIndexShardCloseAsyncTasks;
 import static org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason.DELETED;
+import static org.elasticsearch.search.SearchService.DEFAULT_SIZE;
 import static org.elasticsearch.search.SearchService.QUERY_PHASE_PARALLEL_COLLECTION_ENABLED;
 import static org.elasticsearch.search.SearchService.SEARCH_WORKER_THREADS_ENABLED;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -371,7 +391,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                                 -1,
                                 null
                             ),
-                            new SearchShardTask(123L, "", "", "", null, Collections.emptyMap()),
+                            new SearchShardTask(123L, "", "", "", null, emptyMap()),
                             result.delegateFailure((l, r) -> {
                                 r.incRef();
                                 l.onResponse(r);
@@ -387,7 +407,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                                 null/* not a scroll */
                             );
                             PlainActionFuture<FetchSearchResult> listener = new PlainActionFuture<>();
-                            service.executeFetchPhase(req, new SearchShardTask(123L, "", "", "", null, Collections.emptyMap()), listener);
+                            service.executeFetchPhase(req, new SearchShardTask(123L, "", "", "", null, emptyMap()), listener);
                             listener.get();
                             if (useScroll) {
                                 // have to free context since this test does not remove the index from IndicesService.
@@ -420,6 +440,712 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         assertEquals(0, totalStats.getQueryCurrent());
         assertEquals(0, totalStats.getScrollCurrent());
         assertEquals(0, totalStats.getFetchCurrent());
+    }
+
+    public void testRankFeaturePhaseSearchPhases() throws InterruptedException, ExecutionException {
+        final String indexName = "index";
+        final String rankFeatureFieldName = "field";
+        final String searchFieldName = "search_field";
+        final String searchFieldValue = "some_value";
+        final String fetchFieldName = "fetch_field";
+        final String fetchFieldValue = "fetch_value";
+
+        final int minDocs = 3;
+        final int maxDocs = 10;
+        int numDocs = between(minDocs, maxDocs);
+        createIndex(indexName);
+        // index some documents
+        for (int i = 0; i < numDocs; i++) {
+            prepareIndex(indexName).setId(String.valueOf(i))
+                .setSource(
+                    rankFeatureFieldName,
+                    "aardvark_" + i,
+                    searchFieldName,
+                    searchFieldValue,
+                    fetchFieldName,
+                    fetchFieldValue + "_" + i
+                )
+                .get();
+        }
+        indicesAdmin().prepareRefresh(indexName).get();
+
+        final SearchService service = getInstanceFromNode(SearchService.class);
+
+        final IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+        final IndexService indexService = indicesService.indexServiceSafe(resolveIndex(indexName));
+        final IndexShard indexShard = indexService.getShard(0);
+        SearchShardTask searchTask = new SearchShardTask(123L, "", "", "", null, emptyMap());
+
+        // create a SearchRequest that will return all documents and defines a TestRankBuilder with shard-level only operations
+        SearchRequest searchRequest = new SearchRequest().allowPartialSearchResults(true)
+            .source(
+                new SearchSourceBuilder().query(new TermQueryBuilder(searchFieldName, searchFieldValue))
+                    .size(DEFAULT_SIZE)
+                    .fetchField(fetchFieldName)
+                    .rankBuilder(
+                        // here we override only the shard-level contexts
+                        new TestRankBuilder(RankBuilder.DEFAULT_RANK_WINDOW_SIZE) {
+                            @Override
+                            public QueryPhaseRankShardContext buildQueryPhaseShardContext(List<Query> queries, int from) {
+                                return new QueryPhaseRankShardContext(queries, from) {
+
+                                    @Override
+                                    public int rankWindowSize() {
+                                        return DEFAULT_RANK_WINDOW_SIZE;
+                                    }
+
+                                    @Override
+                                    public RankShardResult combineQueryPhaseResults(List<TopDocs> rankResults) {
+                                        // we know we have just 1 query, so return all the docs from it
+                                        return new TestRankShardResult(
+                                            Arrays.stream(rankResults.get(0).scoreDocs)
+                                                .map(x -> new TestRankDoc(x.doc, x.score, x.shardIndex))
+                                                .limit(rankWindowSize())
+                                                .toArray(TestRankDoc[]::new)
+                                        );
+                                    }
+                                };
+                            }
+
+                            @Override
+                            public RankFeaturePhaseRankShardContext buildRankFeaturePhaseShardContext() {
+                                return new RankFeaturePhaseRankShardContext(rankFeatureFieldName) {
+                                    @Override
+                                    public RankShardResult buildRankFeatureShardResult(SearchHits hits, int shardId) {
+                                        RankFeatureDoc[] rankFeatureDocs = new RankFeatureDoc[hits.getHits().length];
+                                        for (int i = 0; i < hits.getHits().length; i++) {
+                                            SearchHit hit = hits.getHits()[i];
+                                            rankFeatureDocs[i] = new RankFeatureDoc(hit.docId(), hit.getScore(), shardId);
+                                            rankFeatureDocs[i].featureData(hit.getFields().get(rankFeatureFieldName).getValue());
+                                            rankFeatureDocs[i].score = (numDocs - i) + randomFloat();
+                                            rankFeatureDocs[i].rank = i + 1;
+                                        }
+                                        return new RankFeatureShardResult(rankFeatureDocs);
+                                    }
+                                };
+                            }
+                        }
+                    )
+            );
+
+        ShardSearchRequest request = new ShardSearchRequest(
+            OriginalIndices.NONE,
+            searchRequest,
+            indexShard.shardId(),
+            0,
+            1,
+            AliasFilter.EMPTY,
+            1.0f,
+            -1,
+            null
+        );
+        QuerySearchResult queryResult = null;
+        RankFeatureResult rankResult = null;
+        try {
+            // Execute the query phase and store the result in a SearchPhaseResult container using a PlainActionFuture
+            PlainActionFuture<SearchPhaseResult> queryPhaseResults = new PlainActionFuture<>();
+            service.executeQueryPhase(request, searchTask, queryPhaseResults);
+            queryResult = (QuerySearchResult) queryPhaseResults.get();
+
+            // these are the matched docs from the query phase
+            final TestRankDoc[] queryRankDocs = ((TestRankShardResult) queryResult.getRankShardResult()).testRankDocs;
+
+            // assume that we have cut down to these from the coordinator node as the top-docs to run the rank feature phase upon
+            List<Integer> topRankWindowSizeDocs = randomNonEmptySubsetOf(Arrays.stream(queryRankDocs).map(x -> x.doc).toList());
+
+            // now we create a RankFeatureShardRequest to extract feature info for the top-docs above
+            RankFeatureShardRequest rankFeatureShardRequest = new RankFeatureShardRequest(
+                OriginalIndices.NONE,
+                queryResult.getContextId(), // use the context from the query phase
+                request,
+                topRankWindowSizeDocs
+            );
+            PlainActionFuture<RankFeatureResult> rankPhaseResults = new PlainActionFuture<>();
+            service.executeRankFeaturePhase(rankFeatureShardRequest, searchTask, rankPhaseResults);
+            rankResult = rankPhaseResults.get();
+
+            assertNotNull(rankResult);
+            assertNotNull(rankResult.rankFeatureResult());
+            RankFeatureShardResult rankFeatureShardResult = rankResult.rankFeatureResult().shardResult();
+            assertNotNull(rankFeatureShardResult);
+
+            List<Integer> sortedRankWindowDocs = topRankWindowSizeDocs.stream().sorted().toList();
+            assertEquals(sortedRankWindowDocs.size(), rankFeatureShardResult.rankFeatureDocs.length);
+            for (int i = 0; i < sortedRankWindowDocs.size(); i++) {
+                assertEquals((long) sortedRankWindowDocs.get(i), rankFeatureShardResult.rankFeatureDocs[i].doc);
+                assertEquals(rankFeatureShardResult.rankFeatureDocs[i].featureData, "aardvark_" + sortedRankWindowDocs.get(i));
+            }
+
+            List<Integer> globalTopKResults = randomNonEmptySubsetOf(
+                Arrays.stream(rankFeatureShardResult.rankFeatureDocs).map(x -> x.doc).toList()
+            );
+
+            // finally let's create a fetch request to bring back fetch info for the top results
+            ShardFetchSearchRequest fetchRequest = new ShardFetchSearchRequest(
+                OriginalIndices.NONE,
+                rankResult.getContextId(),
+                request,
+                globalTopKResults,
+                null,
+                null,
+                rankResult.getRescoreDocIds(),
+                null
+            );
+
+            // execute fetch phase and perform any validations once we retrieve the response
+            // the difference in how we do assertions here is needed because once the transport service sends back the response
+            // it decrements the reference to the FetchSearchResult (through the ActionListener#respondAndRelease) and sets hits to null
+            service.executeFetchPhase(fetchRequest, searchTask, new ActionListener<>() {
+                @Override
+                public void onResponse(FetchSearchResult fetchSearchResult) {
+                    assertNotNull(fetchSearchResult);
+                    assertNotNull(fetchSearchResult.hits());
+
+                    int totalHits = fetchSearchResult.hits().getHits().length;
+                    assertEquals(globalTopKResults.size(), totalHits);
+                    for (int i = 0; i < totalHits; i++) {
+                        // rank and score are set by the SearchPhaseController#merge so no need to validate that here
+                        SearchHit hit = fetchSearchResult.hits().getAt(i);
+                        assertNotNull(hit.getFields().get(fetchFieldName));
+                        assertEquals(hit.getFields().get(fetchFieldName).getValue(), fetchFieldValue + "_" + hit.docId());
+                    }
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    throw new AssertionError("No failure should have been raised", e);
+                }
+            });
+        } catch (Exception ex) {
+            if (queryResult != null) {
+                if (queryResult.hasReferences()) {
+                    queryResult.decRef();
+                }
+                service.freeReaderContext(queryResult.getContextId());
+            }
+            if (rankResult != null && rankResult.hasReferences()) {
+                rankResult.decRef();
+            }
+            throw ex;
+        }
+    }
+
+    public void testRankFeaturePhaseUsingClient() {
+        final String indexName = "index";
+        final String rankFeatureFieldName = "field";
+        final String searchFieldName = "search_field";
+        final String searchFieldValue = "some_value";
+        final String fetchFieldName = "fetch_field";
+        final String fetchFieldValue = "fetch_value";
+
+        final int minDocs = 4;
+        final int maxDocs = 10;
+        int numDocs = between(minDocs, maxDocs);
+        createIndex(indexName);
+        // index some documents
+        for (int i = 0; i < numDocs; i++) {
+            prepareIndex(indexName).setId(String.valueOf(i))
+                .setSource(
+                    rankFeatureFieldName,
+                    "aardvark_" + i,
+                    searchFieldName,
+                    searchFieldValue,
+                    fetchFieldName,
+                    fetchFieldValue + "_" + i
+                )
+                .get();
+        }
+        indicesAdmin().prepareRefresh(indexName).get();
+
+        ElasticsearchAssertions.assertResponse(
+            client().prepareSearch(indexName)
+                .setSource(
+                    new SearchSourceBuilder().query(new TermQueryBuilder(searchFieldName, searchFieldValue))
+                        .size(2)
+                        .from(2)
+                        .fetchField(fetchFieldName)
+                        .rankBuilder(
+                            // here we override only the shard-level contexts
+                            new TestRankBuilder(RankBuilder.DEFAULT_RANK_WINDOW_SIZE) {
+
+                                // no need for more than one queries
+                                @Override
+                                public boolean isCompoundBuilder() {
+                                    return false;
+                                }
+
+                                @Override
+                                public RankFeaturePhaseRankCoordinatorContext buildRankFeaturePhaseCoordinatorContext(int size, int from) {
+                                    return new RankFeaturePhaseRankCoordinatorContext(size, from, DEFAULT_RANK_WINDOW_SIZE) {
+                                        @Override
+                                        protected void computeScores(RankFeatureDoc[] featureDocs, ActionListener<float[]> scoreListener) {
+                                            float[] scores = new float[featureDocs.length];
+                                            for (int i = 0; i < featureDocs.length; i++) {
+                                                scores[i] = featureDocs[i].score;
+                                            }
+                                            scoreListener.onResponse(scores);
+                                        }
+                                    };
+                                }
+
+                                @Override
+                                public QueryPhaseRankCoordinatorContext buildQueryPhaseCoordinatorContext(int size, int from) {
+                                    return new QueryPhaseRankCoordinatorContext(RankBuilder.DEFAULT_RANK_WINDOW_SIZE) {
+                                        @Override
+                                        public ScoreDoc[] rankQueryPhaseResults(
+                                            List<QuerySearchResult> querySearchResults,
+                                            SearchPhaseController.TopDocsStats topDocStats
+                                        ) {
+                                            List<TestRankDoc> rankDocs = new ArrayList<>();
+                                            for (int i = 0; i < querySearchResults.size(); i++) {
+                                                QuerySearchResult querySearchResult = querySearchResults.get(i);
+                                                TestRankShardResult shardResult = (TestRankShardResult) querySearchResult
+                                                    .getRankShardResult();
+                                                for (TestRankDoc trd : shardResult.testRankDocs) {
+                                                    trd.shardIndex = i;
+                                                    rankDocs.add(trd);
+                                                }
+                                            }
+                                            rankDocs.sort(Comparator.comparing((TestRankDoc doc) -> doc.score).reversed());
+                                            TestRankDoc[] topResults = rankDocs.stream().limit(rankWindowSize).toArray(TestRankDoc[]::new);
+                                            topDocStats.fetchHits = topResults.length;
+                                            return topResults;
+                                        }
+                                    };
+                                }
+
+                                @Override
+                                public QueryPhaseRankShardContext buildQueryPhaseShardContext(List<Query> queries, int from) {
+                                    return new QueryPhaseRankShardContext(queries, from) {
+
+                                        @Override
+                                        public int rankWindowSize() {
+                                            return DEFAULT_RANK_WINDOW_SIZE;
+                                        }
+
+                                        @Override
+                                        public RankShardResult combineQueryPhaseResults(List<TopDocs> rankResults) {
+                                            // we know we have just 1 query, so return all the docs from it
+                                            return new TestRankShardResult(
+                                                Arrays.stream(rankResults.get(0).scoreDocs)
+                                                    .map(x -> new TestRankDoc(x.doc, x.score, x.shardIndex))
+                                                    .limit(rankWindowSize())
+                                                    .toArray(TestRankDoc[]::new)
+                                            );
+                                        }
+                                    };
+                                }
+
+                                @Override
+                                public RankFeaturePhaseRankShardContext buildRankFeaturePhaseShardContext() {
+                                    return new RankFeaturePhaseRankShardContext(rankFeatureFieldName) {
+                                        @Override
+                                        public RankShardResult buildRankFeatureShardResult(SearchHits hits, int shardId) {
+                                            RankFeatureDoc[] rankFeatureDocs = new RankFeatureDoc[hits.getHits().length];
+                                            for (int i = 0; i < hits.getHits().length; i++) {
+                                                SearchHit hit = hits.getHits()[i];
+                                                rankFeatureDocs[i] = new RankFeatureDoc(hit.docId(), hit.getScore(), shardId);
+                                                rankFeatureDocs[i].featureData(hit.getFields().get(rankFeatureFieldName).getValue());
+                                                rankFeatureDocs[i].score = randomFloat();
+                                                rankFeatureDocs[i].rank = i + 1;
+                                            }
+                                            return new RankFeatureShardResult(rankFeatureDocs);
+                                        }
+                                    };
+                                }
+                            }
+                        )
+                ),
+            (response) -> {
+                SearchHits hits = response.getHits();
+                assertEquals(hits.getTotalHits().value, numDocs);
+                assertEquals(hits.getHits().length, 2);
+                int index = 0;
+                for (SearchHit hit : hits.getHits()) {
+                    assertEquals(hit.getRank(), 3 + index);
+                    assertTrue(hit.getScore() >= 0);
+                    assertEquals(hit.getFields().get(fetchFieldName).getValue(), fetchFieldValue + "_" + hit.docId());
+                    index++;
+                }
+            }
+        );
+    }
+
+    public void testRankFeaturePhaseExceptionOnCoordinatingNode() {
+        final String indexName = "index";
+        final String rankFeatureFieldName = "field";
+        final String searchFieldName = "search_field";
+        final String searchFieldValue = "some_value";
+        final String fetchFieldName = "fetch_field";
+        final String fetchFieldValue = "fetch_value";
+
+        final int minDocs = 3;
+        final int maxDocs = 10;
+        int numDocs = between(minDocs, maxDocs);
+        createIndex(indexName);
+        // index some documents
+        for (int i = 0; i < numDocs; i++) {
+            prepareIndex(indexName).setId(String.valueOf(i))
+                .setSource(
+                    rankFeatureFieldName,
+                    "aardvark_" + i,
+                    searchFieldName,
+                    searchFieldValue,
+                    fetchFieldName,
+                    fetchFieldValue + "_" + i
+                )
+                .get();
+        }
+        indicesAdmin().prepareRefresh(indexName).get();
+
+        expectThrows(
+            SearchPhaseExecutionException.class,
+            () -> client().prepareSearch(indexName)
+                .setSource(
+                    new SearchSourceBuilder().query(new TermQueryBuilder(searchFieldName, searchFieldValue))
+                        .size(2)
+                        .from(2)
+                        .fetchField(fetchFieldName)
+                        .rankBuilder(new TestRankBuilder(RankBuilder.DEFAULT_RANK_WINDOW_SIZE) {
+
+                            // no need for more than one queries
+                            @Override
+                            public boolean isCompoundBuilder() {
+                                return false;
+                            }
+
+                            @Override
+                            public RankFeaturePhaseRankCoordinatorContext buildRankFeaturePhaseCoordinatorContext(int size, int from) {
+                                return new RankFeaturePhaseRankCoordinatorContext(size, from, DEFAULT_RANK_WINDOW_SIZE) {
+                                    @Override
+                                    protected void computeScores(RankFeatureDoc[] featureDocs, ActionListener<float[]> scoreListener) {
+                                        throw new IllegalStateException("should have failed earlier");
+                                    }
+                                };
+                            }
+
+                            @Override
+                            public QueryPhaseRankCoordinatorContext buildQueryPhaseCoordinatorContext(int size, int from) {
+                                return new QueryPhaseRankCoordinatorContext(RankBuilder.DEFAULT_RANK_WINDOW_SIZE) {
+                                    @Override
+                                    public ScoreDoc[] rankQueryPhaseResults(
+                                        List<QuerySearchResult> querySearchResults,
+                                        SearchPhaseController.TopDocsStats topDocStats
+                                    ) {
+                                        throw new UnsupportedOperationException("simulated failure");
+                                    }
+                                };
+                            }
+
+                            @Override
+                            public QueryPhaseRankShardContext buildQueryPhaseShardContext(List<Query> queries, int from) {
+                                return new QueryPhaseRankShardContext(queries, from) {
+
+                                    @Override
+                                    public int rankWindowSize() {
+                                        return DEFAULT_RANK_WINDOW_SIZE;
+                                    }
+
+                                    @Override
+                                    public RankShardResult combineQueryPhaseResults(List<TopDocs> rankResults) {
+                                        // we know we have just 1 query, so return all the docs from it
+                                        return new TestRankShardResult(
+                                            Arrays.stream(rankResults.get(0).scoreDocs)
+                                                .map(x -> new TestRankDoc(x.doc, x.score, x.shardIndex))
+                                                .limit(rankWindowSize())
+                                                .toArray(TestRankDoc[]::new)
+                                        );
+                                    }
+                                };
+                            }
+
+                            @Override
+                            public RankFeaturePhaseRankShardContext buildRankFeaturePhaseShardContext() {
+                                return new RankFeaturePhaseRankShardContext(rankFeatureFieldName) {
+                                    @Override
+                                    public RankShardResult buildRankFeatureShardResult(SearchHits hits, int shardId) {
+                                        RankFeatureDoc[] rankFeatureDocs = new RankFeatureDoc[hits.getHits().length];
+                                        for (int i = 0; i < hits.getHits().length; i++) {
+                                            SearchHit hit = hits.getHits()[i];
+                                            rankFeatureDocs[i] = new RankFeatureDoc(hit.docId(), hit.getScore(), shardId);
+                                            rankFeatureDocs[i].featureData(hit.getFields().get(rankFeatureFieldName).getValue());
+                                            rankFeatureDocs[i].score = randomFloat();
+                                            rankFeatureDocs[i].rank = i + 1;
+                                        }
+                                        return new RankFeatureShardResult(rankFeatureDocs);
+                                    }
+                                };
+                            }
+                        })
+                )
+                .get()
+        );
+    }
+
+    public void testRankFeaturePhaseExceptionAllShardFail() {
+        final String indexName = "index";
+        final String rankFeatureFieldName = "field";
+        final String searchFieldName = "search_field";
+        final String searchFieldValue = "some_value";
+        final String fetchFieldName = "fetch_field";
+        final String fetchFieldValue = "fetch_value";
+
+        final int minDocs = 3;
+        final int maxDocs = 10;
+        int numDocs = between(minDocs, maxDocs);
+        createIndex(indexName);
+        // index some documents
+        for (int i = 0; i < numDocs; i++) {
+            prepareIndex(indexName).setId(String.valueOf(i))
+                .setSource(
+                    rankFeatureFieldName,
+                    "aardvark_" + i,
+                    searchFieldName,
+                    searchFieldValue,
+                    fetchFieldName,
+                    fetchFieldValue + "_" + i
+                )
+                .get();
+        }
+        indicesAdmin().prepareRefresh(indexName).get();
+
+        expectThrows(
+            SearchPhaseExecutionException.class,
+            () -> client().prepareSearch(indexName)
+                .setAllowPartialSearchResults(true)
+                .setSource(
+                    new SearchSourceBuilder().query(new TermQueryBuilder(searchFieldName, searchFieldValue))
+                        .fetchField(fetchFieldName)
+                        .rankBuilder(
+                            // here we override only the shard-level contexts
+                            new TestRankBuilder(RankBuilder.DEFAULT_RANK_WINDOW_SIZE) {
+
+                                // no need for more than one queries
+                                @Override
+                                public boolean isCompoundBuilder() {
+                                    return false;
+                                }
+
+                                @Override
+                                public RankFeaturePhaseRankCoordinatorContext buildRankFeaturePhaseCoordinatorContext(int size, int from) {
+                                    return new RankFeaturePhaseRankCoordinatorContext(size, from, DEFAULT_RANK_WINDOW_SIZE) {
+                                        @Override
+                                        protected void computeScores(RankFeatureDoc[] featureDocs, ActionListener<float[]> scoreListener) {
+                                            float[] scores = new float[featureDocs.length];
+                                            for (int i = 0; i < featureDocs.length; i++) {
+                                                scores[i] = featureDocs[i].score;
+                                            }
+                                            scoreListener.onResponse(scores);
+                                        }
+                                    };
+                                }
+
+                                @Override
+                                public QueryPhaseRankCoordinatorContext buildQueryPhaseCoordinatorContext(int size, int from) {
+                                    return new QueryPhaseRankCoordinatorContext(RankBuilder.DEFAULT_RANK_WINDOW_SIZE) {
+                                        @Override
+                                        public ScoreDoc[] rankQueryPhaseResults(
+                                            List<QuerySearchResult> querySearchResults,
+                                            SearchPhaseController.TopDocsStats topDocStats
+                                        ) {
+                                            List<TestRankDoc> rankDocs = new ArrayList<>();
+                                            for (int i = 0; i < querySearchResults.size(); i++) {
+                                                QuerySearchResult querySearchResult = querySearchResults.get(i);
+                                                TestRankShardResult shardResult = (TestRankShardResult) querySearchResult
+                                                    .getRankShardResult();
+                                                for (TestRankDoc trd : shardResult.testRankDocs) {
+                                                    trd.shardIndex = i;
+                                                    rankDocs.add(trd);
+                                                }
+                                            }
+                                            rankDocs.sort(Comparator.comparing((TestRankDoc doc) -> doc.score).reversed());
+                                            TestRankDoc[] topResults = rankDocs.stream().limit(rankWindowSize).toArray(TestRankDoc[]::new);
+                                            topDocStats.fetchHits = topResults.length;
+                                            return topResults;
+                                        }
+                                    };
+                                }
+
+                                @Override
+                                public QueryPhaseRankShardContext buildQueryPhaseShardContext(List<Query> queries, int from) {
+                                    return new QueryPhaseRankShardContext(queries, from) {
+
+                                        @Override
+                                        public int rankWindowSize() {
+                                            return DEFAULT_RANK_WINDOW_SIZE;
+                                        }
+
+                                        @Override
+                                        public RankShardResult combineQueryPhaseResults(List<TopDocs> rankResults) {
+                                            // we know we have just 1 query, so return all the docs from it
+                                            return new TestRankShardResult(
+                                                Arrays.stream(rankResults.get(0).scoreDocs)
+                                                    .map(x -> new TestRankDoc(x.doc, x.score, x.shardIndex))
+                                                    .limit(rankWindowSize())
+                                                    .toArray(TestRankDoc[]::new)
+                                            );
+                                        }
+                                    };
+                                }
+
+                                @Override
+                                public RankFeaturePhaseRankShardContext buildRankFeaturePhaseShardContext() {
+                                    return new RankFeaturePhaseRankShardContext(rankFeatureFieldName) {
+                                        @Override
+                                        public RankShardResult buildRankFeatureShardResult(SearchHits hits, int shardId) {
+                                            throw new UnsupportedOperationException("simulated failure");
+                                        }
+                                    };
+                                }
+                            }
+                        )
+                )
+                .get()
+        );
+    }
+
+    public void testRankFeaturePhaseExceptionOneShardFails() {
+        // if we have only one shard and it fails, it will fallback to context.onPhaseFailure which will eventually clean up all contexts.
+        // in this test we want to make sure that even if one shard (of many) fails during the RankFeaturePhase, then the appropriate
+        // context will have been cleaned up.
+        final String indexName = "index";
+        final String rankFeatureFieldName = "field";
+        final String searchFieldName = "search_field";
+        final String searchFieldValue = "some_value";
+        final String fetchFieldName = "fetch_field";
+        final String fetchFieldValue = "fetch_value";
+
+        final int minDocs = 3;
+        final int maxDocs = 10;
+        int numDocs = between(minDocs, maxDocs);
+        createIndex(indexName, Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 2).build());
+        // index some documents
+        for (int i = 0; i < numDocs; i++) {
+            prepareIndex(indexName).setId(String.valueOf(i))
+                .setSource(
+                    rankFeatureFieldName,
+                    "aardvark_" + i,
+                    searchFieldName,
+                    searchFieldValue,
+                    fetchFieldName,
+                    fetchFieldValue + "_" + i
+                )
+                .get();
+        }
+        indicesAdmin().prepareRefresh(indexName).get();
+
+        assertResponse(
+            client().prepareSearch(indexName)
+                .setAllowPartialSearchResults(true)
+                .setSource(
+                    new SearchSourceBuilder().query(new TermQueryBuilder(searchFieldName, searchFieldValue))
+                        .fetchField(fetchFieldName)
+                        .rankBuilder(
+                            // here we override only the shard-level contexts
+                            new TestRankBuilder(RankBuilder.DEFAULT_RANK_WINDOW_SIZE) {
+
+                                // no need for more than one queries
+                                @Override
+                                public boolean isCompoundBuilder() {
+                                    return false;
+                                }
+
+                                @Override
+                                public RankFeaturePhaseRankCoordinatorContext buildRankFeaturePhaseCoordinatorContext(int size, int from) {
+                                    return new RankFeaturePhaseRankCoordinatorContext(size, from, DEFAULT_RANK_WINDOW_SIZE) {
+                                        @Override
+                                        protected void computeScores(RankFeatureDoc[] featureDocs, ActionListener<float[]> scoreListener) {
+                                            float[] scores = new float[featureDocs.length];
+                                            for (int i = 0; i < featureDocs.length; i++) {
+                                                scores[i] = featureDocs[i].score;
+                                            }
+                                            scoreListener.onResponse(scores);
+                                        }
+                                    };
+                                }
+
+                                @Override
+                                public QueryPhaseRankCoordinatorContext buildQueryPhaseCoordinatorContext(int size, int from) {
+                                    return new QueryPhaseRankCoordinatorContext(RankBuilder.DEFAULT_RANK_WINDOW_SIZE) {
+                                        @Override
+                                        public ScoreDoc[] rankQueryPhaseResults(
+                                            List<QuerySearchResult> querySearchResults,
+                                            SearchPhaseController.TopDocsStats topDocStats
+                                        ) {
+                                            List<TestRankDoc> rankDocs = new ArrayList<>();
+                                            for (int i = 0; i < querySearchResults.size(); i++) {
+                                                QuerySearchResult querySearchResult = querySearchResults.get(i);
+                                                TestRankShardResult shardResult = (TestRankShardResult) querySearchResult
+                                                    .getRankShardResult();
+                                                for (TestRankDoc trd : shardResult.testRankDocs) {
+                                                    trd.shardIndex = i;
+                                                    rankDocs.add(trd);
+                                                }
+                                            }
+                                            rankDocs.sort(Comparator.comparing((TestRankDoc doc) -> doc.score).reversed());
+                                            TestRankDoc[] topResults = rankDocs.stream().limit(rankWindowSize).toArray(TestRankDoc[]::new);
+                                            topDocStats.fetchHits = topResults.length;
+                                            return topResults;
+                                        }
+                                    };
+                                }
+
+                                @Override
+                                public QueryPhaseRankShardContext buildQueryPhaseShardContext(List<Query> queries, int from) {
+                                    return new QueryPhaseRankShardContext(queries, from) {
+
+                                        @Override
+                                        public int rankWindowSize() {
+                                            return DEFAULT_RANK_WINDOW_SIZE;
+                                        }
+
+                                        @Override
+                                        public RankShardResult combineQueryPhaseResults(List<TopDocs> rankResults) {
+                                            // we know we have just 1 query, so return all the docs from it
+                                            return new TestRankShardResult(
+                                                Arrays.stream(rankResults.get(0).scoreDocs)
+                                                    .map(x -> new TestRankDoc(x.doc, x.score, x.shardIndex))
+                                                    .limit(rankWindowSize())
+                                                    .toArray(TestRankDoc[]::new)
+                                            );
+                                        }
+                                    };
+                                }
+
+                                @Override
+                                public RankFeaturePhaseRankShardContext buildRankFeaturePhaseShardContext() {
+                                    return new RankFeaturePhaseRankShardContext(rankFeatureFieldName) {
+                                        @Override
+                                        public RankShardResult buildRankFeatureShardResult(SearchHits hits, int shardId) {
+                                            if (shardId == 0) {
+                                                throw new UnsupportedOperationException("simulated failure");
+                                            } else {
+                                                RankFeatureDoc[] rankFeatureDocs = new RankFeatureDoc[hits.getHits().length];
+                                                for (int i = 0; i < hits.getHits().length; i++) {
+                                                    SearchHit hit = hits.getHits()[i];
+                                                    rankFeatureDocs[i] = new RankFeatureDoc(hit.docId(), hit.getScore(), shardId);
+                                                    rankFeatureDocs[i].featureData(hit.getFields().get(rankFeatureFieldName).getValue());
+                                                    rankFeatureDocs[i].score = randomFloat();
+                                                    rankFeatureDocs[i].rank = i + 1;
+                                                }
+                                                return new RankFeatureShardResult(rankFeatureDocs);
+                                            }
+                                        }
+                                    };
+                                }
+                            }
+                        )
+                ),
+            (searchResponse) -> {
+                assertEquals(1, searchResponse.getSuccessfulShards());
+                assertEquals("simulated failure", searchResponse.getShardFailures()[0].getCause().getMessage());
+                assertNotEquals(0, searchResponse.getHits().getHits().length);
+                for (SearchHit hit : searchResponse.getHits().getHits()) {
+                    assertEquals(fetchFieldValue + "_" + hit.getId(), hit.getFields().get(fetchFieldName).getValue());
+                    assertEquals(1, hit.getShard().getShardId().id());
+                }
+            }
+        );
     }
 
     public void testSearchWhileIndexDeletedDoesNotLeakSearchContext() throws ExecutionException, InterruptedException {
@@ -457,7 +1183,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                 -1,
                 null
             ),
-            new SearchShardTask(123L, "", "", "", null, Collections.emptyMap()),
+            new SearchShardTask(123L, "", "", "", null, emptyMap()),
             result
         );
 
@@ -694,7 +1420,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         for (int i = 0; i < maxScriptFields; i++) {
             searchSourceBuilder.scriptField(
                 "field" + i,
-                new Script(ScriptType.INLINE, MockScriptEngine.NAME, CustomScriptPlugin.DUMMY_SCRIPT, Collections.emptyMap())
+                new Script(ScriptType.INLINE, MockScriptEngine.NAME, CustomScriptPlugin.DUMMY_SCRIPT, emptyMap())
             );
         }
         final ShardSearchRequest request = new ShardSearchRequest(
@@ -723,7 +1449,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
             }
             searchSourceBuilder.scriptField(
                 "anotherScriptField",
-                new Script(ScriptType.INLINE, MockScriptEngine.NAME, CustomScriptPlugin.DUMMY_SCRIPT, Collections.emptyMap())
+                new Script(ScriptType.INLINE, MockScriptEngine.NAME, CustomScriptPlugin.DUMMY_SCRIPT, emptyMap())
             );
             IllegalArgumentException ex = expectThrows(
                 IllegalArgumentException.class,
@@ -752,7 +1478,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         searchRequest.source(searchSourceBuilder);
         searchSourceBuilder.scriptField(
             "field" + 0,
-            new Script(ScriptType.INLINE, MockScriptEngine.NAME, CustomScriptPlugin.DUMMY_SCRIPT, Collections.emptyMap())
+            new Script(ScriptType.INLINE, MockScriptEngine.NAME, CustomScriptPlugin.DUMMY_SCRIPT, emptyMap())
         );
         searchSourceBuilder.size(0);
         final ShardSearchRequest request = new ShardSearchRequest(
@@ -1036,7 +1762,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         );
 
         CountDownLatch latch = new CountDownLatch(1);
-        SearchShardTask task = new SearchShardTask(123L, "", "", "", null, Collections.emptyMap());
+        SearchShardTask task = new SearchShardTask(123L, "", "", "", null, emptyMap());
         // Because the foo field used in alias filter is unmapped the term query builder rewrite can resolve to a match no docs query,
         // without acquiring a searcher and that means the wrapper is not called
         assertEquals(5, numWrapInvocations.get());
@@ -1330,7 +2056,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
             0,
             null
         );
-        SearchShardTask task = new SearchShardTask(123L, "", "", "", null, Collections.emptyMap());
+        SearchShardTask task = new SearchShardTask(123L, "", "", "", null, emptyMap());
 
         {
             CountDownLatch latch = new CountDownLatch(1);
@@ -1705,7 +2431,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         final DocWriteResponse response = prepareIndex("index").setSource("id", "1").get();
         assertEquals(RestStatus.CREATED, response.status());
 
-        SearchShardTask task = new SearchShardTask(123L, "", "", "", null, Collections.emptyMap());
+        SearchShardTask task = new SearchShardTask(123L, "", "", "", null, emptyMap());
         ShardSearchRequest request = new ShardSearchRequest(
             OriginalIndices.NONE,
             searchRequest,
@@ -1740,7 +2466,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         final DocWriteResponse response = prepareIndex("index").setSource("id", "1").get();
         assertEquals(RestStatus.CREATED, response.status());
 
-        SearchShardTask task = new SearchShardTask(123L, "", "", "", null, Collections.emptyMap());
+        SearchShardTask task = new SearchShardTask(123L, "", "", "", null, emptyMap());
         PlainActionFuture<SearchPhaseResult> future = new PlainActionFuture<>();
         ShardSearchRequest request = new ShardSearchRequest(
             OriginalIndices.NONE,
@@ -1778,7 +2504,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         final DocWriteResponse response = prepareIndex("index").setSource("id", "1").get();
         assertEquals(RestStatus.CREATED, response.status());
 
-        SearchShardTask task = new SearchShardTask(123L, "", "", "", null, Collections.emptyMap());
+        SearchShardTask task = new SearchShardTask(123L, "", "", "", null, emptyMap());
         PlainActionFuture<SearchPhaseResult> future = new PlainActionFuture<>();
         ShardSearchRequest request = new ShardSearchRequest(
             OriginalIndices.NONE,
@@ -1815,7 +2541,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         final DocWriteResponse response = prepareIndex("index").setSource("id", "1").get();
         assertEquals(RestStatus.CREATED, response.status());
 
-        SearchShardTask task = new SearchShardTask(123L, "", "", "", null, Collections.emptyMap());
+        SearchShardTask task = new SearchShardTask(123L, "", "", "", null, emptyMap());
         PlainActionFuture<SearchPhaseResult> future = new PlainActionFuture<>();
         ShardSearchRequest request = new ShardSearchRequest(
             OriginalIndices.NONE,
@@ -1901,7 +2627,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         PlainActionFuture<QuerySearchResult> plainActionFuture = new PlainActionFuture<>();
         service.executeQueryPhase(
             new QuerySearchRequest(null, context.id(), request, new AggregatedDfs(Map.of(), Map.of(), 10)),
-            new SearchShardTask(42L, "", "", "", null, Collections.emptyMap()),
+            new SearchShardTask(42L, "", "", "", null, emptyMap()),
             plainActionFuture
         );
 

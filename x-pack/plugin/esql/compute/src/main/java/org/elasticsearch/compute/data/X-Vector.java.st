@@ -185,7 +185,7 @@ $endif$
     private static $Type$Vector readValues(int positions, StreamInput in, BlockFactory blockFactory) throws IOException {
         try (var builder = blockFactory.new$Type$Vector$if(BytesRef)$$else$Fixed$endif$Builder(positions)) {
             for (int i = 0; i < positions; i++) {
-                builder.append$Type$(in.read$Type$());
+                builder.append$Type$($if(BytesRef)$$else$i, $endif$in.read$Type$());
             }
             return builder.build();
         }
@@ -243,6 +243,9 @@ $else$
          */
         @Override
         FixedBuilder append$Type$($type$ value);
+
+        FixedBuilder append$Type$(int index, $type$ value);
+
     }
 $endif$
 }

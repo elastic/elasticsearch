@@ -18,7 +18,6 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.type.DataTypes;
 import org.elasticsearch.xpack.esql.expression.EsqlTypeResolutions;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
@@ -64,19 +63,19 @@ public class Values extends AggregateFunction implements ToAggregator {
     @Override
     public AggregatorFunctionSupplier supplier(List<Integer> inputChannels) {
         DataType type = field().dataType();
-        if (type == DataTypes.INTEGER) {
+        if (type == DataType.INTEGER) {
             return new ValuesIntAggregatorFunctionSupplier(inputChannels);
         }
-        if (type == DataTypes.LONG || type == DataTypes.DATETIME) {
+        if (type == DataType.LONG || type == DataType.DATETIME) {
             return new ValuesLongAggregatorFunctionSupplier(inputChannels);
         }
-        if (type == DataTypes.DOUBLE) {
+        if (type == DataType.DOUBLE) {
             return new ValuesDoubleAggregatorFunctionSupplier(inputChannels);
         }
-        if (DataTypes.isString(type) || type == DataTypes.IP || type == DataTypes.VERSION) {
+        if (DataType.isString(type) || type == DataType.IP || type == DataType.VERSION) {
             return new ValuesBytesRefAggregatorFunctionSupplier(inputChannels);
         }
-        if (type == DataTypes.BOOLEAN) {
+        if (type == DataType.BOOLEAN) {
             return new ValuesBooleanAggregatorFunctionSupplier(inputChannels);
         }
         // TODO cartesian_point, geo_point

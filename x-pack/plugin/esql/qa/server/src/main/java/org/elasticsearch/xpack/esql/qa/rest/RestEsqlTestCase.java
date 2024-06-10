@@ -113,6 +113,8 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         private final XContentBuilder builder;
         private boolean isBuilt = false;
 
+        private Map<String, Map<String, List<?>>> tables;
+
         private Boolean keepOnCompletion = null;
 
         public RequestObjectBuilder() throws IOException {
@@ -126,6 +128,11 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
 
         public RequestObjectBuilder query(String query) throws IOException {
             builder.field("query", query);
+            return this;
+        }
+
+        public RequestObjectBuilder tables(Map<String, Map<String, List<?>>> tables) {
+            this.tables = tables;
             return this;
         }
 
@@ -173,6 +180,9 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
 
         public RequestObjectBuilder build() throws IOException {
             if (isBuilt == false) {
+                if (tables != null) {
+                    builder.field("tables", tables);
+                }
                 builder.endObject();
                 isBuilt = true;
             }

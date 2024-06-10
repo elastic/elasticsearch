@@ -23,12 +23,13 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
-import org.elasticsearch.xpack.core.inference.results.ChunkedSparseEmbeddingResults;
 import org.elasticsearch.xpack.core.inference.results.ErrorChunkedInferenceResults;
+import org.elasticsearch.xpack.core.inference.results.InferenceChunkedSparseEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.action.InferModelAction;
 import org.elasticsearch.xpack.core.ml.action.InferTrainedModelDeploymentAction;
-import org.elasticsearch.xpack.core.ml.inference.results.ChunkedTextExpansionResultsTests;
 import org.elasticsearch.xpack.core.ml.inference.results.ErrorInferenceResults;
+import org.elasticsearch.xpack.core.ml.inference.results.InferenceChunkedTextExpansionResults;
+import org.elasticsearch.xpack.core.ml.inference.results.InferenceChunkedTextExpansionResultsTests;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TokenizationConfigUpdate;
 
 import java.util.ArrayList;
@@ -335,8 +336,8 @@ public class ElserInternalServiceTests extends ESTestCase {
     @SuppressWarnings("unchecked")
     public void testChunkInfer() {
         var mlTrainedModelResults = new ArrayList<InferenceResults>();
-        mlTrainedModelResults.add(ChunkedTextExpansionResultsTests.createRandomResults());
-        mlTrainedModelResults.add(ChunkedTextExpansionResultsTests.createRandomResults());
+        mlTrainedModelResults.add(InferenceChunkedTextExpansionResultsTests.createRandomResults());
+        mlTrainedModelResults.add(InferenceChunkedTextExpansionResultsTests.createRandomResults());
         mlTrainedModelResults.add(new ErrorInferenceResults(new RuntimeException("boom")));
         var response = new InferModelAction.Response(mlTrainedModelResults, "foo", true);
 
@@ -361,18 +362,12 @@ public class ElserInternalServiceTests extends ESTestCase {
         var gotResults = new AtomicBoolean();
         var resultsListener = ActionListener.<List<ChunkedInferenceServiceResults>>wrap(chunkedResponse -> {
             assertThat(chunkedResponse, hasSize(3));
-            assertThat(chunkedResponse.get(0), instanceOf(ChunkedSparseEmbeddingResults.class));
-            var result1 = (ChunkedSparseEmbeddingResults) chunkedResponse.get(0);
-            assertEquals(
-                ((org.elasticsearch.xpack.core.ml.inference.results.ChunkedTextExpansionResults) mlTrainedModelResults.get(0)).getChunks(),
-                result1.getChunkedResults()
-            );
-            assertThat(chunkedResponse.get(1), instanceOf(ChunkedSparseEmbeddingResults.class));
-            var result2 = (ChunkedSparseEmbeddingResults) chunkedResponse.get(1);
-            assertEquals(
-                ((org.elasticsearch.xpack.core.ml.inference.results.ChunkedTextExpansionResults) mlTrainedModelResults.get(1)).getChunks(),
-                result2.getChunkedResults()
-            );
+            assertThat(chunkedResponse.get(0), instanceOf(InferenceChunkedSparseEmbeddingResults.class));
+            var result1 = (InferenceChunkedSparseEmbeddingResults) chunkedResponse.get(0);
+            assertEquals(((InferenceChunkedTextExpansionResults) mlTrainedModelResults.get(0)).getChunks(), result1.getChunkedResults());
+            assertThat(chunkedResponse.get(1), instanceOf(InferenceChunkedSparseEmbeddingResults.class));
+            var result2 = (InferenceChunkedSparseEmbeddingResults) chunkedResponse.get(1);
+            assertEquals(((InferenceChunkedTextExpansionResults) mlTrainedModelResults.get(1)).getChunks(), result2.getChunkedResults());
             var result3 = (ErrorChunkedInferenceResults) chunkedResponse.get(2);
             assertThat(result3.getException(), instanceOf(RuntimeException.class));
             assertThat(result3.getException().getMessage(), containsString("boom"));

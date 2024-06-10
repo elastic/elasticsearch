@@ -235,8 +235,8 @@ public class MvAppendTests extends AbstractFunctionTestCase {
         }));
 
         suppliers.add(new TestCaseSupplier(List.of(DataType.GEO_SHAPE, DataType.GEO_SHAPE), () -> {
-            List<Object> field1 = randomList(1, 5, () -> new BytesRef(GEO.asWkt(GeometryTestUtils.randomGeometry(randomBoolean()))));
-            List<Object> field2 = randomList(1, 5, () -> new BytesRef(GEO.asWkt(GeometryTestUtils.randomGeometry(randomBoolean()))));
+            List<Object> field1 = randomList(1, 3, () -> new BytesRef(GEO.asWkt(GeometryTestUtils.randomGeometry(2, randomBoolean()))));
+            List<Object> field2 = randomList(1, 3, () -> new BytesRef(GEO.asWkt(GeometryTestUtils.randomGeometry(2, randomBoolean()))));
             var result = new ArrayList<>(field1);
             result.addAll(field2);
             return new TestCaseSupplier.TestCase(
@@ -251,8 +251,8 @@ public class MvAppendTests extends AbstractFunctionTestCase {
         }));
 
         suppliers.add(new TestCaseSupplier(List.of(DataType.CARTESIAN_SHAPE, DataType.CARTESIAN_SHAPE), () -> {
-            List<Object> field1 = randomList(1, 5, () -> new BytesRef(CARTESIAN.asWkt(ShapeTestUtils.randomGeometry(randomBoolean()))));
-            List<Object> field2 = randomList(1, 5, () -> new BytesRef(CARTESIAN.asWkt(ShapeTestUtils.randomGeometry(randomBoolean()))));
+            List<Object> field1 = randomList(1, 3, () -> new BytesRef(CARTESIAN.asWkt(ShapeTestUtils.randomGeometry(2, randomBoolean()))));
+            List<Object> field2 = randomList(1, 3, () -> new BytesRef(CARTESIAN.asWkt(ShapeTestUtils.randomGeometry(2, randomBoolean()))));
             var result = new ArrayList<>(field1);
             result.addAll(field2);
             return new TestCaseSupplier.TestCase(

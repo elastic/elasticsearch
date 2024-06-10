@@ -369,46 +369,6 @@ public class QueryRulesIndexService {
      * @param listener
      */
     public void deleteQueryRule(String rulesetId, String ruleId, ActionListener<DeleteQueryRuleAction.Response> listener) {
-        // getQueryRuleset(rulesetId, new ActionListener<>() {
-        // @Override
-        // public void onResponse(QueryRuleset queryRuleset) {
-        // final List<QueryRule> rules = queryRuleset.rules()
-        // .stream()
-        // .filter(rule -> rule.id().equals(ruleId) == false)
-        // .collect(Collectors.toList());
-        // if (rules.isEmpty() == false) {
-        // putQueryRuleset(new QueryRuleset(rulesetId, rules), new ActionListener<>() {
-        // @Override
-        // public void onResponse(DocWriteResponse docWriteResponse) {
-        // listener.onResponse(new DeleteQueryRuleAction.Response(true));
-        // }
-        //
-        // @Override
-        // public void onFailure(Exception e) {
-        // listener.onFailure(e);
-        // }
-        // });
-        // } else {
-        // // Delete entire ruleset when there are no more rules left in it
-        // deleteQueryRuleset(rulesetId, new ActionListener<>() {
-        // @Override
-        // public void onResponse(DeleteResponse deleteResponse) {
-        // listener.onResponse(new DeleteQueryRuleAction.Response(true));
-        // }
-        //
-        // @Override
-        // public void onFailure(Exception e) {
-        // listener.onFailure(e);
-        // }
-        // });
-        // }
-        // }
-        //
-        // @Override
-        // public void onFailure(Exception e) {
-        // listener.onFailure(e);
-        // }
-        // });
         getQueryRuleset(rulesetId, listener.delegateFailure((delegate, queryRuleset) -> {
             Optional<QueryRule> maybeQueryRule = queryRuleset.rules().stream().filter(r -> r.id().equals(ruleId)).findFirst();
             if (maybeQueryRule.isPresent()) {

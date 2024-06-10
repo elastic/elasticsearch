@@ -32,6 +32,10 @@ public class EsqlUnresolvedRelation extends UnresolvedRelation {
         this.indexMode = indexMode;
     }
 
+    public EsqlUnresolvedRelation(Source source, TableIdentifier table, List<Attribute> metadataFields) {
+        this(source, table, metadataFields, IndexMode.STANDARD);
+    }
+
     public EsqlUnresolvedRelation(Source source, TableIdentifier table, List<Attribute> metadataFields, IndexMode indexMode) {
         this(source, table, metadataFields, indexMode, null);
     }

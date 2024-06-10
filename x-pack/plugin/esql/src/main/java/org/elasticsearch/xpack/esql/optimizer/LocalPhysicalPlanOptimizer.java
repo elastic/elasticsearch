@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.esql.core.expression.AttributeMap;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.Order;
@@ -34,6 +35,7 @@ import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardLike
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.rule.ParameterizedRuleExecutor;
 import org.elasticsearch.xpack.esql.core.rule.Rule;
+import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Queries;
 import org.elasticsearch.xpack.esql.core.util.Queries.Clause;
@@ -58,6 +60,7 @@ import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
 import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.plan.physical.RankExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.plan.physical.UnaryExec;
 import org.elasticsearch.xpack.esql.planner.AbstractPhysicalOperationProviders;
@@ -107,6 +110,7 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
 
         if (optimizeForEsSource) {
             esSourceRules.add(new PushTopNToSource());
+            esSourceRules.add(new PushRankToSource());
             esSourceRules.add(new PushLimitToSource());
             esSourceRules.add(new PushFiltersToSource());
             esSourceRules.add(new PushStatsToSource());
@@ -134,7 +138,7 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
 
         @Override
         protected PhysicalPlan rule(EsSourceExec plan) {
-            return new EsQueryExec(plan.source(), plan.index(), plan.indexMode(), plan.query());
+            return new EsQueryExec(plan.source(), plan.index(), plan.indexMode(), plan.output(), plan.query());
         }
     }
 
@@ -309,6 +313,36 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
         }
     }
 
+    // ####: just hard coded in something. limit should be pushed up from search
+    public static final Literal DEFAULT_RANK_LIMIT = new Literal(Source.EMPTY, 10, DataType.INTEGER);
+
+    private static class PushRankToSource extends OptimizerRule<RankExec> {
+        @Override
+        protected PhysicalPlan rule(RankExec rankExec) {
+            PhysicalPlan plan = rankExec;
+            PhysicalPlan child = rankExec.child();
+            if (child instanceof EsQueryExec queryExec) {
+                Query queryDSL = TRANSLATOR_HANDLER.asQuery(Predicates.combineAnd(rankExec.expressions())); // HEGO: why expressions
+                QueryBuilder planQuery = queryDSL.asBuilder();
+                var query = Queries.combine(Clause.FILTER, asList(queryExec.query(), planQuery));
+                var esQueryExec = new EsQueryExec(
+                    queryExec.source(),
+                    queryExec.index(),
+                    queryExec.indexMode(),
+                    queryExec.output(),
+                    query,
+                    DEFAULT_RANK_LIMIT,
+                    queryExec.sorts(),
+                    queryExec.estimatedRowSize()
+                );
+                assert esQueryExec.scoring();
+                plan = esQueryExec;
+                // TODO: what there child types, if any?
+            }
+            return plan;
+        }
+    }
+
     private static class PushTopNToSource extends PhysicalOptimizerRules.ParameterizedOptimizerRule<
         TopNExec,
         LocalPhysicalOptimizerContext> {
@@ -443,6 +477,8 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
     }
 
     public static boolean isPushableFieldAttribute(Expression exp, Predicate<FieldAttribute> hasIdenticalDelegate) {
+        // TODO: consider if we want to allow explicit sorting on _Score
+        // if (exp instanceof MetadataAttribute ma && ma.name().equals("_score")) ...
         if (exp instanceof FieldAttribute fa && fa.getExactInfo().hasExact() && isAggregatable(fa)) {
             return fa.dataType() != DataType.TEXT || hasIdenticalDelegate.test(fa);
         }

@@ -1,3 +1,10 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
 lexer grammar EsqlBaseLexer;
 
 DISSECT : 'dissect'           -> pushMode(EXPRESSION_MODE);
@@ -16,6 +23,7 @@ METRICS : 'metrics'           -> pushMode(METRICS_MODE);
 MV_EXPAND : 'mv_expand'       -> pushMode(MVEXPAND_MODE);
 RENAME : 'rename'             -> pushMode(RENAME_MODE);
 ROW : 'row'                   -> pushMode(EXPRESSION_MODE);
+SEARCH : 'search'             -> pushMode(SEARCH_MODE);
 SHOW : 'show'                 -> pushMode(SHOW_MODE);
 SORT : 'sort'                 -> pushMode(EXPRESSION_MODE);
 STATS : 'stats'               -> pushMode(EXPRESSION_MODE);
@@ -190,6 +198,77 @@ EXPR_MULTILINE_COMMENT
 EXPR_WS
     : WS -> channel(HIDDEN)
     ;
+
+//
+// Search Expression - mostly a copy of EXPRESSION_MODE + match
+//
+mode SEARCH_EXPRESSION_MODE;
+
+SEARCH_EXPR_PIPE : PIPE -> type(PIPE), popMode;
+SEARCH_EXPR_QUOTED_STRING : QUOTED_STRING -> type(QUOTED_STRING);
+SEARCH_EXPR_INTEGER_LITERAL : INTEGER_LITERAL -> type(INTEGER_LITERAL);
+SEARCH_EXPR_DECIMAL_LITERAL : DECIMAL_LITERAL -> type(DECIMAL_LITERAL);
+
+SEARCH_EXPR_BY : BY -> type(BY);
+
+SEARCH_EXPR_AND : AND -> type(AND);
+SEARCH_EXPR_ASC : ASC -> type(ASC);
+SEARCH_EXPR_ASSIGN : ASSIGN -> type(ASSIGN);
+SEARCH_EXPR_CAST_OP : CAST_OP -> type(CAST_OP);
+SEARCH_EXPR_COMMA : COMMA -> type(COMMA);
+SEARCH_EXPR_DESC : DESC -> type(DESC);
+SEARCH_EXPR_DOT : DOT -> type(DOT);
+SEARCH_EXPR_FALSE : FALSE -> type(FALSE);
+SEARCH_EXPR_FIRST : FIRST -> type(FIRST);
+SEARCH_EXPR_LAST : LAST -> type(LAST);
+SEARCH_EXPR_LP : LP -> type(LP);
+SEARCH_EXPR_IN : IN -> type(IN);
+SEARCH_EXPR_IS : IS -> type(IS);
+SEARCH_EXPR_LIKE : LIKE -> type(LIKE);
+SEARCH_EXPR_NOT : NOT -> type(NOT);
+SEARCH_EXPR_NULL : NULL -> type(NULL);
+SEARCH_EXPR_NULLS : NULLS -> type(NULLS);
+SEARCH_EXPR_OR : OR -> type(OR);
+SEARCH_EXPR_PARAM: PARAM -> type(PARAM);
+SEARCH_EXPR_RLIKE : RLIKE -> type(RLIKE);
+SEARCH_EXPR_RP : RP -> type(RP);
+SEARCH_EXPR_TRUE : TRUE -> type(TRUE);
+
+SEARCH_EXPR_EQ    : EQ   -> type(EQ);
+SEARCH_EXPR_CIEQ  : CIEQ -> type(CIEQ);
+SEARCH_EXPR_NEQ   : NEQ  -> type(NEQ);
+SEARCH_EXPR_LT    : LT   -> type(LT);
+SEARCH_EXPR_LTE   : LTE  -> type(LTE);
+SEARCH_EXPR_GT    : GT   -> type(GT);
+SEARCH_EXPR_GTE   : GTE  -> type(GTE);
+
+SEARCH_EXPR_PLUS     : PLUS     -> type(PLUS);
+SEARCH_EXPR_MINUS    : MINUS    -> type(MINUS);
+SEARCH_EXPR_ASTERISK : ASTERISK -> type(ASTERISK);
+SEARCH_EXPR_SLASH    : SLASH    -> type(SLASH);
+SEARCH_EXPR_PERCENT  : PERCENT  -> type(PERCENT);
+
+SEARCH_EXPR_MATCH : 'match';
+SEARCH_EXPR_MATCH_PHRASE : 'match phrase';
+
+SEARCH_EXPR_OPENING_BRACKET : OPENING_BRACKET -> type(OPENING_BRACKET), pushMode(EXPRESSION_MODE), pushMode(EXPRESSION_MODE);
+SEARCH_EXPR_CLOSING_BRACKET : CLOSING_BRACKET -> type(CLOSING_BRACKET), popMode, popMode;
+
+SEARCH_EXPR_UNQUOTED_IDENTIFIER : UNQUOTED_IDENTIFIER -> type(UNQUOTED_IDENTIFIER);
+SEARCH_EXPR_QUOTED_IDENTIFIER   : QUOTED_IDENTIFIER   -> type(QUOTED_IDENTIFIER);
+
+SEARCH_EXPR_LINE_COMMENT
+    : LINE_COMMENT -> channel(HIDDEN)
+    ;
+
+SEARCH_EXPR_MULTILINE_COMMENT
+    : MULTILINE_COMMENT -> channel(HIDDEN)
+    ;
+
+SEARCH_EXPR_WS
+    : WS -> channel(HIDDEN)
+    ;
+
 //
 // FROM command
 //
@@ -530,4 +609,55 @@ CLOSING_METRICS_BY
 
 CLOSING_METRICS_PIPE
     : PIPE -> type(PIPE), popMode
+    ;
+//
+// SEARCH command
+//
+mode SEARCH_MODE;
+SEARCH_OPENING_BRACKET : OPENING_BRACKET -> type(OPENING_BRACKET), pushMode(SEARCH_CTX_MODE);
+// closing bracket is declared in case of empty declaration
+SEARCH_CLOSING_BRACKET : CLOSING_BRACKET -> type(CLOSING_BRACKET);
+// close current mode (go to DEFAULT_MODE)
+SEARCH_PIPE: PIPE -> type(PIPE), popMode;
+SEARCH_COMMA: COMMA -> type(COMMA);
+
+SEARCH_UNQUOTED_IDENTIFIER
+    : INDEX_UNQUOTED_IDENTIFIER -> type(INDEX_UNQUOTED_IDENTIFIER)
+    ;
+
+SEARCH_LINE_COMMENT
+    : LINE_COMMENT -> channel(HIDDEN)
+    ;
+
+SEARCH_MULTILINE_COMMENT
+    : MULTILINE_COMMENT -> channel(HIDDEN)
+    ;
+
+SEARCH_WS
+    : WS -> channel(HIDDEN)
+    ;
+
+mode SEARCH_CTX_MODE;
+// go back to SEARCH_MODE
+SEARCH_CTX_CLOSING_BRACKET : CLOSING_BRACKET -> type(CLOSING_BRACKET), popMode;
+// eat first pipe
+SEARCH_CTX_PIPE: PIPE -> type(PIPE);
+
+// available sub-commands
+// NB: expression mode will exit on ] by doing two pops (1. to SEARCH_CTX_MODE, 2. to SEARCH_MODE)
+SEARCH_CTX_LIMIT : LIMIT  -> type(LIMIT), pushMode(SEARCH_EXPRESSION_MODE);
+SEARCH_CTX_SORT  : SORT   -> type(SORT),  pushMode(SEARCH_EXPRESSION_MODE);
+RANK             : 'rank' -> pushMode(SEARCH_EXPRESSION_MODE);
+SEARCH_CTX_WHERE : WHERE  -> type(WHERE), pushMode(SEARCH_EXPRESSION_MODE);
+
+SEARCH_CTX_LINE_COMMENT
+    : LINE_COMMENT -> channel(HIDDEN)
+    ;
+
+SEARCH_CTX_MULTILINE_COMMENT
+    : MULTILINE_COMMENT -> channel(HIDDEN)
+    ;
+
+SEARCH_CTX_WS
+    : WS -> channel(HIDDEN)
     ;

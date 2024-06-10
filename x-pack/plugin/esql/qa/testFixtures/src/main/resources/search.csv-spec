@@ -1,0 +1,24 @@
+filterOnly#[skip:-8.16.99, reason:TODO]
+search employees [
+  | where emp_no > 1000 AND emp_no < 1010 
+]
+| keep emp_no
+| sort emp_no
+;
+
+emp_no:integer
+#emp_no:integer | _score:float
+#10013          | Eberhardt      
+;
+
+rankRangeQuery#[skip:-8.16.99, reason:TODO]
+search employees [
+  | rank emp_no > 1000 AND emp_no < 1010 
+]
+| keep emp_no, _score
+;
+
+emp_no:integer
+#emp_no:integer | _score:double
+#10013          | Eberhardt      
+;

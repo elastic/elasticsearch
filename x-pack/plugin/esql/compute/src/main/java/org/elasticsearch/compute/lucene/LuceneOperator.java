@@ -108,6 +108,18 @@ public abstract class LuceneOperator extends SourceOperator {
         public final int limit() {
             return limit;
         }
+
+        protected Function<ShardContext, Weight> weightFunction(Function<ShardContext, Query> queryFunction, ScoreMode scoreMode) {
+            return ctx -> {
+                final var query = queryFunction.apply(ctx);
+                final var searcher = ctx.searcher();
+                try {
+                    return searcher.createWeight(searcher.rewrite(new ConstantScoreQuery(query)), scoreMode, 1);
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                }
+            };
+        }
     }
 
     @Override
@@ -431,17 +443,5 @@ public abstract class LuceneOperator extends SourceOperator {
         public TransportVersion getMinimalSupportedVersion() {
             return TransportVersions.V_8_11_X;
         }
-    }
-
-    static Function<ShardContext, Weight> weightFunction(Function<ShardContext, Query> queryFunction, ScoreMode scoreMode) {
-        return ctx -> {
-            final var query = queryFunction.apply(ctx);
-            final var searcher = ctx.searcher();
-            try {
-                return searcher.createWeight(searcher.rewrite(new ConstantScoreQuery(query)), scoreMode, 1);
-            } catch (IOException e) {
-                throw new UncheckedIOException(e);
-            }
-        };
     }
 }

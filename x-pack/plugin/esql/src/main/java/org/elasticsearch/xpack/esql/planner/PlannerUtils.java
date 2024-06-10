@@ -245,7 +245,7 @@ public class PlannerUtils {
             || dataType == DataType.COUNTER_LONG) {
             return ElementType.LONG;
         }
-        if (dataType == DataType.INTEGER || dataType == DataType.COUNTER_INTEGER) {
+        if (dataType == DataType.INTEGER || dataType == DataType.FLOAT || dataType == DataType.COUNTER_INTEGER) {
             return ElementType.INT;
         }
         if (dataType == DataType.DOUBLE || dataType == DataType.COUNTER_DOUBLE) {

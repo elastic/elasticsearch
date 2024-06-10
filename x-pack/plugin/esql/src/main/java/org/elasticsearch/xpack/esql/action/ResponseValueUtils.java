@@ -125,6 +125,7 @@ public final class ResponseValueUtils {
             case "unsigned_long" -> unsignedLongAsNumber(((LongBlock) block).getLong(offset));
             case "long", "counter_long" -> ((LongBlock) block).getLong(offset);
             case "integer", "counter_integer" -> ((IntBlock) block).getInt(offset);
+            case "float" -> Float.intBitsToFloat(((IntBlock) block).getInt(offset));
             case "double", "counter_double" -> ((DoubleBlock) block).getDouble(offset);
             case "keyword", "text" -> ((BytesRefBlock) block).getBytesRef(offset, scratch).utf8ToString();
             case "ip" -> {

@@ -23,7 +23,10 @@ import org.elasticsearch.xpack.esql.core.expression.Order;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.function.UnresolvedFunction;
+import org.elasticsearch.xpack.esql.core.expression.predicate.fulltext.MatchQueryPredicate;
+import org.elasticsearch.xpack.esql.core.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Not;
+import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.esql.core.plan.TableIdentifier;
 import org.elasticsearch.xpack.esql.core.plan.logical.Filter;
@@ -35,6 +38,7 @@ import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.RLike;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.WildcardLike;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Sub;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
@@ -48,10 +52,12 @@ import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Explain;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
+import org.elasticsearch.xpack.esql.plan.logical.Keep;
 import org.elasticsearch.xpack.esql.plan.logical.Lookup;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
+import org.elasticsearch.xpack.esql.plan.logical.search.Rank;
 import org.elasticsearch.xpack.versionfield.Version;
 
 import java.math.BigInteger;
@@ -1106,6 +1112,234 @@ public class StatementParserTests extends ESTestCase {
         }
     }
 
+    //
+    // Search commands
+    //
+
+    public void testSearchIndexPattern() {
+        assumeTrue("search command requires snapshot build", Build.current().isSnapshot());
+
+        assertStatement(
+            "SEARCH index [ ]",
+            new EsqlUnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, "index"), List.of(), IndexMode.STANDARD)
+        );
+        assertStatement(
+            "SEARCH foo,bar [ ]",
+            new EsqlUnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, "foo,bar"), List.of(), IndexMode.STANDARD)
+        );
+        assertStatement(
+            "SEARCH foo*,bar [ ]",
+            new EsqlUnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, "foo*,bar"), List.of(), IndexMode.STANDARD)
+        );
+        assertStatement(
+            "SEARCH foo-*,bar [ ]",
+            new EsqlUnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, "foo-*,bar"), List.of(), IndexMode.STANDARD)
+        );
+        assertStatement(
+            "SEARCH foo-*,bar+* [ ]",
+            new EsqlUnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, "foo-*,bar+*"), List.of(), IndexMode.STANDARD)
+        );
+    }
+
+    public void testSearchFilter() {
+        assumeTrue("search command requires snapshot build", Build.current().isSnapshot());
+
+        assertStatement(
+            """
+                SEARCH index [
+                  | WHERE a > 1
+                ]
+                """,
+            new Filter(
+                EMPTY,
+                new EsqlUnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, "index"), List.of(), IndexMode.STANDARD),
+                new GreaterThan(EMPTY, attribute("a"), integer(1))
+            )
+        );
+
+        assertStatement(
+            """
+                SEARCH index [
+                  | WHERE a > 1 ]
+                | keep emp_no
+                """,
+            new Keep(
+                EMPTY,
+                new Filter(
+                    EMPTY,
+                    new EsqlUnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, "index"), List.of(), IndexMode.STANDARD),
+                    new GreaterThan(EMPTY, attribute("a"), integer(1))
+                ),
+                namedExpression("emp_no")
+            )
+        );
+
+        assertStatement(
+            """
+                SEARCH index [
+                  | WHERE a > 1 ]
+                | limit 101
+                """,
+            new Limit(
+                EMPTY,
+                integer(101),
+                new Filter(
+                    EMPTY,
+                    new EsqlUnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, "index"), List.of(), IndexMode.STANDARD),
+                    new GreaterThan(EMPTY, attribute("a"), integer(1))
+                )
+            )
+        );
+    }
+
+    public void testSearchRank() {
+        assumeTrue("search command requires snapshot build", Build.current().isSnapshot());
+
+        assertStatement(
+            """
+                SEARCH index [
+                  | RANK a > 1 ]
+                """,
+            new Rank(
+                EMPTY,
+                new EsqlUnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, "index"), List.of(), IndexMode.STANDARD),
+                new GreaterThan(EMPTY, attribute("a"), integer(1))
+            )
+        );
+
+        assertStatement(
+            """
+                SEARCH index [
+                  | RANK MATCH(item, "iphone red")
+                  | LIMIT 100 ]
+                """,
+            new Limit(
+                EMPTY,
+                integer(100),
+                new Rank(
+                    EMPTY,
+                    new EsqlUnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, "index"), List.of(), IndexMode.STANDARD),
+                    new MatchQueryPredicate(EMPTY, attribute("item"), "iphone red", null)
+                )
+            )
+        );
+
+        assertStatement(
+            """
+                SEARCH index [
+                  | RANK MATCH(item, "iphone") AND MATCH(color, "red") ]
+                """,
+            new Rank(
+                EMPTY,
+                new EsqlUnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, "index"), List.of(), IndexMode.STANDARD),
+                new And(
+                    EMPTY,
+                    new MatchQueryPredicate(EMPTY, attribute("item"), "iphone", null),
+                    new MatchQueryPredicate(EMPTY, attribute("color"), "red", null)
+                )
+            )
+        );
+
+        assertStatement(
+            """
+                SEARCH index [
+                  | RANK MATCH(country, "mexico") OR MATCH(country, "spain") ]
+                """,
+            new Rank(
+                EMPTY,
+                new EsqlUnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, "index"), List.of(), IndexMode.STANDARD),
+                new Or(
+                    EMPTY,
+                    new MatchQueryPredicate(EMPTY, attribute("country"), "mexico", null),
+                    new MatchQueryPredicate(EMPTY, attribute("country"), "spain", null)
+                )
+            )
+        );
+    }
+
+    public void testSearchExamples() {
+        assumeTrue("search command requires snapshot build", Build.current().isSnapshot());
+
+        // This example is taken from the 8.14 blog, without the knn (for now)
+        assertStatement(
+            """
+                SEARCH images [
+                  | WHERE date > now() - 1 month
+                  | RANK MATCH(scene, "mountain lake")
+                  | WHERE _score > 0.1
+                  | LIMIT 100
+                ]
+                | STATS c = COUNT(votes) BY rating
+                | LIMIT 5
+                """,
+            new Limit(
+                EMPTY,
+                integer(5),
+                new EsqlAggregate(
+                    EMPTY,
+                    new Limit(
+                        EMPTY,
+                        integer(100),
+                        new Filter(
+                            EMPTY,
+                            new Rank(
+                                EMPTY,
+                                new Filter(
+                                    EMPTY,
+                                    new EsqlUnresolvedRelation(
+                                        EMPTY,
+                                        new TableIdentifier(EMPTY, null, "images"),
+                                        List.of(),
+                                        IndexMode.STANDARD
+                                    ),
+                                    new GreaterThan(
+                                        EMPTY,
+                                        attribute("date"),
+                                        new Sub(
+                                            EMPTY,
+                                            new UnresolvedFunction(EMPTY, "now", DEFAULT, List.of()),
+                                            literalDatePeriod(Period.of(0, 1, 0))
+                                        )
+                                    )
+                                ),
+                                new MatchQueryPredicate(EMPTY, attribute("scene"), "mountain lake", null)
+                            ),
+                            new GreaterThan(EMPTY, attribute("_score"), literalDouble(0.1))
+                        )
+                    ),
+                    List.of(attribute("rating")),
+                    List.of(
+                        new Alias(EMPTY, "c", new UnresolvedFunction(EMPTY, "COUNT", DEFAULT, List.of(attribute("votes")))),
+                        attribute("rating")
+                    )
+                )
+            )
+        );
+    }
+
+    public void testSearchErrors() {
+        assumeTrue("search command requires snapshot build", Build.current().isSnapshot());
+
+        expectError("""
+            SEARCH index [
+              | WHERE a > 1
+              | LIMIT -1 ]
+            """, "extraneous input '-' expecting INTEGER_LITERAL");
+
+        expectError("""
+            SEARCH index [
+              | WHERE a > 1 ]
+            | LIMIT -1
+            """, "extraneous input '-' expecting INTEGER_LITERAL");
+
+        expectError("""
+            SEARCH index [
+              | WHERE MATCH a > 1 ]
+            """, "extraneous input 'MATCH'");
+
+        // TODO: additional negative / expected error tests go here
+    }
+
     private void assertStatement(String statement, LogicalPlan expected) {
         final LogicalPlan actual;
         try {
@@ -1154,6 +1388,10 @@ public class StatementParserTests extends ESTestCase {
         return new Literal(EMPTY, Arrays.stream(longs).boxed().toList(), DataType.LONG);
     }
 
+    private static Literal literalFloat(float f) {
+        return new Literal(EMPTY, f, DataType.FLOAT);
+    }
+
     private static Literal literalDouble(double d) {
         return new Literal(EMPTY, d, DataType.DOUBLE);
     }
@@ -1188,6 +1426,14 @@ public class StatementParserTests extends ESTestCase {
 
     private static Literal literalStrings(String... strings) {
         return new Literal(EMPTY, Arrays.asList(strings), DataType.KEYWORD);
+    }
+
+    private static Literal literalDatePeriod(Period period) {
+        return new Literal(EMPTY, period, DataType.DATE_PERIOD);
+    }
+
+    private static List<NamedExpression> namedExpression(String name) {
+        return List.of(attribute(name));
     }
 
     private void expectError(String query, String errorMessage) {

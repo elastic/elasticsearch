@@ -19,6 +19,7 @@ import org.elasticsearch.compute.lucene.LuceneCountOperator;
 import org.elasticsearch.compute.lucene.LuceneOperator;
 import org.elasticsearch.compute.lucene.LuceneSourceOperator;
 import org.elasticsearch.compute.lucene.LuceneTopNSourceOperator;
+import org.elasticsearch.compute.lucene.ScoringLuceneTopNSourceOperator;
 import org.elasticsearch.compute.lucene.TimeSeriesSortedSourceOperatorFactory;
 import org.elasticsearch.compute.lucene.ValuesSourceReaderOperator;
 import org.elasticsearch.compute.operator.Operator;
@@ -62,6 +63,7 @@ import java.util.function.IntFunction;
 import static org.elasticsearch.common.lucene.search.Queries.newNonNestedFilter;
 import static org.elasticsearch.compute.lucene.LuceneSourceOperator.NO_LIMIT;
 import static org.elasticsearch.index.mapper.MappedFieldType.FieldExtractPreference.NONE;
+import static org.elasticsearch.xpack.esql.plan.physical.EsQueryExec.SCORE_FIELD;
 
 public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProviders {
     /**
@@ -94,13 +96,18 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
     public final PhysicalOperation fieldExtractPhysicalOperation(FieldExtractExec fieldExtractExec, PhysicalOperation source) {
         Layout.Builder layout = source.layout.builder();
         var sourceAttr = fieldExtractExec.sourceAttribute();
+        var scoreAttr = fieldExtractExec.scoreAttribute();
         List<ValuesSourceReaderOperator.ShardContext> readers = shardContexts.stream()
             .map(s -> new ValuesSourceReaderOperator.ShardContext(s.searcher().getIndexReader(), s::newSourceLoader))
             .toList();
         List<ValuesSourceReaderOperator.FieldInfo> fields = new ArrayList<>();
         int docChannel = source.layout.get(sourceAttr.id()).channel();
+        int scoreChannel = scoreAttr != null ? source.layout.get(fieldExtractExec.scoreAttribute().id()).channel() : -1;
         var docValuesAttrs = fieldExtractExec.docValuesAttributes();
         for (Attribute attr : fieldExtractExec.attributesToExtract()) {
+            if (SCORE_FIELD.getName().equals(attr.name())) {
+                continue;
+            }
             layout.append(attr);
             DataType dataType = attr.dataType();
             MappedFieldType.FieldExtractPreference fieldExtractPreference = PlannerUtils.extractPreference(docValuesAttrs.contains(attr));
@@ -127,7 +134,25 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         assert esQueryExec.estimatedRowSize() != null : "estimated row size not initialized";
         int rowEstimatedSize = esQueryExec.estimatedRowSize();
         int limit = esQueryExec.limit() != null ? (Integer) esQueryExec.limit().fold() : NO_LIMIT;
-        if (sorts != null && sorts.isEmpty() == false) {
+        if (esQueryExec.scoring()) {
+            if (sorts != null) {
+                fieldSorts = new ArrayList<>(sorts.size());
+                for (FieldSort sort : sorts) {
+                    fieldSorts.add(sort.fieldSortBuilder());
+                }
+            } else {
+                fieldSorts = List.of();
+            }
+            luceneFactory = new ScoringLuceneTopNSourceOperator.Factory(
+                shardContexts,
+                querySupplier(esQueryExec.query()),
+                context.queryPragmas().dataPartitioning(),
+                context.queryPragmas().taskConcurrency(),
+                context.pageSize(rowEstimatedSize),
+                limit,
+                fieldSorts
+            );
+        } else if ((sorts != null && sorts.isEmpty() == false)) {
             fieldSorts = new ArrayList<>(sorts.size());
             for (FieldSort sort : sorts) {
                 fieldSorts.add(sort.fieldSortBuilder());

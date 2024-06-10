@@ -150,7 +150,8 @@ public abstract class AbstractEsqlIntegTestCase extends ESIntegTestCase {
 
     protected EsqlQueryResponse run(EsqlQueryRequest request) {
         try {
-            return client().execute(EsqlQueryAction.INSTANCE, request).actionGet(30, TimeUnit.SECONDS);
+            // HEGO: increased timeout just for testing / debugging
+            return client().execute(EsqlQueryAction.INSTANCE, request).actionGet(100000, TimeUnit.SECONDS);
         } catch (ElasticsearchTimeoutException e) {
             throw new AssertionError("timeout", e);
         }

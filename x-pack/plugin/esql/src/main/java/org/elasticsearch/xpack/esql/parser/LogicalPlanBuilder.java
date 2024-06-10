@@ -11,6 +11,7 @@ import org.antlr.v4.runtime.ParserRuleContext;
 import org.antlr.v4.runtime.Token;
 import org.antlr.v4.runtime.tree.ParseTree;
 import org.elasticsearch.Build;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.dissect.DissectException;
 import org.elasticsearch.dissect.DissectParser;
@@ -25,6 +26,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
+import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.Order;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
@@ -56,6 +58,7 @@ import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.meta.MetaFunctions;
+import org.elasticsearch.xpack.esql.plan.logical.search.Rank;
 import org.elasticsearch.xpack.esql.plan.logical.show.ShowInfo;
 
 import java.util.ArrayList;
@@ -447,6 +450,58 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         Literal tableName = new Literal(source, ctx.tableName.getText(), DataType.KEYWORD);
 
         return p -> new Lookup(source, p, tableName, matchFields, null /* localRelation will be resolved later*/);
+    }
+
+    @Override
+    public LogicalPlan visitSearchCommand(EsqlBaseParser.SearchCommandContext ctx) {
+        Source source = source(ctx);
+
+        if (Build.current().isSnapshot() == false) {
+            throw new ParsingException(source, "SEARCH command currently requires a snapshot build");
+        }
+
+        String index = Strings.collectionToDelimitedString(
+            ctx.searchIdentifier().stream().map(e -> unquoteIdentifier(null, e.INDEX_UNQUOTED_IDENTIFIER())).toList(),
+            ","
+        );
+        TableIdentifier table = new TableIdentifier(source, null, index);
+
+        LogicalPlan plan = new EsqlUnresolvedRelation(
+            source,
+            table,
+            List.of(new MetadataAttribute(source, "_score", DataType.FLOAT, null, Nullability.TRUE, null, false, false))
+        );
+        for (EsqlBaseParser.SearchSubCommandContext subCommandContext : ctx.searchSubCommand()) {
+            PlanFactory planFactory = typedParsing(this, subCommandContext, PlanFactory.class);
+            plan = planFactory.apply(plan);
+        }
+        return plan;
+    }
+
+    @Override
+    public PlanFactory visitSearchFilterCommand(EsqlBaseParser.SearchFilterCommandContext ctx) {
+        Expression expression = expression(ctx.searchQueryOrReference());
+        return input -> new Filter(source(ctx), input, expression);
+    }
+
+    @Override
+    public PlanFactory visitSearchLimitCommand(EsqlBaseParser.SearchLimitCommandContext ctx) {
+        Source source = source(ctx);
+        int limit = stringToInt(ctx.INTEGER_LITERAL().getText());
+        return input -> new Limit(source, new Literal(source, limit, DataType.INTEGER), input);
+    }
+
+    @Override
+    public PlanFactory visitSearchRankCommand(EsqlBaseParser.SearchRankCommandContext ctx) {
+        Expression expression = expression(ctx.searchRankExpression());
+        return input -> new Rank(source(ctx), input, expression);
+    }
+
+    @Override
+    public PlanFactory visitSearchSortCommmand(EsqlBaseParser.SearchSortCommmandContext ctx) {
+        List<Order> orders = visitList(this, ctx.sortCommand().orderExpression(), Order.class);
+        Source source = source(ctx);
+        return input -> new OrderBy(source, input, orders);
     }
 
     interface PlanFactory extends Function<LogicalPlan, LogicalPlan> {}

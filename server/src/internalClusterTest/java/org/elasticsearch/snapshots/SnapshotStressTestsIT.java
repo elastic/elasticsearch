@@ -81,7 +81,9 @@ import java.util.stream.Stream;
 import static org.elasticsearch.repositories.blobstore.ChecksumBlobStoreFormat.SNAPSHOT_ONLY_FORMAT_PARAMS;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.notNullValue;
 
 @LuceneTestCase.SuppressFileSystems(value = "HandleLimitFS") // we sometimes have >2048 open files
@@ -468,17 +470,20 @@ public class SnapshotStressTestsIT extends AbstractSnapshotIntegTestCase {
                         restoreSpecificIndicesTmp = true;
                         continue;
                     }
-                    if (randomBoolean() && localReleasables.add(tryAcquireAllPermits(indices.get(indexName).permits)) != null) {
+                    final var trackedIndex = indices.get(indexName);
+                    if (randomBoolean() && localReleasables.add(tryAcquireAllPermits(trackedIndex.permits)) != null) {
 
                         indicesToRestoreList.add(indexName);
 
                         final int snapshotShardCount = snapshotInfo.indexSnapshotDetails().get(indexName).getShardCount();
-                        final int indexShardCount = indices.get(indexName).shardCount;
-                        if (snapshotShardCount == indexShardCount && randomBoolean()) {
+                        final int indexShardCount = trackedIndex.shardCount;
+                        if (snapshotShardCount == indexShardCount
+                            && randomBoolean()
+                            && localReleasables.add(trackedIndex.tryAcquireClosingPermit()) != null) {
                             indicesToCloseList.add(indexName);
                         } else {
                             indicesToDeleteList.add(indexName);
-                            indices.get(indexName).shardCount = snapshotShardCount;
+                            trackedIndex.shardCount = snapshotShardCount;
                         }
                     } else {
                         restoreSpecificIndicesTmp = true;
@@ -994,7 +999,9 @@ public class SnapshotStressTestsIT extends AbstractSnapshotIntegTestCase {
                     boolean snapshotSpecificIndicesTmp = randomBoolean();
                     final List<String> targetIndexNames = new ArrayList<>(indices.size());
                     for (TrackedIndex trackedIndex : indices.values()) {
-                        if (usually() && releasableAfterStart.add(tryAcquirePermit(trackedIndex.permits)) != null) {
+                        if (usually()
+                            && releasableAfterStart.add(tryAcquirePermit(trackedIndex.permits)) != null
+                            && localReleasables.add(trackedIndex.tryAcquirePartialSnapshottingPermit()) != null) {
                             targetIndexNames.add(trackedIndex.indexName);
                         } else {
                             snapshotSpecificIndicesTmp = true;
@@ -1550,6 +1557,29 @@ public class SnapshotStressTestsIT extends AbstractSnapshotIntegTestCase {
                 });
             }
 
+            /**
+             * We must not close an index while it's being partially snapshotted; this counter tracks the number of ongoing
+             * close operations (positive) or partial snapshot operations (negative) in order to avoid them happening concurrently.
+             */
+            private final AtomicInteger closingOrPartialSnapshottingCount = new AtomicInteger();
+
+            Releasable tryAcquireClosingPermit() {
+                final var prevCount = closingOrPartialSnapshottingCount.getAndUpdate(c -> c >= 0 ? c + 1 : c);
+                if (prevCount >= 0) {
+                    return () -> assertThat(closingOrPartialSnapshottingCount.getAndDecrement(), greaterThan(0));
+                } else {
+                    return null;
+                }
+            }
+
+            Releasable tryAcquirePartialSnapshottingPermit() {
+                final var prevCount = closingOrPartialSnapshottingCount.getAndUpdate(c -> c <= 0 ? c - 1 : c);
+                if (prevCount <= 0) {
+                    return () -> assertThat(closingOrPartialSnapshottingCount.getAndIncrement(), lessThan(0));
+                } else {
+                    return null;
+                }
+            }
         }
 
     }

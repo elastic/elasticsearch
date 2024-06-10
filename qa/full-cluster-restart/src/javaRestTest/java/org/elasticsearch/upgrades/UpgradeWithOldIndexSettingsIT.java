@@ -68,10 +68,7 @@ public class UpgradeWithOldIndexSettingsIT extends ParameterizedFullClusterResta
             assertOK(client().performRequest(request));
         } else {
             var indexSettings = getIndexSettings(indexName);
-            assertThat(
-                XContentMapValues.extractValue(indexName + ".settings.index.mapper.dynamic", indexSettings),
-                equalTo("true")
-            );
+            assertThat(XContentMapValues.extractValue(indexName + ".settings.index.mapper.dynamic", indexSettings), equalTo("true"));
             ensureGreen(indexName);
             // New indices can never define the index.mapper.dynamic setting.
             Exception e = expectThrows(

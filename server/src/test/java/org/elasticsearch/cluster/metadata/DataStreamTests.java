@@ -362,11 +362,8 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         assertThat(updated.getFailureIndices().getIndices().size(), equalTo(original.getFailureIndices().getIndices().size() - 1));
         assertThat(updated.getFailureIndices().isRolloverOnWrite(), equalTo(true));
         for (int k = 0; k < (original.getFailureIndices().getIndices().size() - 1); k++) {
-            assertThat(
-                updated.getFailureIndices().getIndices().get(k),
-                equalTo(original.getFailureIndices().getIndices().get(k))
-            );
-        };
+            assertThat(updated.getFailureIndices().getIndices().get(k), equalTo(original.getFailureIndices().getIndices().get(k)));
+        }
     }
 
     public void testAddBackingIndex() {

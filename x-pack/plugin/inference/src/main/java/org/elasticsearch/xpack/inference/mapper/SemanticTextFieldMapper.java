@@ -49,7 +49,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentLocation;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
-import org.elasticsearch.xpack.core.ml.inference.results.TextEmbeddingResults;
+import org.elasticsearch.xpack.core.ml.inference.results.MlTextEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
 
 import java.io.IOException;
@@ -400,12 +400,12 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                         yield boolQuery;
                     }
                     case TEXT_EMBEDDING -> {
-                        if (inferenceResults instanceof TextEmbeddingResults == false) {
+                        if (inferenceResults instanceof MlTextEmbeddingResults == false) {
                             throw new IllegalArgumentException(
                                 "Field ["
                                     + name()
                                     + "] expected query inference results to be of type ["
-                                    + TextEmbeddingResults.NAME
+                                    + MlTextEmbeddingResults.NAME
                                     + "],"
                                     + " got ["
                                     + inferenceResults.getWriteableName()
@@ -413,7 +413,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                             );
                         }
 
-                        TextEmbeddingResults textEmbeddingResults = (TextEmbeddingResults) inferenceResults;
+                        MlTextEmbeddingResults textEmbeddingResults = (MlTextEmbeddingResults) inferenceResults;
                         float[] inference = textEmbeddingResults.getInferenceAsFloat();
                         if (inference.length != modelSettings.dimensions()) {
                             throw new IllegalArgumentException(

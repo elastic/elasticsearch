@@ -8,6 +8,7 @@
 
 package org.elasticsearch.search.rank;
 
+import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
@@ -15,6 +16,8 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.rank.context.QueryPhaseRankCoordinatorContext;
 import org.elasticsearch.search.rank.context.QueryPhaseRankShardContext;
+import org.elasticsearch.search.rank.context.RankFeaturePhaseRankCoordinatorContext;
+import org.elasticsearch.search.rank.context.RankFeaturePhaseRankShardContext;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -31,7 +34,7 @@ public class TestRankBuilder extends RankBuilder {
 
     static final ConstructingObjectParser<TestRankBuilder, Void> PARSER = new ConstructingObjectParser<>(
         NAME,
-        args -> new TestRankBuilder(args[0] == null ? DEFAULT_WINDOW_SIZE : (int) args[0])
+        args -> new TestRankBuilder(args[0] == null ? DEFAULT_RANK_WINDOW_SIZE : (int) args[0])
     );
 
     static {
@@ -75,12 +78,32 @@ public class TestRankBuilder extends RankBuilder {
     }
 
     @Override
+    public boolean isCompoundBuilder() {
+        return true;
+    }
+
+    @Override
+    public Explanation explainHit(Explanation baseExplanation, RankDoc rankDoc, List<String> queryNames) {
+        return baseExplanation;
+    }
+
+    @Override
     public QueryPhaseRankShardContext buildQueryPhaseShardContext(List<Query> queries, int from) {
         throw new UnsupportedOperationException();
     }
 
     @Override
     public QueryPhaseRankCoordinatorContext buildQueryPhaseCoordinatorContext(int size, int from) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public RankFeaturePhaseRankShardContext buildRankFeaturePhaseShardContext() {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public RankFeaturePhaseRankCoordinatorContext buildRankFeaturePhaseCoordinatorContext(int size, int from) {
         throw new UnsupportedOperationException();
     }
 

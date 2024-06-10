@@ -42,7 +42,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.MockLog;
 
 import java.nio.file.Path;
 import java.util.Arrays;
@@ -387,9 +387,9 @@ public class ClusterRerouteIT extends ESIntegTestCase {
             )
             .get();
 
-        try (var dryRunMockLog = MockLogAppender.capture(TransportClusterRerouteAction.class)) {
+        try (var dryRunMockLog = MockLog.capture(TransportClusterRerouteAction.class)) {
             dryRunMockLog.addExpectation(
-                new MockLogAppender.UnseenEventExpectation(
+                new MockLog.UnseenEventExpectation(
                     "no completed message logged on dry run",
                     TransportClusterRerouteAction.class.getName(),
                     Level.INFO,
@@ -411,9 +411,9 @@ public class ClusterRerouteIT extends ESIntegTestCase {
             dryRunMockLog.assertAllExpectationsMatched();
         }
 
-        try (var allocateMockLog = MockLogAppender.capture(TransportClusterRerouteAction.class)) {
+        try (var allocateMockLog = MockLog.capture(TransportClusterRerouteAction.class)) {
             allocateMockLog.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+                new MockLog.SeenEventExpectation(
                     "message for first allocate empty primary",
                     TransportClusterRerouteAction.class.getName(),
                     Level.INFO,
@@ -421,7 +421,7 @@ public class ClusterRerouteIT extends ESIntegTestCase {
                 )
             );
             allocateMockLog.addExpectation(
-                new MockLogAppender.UnseenEventExpectation(
+                new MockLog.UnseenEventExpectation(
                     "no message for second allocate empty primary",
                     TransportClusterRerouteAction.class.getName(),
                     Level.INFO,

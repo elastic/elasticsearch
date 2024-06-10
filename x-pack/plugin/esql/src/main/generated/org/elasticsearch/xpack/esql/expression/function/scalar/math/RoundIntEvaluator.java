@@ -16,8 +16,8 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.Warnings;
-import org.elasticsearch.xpack.ql.tree.Source;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link Round}.
@@ -34,10 +34,10 @@ public final class RoundIntEvaluator implements EvalOperator.ExpressionEvaluator
 
   public RoundIntEvaluator(Source source, EvalOperator.ExpressionEvaluator val,
       EvalOperator.ExpressionEvaluator decimals, DriverContext driverContext) {
-    this.warnings = new Warnings(source);
     this.val = val;
     this.decimals = decimals;
     this.driverContext = driverContext;
+    this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
   }
 
   @Override
@@ -89,9 +89,9 @@ public final class RoundIntEvaluator implements EvalOperator.ExpressionEvaluator
   }
 
   public IntVector eval(int positionCount, IntVector valVector, LongVector decimalsVector) {
-    try(IntVector.Builder result = driverContext.blockFactory().newIntVectorBuilder(positionCount)) {
+    try(IntVector.FixedBuilder result = driverContext.blockFactory().newIntVectorFixedBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendInt(Round.process(valVector.getInt(p), decimalsVector.getLong(p)));
+        result.appendInt(p, Round.process(valVector.getInt(p), decimalsVector.getLong(p)));
       }
       return result.build();
     }

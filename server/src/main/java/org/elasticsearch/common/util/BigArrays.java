@@ -21,9 +21,11 @@ import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.core.Streams;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.Arrays;
 
 import static org.elasticsearch.common.util.BigDoubleArray.VH_PLATFORM_NATIVE_DOUBLE;
@@ -162,8 +164,8 @@ public class BigArrays {
         }
 
         @Override
-        public void fillWith(StreamInput in) throws IOException {
-            in.readBytes(array, 0, Math.toIntExact(size()));
+        public void fillWith(InputStream in) throws IOException {
+            Streams.readFully(in, array, 0, Math.toIntExact(size()));
         }
 
         @Override

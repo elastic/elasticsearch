@@ -216,5 +216,10 @@ public abstract class MetadataFieldMapper extends FieldMapper {
     }
 
     @Override
+    protected SyntheticSourceMode syntheticSourceMode() {
+        return SyntheticSourceMode.NATIVE;
+    }
+
+    @Override
     public abstract SourceLoader.SyntheticFieldLoader syntheticFieldLoader();
 }

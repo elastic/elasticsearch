@@ -23,6 +23,10 @@ import java.util.OptionalLong;
 import java.util.function.Consumer;
 
 public class StoreHeartbeatService implements LeaderHeartbeatService {
+    /**
+     * How frequently the master will write a heartbeat to the blob store. Indicates that the master node is still alive, preventing other
+     * nodes from running for election.
+     */
     public static final Setting<TimeValue> HEARTBEAT_FREQUENCY = Setting.timeSetting(
         "cluster.stateless.heartbeat_frequency",
         TimeValue.timeValueSeconds(15),
@@ -30,6 +34,11 @@ public class StoreHeartbeatService implements LeaderHeartbeatService {
         Setting.Property.NodeScope
     );
 
+    /**
+     * Multiplied against HEARTBEAT_FREQUENCY to determine how long to wait for the last master heartbeat to fade before a node can run for
+     * election. Defaults to 2, for a waiting period of 2x the HEARTBEAT_FREQUENCY. Reducing to 1 may get pretty racy with the heartbeat
+     * frequency, and isn't advised.
+     */
     public static final Setting<Integer> MAX_MISSED_HEARTBEATS = Setting.intSetting(
         "cluster.stateless.max_missed_heartbeats",
         2,

@@ -14,6 +14,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.ByteBuffer;
 
 /**
@@ -55,7 +56,7 @@ public interface ByteArray extends BigArray, Writeable {
     /**
      * Fills this ByteArray with bytes from the given input stream
      */
-    void fillWith(StreamInput in) throws IOException;
+    void fillWith(InputStream in) throws IOException;
 
     /**
      * Returns a BytesRefIterator for this ByteArray. This method allows

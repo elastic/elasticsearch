@@ -139,9 +139,10 @@ public class SparseFileTracker {
     }
 
     /**
-     * Called before reading a range from the file to ensure that this range is present. Returns a list of gaps for the caller to fill. The
-     * range from the file is defined by {@code range} but the listener is executed as soon as a (potentially smaller) sub range
-     * {@code subRange} becomes available.
+     * Called before reading a range from the file to ensure that this range is present. Returns a list of gaps for the caller to fill,
+     * unless the {@code subRange} is already present in which case the listener is executed immediately without returning gaps. The range
+     * from the file is defined by {@code range} but the listener is executed as soon as a (potentially smaller) sub range {@code subRange}
+     * becomes available.
      *
      * @param range    A ByteRange that contains the (inclusive) start and (exclusive) end of the desired range
      * @param subRange A ByteRange that contains the (inclusive) start and (exclusive) end of the listener's range
@@ -173,7 +174,7 @@ public class SparseFileTracker {
             );
         }
 
-        if (complete >= range.end()) {
+        if (subRange.end() <= complete) {
             listener.onResponse(null);
             return List.of();
         }

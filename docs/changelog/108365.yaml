@@ -1,5 +1,0 @@
-pr: 108365
-summary: "[Bugfix] Connector API - fix status serialisation issue in termquery"
-area: Application
-type: bug
-issues: []

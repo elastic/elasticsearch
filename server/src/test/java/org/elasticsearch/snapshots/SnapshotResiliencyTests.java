@@ -178,11 +178,12 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.FetchPhase;
+import org.elasticsearch.search.rank.feature.RankFeatureShardPhase;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.BytesRefRecycler;
@@ -1035,7 +1036,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                             .routingTable()
                             .shardRoutingTable(shardToRelocate.shardId())
                             .primaryShard();
-                        if (shardRouting.unassigned() && shardRouting.unassignedInfo().getReason() == UnassignedInfo.Reason.NODE_LEFT) {
+                        if (shardRouting.unassigned() && shardRouting.unassignedInfo().reason() == UnassignedInfo.Reason.NODE_LEFT) {
                             if (masterNodeCount > 1) {
                                 scheduleNow(() -> testClusterNodes.stopNode(masterNode));
                             }
@@ -1451,13 +1452,13 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     })
             );
 
-        MockLogAppender.assertThatLogger(() -> {
+        MockLog.assertThatLogger(() -> {
             deterministicTaskQueue.runAllRunnableTasks();
             assertTrue("executed all runnable tasks but test steps are still incomplete", testListener.isDone());
             safeAwait(testListener); // shouldn't throw
         },
             SnapshotsService.class,
-            new MockLogAppender.SeenEventExpectation(
+            new MockLog.SeenEventExpectation(
                 "INFO log",
                 SnapshotsService.class.getCanonicalName(),
                 Level.INFO,
@@ -1500,19 +1501,45 @@ public class SnapshotResiliencyTests extends ESTestCase {
                             l.onResponse(null);
                         }
                     })
+            )
+            // attempt to clone snapshot
+            .<AcknowledgedResponse>andThen(
+                (l, ignored) -> client().admin()
+                    .cluster()
+                    .prepareCloneSnapshot(repoName, snapshotName, snapshotName)
+                    .setIndices("*")
+                    .execute(new ActionListener<>() {
+                        @Override
+                        public void onResponse(AcknowledgedResponse acknowledgedResponse) {
+                            fail("snapshot should not have started");
+                        }
+
+                        @Override
+                        public void onFailure(Exception e) {
+                            assertThat(ExceptionsHelper.unwrapCause(e), instanceOf(SnapshotNameAlreadyInUseException.class));
+                            l.onResponse(null);
+                        }
+                    })
             );
 
-        MockLogAppender.assertThatLogger(() -> {
+        final var expectedMessage = Strings.format("Invalid snapshot name [%s], snapshot with the same name already exists", snapshotName);
+        MockLog.assertThatLogger(() -> {
             deterministicTaskQueue.runAllRunnableTasks();
             assertTrue("executed all runnable tasks but test steps are still incomplete", testListener.isDone());
             safeAwait(testListener); // shouldn't throw
         },
             SnapshotsService.class,
-            new MockLogAppender.SeenEventExpectation(
+            new MockLog.SeenEventExpectation(
                 "INFO log",
                 SnapshotsService.class.getCanonicalName(),
                 Level.INFO,
-                Strings.format("*failed to create snapshot*Invalid snapshot name [%s]*", snapshotName)
+                Strings.format("*failed to create snapshot*%s", expectedMessage)
+            ),
+            new MockLog.SeenEventExpectation(
+                "INFO log",
+                SnapshotsService.class.getCanonicalName(),
+                Level.INFO,
+                Strings.format("*failed to clone snapshot*%s", expectedMessage)
             )
         );
     }
@@ -1555,13 +1582,13 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     })
             );
 
-        MockLogAppender.assertThatLogger(() -> {
+        MockLog.assertThatLogger(() -> {
             deterministicTaskQueue.runAllRunnableTasks();
             assertTrue("executed all runnable tasks but test steps are still incomplete", testListener.isDone());
             safeAwait(testListener); // shouldn't throw
         },
             SnapshotsService.class,
-            new MockLogAppender.SeenEventExpectation(
+            new MockLog.SeenEventExpectation(
                 "INFO log",
                 SnapshotsService.class.getCanonicalName(),
                 Level.INFO,
@@ -1607,13 +1634,13 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     })
             );
 
-        MockLogAppender.assertThatLogger(() -> {
+        MockLog.assertThatLogger(() -> {
             deterministicTaskQueue.runAllRunnableTasks();
             assertTrue("executed all runnable tasks but test steps are still incomplete", testListener.isDone());
             safeAwait(testListener); // shouldn't throw
         },
             SnapshotsService.class,
-            new MockLogAppender.SeenEventExpectation(
+            new MockLog.SeenEventExpectation(
                 "INFO log",
                 SnapshotsService.class.getCanonicalName(),
                 Level.INFO,
@@ -2249,6 +2276,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     threadPool,
                     scriptService,
                     bigArrays,
+                    new RankFeatureShardPhase(),
                     new FetchPhase(Collections.emptyList()),
                     responseCollectorService,
                     new NoneCircuitBreakerService(),

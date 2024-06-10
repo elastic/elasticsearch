@@ -23,19 +23,20 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.SegmentReader;
-import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.QueryCache;
 import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.store.AlreadyClosedException;
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.action.support.UnsafePlainActionFuture;
 import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.Loggers;
@@ -58,7 +59,6 @@ import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.DocumentParser;
-import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.MappingLookup;
@@ -75,6 +75,7 @@ import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogStats;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transports;
 
 import java.io.Closeable;
@@ -1494,7 +1495,7 @@ public abstract class Engine implements Closeable {
             }
         }
 
-        private final Term uid;
+        private final BytesRef uid;
         private final long version;
         private final long seqNo;
         private final long primaryTerm;
@@ -1502,7 +1503,7 @@ public abstract class Engine implements Closeable {
         private final Origin origin;
         private final long startTime;
 
-        public Operation(Term uid, long seqNo, long primaryTerm, long version, VersionType versionType, Origin origin, long startTime) {
+        public Operation(BytesRef uid, long seqNo, long primaryTerm, long version, VersionType versionType, Origin origin, long startTime) {
             this.uid = uid;
             this.seqNo = seqNo;
             this.primaryTerm = primaryTerm;
@@ -1532,7 +1533,7 @@ public abstract class Engine implements Closeable {
             return this.origin;
         }
 
-        public Term uid() {
+        public BytesRef uid() {
             return this.uid;
         }
 
@@ -1575,7 +1576,7 @@ public abstract class Engine implements Closeable {
         private final long ifPrimaryTerm;
 
         public Index(
-            Term uid,
+            BytesRef uid,
             ParsedDocument doc,
             long seqNo,
             long primaryTerm,
@@ -1601,11 +1602,11 @@ public abstract class Engine implements Closeable {
             this.ifPrimaryTerm = ifPrimaryTerm;
         }
 
-        public Index(Term uid, long primaryTerm, ParsedDocument doc) {
+        public Index(BytesRef uid, long primaryTerm, ParsedDocument doc) {
             this(uid, primaryTerm, doc, Versions.MATCH_ANY);
         } // TEST ONLY
 
-        Index(Term uid, long primaryTerm, ParsedDocument doc, long version) {
+        Index(BytesRef uid, long primaryTerm, ParsedDocument doc, long version) {
             this(
                 uid,
                 doc,
@@ -1687,7 +1688,7 @@ public abstract class Engine implements Closeable {
 
         public Delete(
             String id,
-            Term uid,
+            BytesRef uid,
             long seqNo,
             long primaryTerm,
             long version,
@@ -1708,7 +1709,7 @@ public abstract class Engine implements Closeable {
             this.ifPrimaryTerm = ifPrimaryTerm;
         }
 
-        public Delete(String id, Term uid, long primaryTerm) {
+        public Delete(String id, BytesRef uid, long primaryTerm) {
             this(
                 id,
                 uid,
@@ -1718,21 +1719,6 @@ public abstract class Engine implements Closeable {
                 VersionType.INTERNAL,
                 Origin.PRIMARY,
                 System.nanoTime(),
-                UNASSIGNED_SEQ_NO,
-                0
-            );
-        }
-
-        public Delete(Delete template, VersionType versionType) {
-            this(
-                template.id(),
-                template.uid(),
-                template.seqNo(),
-                template.primaryTerm(),
-                template.version(),
-                versionType,
-                template.origin(),
-                template.startTime(),
                 UNASSIGNED_SEQ_NO,
                 0
             );
@@ -1750,7 +1736,7 @@ public abstract class Engine implements Closeable {
 
         @Override
         public int estimatedSizeInBytes() {
-            return (uid().field().length() + uid().text().length()) * 2 + 20;
+            return uid().length * 2 + 20;
         }
 
         public long getIfSeqNo() {
@@ -1776,7 +1762,7 @@ public abstract class Engine implements Closeable {
         }
 
         @Override
-        public Term uid() {
+        public BytesRef uid() {
             throw new UnsupportedOperationException();
         }
 
@@ -1809,7 +1795,7 @@ public abstract class Engine implements Closeable {
 
     public static class Get {
         private final boolean realtime;
-        private final Term uid;
+        private final BytesRef uid;
         private final String id;
         private final boolean readFromTranslog;
         private long version = Versions.MATCH_ANY;
@@ -1820,7 +1806,7 @@ public abstract class Engine implements Closeable {
         public Get(boolean realtime, boolean readFromTranslog, String id) {
             this.realtime = realtime;
             this.id = id;
-            this.uid = new Term(IdFieldMapper.NAME, Uid.encodeId(id));
+            this.uid = Uid.encodeId(id);
             this.readFromTranslog = readFromTranslog;
         }
 
@@ -1832,7 +1818,7 @@ public abstract class Engine implements Closeable {
             return id;
         }
 
-        public Term uid() {
+        public BytesRef uid() {
             return uid;
         }
 
@@ -1956,7 +1942,7 @@ public abstract class Engine implements Closeable {
 
         logger.debug("drainForClose(): draining ops");
         releaseEnsureOpenRef.close();
-        final var future = new PlainActionFuture<Void>() {
+        final var future = new UnsafePlainActionFuture<Void>(ThreadPool.Names.GENERIC) {
             @Override
             protected boolean blockingAllowed() {
                 // TODO remove this blocking, or at least do it elsewhere, see https://github.com/elastic/elasticsearch/issues/89821

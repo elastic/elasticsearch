@@ -223,6 +223,8 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
 
             final long startBulkTime = System.nanoTime();
 
+            private final ActionListener<Void> onMappingUpdateDone = ActionListener.wrap(v -> executor.execute(this), this::onRejection);
+
             @Override
             protected void doRun() throws Exception {
                 while (context.hasMoreOperationsToExecute()) {
@@ -232,8 +234,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                         nowInMillisSupplier,
                         mappingUpdater,
                         waitForMappingUpdate,
-
-                        ActionListener.wrap(v -> executor.execute(this), this::onRejection),
+                        onMappingUpdateDone,
                         documentParsingProvider
                     ) == false) {
                         // We are waiting for a mapping update on another thread, that will invoke this action again once its done
@@ -449,11 +450,11 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
      * or return a new DocumentSizeObserver that will be used when parsing.
      */
     private static DocumentSizeObserver getDocumentSizeObserver(DocumentParsingProvider documentParsingProvider, IndexRequest request) {
-        if (request.getNormalisedBytesParsed() != -1) {
+        if (request.getNormalisedBytesParsed() > 0) {
             return documentParsingProvider.newFixedSizeDocumentObserver(request.getNormalisedBytesParsed());
         } else if (request.getNormalisedBytesParsed() == 0) {
             return DocumentSizeObserver.EMPTY_INSTANCE;
-        }
+        } // request.getNormalisedBytesParsed() -1, meaning normalisedBytesParsed isn't set as parsing wasn't done yet
         return documentParsingProvider.newDocumentSizeObserver();
     }
 

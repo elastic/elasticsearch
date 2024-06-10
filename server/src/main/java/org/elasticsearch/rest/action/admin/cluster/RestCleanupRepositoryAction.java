@@ -20,6 +20,7 @@ import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
+import static org.elasticsearch.rest.RestUtils.getAckTimeout;
 import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 
 /**
@@ -42,7 +43,7 @@ public class RestCleanupRepositoryAction extends BaseRestHandler {
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         String name = request.param("repository");
         CleanupRepositoryRequest cleanupRepositoryRequest = new CleanupRepositoryRequest(name);
-        cleanupRepositoryRequest.ackTimeout(request.paramAsTime("timeout", cleanupRepositoryRequest.ackTimeout()));
+        cleanupRepositoryRequest.ackTimeout(getAckTimeout(request));
         cleanupRepositoryRequest.masterNodeTimeout(getMasterNodeTimeout(request));
         return channel -> client.admin().cluster().cleanupRepository(cleanupRepositoryRequest, new RestToXContentListener<>(channel));
     }

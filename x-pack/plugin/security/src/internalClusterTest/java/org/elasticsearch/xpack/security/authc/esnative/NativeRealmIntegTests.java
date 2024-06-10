@@ -20,6 +20,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.protocol.xpack.XPackUsageRequest;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotState;
@@ -29,7 +30,7 @@ import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.XPackFeatureSet;
-import org.elasticsearch.xpack.core.action.XPackUsageRequestBuilder;
+import org.elasticsearch.xpack.core.action.XPackUsageAction;
 import org.elasticsearch.xpack.core.action.XPackUsageResponse;
 import org.elasticsearch.xpack.core.security.SecurityFeatureSetUsage;
 import org.elasticsearch.xpack.core.security.action.realm.ClearRealmCacheRequestBuilder;
@@ -901,7 +902,7 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
             preparePutUser("joe" + i, "s3krit-password", hasher, "superuser").get();
         }
 
-        XPackUsageResponse response = new XPackUsageRequestBuilder(client()).get();
+        XPackUsageResponse response = safeGet(client().execute(XPackUsageAction.INSTANCE, new XPackUsageRequest(SAFE_AWAIT_TIMEOUT)));
         Optional<XPackFeatureSet.Usage> securityUsage = response.getUsages()
             .stream()
             .filter(usage -> usage instanceof SecurityFeatureSetUsage)

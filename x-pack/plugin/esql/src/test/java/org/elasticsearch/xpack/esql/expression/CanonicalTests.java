@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.esql.expression;
 
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.esql.core.TestUtils;
+import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -114,7 +114,7 @@ public class CanonicalTests extends ESTestCase {
     }
 
     private void testBinaryLogic(Function<List<Expression>, Expression> combiner) {
-        List<Expression> children = randomList(2, 128, TestUtils::fieldAttribute);
+        List<Expression> children = randomList(2, 128, EsqlTestUtils::fieldAttribute);
         Expression expression = combiner.apply(children);
         Collections.shuffle(children, random());
         Expression shuffledExpression = combiner.apply(children);

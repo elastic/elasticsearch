@@ -22,6 +22,7 @@ import co.elastic.elasticsearch.stateless.action.NewCommitNotificationRequest;
 import co.elastic.elasticsearch.stateless.action.NewCommitNotificationResponse;
 import co.elastic.elasticsearch.stateless.action.TransportGetVirtualBatchedCompoundCommitChunkAction;
 import co.elastic.elasticsearch.stateless.action.TransportNewCommitNotificationAction;
+import co.elastic.elasticsearch.stateless.cache.SharedBlobCacheWarmingService;
 import co.elastic.elasticsearch.stateless.cluster.coordination.StatelessClusterConsistencyService;
 import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
 import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
@@ -59,6 +60,7 @@ import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.CountDownActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
@@ -148,6 +150,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.LockSupport;
+import java.util.function.Function;
 import java.util.function.IntConsumer;
 import java.util.stream.IntStream;
 
@@ -155,6 +158,7 @@ import static co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit
 import static co.elastic.elasticsearch.stateless.recovery.TransportStatelessPrimaryRelocationAction.PRIMARY_CONTEXT_HANDOFF_ACTION_NAME;
 import static co.elastic.elasticsearch.stateless.recovery.TransportStatelessPrimaryRelocationAction.START_RELOCATION_ACTION_NAME;
 import static java.util.stream.Collectors.toList;
+import static org.elasticsearch.blobcache.shared.SharedBytes.PAGE_SIZE;
 import static org.elasticsearch.cluster.coordination.FollowersChecker.FOLLOWER_CHECK_INTERVAL_SETTING;
 import static org.elasticsearch.cluster.coordination.FollowersChecker.FOLLOWER_CHECK_RETRY_COUNT_SETTING;
 import static org.elasticsearch.cluster.coordination.LeaderChecker.LEADER_CHECK_INTERVAL_SETTING;
@@ -180,6 +184,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.oneOf;
 import static org.hamcrest.Matchers.sameInstance;
 
@@ -2541,6 +2546,182 @@ public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
             assertThat(metric.attributes().get("primary"), equalTo(false));
             assertThat(metric.attributes().get("recoveryType"), equalTo("PEER"));
         });
+    }
+
+    public void testRecoveryMetricPublicationBytesReadToCache() {
+
+        // in scenarios where cache is disabled (see AbstractStatelessIntegTestCase#settingsForRoles)
+        // nothing is copied to cache and so metric in SharedBlobCacheWarmingService is not incremented
+        var cacheSettings = Settings.builder()
+            .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofMb(randomIntBetween(1, 8)).getStringRep())
+            .put(
+                SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(),
+                ByteSizeValue.ofBytes(randomIntBetween(1, 10) * PAGE_SIZE).getStringRep()
+            )
+            .build();
+
+        var indexingNode1 = startIndexNode(cacheSettings);
+        var indexingNode2 = startIndexNode(cacheSettings);
+
+        var indexName = randomIdentifier();
+        // ensure that index shard is allocated on `indexingNode1` and not on `indexingNode2`
+        createIndex(
+            indexName,
+            Settings.builder()
+                .put(indexSettings(1, 0).build())
+                .put(IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_PREFIX + "._name", indexingNode2)
+                .build()
+        );
+        ensureGreen(indexName);
+
+        int numDocs = randomIntBetween(100, 1000);
+        indexDocs(indexName, numDocs);
+        refresh(indexName);
+
+        var plugin = internalCluster().getInstance(PluginsService.class, indexingNode2)
+            .filterPlugins(TestTelemetryPlugin.class)
+            .findFirst()
+            .orElseThrow();
+        plugin.resetMeter();
+
+        // trigger primary relocation from `indexingNode1` to `indexingNode2`
+        // hence start recovery of the shard on a new node
+        assertAcked(
+            admin().indices()
+                .prepareUpdateSettings(indexName)
+                .setSettings(Settings.builder().put(IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_PREFIX + "._name", indexingNode1))
+        );
+
+        ensureGreen(indexName);
+
+        if (STATELESS_UPLOAD_DELAYED) {
+            boolean warmedBytes;
+            boolean readBytes;
+            {
+                var metric = getSingleRecordedMetric(
+                    plugin::getLongCounterMeasurement,
+                    RecoveryMetricsCollector.RECOVERY_BYTES_WARMED_FROM_OBJECT_STORE_METRIC
+                );
+                warmedBytes = metric.getLong() > 0;
+                assertMetricAttributes(metric, indexName, 0, true);
+            }
+            {
+                var metric = getSingleRecordedMetric(
+                    plugin::getLongCounterMeasurement,
+                    RecoveryMetricsCollector.RECOVERY_BYTES_READ_FROM_OBJECT_STORE_METRIC
+                );
+                readBytes = metric.getLong() > 0;
+                assertMetricAttributes(metric, indexName, 0, true);
+            }
+            assertThat("No bytes read or warmed from object store", warmedBytes || readBytes, equalTo(true));
+            // 2 metrics below are expected to report zeros since all files should be fetched from object store at this time
+            {
+                var metric = getSingleRecordedMetric(
+                    plugin::getLongCounterMeasurement,
+                    RecoveryMetricsCollector.RECOVERY_BYTES_WARMED_FROM_INDEXING_METRIC
+                );
+                assertThat("No bytes warmed from indexing", metric.getLong(), equalTo(0L));
+                assertMetricAttributes(metric, indexName, 0, true);
+            }
+            {
+                var metric = getSingleRecordedMetric(
+                    plugin::getLongCounterMeasurement,
+                    RecoveryMetricsCollector.RECOVERY_BYTES_READ_FROM_INDEXING_METRIC
+                );
+                assertThat("No bytes read from indexing", metric.getLong(), equalTo(0L));
+                assertMetricAttributes(metric, indexName, 0, true);
+            }
+        }
+
+        // in non-RCO setup, cache warming goes directly through `BlobContainer` bypassing `CacheBlobReader`
+        // hence metrics above might not be emitted if all needed files were already fetched
+        // note that this metrics tracks copied bytes both for RCO and non-RCO environments
+        {
+            var metric = getSingleRecordedMetric(
+                plugin::getLongCounterMeasurement,
+                SharedBlobCacheWarmingService.BLOB_CACHE_WARMING_PAGE_ALIGNED_BYTES_TOTAL_METRIC
+            );
+            assertThat(metric.getLong(), greaterThan(0L));
+            assertMetricAttributes(metric, indexName, 0, true);
+        }
+    }
+
+    public void testRecoveryMetricPublicationBytesReadToCacheFromIndexing() throws Exception {
+        assumeTrue("Test only works when uploads are delayed", STATELESS_UPLOAD_DELAYED);
+        // prevent implicit refreshes
+        startIndexNode(
+            Settings.builder()
+                .put(StatelessCommitService.STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.getKey(), Integer.MAX_VALUE)
+                .put(StatelessCommitService.STATELESS_UPLOAD_VBCC_MAX_AGE.getKey(), TimeValue.MAX_VALUE)
+                .put(StatelessCommitService.STATELESS_UPLOAD_MAX_SIZE.getKey(), ByteSizeValue.ofGb(1))
+                .build()
+        );
+
+        var indexName = randomIdentifier();
+        createIndex(indexName, indexSettings(1, 0).build());
+        // have commits both uploaded to object store and pending in vbcc
+
+        var indexShard = findIndexShard(indexName);
+        var indexEngine = asInstanceOf(IndexEngine.class, indexShard.getEngineOrNull());
+        var commitService = indexEngine.getStatelessCommitService();
+
+        indexDocs(indexName, randomIntBetween(10, 20));
+        flush(indexName);   // upload via flush
+        assertThat(commitService.getCurrentVirtualBcc(indexShard.shardId()), nullValue());
+
+        indexDocs(indexName, randomIntBetween(10, 20));
+        // create vbcc but do not upload: upload is disabled and index engine flush does not do upload since it is originated from refresh
+        refresh(indexName);
+        assertThat(commitService.getCurrentVirtualBcc(indexShard.shardId()), notNullValue());
+        ensureGreen(indexName);
+
+        var searchNode = startSearchNode();
+
+        var plugin = internalCluster().getInstance(PluginsService.class, searchNode)
+            .filterPlugins(TestTelemetryPlugin.class)
+            .findFirst()
+            .orElseThrow();
+        plugin.resetMeter();
+
+        // initiate allocation and shard recovery on `searchNode`
+        updateIndexSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1));
+        ensureGreen(indexName);
+
+        if (STATELESS_UPLOAD_DELAYED) {
+            boolean warmedBytes;
+            boolean readBytes;
+            {
+                var metric = getSingleRecordedMetric(
+                    plugin::getLongCounterMeasurement,
+                    RecoveryMetricsCollector.RECOVERY_BYTES_WARMED_FROM_INDEXING_METRIC
+                );
+                warmedBytes = metric.getLong() > 0;
+                assertMetricAttributes(metric, indexName, 0, false);
+            }
+            {
+                var metric = getSingleRecordedMetric(
+                    plugin::getLongCounterMeasurement,
+                    RecoveryMetricsCollector.RECOVERY_BYTES_READ_FROM_INDEXING_METRIC
+                );
+                readBytes = metric.getLong() > 0;
+                assertMetricAttributes(metric, indexName, 0, false);
+            }
+            assertThat("No bytes read or warmed from indexing", warmedBytes || readBytes, equalTo(true));
+        }
+    }
+
+    private static Measurement getSingleRecordedMetric(Function<String, List<Measurement>> metricGetter, String name) {
+        final List<Measurement> measurements = metricGetter.apply(name);
+        assertFalse("Metric is not recorded", measurements.isEmpty());
+        assertThat(measurements.size(), equalTo(1));
+        return measurements.get(0);
+    }
+
+    private void assertMetricAttributes(Measurement metric, String indexName, int shardId, boolean isPrimary) {
+        assertThat(metric.attributes().get("indexName"), equalTo(indexName));
+        assertThat(metric.attributes().get("shardId"), equalTo(shardId));
+        assertThat(metric.attributes().get("primary"), equalTo(isPrimary));
+
     }
 
     public void testCanCreateAnEmptyStoreWithMissingClusterStateUpdates() {

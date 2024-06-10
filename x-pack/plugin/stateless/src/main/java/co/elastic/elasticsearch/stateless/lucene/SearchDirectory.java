@@ -64,6 +64,7 @@ import java.util.OptionalLong;
 import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.atomic.LongAdder;
 import java.util.function.LongFunction;
 import java.util.stream.Stream;
 
@@ -77,6 +78,10 @@ public class SearchDirectory extends ByteSizeDirectory {
 
     private final StatelessSharedBlobCacheService cacheService;
     private final CacheBlobReaderService cacheBlobReaderService;
+    private final LongAdder totalBytesReadFromObjectStore = new LongAdder();
+    private final LongAdder totalBytesReadFromIndexing = new LongAdder();
+    private final LongAdder totalBytesWarmedFromObjectStore = new LongAdder();
+    private final LongAdder totalBytesWarmedFromIndexing = new LongAdder();
 
     private final SetOnce<LongFunction<BlobContainer>> blobContainer = new SetOnce<>();
     private final AtomicReference<String> corruptionMarker = new AtomicReference<>();
@@ -368,7 +373,25 @@ public class SearchDirectory extends ByteSizeDirectory {
     }
 
     public CacheBlobReader getCacheBlobReader(BlobLocation blobLocation) {
-        return cacheBlobReaderService.getCacheBlobReader(shardId, blobContainer.get(), blobLocation, objectStoreUploadTracker);
+        return cacheBlobReaderService.getCacheBlobReader(
+            shardId,
+            blobContainer.get(),
+            blobLocation,
+            objectStoreUploadTracker,
+            totalBytesReadFromObjectStore::add,
+            totalBytesReadFromIndexing::add
+        );
+    }
+
+    public CacheBlobReader getCacheBlobReaderForWarming(BlobLocation blobLocation) {
+        return cacheBlobReaderService.getCacheBlobReader(
+            shardId,
+            blobContainer.get(),
+            blobLocation,
+            objectStoreUploadTracker,
+            totalBytesWarmedFromObjectStore::add,
+            totalBytesWarmedFromIndexing::add
+        );
     }
 
     @Override
@@ -407,6 +430,22 @@ public class SearchDirectory extends ByteSizeDirectory {
     public long estimateDataSetSizeInBytes() {
         // data set size is equal to the size of the last commit fetched from the object store
         return currentDataSetSizeInBytes;
+    }
+
+    public long totalBytesReadFromIndexing() {
+        return totalBytesReadFromIndexing.sum();
+    }
+
+    public long totalBytesReadFromObjectStore() {
+        return totalBytesReadFromObjectStore.sum();
+    }
+
+    public long totalBytesWarmedFromIndexing() {
+        return totalBytesWarmedFromIndexing.sum();
+    }
+
+    public long totalBytesWarmedFromObjectStore() {
+        return totalBytesWarmedFromObjectStore.sum();
     }
 
     private static UnsupportedOperationException unsupportedException() {

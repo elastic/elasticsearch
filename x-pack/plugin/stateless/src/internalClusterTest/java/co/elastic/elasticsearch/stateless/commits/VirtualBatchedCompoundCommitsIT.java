@@ -64,6 +64,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.internal.DocumentParsingProvider;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.aggregations.metrics.Sum;
+import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -194,6 +195,7 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessIntegTestC
         protected SharedBlobCacheWarmingService createSharedBlobCacheWarmingService(
             StatelessSharedBlobCacheService cacheService,
             ThreadPool threadPool,
+            TelemetryProvider telemetryProvider,
             Settings settings
         ) {
             return new NoopSharedBlobCacheWarmingService(cacheService, threadPool, settings);

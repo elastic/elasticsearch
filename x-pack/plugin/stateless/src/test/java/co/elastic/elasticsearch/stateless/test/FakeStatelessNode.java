@@ -86,6 +86,7 @@ import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.fs.FsRepository;
+import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.DummyShardLock;
 import org.elasticsearch.test.ESTestCase;
@@ -145,6 +146,7 @@ public class FakeStatelessNode implements Closeable {
     public final StatelessSharedBlobCacheService sharedCacheService;
     public final CacheBlobReaderService cacheBlobReaderService;
     public final SharedBlobCacheWarmingService warmingService;
+    public final TelemetryProvider telemetryProvider;
     private final StatelessCommitCleaner commitCleaner;
 
     private final Closeable closeables;
@@ -177,6 +179,7 @@ public class FakeStatelessNode implements Closeable {
         nodeSettings = nodeSettings();
         clusterSettings = new ClusterSettings(nodeSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         environment = environmentSupplier.apply(nodeSettings);
+        telemetryProvider = TelemetryProvider.NOOP;
 
         indexMetadata = IndexMetadata.builder("index")
             .settings(
@@ -284,7 +287,7 @@ public class FakeStatelessNode implements Closeable {
             var consistencyService = new StatelessClusterConsistencyService(clusterService, electionStrategy, threadPool, nodeSettings);
             commitCleaner = createCommitCleaner(consistencyService, threadPool, objectStoreService);
             localCloseables.add(commitCleaner);
-            warmingService = new SharedBlobCacheWarmingService(sharedCacheService, threadPool, nodeSettings);
+            warmingService = new SharedBlobCacheWarmingService(sharedCacheService, threadPool, telemetryProvider, nodeSettings);
             commitService = createCommitService();
             commitService.start();
             commitService.register(shardId, getPrimaryTerm(), () -> false);

@@ -76,6 +76,33 @@ setup:
 
 
 ---
+"Update Connector Last Sync Stats - Supports sync_cursor updates":
+  - do:
+      connector.last_sync:
+        connector_id: test-connector
+        body:
+          last_deleted_document_count: 123
+
+  - match: { result: updated }
+
+  - do:
+      connector.last_sync:
+        connector_id: test-connector
+        body:
+          sync_cursor: { pointer: 42 }
+
+  - match: { result: updated }
+
+
+  - do:
+      connector.get:
+        connector_id: test-connector
+
+  - match: { sync_cursor: { pointer: 42 } }
+  - match: { last_deleted_document_count: 123 }
+
+
+---
 "Update Connector Last Sync Stats - Connector doesn't exist":
   - do:
       catch: "missing"

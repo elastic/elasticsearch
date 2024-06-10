@@ -101,8 +101,8 @@ public class MetadataCreateDataStreamService {
             new AckedClusterStateUpdateTask(Priority.HIGH, request, delegate.clusterStateUpdate()) {
                 @Override
                 public ClusterState execute(ClusterState currentState) throws Exception {
-                    // When we're manually creating a data stream (i.e. not an auto creation), we never initialize the failure store
-                    // because
+                    // When we're manually creating a data stream (i.e. not an auto creation), we don't need to initialize the failure store
+                    // because we don't need to redirect any failures in the same request.
                     ClusterState clusterState = createDataStream(request, currentState, delegate.reroute(), false);
                     DataStream createdDataStream = clusterState.metadata().dataStreams().get(request.name);
                     firstBackingIndexRef.set(createdDataStream.getIndices().get(0).getName());

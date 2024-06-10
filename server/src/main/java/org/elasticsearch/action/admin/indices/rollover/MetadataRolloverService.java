@@ -222,7 +222,7 @@ public class MetadataRolloverService {
 
     private static NameResolution resolveDataStreamRolloverNames(Metadata metadata, DataStream dataStream, boolean isFailureStoreRollover) {
         final DataStream.DataStreamIndices dataStreamIndices = dataStream.getDataStreamIndices(isFailureStoreRollover);
-        assert dataStreamIndices.getIndices().isEmpty() == false || (isFailureStoreRollover && dataStreamIndices.isRolloverOnWrite())
+        assert dataStreamIndices.getIndices().isEmpty() == false || isFailureStoreRollover
             : "Unable to roll over dataStreamIndices with no indices";
 
         final String originalWriteIndex = dataStreamIndices.getIndices().isEmpty() && dataStreamIndices.isRolloverOnWrite()

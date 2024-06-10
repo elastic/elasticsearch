@@ -58,6 +58,16 @@ public final class FieldNameTranslators {
         )
     );
 
+    public static final FieldNameTranslators USER_FIELD_NAME_TRANSLATORS = new FieldNameTranslators(
+        List.of(
+            new ExactFieldNameTranslator(s -> "username", "username"),
+            new ExactFieldNameTranslator(s -> "roles", "roles"),
+            new ExactFieldNameTranslator(s -> "full_name", "full_name"),
+            new ExactFieldNameTranslator(s -> "email", "email"),
+            new ExactFieldNameTranslator(s -> "enabled", "enabled")
+        )
+    );
+
     public static final FieldNameTranslators ROLE_FIELD_NAME_TRANSLATORS = new FieldNameTranslators(
         List.of(
             new ExactFieldNameTranslator(s -> "name", "name"),

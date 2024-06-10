@@ -27,7 +27,7 @@ public class RoleBoolQueryBuilder extends BoolQueryBuilder {
     // Field names allowed at the index level
     private static final Set<String> ALLOWED_EXACT_INDEX_FIELD_NAMES = Set.of(
         "_id",
-        "doc_type",
+        "type",
         "name",
         "description",
         "applications.application",
@@ -57,9 +57,9 @@ public class RoleBoolQueryBuilder extends BoolQueryBuilder {
             QueryBuilder processedQuery = ROLE_FIELD_NAME_TRANSLATORS.translateQueryBuilderFields(queryBuilder, fieldNameVisitor);
             finalQuery.must(processedQuery);
         }
-        finalQuery.filter(QueryBuilders.termQuery("doc_type", RoleDescriptor.ROLE_TYPE));
+        finalQuery.filter(QueryBuilders.termQuery(RoleDescriptor.Fields.TYPE.getPreferredName(), RoleDescriptor.ROLE_TYPE));
         if (fieldNameVisitor != null) {
-            fieldNameVisitor.accept("doc_type");
+            fieldNameVisitor.accept(RoleDescriptor.Fields.TYPE.getPreferredName());
         }
         return finalQuery;
     }

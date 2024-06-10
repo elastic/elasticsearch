@@ -27,12 +27,12 @@ public class SnapshotDeletionsInProgressTests extends ESTestCase {
     public void testXContent() throws IOException {
         SnapshotDeletionsInProgress sdip = SnapshotDeletionsInProgress.of(
             List.of(
-                new SnapshotDeletionsInProgress.Entry(
+                new SnapshotDeletionsInProgress.SnapshotDeletionEntry(
                     "repo",
                     Collections.emptyList(),
                     736694267638L,
                     0,
-                    SnapshotDeletionsInProgress.State.STARTED
+                    SnapshotDeletionsInProgress.SnapshotDeletionState.STARTED
                 )
             )
         );
@@ -64,12 +64,12 @@ public class SnapshotDeletionsInProgressTests extends ESTestCase {
             SnapshotDeletionsInProgress.of(
                 randomList(
                     10,
-                    () -> new SnapshotDeletionsInProgress.Entry(
+                    () -> new SnapshotDeletionsInProgress.SnapshotDeletionEntry(
                         randomAlphaOfLength(10),
                         Collections.emptyList(),
                         randomNonNegativeLong(),
                         randomNonNegativeLong(),
-                        randomFrom(SnapshotDeletionsInProgress.State.values())
+                        randomFrom(SnapshotDeletionsInProgress.SnapshotDeletionState.values())
                     )
                 )
             ),

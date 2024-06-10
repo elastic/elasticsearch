@@ -23,7 +23,7 @@ public class SnapshotLifecyclePolicyItemTests extends AbstractWireSerializingTes
             ? null
             : new SnapshotLifecyclePolicyItem.SnapshotInProgress(
                 new SnapshotId("name-" + randomAlphaOfLength(3), "uuid-" + randomAlphaOfLength(3)),
-                randomFrom(SnapshotsInProgress.State.values()),
+                randomFrom(SnapshotsInProgress.SnapshotInProgressState.values()),
                 randomNonNegativeLong(),
                 randomBoolean() ? null : "failure!"
             );

@@ -639,8 +639,8 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
         logger.info("--> wait for clone to start fully with shards assigned in the cluster state");
         try {
             awaitClusterState(clusterState -> {
-                final List<SnapshotsInProgress.Entry> entries = SnapshotsInProgress.get(clusterState).forRepo(repoName);
-                return entries.size() == 2 && entries.get(1).shardsByRepoShardId().isEmpty() == false;
+                final List<SnapshotsInProgress.SnapshotInProgressEntry> entries = SnapshotsInProgress.get(clusterState).forRepo(repoName);
+                return entries.size() == 2 && entries.get(1).shardSnapshotStatusByRepoShardId().isEmpty() == false;
             });
             assertFalse(blockedSnapshot.isDone());
         } finally {
@@ -676,10 +676,10 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
         final ActionFuture<AcknowledgedResponse> cloneFuture = startClone(repoName, sourceSnapshot, "target-snapshot", indexName);
         logger.info("--> waiting for snapshot clone to be fully initialized");
         awaitClusterState(state -> {
-            for (SnapshotsInProgress.Entry entry : SnapshotsInProgress.get(state).forRepo(repoName)) {
-                if (entry.shardsByRepoShardId().isEmpty() == false) {
+            for (SnapshotsInProgress.SnapshotInProgressEntry entry : SnapshotsInProgress.get(state).forRepo(repoName)) {
+                if (entry.shardSnapshotStatusByRepoShardId().isEmpty() == false) {
                     assertEquals(sourceSnapshot, entry.source().getName());
-                    for (SnapshotsInProgress.ShardSnapshotStatus value : entry.shardsByRepoShardId().values()) {
+                    for (SnapshotsInProgress.ShardSnapshotStatus value : entry.shardSnapshotStatusByRepoShardId().values()) {
                         assertSame(value, SnapshotsInProgress.ShardSnapshotStatus.UNASSIGNED_QUEUED);
                     }
                     return true;
@@ -890,7 +890,7 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
                         () -> BlobStoreRepository.INDEX_SHARD_SNAPSHOTS_FORMAT.read(
                             repository.getMetadata().name(),
                             repository.shardContainer(repositoryShardId.index(), repositoryShardId.shardId()),
-                            generation.toBlobNamePart(),
+                            generation.getGenerationUUID(),
                             NamedXContentRegistry.EMPTY
                         )
                     )

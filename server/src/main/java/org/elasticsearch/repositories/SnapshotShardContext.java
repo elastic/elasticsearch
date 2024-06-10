@@ -11,6 +11,7 @@ package org.elasticsearch.repositories;
 import org.apache.lucene.index.IndexCommit;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DelegatingActionListener;
+import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
@@ -51,7 +52,7 @@ public final class SnapshotShardContext extends DelegatingActionListener<ShardSn
      * @param snapshotStatus        snapshot status
      * @param repositoryMetaVersion version of the updated repository metadata to write
      * @param snapshotStartTime     start time of the snapshot found in
-     *                              {@link org.elasticsearch.cluster.SnapshotsInProgress.Entry#startTime()}
+     *                              {@link SnapshotsInProgress.SnapshotInProgressEntry#startTime()}
      * @param listener              listener invoked on completion
      */
     public SnapshotShardContext(

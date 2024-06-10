@@ -120,7 +120,7 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
         waitForBlockOnAnyDataNode("test-repo");
         awaitNumberOfSnapshotsInProgress(1);
         assertEquals(
-            SnapshotsInProgress.State.STARTED,
+            SnapshotsInProgress.SnapshotInProgressState.STARTED,
             clusterAdmin().prepareSnapshotStatus(TEST_REQUEST_TIMEOUT, "test-repo")
                 .setSnapshots("test-snap")
                 .get()
@@ -441,7 +441,9 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
         logger.info("--> wait for snapshots to get to a consistent state");
         awaitClusterState(state -> {
             SnapshotsInProgress snapshotsInProgress = SnapshotsInProgress.get(state);
-            Set<Snapshot> snapshots = snapshotsInProgress.asStream().map(SnapshotsInProgress.Entry::snapshot).collect(Collectors.toSet());
+            Set<Snapshot> snapshots = snapshotsInProgress.asStream()
+                .map(SnapshotsInProgress.SnapshotInProgressEntry::snapshot)
+                .collect(Collectors.toSet());
             if (snapshots.size() != 1) {
                 return false;
             }
@@ -503,7 +505,7 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
             .setSnapshots(snapshot)
             .get();
         assertEquals(1, snapshotsStatusResponse.getSnapshots().size());
-        assertEquals(SnapshotsInProgress.State.FAILED, snapshotsStatusResponse.getSnapshots().get(0).getState());
+        assertEquals(SnapshotsInProgress.SnapshotInProgressState.FAILED, snapshotsStatusResponse.getSnapshots().get(0).getState());
     }
 
     public void testGetSnapshotsRequest() throws Exception {
@@ -710,7 +712,10 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
             var statusResponse = status.get();
             assertThat(statusResponse.getSnapshots(), hasSize(snapshots));
             for (SnapshotStatus snapshot : statusResponse.getSnapshots()) {
-                assertThat(snapshot.getState(), allOf(not(SnapshotsInProgress.State.FAILED), not(SnapshotsInProgress.State.ABORTED)));
+                assertThat(
+                    snapshot.getState(),
+                    allOf(not(SnapshotsInProgress.SnapshotInProgressState.FAILED), not(SnapshotsInProgress.SnapshotInProgressState.ABORTED))
+                );
                 for (final var shard : snapshot.getShards()) {
                     if (shard.getStage() == SnapshotIndexShardStage.DONE) {
                         assertEquals(shard.getStats().getIncrementalFileCount(), shard.getStats().getProcessedFileCount());

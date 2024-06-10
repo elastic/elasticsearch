@@ -51,7 +51,7 @@ public class SnapshotStatusTests extends AbstractChunkedSerializingTestCase<Snap
             List<SnapshotIndexStatus> indices = ((List<SnapshotIndexStatus>) parsedObjects[i]);
 
             Snapshot snapshot = new Snapshot(repository, new SnapshotId(name, uuid));
-            SnapshotsInProgress.State state = SnapshotsInProgress.State.valueOf(rawState);
+            SnapshotsInProgress.SnapshotInProgressState state = SnapshotsInProgress.SnapshotInProgressState.valueOf(rawState);
             Map<String, SnapshotIndexStatus> indicesStatus;
             List<SnapshotIndexShardStatus> shards;
             if (indices == null || indices.isEmpty()) {
@@ -85,7 +85,7 @@ public class SnapshotStatusTests extends AbstractChunkedSerializingTestCase<Snap
     }
 
     public void testToString() throws Exception {
-        SnapshotsInProgress.State state = randomFrom(SnapshotsInProgress.State.values());
+        SnapshotsInProgress.SnapshotInProgressState state = randomFrom(SnapshotsInProgress.SnapshotInProgressState.values());
         String uuid = UUIDs.randomBase64UUID();
         SnapshotId id = new SnapshotId("test-snap", uuid);
         Snapshot snapshot = new Snapshot("test-repo", id);
@@ -209,7 +209,7 @@ public class SnapshotStatusTests extends AbstractChunkedSerializingTestCase<Snap
 
     @Override
     protected SnapshotStatus createTestInstance() {
-        SnapshotsInProgress.State state = randomFrom(SnapshotsInProgress.State.values());
+        SnapshotsInProgress.SnapshotInProgressState state = randomFrom(SnapshotsInProgress.SnapshotInProgressState.values());
         String uuid = UUIDs.randomBase64UUID();
         SnapshotId id = new SnapshotId("test-snap", uuid);
         Snapshot snapshot = new Snapshot("test-repo", id);

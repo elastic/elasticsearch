@@ -131,12 +131,12 @@ public class DeleteDataStreamTransportActionTests extends ESTestCase {
         );
     }
 
-    private SnapshotsInProgress.Entry createEntry(String dataStreamName, String repo, boolean partial) {
-        return SnapshotsInProgress.Entry.snapshot(
+    private SnapshotsInProgress.SnapshotInProgressEntry createEntry(String dataStreamName, String repo, boolean partial) {
+        return SnapshotsInProgress.SnapshotInProgressEntry.snapshot(
             new Snapshot(repo, new SnapshotId("", "")),
             false,
             partial,
-            SnapshotsInProgress.State.SUCCESS,
+            SnapshotsInProgress.SnapshotInProgressState.SUCCESS,
             Collections.emptyMap(),
             List.of(dataStreamName),
             Collections.emptyList(),

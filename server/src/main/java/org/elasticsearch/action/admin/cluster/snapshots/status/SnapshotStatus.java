@@ -8,7 +8,7 @@
 
 package org.elasticsearch.action.admin.cluster.snapshots.status;
 
-import org.elasticsearch.cluster.SnapshotsInProgress.State;
+import org.elasticsearch.cluster.SnapshotsInProgress.SnapshotInProgressState;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -37,7 +37,7 @@ public class SnapshotStatus implements ChunkedToXContentObject, Writeable {
 
     private final Snapshot snapshot;
 
-    private final State state;
+    private final SnapshotInProgressState state;
 
     private final List<SnapshotIndexShardStatus> shards;
 
@@ -52,7 +52,7 @@ public class SnapshotStatus implements ChunkedToXContentObject, Writeable {
 
     SnapshotStatus(StreamInput in) throws IOException {
         snapshot = new Snapshot(in);
-        state = State.fromValue(in.readByte());
+        state = SnapshotInProgressState.fromValue(in.readByte());
         shards = in.readCollectionAsImmutableList(SnapshotIndexShardStatus::new);
         includeGlobalState = in.readOptionalBoolean();
         final long startTime = in.readLong();
@@ -62,7 +62,7 @@ public class SnapshotStatus implements ChunkedToXContentObject, Writeable {
 
     SnapshotStatus(
         Snapshot snapshot,
-        State state,
+        SnapshotInProgressState state,
         List<SnapshotIndexShardStatus> shards,
         Boolean includeGlobalState,
         long startTime,
@@ -79,7 +79,7 @@ public class SnapshotStatus implements ChunkedToXContentObject, Writeable {
 
     SnapshotStatus(
         Snapshot snapshot,
-        State state,
+        SnapshotInProgressState state,
         List<SnapshotIndexShardStatus> shards,
         Map<String, SnapshotIndexStatus> indicesStatus,
         SnapshotShardsStats shardsStats,
@@ -105,7 +105,7 @@ public class SnapshotStatus implements ChunkedToXContentObject, Writeable {
     /**
      * Returns snapshot state
      */
-    public State getState() {
+    public SnapshotInProgressState getState() {
         return state;
     }
 

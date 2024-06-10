@@ -171,7 +171,7 @@ public class SecurityFeatureStateIntegTests extends AbstractPrivilegeTestCase {
             SnapshotsStatusResponse response = clusterAdmin().prepareSnapshotStatus(TEST_REQUEST_TIMEOUT, repo)
                 .setSnapshots(snapshot)
                 .get();
-            assertThat(response.getSnapshots().get(0).getState(), is(SnapshotsInProgress.State.SUCCESS));
+            assertThat(response.getSnapshots().get(0).getState(), is(SnapshotsInProgress.SnapshotInProgressState.SUCCESS));
             // The status of the snapshot in the repository can become SUCCESS before it is fully finalized in the cluster state so wait for
             // it to disappear from the cluster state as well
             SnapshotsInProgress snapshotsInProgress = SnapshotsInProgress.get(

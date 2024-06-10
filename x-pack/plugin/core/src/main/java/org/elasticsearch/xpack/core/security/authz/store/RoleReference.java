@@ -13,8 +13,6 @@ import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.xpack.core.security.authc.CrossClusterAccessSubjectInfo;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 
-import java.util.HashSet;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -57,11 +55,11 @@ public interface RoleReference {
             if (roleNames.length == 0) {
                 return RoleKey.ROLE_KEY_EMPTY;
             } else {
-                final Set<String> distinctRoles = new HashSet<>(List.of(roleNames));
+                final Set<String> distinctRoles = Set.of(roleNames);
                 if (distinctRoles.size() == 1 && distinctRoles.contains(ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR.getName())) {
                     return RoleKey.ROLE_KEY_SUPERUSER;
                 } else {
-                    return new RoleKey(Set.copyOf(distinctRoles), RoleKey.ROLES_STORE_SOURCE);
+                    return new RoleKey(distinctRoles, RoleKey.ROLES_STORE_SOURCE);
                 }
             }
         }

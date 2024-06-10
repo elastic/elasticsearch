@@ -56,7 +56,6 @@ import org.elasticsearch.xpack.core.ml.action.PutTrainedModelAction.Request;
 import org.elasticsearch.xpack.core.ml.action.PutTrainedModelAction.Response;
 import org.elasticsearch.xpack.core.ml.inference.ModelAliasMetadata;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
-import org.elasticsearch.xpack.core.ml.inference.TrainedModelInput;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelType;
 import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignmentMetadata;
 import org.elasticsearch.xpack.core.ml.inference.persistence.InferenceIndexConstants;
@@ -541,9 +540,6 @@ public class TransportPutTrainedModelAction extends TransportMasterNodeAction<Re
         );
 
         trainedModelConfig.setLocation(trainedModelConfig.getModelType().getDefaultLocation(trainedModelConfig.getModelId()));
-        if (trainedModelConfig.getInput() == null) {
-            trainedModelConfig.setInput(new TrainedModelInput(List.of("text_field")));
-        }
     }
 
     static InferenceConfig parseInferenceConfigFromModelPackage(Map<String, Object> source, NamedXContentRegistry namedXContentRegistry)
@@ -570,14 +566,4 @@ public class TransportPutTrainedModelAction extends TransportMasterNodeAction<Re
             return inferenceConfig;
         }
     }
-
-    private void validateAndStore(TrainedModelConfig.Builder configBuilder, boolean isPackageModel, ActionListener<Boolean> listener) {
-        configBuilder.validate(true)
-            .setVersion(MlConfigVersion.CURRENT)
-            .setCreateTime(Instant.now())
-            .setCreatedBy("api_user")
-            .setLicenseLevel(License.OperationMode.PLATINUM.description());
-        trainedModelProvider.storeTrainedModel(configBuilder.build(), listener, isPackageModel);
-    }
-
 }

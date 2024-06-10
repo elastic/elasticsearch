@@ -837,10 +837,6 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
             return this;
         }
 
-        public TrainedModelInput getInput() {
-            return input;
-        }
-
         public Builder setModelSize(long modelSize) {
             this.modelSize = modelSize;
             return this;

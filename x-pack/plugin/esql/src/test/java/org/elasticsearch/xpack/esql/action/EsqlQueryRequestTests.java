@@ -15,6 +15,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.core.TimeValue;
@@ -367,6 +368,34 @@ public class EsqlQueryRequestTests extends ESTestCase {
             builder.beginPositionEntry();
             builder.appendLong(5);
             builder.appendLong(6);
+            builder.endPositionEntry();
+            assertThat(c.values(), equalTo(builder.build()));
+        }
+        assertTablesOnlyValidOnSnapshot(request);
+    }
+
+    public void testTablesDouble() throws IOException {
+        String json = """
+            {
+                "query": "ROW x = 1",
+                "tables": {"a": {"c:double": [1.1, 2, "3.1415", null, [5.1, "-6"]]}}
+            }
+            """;
+
+        EsqlQueryRequest request = parseEsqlQueryRequest(json, randomBoolean());
+        Column c = request.tables().get("a").get("c");
+        assertThat(c.type(), equalTo(DataType.DOUBLE));
+        try (
+            DoubleBlock.Builder builder = new BlockFactory(new NoopCircuitBreaker(CircuitBreaker.REQUEST), BigArrays.NON_RECYCLING_INSTANCE)
+                .newDoubleBlockBuilder(10)
+        ) {
+            builder.appendDouble(1.1);
+            builder.appendDouble(2);
+            builder.appendDouble(3.1415);
+            builder.appendNull();
+            builder.beginPositionEntry();
+            builder.appendDouble(5.1);
+            builder.appendDouble(-6);
             builder.endPositionEntry();
             assertThat(c.values(), equalTo(builder.build()));
         }

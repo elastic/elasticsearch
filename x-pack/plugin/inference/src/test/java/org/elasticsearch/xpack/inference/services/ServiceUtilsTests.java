@@ -19,9 +19,9 @@ import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.core.inference.results.TextEmbeddingByteResults;
-import org.elasticsearch.xpack.core.inference.results.TextEmbeddingResults;
-import org.elasticsearch.xpack.inference.results.TextEmbeddingByteResultsTests;
+import org.elasticsearch.xpack.core.inference.results.InferenceTextEmbeddingByteResults;
+import org.elasticsearch.xpack.core.inference.results.InferenceTextEmbeddingFloatResults;
+import org.elasticsearch.xpack.inference.results.InferenceTextEmbeddingByteResultsTests;
 import org.elasticsearch.xpack.inference.results.TextEmbeddingResultsTests;
 
 import java.util.EnumSet;
@@ -719,7 +719,7 @@ public class ServiceUtilsTests extends ESTestCase {
         doAnswer(invocation -> {
             @SuppressWarnings("unchecked")
             ActionListener<InferenceServiceResults> listener = (ActionListener<InferenceServiceResults>) invocation.getArguments()[6];
-            listener.onResponse(new TextEmbeddingResults(List.of()));
+            listener.onResponse(new InferenceTextEmbeddingFloatResults(List.of()));
 
             return Void.TYPE;
         }).when(service).infer(any(), any(), any(), any(), any(), any(), any());
@@ -742,7 +742,7 @@ public class ServiceUtilsTests extends ESTestCase {
         doAnswer(invocation -> {
             @SuppressWarnings("unchecked")
             ActionListener<InferenceServiceResults> listener = (ActionListener<InferenceServiceResults>) invocation.getArguments()[6];
-            listener.onResponse(new TextEmbeddingByteResults(List.of()));
+            listener.onResponse(new InferenceTextEmbeddingByteResults(List.of()));
 
             return Void.TYPE;
         }).when(service).infer(any(), any(), any(), any(), any(), any(), any());
@@ -786,7 +786,7 @@ public class ServiceUtilsTests extends ESTestCase {
         var model = mock(Model.class);
         when(model.getTaskType()).thenReturn(TaskType.TEXT_EMBEDDING);
 
-        var textEmbedding = TextEmbeddingByteResultsTests.createRandomResults();
+        var textEmbedding = InferenceTextEmbeddingByteResultsTests.createRandomResults();
 
         doAnswer(invocation -> {
             @SuppressWarnings("unchecked")

@@ -51,6 +51,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Explain;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.Keep;
+import org.elasticsearch.xpack.esql.plan.logical.Lookup;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
@@ -450,7 +451,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
         Literal tableName = new Literal(source, ctx.tableName.getText(), DataType.KEYWORD);
 
-        throw new ParsingException(source, "LOOKUP not yet supported");
+        return p -> new Lookup(source, p, tableName, matchFields, null /* localRelation will be resolved later*/);
     }
 
     interface PlanFactory extends Function<LogicalPlan, LogicalPlan> {}

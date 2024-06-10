@@ -13,6 +13,8 @@ query.
 The instructions in this tutorial shows you how to use ELSER to perform semantic
 search on your data.
 
+IMPORTANT: For the easiest way to perform semantic search in the {stack}, refer to the <<semantic-search-semantic-text, `semantic_text`>> end-to-end tutorial.
+
 NOTE: Only the first 512 extracted tokens per field are considered during
 semantic search with ELSER. Refer to
 {ml-docs}/ml-nlp-limitations.html#ml-nlp-elser-v1-limit-512[this page] for more

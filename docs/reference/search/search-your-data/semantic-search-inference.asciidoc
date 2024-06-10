@@ -5,10 +5,12 @@
 <titleabbrev>Semantic search with the {infer} API</titleabbrev>
 ++++
 
-The instructions in this tutorial shows you how to use the {infer} API with various services to perform semantic search on your data.
+The instructions in this tutorial shows you how to use the {infer} API workflow with various services to perform semantic search on your data.
+
+IMPORTANT: For the easiest way to perform semantic search in the {stack}, refer to the <<semantic-search-semantic-text, `semantic_text`>> end-to-end tutorial.
+
 The following examples use Cohere's `embed-english-v3.0` model, the `all-mpnet-base-v2` model from HuggingFace, and OpenAI's `text-embedding-ada-002` second generation embedding model.
-You can use any Cohere and OpenAI models, they are all supported by the
-{infer} API.
+You can use any Cohere and OpenAI models, they are all supported by the {infer} API.
 For a list of supported models available on HuggingFace, refer to
 <<inference-example-hugging-face-supported-models, the supported model list>>.
 

@@ -1,33 +1,41 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
  * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
  * 2.0 and the Server Side Public License, v 1; you may not use this file except
  * in compliance with, at your election, the Elastic License 2.0 or the Server
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.search.sort;
+package org.elasticsearch.compute.data.sort;
 
-import org.elasticsearch.common.util.BigArray;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BitArray;
 import org.elasticsearch.common.util.LongArray;
+import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.IntVector;
+import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.search.sort.BucketedSort;
+import org.elasticsearch.search.sort.SortOrder;
 
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.List;
-
-import static java.util.Collections.emptyList;
+import java.util.Arrays;
 
 /**
- * TODO: Describe class, or redirect to {@link org.elasticsearch.search.sort.RawBucketedSort}.
+ * TODO: Describe class, or redirect to {@link BucketedSort}.
  */
-public abstract class RawBucketedSort<T> implements Releasable {
+public class LongBucketedSort implements Releasable {
 
-    protected final BigArrays bigArrays;
+    private final BigArrays bigArrays;
     private final SortOrder order;
     private final int bucketSize;
     /**
@@ -35,12 +43,23 @@ public abstract class RawBucketedSort<T> implements Releasable {
      * it is still gathering.
      */
     private final BitArray heapMode;
+    private LongArray values;
 
-    protected RawBucketedSort(BigArrays bigArrays, SortOrder order, int bucketSize) {
+    public LongBucketedSort(BigArrays bigArrays, SortOrder order, int bucketSize) {
         this.bigArrays = bigArrays;
         this.order = order;
         this.bucketSize = bucketSize;
         heapMode = new BitArray(1, bigArrays);
+
+        boolean success = false;
+        try {
+            values = bigArrays.newLongArray(1, false);
+            success = true;
+        } finally {
+            if (success == false) {
+                close();
+            }
+        }
     }
 
     /**
@@ -60,13 +79,10 @@ public abstract class RawBucketedSort<T> implements Releasable {
     /**
      * Get the bound indexes (inclusive, exclusive) of the values for a bucket.
      * Returns [0, 0] if the bucket has never been collected.
-     * <p>
-     *     To be used by {@link #getValues(long)} implementations.
-     * </p>
      */
-    protected final Tuple<Long, Long> getBucketValuesBounds(long bucket) {
+    private Tuple<Long, Long> getBucketValuesBounds(long bucket) {
         long rootIndex = bucket * bucketSize + 1;
-        if (rootIndex >= values().size()) {
+        if (rootIndex >= values.size()) {
             // We've never seen this bucket.
             return Tuple.tuple(0L, 0L);
         }
@@ -76,10 +92,61 @@ public abstract class RawBucketedSort<T> implements Releasable {
     }
 
     /**
-     * Get the values for a bucket if it has been collected.
-     * If it hasn't, then returns an empty list.
+     * Merge the values from {@code other}'s {@code otherGroupId} into {@code groupId}.
      */
-    public abstract List<T> getValues(long bucket);
+    public void merge(int groupId, LongBucketedSort other, int otherGroupId) {
+        var otherBounds = other.getBucketValuesBounds(otherGroupId);
+
+        for (long i = otherBounds.v1(); i < otherBounds.v2(); i++) {
+            collect(other.values.get(i), groupId);
+        }
+    }
+
+    /**
+     * Creates a block with the values from the {@code selected} groups.
+     */
+    public Block toBlock(BlockFactory blockFactory, IntVector selected) {
+        // Used to sort the values in the bucket.
+        long[] bucketValues = new long[bucketSize];
+
+        try (LongBlock.Builder builder = blockFactory.newLongBlockBuilder(selected.getPositionCount())) {
+            for (int s = 0; s < selected.getPositionCount(); s++) {
+                int bucket = selected.getInt(s);
+
+                var bounds = getBucketValuesBounds(bucket);
+                var size = bounds.v2() - bounds.v1();
+
+                if (size == 0) {
+                    builder.appendNull();
+                    continue;
+                }
+
+                if (size == 1) {
+                    builder.appendLong(values.get(bounds.v1()));
+                    continue;
+                }
+
+                for (int i = 0; i < size; i++) {
+                    bucketValues[i] = values.get(bounds.v1() + i);
+                }
+
+                Arrays.sort(bucketValues, 0, (int) size);
+
+                builder.beginPositionEntry();
+                if (order == SortOrder.ASC) {
+                    for (int i = 0; i < size; i++) {
+                        builder.appendLong(bucketValues[i]);
+                    }
+                } else {
+                    for (int i = (int) size - 1; i >= 0; i--) {
+                        builder.appendLong(bucketValues[i]);
+                    }
+                }
+                builder.endPositionEntry();
+            }
+            return builder.build();
+        }
+    }
 
     /**
      * Is this bucket a min heap {@code true} or in gathering mode {@code false}?
@@ -89,55 +156,46 @@ public abstract class RawBucketedSort<T> implements Releasable {
     }
 
     /**
-     * The {@linkplain BigArray} backing this sort.
-     */
-    protected abstract BigArray values();
-
-    /**
-     * Grow the {@linkplain BigArray} backing this sort to account for new buckets.
-     * This will only be called if the array is too small.
-     */
-    protected abstract void growValues(long minSize);
-
-    /**
      * Get the next index that should be "gathered" for a bucket rooted
      * at {@code rootIndex}.
      */
-    protected abstract int getNextGatherOffset(long rootIndex);
+    private int getNextGatherOffset(long rootIndex) {
+        return (int) values.get(rootIndex);
+    }
 
     /**
      * Set the next index that should be "gathered" for a bucket rooted
      * at {@code rootIndex}.
      */
-    protected abstract void setNextGatherOffset(long rootIndex, int offset);
+    private void setNextGatherOffset(long rootIndex, int offset) {
+        values.set(rootIndex, offset);
+    }
 
     /**
      * {@code true} if the entry at index {@code lhs} is "better" than
      * the entry at {@code rhs}. "Better" in this means "lower" for
      * {@link SortOrder#ASC} and "higher" for {@link SortOrder#DESC}.
      */
-    protected abstract boolean betterThan(long lhs, long rhs);
+    private boolean betterThan(long lhs, long rhs) {
+        return getOrder().reverseMul() * Long.compare(lhs, rhs) < 0;
+    }
 
     /**
      * Swap the data at two indices.
      */
-    protected abstract void swap(long lhs, long rhs);
-
-    /**
-     * Initialize the gather offsets after setting up values. Subclasses
-     * should call this once, after setting up their {@link #values()}.
-     */
-    /*protected final void initGatherOffsets() {
-        setNextGatherOffsets(1);
-    }*/
+    private void swap(long lhs, long rhs) {
+        long tmp = values.get(lhs);
+        values.set(lhs, values.get(rhs));
+        values.set(rhs, tmp);
+    }
 
     /**
      * Allocate storage for more buckets and store the "next gather offset"
      * for those new buckets.
      */
     private void grow(long minSize) {
-        long oldMax = values().size();
-        growValues(minSize);
+        long oldMax = values.size();
+        values = bigArrays.grow(values, minSize);
         // Set the next gather offsets for all newly allocated buckets.
         // Subtracting 1 from oldMax to ignore the first element, which is the temporal value.
         setNextGatherOffsets(oldMax - ((oldMax - 1) % getBucketSize()));
@@ -148,7 +206,7 @@ public abstract class RawBucketedSort<T> implements Releasable {
      */
     private void setNextGatherOffsets(long startingAt) {
         int nextOffset = getBucketSize() - 1;
-        for (long bucketRoot = startingAt; bucketRoot < values().size(); bucketRoot += getBucketSize()) {
+        for (long bucketRoot = startingAt; bucketRoot < values.size(); bucketRoot += getBucketSize()) {
             setNextGatherOffset(bucketRoot, nextOffset);
         }
     }
@@ -197,13 +255,13 @@ public abstract class RawBucketedSort<T> implements Releasable {
             int leftChild = parent * 2 + 1;
             long leftIndex = rootIndex + leftChild;
             if (leftChild < bucketSize) {
-                if (betterThan(worstIndex, leftIndex)) {
+                if (betterThan(values.get(worstIndex), values.get(leftIndex))) {
                     worst = leftChild;
                     worstIndex = leftIndex;
                 }
                 int rightChild = leftChild + 1;
                 long rightIndex = rootIndex + rightChild;
-                if (rightChild < bucketSize && betterThan(worstIndex, rightIndex)) {
+                if (rightChild < bucketSize && betterThan(values.get(worstIndex), values.get(rightIndex))) {
                     worst = rightChild;
                     worstIndex = rightIndex;
                 }
@@ -218,7 +276,7 @@ public abstract class RawBucketedSort<T> implements Releasable {
 
     @Override
     public final void close() {
-        Releasables.close(values(), heapMode);
+        Releasables.close(values, heapMode);
     }
 
     /**
@@ -227,114 +285,31 @@ public abstract class RawBucketedSort<T> implements Releasable {
      *     It may or may not be inserted in the heap, depending on if it is better than the current root.
      * </p>
      */
-    protected final void collect(long bucket) {
+    public void collect(long value, long bucket) {
         long rootIndex = bucket * bucketSize + 1;
         if (inHeapMode(bucket)) {
-            if (betterThan(0, rootIndex)) {
+            if (betterThan(value, values.get(rootIndex))) {
                 // Insert the temporal value into the heap
-                swap(0, rootIndex);
+                values.set(rootIndex, value);
                 downHeap(rootIndex, 0);
             }
             return;
         }
         // Gathering mode
         long requiredSize = rootIndex + bucketSize;
-        if (values().size() < requiredSize) {
+        if (values.size() < requiredSize) {
             grow(requiredSize);
         }
         int next = getNextGatherOffset(rootIndex);
         assert 0 <= next && next < bucketSize
             : "Expected next to be in the range of valid buckets [0 <= " + next + " < " + bucketSize + "]";
         long index = next + rootIndex;
-        swap(0, index);
+        values.set(index, value);
         if (next == 0) {
             heapMode.set(bucket);
             heapify(rootIndex);
         } else {
             setNextGatherOffset(rootIndex, next - 1);
-        }
-    }
-
-    /**
-     * Superclass for implementations of {@linkplain RawBucketedSort} for {@code long} keys.
-     */
-    public static class ForLongs extends RawBucketedSort<Long> {
-        private LongArray values;
-
-        @SuppressWarnings("this-escape")
-        public ForLongs(BigArrays bigArrays, SortOrder sortOrder, int bucketSize) {
-            super(bigArrays, sortOrder, bucketSize);
-            boolean success = false;
-            try {
-                values = bigArrays.newLongArray(1, false);
-                success = true;
-            } finally {
-                if (success == false) {
-                    close();
-                }
-            }
-        }
-
-        @Override
-        protected final BigArray values() {
-            return values;
-        }
-
-        @Override
-        protected final void growValues(long minSize) {
-            values = bigArrays.grow(values, minSize);
-        }
-
-        @Override
-        protected final int getNextGatherOffset(long rootIndex) {
-            return (int) values.get(rootIndex);
-        }
-
-        @Override
-        protected final void setNextGatherOffset(long rootIndex, int offset) {
-            values.set(rootIndex, offset);
-        }
-
-        @Override
-        protected final boolean betterThan(long lhs, long rhs) {
-            return getOrder().reverseMul() * Long.compare(values.get(lhs), values.get(rhs)) < 0;
-        }
-
-        @Override
-        protected final void swap(long lhs, long rhs) {
-            long tmp = values.get(lhs);
-            values.set(lhs, values.get(rhs));
-            values.set(rhs, tmp);
-        }
-
-        // Type-specific methods
-
-        /**
-         * Collects a value into a bucket.
-         */
-        public void collect(long bucket, long value) {
-            values.set(0, value);
-            super.collect(bucket);
-        }
-
-        @Override
-        public List<Long> getValues(long bucket) {
-            var bounds = getBucketValuesBounds(bucket);
-            var size = bounds.v2() - bounds.v1();
-
-            if (size == 0) {
-                return emptyList();
-            }
-
-            var list = new ArrayList<Long>();
-
-            for (long i = bounds.v1(); i < bounds.v2(); i++) {
-                list.add(values.get(i));
-            }
-
-            list.sort(getOrder().wrap(Comparator.<Long>naturalOrder()));
-
-            return list;
         }
     }
 }

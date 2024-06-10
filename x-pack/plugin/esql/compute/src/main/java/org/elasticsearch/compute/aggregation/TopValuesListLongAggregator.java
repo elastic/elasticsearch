@@ -15,10 +15,10 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.compute.data.sort.LongBucketedSort;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.search.sort.RawBucketedSort;
 import org.elasticsearch.search.sort.SortOrder;
 
 /**
@@ -72,19 +72,18 @@ class TopValuesListLongAggregator {
     }
 
     public static class GroupingState implements Releasable {
-        private final RawBucketedSort.ForLongs sort;
+        private final LongBucketedSort sort;
 
         private GroupingState(BigArrays bigArrays, int limit, boolean ascending) {
-            this.sort = new RawBucketedSort.ForLongs(bigArrays, ascending ? SortOrder.ASC : SortOrder.DESC, limit);
+            this.sort = new LongBucketedSort(bigArrays, ascending ? SortOrder.ASC : SortOrder.DESC, limit);
         }
 
         public void add(int groupId, long value) {
-            sort.collect(groupId, value);
+            sort.collect(value, groupId);
         }
 
         public void merge(int groupId, GroupingState other, int otherGroupId) {
-            // TODO: Make a merge method in RawBucketedSort?
-            other.sort.getValues(otherGroupId).forEach(value -> sort.collect(groupId, value));
+            sort.merge(groupId, other.sort, otherGroupId);
         }
 
         void toIntermediate(Block[] blocks, int offset, IntVector selected, DriverContext driverContext) {
@@ -92,30 +91,7 @@ class TopValuesListLongAggregator {
         }
 
         Block toBlock(BlockFactory blockFactory, IntVector selected) {
-            try (LongBlock.Builder builder = blockFactory.newLongBlockBuilder(selected.getPositionCount())) {
-                for (int s = 0; s < selected.getPositionCount(); s++) {
-                    int selectedGroup = selected.getInt(s);
-
-                    var values = sort.getValues(selectedGroup);
-
-                    if (values.isEmpty()) {
-                        builder.appendNull();
-                        continue;
-                    }
-
-                    if (values.size() == 1) {
-                        builder.appendLong(values.get(0));
-                        continue;
-                    }
-
-                    builder.beginPositionEntry();
-
-                    values.forEach(builder::appendLong);
-
-                    builder.endPositionEntry();
-                }
-                return builder.build();
-            }
+            return sort.toBlock(blockFactory, selected);
         }
 
         void enableGroupIdTracking(SeenGroupIds seen) {
@@ -129,7 +105,7 @@ class TopValuesListLongAggregator {
     }
 
     public static class SingleState implements Releasable {
-        private GroupingState internalState;
+        private final GroupingState internalState;
 
         private SingleState(BigArrays bigArrays, int limit, boolean ascending) {
             this.internalState = new GroupingState(bigArrays, limit, ascending);
@@ -148,22 +124,8 @@ class TopValuesListLongAggregator {
         }
 
         Block toBlock(BlockFactory blockFactory) {
-            try (LongBlock.Builder builder = blockFactory.newLongBlockBuilder(1)) {
-                var values = internalState.sort.getValues(0);
-
-                if (values.isEmpty()) {
-                    builder.appendNull();
-                } else if (values.size() == 1) {
-                    builder.appendLong(values.get(0));
-                } else {
-                    builder.beginPositionEntry();
-
-                    values.forEach(builder::appendLong);
-
-                    builder.endPositionEntry();
-                }
-
-                return builder.build();
+            try (var intValues = blockFactory.newConstantIntVector(0, 1)) {
+                return internalState.toBlock(blockFactory, intValues);
             }
         }
 

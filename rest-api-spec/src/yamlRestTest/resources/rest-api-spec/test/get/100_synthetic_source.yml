@@ -1108,3 +1108,35 @@ flattened field with ignore_above:
           key7: "key7"
 
   - is_false: fields
+
+---
+completion:
+  - requires:
+      cluster_features: ["mapper.source.synthetic_source_fallback"]
+      reason: introduced in 8.15.0
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            _source:
+              mode: synthetic
+            properties:
+              completion:
+                type: completion
+
+  - do:
+      index:
+        index:   test
+        id:      1
+        refresh: true
+        body:
+          completion: "the quick brown fox"
+
+  - do:
+      get:
+        index: test
+        id:    1
+
+  - match: { _source.completion: "the quick brown fox" }

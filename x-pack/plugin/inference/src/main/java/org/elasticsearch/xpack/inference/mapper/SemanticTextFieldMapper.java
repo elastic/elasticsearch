@@ -8,11 +8,13 @@
 package org.elasticsearch.xpack.inference.mapper;
 
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexVersion;
@@ -47,7 +49,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentLocation;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
-import org.elasticsearch.xpack.core.ml.inference.results.TextEmbeddingResults;
+import org.elasticsearch.xpack.core.ml.inference.results.MlTextEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
 
 import java.io.IOException;
@@ -65,6 +67,7 @@ import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.CHUNKED
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.CHUNKS_FIELD;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.INFERENCE_FIELD;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.INFERENCE_ID_FIELD;
+import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.TEXT_FIELD;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.getChunksFieldName;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.getEmbeddingsFieldName;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.getOriginalTextFieldName;
@@ -76,7 +79,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
     public static final String CONTENT_TYPE = "semantic_text";
 
     public static final TypeParser PARSER = new TypeParser(
-        (n, c) -> new Builder(n, c.indexVersionCreated()),
+        (n, c) -> new Builder(n, c.indexVersionCreated(), c::bitSetProducer),
         List.of(notInMultiFields(CONTENT_TYPE), notFromDynamicTemplates(CONTENT_TYPE))
     );
 
@@ -108,10 +111,10 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
 
         private Function<MapperBuilderContext, ObjectMapper> inferenceFieldBuilder;
 
-        public Builder(String name, IndexVersion indexVersionCreated) {
+        public Builder(String name, IndexVersion indexVersionCreated, Function<Query, BitSetProducer> bitSetProducer) {
             super(name);
             this.indexVersionCreated = indexVersionCreated;
-            this.inferenceFieldBuilder = c -> createInferenceField(c, indexVersionCreated, modelSettings.get());
+            this.inferenceFieldBuilder = c -> createInferenceField(c, indexVersionCreated, modelSettings.get(), bitSetProducer);
         }
 
         public Builder setInferenceId(String id) {
@@ -179,7 +182,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(simpleName(), fieldType().indexVersionCreated).init(this);
+        return new Builder(simpleName(), fieldType().indexVersionCreated, fieldType().getChunksField().bitsetProducer()).init(this);
     }
 
     @Override
@@ -188,6 +191,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
         if (parser.currentToken() == XContentParser.Token.VALUE_NULL) {
             return;
         }
+
         XContentLocation xContentLocation = parser.getTokenLocation();
         final SemanticTextField field;
         boolean isWithinLeaf = context.path().isWithinLeafObject();
@@ -197,6 +201,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
         } finally {
             context.path().setWithinLeafObject(isWithinLeaf);
         }
+
         final String fullFieldName = fieldType().name();
         if (field.inference().inferenceId().equals(fieldType().getInferenceId()) == false) {
             throw new DocumentParsingException(
@@ -211,10 +216,15 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                 )
             );
         }
+
         final SemanticTextFieldMapper mapper;
         if (fieldType().getModelSettings() == null) {
             context.path().remove();
-            Builder builder = (Builder) new Builder(simpleName(), fieldType().indexVersionCreated).init(this);
+            Builder builder = (Builder) new Builder(
+                simpleName(),
+                fieldType().indexVersionCreated,
+                fieldType().getChunksField().bitsetProducer()
+            ).init(this);
             try {
                 mapper = builder.setModelSettings(field.inference().modelSettings())
                     .setInferenceId(field.inference().inferenceId())
@@ -241,6 +251,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
             }
             mapper = this;
         }
+
         var chunksField = mapper.fieldType().getChunksField();
         var embeddingsField = mapper.fieldType().getEmbeddingsField();
         for (var chunk : field.inference().chunks()) {
@@ -276,6 +287,20 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
         return new InferenceFieldMetadata(name(), fieldType().inferenceId, copyFields);
     }
 
+    @Override
+    public Object getOriginalValue(Map<String, Object> sourceAsMap) {
+        Object fieldValue = sourceAsMap.get(name());
+        if (fieldValue == null) {
+            return null;
+        } else if (fieldValue instanceof Map<?, ?> == false) {
+            // Don't try to further validate the non-map value, that will be handled when the source is fully parsed
+            return fieldValue;
+        }
+
+        Map<String, Object> fieldValueMap = XContentMapValues.nodeMapValue(fieldValue, "Field [" + name() + "]");
+        return XContentMapValues.extractValue(TEXT_FIELD, fieldValueMap);
+    }
+
     public static class SemanticTextFieldType extends SimpleMappedFieldType {
         private final String inferenceId;
         private final SemanticTextField.ModelSettings modelSettings;
@@ -284,14 +309,14 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
 
         public SemanticTextFieldType(
             String name,
-            String modelId,
+            String inferenceId,
             SemanticTextField.ModelSettings modelSettings,
             ObjectMapper inferenceField,
             IndexVersion indexVersionCreated,
             Map<String, String> meta
         ) {
             super(name, false, false, false, TextSearchInfo.NONE, meta);
-            this.inferenceId = modelId;
+            this.inferenceId = inferenceId;
             this.modelSettings = modelSettings;
             this.inferenceField = inferenceField;
             this.indexVersionCreated = indexVersionCreated;
@@ -375,12 +400,12 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                         yield boolQuery;
                     }
                     case TEXT_EMBEDDING -> {
-                        if (inferenceResults instanceof TextEmbeddingResults == false) {
+                        if (inferenceResults instanceof MlTextEmbeddingResults == false) {
                             throw new IllegalArgumentException(
                                 "Field ["
                                     + name()
                                     + "] expected query inference results to be of type ["
-                                    + TextEmbeddingResults.NAME
+                                    + MlTextEmbeddingResults.NAME
                                     + "],"
                                     + " got ["
                                     + inferenceResults.getWriteableName()
@@ -388,7 +413,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                             );
                         }
 
-                        TextEmbeddingResults textEmbeddingResults = (TextEmbeddingResults) inferenceResults;
+                        MlTextEmbeddingResults textEmbeddingResults = (MlTextEmbeddingResults) inferenceResults;
                         float[] inference = textEmbeddingResults.getInferenceAsFloat();
                         if (inference.length != modelSettings.dimensions()) {
                             throw new IllegalArgumentException(
@@ -421,18 +446,20 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
     private static ObjectMapper createInferenceField(
         MapperBuilderContext context,
         IndexVersion indexVersionCreated,
-        @Nullable SemanticTextField.ModelSettings modelSettings
+        @Nullable SemanticTextField.ModelSettings modelSettings,
+        Function<Query, BitSetProducer> bitSetProducer
     ) {
         return new ObjectMapper.Builder(INFERENCE_FIELD, Explicit.EXPLICIT_TRUE).dynamic(ObjectMapper.Dynamic.FALSE)
-            .add(createChunksField(indexVersionCreated, modelSettings))
+            .add(createChunksField(indexVersionCreated, modelSettings, bitSetProducer))
             .build(context);
     }
 
     private static NestedObjectMapper.Builder createChunksField(
         IndexVersion indexVersionCreated,
-        SemanticTextField.ModelSettings modelSettings
+        @Nullable SemanticTextField.ModelSettings modelSettings,
+        Function<Query, BitSetProducer> bitSetProducer
     ) {
-        NestedObjectMapper.Builder chunksField = new NestedObjectMapper.Builder(CHUNKS_FIELD, indexVersionCreated);
+        NestedObjectMapper.Builder chunksField = new NestedObjectMapper.Builder(CHUNKS_FIELD, indexVersionCreated, bitSetProducer);
         chunksField.dynamic(ObjectMapper.Dynamic.FALSE);
         KeywordFieldMapper.Builder chunkTextField = new KeywordFieldMapper.Builder(CHUNKED_TEXT_FIELD, indexVersionCreated).indexed(false)
             .docValues(false);

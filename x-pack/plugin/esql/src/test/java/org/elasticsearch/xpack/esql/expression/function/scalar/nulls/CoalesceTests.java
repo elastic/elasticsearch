@@ -20,7 +20,6 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.type.DataTypes;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
 import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
@@ -29,7 +28,6 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.VaragsTestCaseBui
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesFunctionTestCase;
 import org.elasticsearch.xpack.esql.planner.Layout;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
-import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
@@ -60,29 +58,44 @@ public class CoalesceTests extends AbstractFunctionTestCase {
         builder.expectBoolean(booleans -> booleans.filter(v -> v != null).findFirst());
         suppliers.addAll(builder.suppliers());
         addSpatialCombinations(suppliers);
-        suppliers.add(new TestCaseSupplier(List.of(DataTypes.IP, DataTypes.IP), () -> {
+        suppliers.add(new TestCaseSupplier(List.of(DataType.IP, DataType.IP), () -> {
             var first = randomBoolean() ? null : EsqlDataTypeConverter.stringToIP(NetworkAddress.format(randomIp(true)));
             var second = EsqlDataTypeConverter.stringToIP(NetworkAddress.format(randomIp(true)));
             return new TestCaseSupplier.TestCase(
                 List.of(
-                    new TestCaseSupplier.TypedData(first, DataTypes.IP, "first"),
-                    new TestCaseSupplier.TypedData(second, DataTypes.IP, "second")
+                    new TestCaseSupplier.TypedData(first, DataType.IP, "first"),
+                    new TestCaseSupplier.TypedData(second, DataType.IP, "second")
                 ),
                 "CoalesceEvaluator[values=[Attribute[channel=0], Attribute[channel=1]]]",
-                DataTypes.IP,
+                DataType.IP,
                 equalTo(first == null ? second : first)
             );
         }));
-        suppliers.add(new TestCaseSupplier(List.of(DataTypes.DATETIME, DataTypes.DATETIME), () -> {
+        suppliers.add(new TestCaseSupplier(List.of(DataType.VERSION, DataType.VERSION), () -> {
+            var first = randomBoolean()
+                ? null
+                : EsqlDataTypeConverter.stringToVersion(randomInt(10) + "." + randomInt(10) + "." + randomInt(10));
+            var second = EsqlDataTypeConverter.stringToVersion(randomInt(10) + "." + randomInt(10) + "." + randomInt(10));
+            return new TestCaseSupplier.TestCase(
+                List.of(
+                    new TestCaseSupplier.TypedData(first, DataType.VERSION, "first"),
+                    new TestCaseSupplier.TypedData(second, DataType.VERSION, "second")
+                ),
+                "CoalesceEvaluator[values=[Attribute[channel=0], Attribute[channel=1]]]",
+                DataType.VERSION,
+                equalTo(first == null ? second : first)
+            );
+        }));
+        suppliers.add(new TestCaseSupplier(List.of(DataType.DATETIME, DataType.DATETIME), () -> {
             Long firstDate = randomBoolean() ? null : ZonedDateTime.parse("2023-12-04T10:15:30Z").toInstant().toEpochMilli();
             Long secondDate = ZonedDateTime.parse("2023-12-05T10:45:00Z").toInstant().toEpochMilli();
             return new TestCaseSupplier.TestCase(
                 List.of(
-                    new TestCaseSupplier.TypedData(firstDate, DataTypes.DATETIME, "first"),
-                    new TestCaseSupplier.TypedData(secondDate, DataTypes.DATETIME, "second")
+                    new TestCaseSupplier.TypedData(firstDate, DataType.DATETIME, "first"),
+                    new TestCaseSupplier.TypedData(secondDate, DataType.DATETIME, "second")
                 ),
                 "CoalesceEvaluator[values=[Attribute[channel=0], Attribute[channel=1]]]",
-                DataTypes.DATETIME,
+                DataType.DATETIME,
                 equalTo(firstDate == null ? secondDate : firstDate)
             );
         }));
@@ -91,12 +104,7 @@ public class CoalesceTests extends AbstractFunctionTestCase {
     }
 
     protected static void addSpatialCombinations(List<TestCaseSupplier> suppliers) {
-        for (DataType dataType : List.of(
-            EsqlDataTypes.GEO_POINT,
-            EsqlDataTypes.GEO_SHAPE,
-            EsqlDataTypes.CARTESIAN_POINT,
-            EsqlDataTypes.CARTESIAN_SHAPE
-        )) {
+        for (DataType dataType : List.of(DataType.GEO_POINT, DataType.GEO_SHAPE, DataType.CARTESIAN_POINT, DataType.CARTESIAN_SHAPE)) {
             TestCaseSupplier.TypedDataSupplier leftDataSupplier = SpatialRelatesFunctionTestCase.testCaseSupplier(dataType);
             TestCaseSupplier.TypedDataSupplier rightDataSupplier = SpatialRelatesFunctionTestCase.testCaseSupplier(dataType);
             suppliers.add(

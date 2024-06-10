@@ -176,7 +176,9 @@ public class FieldAliasMapperValidationTests extends ESTestCase {
     }
 
     private static NestedObjectMapper createNestedObjectMapper(String name) {
-        return new NestedObjectMapper.Builder(name, IndexVersion.current()).build(MapperBuilderContext.root(false, false));
+        return new NestedObjectMapper.Builder(name, IndexVersion.current(), query -> { throw new UnsupportedOperationException(); }).build(
+            MapperBuilderContext.root(false, false)
+        );
     }
 
     private static MappingLookup createMappingLookup(

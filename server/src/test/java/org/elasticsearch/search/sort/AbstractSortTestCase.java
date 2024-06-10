@@ -194,9 +194,9 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
             IndexFieldData.Builder builder = fieldType.fielddataBuilder(fdc);
             return builder.build(new IndexFieldDataCache.None(), null);
         };
-        NestedLookup nestedLookup = NestedLookup.build(
-            List.of(new NestedObjectMapper.Builder("path", IndexVersion.current()).build(MapperBuilderContext.root(false, false)))
-        );
+        NestedLookup nestedLookup = NestedLookup.build(List.of(new NestedObjectMapper.Builder("path", IndexVersion.current(), query -> {
+            throw new UnsupportedOperationException();
+        }).build(MapperBuilderContext.root(false, false))));
         return new SearchExecutionContext(
             0,
             0,

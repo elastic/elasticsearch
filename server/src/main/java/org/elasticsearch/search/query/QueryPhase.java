@@ -87,35 +87,38 @@ public class QueryPhase {
         boolean searchTimedOut = querySearchResult.searchTimedOut();
         long serviceTimeEWMA = querySearchResult.serviceTimeEWMA();
         int nodeQueueSize = querySearchResult.nodeQueueSize();
+        try {
+            // run each of the rank queries
+            for (Query rankQuery : queryPhaseRankShardContext.queries()) {
+                // if a search timeout occurs, exit with partial results
+                if (searchTimedOut) {
+                    break;
+                }
+                try (
+                    RankSearchContext rankSearchContext = new RankSearchContext(
+                        searchContext,
+                        rankQuery,
+                        queryPhaseRankShardContext.rankWindowSize()
+                    )
+                ) {
+                    QueryPhase.addCollectorsAndSearch(rankSearchContext);
+                    QuerySearchResult rrfQuerySearchResult = rankSearchContext.queryResult();
+                    rrfRankResults.add(rrfQuerySearchResult.topDocs().topDocs);
+                    serviceTimeEWMA += rrfQuerySearchResult.serviceTimeEWMA();
+                    nodeQueueSize = Math.max(nodeQueueSize, rrfQuerySearchResult.nodeQueueSize());
+                    searchTimedOut = rrfQuerySearchResult.searchTimedOut();
+                }
+            }
 
-        // run each of the rank queries
-        for (Query rankQuery : queryPhaseRankShardContext.queries()) {
-            // if a search timeout occurs, exit with partial results
-            if (searchTimedOut) {
-                break;
-            }
-            try (
-                RankSearchContext rankSearchContext = new RankSearchContext(
-                    searchContext,
-                    rankQuery,
-                    queryPhaseRankShardContext.rankWindowSize()
-                )
-            ) {
-                QueryPhase.addCollectorsAndSearch(rankSearchContext);
-                QuerySearchResult rrfQuerySearchResult = rankSearchContext.queryResult();
-                rrfRankResults.add(rrfQuerySearchResult.topDocs().topDocs);
-                serviceTimeEWMA += rrfQuerySearchResult.serviceTimeEWMA();
-                nodeQueueSize = Math.max(nodeQueueSize, rrfQuerySearchResult.nodeQueueSize());
-                searchTimedOut = rrfQuerySearchResult.searchTimedOut();
-            }
+            querySearchResult.setRankShardResult(queryPhaseRankShardContext.combineQueryPhaseResults(rrfRankResults));
+
+            // record values relevant to all queries
+            querySearchResult.searchTimedOut(searchTimedOut);
+            querySearchResult.serviceTimeEWMA(serviceTimeEWMA);
+            querySearchResult.nodeQueueSize(nodeQueueSize);
+        } catch (Exception e) {
+            throw new QueryPhaseExecutionException(searchContext.shardTarget(), "Failed to execute rank query", e);
         }
-
-        querySearchResult.setRankShardResult(queryPhaseRankShardContext.combineQueryPhaseResults(rrfRankResults));
-
-        // record values relevant to all queries
-        querySearchResult.searchTimedOut(searchTimedOut);
-        querySearchResult.serviceTimeEWMA(serviceTimeEWMA);
-        querySearchResult.nodeQueueSize(nodeQueueSize);
     }
 
     static void executeQuery(SearchContext searchContext) throws QueryPhaseExecutionException {

@@ -8,14 +8,13 @@
 
 package org.elasticsearch.cluster.routing;
 
-import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplanation;
+import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplanationUtils;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.routing.allocation.AllocationDecision;
-import org.elasticsearch.cluster.routing.allocation.ShardAllocationDecision;
 import org.elasticsearch.cluster.routing.allocation.command.AllocateStalePrimaryAllocationCommand;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexService;
@@ -114,7 +113,7 @@ public class AllocationIdIT extends ESIntegTestCase {
             final ClusterState state = clusterAdmin().prepareState().get().getState();
             final ShardRouting shardRouting = state.routingTable().index(indexName).shard(shardId.id()).primaryShard();
             assertThat(shardRouting.state(), equalTo(ShardRoutingState.UNASSIGNED));
-            assertThat(shardRouting.unassignedInfo().getReason(), equalTo(UnassignedInfo.Reason.ALLOCATION_FAILED));
+            assertThat(shardRouting.unassignedInfo().reason(), equalTo(UnassignedInfo.Reason.ALLOCATION_FAILED));
         });
 
         internalCluster().stopNode(node1);
@@ -199,14 +198,12 @@ public class AllocationIdIT extends ESIntegTestCase {
 
     private void checkNoValidShardCopy(String indexName, ShardId shardId) throws Exception {
         assertBusy(() -> {
-            final ClusterAllocationExplanation explanation = clusterAdmin().prepareAllocationExplain()
-                .setIndex(indexName)
-                .setShard(shardId.id())
-                .setPrimary(true)
-                .get()
-                .getExplanation();
-
-            final ShardAllocationDecision shardAllocationDecision = explanation.getShardAllocationDecision();
+            final var shardAllocationDecision = ClusterAllocationExplanationUtils.getClusterAllocationExplanation(
+                client(),
+                indexName,
+                shardId.id(),
+                true
+            ).getShardAllocationDecision();
             assertThat(shardAllocationDecision.isDecisionTaken(), equalTo(true));
             assertThat(
                 shardAllocationDecision.getAllocateDecision().getAllocationDecision(),

@@ -35,10 +35,10 @@ public final class EqualsKeywordsEvaluator implements EvalOperator.ExpressionEva
 
   public EqualsKeywordsEvaluator(Source source, EvalOperator.ExpressionEvaluator lhs,
       EvalOperator.ExpressionEvaluator rhs, DriverContext driverContext) {
-    this.warnings = new Warnings(source);
     this.lhs = lhs;
     this.rhs = rhs;
     this.driverContext = driverContext;
+    this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
   }
 
   @Override
@@ -92,11 +92,11 @@ public final class EqualsKeywordsEvaluator implements EvalOperator.ExpressionEva
   }
 
   public BooleanVector eval(int positionCount, BytesRefVector lhsVector, BytesRefVector rhsVector) {
-    try(BooleanVector.Builder result = driverContext.blockFactory().newBooleanVectorBuilder(positionCount)) {
+    try(BooleanVector.FixedBuilder result = driverContext.blockFactory().newBooleanVectorFixedBuilder(positionCount)) {
       BytesRef lhsScratch = new BytesRef();
       BytesRef rhsScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendBoolean(Equals.processKeywords(lhsVector.getBytesRef(p, lhsScratch), rhsVector.getBytesRef(p, rhsScratch)));
+        result.appendBoolean(p, Equals.processKeywords(lhsVector.getBytesRef(p, lhsScratch), rhsVector.getBytesRef(p, rhsScratch)));
       }
       return result.build();
     }

@@ -12,7 +12,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.DataTypes;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 
@@ -36,7 +36,7 @@ public class ToRadiansTests extends AbstractFunctionTestCase {
         TestCaseSupplier.forUnaryInt(
             suppliers,
             evaluatorName.apply("ToDoubleFromIntEvaluator"),
-            DataTypes.DOUBLE,
+            DataType.DOUBLE,
             Math::toRadians,
             Integer.MIN_VALUE,
             Integer.MAX_VALUE,
@@ -45,7 +45,7 @@ public class ToRadiansTests extends AbstractFunctionTestCase {
         TestCaseSupplier.forUnaryLong(
             suppliers,
             evaluatorName.apply("ToDoubleFromLongEvaluator"),
-            DataTypes.DOUBLE,
+            DataType.DOUBLE,
             Math::toRadians,
             Long.MIN_VALUE,
             Long.MAX_VALUE,
@@ -54,7 +54,7 @@ public class ToRadiansTests extends AbstractFunctionTestCase {
         TestCaseSupplier.forUnaryUnsignedLong(
             suppliers,
             evaluatorName.apply("ToDoubleFromUnsignedLongEvaluator"),
-            DataTypes.DOUBLE,
+            DataType.DOUBLE,
             ul -> Math.toRadians(ul.doubleValue()),
             BigInteger.ZERO,
             UNSIGNED_LONG_MAX,
@@ -63,7 +63,7 @@ public class ToRadiansTests extends AbstractFunctionTestCase {
         TestCaseSupplier.forUnaryDouble(
             suppliers,
             "ToRadiansEvaluator[field=Attribute[channel=0]]",
-            DataTypes.DOUBLE,
+            DataType.DOUBLE,
             Math::toRadians,
             Double.NEGATIVE_INFINITY,
             Double.POSITIVE_INFINITY,

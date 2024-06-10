@@ -195,6 +195,14 @@ emp_no:integer | last_name:keyword | x:keyword | z:keyword
 10010 | Piveteau  | P | a
 ;
 
+substring empty string
+required_capability: fn_substring_empty_null
+row sub = substring("", 1, 3);
+
+sub:keyword
+""
+;
+
 substring Emoji#[skip:-8.13.99,reason:bug fix in 8.14]
 row a = "🐱Meow!🐶Woof!" | eval sub1 = substring(a, 2) | eval sub2 = substring(a, 2, 100);
 
@@ -831,6 +839,41 @@ emp_no:integer | full_name:keyword | full_name_2:keyword | job_positions:keyword
 10005          | Kyoichi Maliniak  | Maliniak,Kyoichi    | null                                                                   | [-2.14,13.07]                 | [-2.14,13.07]
 ;
 
+mvZipLiteralNullDelim
+required_capability: mv_sort
+
+FROM employees
+| EVAL full_name = mv_zip(first_name, last_name, null)
+| KEEP emp_no, full_name
+| SORT emp_no
+| LIMIT 5;
+
+emp_no:integer | full_name:keyword
+10001          | null
+10002          | null
+10003          | null
+10004          | null
+10005          | null
+;
+
+mvZipLiteralLongDelim
+required_capability: mv_sort
+
+FROM employees
+| EVAL full_name = mv_zip(first_name, last_name, " words words words ")
+| KEEP emp_no, full_name
+| SORT emp_no
+| LIMIT 5;
+
+emp_no:integer | full_name:keyword
+10001          | Georgi words words words Facello
+10002          | Bezalel words words words Simmel
+10003          | Parto words words words Bamford
+10004          | Chirstian words words words Koblick
+10005          | Kyoichi words words words Maliniak
+;
+
+
 showTextFields
 from hosts | sort description, card, ip0, ip1 | where host == "beta" | keep host, host_group, description;
 ignoreOrder:true
@@ -1327,6 +1370,79 @@ l1:integer | l2:integer
 null       | 0
 ;
 
+
+mvAppend
+required_capability: fn_mv_append
+
+ROW a = "a", b = ["b", "c"], n = null
+| EVAL aa = mv_append(a, a), bb = mv_append(b, b), ab = mv_append(a, b), abb = mv_append(mv_append(a, b), b), na = mv_append(n, a), an = mv_append(a, n)
+;
+
+a:keyword | b:keyword | n:null | aa:keyword | bb:keyword   | ab:keyword | abb:keyword    | na:keyword | an:keyword
+a         | [b, c]    | null   |[a, a]     | [b, c, b, c] | [a, b, c]  | [a, b, c, b, c] | null       | null
+;
+
+
+mvAppendNull
+required_capability: fn_mv_append
+
+ROW a = "a", b = ["b", "c"], c = to_string(null)
+| EVAL a_null = mv_append(a, c),
+       null_a = mv_append(c, a),
+       b_null = mv_append(b, c),
+       null_b = mv_append(c, b),
+       null_null = mv_append(c, c)
+;
+
+a:keyword | b:keyword | c:keyword | a_null:keyword | null_a:keyword | b_null:keyword | null_b:keyword | null_null:keyword  
+a         | [b, c]    | null      | null           | null           | null           | null           | null
+;
+
+
+mvAppendStrings
+required_capability: fn_mv_append
+
+FROM employees
+| WHERE emp_no == 10004
+| EVAL names = mv_sort(mv_append(first_name, last_name)), 
+       two_jobs = mv_sort(mv_append(job_positions, job_positions)),
+       three_jobs = mv_sort(mv_append(job_positions, mv_append(job_positions, job_positions)))
+| KEEP emp_no, names, two_jobs, three_jobs
+;
+
+emp_no:integer | names:keyword    | two_jobs:keyword                                       | three_jobs:keyword
+10004          | ["Chirstian", "Koblick"] | ["Head Human Resources","Head Human Resources","Reporting Analyst","Reporting Analyst","Support Engineer","Support Engineer","Tech Lead","Tech Lead"]  | ["Head Human Resources","Head Human Resources","Head Human Resources","Reporting Analyst","Reporting Analyst","Reporting Analyst","Support Engineer","Support Engineer","Support Engineer","Tech Lead","Tech Lead","Tech Lead"] 
+;
+
+
+
+mvAppendStringsWhere
+required_capability: fn_mv_append
+
+FROM employees
+| EVAL two_jobs = mv_append(mv_sort(job_positions), mv_sort(job_positions)) 
+| WHERE emp_no == 10004 AND mv_slice(mv_append(mv_sort(job_positions), mv_sort(job_positions)), 6, 6) == "Support Engineer"
+| KEEP emp_no, two_jobs
+;
+
+emp_no:integer | two_jobs:keyword                       
+10004          | ["Head Human Resources","Reporting Analyst","Support Engineer","Tech Lead","Head Human Resources","Reporting Analyst","Support Engineer","Tech Lead"]   
+;
+
+mvAppendNullFields
+required_capability: fn_mv_append
+
+FROM employees
+| WHERE emp_no == 10005
+| EVAL x = mv_append(first_name, job_positions), y = mv_append(job_positions, first_name), z = mv_append(job_positions, job_positions)
+| keep emp_no, first_name, job_positions, x, y, z
+;
+
+emp_no:integer | first_name:keyword | job_positions:keyword | x:keyword | y:keyword | z:keyword
+10005          | Kyoichi            | null                  | null      | null      | null
+;         
+
+
 base64Encode#[skip:-8.13.99,reason:new base64 function added in 8.14]
 required_capability: base64_decode_encode
 
@@ -1373,3 +1489,108 @@ emp_no:integer | first_name:keyword | e:keyword    | d:keyword
 10030          | null               | null         | null
 10031          | null               | null         | null
 ;
+
+repeat
+required_capability: repeat 
+// tag::repeat[]
+ROW a = "Hello!"
+| EVAL triple_a = REPEAT(a, 3);
+// end::repeat[]
+
+// tag::repeat-result[]
+a:keyword | triple_a:keyword
+Hello! | Hello!Hello!Hello!
+// end::repeat-result[]
+;
+
+repeatUtf16Emoji
+required_capability: repeat 
+row a = "🐱Meow!🐶Woof!" | eval repeated = repeat(a, 2);
+
+a:keyword | repeated:keyword
+🐱Meow!🐶Woof! | 🐱Meow!🐶Woof!🐱Meow!🐶Woof!
+;
+
+repeatLength
+required_capability: repeat 
+row a = "cheese" | eval repeated_len = length(repeat(a, 5));
+
+a:keyword | repeated_len:integer
+cheese | 30
+;
+
+repeatSubstring
+required_capability: repeat 
+row a = "catcat" | eval repeated = repeat(substring(a, 4), 2);
+
+a:keyword | repeated:keyword
+catcat | catcat
+;
+
+repeatZero
+required_capability: repeat 
+row a = "cheese" | eval repeated = repeat(a, 0);
+
+a:keyword | repeated:keyword
+cheese | ""
+;
+
+repeatNegative
+required_capability: repeat 
+
+from employees | sort emp_no | limit 1 | eval repeated = repeat(first_name, emp_no - 10002) | keep first_name, repeated;
+
+warning:Line 1:58: evaluation of [repeat(first_name, emp_no - 10002)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:58: java.lang.IllegalArgumentException: Number parameter cannot be negative, found [-1]
+
+first_name:keyword | repeated:keyword
+Georgi | null
+;
+
+repeatVariableNumber
+required_capability: repeat 
+from employees 
+| sort emp_no 
+| limit 4 
+| eval first_repeated = repeat(first_name, emp_no - 10001) 
+| keep emp_no, first_name, first_repeated;
+
+emp_no:integer | first_name:keyword  | first_repeated:keyword
+10001 | Georgi    | ""
+10002 | Bezalel   | Bezalel   
+10003 | Parto     | PartoParto 
+10004 | Chirstian | ChirstianChirstianChirstian   
+;
+
+repeatStringNull
+required_capability: repeat 
+row n = 2 | eval repeated = repeat(null, n);
+
+n:integer | repeated:keyword
+2 | null
+;
+
+repeatNumberNull
+required_capability: repeat 
+row s = "cheese" | eval repeated = repeat(s, null);
+
+s:keyword | repeated:keyword
+cheese    | null
+;
+
+repeatBothArgsFromIndex
+required_capability: repeat 
+FROM employees 
+| EVAL first_name=REPEAT(first_name, languages) 
+| KEEP emp_no, languages, first_name
+| WHERE emp_no < 10005 
+| SORT emp_no;
+
+emp_no:integer | languages:integer | first_name:keyword
+10001 | 2 | GeorgiGeorgi
+10002 | 5 | BezalelBezalelBezalelBezalelBezalel
+10003 | 4 | PartoPartoPartoParto
+10004 | 5 | ChirstianChirstianChirstianChirstianChirstian
+;
+
+

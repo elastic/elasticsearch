@@ -99,6 +99,7 @@ public class Constants {
         "cluster:admin/features/reset",
         "cluster:admin/tasks/cancel",
         "cluster:admin/transform/delete",
+        "cluster:admin/transform/node_stats",
         "cluster:admin/transform/preview",
         "cluster:admin/transform/put",
         "cluster:admin/transform/reset",

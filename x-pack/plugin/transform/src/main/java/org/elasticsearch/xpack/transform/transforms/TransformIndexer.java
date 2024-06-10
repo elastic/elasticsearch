@@ -45,6 +45,7 @@ import org.elasticsearch.xpack.core.transform.transforms.TransformProgress;
 import org.elasticsearch.xpack.core.transform.transforms.TransformState;
 import org.elasticsearch.xpack.core.transform.transforms.TransformTaskState;
 import org.elasticsearch.xpack.core.transform.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.transform.Transform;
 import org.elasticsearch.xpack.transform.TransformServices;
 import org.elasticsearch.xpack.transform.checkpoint.CheckpointProvider;
 import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
@@ -570,9 +571,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
     private void finalizeCheckpoint(ActionListener<Void> listener) {
         try {
             // reset the page size, so we do not memorize a low page size forever
-            if (function != null) {
-                context.setPageSize(function.getInitialPageSize());
-            }
+            resetPageSize();
             // reset the changed bucket to free memory
             if (changeCollector != null) {
                 changeCollector.clear();
@@ -1234,12 +1233,17 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
 
     private void configurePageSize(Integer newPageSize) {
         initialConfiguredPageSize = newPageSize;
+        resetPageSize();
+    }
 
-        // if the user explicitly set a page size, take it from the config, otherwise let the function decide
+    private void resetPageSize() {
         if (initialConfiguredPageSize != null && initialConfiguredPageSize > 0) {
             context.setPageSize(initialConfiguredPageSize);
-        } else {
+        } else if (function != null) {
             context.setPageSize(function.getInitialPageSize());
+        } else {
+            // we should never be in a state where both initialConfiguredPageSize and function are null, but just in case...
+            context.setPageSize(Transform.DEFAULT_INITIAL_MAX_PAGE_SEARCH_SIZE);
         }
     }
 

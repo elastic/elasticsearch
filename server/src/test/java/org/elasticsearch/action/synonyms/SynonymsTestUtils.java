@@ -32,6 +32,10 @@ public class SynonymsTestUtils {
         return randomArray(minLength, maxLength, SynonymRule[]::new, SynonymsTestUtils::randomSynonymRule);
     }
 
+    public static SynonymRule[] randomSynonymsSetWithoutIds(int minLength, int maxLength) {
+        return randomArray(minLength, maxLength, SynonymRule[]::new, () -> randomSynonymRule(null));
+    }
+
     static SynonymRule[] randomSynonymsSet() {
         return randomSynonymsSet(0, SynonymsManagementAPIService.MAX_SYNONYMS_SETS);
     }
@@ -41,10 +45,11 @@ public class SynonymsTestUtils {
     }
 
     static SynonymRule randomSynonymRule() {
-        return new SynonymRule(
-            randomBoolean() ? null : randomIdentifier(),
-            String.join(", ", randomArray(1, 10, String[]::new, () -> randomAlphaOfLengthBetween(1, 10)))
-        );
+        return randomSynonymRule(randomBoolean() ? null : randomIdentifier());
+    }
+
+    static SynonymRule randomSynonymRule(String id) {
+        return new SynonymRule(id, String.join(", ", randomArray(1, 10, String[]::new, () -> randomAlphaOfLengthBetween(1, 10))));
     }
 
     static SynonymSetSummary randomSynonymSetSummary() {

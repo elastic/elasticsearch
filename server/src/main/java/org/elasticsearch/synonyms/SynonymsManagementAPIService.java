@@ -206,6 +206,46 @@ public class SynonymsManagementAPIService {
             });
     }
 
+    /**
+     * Retrieves all synonym rules for a synonym set. It checks that max_result_window is not exceeded for the index, and
+     * adjusts the number of synonyms sets returned if needed.
+     *
+     * @param synonymSetId
+     * @param listener
+     */
+    public void getSynonymSetRules(String synonymSetId, ActionListener<PagedResult<SynonymRule>> listener) {
+        // Check the max result window setting to limit the number of synonym rules retrieved.
+        // This is needed for mixed cluster environments that might not have updated the index setting when doing shard recovering
+        client.admin()
+            .indices()
+            .prepareGetIndex()
+            .setIndices(SYNONYMS_ALIAS_NAME)
+            .execute(listener.delegateFailureAndWrap((getIndexListener, getIndexResponse) -> {
+                Map<String, Settings> settings = getIndexResponse.getSettings();
+                int size = IndexSettings.MAX_RESULT_WINDOW_SETTING.getDefault(null);
+
+                Settings maxResultWindowSetting = settings.get(SYNONYMS_ALIAS_NAME);
+                if (maxResultWindowSetting != null) {
+                    Integer synonymsResultWindowSize = maxResultWindowSetting.getAsInt(
+                        IndexSettings.MAX_RESULT_WINDOW_SETTING.getKey(),
+                        IndexSettings.MAX_RESULT_WINDOW_SETTING.getDefault(maxResultWindowSetting)
+                    );
+                    size = Math.max(size, synonymsResultWindowSize);
+                }
+
+                getSynonymSetRules(synonymSetId, 0, size, listener);
+            }));
+    }
+
+    /**
+     * Retrieves synonym rules for a synonym set, with pagination support. This method does not check that pagination is
+     * correct in terms of the max_result_window setting.
+     *
+     * @param synonymSetId
+     * @param from
+     * @param size
+     * @param listener
+     */
     public void getSynonymSetRules(String synonymSetId, int from, int size, ActionListener<PagedResult<SynonymRule>> listener) {
         // Retrieves synonym rules, excluding the synonym set object type
         client.prepareSearch(SYNONYMS_ALIAS_NAME)

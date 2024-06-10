@@ -72,7 +72,6 @@ public class SynonymsManagementAPIServiceIT extends ESIntegTestCase {
                 new ActionListener<>() {
                     @Override
                     public void onResponse(PagedResult<SynonymRule> synonymRulePagedResult) {
-                        // TODO This fails in CI but passes locally. Why?
                         assertEquals(rulesNumber, synonymRulePagedResult.totalResults());
                         assertEquals(rulesNumber, synonymRulePagedResult.pageResults().length);
                         getLatch.countDown();
@@ -177,7 +176,7 @@ public class SynonymsManagementAPIServiceIT extends ESIntegTestCase {
 
             @Override
             public void onFailure(Exception e) {
-                fail("Shouldn't fail creating synonym sets");
+                fail(e);
             }
         });
 

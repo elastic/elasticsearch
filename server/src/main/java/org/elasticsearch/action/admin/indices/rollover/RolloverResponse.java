@@ -13,7 +13,6 @@ import org.elasticsearch.action.support.master.ShardsAcknowledgedResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.Maps;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -37,7 +36,6 @@ public final class RolloverResponse extends ShardsAcknowledgedResponse implement
     private static final ParseField LAZY = new ParseField("lazy");
     private static final ParseField CONDITIONS = new ParseField("conditions");
 
-    @Nullable
     private final String oldIndex;
     private final String newIndex;
     private final Map<String, Boolean> conditionStatus;
@@ -50,11 +48,7 @@ public final class RolloverResponse extends ShardsAcknowledgedResponse implement
 
     RolloverResponse(StreamInput in) throws IOException {
         super(in, false);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.FAILURE_STORE_LAZY_CREATION)) {
-            oldIndex = in.readOptionalString();
-        } else {
-            oldIndex = in.readString();
-        }
+        oldIndex = in.readString();
         newIndex = in.readString();
         int conditionSize = in.readVInt();
         conditionStatus = Maps.newMapWithExpectedSize(conditionSize);
@@ -94,7 +88,6 @@ public final class RolloverResponse extends ShardsAcknowledgedResponse implement
     /**
      * Returns the name of the index that the request alias was pointing to
      */
-    @Nullable
     public String getOldIndex() {
         return oldIndex;
     }
@@ -142,11 +135,7 @@ public final class RolloverResponse extends ShardsAcknowledgedResponse implement
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.FAILURE_STORE_LAZY_CREATION)) {
-            out.writeOptionalString(oldIndex);
-        } else {
-            out.writeString(oldIndex);
-        }
+        out.writeString(oldIndex);
         out.writeString(newIndex);
         out.writeMap(conditionStatus, StreamOutput::writeBoolean);
         out.writeBoolean(dryRun);

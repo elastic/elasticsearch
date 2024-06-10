@@ -385,7 +385,7 @@ teardown:
         target_failure_store: true
 
   - match: { acknowledged: true }
-  - match: { old_index: null }
+  - match: { old_index: "non-existent" }
   - match: { new_index: "/\\.fs-data-stream-for-rollover-(\\d{4}\\.\\d{2}\\.\\d{2}-)?000002/" }
   - match: { rolled_over: true }
   - match: { dry_run: false }

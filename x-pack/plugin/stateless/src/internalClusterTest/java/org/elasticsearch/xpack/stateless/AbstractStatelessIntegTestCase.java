@@ -33,7 +33,10 @@ import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
+import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
+import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
@@ -65,6 +68,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.recovery.RecoveryStats;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
@@ -108,6 +112,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFa
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasItems;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
@@ -887,5 +892,18 @@ public abstract class AbstractStatelessIntegTestCase extends ESIntegTestCase {
 
     protected void flushNoForceNoWait(String... indexNames) {
         client().admin().indices().prepareFlush(indexNames).setForce(false).setWaitIfOngoing(false).get(TimeValue.timeValueSeconds(10));
+    }
+
+    protected static void assertNodeHasNoCurrentRecoveries(String nodeName) {
+        NodesStatsResponse nodesStatsResponse = clusterAdmin().prepareNodesStats()
+            .setNodesIds(nodeName)
+            .clear()
+            .setIndices(new CommonStatsFlags(CommonStatsFlags.Flag.Recovery))
+            .get();
+        assertThat(nodesStatsResponse.getNodes(), hasSize(1));
+        NodeStats nodeStats = nodesStatsResponse.getNodes().get(0);
+        final RecoveryStats recoveryStats = nodeStats.getIndices().getRecoveryStats();
+        assertThat(recoveryStats.currentAsSource(), equalTo(0));
+        assertThat(recoveryStats.currentAsTarget(), equalTo(0));
     }
 }

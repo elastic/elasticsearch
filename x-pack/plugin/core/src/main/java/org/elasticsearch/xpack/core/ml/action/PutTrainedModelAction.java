@@ -18,11 +18,9 @@ import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
-import org.elasticsearch.xpack.core.ml.inference.TrainedModelInput;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Objects;
 
 import static org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig.MODEL_SIZE_BYTES;
@@ -50,7 +48,7 @@ public class PutTrainedModelAction extends ActionType<PutTrainedModelAction.Resp
             TrainedModelConfig.Builder builder = TrainedModelConfig.STRICT_PARSER.apply(parser, null);
 
             if (builder.getModelId() == null) {
-                builder.setModelId(modelId);
+                builder.setModelId(modelId).build();
             } else if (Strings.isNullOrEmpty(modelId) == false && modelId.equals(builder.getModelId()) == false) {
                 // If we have model_id in both URI and body, they must be identical
                 throw new IllegalArgumentException(
@@ -62,16 +60,9 @@ public class PutTrainedModelAction extends ActionType<PutTrainedModelAction.Resp
                     )
                 );
             }
-
-            // The input is defaulted here rather than in the action to avoid
-            // extensive changes to the serialisation logic.
-            if (builder.getInput() == null) {
-                builder.setInput(new TrainedModelInput(List.of("text_field")));
-            }
-
-            // Build here without validation and validate the config in the action.
+            // Validations are done against the builder so we can build the full config object.
             // This allows us to not worry about serializing a builder class between nodes.
-            return new Request(builder.build(), deferDefinitionValidation, waitForCompletion);
+            return new Request(builder.validate(true).build(), deferDefinitionValidation, waitForCompletion);
         }
 
         private final TrainedModelConfig config;

@@ -203,7 +203,10 @@ public class TransportPutTrainedModelAction extends TransportMasterNodeAction<Re
             }
         }
 
-        TrainedModelConfig.Builder trainedModelConfig = new TrainedModelConfig.Builder(config);
+        TrainedModelConfig.Builder trainedModelConfig = new TrainedModelConfig.Builder(config).setVersion(MlConfigVersion.CURRENT)
+            .setCreateTime(Instant.now())
+            .setCreatedBy("api_user")
+            .setLicenseLevel(License.OperationMode.PLATINUM.description());
         AtomicReference<ModelPackageConfig> modelPackageConfigHolder = new AtomicReference<>();
 
         if (hasModelDefinition) {
@@ -253,7 +256,7 @@ public class TransportPutTrainedModelAction extends TransportMasterNodeAction<Re
             } else {
                 delegate.onResponse(new PutTrainedModelAction.Response(configToReturn));
             }
-        }).delegateFailureAndWrap((l, r) -> validateAndStore(trainedModelConfig, isPackageModel, l));
+        }).delegateFailureAndWrap((l, r) -> trainedModelProvider.storeTrainedModel(trainedModelConfig.build(), l, isPackageModel));
 
         ActionListener<Void> tagsModelIdCheckListener = ActionListener.wrap(r -> {
             if (TrainedModelType.PYTORCH.equals(trainedModelConfig.getModelType())) {

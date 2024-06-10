@@ -186,6 +186,8 @@ public class TransportVersions {
     public static final TransportVersion ML_CHUNK_INFERENCE_OPTION = def(8_677_00_0);
     public static final TransportVersion RANK_FEATURE_PHASE_ADDED = def(8_678_00_0);
     public static final TransportVersion RANK_DOC_IN_SHARD_FETCH_REQUEST = def(8_679_00_0);
+    public static final TransportVersion SECURITY_SETTINGS_REQUEST_TIMEOUTS = def(8_680_00_0);
+
     /*
      * STOP! READ THIS FIRST! No, really,
      *        ____ _____ ___  ____  _        ____  _____    _    ____    _____ _   _ ___ ____    _____ ___ ____  ____ _____ _

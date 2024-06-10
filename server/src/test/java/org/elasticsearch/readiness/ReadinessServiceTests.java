@@ -316,7 +316,7 @@ public class ReadinessServiceTests extends ESTestCase implements ReadinessClient
 
         ClusterState noFileSettingsState = ClusterState.builder(noFileSettingsState())
             // the master node is upgraded to support file settings, but existing node2 is not
-            .nodeFeatures(Map.of(httpTransport.node.getId(), Set.of(FileSettingsFeatures.FILE_SETTINGS_SUPPORTED.id())))
+            .nodeFeatures(Map.of(httpTransport.node.getId(), nodeFeatures))
             .build();
         ClusterChangedEvent event = new ClusterChangedEvent("test", noFileSettingsState, emptyState());
         readinessService.clusterChanged(event);

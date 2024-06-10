@@ -283,7 +283,9 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
             // In order to block readiness on file settings being applied, we need to know that the master node has written an initial
             // version, or a marker that file settings don't exist. When upgrading from a version that did not have file settings, the
             // current master node may not be the first node upgraded. To be safe, we wait to consider file settings application for
-            // readiness until the whole cluster supports file settings.
+            // readiness until the whole cluster supports file settings. Note that this only applies when no reserved state metadata
+            // exists, so either we are starting up a current cluster (and the feature will be found) or we are upgrading from
+            // a version before file settings existed (before 8.4).
             return supportsFileSettings(clusterState) == false;
         } else {
             return fileSettingsMetadata.version().equals(ReservedStateMetadata.NO_VERSION) == false;

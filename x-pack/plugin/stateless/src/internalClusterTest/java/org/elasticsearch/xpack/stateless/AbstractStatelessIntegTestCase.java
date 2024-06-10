@@ -78,6 +78,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotState;
+import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -178,7 +179,7 @@ public abstract class AbstractStatelessIntegTestCase extends ESIntegTestCase {
 
     public static class NoopSharedBlobCacheWarmingService extends SharedBlobCacheWarmingService {
         public NoopSharedBlobCacheWarmingService(StatelessSharedBlobCacheService cacheService, ThreadPool threadPool, Settings settings) {
-            super(cacheService, threadPool, settings);
+            super(cacheService, threadPool, TelemetryProvider.NOOP, settings);
         }
 
         @Override

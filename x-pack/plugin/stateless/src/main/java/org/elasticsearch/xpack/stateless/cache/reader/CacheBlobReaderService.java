@@ -31,6 +31,7 @@ import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.shard.ShardId;
 
+import java.util.function.LongConsumer;
 import java.util.function.LongFunction;
 
 /**
@@ -78,31 +79,37 @@ public class CacheBlobReaderService {
      * @param location the blob's location. only the blob name, and the BCC primary term and generation are used. the offset and fileLength
      *                 is disregarded.
      * @param tracker the tracker to determine if the blob has been uploaded to the object store
+     * @param totalBytesReadFromObjectStore counts how many bytes were read from object store
+     * @param totalBytesReadFromIndexing counts how many bytes were read from indexing nodes
      * @return a {@link CacheBlobReader} for the given shard and blob
      */
     public CacheBlobReader getCacheBlobReader(
         ShardId shardId,
         LongFunction<BlobContainer> blobContainer,
         BlobLocation location,
-        ObjectStoreUploadTracker tracker
+        ObjectStoreUploadTracker tracker,
+        LongConsumer totalBytesReadFromObjectStore,
+        LongConsumer totalBytesReadFromIndexing
     ) {
         final var locationPrimaryTermAndGeneration = location.getBatchedCompoundCommitTermAndGeneration();
         final long rangeSize = cacheService.getRangeSize();
-        var objectStoreCacheBlobReader = new ObjectStoreCacheBlobReader(
-            blobContainer.apply(location.primaryTerm()),
-            location.blobName(),
-            rangeSize
+        var objectStoreCacheBlobReader = new MeteringCacheBlobReader(
+            new ObjectStoreCacheBlobReader(blobContainer.apply(location.primaryTerm()), location.blobName(), rangeSize),
+            totalBytesReadFromObjectStore
         );
         var latestUploadInfo = tracker.getLatestUploadInfo(locationPrimaryTermAndGeneration);
         if (latestUploadInfo.isUploaded()) {
             return objectStoreCacheBlobReader;
         } else {
-            var indexingShardCacheBlobReader = new IndexingShardCacheBlobReader(
-                shardId,
-                locationPrimaryTermAndGeneration,
-                latestUploadInfo.preferredNodeId(),
-                client,
-                indexingShardCacheBlobReaderChunkSize
+            var indexingShardCacheBlobReader = new MeteringCacheBlobReader(
+                new IndexingShardCacheBlobReader(
+                    shardId,
+                    locationPrimaryTermAndGeneration,
+                    latestUploadInfo.preferredNodeId(),
+                    client,
+                    indexingShardCacheBlobReaderChunkSize
+                ),
+                totalBytesReadFromIndexing
             );
             return new SwitchingCacheBlobReader(latestUploadInfo, objectStoreCacheBlobReader, indexingShardCacheBlobReader);
         }

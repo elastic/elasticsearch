@@ -70,6 +70,7 @@ import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpNodeClient;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -1869,7 +1870,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
                     clusterService.threadPool(),
                     client,
                     getCommitCleaner(),
-                    new SharedBlobCacheWarmingService(sharedCacheService, threadPool, nodeSettings)
+                    new SharedBlobCacheWarmingService(sharedCacheService, threadPool, TelemetryProvider.NOOP, nodeSettings)
                 ) {
                     @Override
                     protected ShardCommitState createShardCommitState(

@@ -43,6 +43,7 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
+import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.junit.annotations.TestLogging;
@@ -373,9 +374,10 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessIntegTestC
         protected SharedBlobCacheWarmingService createSharedBlobCacheWarmingService(
             StatelessSharedBlobCacheService cacheService,
             ThreadPool threadPool,
+            TelemetryProvider telemetryProvider,
             Settings settings
         ) {
-            return new BlockingSharedBlobCacheWarmingService(cacheService, threadPool, settings);
+            return new BlockingSharedBlobCacheWarmingService(cacheService, threadPool, telemetryProvider, settings);
         }
     }
 
@@ -383,8 +385,13 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessIntegTestC
 
         private final CopyOnWriteArrayList<ActionListener<Void>> listeners = new CopyOnWriteArrayList<>();
 
-        BlockingSharedBlobCacheWarmingService(StatelessSharedBlobCacheService cacheService, ThreadPool threadPool, Settings settings) {
-            super(cacheService, threadPool, settings);
+        BlockingSharedBlobCacheWarmingService(
+            StatelessSharedBlobCacheService cacheService,
+            ThreadPool threadPool,
+            TelemetryProvider telemetryProvider,
+            Settings settings
+        ) {
+            super(cacheService, threadPool, telemetryProvider, settings);
         }
 
         void addListener(ActionListener<Void> listener) {

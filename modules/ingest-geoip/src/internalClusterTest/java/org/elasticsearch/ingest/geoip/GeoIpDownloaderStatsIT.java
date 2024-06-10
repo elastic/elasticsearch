@@ -99,7 +99,13 @@ public class GeoIpDownloaderStatsIT extends AbstractGeoIpIT {
                 Map<String, Object> lastSuccess = (Map<String, Object>) downloaderAttempt.get("last_success");
                 assertThat(
                     lastSuccess.keySet(),
-                    containsInAnyOrder("md5", "download_date_in_millis", "download_time_in_millis", "source", "build_date_in_millis")
+                    containsInAnyOrder(
+                        "archive_md5",
+                        "download_date_in_millis",
+                        "download_time_in_millis",
+                        "source",
+                        "build_date_in_millis"
+                    )
                 );
             }
             Map<String, Map<String, List<Map<String, Object>>>> nodes = view.get("nodes");
@@ -111,7 +117,10 @@ public class GeoIpDownloaderStatsIT extends AbstractGeoIpIT {
                     containsInAnyOrder("GeoLite2-City.mmdb", "GeoLite2-ASN.mmdb", "GeoLite2-Country.mmdb", "MyCustomGeoLite2-City.mmdb")
                 );
                 for (Map<String, Object> database : value.get("databases")) {
-                    assertThat(database.keySet(), containsInAnyOrder("name", "md5", "build_date_in_millis", "type"));
+                    assertThat(
+                        database.keySet(),
+                        containsInAnyOrder("name", "source", "archive_md5", "md5", "build_date_in_millis", "type")
+                    );
                 }
             }
         }, 2, TimeUnit.MINUTES);

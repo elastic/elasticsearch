@@ -21,32 +21,56 @@ public class RetrievedDatabaseInfoTests extends AbstractWireSerializingTestCase<
 
     @Override
     protected RetrievedDatabaseInfo createTestInstance() {
-        return new RetrievedDatabaseInfo(randomName(), randomMd5(), randomBuildDate(), randomType());
+        return new RetrievedDatabaseInfo(randomName(), randomSource(), randomMd5(), randomMd5(), randomBuildDate(), randomType());
     }
 
     @Override
     protected RetrievedDatabaseInfo mutateInstance(RetrievedDatabaseInfo instance) throws IOException {
-        return switch (between(0, 3)) {
+        return switch (between(0, 5)) {
             case 0 -> new RetrievedDatabaseInfo(
                 randomValueOtherThan(instance.name(), this::randomName),
+                instance.source(),
+                instance.archiveMd5(),
                 instance.md5(),
                 instance.buildDateInMillis(),
                 instance.type()
             );
             case 1 -> new RetrievedDatabaseInfo(
                 instance.name(),
-                randomValueOtherThan(instance.md5(), this::randomMd5),
+                randomValueOtherThan(instance.source(), this::randomSource),
+                instance.archiveMd5(),
+                instance.md5(),
                 instance.buildDateInMillis(),
                 instance.type()
             );
             case 2 -> new RetrievedDatabaseInfo(
                 instance.name(),
+                instance.source(),
+                randomValueOtherThan(instance.archiveMd5(), this::randomMd5),
                 instance.md5(),
-                randomValueOtherThan(instance.buildDateInMillis(), this::randomBuildDate),
+                instance.buildDateInMillis(),
                 instance.type()
             );
             case 3 -> new RetrievedDatabaseInfo(
                 instance.name(),
+                instance.source(),
+                instance.archiveMd5(),
+                randomValueOtherThan(instance.md5(), this::randomMd5),
+                instance.buildDateInMillis(),
+                instance.type()
+            );
+            case 4 -> new RetrievedDatabaseInfo(
+                instance.name(),
+                instance.source(),
+                instance.archiveMd5(),
+                instance.md5(),
+                randomValueOtherThan(instance.buildDateInMillis(), this::randomBuildDate),
+                instance.type()
+            );
+            case 5 -> new RetrievedDatabaseInfo(
+                instance.name(),
+                instance.source(),
+                instance.archiveMd5(),
                 instance.md5(),
                 instance.buildDateInMillis(),
                 randomValueOtherThan(instance.type(), this::randomType)
@@ -57,6 +81,10 @@ public class RetrievedDatabaseInfoTests extends AbstractWireSerializingTestCase<
 
     private String randomName() {
         return randomAlphaOfLengthBetween(5, 30);
+    }
+
+    private String randomSource() {
+        return randomBoolean() ? null : randomAlphaOfLength(10);
     }
 
     private String randomMd5() {

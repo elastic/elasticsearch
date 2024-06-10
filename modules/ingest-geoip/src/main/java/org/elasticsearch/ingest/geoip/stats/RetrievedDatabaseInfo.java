@@ -15,17 +15,31 @@ import org.elasticsearch.core.Nullable;
 
 import java.io.IOException;
 
-public record RetrievedDatabaseInfo(String name, @Nullable String md5, @Nullable Long buildDateInMillis, @Nullable String type)
-    implements
-        Writeable {
+public record RetrievedDatabaseInfo(
+    String name,
+    @Nullable String source,
+    @Nullable String archiveMd5,
+    @Nullable String md5,
+    @Nullable Long buildDateInMillis,
+    @Nullable String type
+) implements Writeable {
 
     public RetrievedDatabaseInfo(StreamInput in) throws IOException {
-        this(in.readString(), in.readOptionalString(), in.readOptionalLong(), in.readOptionalString());
+        this(
+            in.readString(),
+            in.readOptionalString(),
+            in.readOptionalString(),
+            in.readOptionalString(),
+            in.readOptionalLong(),
+            in.readOptionalString()
+        );
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(name);
+        out.writeOptionalString(source);
+        out.writeOptionalString(archiveMd5);
         out.writeOptionalString(md5);
         out.writeOptionalLong(buildDateInMillis);
         out.writeOptionalString(type);

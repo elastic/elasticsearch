@@ -41,14 +41,6 @@ Download statistics for all GeoIP2 databases.
 (integer)
 Total number of successful database downloads.
 
-`name`::
-(string)
-Name of the database.
-
-`md5`::
-(string)
-MD5 hash of the database.
-
 `failed_downloads`::
 (integer)
 Total number of failed database downloads.
@@ -59,7 +51,7 @@ Total milliseconds spent downloading databases.
 
 `database_count`::
 (integer)
-Current number of databases available for use.
+Current number of downloaded databases available for use.
 
 `skipped_updates`::
 (integer)
@@ -84,9 +76,9 @@ Information about the most recent successful download (if any) of this database.
 
 [%collapsible%open]
 =======
-`md5`::
+`archive_md5`::
 (string)
-MD5 hash of the database.
+MD5 hash of the database archive (`.tar.gz`) file.
 
 `download_date_in_millis`::
 (long)
@@ -106,6 +98,10 @@ The amount of time in milliseconds that it took to download the database from th
 The amount of time in milliseconds that it took to download the database from the remote system to a node in the {es} cluster, in a
 human-readable format. Returned only if the `human` request parameter is passed.
 
+`source`::
+(string)
+The host from which the database archive was downloaded
+
 `build_date_in_millis`::
 (long)
 The build date of the database represented as epoch milliseconds
@@ -123,9 +119,9 @@ Information about the most recent failed download (if any) of this database. Thi
 
 [%collapsible%open]
 =======
-`md5`::
+`archive_md5`::
 (string)
-MD5 hash of the database.
+MD5 hash of the database archive (`.tar.gz`) file.
 
 `download_date_in_millis`::
 (long)
@@ -146,6 +142,10 @@ The amount of time in milliseconds that the failed download from the remote syst
 (string)
 The amount of time in milliseconds that the failed download from the remote system to a node in the {es} cluster took, in a
 human-readable format. Returned only if the `human` request parameter is passed.
+
+`source`::
+(string)
+The host from which the database archive was downloaded
 
 `build_date_in_millis`::
 (long)
@@ -173,7 +173,7 @@ Statistics for each node.
 ====
 `<node_id>`::
 (object)
-Downloaded databases for the node. The field key is the node ID.
+GeoIP databases on the node. The field key is the node ID.
 +
 .Properties of `<node_id>`
 [%collapsible%open]
@@ -189,9 +189,17 @@ This provides information about each database that was pulled down from an {es} 
 (string)
 Name of the database.
 
+`source`::
+(string)
+The source of the database, one of `downloader` (downloaded by the geoip downloader), or `config` (manually added by a user)
+
+`archive_md5`::
+(string)
+MD5 hash of the archive (`.tar.gz`) file that the database was packaged in, or null if there was no archive file.
+
 `md5`::
 (string)
-MD5 hash of the database.
+MD5 hash of the database (`.mmdb`) file.
 
 `build_date_in_millis`::
 (long)

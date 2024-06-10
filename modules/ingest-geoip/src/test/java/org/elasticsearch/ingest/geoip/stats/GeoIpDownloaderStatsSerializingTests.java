@@ -81,7 +81,7 @@ public class GeoIpDownloaderStatsSerializingTests extends AbstractXContentSerial
             new ParseField("last_failure")
         );
 
-        DOWNLOAD_ATTEMPT_PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), new ParseField("md5"));
+        DOWNLOAD_ATTEMPT_PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), new ParseField("archive_md5"));
         DOWNLOAD_ATTEMPT_PARSER.declareLong(ConstructingObjectParser.optionalConstructorArg(), new ParseField("download_date_in_millis"));
         DOWNLOAD_ATTEMPT_PARSER.declareLong(ConstructingObjectParser.optionalConstructorArg(), new ParseField("download_time_in_millis"));
         DOWNLOAD_ATTEMPT_PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), new ParseField("source"));

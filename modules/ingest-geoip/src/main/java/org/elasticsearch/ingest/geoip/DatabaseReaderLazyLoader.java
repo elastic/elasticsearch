@@ -27,18 +27,24 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.CheckedSupplier;
+import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.SuppressForbidden;
 
+import java.io.BufferedInputStream;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.net.InetAddress;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.DigestInputStream;
+import java.security.MessageDigest;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -53,7 +59,7 @@ class DatabaseReaderLazyLoader implements GeoIpDatabase, Closeable {
 
     private static final Logger logger = LogManager.getLogger(DatabaseReaderLazyLoader.class);
 
-    private final String md5;
+    private final String archiveMd5;
     private final GeoIpCache cache;
     private final Path databasePath;
     private final CheckedSupplier<DatabaseReader, IOException> loader;
@@ -61,21 +67,23 @@ class DatabaseReaderLazyLoader implements GeoIpDatabase, Closeable {
 
     // cache the database type so that we do not re-read it on every pipeline execution
     final SetOnce<String> databaseType;
+    final SetOnce<String> md5;
 
     private volatile boolean deleteDatabaseFileOnClose;
     private final AtomicInteger currentUsages = new AtomicInteger(0);
 
-    DatabaseReaderLazyLoader(GeoIpCache cache, Path databasePath, String md5) {
-        this(cache, databasePath, md5, createDatabaseLoader(databasePath));
+    DatabaseReaderLazyLoader(GeoIpCache cache, Path databasePath, String archiveMd5) {
+        this(cache, databasePath, archiveMd5, createDatabaseLoader(databasePath));
     }
 
-    DatabaseReaderLazyLoader(GeoIpCache cache, Path databasePath, String md5, CheckedSupplier<DatabaseReader, IOException> loader) {
+    DatabaseReaderLazyLoader(GeoIpCache cache, Path databasePath, String archiveMd5, CheckedSupplier<DatabaseReader, IOException> loader) {
         this.cache = cache;
         this.databasePath = Objects.requireNonNull(databasePath);
-        this.md5 = md5;
+        this.archiveMd5 = archiveMd5;
         this.loader = Objects.requireNonNull(loader);
         this.databaseReader = new SetOnce<>();
         this.databaseType = new SetOnce<>();
+        this.md5 = new SetOnce<>();
     }
 
     /**
@@ -246,8 +254,24 @@ class DatabaseReaderLazyLoader implements GeoIpDatabase, Closeable {
         return databaseReader.get();
     }
 
+    String getArchiveMd5() {
+        return archiveMd5;
+    }
+
     String getMd5() {
-        return md5;
+        if (md5.get() == null) {
+            MessageDigest md5Digest = MessageDigests.md5();
+            try {
+                try (InputStream dis = new DigestInputStream(new BufferedInputStream(Files.newInputStream(databasePath)), md5Digest)) {
+                    dis.transferTo(OutputStream.nullOutputStream());
+                }
+            } catch (IOException e) {
+                logger.debug(Strings.format("Error computing md5 for %s", databasePath.toString()), e);
+                md5.set("unknown");
+            }
+            md5.set(MessageDigests.toHexString(md5Digest.digest()));
+        }
+        return md5.get();
     }
 
     public void close(boolean shouldDeleteDatabaseFileOnClose) throws IOException {

@@ -53,6 +53,7 @@ import java.nio.file.attribute.BasicFileAttributes;
 import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -285,7 +286,7 @@ public final class DatabaseNodeService implements GeoIpDatabaseProvider, Closeab
             GeoIpTaskState.Metadata metadata = e.getValue();
             DatabaseReaderLazyLoader reference = databases.get(name);
             String remoteMd5 = metadata.md5();
-            String localMd5 = reference != null ? reference.getMd5() : null;
+            String localMd5 = reference != null ? reference.getArchiveMd5() : null;
             if (Objects.equals(localMd5, remoteMd5)) {
                 logger.debug("Current reference of [{}] is up to date [{}] with was recorded in CS [{}]", name, localMd5, remoteMd5);
                 return;
@@ -332,7 +333,7 @@ public final class DatabaseNodeService implements GeoIpDatabaseProvider, Closeab
         // If thread 2 then also removes the tmp file before thread 1 attempts to create it then we're about to retrieve the same database
         // twice. This check is here to avoid this:
         DatabaseReaderLazyLoader lazyLoader = databases.get(databaseName);
-        if (lazyLoader != null && recordedMd5.equals(lazyLoader.getMd5())) {
+        if (lazyLoader != null && recordedMd5.equals(lazyLoader.getArchiveMd5())) {
             logger.debug("deleting tmp file because database [{}] has already been updated.", databaseName);
             Files.delete(databaseTmpGzFile);
             return;
@@ -496,7 +497,8 @@ public final class DatabaseNodeService implements GeoIpDatabaseProvider, Closeab
     }
 
     public Set<RetrievedDatabaseInfo> getAvailableDatabases() {
-        return databases.entrySet().stream().map(entry -> {
+        Set<RetrievedDatabaseInfo> allDatabases = new HashSet<>();
+        for (Map.Entry<String, DatabaseReaderLazyLoader> entry : configDatabases.getConfigDatabases().entrySet()) {
             DatabaseReaderLazyLoader databaseReaderLazyLoader = entry.getValue();
             final Metadata metadata;
             try {
@@ -504,13 +506,38 @@ public final class DatabaseNodeService implements GeoIpDatabaseProvider, Closeab
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }
-            return new RetrievedDatabaseInfo(
-                entry.getKey(),
-                databaseReaderLazyLoader.getMd5(),
-                metadata.getBuildDate().getTime(),
-                metadata.getDatabaseType()
+            allDatabases.add(
+                new RetrievedDatabaseInfo(
+                    entry.getKey(),
+                    "config",
+                    databaseReaderLazyLoader.getArchiveMd5(),
+                    databaseReaderLazyLoader.getMd5(),
+                    metadata.getBuildDate().getTime(),
+                    metadata.getDatabaseType()
+                )
             );
-        }).collect(Collectors.toSet());
+        }
+
+        for (Map.Entry<String, DatabaseReaderLazyLoader> entry : databases.entrySet()) {
+            DatabaseReaderLazyLoader databaseReaderLazyLoader = entry.getValue();
+            final Metadata metadata;
+            try {
+                metadata = databaseReaderLazyLoader.getMetadata();
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+            allDatabases.add(
+                new RetrievedDatabaseInfo(
+                    entry.getKey(),
+                    "downloader",
+                    databaseReaderLazyLoader.getArchiveMd5(),
+                    databaseReaderLazyLoader.getMd5(),
+                    metadata.getBuildDate().getTime(),
+                    metadata.getDatabaseType()
+                )
+            );
+        }
+        return allDatabases;
     }
 
     public Set<String> getConfigDatabases() {

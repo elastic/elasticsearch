@@ -90,7 +90,7 @@ public record DownloadedDatabaseInfo(String name, DownloadAttempt successfulAtte
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             if (md5 != null) {
-                builder.field("md5", md5);
+                builder.field("archive_md5", md5);
             }
             if (downloadAttemptTimeInMillis != null) {
                 builder.timeField("download_date_in_millis", "download_date", downloadAttemptTimeInMillis);

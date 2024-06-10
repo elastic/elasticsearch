@@ -50,6 +50,8 @@ public class GeoIpStatsActionNodeResponseTests extends ESTestCase {
         return new RetrievedDatabaseInfo(
             randomAlphaOfLengthBetween(5, 10),
             randomBoolean() ? null : randomAlphaOfLengthBetween(5, 10),
+            randomBoolean() ? null : randomAlphaOfLengthBetween(5, 10),
+            randomBoolean() ? null : randomAlphaOfLengthBetween(5, 10),
             randomBoolean() ? null : randomLong(),
             randomBoolean() ? null : randomAlphaOfLengthBetween(5, 10)
         );

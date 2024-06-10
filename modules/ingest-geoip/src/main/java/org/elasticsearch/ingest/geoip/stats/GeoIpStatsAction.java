@@ -128,6 +128,8 @@ public class GeoIpStatsAction {
                     for (RetrievedDatabaseInfo database : response.databases) {
                         builder.startObject();
                         builder.field("name", database.name());
+                        builder.field("source", database.source());
+                        builder.field("archive_md5", database.archiveMd5());
                         builder.field("md5", database.md5());
                         builder.timeField("build_date_in_millis", "build_date", database.buildDateInMillis());
                         builder.field("type", database.type());
@@ -193,7 +195,9 @@ public class GeoIpStatsAction {
             } else {
                 Set<String> databaseNames = in.readCollectionAsImmutableSet(StreamInput::readString);
                 databases.addAll(
-                    databaseNames.stream().map(name -> new RetrievedDatabaseInfo(name, null, null, null)).collect(Collectors.toSet())
+                    databaseNames.stream()
+                        .map(name -> new RetrievedDatabaseInfo(name, null, null, null, null, null))
+                        .collect(Collectors.toSet())
                 );
             }
             filesInTemp = in.readCollectionAsImmutableSet(StreamInput::readString);

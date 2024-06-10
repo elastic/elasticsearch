@@ -31,6 +31,7 @@ import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.ingest.geoip.stats.GeoIpStatsAction;
+import org.elasticsearch.ingest.geoip.stats.RetrievedDatabaseInfo;
 import org.elasticsearch.persistent.PersistentTaskParams;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.plugins.IngestPlugin;
@@ -707,7 +708,10 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
                     nodeResponse.getConfigDatabases(),
                     containsInAnyOrder("GeoLite2-Country.mmdb", "GeoLite2-City.mmdb", "GeoLite2-ASN.mmdb")
                 );
-                assertThat(nodeResponse.getDatabases(), empty());
+                assertThat(
+                    nodeResponse.getDatabases().stream().map(RetrievedDatabaseInfo::name).collect(Collectors.toSet()),
+                    containsInAnyOrder("GeoLite2-Country.mmdb", "GeoLite2-City.mmdb", "GeoLite2-ASN.mmdb")
+                );
                 assertThat(nodeResponse.getFilesInTemp().stream().filter(s -> s.endsWith(".txt") == false).toList(), empty());
             }
         });

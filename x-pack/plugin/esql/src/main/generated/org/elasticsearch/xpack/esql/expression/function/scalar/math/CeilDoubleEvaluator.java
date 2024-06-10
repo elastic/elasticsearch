@@ -67,9 +67,9 @@ public final class CeilDoubleEvaluator implements EvalOperator.ExpressionEvaluat
   }
 
   public DoubleVector eval(int positionCount, DoubleVector valVector) {
-    try(DoubleVector.Builder result = driverContext.blockFactory().newDoubleVectorBuilder(positionCount)) {
+    try(DoubleVector.FixedBuilder result = driverContext.blockFactory().newDoubleVectorFixedBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendDouble(Ceil.process(valVector.getDouble(p)));
+        result.appendDouble(p, Ceil.process(valVector.getDouble(p)));
       }
       return result.build();
     }

@@ -11,7 +11,6 @@ import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.DocumentMapper;
@@ -437,7 +436,11 @@ public class UnsignedLongFieldMapperTests extends WholeNumberFieldMapperTests {
             List<Value> values = randomList(1, maxVals, this::generateValue);
             List<Object> in = values.stream().map(Value::input).toList();
 
-            List<BigInteger> outputFromDocValues = values.stream().filter(v -> v.malformedOutput == null).map(Value::output).sorted().toList();
+            List<BigInteger> outputFromDocValues = values.stream()
+                .filter(v -> v.malformedOutput == null)
+                .map(Value::output)
+                .sorted()
+                .toList();
             Stream<Object> malformedOutput = values.stream().filter(v -> v.malformedOutput != null).map(Value::malformedOutput);
 
             // Malformed values are always last in the implementation.

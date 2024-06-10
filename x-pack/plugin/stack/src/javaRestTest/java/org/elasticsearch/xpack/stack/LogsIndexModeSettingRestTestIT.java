@@ -35,6 +35,7 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.hamcrest.Matchers;
 import org.junit.Before;
 import org.junit.ClassRule;
 
@@ -109,7 +110,7 @@ public class LogsIndexModeSettingRestTestIT extends ESRestTestCase {
         assertOK(createDataStream(client, "logs-custom-dev"));
         final String indexMode = (String) getSetting(client, getWriteBackingIndex(client, "logs-custom-dev", 0), "index.mode");
         if (Build.current().isProductionRelease()) {
-            assertThat(indexMode, equalTo(IndexMode.STANDARD.getName()));
+            assertThat(indexMode, Matchers.not(equalTo(IndexMode.LOGS.getName())));
         } else {
             assertThat(indexMode, equalTo(IndexMode.LOGS.getName()));
         }

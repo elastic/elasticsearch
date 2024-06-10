@@ -11,6 +11,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.index.IndexRequest;
@@ -99,37 +100,43 @@ public class InferenceRunner {
         isCancelled = true;
     }
 
-    public void run(String modelId) {
+    public void run(String modelId, ActionListener<Void> listener) {
         if (isCancelled) {
+            listener.onResponse(null);
             return;
         }
 
         LOGGER.info("[{}] Started inference on test data against model [{}]", config.getId(), modelId);
+        var handler = listener.delegateResponse((delegate, e) -> delegate.onFailure(handleException(modelId, e)));
         try {
-            PlainActionFuture<LocalModel> localModelPlainActionFuture = new UnsafePlainActionFuture<>(
-                MachineLearning.UTILITY_THREAD_POOL_NAME
-            );
-            modelLoadingService.getModelForInternalInference(modelId, localModelPlainActionFuture);
             InferenceState inferenceState = restoreInferenceState();
             dataCountsTracker.setTestDocsCount(inferenceState.processedTestDocsCount);
-            TestDocsIterator testDocsIterator = testDocsIteratorFactory.apply(inferenceState.lastIncrementalId);
-            try (LocalModel localModel = localModelPlainActionFuture.actionGet()) {
-                LOGGER.debug("Loaded inference model [{}]", localModel);
-                inferTestDocs(localModel, testDocsIterator, inferenceState.processedTestDocsCount);
-            }
+            var testDocsIterator = testDocsIteratorFactory.apply(inferenceState.lastIncrementalId);
+            modelLoadingService.getModelForInternalInference(modelId, handler.map(localModel -> {
+                try (localModel) {
+                    LOGGER.debug("Loaded inference model [{}]", localModel);
+                    inferTestDocs(localModel, testDocsIterator, inferenceState.processedTestDocsCount);
+                    return null; // void
+                }
+            }));
         } catch (Exception e) {
-            LOGGER.error(() -> format("[%s] Error running inference on model [%s]", config.getId(), modelId), e);
-            if (e instanceof ElasticsearchException elasticsearchException) {
-                throw new ElasticsearchStatusException(
-                    "[{}] failed running inference on model [{}]; cause was [{}]",
-                    elasticsearchException.status(),
-                    elasticsearchException.getRootCause(),
-                    config.getId(),
-                    modelId,
-                    elasticsearchException.getRootCause().getMessage()
-                );
-            }
-            throw ExceptionsHelper.serverError(
+            handler.onFailure(e);
+        }
+    }
+
+    private Exception handleException(String modelId, Exception e) {
+        LOGGER.error(() -> format("[%s] Error running inference on model [%s]", config.getId(), modelId), e);
+        if (e instanceof ElasticsearchException elasticsearchException) {
+            return new ElasticsearchStatusException(
+                "[{}] failed running inference on model [{}]; cause was [{}]",
+                elasticsearchException.status(),
+                elasticsearchException.getRootCause(),
+                config.getId(),
+                modelId,
+                elasticsearchException.getRootCause().getMessage()
+            );
+        } else {
+            return ExceptionsHelper.serverError(
                 "[{}] failed running inference on model [{}]; cause was [{}]",
                 e,
                 config.getId(),

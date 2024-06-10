@@ -29,7 +29,7 @@ public class CompatCalendarNameProvider extends CalendarNameProvider {
         "September",
         "October",
         "November",
-        "December"};
+        "December" };
     private static final String[] LONG_DAYS = new String[] {
         "", // Calendar.SUNDAY is 1, not 0
         "Sunday",
@@ -38,8 +38,7 @@ public class CompatCalendarNameProvider extends CalendarNameProvider {
         "Wednesday",
         "Thursday",
         "Friday",
-        "Saturday"
-    };
+        "Saturday" };
 
     @Override
     public String getDisplayName(String calendarType, int field, int value, int style, Locale locale) {
@@ -90,7 +89,7 @@ public class CompatCalendarNameProvider extends CalendarNameProvider {
 
     private static Map<String, Integer> toMap(String[] array) {
         Map<String, Integer> map = Maps.newHashMapWithExpectedSize(array.length);
-        for (int i=0; i< array.length; i++) {
+        for (int i = 0; i < array.length; i++) {
             map.put(array[i], i);
         }
         return map;

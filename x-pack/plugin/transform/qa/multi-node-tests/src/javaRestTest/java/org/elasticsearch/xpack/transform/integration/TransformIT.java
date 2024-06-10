@@ -77,7 +77,7 @@ public class TransformIT extends TransformRestTestCase {
             {
               "persistent": {
                 "logger.org.elasticsearch.xpack.core.indexing.AsyncTwoPhaseIndexer": "debug",
-                "logger.org.elasticsearch.xpack.transform": "trace"
+                "logger.org.elasticsearch.xpack.transform": "debug"
               }
             }""");
         client().performRequest(settingsRequest);

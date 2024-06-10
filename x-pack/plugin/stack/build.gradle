@@ -19,6 +19,7 @@ dependencies {
   testImplementation project(':modules:data-streams')
   javaRestTestImplementation(testArtifact(project(xpackModule('core'))))
   javaRestTestImplementation project(path: ':x-pack:plugin:stack')
+  clusterModules project(xpackModule('wildcard'))
   clusterModules project(':modules:mapper-extras')
   clusterModules project(':modules:data-streams')
   clusterModules project(xpackModule('mapper-constant-keyword'))

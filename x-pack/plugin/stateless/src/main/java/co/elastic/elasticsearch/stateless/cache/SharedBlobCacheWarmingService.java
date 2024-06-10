@@ -25,6 +25,7 @@ import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
 import co.elastic.elasticsearch.stateless.commits.VirtualBatchedCompoundCommit;
 import co.elastic.elasticsearch.stateless.lucene.FileCacheKey;
 import co.elastic.elasticsearch.stateless.lucene.SearchDirectory;
+import co.elastic.elasticsearch.stateless.recovery.metering.RecoveryMetricsCollector;
 import co.elastic.elasticsearch.stateless.utils.IndexingShardRecoveryComparator;
 
 import org.apache.logging.log4j.LogManager;
@@ -49,6 +50,8 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.store.LuceneFilesExtensions;
 import org.elasticsearch.index.store.Store;
+import org.elasticsearch.telemetry.TelemetryProvider;
+import org.elasticsearch.telemetry.metric.LongCounter;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -79,6 +82,8 @@ public class SharedBlobCacheWarmingService {
         STATELESS_UPLOAD_DELAYED,
         Setting.Property.NodeScope
     );
+
+    public static final String BLOB_CACHE_WARMING_PAGE_ALIGNED_BYTES_TOTAL_METRIC = "es.blob_cache_warming.page_aligned_bytes.total";
 
     /** Region of a blob **/
     private record BlobRegion(BlobFile blob, int region) {}
@@ -136,9 +141,15 @@ public class SharedBlobCacheWarmingService {
     private final ThreadPool threadPool;
     private final Executor fetchExecutor;
     private final ThrottledTaskRunner throttledTaskRunner;
+    private final LongCounter cacheWarmingPageAlignedBytesTotalMetric;
     private final boolean allowFetchFromIndexing;
 
-    public SharedBlobCacheWarmingService(StatelessSharedBlobCacheService cacheService, ThreadPool threadPool, Settings settings) {
+    public SharedBlobCacheWarmingService(
+        StatelessSharedBlobCacheService cacheService,
+        ThreadPool threadPool,
+        TelemetryProvider telemetryProvider,
+        Settings settings
+    ) {
         this.cacheService = cacheService;
         this.threadPool = threadPool;
         this.fetchExecutor = threadPool.executor(Stateless.PREWARM_THREAD_POOL);
@@ -152,6 +163,8 @@ public class SharedBlobCacheWarmingService {
             1 + threadPool.info(Stateless.PREWARM_THREAD_POOL).getMax(),
             threadPool.generic() // TODO should be DIRECT, forks to the fetch pool pretty much straight away, but see ES-8448
         );
+        this.cacheWarmingPageAlignedBytesTotalMetric = telemetryProvider.getMeterRegistry()
+            .registerLongCounter(BLOB_CACHE_WARMING_PAGE_ALIGNED_BYTES_TOTAL_METRIC, "Total bytes warmed in cache", "bytes");
     }
 
     public void warmCacheBeforeUpload(VirtualBatchedCompoundCommit vbcc, ActionListener<Void> listener) {
@@ -275,7 +288,7 @@ public class SharedBlobCacheWarmingService {
             this.commit = commit;
             this.tasks = new ConcurrentHashMap<>();
             this.queues = new ConcurrentHashMap<>();
-            this.listeners = new RefCountingListener(logging(listener));
+            this.listeners = new RefCountingListener(metering(logging(listener)));
         }
 
         private ActionListener<Void> logging(ActionListener<Void> target) {
@@ -302,6 +315,16 @@ public class SharedBlobCacheWarmingService {
             } else {
                 return target;
             }
+        }
+
+        private ActionListener<Void> metering(ActionListener<Void> target) {
+            return ActionListener.runAfter(
+                target,
+                () -> cacheWarmingPageAlignedBytesTotalMetric.incrementBy(
+                    totalBytesCopied.get(),
+                    RecoveryMetricsCollector.commonMetricLabels(indexShard)
+                )
+            );
         }
 
         void run() {
@@ -492,7 +515,7 @@ public class SharedBlobCacheWarmingService {
                             }
 
                             var blobLocation = item.blobLocation();
-                            var cacheBlobReader = searchDirectory.getCacheBlobReader(blobLocation);
+                            var cacheBlobReader = searchDirectory.getCacheBlobReaderForWarming(blobLocation);
                             // compute the range to warm in cache
                             var range = cacheBlobReader.getRange(
                                 item.position(),

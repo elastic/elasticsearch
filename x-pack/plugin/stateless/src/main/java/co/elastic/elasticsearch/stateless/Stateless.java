@@ -177,6 +177,7 @@ import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
+import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.ScalingExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -425,7 +426,7 @@ public class Stateless extends Plugin
         components.add(consistencyService);
         var commitCleaner = new StatelessCommitCleaner(consistencyService, threadPool, objectStoreService);
         components.add(commitCleaner);
-        var cacheWarmingService = createSharedBlobCacheWarmingService(cacheService, threadPool, settings);
+        var cacheWarmingService = createSharedBlobCacheWarmingService(cacheService, threadPool, services.telemetryProvider(), settings);
         setAndGet(this.sharedBlobCacheWarmingService, cacheWarmingService);
         var commitService = createStatelessCommitService(
             settings,
@@ -587,9 +588,10 @@ public class Stateless extends Plugin
     protected SharedBlobCacheWarmingService createSharedBlobCacheWarmingService(
         StatelessSharedBlobCacheService cacheService,
         ThreadPool threadPool,
+        TelemetryProvider telemetryProvider,
         Settings settings
     ) {
-        return new SharedBlobCacheWarmingService(cacheService, threadPool, settings);
+        return new SharedBlobCacheWarmingService(cacheService, threadPool, telemetryProvider, settings);
     }
 
     @Override

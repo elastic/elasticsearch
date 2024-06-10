@@ -73,6 +73,7 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
+import java.util.function.LongConsumer;
 import java.util.function.LongFunction;
 
 import static co.elastic.elasticsearch.stateless.Stateless.SHARD_READ_THREAD_POOL;
@@ -223,13 +224,17 @@ public class CacheBlobReaderTests extends ESTestCase {
                     ShardId shardId,
                     LongFunction<BlobContainer> blobContainer,
                     BlobLocation location,
-                    ObjectStoreUploadTracker objectStoreUploadTracker
+                    ObjectStoreUploadTracker objectStoreUploadTracker,
+                    LongConsumer totalBytesReadFromObjectStore,
+                    LongConsumer totalBytesReadFromIndexing
                 ) {
                     var originalCacheBlobReader = originalCacheBlobReaderService.getCacheBlobReader(
                         shardId,
                         blobContainer,
                         location,
-                        objectStoreUploadTracker
+                        objectStoreUploadTracker,
+                        totalBytesReadFromObjectStore,
+                        totalBytesReadFromIndexing
                     );
                     var indexingShardCacheBlobReader = new IndexingShardCacheBlobReader(
                         shardId,
@@ -298,7 +303,9 @@ public class CacheBlobReaderTests extends ESTestCase {
                             public String preferredNodeId() {
                                 return null;
                             }
-                        }
+                        },
+                        bytesReadFromObjectStore -> {},
+                        bytesReadFromIndexing -> {}
                     ),
                     1,
                     offset
@@ -582,13 +589,17 @@ public class CacheBlobReaderTests extends ESTestCase {
                             ShardId shardId,
                             LongFunction<BlobContainer> blobContainer,
                             BlobLocation location,
-                            ObjectStoreUploadTracker objectStoreUploadTracker
+                            ObjectStoreUploadTracker objectStoreUploadTracker,
+                            LongConsumer totalBytesReadFromObjectStore,
+                            LongConsumer totalBytesReadFromIndexing
                         ) {
                             var originalCacheBlobReader = originalCacheBlobReaderService.getCacheBlobReader(
                                 shardId,
                                 blobContainer,
                                 location,
-                                objectStoreUploadTracker
+                                objectStoreUploadTracker,
+                                totalBytesReadFromObjectStore,
+                                totalBytesReadFromIndexing
                             );
                             return new CacheBlobReader() {
                                 @Override
@@ -652,13 +663,17 @@ public class CacheBlobReaderTests extends ESTestCase {
                         ShardId shardId,
                         LongFunction<BlobContainer> blobContainer,
                         BlobLocation location,
-                        ObjectStoreUploadTracker objectStoreUploadTracker
+                        ObjectStoreUploadTracker objectStoreUploadTracker,
+                        LongConsumer totalBytesReadFromObjectStore,
+                        LongConsumer totalBytesReadFromIndexing
                     ) {
                         var originalCacheBlobReader = originalCacheBlobReaderService.getCacheBlobReader(
                             shardId,
                             blobContainer,
                             location,
-                            objectStoreUploadTracker
+                            objectStoreUploadTracker,
+                            totalBytesReadFromObjectStore,
+                            totalBytesReadFromIndexing
                         );
                         var writerFromPrimary = new IndexingShardCacheBlobReader(
                             shardId,

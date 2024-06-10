@@ -58,6 +58,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
+import java.util.function.LongConsumer;
 import java.util.function.LongFunction;
 import java.util.stream.Collectors;
 
@@ -109,13 +110,17 @@ public class SearchDirectoryTests extends ESTestCase {
                         ShardId shardId,
                         LongFunction<BlobContainer> blobContainer,
                         BlobLocation location,
-                        ObjectStoreUploadTracker objectStoreUploadTracker
+                        ObjectStoreUploadTracker objectStoreUploadTracker,
+                        LongConsumer bytesReadFromObjectStore,
+                        LongConsumer bytesReadFromIndexing
                     ) {
                         var originalCacheBlobReader = cacheBlobReaderService.getCacheBlobReader(
                             shardId,
                             blobContainer,
                             location,
-                            objectStoreUploadTracker
+                            objectStoreUploadTracker,
+                            bytesReadFromObjectStore,
+                            bytesReadFromIndexing
                         );
                         return new CacheBlobReader() {
                             @Override

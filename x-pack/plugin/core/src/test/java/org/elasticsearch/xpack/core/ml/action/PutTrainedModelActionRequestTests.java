@@ -10,10 +10,16 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ml.action.PutTrainedModelAction.Request;
 import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfigTests;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelDefinitionTests;
+
+import java.io.IOException;
+
+import static org.hamcrest.Matchers.contains;
 
 public class PutTrainedModelActionRequestTests extends AbstractWireSerializingTestCase<Request> {
 
@@ -51,5 +57,18 @@ public class PutTrainedModelActionRequestTests extends AbstractWireSerializingTe
     @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
         return new NamedWriteableRegistry(new MlInferenceNamedXContentProvider().getNamedWriteables());
+    }
+
+    public void testDefaultInput() throws IOException {
+        var restRequest = """
+            {
+            }
+            """;
+
+        try (XContentParser parser = createParser(XContentType.JSON.xContent(), restRequest)) {
+            var request = PutTrainedModelAction.Request.parseRequest(".elser_model_2", false, false, parser);
+            // The request parser sets the default input
+            assertThat(request.getTrainedModelConfig().getInput().getFieldNames(), contains("text_field"));
+        }
     }
 }

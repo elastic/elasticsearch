@@ -56,6 +56,7 @@ import org.elasticsearch.xpack.core.ml.action.PutTrainedModelAction.Request;
 import org.elasticsearch.xpack.core.ml.action.PutTrainedModelAction.Response;
 import org.elasticsearch.xpack.core.ml.inference.ModelAliasMetadata;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
+import org.elasticsearch.xpack.core.ml.inference.TrainedModelInput;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelType;
 import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignmentMetadata;
 import org.elasticsearch.xpack.core.ml.inference.persistence.InferenceIndexConstants;
@@ -202,10 +203,7 @@ public class TransportPutTrainedModelAction extends TransportMasterNodeAction<Re
             }
         }
 
-        TrainedModelConfig.Builder trainedModelConfig = new TrainedModelConfig.Builder(config).setVersion(MlConfigVersion.CURRENT)
-            .setCreateTime(Instant.now())
-            .setCreatedBy("api_user")
-            .setLicenseLevel(License.OperationMode.PLATINUM.description());
+        TrainedModelConfig.Builder trainedModelConfig = new TrainedModelConfig.Builder(config);
         AtomicReference<ModelPackageConfig> modelPackageConfigHolder = new AtomicReference<>();
 
         if (hasModelDefinition) {
@@ -255,7 +253,7 @@ public class TransportPutTrainedModelAction extends TransportMasterNodeAction<Re
             } else {
                 delegate.onResponse(new PutTrainedModelAction.Response(configToReturn));
             }
-        }).delegateFailureAndWrap((l, r) -> trainedModelProvider.storeTrainedModel(trainedModelConfig.build(), l, isPackageModel));
+        }).delegateFailureAndWrap((l, r) -> validateAndStore(trainedModelConfig, isPackageModel, l));
 
         ActionListener<Void> tagsModelIdCheckListener = ActionListener.wrap(r -> {
             if (TrainedModelType.PYTORCH.equals(trainedModelConfig.getModelType())) {
@@ -323,12 +321,12 @@ public class TransportPutTrainedModelAction extends TransportMasterNodeAction<Re
             }
         }, finalResponseListener::onFailure);
 
-        checkForExistingTask(
+        checkForExistingModelDownloadTask(
             client,
             trainedModelConfig.getModelId(),
             request.isWaitForCompletion(),
             finalResponseListener,
-            handlePackageAndTagsListener,
+            () -> handlePackageAndTagsListener.onResponse(null),
             request.ackTimeout()
         );
     }
@@ -371,14 +369,26 @@ public class TransportPutTrainedModelAction extends TransportMasterNodeAction<Re
     }
 
     /**
-     * This method is package private for testing
+     * Check if the model is being downloaded.
+     * If the download is in progress then the response will be on
+     * the {@code isBeingDownloadedListener} otherwise {@code createModelAction}
+     * is called to trigger the next step in the model install.
+     * Should only be called for Elasticsearch hosted models.
+     *
+     * @param client Client
+     * @param modelId Model Id
+     * @param isWaitForCompletion Wait for the download to complete
+     * @param isBeingDownloadedListener The listener called if the download is in progress
+     * @param createModelAction If no download is in progress this is called to continue
+     *                          the model install process.
+     * @param timeout Model download timeout
      */
-    static void checkForExistingTask(
+    static void checkForExistingModelDownloadTask(
         Client client,
         String modelId,
         boolean isWaitForCompletion,
-        ActionListener<Response> sendResponseListener,
-        ActionListener<Void> storeModelListener,
+        ActionListener<Response> isBeingDownloadedListener,
+        Runnable createModelAction,
         TimeValue timeout
     ) {
         TaskRetriever.getDownloadTaskInfo(
@@ -389,12 +399,12 @@ public class TransportPutTrainedModelAction extends TransportMasterNodeAction<Re
             () -> "Timed out waiting for model download to complete",
             ActionListener.wrap(taskInfo -> {
                 if (taskInfo != null) {
-                    getModelInformation(client, modelId, sendResponseListener);
+                    getModelInformation(client, modelId, isBeingDownloadedListener);
                 } else {
                     // no task exists so proceed with creating the model
-                    storeModelListener.onResponse(null);
+                    createModelAction.run();
                 }
-            }, sendResponseListener::onFailure)
+            }, isBeingDownloadedListener::onFailure)
         );
     }
 
@@ -528,6 +538,9 @@ public class TransportPutTrainedModelAction extends TransportMasterNodeAction<Re
         );
 
         trainedModelConfig.setLocation(trainedModelConfig.getModelType().getDefaultLocation(trainedModelConfig.getModelId()));
+        if (trainedModelConfig.getInput() == null) {
+            trainedModelConfig.setInput(new TrainedModelInput(List.of("text_field")));
+        }
     }
 
     static InferenceConfig parseInferenceConfigFromModelPackage(Map<String, Object> source, NamedXContentRegistry namedXContentRegistry)
@@ -553,6 +566,15 @@ public class TransportPutTrainedModelAction extends TransportMasterNodeAction<Re
             assert token == XContentParser.Token.END_OBJECT;
             return inferenceConfig;
         }
+    }
+
+    private void validateAndStore(TrainedModelConfig.Builder configBuilder, boolean isPackageModel, ActionListener<Boolean> listener) {
+        configBuilder.validate(true)
+            .setVersion(MlConfigVersion.CURRENT)
+            .setCreateTime(Instant.now())
+            .setCreatedBy("api_user")
+            .setLicenseLevel(License.OperationMode.PLATINUM.description());
+        trainedModelProvider.storeTrainedModel(configBuilder.build(), listener, isPackageModel);
     }
 
 }

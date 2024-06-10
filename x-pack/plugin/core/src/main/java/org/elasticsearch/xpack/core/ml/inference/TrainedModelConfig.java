@@ -636,8 +636,6 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
         private InferenceConfig inferenceConfig;
         private TrainedModelLocation location;
         private ModelPackageConfig modelPackageConfig;
-        private Long perDeploymentMemoryBytes;
-        private Long perAllocationMemoryBytes;
         private String platformArchitecture;
         private TrainedModelPrefixStrings prefixStrings;
 
@@ -837,6 +835,10 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
         public Builder setInput(TrainedModelInput input) {
             this.input = input;
             return this;
+        }
+
+        public TrainedModelInput getInput() {
+            return input;
         }
 
         public Builder setModelSize(long modelSize) {

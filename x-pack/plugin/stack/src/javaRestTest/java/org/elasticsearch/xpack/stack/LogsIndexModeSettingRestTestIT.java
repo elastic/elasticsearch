@@ -77,12 +77,6 @@ public class LogsIndexModeSettingRestTestIT extends ESRestTestCase {
           "template": {
             "mappings": {
               "properties": {
-                "@timestamp" : {
-                  "type": "date"
-                },
-                "hostname": {
-                  "type": "keyword"
-                },
                 "method": {
                   "type": "keyword"
                 },

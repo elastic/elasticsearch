@@ -89,6 +89,7 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLength;
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
+import static org.elasticsearch.test.ESTestCase.randomFrom;
 import static org.elasticsearch.test.ESTestCase.randomZone;
 import static org.elasticsearch.test.ListMatcher.matchesList;
 import static org.elasticsearch.test.MapMatcher.assertMap;
@@ -139,6 +140,14 @@ public final class EsqlTestUtils {
 
     public static FieldAttribute getFieldAttribute(String name, DataType dataType) {
         return new FieldAttribute(EMPTY, name, new EsField(name + "f", dataType, emptyMap(), true));
+    }
+
+    public static FieldAttribute fieldAttribute() {
+        return fieldAttribute(randomAlphaOfLength(10), randomFrom(DataType.types()));
+    }
+
+    public static FieldAttribute fieldAttribute(String name, DataType type) {
+        return new FieldAttribute(EMPTY, name, new EsField(name, type, emptyMap(), randomBoolean()));
     }
 
     public static Literal of(Object value) {

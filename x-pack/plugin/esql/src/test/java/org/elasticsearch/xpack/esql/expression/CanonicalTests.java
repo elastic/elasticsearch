@@ -41,13 +41,13 @@ import java.util.List;
 import java.util.function.Function;
 
 import static java.util.Arrays.asList;
-import static org.elasticsearch.xpack.esql.core.TestUtils.equalsOf;
-import static org.elasticsearch.xpack.esql.core.TestUtils.fieldAttribute;
-import static org.elasticsearch.xpack.esql.core.TestUtils.greaterThanOf;
-import static org.elasticsearch.xpack.esql.core.TestUtils.greaterThanOrEqualOf;
-import static org.elasticsearch.xpack.esql.core.TestUtils.lessThanOf;
-import static org.elasticsearch.xpack.esql.core.TestUtils.notEqualsOf;
-import static org.elasticsearch.xpack.esql.core.TestUtils.of;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.equalsOf;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.fieldAttribute;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.greaterThanOf;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.greaterThanOrEqualOf;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.lessThanOf;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.notEqualsOf;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.of;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 
 public class CanonicalTests extends ESTestCase {

@@ -26,6 +26,12 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * This base class provides the boilerplate to simplify the development of integration tests.
+ * Aside from providing useful helper methods and disabling unnecessary plugins,
+ * it waits until an {@linkplain  #indexTemplateName() index template} is installed, which happens asynchronously in StackTemplateRegistry.
+ * This avoids race conditions leading to flaky tests by ensuring the template has been installed before executing the tests.
+ */
 public abstract class AbstractDataStreamIT extends ESRestTestCase {
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()

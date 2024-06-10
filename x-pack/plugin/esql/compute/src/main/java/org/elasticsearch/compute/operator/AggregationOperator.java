@@ -18,8 +18,12 @@ import org.elasticsearch.compute.aggregation.Aggregator.Factory;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.telemetry.tracing.Tracer;
+import org.elasticsearch.telemetry.tracing.TracerSpan;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -39,11 +43,23 @@ import static java.util.stream.Collectors.joining;
  * been added, that is, when the {@link #finish} method has been called.
  */
 public class AggregationOperator implements Operator {
-
+    private ThreadPool threadPool;
+    private Tracer tracer;
     private boolean finished;
     private Page output;
     private final List<Aggregator> aggregators;
     private final DriverContext driverContext;
+    private Releasable span;
+
+    @Override
+    public void setThreadPool(ThreadPool threadPool) {
+        this.threadPool = threadPool;
+    }
+
+    @Override
+    public void setTracer(Tracer tracer) {
+        this.tracer = tracer;
+    }
 
     /**
      * Nanoseconds this operator has spent running the aggregations.
@@ -90,6 +106,9 @@ public class AggregationOperator implements Operator {
 
     @Override
     public void addInput(Page page) {
+        if (span == null) {
+            span = TracerSpan.sameThreadContextSpan(threadPool, tracer, "AggregationOperator");
+        }
         long start = System.nanoTime();
         checkState(needsInput(), "Operator is already finishing");
         requireNonNull(page, "page is null");
@@ -135,6 +154,8 @@ public class AggregationOperator implements Operator {
             if (success == false && blocks != null) {
                 Releasables.closeExpectNoException(blocks);
             }
+            span.close();
+            span = null;
         }
     }
 
@@ -149,7 +170,7 @@ public class AggregationOperator implements Operator {
             if (output != null) {
                 Releasables.closeExpectNoException(() -> output.releaseBlocks());
             }
-        }, Releasables.wrap(aggregators));
+        }, Releasables.wrap(aggregators), span);
     }
 
     private static void checkState(boolean condition, String msg) {

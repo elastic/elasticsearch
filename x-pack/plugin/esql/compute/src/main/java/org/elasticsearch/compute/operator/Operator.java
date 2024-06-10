@@ -8,12 +8,17 @@
 package org.elasticsearch.compute.operator;
 
 import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.compute.Describable;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.telemetry.tracing.Traceable;
+import org.elasticsearch.telemetry.tracing.Tracer;
+import org.elasticsearch.telemetry.tracing.TracerSpan;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.ToXContentObject;
 
 /**
@@ -27,6 +32,8 @@ import org.elasticsearch.xcontent.ToXContentObject;
  * {@link org.elasticsearch.compute}
  */
 public interface Operator extends Releasable {
+    default void setTracer(Tracer tracer) {}
+    default void setThreadPool(ThreadPool threadPool) {}
     /**
      * Target number of bytes in a page. By default we'll try and size pages
      * so that they contain this many bytes.

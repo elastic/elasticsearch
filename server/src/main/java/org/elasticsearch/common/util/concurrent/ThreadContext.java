@@ -157,6 +157,10 @@ public final class ThreadContext implements Writeable, TraceContext {
         return stashContextPreservingRequestHeaders(Set.of(requestHeaders));
     }
 
+    public ThreadContextStruct getThreadContextStruct() {
+        return threadLocal.get();
+    }
+
     /**
      * When using a {@link org.elasticsearch.telemetry.tracing.Tracer} to capture activity in Elasticsearch, when a parent span is already
      * in progress, it is necessary to start a new context before beginning a child span. This method creates a context,
@@ -705,7 +709,7 @@ public final class ThreadContext implements Writeable, TraceContext {
         }
     }
 
-    private static final class ThreadContextStruct {
+    public static final class ThreadContextStruct {
 
         private static final ThreadContextStruct EMPTY = new ThreadContextStruct(
             Collections.emptyMap(),
@@ -714,12 +718,12 @@ public final class ThreadContext implements Writeable, TraceContext {
             false
         );
 
-        private final Map<String, String> requestHeaders;
-        private final Map<String, Object> transientHeaders;
-        private final Map<String, Set<String>> responseHeaders;
-        private final boolean isSystemContext;
+        public final Map<String, String> requestHeaders;
+        public final Map<String, Object> transientHeaders;
+        public final Map<String, Set<String>> responseHeaders;
+        public final boolean isSystemContext;
         // saving current warning headers' size not to recalculate the size with every new warning header
-        private final long warningHeadersSize;
+        public final long warningHeadersSize;
 
         private ThreadContextStruct setSystemContext() {
             if (isSystemContext) {
@@ -737,7 +741,7 @@ public final class ThreadContext implements Writeable, TraceContext {
             this(requestHeaders, responseHeaders, transientHeaders, isSystemContext, 0L);
         }
 
-        private ThreadContextStruct(
+        public ThreadContextStruct(
             Map<String, String> requestHeaders,
             Map<String, Set<String>> responseHeaders,
             Map<String, Object> transientHeaders,
@@ -758,7 +762,7 @@ public final class ThreadContext implements Writeable, TraceContext {
             this(Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(), false);
         }
 
-        private ThreadContextStruct putRequest(String key, String value) {
+        public ThreadContextStruct putRequest(String key, String value) {
             Map<String, String> newRequestHeaders = new HashMap<>(this.requestHeaders);
             putSingleHeader(key, value, newRequestHeaders);
             return new ThreadContextStruct(newRequestHeaders, responseHeaders, transientHeaders, isSystemContext);
@@ -770,7 +774,7 @@ public final class ThreadContext implements Writeable, TraceContext {
             }
         }
 
-        private ThreadContextStruct putHeaders(Map<String, String> headers) {
+        public ThreadContextStruct putHeaders(Map<String, String> headers) {
             if (headers.isEmpty()) {
                 return this;
             } else {
@@ -870,7 +874,7 @@ public final class ThreadContext implements Writeable, TraceContext {
             return new ThreadContextStruct(requestHeaders, newResponseHeaders, transientHeaders, isSystemContext, newWarningHeaderSize);
         }
 
-        private ThreadContextStruct putTransient(String key, Object value) {
+        public ThreadContextStruct putTransient(String key, Object value) {
             Map<String, Object> newTransient = new HashMap<>(this.transientHeaders);
             putSingleHeader(key, value, newTransient);
             return new ThreadContextStruct(requestHeaders, responseHeaders, newTransient, isSystemContext);

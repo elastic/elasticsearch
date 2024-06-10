@@ -53,6 +53,7 @@ import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelledException;
+import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteClusterService;
@@ -102,6 +103,7 @@ public class ComputeService {
     private final ExchangeService exchangeService;
     private final EnrichLookupService enrichLookupService;
     private final ClusterService clusterService;
+    private final Tracer tracer;
 
     public ComputeService(
         SearchService searchService,
@@ -111,7 +113,8 @@ public class ComputeService {
         ClusterService clusterService,
         ThreadPool threadPool,
         BigArrays bigArrays,
-        BlockFactory blockFactory
+        BlockFactory blockFactory,
+        Tracer tracer
     ) {
         this.searchService = searchService;
         this.transportService = transportService;
@@ -129,6 +132,7 @@ public class ComputeService {
         this.exchangeService = exchangeService;
         this.enrichLookupService = enrichLookupService;
         this.clusterService = clusterService;
+        this.tracer = tracer;
     }
 
     public void execute(
@@ -454,7 +458,8 @@ public class ComputeService {
             task,
             drivers,
             transportService.getThreadPool().executor(ESQL_WORKER_THREAD_POOL_NAME),
-            listenerCollectingStatus
+            listenerCollectingStatus,
+            tracer
         );
     }
 

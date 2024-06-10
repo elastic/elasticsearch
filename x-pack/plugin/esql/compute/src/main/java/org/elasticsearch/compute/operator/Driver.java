@@ -19,6 +19,9 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.TaskCancelledException;
+import org.elasticsearch.telemetry.tracing.Tracer;
+import org.elasticsearch.telemetry.tracing.TracerSpan;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -50,6 +53,16 @@ public class Driver implements Releasable, Describable {
     public static final TimeValue DEFAULT_STATUS_INTERVAL = TimeValue.timeValueSeconds(1);
 
     private final String sessionId;
+    private ThreadPool threadPool;
+    private Tracer tracer;
+
+    public void setTracer(Tracer tracer) {
+        this.tracer = tracer;
+    }
+
+    public void setThreadPool(ThreadPool threadPool) {
+        this.threadPool = threadPool;
+    }
 
     /**
      * The wall clock time when this driver was created in milliseconds since epoch.
@@ -170,36 +183,48 @@ public class Driver implements Releasable, Describable {
      * thread to do other work instead of blocking or busy-spinning on the blocked operator.
      */
     SubscribableListener<Void> run(TimeValue maxTime, int maxIterations, LongSupplier nowSupplier) {
-        long maxTimeNanos = maxTime.nanos();
-        long startTime = nowSupplier.getAsLong();
-        long nextStatus = startTime + statusNanos;
-        int iter = 0;
-        while (true) {
-            SubscribableListener<Void> fut = runSingleLoopIteration();
-            iter++;
-            if (fut.isDone() == false) {
-                updateStatus(nowSupplier.getAsLong() - startTime, iter, DriverStatus.Status.ASYNC);
-                return fut;
+        try (
+            var span = TracerSpan.span(
+                threadPool,
+                tracer,
+                "Driver.run"
+            )
+        ) {
+            long maxTimeNanos = maxTime.nanos();
+            long startTime = nowSupplier.getAsLong();
+            long nextStatus = startTime + statusNanos;
+            int iter = 0;
+            for (Operator op: activeOperators) {
+                op.setThreadPool(threadPool);
+                op.setTracer(tracer);
             }
-            if (isFinished()) {
-                finishNanos = nowSupplier.getAsLong();
-                updateStatus(finishNanos - startTime, iter, DriverStatus.Status.DONE);
-                driverContext.finish();
-                Releasables.close(releasable, driverContext.getSnapshot());
-                return Operator.NOT_BLOCKED;
-            }
-            long now = nowSupplier.getAsLong();
-            if (iter >= maxIterations) {
-                updateStatus(now - startTime, iter, DriverStatus.Status.WAITING);
-                return Operator.NOT_BLOCKED;
-            }
-            if (now - startTime >= maxTimeNanos) {
-                updateStatus(now - startTime, iter, DriverStatus.Status.WAITING);
-                return Operator.NOT_BLOCKED;
-            }
-            if (now > nextStatus) {
-                updateStatus(now - startTime, iter, DriverStatus.Status.RUNNING);
-                nextStatus = now + statusNanos;
+            while (true) {
+                SubscribableListener<Void> fut = runSingleLoopIteration();
+                iter++;
+                if (fut.isDone() == false) {
+                    updateStatus(nowSupplier.getAsLong() - startTime, iter, DriverStatus.Status.ASYNC);
+                    return fut;
+                }
+                if (isFinished()) {
+                    finishNanos = nowSupplier.getAsLong();
+                    updateStatus(finishNanos - startTime, iter, DriverStatus.Status.DONE);
+                    driverContext.finish();
+                    Releasables.close(releasable, driverContext.getSnapshot());
+                    return Operator.NOT_BLOCKED;
+                }
+                long now = nowSupplier.getAsLong();
+                if (iter >= maxIterations) {
+                    updateStatus(now - startTime, iter, DriverStatus.Status.WAITING);
+                    return Operator.NOT_BLOCKED;
+                }
+                if (now - startTime >= maxTimeNanos) {
+                    updateStatus(now - startTime, iter, DriverStatus.Status.WAITING);
+                    return Operator.NOT_BLOCKED;
+                }
+                if (now > nextStatus) {
+                    updateStatus(now - startTime, iter, DriverStatus.Status.RUNNING);
+                    nextStatus = now + statusNanos;
+                }
             }
         }
     }

@@ -17,6 +17,9 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.telemetry.tracing.Tracer;
+import org.elasticsearch.telemetry.tracing.TracerSpan;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportRequestOptions;
@@ -42,10 +45,12 @@ public class DriverTaskRunner {
         transportService.registerRequestHandler(ACTION_NAME, executor, DriverRequest::new, new DriverRequestHandler(transportService));
     }
 
-    public void executeDrivers(Task parentTask, List<Driver> drivers, Executor executor, ActionListener<Void> listener) {
+    public void executeDrivers(Task parentTask, List<Driver> drivers, Executor executor, ActionListener<Void> listener, Tracer tracer) {
         var runner = new DriverRunner(transportService.getThreadPool().getThreadContext()) {
             @Override
             protected void start(Driver driver, ActionListener<Void> driverListener) {
+                driver.setTracer(tracer);
+                driver.setThreadPool(transportService.getThreadPool());
                 transportService.sendChildRequest(
                     transportService.getLocalNode(),
                     ACTION_NAME,

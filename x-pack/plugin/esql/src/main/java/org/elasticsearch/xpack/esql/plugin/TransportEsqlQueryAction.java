@@ -24,6 +24,7 @@ import org.elasticsearch.search.SearchService;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackPlugin;
@@ -75,8 +76,8 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         BigArrays bigArrays,
         BlockFactory blockFactory,
         Client client,
-        NamedWriteableRegistry registry
-
+        NamedWriteableRegistry registry,
+        Tracer tracer
     ) {
         // TODO replace SAME when removing workaround for https://github.com/elastic/elasticsearch/issues/97916
         super(EsqlQueryAction.NAME, transportService, actionFilters, EsqlQueryRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
@@ -95,7 +96,8 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             clusterService,
             threadPool,
             bigArrays,
-            blockFactory
+            blockFactory,
+            tracer
         );
         this.asyncTaskManagementService = new AsyncTaskManagementService<>(
             XPackPlugin.ASYNC_RESULTS_INDEX,

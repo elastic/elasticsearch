@@ -319,7 +319,7 @@ public final class FieldNameTranslators {
         return indexFieldNames;
     }
 
-    static abstract class FieldNameTranslator {
+    abstract static class FieldNameTranslator {
 
         private final Function<String, String> translationFunc;
 

@@ -32,6 +32,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.Engine;
@@ -473,6 +474,7 @@ public class IndexEngineTests extends AbstractEngineTestCase {
             when(
                 documentParsingProvider.newDocumentSizeReporter(
                     eq(indexConfig.getShardId().getIndexName()),
+                    eq(IndexMode.STANDARD),
                     any(DocumentSizeAccumulator.class)
                 )
             ).thenReturn(documentSizeReporter);
@@ -513,8 +515,13 @@ public class IndexEngineTests extends AbstractEngineTestCase {
             )
         ) {
             DocumentSizeReporter documentSizeReporter = mock(DocumentSizeReporter.class);
-            when(documentParsingProvider.newDocumentSizeReporter(eq(indexConfig.getShardId().getIndexName()), eq(documentSizeAccumulator)))
-                .thenReturn(documentSizeReporter);
+            when(
+                documentParsingProvider.newDocumentSizeReporter(
+                    eq(indexConfig.getShardId().getIndexName()),
+                    eq(IndexMode.STANDARD),
+                    eq(documentSizeAccumulator)
+                )
+            ).thenReturn(documentSizeReporter);
 
             engine.index(randomDoc(String.valueOf(0)));
             engine.flush();

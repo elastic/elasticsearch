@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.application.search;
+package org.elasticsearch.xpack.application;
 
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.script.Script;
@@ -15,6 +15,9 @@ import org.elasticsearch.xpack.application.rules.QueryRule;
 import org.elasticsearch.xpack.application.rules.QueryRuleCriteria;
 import org.elasticsearch.xpack.application.rules.QueryRuleCriteriaType;
 import org.elasticsearch.xpack.application.rules.QueryRuleset;
+import org.elasticsearch.xpack.application.search.SearchApplication;
+import org.elasticsearch.xpack.application.search.SearchApplicationTemplate;
+import org.elasticsearch.xpack.application.search.TemplateParamValidator;
 import org.elasticsearch.xpack.core.action.util.PageParams;
 
 import java.util.ArrayList;
@@ -33,12 +36,13 @@ import static org.elasticsearch.test.ESTestCase.randomIntBetween;
 import static org.elasticsearch.test.ESTestCase.randomList;
 import static org.elasticsearch.test.ESTestCase.randomLongBetween;
 import static org.elasticsearch.test.ESTestCase.randomMap;
+import static org.elasticsearch.xpack.application.rules.QueryRule.MAX_PRIORITY;
+import static org.elasticsearch.xpack.application.rules.QueryRule.MIN_PRIORITY;
 import static org.elasticsearch.xpack.application.rules.QueryRuleCriteriaType.ALWAYS;
 
-// TODO - move this one package up and rename to EnterpriseSearchModuleTestUtils
-public final class SearchApplicationTestUtils {
+public final class EnterpriseSearchModuleTestUtils {
 
-    private SearchApplicationTestUtils() {
+    private EnterpriseSearchModuleTestUtils() {
         throw new UnsupportedOperationException("Don't instantiate this class!");
     }
 
@@ -93,7 +97,12 @@ public final class SearchApplicationTestUtils {
         QueryRule.QueryRuleType type = randomFrom(QueryRule.QueryRuleType.values());
         List<QueryRuleCriteria> criteria = List.of(randomQueryRuleCriteria());
         Map<String, Object> actions = Map.of(randomFrom("ids", "docs"), List.of(randomAlphaOfLengthBetween(2, 10)));
-        return new QueryRule(id, type, criteria, actions);
+        Integer priority = randomQueryRulePriority();
+        return new QueryRule(id, type, criteria, actions, priority);
+    }
+
+    public static Integer randomQueryRulePriority() {
+        return randomBoolean() ? randomIntBetween(MIN_PRIORITY, MAX_PRIORITY) : null;
     }
 
     public static QueryRuleset randomQueryRuleset() {

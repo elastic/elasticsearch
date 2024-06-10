@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.ml.inference.nlp;
 
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.core.ml.inference.results.ChunkedTextExpansionResults;
+import org.elasticsearch.xpack.core.ml.inference.results.InferenceChunkedTextExpansionResults;
 import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.BertTokenization;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextExpansionConfig;
@@ -137,9 +137,9 @@ public class TextExpansionProcessorTests extends ESTestCase {
             var tokenization = tokenizer.tokenize(input, Tokenization.Truncate.NONE, 0, 0, null);
             var tokenizationResult = new BertTokenizationResult(TEST_CASED_VOCAB, tokenization, 0);
             var inferenceResult = TextExpansionProcessor.processResult(tokenizationResult, pytorchResult, Map.of(), "foo", true);
-            assertThat(inferenceResult, instanceOf(ChunkedTextExpansionResults.class));
+            assertThat(inferenceResult, instanceOf(InferenceChunkedTextExpansionResults.class));
 
-            var chunkedResult = (ChunkedTextExpansionResults) inferenceResult;
+            var chunkedResult = (InferenceChunkedTextExpansionResults) inferenceResult;
             assertThat(chunkedResult.getChunks(), hasSize(2));
             assertEquals("Elasticsearch darts champion little red", chunkedResult.getChunks().get(0).matchedText());
             assertEquals("is fun car", chunkedResult.getChunks().get(1).matchedText());

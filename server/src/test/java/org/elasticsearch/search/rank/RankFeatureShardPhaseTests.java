@@ -8,6 +8,7 @@
 
 package org.elasticsearch.search.rank;
 
+import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.TransportVersion;
@@ -127,6 +128,12 @@ public class RankFeatureShardPhaseTests extends ESTestCase {
             @Override
             public boolean isCompoundBuilder() {
                 return false;
+            }
+
+            @Override
+            public Explanation explainHit(Explanation baseExplanation, RankDoc scoreDoc, List<String> queryNames) {
+                // no-op
+                return baseExplanation;
             }
 
             // no work to be done on the query phase
@@ -266,7 +273,7 @@ public class RankFeatureShardPhaseTests extends ESTestCase {
 
     public void testProcessFetch() {
         final String fieldName = "some_field";
-        int numDocs = randomIntBetween(10, 30);
+        int numDocs = randomIntBetween(15, 30);
         Map<Integer, String> expectedFieldData = Map.of(4, "doc_4_aardvark", 9, "doc_9_aardvark", numDocs - 1, "last_doc_aardvark");
 
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();

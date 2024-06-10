@@ -60,7 +60,9 @@ BuildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
     mustRunAfter("precommit")
     doFirst {
       def cluster = localCluster.get()
-      cluster.waitForAllConditions()
+      cluster.nodes.forEach { node ->
+        node.getAllTransportPortURI()
+      }
       cluster.nextNodeToNextVersion()
     }
   }

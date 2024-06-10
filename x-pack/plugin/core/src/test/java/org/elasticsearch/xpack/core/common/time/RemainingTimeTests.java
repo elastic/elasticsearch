@@ -18,10 +18,7 @@ import java.util.stream.Stream;
 
 public class RemainingTimeTests extends ESTestCase {
     public void testRemainingTime() {
-        var remainingTime = RemainingTime.from(
-            times(Instant.now(), Instant.now().plusSeconds(60)),
-            TimeValue.timeValueSeconds(30)
-        );
+        var remainingTime = RemainingTime.from(times(Instant.now(), Instant.now().plusSeconds(60)), TimeValue.timeValueSeconds(30));
         assertThat(remainingTime.get(), Matchers.greaterThan(TimeValue.ZERO));
         assertThat(remainingTime.get(), Matchers.equalTo(TimeValue.ZERO));
     }

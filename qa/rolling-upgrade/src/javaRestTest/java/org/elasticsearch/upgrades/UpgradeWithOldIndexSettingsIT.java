@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.util.Map;
 
 import static org.elasticsearch.rest.action.search.RestSearchAction.TOTAL_HITS_AS_INT_PARAM;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
@@ -111,7 +112,7 @@ public class UpgradeWithOldIndexSettingsIT extends AbstractRollingUpgradeTestCas
         String indexName = "my-index";
         if (isOldCluster()) {
             createIndex(indexName);
-            Request request = new Request("PUT", "/my-index/_settings");
+            Request request = new Request("PUT", "/" + indexName + "/_settings");
             request.setJsonEntity(org.elasticsearch.common.Strings.toString(Settings.builder().put("index.mapper.dynamic", true).build()));
             request.setOptions(
                 expectWarnings(
@@ -121,23 +122,16 @@ public class UpgradeWithOldIndexSettingsIT extends AbstractRollingUpgradeTestCas
             );
             assertOK(client().performRequest(request));
         } else {
-            closeIndex(indexName);
-            Request openRequest = new Request("POST", "/" + indexName + "/_open");
-            openRequest.setOptions(
-                expectWarnings(
-                    "[index.mapper.dynamic] setting was deprecated in Elasticsearch and will "
-                        + "be removed in a future release! See the breaking changes documentation for the next major version., Setting "
-                        + "index.mapper.dynamic was removed after version 6.0.0]"
-                )
-            );
-            assertOK(client().performRequest(openRequest));
             if (isUpgradedCluster()) {
                 var indexSettings = getIndexSettings(indexName);
-                assertThat(
-                    XContentMapValues.extractValue(indexName + ".settings.archived.index.mapper.dynamic", indexSettings),
-                    equalTo("true")
-                );
+                assertThat(XContentMapValues.extractValue(indexName + ".settings.index.mapper.dynamic", indexSettings), equalTo("true"));
                 ensureGreen(indexName);
+                // New indices can never define the index.mapper.dynamic setting.
+                Exception e = expectThrows(
+                    ResponseException.class,
+                    () -> createIndex("my-index2", Settings.builder().put("index.mapper.dynamic", true).build())
+                );
+                assertThat(e.getMessage(), containsString("unknown setting [index.mapper.dynamic]"));
             }
         }
     }

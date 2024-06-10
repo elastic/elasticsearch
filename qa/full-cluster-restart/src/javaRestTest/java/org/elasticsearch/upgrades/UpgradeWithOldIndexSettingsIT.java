@@ -11,6 +11,7 @@ package org.elasticsearch.upgrades;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
@@ -21,6 +22,7 @@ import org.junit.ClassRule;
 
 import java.io.IOException;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class UpgradeWithOldIndexSettingsIT extends ParameterizedFullClusterRestartTestCase {
@@ -55,7 +57,7 @@ public class UpgradeWithOldIndexSettingsIT extends ParameterizedFullClusterResta
         if (isRunningAgainstOldCluster()) {
             createIndex(indexName);
 
-            Request request = new Request("PUT", "/my-index/_settings");
+            var request = new Request("PUT", "/my-index/_settings");
             request.setJsonEntity(org.elasticsearch.common.Strings.toString(Settings.builder().put("index.mapper.dynamic", true).build()));
             request.setOptions(
                 expectWarnings(
@@ -67,10 +69,16 @@ public class UpgradeWithOldIndexSettingsIT extends ParameterizedFullClusterResta
         } else {
             var indexSettings = getIndexSettings(indexName);
             assertThat(
-                XContentMapValues.extractValue(indexName + ".settings.archived.index.mapper.dynamic", indexSettings),
+                XContentMapValues.extractValue(indexName + ".settings.index.mapper.dynamic", indexSettings),
                 equalTo("true")
             );
             ensureGreen(indexName);
+            // New indices can never define the index.mapper.dynamic setting.
+            Exception e = expectThrows(
+                ResponseException.class,
+                () -> createIndex("my-index2", Settings.builder().put("index.mapper.dynamic", true).build())
+            );
+            assertThat(e.getMessage(), containsString("unknown setting [index.mapper.dynamic]"));
         }
     }
 

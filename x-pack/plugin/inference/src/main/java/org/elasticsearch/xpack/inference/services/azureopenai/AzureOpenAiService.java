@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.inference.services.azureopenai;
 
 import java.util.concurrent.ConcurrentHashMap;
 
+import java.util.concurrent.ConcurrentLinkedQueue;
+
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
@@ -52,8 +54,10 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFrom
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwIfNotEmptyMap;
 
 public class AzureOpenAiService extends SenderService {
+
     public static final String NAME = "azureopenai";
     private static final ConcurrentHashMap<String, InferenceServiceResults> embeddingsCache = new ConcurrentHashMap<>();
+    private static final ConcurrentLinkedQueue<String> embeddingsQueue = new ConcurrentLinkedQueue<>();
 
     public AzureOpenAiService(HttpRequestSender.Factory factory, ServiceComponents serviceComponents) {
         super(factory, serviceComponents);
@@ -192,26 +196,18 @@ public class AzureOpenAiService extends SenderService {
         var actionCreator = new AzureOpenAiActionCreator(getSender(), getServiceComponents());
 
         String cacheKey = String.join(",", input);
-        InferenceServiceResults cachedResults = embeddingsCache.get(cacheKey);
-
-        if (cachedResults != null) {
-            listener.onResponse(cachedResults);
-            return;
+        if (embeddingsQueue.contains(cacheKey)) {
+            embeddingsQueue.remove(cacheKey);
+            InferenceServiceResults cachedResults = embeddingsCache.get(cacheKey);
+            embeddingsQueue.add(cacheKey);
+            if (cachedResults != null) {
+                listener.onResponse(cachedResults);
+                return;
+            }
         }
 
         var action = azureOpenAiModel.accept(actionCreator, taskSettings);
-        action.execute(new DocumentsOnlyInput(input), timeout, new ActionListener<>() {
-          @Override
-          public void onResponse(InferenceServiceResults inferenceResults) {
-            embeddingsCache.put(cacheKey, inferenceResults);
-            listener.onResponse(inferenceResults);
-          }
-
-          @Override
-          public void onFailure(Exception e) {
-            listener.onFailure(e);
-          }
-        });
+        action.execute(new DocumentsOnlyInput(input), timeout, listener);
     }
 
     @Override
@@ -259,10 +255,9 @@ public class AzureOpenAiService extends SenderService {
     }
 
     /**
-     * For text embedding models get the embedding size and
-     * update the service settings.
+     * For text embedding models get the embedding size and update the service settings.
      *
-     * @param model The new model
+     * @param model    The new model
      * @param listener The listener
      */
     @Override

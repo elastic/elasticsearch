@@ -1,0 +1,5 @@
+pr: 109511
+summary: Add cache inference api for azure open ai
+area: ML
+type: feature
+issues: []

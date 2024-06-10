@@ -73,9 +73,6 @@ public class LogsIndexModeSettingRestTestIT extends ESRestTestCase {
 
     private static final String MAPPINGS = """
         {
-          "index_patterns": [ "logs-*-*" ],
-          "data_stream": {},
-          "priority": 500,
           "template": {
             "mappings": {
               "properties": {
@@ -108,9 +105,9 @@ public class LogsIndexModeSettingRestTestIT extends ESRestTestCase {
     }
 
     public void testLogsSettingsIndexMode() throws IOException {
-        assertOK(putTemplate(client, "custom-mappings", MAPPINGS));
-        assertOK(createDataStream(client, "logs-apache-dev"));
-        final String indexMode = (String) getSetting(client, getWriteBackingIndex(client, "logs-apache-dev", 0), "index.mode");
+        assertOK(putComponentTemplate(client, "logs@custom", MAPPINGS));
+        assertOK(createDataStream(client, "logs-custom-dev"));
+        final String indexMode = (String) getSetting(client, getWriteBackingIndex(client, "logs-custom-dev", 0), "index.mode");
         if (Build.current().isProductionRelease()) {
             assertThat(indexMode, equalTo(IndexMode.STANDARD.getName()));
         } else {
@@ -118,14 +115,11 @@ public class LogsIndexModeSettingRestTestIT extends ESRestTestCase {
         }
     }
 
-    private static Response putTemplate(final RestClient client, final String templateName, final String mappings) throws IOException {
-        final Request request = new Request("PUT", "/_index_template/" + templateName);
+    private static Response putComponentTemplate(final RestClient client, final String templateName, final String mappings)
+        throws IOException {
+        final Request request = new Request("PUT", "/_component_template/" + templateName);
         request.setJsonEntity(mappings);
         return client.performRequest(request);
-    }
-
-    private static Response getTemplate(final RestClient client, final String templateName) throws IOException {
-        return client.performRequest(new Request("GET", "/_index_template/" + templateName));
     }
 
     private static Response createDataStream(final RestClient client, final String dataStreamName) throws IOException {

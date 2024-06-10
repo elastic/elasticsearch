@@ -551,13 +551,19 @@ When running `./gradlew check`, minimal bwc checks are also run against compatib
 
 ==== BWC Testing against a specific remote/branch
 
-Sometimes a backward compatibility change spans two versions. A common case is a new functionality
-that needs a BWC bridge in an unreleased versioned of a release branch (for example, 5.x).
-To test the changes, you can instruct Gradle to build the BWC version from another remote/branch combination instead of
-pulling the release branch from GitHub. You do so using the `bwc.remote` and `bwc.refspec.BRANCH` system properties:
+Sometimes a backward compatibility change spans two versions.
+A common case is a new functionality that needs a BWC bridge in an unreleased versioned of a release branch (for example, 5.x).
+Another use case, since the introduction of serverless, is to test BWC against main in addition to the other released branches.
+To do so, specify the `bwc.refspec` remote and branch to use for the BWC build as `origin/main`.
+To test against main, you will also need to create a new version in link:./server/src/main/java/org/elasticsearch/Version.java[Version.java], 
+increment `elasticsearch` in link:./build-tools-internal/version.properties[version.properties], and hard-code the `project.version` for ml-cpp 
+in link:./x-pack/plugin/ml/build.gradle[ml/build.gradle].
+
+In general, to test the changes, you can instruct Gradle to build the BWC version from another remote/branch combination instead of pulling the release branch from GitHub.
+You do so using the `bwc.refspec.{VERSION}` system property:
 
 -------------------------------------------------
-./gradlew check -Dbwc.remote=${remote} -Dbwc.refspec.5.x=index_req_bwc_5.x
+./gradlew check -Dtests.bwc.refspec.8.15=origin/main
 -------------------------------------------------
 
 The branch needs to be available on the remote that the BWC makes of the

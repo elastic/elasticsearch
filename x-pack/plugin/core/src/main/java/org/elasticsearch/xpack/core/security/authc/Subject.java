@@ -283,7 +283,7 @@ public class Subject {
         final BytesReference limitedByRoleDescriptorsBytes = (BytesReference) metadata.get(API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY);
         assert isEmptyRoleDescriptorsBytes(limitedByRoleDescriptorsBytes)
             : "cross cluster API keys must have empty limited-by role descriptors";
-        return new RoleReference.ApiKeyRoleReference(apiKeyId, roleDescriptorsBytes, RoleReference.ApiKeyRoleType.ASSIGNED);
+        return new RoleReference.ApiKeyRoleReference(apiKeyId, roleDescriptorsBytes, RoleReference.ApiKeyRoleType.ASSIGNED, true);
     }
 
     private RoleReferenceIntersection buildRoleReferencesForCrossClusterAccess() {

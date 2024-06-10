@@ -42,7 +42,7 @@ public class RoutingNodesChangedObserver implements RoutingChangesObserver {
     }
 
     @Override
-    public void relocationStarted(ShardRouting startedShard, ShardRouting targetRelocatingShard) {
+    public void relocationStarted(ShardRouting startedShard, ShardRouting targetRelocatingShard, String reason) {
         assert startedShard.started() : "expected started shard " + startedShard;
         assert targetRelocatingShard.isRelocationTarget() : "expected relocation target shard " + targetRelocatingShard;
         setChanged();

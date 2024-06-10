@@ -9,8 +9,12 @@ package org.elasticsearch.xpack.searchablesnapshots;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplanation;
+import org.elasticsearch.action.ActionFuture;
+import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
+import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
+import org.elasticsearch.action.admin.cluster.node.tasks.list.TransportListTasksAction;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
+import org.elasticsearch.action.admin.cluster.snapshots.restore.TransportRestoreSnapshotAction;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotIndexShardStatus;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotStats;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotStatus;
@@ -21,6 +25,7 @@ import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.RestoreInProgress;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -32,6 +37,7 @@ import org.elasticsearch.cluster.routing.allocation.AllocationDecision;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.cluster.routing.allocation.NodeAllocationResult;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
@@ -50,6 +56,7 @@ import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotsService;
+import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotAction;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotRequest;
@@ -72,6 +79,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import static org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplanationUtils.getClusterAllocationExplanation;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING;
 import static org.elasticsearch.index.IndexSettings.INDEX_SOFT_DELETES_SETTING;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
@@ -201,6 +209,7 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
         }
 
         final MountSearchableSnapshotRequest req = new MountSearchableSnapshotRequest(
+            TEST_REQUEST_TIMEOUT,
             restoredIndexName,
             fsRepoName,
             snapshotInfo.snapshotId().getName(),
@@ -390,6 +399,7 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
 
         Settings.Builder indexSettingsBuilder = Settings.builder().put(SearchableSnapshots.SNAPSHOT_CACHE_ENABLED_SETTING.getKey(), true);
         final MountSearchableSnapshotRequest req = new MountSearchableSnapshotRequest(
+            TEST_REQUEST_TIMEOUT,
             restoredIndexName,
             fsRepoName,
             snapshotName,
@@ -458,6 +468,7 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
 
         logger.info("--> restoring index [{}] using rate limits [{}]", restoredIndexName, useRateLimits);
         final MountSearchableSnapshotRequest mount = new MountSearchableSnapshotRequest(
+            TEST_REQUEST_TIMEOUT,
             restoredIndexName,
             repositoryName,
             snapshotName,
@@ -542,6 +553,7 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
             Settings.Builder indexSettingsBuilder = Settings.builder()
                 .put(SearchableSnapshots.SNAPSHOT_CACHE_ENABLED_SETTING.getKey(), true);
             final MountSearchableSnapshotRequest req = new MountSearchableSnapshotRequest(
+                TEST_REQUEST_TIMEOUT,
                 restoredIndexName,
                 fsRepoName,
                 snapshotName,
@@ -574,6 +586,7 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
                 .put(SearchableSnapshots.SNAPSHOT_CACHE_ENABLED_SETTING.getKey(), true)
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, replicaCount);
             final MountSearchableSnapshotRequest req = new MountSearchableSnapshotRequest(
+                TEST_REQUEST_TIMEOUT,
                 restoredIndexName,
                 fsRepoName,
                 snapshotName,
@@ -605,6 +618,7 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
                 .put(SearchableSnapshots.SNAPSHOT_CACHE_ENABLED_SETTING.getKey(), true)
                 .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, replicaLimit == dataNodesCount ? "0-all" : "0-" + replicaLimit);
             final MountSearchableSnapshotRequest req = new MountSearchableSnapshotRequest(
+                TEST_REQUEST_TIMEOUT,
                 restoredIndexName,
                 fsRepoName,
                 snapshotName,
@@ -964,13 +978,7 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
         );
 
         assertBusy(() -> {
-            final ClusterAllocationExplanation clusterAllocationExplanation = clusterAdmin().prepareAllocationExplain()
-                .setIndex(restoredIndexName)
-                .setShard(0)
-                .setPrimary(true)
-                .get()
-                .getExplanation();
-
+            final var clusterAllocationExplanation = getClusterAllocationExplanation(client(), restoredIndexName, 0, true);
             final String description = Strings.toString(clusterAllocationExplanation);
             final AllocateUnassignedDecision allocateDecision = clusterAllocationExplanation.getShardAllocationDecision()
                 .getAllocateDecision();
@@ -1153,6 +1161,76 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
                 }
             }
         }
+    }
+
+    public void testMountingSnapshotLinksRefreshTaskAsChild() throws Exception {
+        final CyclicBarrier cyclicBarrier = new CyclicBarrier(2);
+
+        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        createAndPopulateIndex(indexName, indexSettingsNoReplicas(1).put(INDEX_SOFT_DELETES_SETTING.getKey(), true));
+
+        final String repositoryName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        createRepository(repositoryName, "fs");
+
+        final SnapshotId snapshotOne = createSnapshot(repositoryName, "snapshot-1", List.of(indexName)).snapshotId();
+        assertAcked(indicesAdmin().prepareDelete(indexName));
+
+        // block the cluster state update thread, so we have the opportunity to inspect the mount/restore tasks' metadata
+        ClusterService clusterService = internalCluster().getCurrentMasterNodeInstance(ClusterService.class);
+        clusterService.submitUnbatchedStateUpdateTask("block master service", new ClusterStateUpdateTask() {
+            @Override
+            public ClusterState execute(ClusterState currentState) {
+                safeAwait(cyclicBarrier);   // notify test that we're blocked
+                safeAwait(cyclicBarrier);   // wait to be unblocked by test
+                return currentState;
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                throw new AssertionError("block master service", e);
+            }
+        });
+
+        // wait for master thread to be blocked
+        safeAwait(cyclicBarrier);
+
+        ActionFuture<RestoreSnapshotResponse> response = null;
+        try {
+            final MountSearchableSnapshotRequest mountRequest = new MountSearchableSnapshotRequest(
+                TEST_REQUEST_TIMEOUT,
+                indexName,
+                repositoryName,
+                snapshotOne.getName(),
+                indexName,
+                Settings.EMPTY,
+                Strings.EMPTY_ARRAY,
+                true,
+                MountSearchableSnapshotRequest.Storage.FULL_COPY
+            );
+
+            response = client().execute(MountSearchableSnapshotAction.INSTANCE, mountRequest);
+            assertBusy(() -> {
+                TaskInfo restoreSnapshotTask = getTaskForActionFromMaster(TransportRestoreSnapshotAction.TYPE.name());
+                TaskInfo mountSnapshotTask = getTaskForActionFromMaster(MountSearchableSnapshotAction.NAME);
+                assertEquals(mountSnapshotTask.taskId(), restoreSnapshotTask.parentTaskId());
+            });
+        } finally {
+            // Unblock the master thread
+            safeAwait(cyclicBarrier);
+            // If we started the mount, wait for it to complete, to prevent a race between the mount and the test cleanup
+            if (response != null) {
+                safeGet(response);
+            }
+        }
+    }
+
+    private TaskInfo getTaskForActionFromMaster(String action) {
+        ListTasksResponse response = client().execute(
+            TransportListTasksAction.TYPE,
+            new ListTasksRequest().setDetailed(true).setNodes(internalCluster().getMasterName()).setActions(action)
+        ).actionGet();
+        assertThat(response.getTasks(), hasSize(1));
+        return response.getTasks().get(0);
     }
 
     private static long max(long... values) {

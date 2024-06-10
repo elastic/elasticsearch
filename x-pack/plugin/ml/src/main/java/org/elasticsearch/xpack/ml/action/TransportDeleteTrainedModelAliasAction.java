@@ -33,14 +33,13 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.action.DeleteTrainedModelAliasAction;
 import org.elasticsearch.xpack.core.ml.inference.ModelAliasMetadata;
+import org.elasticsearch.xpack.core.ml.utils.InferenceProcessorInfoExtractor;
 import org.elasticsearch.xpack.ml.notifications.InferenceAuditor;
 
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-
-import static org.elasticsearch.xpack.ml.action.TransportDeleteTrainedModelAction.getReferencedModelKeys;
 
 public class TransportDeleteTrainedModelAliasAction extends AcknowledgedTransportMasterNodeAction<DeleteTrainedModelAliasAction.Request> {
 
@@ -113,7 +112,7 @@ public class TransportDeleteTrainedModelAliasAction extends AcknowledgedTranspor
             );
         }
         IngestMetadata currentIngestMetadata = currentState.metadata().custom(IngestMetadata.TYPE);
-        Set<String> referencedModels = getReferencedModelKeys(currentIngestMetadata, ingestService);
+        Set<String> referencedModels = InferenceProcessorInfoExtractor.getModelIdsFromInferenceProcessors(currentIngestMetadata);
         if (referencedModels.contains(request.getModelAlias())) {
             throw new ElasticsearchStatusException(
                 "Cannot delete model_alias [{}] as it is still referenced by ingest processors",

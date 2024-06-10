@@ -9,8 +9,7 @@
 package org.elasticsearch.cluster;
 
 import org.apache.lucene.tests.util.LuceneTestCase;
-import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplainRequest;
-import org.elasticsearch.action.admin.cluster.allocation.TransportClusterAllocationExplainAction;
+import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplanationUtils;
 import org.elasticsearch.action.admin.cluster.node.shutdown.NodePrevalidateShardPathResponse;
 import org.elasticsearch.action.admin.cluster.node.shutdown.PrevalidateShardPathRequest;
 import org.elasticsearch.action.admin.cluster.node.shutdown.PrevalidateShardPathResponse;
@@ -90,13 +89,12 @@ public class PrevalidateShardPathIT extends ESIntegTestCase {
                         .filter(s -> node2ShardIds.contains(s.shardId()))
                         .filter(s -> s.currentNodeId().equals(node2Id))
                         .toList()) {
-                        var explanation = client().execute(
-                            TransportClusterAllocationExplainAction.TYPE,
-                            new ClusterAllocationExplainRequest().setIndex(node2Shard.getIndexName())
-                                .setCurrentNode(node2Shard.currentNodeId())
-                                .setShard(node2Shard.id())
-                                .setPrimary(node2Shard.primary())
-                        ).get();
+                        var explanation = ClusterAllocationExplanationUtils.getClusterAllocationExplanation(
+                            client(),
+                            node2Shard.getIndexName(),
+                            node2Shard.id(),
+                            node2Shard.primary()
+                        );
                         logger.info(
                             "Shard: {} is still located on relocation source node: {}. Allocation explanation: {}",
                             node2Shard.shardId(),

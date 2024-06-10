@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.inference.services.huggingface;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkedInferenceServiceResults;
@@ -18,15 +19,16 @@ import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.xpack.core.inference.results.ChunkedSparseEmbeddingResults;
-import org.elasticsearch.xpack.core.inference.results.ChunkedTextEmbeddingResults;
 import org.elasticsearch.xpack.core.inference.results.ErrorChunkedInferenceResults;
+import org.elasticsearch.xpack.core.inference.results.InferenceChunkedSparseEmbeddingResults;
+import org.elasticsearch.xpack.core.inference.results.InferenceChunkedTextEmbeddingFloatResults;
+import org.elasticsearch.xpack.core.inference.results.InferenceTextEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
-import org.elasticsearch.xpack.core.inference.results.TextEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.inference.results.ErrorInferenceResults;
 import org.elasticsearch.xpack.inference.external.action.huggingface.HuggingFaceActionCreator;
 import org.elasticsearch.xpack.inference.external.http.sender.DocumentsOnlyInput;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
+import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.SenderService;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 
@@ -62,7 +64,8 @@ public abstract class HuggingFaceBaseService extends SenderService {
                 taskType,
                 serviceSettingsMap,
                 serviceSettingsMap,
-                TaskType.unsupportedTaskTypeErrorMsg(taskType, name())
+                TaskType.unsupportedTaskTypeErrorMsg(taskType, name()),
+                ConfigurationParseContext.REQUEST
             );
 
             throwIfNotEmptyMap(config, name());
@@ -89,7 +92,8 @@ public abstract class HuggingFaceBaseService extends SenderService {
             taskType,
             serviceSettingsMap,
             secretSettingsMap,
-            parsePersistedConfigErrorMsg(inferenceEntityId, name())
+            parsePersistedConfigErrorMsg(inferenceEntityId, name()),
+            ConfigurationParseContext.PERSISTENT
         );
     }
 
@@ -97,7 +101,14 @@ public abstract class HuggingFaceBaseService extends SenderService {
     public HuggingFaceModel parsePersistedConfig(String inferenceEntityId, TaskType taskType, Map<String, Object> config) {
         Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
 
-        return createModel(inferenceEntityId, taskType, serviceSettingsMap, null, parsePersistedConfigErrorMsg(inferenceEntityId, name()));
+        return createModel(
+            inferenceEntityId,
+            taskType,
+            serviceSettingsMap,
+            null,
+            parsePersistedConfigErrorMsg(inferenceEntityId, name()),
+            ConfigurationParseContext.PERSISTENT
+        );
     }
 
     protected abstract HuggingFaceModel createModel(
@@ -105,7 +116,8 @@ public abstract class HuggingFaceBaseService extends SenderService {
         TaskType taskType,
         Map<String, Object> serviceSettings,
         Map<String, Object> secretSettings,
-        String failureMessage
+        String failureMessage,
+        ConfigurationParseContext context
     );
 
     @Override
@@ -164,14 +176,19 @@ public abstract class HuggingFaceBaseService extends SenderService {
         List<String> inputs,
         InferenceServiceResults inferenceResults
     ) {
-        if (inferenceResults instanceof TextEmbeddingResults textEmbeddingResults) {
-            return ChunkedTextEmbeddingResults.of(inputs, textEmbeddingResults);
+        if (inferenceResults instanceof InferenceTextEmbeddingFloatResults textEmbeddingResults) {
+            return InferenceChunkedTextEmbeddingFloatResults.listOf(inputs, textEmbeddingResults);
         } else if (inferenceResults instanceof SparseEmbeddingResults sparseEmbeddingResults) {
-            return ChunkedSparseEmbeddingResults.of(inputs, sparseEmbeddingResults);
+            return InferenceChunkedSparseEmbeddingResults.listOf(inputs, sparseEmbeddingResults);
         } else if (inferenceResults instanceof ErrorInferenceResults error) {
             return List.of(new ErrorChunkedInferenceResults(error.getException()));
         } else {
-            throw createInvalidChunkedResultException(inferenceResults.getWriteableName());
+            String expectedClasses = Strings.format(
+                "One of [%s,%s]",
+                InferenceTextEmbeddingFloatResults.class.getSimpleName(),
+                SparseEmbeddingResults.class.getSimpleName()
+            );
+            throw createInvalidChunkedResultException(expectedClasses, inferenceResults.getWriteableName());
         }
     }
 }

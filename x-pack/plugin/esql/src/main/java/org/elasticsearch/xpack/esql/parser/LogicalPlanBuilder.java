@@ -14,10 +14,33 @@ import org.elasticsearch.Build;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.dissect.DissectException;
 import org.elasticsearch.dissect.DissectParser;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.VerificationException;
+import org.elasticsearch.xpack.esql.core.common.Failure;
+import org.elasticsearch.xpack.esql.core.expression.Alias;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.EmptyAttribute;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Expressions;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
+import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
+import org.elasticsearch.xpack.esql.core.expression.Order;
+import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
+import org.elasticsearch.xpack.esql.core.expression.UnresolvedStar;
+import org.elasticsearch.xpack.esql.core.expression.function.UnresolvedFunction;
+import org.elasticsearch.xpack.esql.core.parser.ParserUtils;
+import org.elasticsearch.xpack.esql.core.plan.TableIdentifier;
+import org.elasticsearch.xpack.esql.core.plan.logical.Filter;
+import org.elasticsearch.xpack.esql.core.plan.logical.Limit;
+import org.elasticsearch.xpack.esql.core.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.core.plan.logical.OrderBy;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
 import org.elasticsearch.xpack.esql.parser.EsqlBaseParser.MetadataOptionContext;
-import org.elasticsearch.xpack.esql.parser.EsqlBaseParser.QualifiedNamePatternContext;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
@@ -28,34 +51,12 @@ import org.elasticsearch.xpack.esql.plan.logical.Explain;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.Keep;
+import org.elasticsearch.xpack.esql.plan.logical.Lookup;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.meta.MetaFunctions;
 import org.elasticsearch.xpack.esql.plan.logical.show.ShowInfo;
-import org.elasticsearch.xpack.ql.common.Failure;
-import org.elasticsearch.xpack.ql.expression.Alias;
-import org.elasticsearch.xpack.ql.expression.Attribute;
-import org.elasticsearch.xpack.ql.expression.EmptyAttribute;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.Expressions;
-import org.elasticsearch.xpack.ql.expression.Literal;
-import org.elasticsearch.xpack.ql.expression.MetadataAttribute;
-import org.elasticsearch.xpack.ql.expression.NamedExpression;
-import org.elasticsearch.xpack.ql.expression.Order;
-import org.elasticsearch.xpack.ql.expression.ReferenceAttribute;
-import org.elasticsearch.xpack.ql.expression.UnresolvedAttribute;
-import org.elasticsearch.xpack.ql.expression.UnresolvedStar;
-import org.elasticsearch.xpack.ql.expression.function.UnresolvedFunction;
-import org.elasticsearch.xpack.ql.options.EsSourceOptions;
-import org.elasticsearch.xpack.ql.parser.ParserUtils;
-import org.elasticsearch.xpack.ql.plan.TableIdentifier;
-import org.elasticsearch.xpack.ql.plan.logical.Filter;
-import org.elasticsearch.xpack.ql.plan.logical.Limit;
-import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.ql.plan.logical.OrderBy;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -69,11 +70,11 @@ import java.util.Set;
 import java.util.function.Function;
 
 import static org.elasticsearch.common.logging.HeaderWarning.addWarning;
+import static org.elasticsearch.xpack.esql.core.parser.ParserUtils.source;
+import static org.elasticsearch.xpack.esql.core.parser.ParserUtils.typedParsing;
+import static org.elasticsearch.xpack.esql.core.parser.ParserUtils.visitList;
 import static org.elasticsearch.xpack.esql.plan.logical.Enrich.Mode;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToInt;
-import static org.elasticsearch.xpack.ql.parser.ParserUtils.source;
-import static org.elasticsearch.xpack.ql.parser.ParserUtils.typedParsing;
-import static org.elasticsearch.xpack.ql.parser.ParserUtils.visitList;
 
 public class LogicalPlanBuilder extends ExpressionBuilder {
 
@@ -168,7 +169,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                 List<Attribute> keys = new ArrayList<>();
                 for (var x : parser.outputKeys()) {
                     if (x.isEmpty() == false) {
-                        keys.add(new ReferenceAttribute(src, x, DataTypes.KEYWORD));
+                        keys.add(new ReferenceAttribute(src, x, DataType.KEYWORD));
                     }
                 }
                 return new Dissect(src, p, expression(ctx.primaryExpression()), new Dissect.Parser(pattern, appendSeparator, parser), keys);
@@ -235,21 +236,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                 }
             }
         }
-        EsSourceOptions esSourceOptions = new EsSourceOptions();
-        if (ctx.fromOptions() != null) {
-            for (var o : ctx.fromOptions().configOption()) {
-                var nameContext = o.string().get(0);
-                String name = visitString(nameContext).fold().toString();
-                String value = visitString(o.string().get(1)).fold().toString();
-                try {
-                    esSourceOptions.addOption(name, value);
-                } catch (IllegalArgumentException iae) {
-                    var cause = iae.getCause() != null ? ". " + iae.getCause().getMessage() : "";
-                    throw new ParsingException(iae, source(nameContext), "invalid options provided: " + iae.getMessage() + cause);
-                }
-            }
-        }
-        return new EsqlUnresolvedRelation(source, table, Arrays.asList(metadataMap.values().toArray(Attribute[]::new)), esSourceOptions);
+        return new EsqlUnresolvedRelation(source, table, Arrays.asList(metadataMap.values().toArray(Attribute[]::new)), IndexMode.STANDARD);
     }
 
     @Override
@@ -314,7 +301,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     public PlanFactory visitLimitCommand(EsqlBaseParser.LimitCommandContext ctx) {
         Source source = source(ctx);
         int limit = stringToInt(ctx.INTEGER_LITERAL().getText());
-        return input -> new Limit(source, new Literal(source, limit, DataTypes.INTEGER), input);
+        return input -> new Limit(source, new Literal(source, limit, DataType.INTEGER), input);
     }
 
     @Override
@@ -331,17 +318,12 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
     @Override
     public PlanFactory visitDropCommand(EsqlBaseParser.DropCommandContext ctx) {
-        var identifiers = ctx.qualifiedNamePattern();
-        List<NamedExpression> removals = new ArrayList<>(identifiers.size());
-
-        for (QualifiedNamePatternContext patternContext : identifiers) {
-            NamedExpression ne = visitQualifiedNamePattern(patternContext);
+        List<NamedExpression> removals = visitQualifiedNamePatterns(ctx.qualifiedNamePatterns(), ne -> {
             if (ne instanceof UnresolvedStar) {
                 var src = ne.source();
                 throw new ParsingException(src, "Removing all fields is not allowed [{}]", src.text());
             }
-            removals.add(ne);
-        }
+        });
 
         return child -> new Drop(source(ctx), child, removals);
     }
@@ -354,21 +336,18 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
     @Override
     public PlanFactory visitKeepCommand(EsqlBaseParser.KeepCommandContext ctx) {
-        var identifiers = ctx.qualifiedNamePattern();
-        List<NamedExpression> projections = new ArrayList<>(identifiers.size());
-        boolean hasSeenStar = false;
-        for (QualifiedNamePatternContext patternContext : identifiers) {
-            NamedExpression ne = visitQualifiedNamePattern(patternContext);
+        final Holder<Boolean> hasSeenStar = new Holder<>(false);
+        List<NamedExpression> projections = visitQualifiedNamePatterns(ctx.qualifiedNamePatterns(), ne -> {
             if (ne instanceof UnresolvedStar) {
-                if (hasSeenStar) {
+                if (hasSeenStar.get()) {
                     var src = ne.source();
                     throw new ParsingException(src, "Cannot specify [*] more than once", src.text());
                 } else {
-                    hasSeenStar = true;
+                    hasSeenStar.set(Boolean.TRUE);
                 }
             }
-            projections.add(ne);
-        }
+        });
+
         return child -> new Keep(source(ctx), child, projections);
     }
 
@@ -392,7 +371,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
             NamedExpression matchField = ctx.ON() != null ? visitQualifiedNamePattern(ctx.matchField) : new EmptyAttribute(source);
             if (matchField instanceof UnresolvedNamePattern up) {
-                throw new ParsingException(source, "Using wildcards (*) in ENRICH WITH projections is not allowed [{}]", up.pattern());
+                throw new ParsingException(source, "Using wildcards [*] in ENRICH WITH projections is not allowed [{}]", up.pattern());
             }
 
             List<NamedExpression> keepClauses = visitList(this, ctx.enrichWithClause(), NamedExpression.class);
@@ -400,7 +379,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                 source,
                 p,
                 mode,
-                new Literal(source(ctx.policyName), policyNameString, DataTypes.KEYWORD),
+                new Literal(source(ctx.policyName), policyNameString, DataType.KEYWORD),
                 matchField,
                 null,
                 Map.of(),
@@ -443,12 +422,31 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         }
         Source source = source(ctx);
         TableIdentifier table = new TableIdentifier(source, null, visitIndexIdentifiers(ctx.indexIdentifier()));
-        var unresolvedRelation = new EsqlUnresolvedRelation(source, table, List.of());
+        var unresolvedRelation = new EsqlUnresolvedRelation(source, table, List.of(), IndexMode.TIME_SERIES);
         if (ctx.aggregates == null && ctx.grouping == null) {
             return unresolvedRelation;
         }
         final Stats stats = stats(source, ctx.grouping, ctx.aggregates);
         return new EsqlAggregate(source, unresolvedRelation, stats.groupings, stats.aggregates);
+    }
+
+    @Override
+    public PlanFactory visitLookupCommand(EsqlBaseParser.LookupCommandContext ctx) {
+        if (false == Build.current().isSnapshot()) {
+            throw new ParsingException(source(ctx), "LOOKUP is in preview and only available in SNAPSHOT build");
+        }
+        var source = source(ctx);
+
+        List<NamedExpression> matchFields = visitQualifiedNamePatterns(ctx.qualifiedNamePatterns(), ne -> {
+            if (ne instanceof UnresolvedNamePattern || ne instanceof UnresolvedStar) {
+                var src = ne.source();
+                throw new ParsingException(src, "Using wildcards [*] in LOOKUP ON is not allowed yet [{}]", src.text());
+            }
+        });
+
+        Literal tableName = new Literal(source, ctx.tableName.getText(), DataType.KEYWORD);
+
+        return p -> new Lookup(source, p, tableName, matchFields, null /* localRelation will be resolved later*/);
     }
 
     interface PlanFactory extends Function<LogicalPlan, LogicalPlan> {}

@@ -25,13 +25,12 @@ import org.elasticsearch.client.Cancellable;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
+import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
@@ -55,7 +54,7 @@ import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.DummyQueryBuilder;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.xcontent.ObjectParser;
@@ -186,6 +185,14 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return List.of(TestMapperPlugin.class, ExceptionOnRewriteQueryPlugin.class, BlockingOnRewriteQueryPlugin.class);
+    }
+
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+        return Settings.builder()
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
+            .put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), EnableAllocationDecider.Rebalance.NONE)
+            .build();
     }
 
     @Override
@@ -530,23 +537,31 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
                     closeShardNoCheck(indexShard, randomBoolean());
                 } else if (randomBoolean()) {
                     final ShardId shardId = indexShard.shardId();
-                    final String[] nodeNames = internalCluster().getNodeNames();
-                    final String newNodeName = randomValueOtherThanMany(n -> nodeName.equals(n) == false, () -> randomFrom(nodeNames));
-                    DiscoveryNode fromNode = null;
-                    DiscoveryNode toNode = null;
-                    for (DiscoveryNode node : clusterService().state().nodes()) {
-                        if (node.getName().equals(nodeName)) {
-                            fromNode = node;
-                        }
-                        if (node.getName().equals(newNodeName)) {
-                            toNode = node;
+
+                    final var targetNodes = new ArrayList<String>();
+                    for (final var targetIndicesService : internalCluster().getInstances(IndicesService.class)) {
+                        final var targetNode = targetIndicesService.clusterService().localNode();
+                        if (targetNode.canContainData() && targetIndicesService.getShardOrNull(shardId) == null) {
+                            targetNodes.add(targetNode.getId());
                         }
                     }
-                    assertNotNull(fromNode);
-                    assertNotNull(toNode);
-                    clusterAdmin().prepareReroute()
-                        .add(new MoveAllocationCommand(shardId.getIndexName(), shardId.id(), fromNode.getId(), toNode.getId()))
-                        .get();
+
+                    if (targetNodes.isEmpty()) {
+                        continue;
+                    }
+
+                    safeGet(
+                        clusterAdmin().prepareReroute()
+                            .add(
+                                new MoveAllocationCommand(
+                                    shardId.getIndexName(),
+                                    shardId.id(),
+                                    indicesService.clusterService().localNode().getId(),
+                                    randomFrom(targetNodes)
+                                )
+                            )
+                            .execute()
+                    );
                 }
             }
         }
@@ -571,7 +586,7 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
             if (randomBoolean()) {
                 request.indexFilter(QueryBuilders.rangeQuery("timestamp").gte("2020-01-01"));
             }
-            final FieldCapabilitiesResponse response = client().execute(TransportFieldCapabilitiesAction.TYPE, request).actionGet();
+            final FieldCapabilitiesResponse response = safeGet(client().execute(TransportFieldCapabilitiesAction.TYPE, request));
             assertThat(response.getIndices(), arrayContainingInAnyOrder("log-index-1", "log-index-2"));
             assertThat(response.getField("field1"), aMapWithSize(2));
             assertThat(response.getField("field1"), hasKey("long"));
@@ -649,10 +664,9 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
         reason = "verify the log output on cancelled"
     )
     public void testCancel() throws Exception {
-        MockLogAppender logAppender = new MockLogAppender();
-        try (Releasable ignored = logAppender.capturing(TransportFieldCapabilitiesAction.class)) {
-            logAppender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+        try (var mockLog = MockLog.capture(TransportFieldCapabilitiesAction.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
                     "clear resources",
                     TransportFieldCapabilitiesAction.class.getCanonicalName(),
                     Level.TRACE,
@@ -683,7 +697,7 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
                 }
             }, 30, TimeUnit.SECONDS);
             cancellable.cancel();
-            assertBusy(logAppender::assertAllExpectationsMatched);
+            assertBusy(mockLog::assertAllExpectationsMatched);
             logger.info("--> waiting for field-caps tasks to be cancelled");
             assertBusy(() -> {
                 List<TaskInfo> tasks = clusterAdmin().prepareListTasks()

@@ -29,10 +29,7 @@ import static org.hamcrest.Matchers.is;
 public class AzureOpenAiSecretSettingsTests extends AbstractWireSerializingTestCase<AzureOpenAiSecretSettings> {
 
     public static AzureOpenAiSecretSettings createRandom() {
-        return new AzureOpenAiSecretSettings(
-            new SecureString(randomAlphaOfLength(15).toCharArray()),
-            new SecureString(randomAlphaOfLength(15).toCharArray())
-        );
+        return new AzureOpenAiSecretSettings(randomSecureStringOfLength(15), randomSecureStringOfLength(15));
     }
 
     public void testFromMap_ApiKey_Only() {
@@ -143,7 +140,7 @@ public class AzureOpenAiSecretSettingsTests extends AbstractWireSerializingTestC
 
     @Override
     protected AzureOpenAiSecretSettings mutateInstance(AzureOpenAiSecretSettings instance) throws IOException {
-        return createRandom();
+        return randomValueOtherThan(instance, AzureOpenAiSecretSettingsTests::createRandom);
     }
 
     public static Map<String, Object> getAzureOpenAiSecretSettingsMap(@Nullable String apiKey, @Nullable String entraId) {

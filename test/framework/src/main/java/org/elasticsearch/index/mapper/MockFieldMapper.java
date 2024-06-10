@@ -24,6 +24,10 @@ public class MockFieldMapper extends FieldMapper {
         this(findSimpleName(fieldType.name()), fieldType, MultiFields.empty(), CopyTo.empty());
     }
 
+    public MockFieldMapper(MappedFieldType fieldType, String simpleName) {
+        super(simpleName, fieldType, MultiFields.empty(), CopyTo.empty(), false, null);
+    }
+
     public MockFieldMapper(String fullName, MappedFieldType fieldType, MultiFields multifields, CopyTo copyTo) {
         super(findSimpleName(fullName), fieldType, multifields, copyTo, false, null);
     }

@@ -456,9 +456,10 @@ public final class SearchPhaseController {
                     : "not enough hits fetched. index [" + index + "] length: " + fetchResult.hits().getHits().length;
                 SearchHit searchHit = fetchResult.hits().getHits()[index];
                 searchHit.shard(fetchResult.getSearchShardTarget());
-                if (reducedQueryPhase.rankCoordinatorContext != null) {
+                if (reducedQueryPhase.queryPhaseRankCoordinatorContext != null) {
                     assert shardDoc instanceof RankDoc;
                     searchHit.setRank(((RankDoc) shardDoc).rank);
+                    searchHit.score(shardDoc.score);
                 } else if (sortedTopDocs.isSortedByField) {
                     FieldDoc fieldDoc = (FieldDoc) shardDoc;
                     searchHit.sortValues(fieldDoc.fields, reducedQueryPhase.sortValueFormats);
@@ -746,7 +747,7 @@ public final class SearchPhaseController {
         // sort value formats used to sort / format the result
         DocValueFormat[] sortValueFormats,
         // the rank context if ranking is used
-        QueryPhaseRankCoordinatorContext rankCoordinatorContext,
+        QueryPhaseRankCoordinatorContext queryPhaseRankCoordinatorContext,
         // the number of reduces phases
         int numReducePhases,
         // the size of the top hits to return

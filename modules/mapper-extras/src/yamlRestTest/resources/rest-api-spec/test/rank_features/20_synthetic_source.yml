@@ -1,0 +1,56 @@
+setup:
+  - requires:
+      cluster_features: ["mapper.source.synthetic_source_fallback"]
+      reason: introduced in 8.15.0
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            _source:
+              mode: synthetic
+            properties:
+              tags:
+                type: rank_features
+
+---
+"synthetic source sanity test":
+  - do:
+      index:
+        index: test
+        id: "1"
+        body:
+          tags:
+            foo: 3
+            bar: 5
+
+  - do:
+      index:
+        index: test
+        id: "2"
+        body:
+          tags: []
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      get:
+        index: test
+        id: "1"
+
+  - match:
+      _source:
+        tags:
+          foo: 3
+          bar: 5
+
+  - do:
+      get:
+        index: test
+        id: "2"
+
+  - match: { _source.tags: [] }
+
+

@@ -55,6 +55,7 @@ import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.fielddata.ordinals.GlobalOrdinalsAccounting;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.MapperRegistry;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MappingLookup;
@@ -159,6 +160,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     private final IndexNameExpressionResolver expressionResolver;
     private final Supplier<Sort> indexSortSupplier;
     private final ValuesSourceRegistry valuesSourceRegistry;
+    private final MapperMetrics mapperMetrics;
 
     @SuppressWarnings("this-escape")
     public IndexService(
@@ -192,7 +194,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         IndexStorePlugin.RecoveryStateFactory recoveryStateFactory,
         IndexStorePlugin.IndexFoldersDeletionListener indexFoldersDeletionListener,
         IndexStorePlugin.SnapshotCommitSupplier snapshotCommitSupplier,
-        Engine.IndexCommitListener indexCommitListener
+        Engine.IndexCommitListener indexCommitListener,
+        MapperMetrics mapperMetrics
     ) {
         super(indexSettings);
         assert indexCreationContext != IndexCreationContext.RELOAD_ANALYZERS
@@ -209,6 +212,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         this.indexAnalyzers = indexAnalyzers;
         if (needsMapperService(indexSettings, indexCreationContext)) {
             assert indexAnalyzers != null;
+            this.bitsetFilterCache = new BitsetFilterCache(indexSettings, new BitsetCacheListener(this));
             this.mapperService = new MapperService(
                 clusterService,
                 indexSettings,
@@ -219,7 +223,9 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 // we parse all percolator queries as they would be parsed on shard 0
                 () -> newSearchExecutionContext(0, 0, null, System::currentTimeMillis, null, emptyMap()),
                 idFieldMapper,
-                scriptService
+                scriptService,
+                bitsetFilterCache::getBitSetProducer,
+                mapperMetrics
             );
             this.indexFieldData = new IndexFieldDataService(indexSettings, indicesFieldDataCache, circuitBreakerService);
             if (indexSettings.getIndexSortConfig().hasIndexSort()) {
@@ -234,7 +240,6 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 this.indexSortSupplier = () -> null;
             }
             indexFieldData.setListener(new FieldDataCacheListener(this));
-            this.bitsetFilterCache = new BitsetFilterCache(indexSettings, new BitsetCacheListener(this));
             this.warmer = new IndexWarmer(threadPool, indexFieldData, bitsetFilterCache.createListener(threadPool));
             this.indexCache = new IndexCache(queryCache, bitsetFilterCache);
         } else {
@@ -264,6 +269,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         this.searchOperationListeners = Collections.unmodifiableList(searchOperationListeners);
         this.indexingOperationListeners = Collections.unmodifiableList(indexingOperationListeners);
         this.indexCommitListener = indexCommitListener;
+        this.mapperMetrics = mapperMetrics;
         try (var ignored = threadPool.getThreadContext().clearTraceContext()) {
             // kick off async ops for the first shard in this index
             this.refreshTask = new AsyncRefreshTask(this);
@@ -544,7 +550,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 circuitBreakerService,
                 snapshotCommitSupplier,
                 System::nanoTime,
-                indexCommitListener
+                indexCommitListener,
+                mapperMetrics
             );
             eventListener.indexShardStateChanged(indexShard, null, indexShard.state(), "shard created");
             eventListener.afterIndexShardCreated(indexShard);
@@ -742,7 +749,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             allowExpensiveQueries,
             valuesSourceRegistry,
             runtimeMappings,
-            requestSize
+            requestSize,
+            mapperMetrics
         );
     }
 

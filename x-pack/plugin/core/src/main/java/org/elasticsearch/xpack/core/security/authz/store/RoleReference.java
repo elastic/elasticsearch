@@ -122,6 +122,11 @@ public interface RoleReference {
         }
     }
 
+    /**
+     * Represents the role descriptors of the cross-cluster API key underlying an API key authentication based remote cluster connection.
+     * This captures the permissions of the cross-cluster API key on the fulfilling cluster and is intersected with the permissions of the
+     * query-cluster-side user entity making the cross cluster request (see {@link CrossClusterAccessRoleReference}).
+     */
     final class CrossClusterApiKeyRoleReference implements RoleReference {
 
         private final String apiKeyId;
@@ -163,6 +168,11 @@ public interface RoleReference {
         }
     }
 
+    /**
+     * Represents the role descriptors sent from the querying cluster to the fulfilling cluster as part of API key authentication based
+     * cross cluster operations. This captures the permissions of the user entity on the querying cluster and is intersected with the
+     * fulfilling-cluster-side permissions of the cross-cluster API key underlying the connection (see {@link CrossClusterApiKeyRoleReference}).
+     */
     final class CrossClusterAccessRoleReference implements RoleReference {
 
         private final CrossClusterAccessSubjectInfo.RoleDescriptorsBytes roleDescriptorsBytes;

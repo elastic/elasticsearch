@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.optimizer;
 
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.esql.core.TestUtils;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
@@ -227,8 +226,8 @@ public class OptimizerRulesTests extends ESTestCase {
     }
 
     public void testTwoEqualsDifferentFields() {
-        FieldAttribute fieldOne = TestUtils.getFieldAttribute("ONE");
-        FieldAttribute fieldTwo = TestUtils.getFieldAttribute("TWO");
+        FieldAttribute fieldOne = getFieldAttribute("ONE");
+        FieldAttribute fieldTwo = getFieldAttribute("TWO");
 
         Or or = new Or(EMPTY, equalsOf(fieldOne, ONE), equalsOf(fieldTwo, TWO));
         Expression e = new CombineDisjunctionsToIn().rule(or);
@@ -564,7 +563,7 @@ public class OptimizerRulesTests extends ESTestCase {
 
     // a == 1 AND a == 2 -> nop for date/time fields
     public void testPropagateEquals_ignoreDateTimeFields() {
-        FieldAttribute fa = TestUtils.getFieldAttribute("a", DataType.DATETIME);
+        FieldAttribute fa = getFieldAttribute("a", DataType.DATETIME);
         Equals eq1 = equalsOf(fa, ONE);
         Equals eq2 = equalsOf(fa, TWO);
         And and = new And(EMPTY, eq1, eq2);
@@ -659,8 +658,8 @@ public class OptimizerRulesTests extends ESTestCase {
 
         And nestedAnd = new And(
             EMPTY,
-            lessThanOf(TestUtils.getFieldAttribute("b"), ONE),
-            lessThanOf(TestUtils.getFieldAttribute("c"), ONE)
+            lessThanOf(getFieldAttribute("b"), ONE),
+            lessThanOf(getFieldAttribute("c"), ONE)
         );
         And and = new And(EMPTY, isNull, nestedAnd);
         And top = new And(EMPTY, and, lessThanOf(fa, ONE));
@@ -680,7 +679,7 @@ public class OptimizerRulesTests extends ESTestCase {
             greaterThanOf(new Div(EMPTY, new Add(EMPTY, fa, ONE), TWO), ONE),
             greaterThanOf(new Add(EMPTY, fa, TWO), ONE)
         );
-        Expression kept = new And(EMPTY, isNull, lessThanOf(TestUtils.getFieldAttribute("b"), THREE));
+        Expression kept = new And(EMPTY, isNull, lessThanOf(getFieldAttribute("b"), THREE));
         And and = new And(EMPTY, nullified, kept);
 
         Expression optimized = new PropagateNullable().rule(and);

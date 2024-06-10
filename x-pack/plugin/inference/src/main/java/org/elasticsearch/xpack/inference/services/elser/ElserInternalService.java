@@ -363,7 +363,7 @@ public class ElserInternalService implements InferenceService {
         } else {
             String modelId = ((ElserInternalModel) model).getServiceSettings().getModelId();
             var input = new TrainedModelInput(List.<String>of("text_field")); // by convention text_field is used
-            var config = TrainedModelConfig.builder().setInput(input).setModelId(modelId).build();
+            var config = TrainedModelConfig.builder().setInput(input).setModelId(modelId).validate(true).build();
             PutTrainedModelAction.Request putRequest = new PutTrainedModelAction.Request(config, false, true);
             executeAsyncWithOrigin(
                 client,

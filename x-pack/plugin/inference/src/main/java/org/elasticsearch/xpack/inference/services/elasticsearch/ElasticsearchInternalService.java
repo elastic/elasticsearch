@@ -419,7 +419,7 @@ public class ElasticsearchInternalService implements InferenceService {
         } else if (model instanceof MultilingualE5SmallModel e5Model) {
             String modelId = e5Model.getServiceSettings().getModelId();
             var input = new TrainedModelInput(List.<String>of("text_field")); // by convention text_field is used
-            var config = TrainedModelConfig.builder().setInput(input).setModelId(modelId).build();
+            var config = TrainedModelConfig.builder().setInput(input).setModelId(modelId).validate(true).build();
             PutTrainedModelAction.Request putRequest = new PutTrainedModelAction.Request(config, false, true);
             executeAsyncWithOrigin(
                 client,

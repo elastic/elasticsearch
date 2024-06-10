@@ -33,7 +33,7 @@ public record DataStreamOptions(@Nullable DataStreamFailureStore failureStore)
         SimpleDiffable<DataStreamOptions>,
         ToXContentObject {
 
-    public static final ParseField OPTIONS_FIELD = new ParseField("options");
+    public static final ParseField FAILURE_STORE_FIELD = new ParseField("failure_store");
 
     public static final ConstructingObjectParser<DataStreamOptions, Void> PARSER = new ConstructingObjectParser<>(
         "options",
@@ -45,7 +45,7 @@ public record DataStreamOptions(@Nullable DataStreamFailureStore failureStore)
         PARSER.declareField(
             ConstructingObjectParser.optionalConstructorArg(),
             (p, c) -> DataStreamFailureStore.fromXContent(p),
-            OPTIONS_FIELD,
+            FAILURE_STORE_FIELD,
             ObjectParser.ValueType.OBJECT_OR_NULL
         );
     }
@@ -81,7 +81,7 @@ public record DataStreamOptions(@Nullable DataStreamFailureStore failureStore)
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         if (failureStore != null) {
-            builder.field(OPTIONS_FIELD.getPreferredName());
+            builder.field(FAILURE_STORE_FIELD.getPreferredName());
             builder.value(failureStore);
         }
         builder.endObject();

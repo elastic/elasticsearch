@@ -261,6 +261,24 @@
       ],
       "variadic" : true,
       "returnType" : "text"
+    },
+    {
+      "params" : [
+        {
+          "name" : "first",
+          "type" : "version",
+          "optional" : false,
+          "description" : "Expression to evaluate."
+        },
+        {
+          "name" : "rest",
+          "type" : "version",
+          "optional" : true,
+          "description" : "Other expression to evaluate."
+        }
+      ],
+      "variadic" : true,
+      "returnType" : "version"
     }
   ],
   "examples" : [

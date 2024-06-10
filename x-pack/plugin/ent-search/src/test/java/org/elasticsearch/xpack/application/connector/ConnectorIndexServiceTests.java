@@ -14,6 +14,7 @@ import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.MockScriptEngine;
@@ -511,7 +512,9 @@ public class ConnectorIndexServiceTests extends ESSingleNodeTestCase {
 
         ConnectorSyncInfo syncStats = ConnectorTestUtils.getRandomConnectorSyncInfo();
 
-        UpdateConnectorLastSyncStatsAction.Request lastSyncStats = new UpdateConnectorLastSyncStatsAction.Request(connectorId, syncStats);
+        UpdateConnectorLastSyncStatsAction.Request lastSyncStats = new UpdateConnectorLastSyncStatsAction.Request.Builder().setConnectorId(
+            connectorId
+        ).setSyncInfo(syncStats).build();
 
         DocWriteResponse updateResponse = awaitUpdateConnectorLastSyncStats(lastSyncStats);
         assertThat(updateResponse.status(), equalTo(RestStatus.OK));
@@ -533,7 +536,9 @@ public class ConnectorIndexServiceTests extends ESSingleNodeTestCase {
             .setLastDeletedDocumentCount(randomLong())
             .build();
 
-        UpdateConnectorLastSyncStatsAction.Request lastSyncStats = new UpdateConnectorLastSyncStatsAction.Request(connectorId, syncStats);
+        UpdateConnectorLastSyncStatsAction.Request lastSyncStats = new UpdateConnectorLastSyncStatsAction.Request.Builder().setConnectorId(
+            connectorId
+        ).setSyncInfo(syncStats).build();
 
         DocWriteResponse updateResponse = awaitUpdateConnectorLastSyncStats(lastSyncStats);
         assertThat(updateResponse.status(), equalTo(RestStatus.OK));
@@ -547,7 +552,9 @@ public class ConnectorIndexServiceTests extends ESSingleNodeTestCase {
 
         ConnectorSyncInfo nextSyncStats = new ConnectorSyncInfo.Builder().setLastIndexedDocumentCount(randomLong()).build();
 
-        lastSyncStats = new UpdateConnectorLastSyncStatsAction.Request(connectorId, nextSyncStats);
+        lastSyncStats = new UpdateConnectorLastSyncStatsAction.Request.Builder().setConnectorId(connectorId)
+            .setSyncInfo(nextSyncStats)
+            .build();
 
         updateResponse = awaitUpdateConnectorLastSyncStats(lastSyncStats);
         assertThat(updateResponse.status(), equalTo(RestStatus.OK));
@@ -561,6 +568,27 @@ public class ConnectorIndexServiceTests extends ESSingleNodeTestCase {
         assertThat(syncStats.getLastSyncError(), equalTo(indexedConnector.getSyncInfo().getLastSyncError()));
         assertThat(syncStats.getLastDeletedDocumentCount(), equalTo(indexedConnector.getSyncInfo().getLastDeletedDocumentCount()));
 
+    }
+
+    public void testUpdateConnectorLastSyncStats_syncCursor() throws Exception {
+        Connector connector = ConnectorTestUtils.getRandomConnector();
+        String connectorId = randomUUID();
+
+        ConnectorCreateActionResponse resp = awaitCreateConnector(connectorId, connector);
+        assertThat(resp.status(), anyOf(equalTo(RestStatus.CREATED), equalTo(RestStatus.OK)));
+
+        Map<String, String> syncCursor = randomMap(2, 3, () -> new Tuple<>(randomAlphaOfLength(4), randomAlphaOfLength(4)));
+
+        UpdateConnectorLastSyncStatsAction.Request lastSyncStats = new UpdateConnectorLastSyncStatsAction.Request.Builder().setConnectorId(
+            connectorId
+        ).setSyncInfo(new ConnectorSyncInfo.Builder().build()).setSyncCursor(syncCursor).build();
+
+        DocWriteResponse updateResponse = awaitUpdateConnectorLastSyncStats(lastSyncStats);
+        assertThat(updateResponse.status(), equalTo(RestStatus.OK));
+
+        Connector indexedConnector = awaitGetConnector(connectorId);
+        // Check sync_cursor got updated
+        assertThat(syncCursor, equalTo(indexedConnector.getSyncCursor()));
     }
 
     public void testUpdateConnectorScheduling() throws Exception {

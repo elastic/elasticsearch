@@ -1,0 +1,5 @@
+pr: 106591
+summary: Make dense vector field type updatable
+area: Search
+type: enhancement
+issues: []

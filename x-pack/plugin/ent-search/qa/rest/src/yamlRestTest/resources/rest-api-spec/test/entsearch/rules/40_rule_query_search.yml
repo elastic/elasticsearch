@@ -99,6 +99,23 @@ setup:
                   - 'doc6'
 
 ---
+teardown:
+  - do:
+      query_ruleset.delete:
+        ruleset_id: test-ruleset
+        ignore: 404
+
+  - do:
+      query_ruleset.delete:
+        ruleset_id: another-test-ruleset
+        ignore: 404
+
+  - do:
+      query_ruleset.delete:
+        ruleset_id: combined-ruleset
+        ignore: 404
+
+---
 "Perform a rule query specifying a ruleset that does not exist":
   - do:
       catch: /resource_not_found_exception/

@@ -17,6 +17,7 @@ import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.core.ml.inference.results.MlTextEmbeddingResults;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -43,12 +44,12 @@ import java.util.Objects;
  *     ]
  * }
  */
-public record TextEmbeddingByteResults(List<Embedding> embeddings) implements InferenceServiceResults, TextEmbedding {
+public record InferenceTextEmbeddingByteResults(List<InferenceByteEmbedding> embeddings) implements InferenceServiceResults, TextEmbedding {
     public static final String NAME = "text_embedding_service_byte_results";
     public static final String TEXT_EMBEDDING_BYTES = "text_embedding_bytes";
 
-    public TextEmbeddingByteResults(StreamInput in) throws IOException {
-        this(in.readCollectionAsList(Embedding::new));
+    public InferenceTextEmbeddingByteResults(StreamInput in) throws IOException {
+        this(in.readCollectionAsList(InferenceByteEmbedding::new));
     }
 
     @Override
@@ -59,7 +60,7 @@ public record TextEmbeddingByteResults(List<Embedding> embeddings) implements In
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startArray(TEXT_EMBEDDING_BYTES);
-        for (Embedding embedding : embeddings) {
+        for (InferenceByteEmbedding embedding : embeddings) {
             embedding.toXContent(builder, params);
         }
         builder.endArray();
@@ -79,13 +80,7 @@ public record TextEmbeddingByteResults(List<Embedding> embeddings) implements In
     @Override
     public List<? extends InferenceResults> transformToCoordinationFormat() {
         return embeddings.stream()
-            .map(
-                embedding -> new org.elasticsearch.xpack.core.ml.inference.results.TextEmbeddingResults(
-                    TEXT_EMBEDDING_BYTES,
-                    embedding.toDoubleArray(),
-                    false
-                )
-            )
+            .map(embedding -> new MlTextEmbeddingResults(TEXT_EMBEDDING_BYTES, embedding.toDoubleArray(), false))
             .toList();
     }
 
@@ -110,7 +105,7 @@ public record TextEmbeddingByteResults(List<Embedding> embeddings) implements In
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        TextEmbeddingByteResults that = (TextEmbeddingByteResults) o;
+        InferenceTextEmbeddingByteResults that = (InferenceTextEmbeddingByteResults) o;
         return Objects.equals(embeddings, that.embeddings);
     }
 
@@ -119,10 +114,10 @@ public record TextEmbeddingByteResults(List<Embedding> embeddings) implements In
         return Objects.hash(embeddings);
     }
 
-    public record Embedding(byte[] values) implements Writeable, ToXContentObject, EmbeddingInt {
+    public record InferenceByteEmbedding(byte[] values) implements Writeable, ToXContentObject, EmbeddingInt {
         public static final String EMBEDDING = "embedding";
 
-        public Embedding(StreamInput in) throws IOException {
+        public InferenceByteEmbedding(StreamInput in) throws IOException {
             this(in.readByteArray());
         }
 
@@ -131,12 +126,12 @@ public record TextEmbeddingByteResults(List<Embedding> embeddings) implements In
             out.writeByteArray(values);
         }
 
-        public static Embedding of(List<Byte> embeddingValuesList) {
+        public static InferenceByteEmbedding of(List<Byte> embeddingValuesList) {
             byte[] embeddingValues = new byte[embeddingValuesList.size()];
             for (int i = 0; i < embeddingValuesList.size(); i++) {
                 embeddingValues[i] = embeddingValuesList.get(i);
             }
-            return new Embedding(embeddingValues);
+            return new InferenceByteEmbedding(embeddingValues);
         }
 
         @Override
@@ -183,7 +178,7 @@ public record TextEmbeddingByteResults(List<Embedding> embeddings) implements In
         public boolean equals(Object o) {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
-            Embedding embedding = (Embedding) o;
+            InferenceByteEmbedding embedding = (InferenceByteEmbedding) o;
             return Arrays.equals(values, embedding.values);
         }
 

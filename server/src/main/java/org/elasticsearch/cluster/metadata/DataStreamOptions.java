@@ -8,7 +8,6 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.common.Strings;
@@ -29,7 +28,10 @@ import java.io.IOException;
  * supports the following configurations:
  * - failure store
  */
-public record DataStreamOptions(@Nullable DataStreamFailureStore failureStore) implements SimpleDiffable<DataStreamOptions>, ToXContentObject {
+public record DataStreamOptions(@Nullable DataStreamFailureStore failureStore)
+    implements
+        SimpleDiffable<DataStreamOptions>,
+        ToXContentObject {
 
     public static final ParseField OPTIONS_FIELD = new ParseField("options");
 
@@ -43,7 +45,7 @@ public record DataStreamOptions(@Nullable DataStreamFailureStore failureStore) i
         PARSER.declareField(
             ConstructingObjectParser.optionalConstructorArg(),
             (p, c) -> DataStreamFailureStore.fromXContent(p),
-                OPTIONS_FIELD,
+            OPTIONS_FIELD,
             ObjectParser.ValueType.OBJECT_OR_NULL
         );
     }
@@ -51,6 +53,7 @@ public record DataStreamOptions(@Nullable DataStreamFailureStore failureStore) i
     public DataStreamOptions() {
         this(null);
     }
+
     public static DataStreamOptions read(StreamInput in) throws IOException {
         return new DataStreamOptions(in.readOptionalWriteable(DataStreamFailureStore::read));
     }

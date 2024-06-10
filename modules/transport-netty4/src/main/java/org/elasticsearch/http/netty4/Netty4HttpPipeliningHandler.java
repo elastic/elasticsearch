@@ -31,6 +31,7 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
+import org.elasticsearch.common.network.ThreadWatchdog;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
@@ -56,6 +57,7 @@ public class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
     private static final Logger logger = LogManager.getLogger(Netty4HttpPipeliningHandler.class);
 
     private final int maxEventsHeld;
+    private final ThreadWatchdog.ActivityTracker activityTracker;
     private final PriorityQueue<Tuple<? extends Netty4HttpResponse, ChannelPromise>> outboundHoldingQueue;
 
     private record ChunkedWrite(PromiseCombiner combiner, ChannelPromise onDone, ChunkedRestResponseBodyPart responseBodyPart) {}
@@ -90,31 +92,41 @@ public class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
      * @param maxEventsHeld the maximum number of channel events that will be retained prior to aborting the channel connection; this is
      *                      required as events cannot queue up indefinitely
      */
-    public Netty4HttpPipeliningHandler(final int maxEventsHeld, final Netty4HttpServerTransport serverTransport) {
+    public Netty4HttpPipeliningHandler(
+        final int maxEventsHeld,
+        final Netty4HttpServerTransport serverTransport,
+        final ThreadWatchdog.ActivityTracker activityTracker
+    ) {
         this.maxEventsHeld = maxEventsHeld;
+        this.activityTracker = activityTracker;
         this.outboundHoldingQueue = new PriorityQueue<>(1, Comparator.comparingInt(t -> t.v1().getSequence()));
         this.serverTransport = serverTransport;
     }
 
     @Override
     public void channelRead(final ChannelHandlerContext ctx, final Object msg) {
-        assert msg instanceof FullHttpRequest : "Should have fully aggregated message already but saw [" + msg + "]";
-        final FullHttpRequest fullHttpRequest = (FullHttpRequest) msg;
-        final Netty4HttpRequest netty4HttpRequest;
-        if (fullHttpRequest.decoderResult().isFailure()) {
-            final Throwable cause = fullHttpRequest.decoderResult().cause();
-            final Exception nonError;
-            if (cause instanceof Error) {
-                ExceptionsHelper.maybeDieOnAnotherThread(cause);
-                nonError = new Exception(cause);
+        activityTracker.startActivity();
+        try {
+            assert msg instanceof FullHttpRequest : "Should have fully aggregated message already but saw [" + msg + "]";
+            final FullHttpRequest fullHttpRequest = (FullHttpRequest) msg;
+            final Netty4HttpRequest netty4HttpRequest;
+            if (fullHttpRequest.decoderResult().isFailure()) {
+                final Throwable cause = fullHttpRequest.decoderResult().cause();
+                final Exception nonError;
+                if (cause instanceof Error) {
+                    ExceptionsHelper.maybeDieOnAnotherThread(cause);
+                    nonError = new Exception(cause);
+                } else {
+                    nonError = (Exception) cause;
+                }
+                netty4HttpRequest = new Netty4HttpRequest(readSequence++, fullHttpRequest, nonError);
             } else {
-                nonError = (Exception) cause;
+                netty4HttpRequest = new Netty4HttpRequest(readSequence++, fullHttpRequest);
             }
-            netty4HttpRequest = new Netty4HttpRequest(readSequence++, fullHttpRequest, nonError);
-        } else {
-            netty4HttpRequest = new Netty4HttpRequest(readSequence++, fullHttpRequest);
+            handlePipelinedRequest(ctx, netty4HttpRequest);
+        } finally {
+            activityTracker.stopActivity();
         }
-        handlePipelinedRequest(ctx, netty4HttpRequest);
     }
 
     // protected so tests can override it

@@ -269,8 +269,9 @@ public class LogsDataStreamIT extends ESSingleNodeTestCase {
         assertThat(
             exception.getCause().getCause().getMessage(),
             Matchers.equalTo(
-                "All fields that match routing_path must be configured with [time_series_dimension: true] or flattened fields with "
-                    + "a list of dimensions in [time_series_dimensions] and without the [script] parameter. [host.name] was not a dimension."
+                "All fields that match routing_path must be configured with [time_series_dimension: true] or flattened fields "
+                    + " with a list of dimensions in [time_series_dimensions] and without the [script] parameter. [host.name] was not a"
+                    + "a dimension."
             )
         );
     }

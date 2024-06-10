@@ -18,7 +18,7 @@ import static org.elasticsearch.xpack.esql.core.expression.Literal.FALSE;
 import static org.elasticsearch.xpack.esql.core.expression.Literal.TRUE;
 
 /**
- * This rule must always be placed after {@link org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules.LiteralsOnTheRight}
+ * This rule must always be placed after {@link LiteralsOnTheRight}
  * since it looks at TRUE/FALSE literals' existence on the right hand-side of the {@link Equals}/{@link NotEquals} expressions.
  */
 public final class BooleanFunctionEqualsElimination extends

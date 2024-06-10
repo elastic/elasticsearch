@@ -122,11 +122,11 @@ public abstract class AbstractDataStreamIT extends ESRestTestCase {
             } else {
                 throw new IllegalStateException(
                     "Failed to reach the end of the path "
-                    + String.join(".", path)
-                    + " last reachable field was "
-                    + path.get(i)
-                    + " in "
-                    + map
+                        + String.join(".", path)
+                        + " last reachable field was "
+                        + path.get(i)
+                        + " in "
+                        + map
                 );
             }
         }

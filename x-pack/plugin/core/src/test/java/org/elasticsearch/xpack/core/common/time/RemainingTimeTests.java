@@ -34,6 +34,7 @@ public class RemainingTimeTests extends ESTestCase {
 
     // always add the first value, which is read when RemainingTime.from is called, then add the test values
     private Supplier<Instant> times(Instant... instants) {
-        return Stream.concat(Stream.of(Instant.now()), Arrays.stream(instants)).iterator()::next;
+        var startTime = Stream.of(Instant.now());
+        return Stream.concat(startTime, Arrays.stream(instants)).iterator()::next;
     }
 }

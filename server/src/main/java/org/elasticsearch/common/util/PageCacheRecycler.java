@@ -30,7 +30,7 @@ public class PageCacheRecycler {
 
     public static final Setting<Type> TYPE_SETTING = new Setting<>(
         "cache.recycler.page.type",
-        Type.CONCURRENT.name(),
+        Type.QUEUE.name(),
         Type::parse,
         Property.NodeScope
     );

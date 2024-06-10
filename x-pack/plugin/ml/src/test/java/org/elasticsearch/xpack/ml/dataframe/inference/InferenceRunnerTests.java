@@ -21,15 +21,12 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchResponseUtils;
-import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
 import org.elasticsearch.search.aggregations.metrics.Max;
 import org.elasticsearch.search.profile.SearchProfileResults;
 import org.elasticsearch.search.suggest.Suggest;
@@ -45,7 +42,6 @@ import org.elasticsearch.xpack.core.ml.dataframe.analyses.RegressionTests;
 import org.elasticsearch.xpack.core.ml.dataframe.stats.common.DataCounts;
 import org.elasticsearch.xpack.core.ml.inference.results.ClassificationInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfig;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
 import org.elasticsearch.xpack.ml.dataframe.DestinationIndex;
 import org.elasticsearch.xpack.ml.dataframe.stats.DataCountsTracker;
 import org.elasticsearch.xpack.ml.dataframe.stats.ProgressTracker;
@@ -61,16 +57,10 @@ import org.mockito.Mockito;
 import java.io.IOException;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
 import java.util.Deque;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
@@ -217,29 +207,39 @@ public class InferenceRunnerTests extends ESTestCase {
         return listener;
     }
 
+    /**
+     * When an exception is returned in a chained listener's onFailure call
+     * Then InferenceRunner should wrap it in an ElasticsearchException
+     */
     public void testModelLoadingServiceResponseWithAnException() {
-        var expectedException = new IllegalArgumentException("this is a test");
+        var expectedCause = new IllegalArgumentException("this is a test");
         doAnswer(ans -> {
             ActionListener<LocalModel> responseListener = ans.getArgument(1);
-            responseListener.onFailure(expectedException);
+            responseListener.onFailure(expectedCause);
             return null;
         }).when(modelLoadingService).getModelForInternalInference(anyString(), any());
 
-        var exception = run(createInferenceRunner(mock(ExtractedFields.class))).assertFailure();
-        assertThat(exception, instanceOf(ElasticsearchException.class));
-        assertThat(exception.getCause(), is(expectedException));
-        assertThat(exception.getMessage(), equalTo("[test] failed running inference on model [id]; cause was [this is a test]"));
+        var actualException = run(createInferenceRunner(mock(ExtractedFields.class))).assertFailure();
+        inferenceRunnerHandledException(actualException, expectedCause);
     }
 
+    /**
+     * When an exception is thrown within InferenceRunner
+     * Then InferenceRunner should wrap it in an ElasticsearchException
+     */
     public void testExceptionCallingModelLoadingService() {
-        var expectedException = new IllegalArgumentException("this is a test");
+        var expectedCause = new IllegalArgumentException("this is a test");
 
-        doThrow(expectedException).when(modelLoadingService).getModelForInternalInference(anyString(), any());
+        doThrow(expectedCause).when(modelLoadingService).getModelForInternalInference(anyString(), any());
 
-        var exception = run(createInferenceRunner(mock(ExtractedFields.class))).assertFailure();
-        assertThat(exception, instanceOf(ElasticsearchException.class));
-        assertThat(exception.getCause(), is(expectedException));
-        assertThat(exception.getMessage(), equalTo("[test] failed running inference on model [id]; cause was [this is a test]"));
+        var actualException = run(createInferenceRunner(mock(ExtractedFields.class))).assertFailure();
+        inferenceRunnerHandledException(actualException, expectedCause);
+    }
+
+    private void inferenceRunnerHandledException(Exception actual, Exception expectedCause) {
+        assertThat(actual, instanceOf(ElasticsearchException.class));
+        assertThat(actual.getCause(), is(expectedCause));
+        assertThat(actual.getMessage(), equalTo("[test] failed running inference on model [id]; cause was [this is a test]"));
     }
 
     private Client mockClient() {

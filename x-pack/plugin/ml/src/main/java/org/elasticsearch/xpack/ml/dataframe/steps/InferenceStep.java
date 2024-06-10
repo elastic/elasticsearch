@@ -89,15 +89,13 @@ public class InferenceStep extends AbstractDataFrameAnalyticsStep {
 
     private void runInference(String modelId, ActionListener<StepResponse> listener) {
         threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(ActionRunnable.wrap(listener, delegate -> {
-            inferenceRunner.run(modelId, ActionListener.wrap(
-                aVoid -> delegate.onResponse(new StepResponse(isTaskStopping())),
-                e -> {
-                    if (task.isStopping()) {
-                        delegate.onResponse(new StepResponse(false));
-                    } else {
-                        delegate.onFailure(e);
-                    }
-                }));
+            inferenceRunner.run(modelId, ActionListener.wrap(aVoid -> delegate.onResponse(new StepResponse(isTaskStopping())), e -> {
+                if (task.isStopping()) {
+                    delegate.onResponse(new StepResponse(false));
+                } else {
+                    delegate.onFailure(e);
+                }
+            }));
         }));
     }
 

@@ -6,7 +6,7 @@
         "@timestamp": {
           "type": "date"
         },
-        "hostname": {
+        "host.name": {
           "type": "keyword"
         },
         "data_stream.type": {

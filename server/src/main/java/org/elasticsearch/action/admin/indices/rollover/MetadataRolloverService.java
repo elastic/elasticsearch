@@ -84,7 +84,7 @@ public class MetadataRolloverService {
         AutoShardingType.COOLDOWN_PREVENTED_DECREASE,
         "es.auto_sharding.cooldown_prevented_decrease.total"
     );
-    private static final String NON_EXISTENT_SOURCE = "non-existent";
+    private static final String NON_EXISTENT_SOURCE = "_none_";
 
     private final ThreadPool threadPool;
     private final MetadataCreateIndexService createIndexService;

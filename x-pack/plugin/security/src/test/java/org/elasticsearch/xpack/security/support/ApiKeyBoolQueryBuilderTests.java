@@ -51,7 +51,7 @@ import java.util.function.Predicate;
 
 import static org.elasticsearch.test.LambdaMatchers.falseWith;
 import static org.elasticsearch.test.LambdaMatchers.trueWith;
-import static org.elasticsearch.xpack.security.support.ApiKeyFieldNameTranslators.FIELD_NAME_TRANSLATORS;
+import static org.elasticsearch.xpack.security.support.FieldNameTranslators.API_KEY_FIELD_NAME_TRANSLATORS;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
@@ -133,12 +133,12 @@ public class ApiKeyBoolQueryBuilderTests extends ESTestCase {
         }
         List<String> queryFields = new ArrayList<>();
         ApiKeyBoolQueryBuilder apiKeyMatchQueryBuilder = ApiKeyBoolQueryBuilder.build(prefixQueryBuilder, queryFields::add, authentication);
-        assertThat(queryFields, hasItem(ApiKeyFieldNameTranslators.translate(fieldName)));
+        assertThat(queryFields, hasItem(API_KEY_FIELD_NAME_TRANSLATORS.translate(fieldName)));
         List<QueryBuilder> mustQueries = apiKeyMatchQueryBuilder.must();
         assertThat(mustQueries, hasSize(1));
         assertThat(mustQueries.get(0), instanceOf(PrefixQueryBuilder.class));
         PrefixQueryBuilder prefixQueryBuilder2 = (PrefixQueryBuilder) mustQueries.get(0);
-        assertThat(prefixQueryBuilder2.fieldName(), is(ApiKeyFieldNameTranslators.translate(prefixQueryBuilder.fieldName())));
+        assertThat(prefixQueryBuilder2.fieldName(), is(API_KEY_FIELD_NAME_TRANSLATORS.translate(prefixQueryBuilder.fieldName())));
         assertThat(prefixQueryBuilder2.value(), is(prefixQueryBuilder.value()));
         assertThat(prefixQueryBuilder2.boost(), is(prefixQueryBuilder.boost()));
         assertThat(prefixQueryBuilder2.queryName(), is(prefixQueryBuilder.queryName()));
@@ -267,7 +267,7 @@ public class ApiKeyBoolQueryBuilderTests extends ESTestCase {
         assertThat(simpleQueryStringBuilder2.fields().size(), is(simpleQueryStringBuilder.fields().size()));
         for (Map.Entry<String, Float> fieldEntry : simpleQueryStringBuilder.fields().entrySet()) {
             assertThat(
-                simpleQueryStringBuilder2.fields().get(ApiKeyFieldNameTranslators.translate(fieldEntry.getKey())),
+                simpleQueryStringBuilder2.fields().get(API_KEY_FIELD_NAME_TRANSLATORS.translate(fieldEntry.getKey())),
                 is(fieldEntry.getValue())
             );
         }
@@ -341,12 +341,12 @@ public class ApiKeyBoolQueryBuilderTests extends ESTestCase {
         }
         List<String> queryFields = new ArrayList<>();
         ApiKeyBoolQueryBuilder apiKeyMatchQueryBuilder = ApiKeyBoolQueryBuilder.build(matchQueryBuilder, queryFields::add, authentication);
-        assertThat(queryFields, hasItem(ApiKeyFieldNameTranslators.translate(fieldName)));
+        assertThat(queryFields, hasItem(API_KEY_FIELD_NAME_TRANSLATORS.translate(fieldName)));
         List<QueryBuilder> mustQueries = apiKeyMatchQueryBuilder.must();
         assertThat(mustQueries, hasSize(1));
         assertThat(mustQueries.get(0), instanceOf(MatchQueryBuilder.class));
         MatchQueryBuilder matchQueryBuilder2 = (MatchQueryBuilder) mustQueries.get(0);
-        assertThat(matchQueryBuilder2.fieldName(), is(ApiKeyFieldNameTranslators.translate(matchQueryBuilder.fieldName())));
+        assertThat(matchQueryBuilder2.fieldName(), is(API_KEY_FIELD_NAME_TRANSLATORS.translate(matchQueryBuilder.fieldName())));
         assertThat(matchQueryBuilder2.value(), is(matchQueryBuilder.value()));
         assertThat(matchQueryBuilder2.operator(), is(matchQueryBuilder.operator()));
         assertThat(matchQueryBuilder2.analyzer(), is(matchQueryBuilder.analyzer()));
@@ -612,7 +612,7 @@ public class ApiKeyBoolQueryBuilderTests extends ESTestCase {
         final Authentication authentication = randomBoolean() ? AuthenticationTests.randomAuthentication(null, null) : null;
 
         final String randomFieldName = randomValueOtherThanMany(
-            s -> FIELD_NAME_TRANSLATORS.fieldNameTranslators.stream().anyMatch(t -> t.supports(s)),
+            s -> API_KEY_FIELD_NAME_TRANSLATORS.fieldNameTranslators.stream().anyMatch(t -> t.supports(s)),
             () -> randomAlphaOfLengthBetween(3, 20)
         );
         final String fieldName = randomFrom(

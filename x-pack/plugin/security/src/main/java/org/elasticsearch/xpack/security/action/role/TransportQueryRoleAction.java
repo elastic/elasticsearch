@@ -18,6 +18,9 @@ import org.elasticsearch.xpack.core.security.action.apikey.QueryApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.QueryApiKeyResponse;
 import org.elasticsearch.xpack.core.security.action.role.QueryRoleAction;
 import org.elasticsearch.xpack.security.authz.store.NativeRolesStore;
+import org.elasticsearch.xpack.security.support.RoleBoolQueryBuilder;
+
+import static org.elasticsearch.xpack.security.support.FieldNameTranslators.ROLE_FIELD_NAME_TRANSLATORS;
 
 public class TransportQueryRoleAction extends TransportAction<QueryApiKeyRequest, QueryApiKeyResponse> {
 
@@ -41,18 +44,9 @@ public class TransportQueryRoleAction extends TransportAction<QueryApiKeyRequest
         if (request.getSize() != null) {
             searchSourceBuilder.size(request.getSize());
         }
-        // searchSourceBuilder.query(ApiKeyBoolQueryBuilder.build(request.getQueryBuilder(), fieldName -> {
-        // if (API_KEY_TYPE_RUNTIME_MAPPING_FIELD.equals(fieldName)) {
-        // accessesApiKeyTypeField.set(true);
-        // }
-        // }, filteringAuthentication));
-        //
-        // if (request.getFieldSortBuilders() != null) {
-        // translateFieldSortBuilders(request.getFieldSortBuilders(), searchSourceBuilder, fieldName -> {
-        // if (API_KEY_TYPE_RUNTIME_MAPPING_FIELD.equals(fieldName)) {
-        // accessesApiKeyTypeField.set(true);
-        // }
-        // });
-        // }
+        searchSourceBuilder.query(RoleBoolQueryBuilder.build(request.getQueryBuilder(), null));
+        if (request.getFieldSortBuilders() != null) {
+            ROLE_FIELD_NAME_TRANSLATORS.translateFieldSortBuilders(request.getFieldSortBuilders(), searchSourceBuilder, null);
+        }
     }
 }

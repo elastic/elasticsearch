@@ -14,9 +14,9 @@ import java.security.BasicPermission;
  * A permission granted to ensure secured access to a file specified by a setting in the config directory.
  * <p>
  * By granting this permission with a setting key (wildcards are supported),
- * the specified setting(s) are read to specify files in the config directory that should be secured.
- * All code that does not have the same permission on the same file will be denied all read/write access to that file.
- * Note that you also need to wrap any access to the secured files in an {@code AccessController.doPrivileged()} block
+ * the files pointed to by the settings are secured from general access by Elasticsearch and other Elasticsearch plugins.
+ * All code that does not have a secured permission on the same file will be denied all read/write access to that file.
+ * Note that you also need to wrap any access to secured files in an {@code AccessController.doPrivileged()} block
  * as Elasticsearch itself is denied access to files secured by plugins.
  */
 public class SecuredFileSettingAccessPermission extends BasicPermission {

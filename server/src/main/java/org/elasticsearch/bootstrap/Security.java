@@ -107,7 +107,7 @@ import static org.elasticsearch.reservedstate.service.FileSettingsService.SETTIN
  */
 final class Security {
 
-    private static Logger Log;  // not init'd until configure call below
+    private static Logger logger;  // not init'd until configure call below
 
     static {
         prepopulateSecurityCaller();
@@ -127,7 +127,7 @@ final class Security {
      * @param filterBadDefaults true if we should filter out bad java defaults in the system policy.
      */
     static void configure(Environment environment, boolean filterBadDefaults, Path pidFile) throws IOException {
-        Log = LogManager.getLogger(Security.class);
+        logger = LogManager.getLogger(Security.class);
 
         // enable security policy: union of template and environment-based paths, and possibly plugin permissions
         Map<String, URL> codebases = PolicyUtil.getCodebaseJarMap(JarHell.parseModulesAndClassPath());
@@ -236,9 +236,14 @@ final class Security {
                 if (ps.getKey().matcher(setting).matches()) {
                     // add the setting value to the secured files for these codebase URLs
                     Path file = environment.configFile().resolve(environment.settings().get(setting));
-                    if (Log.isDebugEnabled()) {
+                    if (file.startsWith(environment.configFile()) == false) {
+                        throw new IllegalStateException(ps.getValue() + " tried to grant access to file outside config directory " + file);
+                    }
+                    if (logger.isDebugEnabled()) {
                         ps.getValue()
-                            .forEach(url -> Log.debug("Jar {} securing access to config file {} through setting {}", url, file, setting));
+                            .forEach(
+                                url -> logger.debug("Jar {} securing access to config file {} through setting {}", url, file, setting)
+                            );
                     }
                     securedFiles.computeIfAbsent(file.toString(), k -> new HashSet<>()).addAll(ps.getValue());
                 }
@@ -265,7 +270,10 @@ final class Security {
         String securedFileName = extractSecuredName(p, SecuredFileAccessPermission.class);
         if (securedFileName != null) {
             Path securedFile = environment.configFile().resolve(securedFileName);
-            Log.debug("Jar {} securing access to config file {}", url, securedFile);
+            if (securedFile.startsWith(environment.configFile()) == false) {
+                throw new IllegalStateException("[" + url + "] tried to grant access to file outside config directory " + securedFile);
+            }
+            logger.debug("Jar {} securing access to config file {}", url, securedFile);
             securedFiles.computeIfAbsent(securedFile.toString(), k -> new HashSet<>()).add(url);
         }
 

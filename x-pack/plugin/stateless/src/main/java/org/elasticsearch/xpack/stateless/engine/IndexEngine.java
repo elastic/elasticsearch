@@ -277,8 +277,10 @@ public class IndexEngine extends InternalEngine {
 
     @Override
     public IndexResult index(Index index) throws IOException {
+
         DocumentSizeReporter documentParsingReporter = documentParsingProvider.newDocumentSizeReporter(
             shardId.getIndexName(),
+            engineConfig.getIndexSettings().getMode(),
             documentSizeAccumulator
         );
         ParsedDocument parsedDocument = index.parsedDoc();

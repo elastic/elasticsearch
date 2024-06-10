@@ -53,13 +53,6 @@ public record DataStreamFailureStore(boolean enabled) implements SimpleDiffable<
         return new DataStreamFailureStore(in.readBoolean());
     }
 
-    /**
-     * Returns true, if this data stream lifecycle configuration is enabled and false otherwise
-     */
-    public boolean isEnabled() {
-        return enabled;
-    }
-
     public static Diff<DataStreamFailureStore> readDiffFrom(StreamInput in) throws IOException {
         return SimpleDiffable.readDiffFrom(DataStreamFailureStore::read, in);
     }

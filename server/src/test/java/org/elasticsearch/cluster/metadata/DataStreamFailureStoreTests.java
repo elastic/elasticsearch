@@ -28,7 +28,7 @@ public class DataStreamFailureStoreTests extends AbstractXContentSerializingTest
 
     @Override
     protected DataStreamFailureStore mutateInstance(DataStreamFailureStore instance) throws IOException {
-        return new DataStreamFailureStore(instance.isEnabled() == false);
+        return new DataStreamFailureStore(instance.enabled() == false);
     }
 
     @Override

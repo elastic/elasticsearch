@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference.external.response;
 
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentEOFException;
 import org.elasticsearch.xcontent.XContentParser;
@@ -16,6 +17,7 @@ import java.io.IOException;
 import java.util.Locale;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 
 public class XContentUtilsTests extends ESTestCase {
 
@@ -231,6 +233,52 @@ public class XContentUtilsTests extends ESTestCase {
 
             assertEquals(XContentParser.Token.END_ARRAY, parser.nextToken());
             assertNull(parser.nextToken()); // fully parsed
+        }
+    }
+
+    public void testParseFloat_SingleFloatValue() throws IOException {
+        var json = """
+             {
+               "key": 1.23
+              }
+            """;
+        var errorFormat = "Error: %s";
+
+        try (XContentParser parser = createParser(XContentType.JSON.xContent(), json)) {
+            XContentUtils.positionParserAtTokenAfterField(parser, "key", errorFormat);
+            Float value = XContentUtils.parseFloat(parser);
+
+            assertThat(value, equalTo(1.23F));
+        }
+    }
+
+    public void testParseFloat_SingleIntValue() throws IOException {
+        var json = """
+             {
+               "key": 1
+             }
+            """;
+        var errorFormat = "Error: %s";
+
+        try (XContentParser parser = createParser(XContentType.JSON.xContent(), json)) {
+            XContentUtils.positionParserAtTokenAfterField(parser, "key", errorFormat);
+            Float value = XContentUtils.parseFloat(parser);
+
+            assertThat(value, equalTo(1.0F));
+        }
+    }
+
+    public void testParseFloat_ThrowsIfNotANumber() throws IOException {
+        var json = """
+             {
+               "key": "value"
+             }
+            """;
+        var errorFormat = "Error: %s";
+
+        try (XContentParser parser = createParser(XContentType.JSON.xContent(), json)) {
+            XContentUtils.positionParserAtTokenAfterField(parser, "key", errorFormat);
+            expectThrows(ParsingException.class, () -> XContentUtils.parseFloat(parser));
         }
     }
 }

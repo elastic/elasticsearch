@@ -8,6 +8,7 @@
 
 package org.elasticsearch.search.rank;
 
+import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
@@ -547,6 +548,11 @@ public class FieldBasedRerankerIT extends ESIntegTestCase {
         @Override
         public boolean isCompoundBuilder() {
             return false;
+        }
+
+        @Override
+        public Explanation explainHit(Explanation baseExplanation, RankDoc scoreDoc, List<String> queryNames) {
+            return baseExplanation;
         }
 
         @Override

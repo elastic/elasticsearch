@@ -47,6 +47,7 @@ import org.elasticsearch.xpack.esql.core.index.EsIndex;
 import org.elasticsearch.xpack.esql.core.index.IndexResolution;
 import org.elasticsearch.xpack.esql.core.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.core.plan.logical.Limit;
+import org.elasticsearch.xpack.esql.core.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.enrich.ResolvedEnrichPolicy;
@@ -73,7 +74,11 @@ import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
+import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
+import org.elasticsearch.xpack.esql.plan.logical.join.Join;
+import org.elasticsearch.xpack.esql.plan.logical.join.JoinType;
+import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.DissectExec;
@@ -88,6 +93,7 @@ import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
 import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.GrokExec;
+import org.elasticsearch.xpack.esql.plan.physical.HashJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
 import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
@@ -108,6 +114,7 @@ import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -115,6 +122,8 @@ import static java.util.Arrays.asList;
 import static org.elasticsearch.core.Tuple.tuple;
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.existsQuery;
+import static org.elasticsearch.test.ListMatcher.matchesList;
+import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.configuration;
@@ -135,10 +144,14 @@ import static org.elasticsearch.xpack.esql.plan.physical.AggregateExec.Mode.PART
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.matchesRegex;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.startsWith;
 
 // @TestLogging(value = "org.elasticsearch.xpack.esql:TRACE", reason = "debug")
 public class PhysicalPlanOptimizerTests extends ESTestCase {
@@ -4077,6 +4090,145 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
         e = expectThrows(ParsingException.class, () -> physicalPlan(mainQuery + cast + " | eval x = 10"));
         assertThat(e.getMessage(), containsString("ESQL statement exceeded the maximum query depth allowed (" + MAX_QUERY_DEPTH + ")"));
+    }
+
+    public void testLookupSimple() {
+        PhysicalPlan plan = physicalPlan("""
+              FROM test |
+            RENAME languages AS int |
+            LOOKUP int_number_names ON int""");
+        var join = as(plan, HashJoinExec.class);
+        assertMap(join.matchFields().stream().map(Object::toString).toList(), matchesList().item(startsWith("int{r}")));
+        assertMap(
+            join.output().stream().map(Object::toString).toList(),
+            matchesList().item(startsWith("_meta_field{f}"))
+                .item(startsWith("emp_no{f}"))
+                .item(startsWith("first_name{f}"))
+                .item(startsWith("gender{f}"))
+                .item(startsWith("job{f}"))
+                .item(startsWith("job.raw{f}"))
+                .item(startsWith("int{r}"))
+                .item(startsWith("last_name{f}"))
+                .item(startsWith("long_noidx{f}"))
+                .item(startsWith("salary{f}"))
+                .item(startsWith("name{r}"))
+        );
+    }
+
+    /**
+     * Expected
+     * {@code
+     * ProjectExec[[emp_no{f}#17, int{r}#5 AS languages, name{f}#28 AS lang_name]]
+     * \_HashJoinExec[
+     *      LocalSourceExec[[int{f}#27, name{f}#28],[...]],
+     *      [int{r}#5],
+     *      [name{r}#28, _meta_field{f}#23, emp_no{f}#17, ...]]
+     *   \_ProjectExec[[_meta_field{f}#23, emp_no{f}#17, ...]]
+     *     \_TopNExec[[Order[emp_no{f}#17,ASC,LAST]],4[INTEGER],370]
+     *       \_ExchangeExec[[],false]
+     *         \_ProjectExec[[emp_no{f}#17, ..., languages{f}#20]]
+     *           \_FieldExtractExec[emp_no{f}#17, _meta_field{f}#23, first_name{f}#18, ..]<[]>
+     *             \_EsQueryExec[...]
+     * }
+     */
+    public void testLookupThenProject() {
+        PhysicalPlan plan = optimizedPlan(physicalPlan("""
+            FROM employees
+            | SORT emp_no
+            | LIMIT 4
+            | RENAME languages AS int
+            | LOOKUP int_number_names ON int
+            | RENAME int AS languages, name AS lang_name
+            | KEEP emp_no, languages, lang_name"""));
+
+        var outerProject = as(plan, ProjectExec.class);
+        assertThat(outerProject.projections().toString(), containsString("AS lang_name"));
+        var join = as(outerProject.child(), HashJoinExec.class);
+        assertMap(join.matchFields().stream().map(Object::toString).toList(), matchesList().item(startsWith("int{r}")));
+        assertMap(
+            join.output().stream().map(Object::toString).toList(),
+            matchesList().item(startsWith("_meta_field{f}"))
+                .item(startsWith("emp_no{f}"))
+                .item(startsWith("first_name{f}"))
+                .item(startsWith("gender{f}"))
+                .item(startsWith("job{f}"))
+                .item(startsWith("job.raw{f}"))
+                .item(startsWith("int{r}"))
+                .item(startsWith("last_name{f}"))
+                .item(startsWith("long_noidx{f}"))
+                .item(startsWith("salary{f}"))
+                .item(startsWith("name{r}"))
+        );
+
+        var middleProject = as(join.child(), ProjectExec.class);
+        assertThat(middleProject.projections().stream().map(Objects::toString).toList(), not(hasItem(startsWith("name{f}"))));
+        /*
+         * At the moment we don't push projections past the HashJoin so we still include first_name here
+         */
+        assertThat(middleProject.projections().stream().map(Objects::toString).toList(), hasItem(startsWith("first_name{f}")));
+
+        var outerTopn = as(middleProject.child(), TopNExec.class);
+        var exchange = as(outerTopn.child(), ExchangeExec.class);
+        var innerProject = as(exchange.child(), ProjectExec.class);
+        assertThat(innerProject.projections().stream().map(Objects::toString).toList(), not(hasItem(startsWith("name{f}"))));
+    }
+
+    /**
+     * Expects optimized data node plan of
+     * <pre>{@code
+     * TopN[[Order[name{r}#25,ASC,LAST], Order[emp_no{f}#14,ASC,LAST]],1000[INTEGER]]
+     * \_Join[JoinConfig[type=LEFT OUTER, unionFields=[int{r}#4]]]
+     *   |_EsqlProject[[..., long_noidx{f}#23, salary{f}#19]]
+     *   | \_EsRelation[test][_meta_field{f}#20, emp_no{f}#14, first_name{f}#15, ..]
+     *   \_LocalRelation[[int{f}#24, name{f}#25],[...]]
+     * }</pre>
+     */
+    public void testLookupThenTopN() {
+        var plan = physicalPlan("""
+                  FROM employees
+                | RENAME languages AS int
+                | LOOKUP int_number_names ON int
+                | RENAME name AS languages
+                | KEEP languages, emp_no
+                | SORT languages ASC, emp_no ASC
+            """);
+
+        ProjectExec outerProject = as(plan, ProjectExec.class);
+        TopNExec outerTopN = as(outerProject.child(), TopNExec.class);
+        ExchangeExec exchange = as(outerTopN.child(), ExchangeExec.class);
+        FragmentExec frag = as(exchange.child(), FragmentExec.class);
+
+        LogicalPlan opt = logicalOptimizer.optimize(frag.fragment());
+        TopN innerTopN = as(opt, TopN.class);
+        assertMap(
+            innerTopN.order().stream().map(o -> o.child().toString()).toList(),
+            matchesList().item(startsWith("name{r}")).item(startsWith("emp_no{f}"))
+        );
+        Join join = as(innerTopN.child(), Join.class);
+        assertThat(join.config().type(), equalTo(JoinType.LEFT));
+        assertMap(join.config().matchFields().stream().map(Objects::toString).toList(), matchesList().item(startsWith("int{r}")));
+
+        Project innerProject = as(join.left(), Project.class);
+        assertThat(innerProject.projections(), hasSize(10));
+        assertMap(
+            innerProject.projections().stream().map(Object::toString).toList(),
+            matchesList().item(startsWith("_meta_field{f}"))
+                .item(startsWith("emp_no{f}"))
+                .item(startsWith("first_name{f}"))
+                .item(startsWith("gender{f}"))
+                .item(startsWith("job{f}"))
+                .item(startsWith("job.raw{f}"))
+                .item(matchesRegex("languages\\{f}#\\d+ AS int#\\d+"))
+                .item(startsWith("last_name{f}"))
+                .item(startsWith("long_noidx{f}"))
+                .item(startsWith("salary{f}"))
+        );
+
+        LocalRelation lookup = as(join.right(), LocalRelation.class);
+        assertMap(
+            lookup.output().stream().map(Object::toString).toList(),
+            matchesList().item(startsWith("int{f}")).item(startsWith("name{f}"))
+        );
     }
 
     @SuppressWarnings("SameParameterValue")

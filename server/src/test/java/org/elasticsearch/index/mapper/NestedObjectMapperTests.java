@@ -12,6 +12,7 @@ import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.IndexVersion;
@@ -1500,12 +1501,12 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
     }
 
     public void testMergeNested() {
-        NestedObjectMapper firstMapper = new NestedObjectMapper.Builder("nested1", IndexVersion.current()).includeInParent(true)
-            .includeInRoot(true)
-            .build(MapperBuilderContext.root(false, false));
-        NestedObjectMapper secondMapper = new NestedObjectMapper.Builder("nested1", IndexVersion.current()).includeInParent(false)
-            .includeInRoot(true)
-            .build(MapperBuilderContext.root(false, false));
+        NestedObjectMapper firstMapper = new NestedObjectMapper.Builder("nested1", IndexVersion.current(), query -> {
+            throw new UnsupportedOperationException();
+        }).includeInParent(true).includeInRoot(true).build(MapperBuilderContext.root(false, false));
+        NestedObjectMapper secondMapper = new NestedObjectMapper.Builder("nested1", IndexVersion.current(), query -> {
+            throw new UnsupportedOperationException();
+        }).includeInParent(false).includeInRoot(true).build(MapperBuilderContext.root(false, false));
 
         MapperException e = expectThrows(
             MapperException.class,
@@ -1531,6 +1532,39 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
             b.endObject();
         });
         assertThat(object.withoutMappers().toString(), equalTo(shallowObject.toString()));
+    }
+
+    public void testNestedMapperFilters() throws Exception {
+        DocumentMapper docMapper = createDocumentMapper(mapping(b -> {
+            b.startObject("nested1");
+            {
+                b.field("type", "nested");
+                b.startObject("properties");
+                {
+                    b.startObject("field1").field("type", "text").endObject();
+                    b.startObject("sub_nested");
+                    {
+                        b.field("type", "nested");
+                        b.startObject("properties");
+                        {
+                            b.startObject("field2").field("type", "text").endObject();
+                        }
+                        b.endObject();
+                    }
+                    b.endObject();
+                }
+                b.endObject();
+            }
+            b.endObject();
+        }));
+
+        assertThat(docMapper.mappers().nestedLookup().getNestedMappers().size(), equalTo(2));
+        assertThat(docMapper.mappers().nestedLookup().getNestedMappers().get("nested1"), instanceOf(NestedObjectMapper.class));
+        NestedObjectMapper mapper1 = docMapper.mappers().nestedLookup().getNestedMappers().get("nested1");
+        assertThat(mapper1.parentTypeFilter(), equalTo(Queries.newNonNestedFilter(IndexVersion.current())));
+
+        NestedObjectMapper mapper2 = docMapper.mappers().nestedLookup().getNestedMappers().get("nested1.sub_nested");
+        assertThat(mapper2.parentTypeFilter(), equalTo(mapper1.nestedTypeFilter()));
     }
 
     private NestedObjectMapper createNestedObjectMapperWithAllParametersSet(CheckedConsumer<XContentBuilder, IOException> propertiesBuilder)

@@ -587,6 +587,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                 request,
                 globalTopKResults,
                 null,
+                null,
                 rankResult.getRescoreDocIds(),
                 null
             );

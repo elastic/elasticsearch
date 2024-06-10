@@ -7,6 +7,7 @@
  */
 package org.elasticsearch.action.search;
 
+import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
@@ -32,6 +33,7 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.rank.RankBuilder;
+import org.elasticsearch.search.rank.RankDoc;
 import org.elasticsearch.search.rank.RankShardResult;
 import org.elasticsearch.search.rank.context.QueryPhaseRankCoordinatorContext;
 import org.elasticsearch.search.rank.context.QueryPhaseRankShardContext;
@@ -990,6 +992,12 @@ public class RankFeaturePhaseTests extends ESTestCase {
             @Override
             public boolean isCompoundBuilder() {
                 return true;
+            }
+
+            @Override
+            public Explanation explainHit(Explanation baseExplanation, RankDoc scoreDoc, List<String> queryNames) {
+                // no-op
+                return baseExplanation;
             }
 
             @Override

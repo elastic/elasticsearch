@@ -118,6 +118,11 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
         this.labelFilterAutomaton = buildAutomaton(labelFilters, List.of());
     }
 
+    @Override
+    public boolean isEnabled() {
+        return enabled;
+    }
+
     // package-private for testing
     CharacterRunAutomaton getLabelFilterAutomaton() {
         return labelFilterAutomaton;

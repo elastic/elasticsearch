@@ -140,6 +140,11 @@ public interface Tracer {
     Releasable withScope(Traceable traceable);
 
     /**
+     * @return {@code if service is enabled}
+     */
+    boolean isEnabled();
+
+    /**
      * A Tracer implementation that does nothing. This is used when no tracer is configured,
      * in order to avoid null checks everywhere.
      */
@@ -177,6 +182,11 @@ public interface Tracer {
         @Override
         public Releasable withScope(Traceable traceable) {
             return () -> {};
+        }
+
+        @Override
+        public boolean isEnabled() {
+            return false;
         }
     };
 

@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.ml.inference.nlp;
 
 import org.elasticsearch.inference.InferenceResults;
-import org.elasticsearch.xpack.core.ml.inference.results.ChunkedTextExpansionResults;
+import org.elasticsearch.xpack.core.ml.inference.results.InferenceChunkedTextExpansionResults;
 import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.NlpConfig;
 import org.elasticsearch.xpack.core.ml.search.WeightedToken;
@@ -72,7 +72,7 @@ public class TextExpansionProcessor extends NlpTask.Processor {
         boolean chunkResults
     ) {
         if (chunkResults) {
-            var chunkedResults = new ArrayList<ChunkedTextExpansionResults.ChunkedResult>();
+            var chunkedResults = new ArrayList<InferenceChunkedTextExpansionResults.ChunkedResult>();
 
             for (int i = 0; i < pyTorchResult.getInferenceResult()[0].length; i++) {
                 int startOffset = tokenization.getTokenization(i).tokens().get(0).get(0).startOffset();
@@ -82,10 +82,10 @@ public class TextExpansionProcessor extends NlpTask.Processor {
 
                 var weightedTokens = sparseVectorToTokenWeights(pyTorchResult.getInferenceResult()[0][i], tokenization, replacementVocab);
                 weightedTokens.sort((t1, t2) -> Float.compare(t2.weight(), t1.weight()));
-                chunkedResults.add(new ChunkedTextExpansionResults.ChunkedResult(matchedText, weightedTokens));
+                chunkedResults.add(new InferenceChunkedTextExpansionResults.ChunkedResult(matchedText, weightedTokens));
             }
 
-            return new ChunkedTextExpansionResults(
+            return new InferenceChunkedTextExpansionResults(
                 Optional.ofNullable(resultsField).orElse(DEFAULT_RESULTS_FIELD),
                 chunkedResults,
                 tokenization.anyTruncated()

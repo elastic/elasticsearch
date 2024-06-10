@@ -13,7 +13,6 @@ import org.elasticsearch.xpack.esql.core.expression.predicate.Negatable;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.type.DataTypes;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isBoolean;
@@ -36,7 +35,7 @@ public class Not extends UnaryScalarFunction implements Negatable<Expression> {
 
     @Override
     protected TypeResolution resolveType() {
-        if (DataTypes.BOOLEAN == field().dataType()) {
+        if (DataType.BOOLEAN == field().dataType()) {
             return TypeResolution.TYPE_RESOLVED;
         }
         return isBoolean(field(), sourceText(), DEFAULT);
@@ -67,7 +66,7 @@ public class Not extends UnaryScalarFunction implements Negatable<Expression> {
 
     @Override
     public DataType dataType() {
-        return DataTypes.BOOLEAN;
+        return DataType.BOOLEAN;
     }
 
     static Expression negate(Expression exp) {

@@ -37,7 +37,7 @@ import org.elasticsearch.xpack.esql.core.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.core.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.core.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.DataTypes;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
 import org.elasticsearch.xpack.esql.parser.EsqlBaseParser.MetadataOptionContext;
@@ -51,6 +51,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Explain;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.Keep;
+import org.elasticsearch.xpack.esql.plan.logical.Lookup;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
@@ -168,7 +169,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                 List<Attribute> keys = new ArrayList<>();
                 for (var x : parser.outputKeys()) {
                     if (x.isEmpty() == false) {
-                        keys.add(new ReferenceAttribute(src, x, DataTypes.KEYWORD));
+                        keys.add(new ReferenceAttribute(src, x, DataType.KEYWORD));
                     }
                 }
                 return new Dissect(src, p, expression(ctx.primaryExpression()), new Dissect.Parser(pattern, appendSeparator, parser), keys);
@@ -300,7 +301,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     public PlanFactory visitLimitCommand(EsqlBaseParser.LimitCommandContext ctx) {
         Source source = source(ctx);
         int limit = stringToInt(ctx.INTEGER_LITERAL().getText());
-        return input -> new Limit(source, new Literal(source, limit, DataTypes.INTEGER), input);
+        return input -> new Limit(source, new Literal(source, limit, DataType.INTEGER), input);
     }
 
     @Override
@@ -378,7 +379,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                 source,
                 p,
                 mode,
-                new Literal(source(ctx.policyName), policyNameString, DataTypes.KEYWORD),
+                new Literal(source(ctx.policyName), policyNameString, DataType.KEYWORD),
                 matchField,
                 null,
                 Map.of(),
@@ -443,9 +444,9 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             }
         });
 
-        Literal tableName = new Literal(source, ctx.tableName.getText(), DataTypes.KEYWORD);
+        Literal tableName = new Literal(source, ctx.tableName.getText(), DataType.KEYWORD);
 
-        throw new ParsingException(source, "LOOKUP not yet supported");
+        return p -> new Lookup(source, p, tableName, matchFields, null /* localRelation will be resolved later*/);
     }
 
     interface PlanFactory extends Function<LogicalPlan, LogicalPlan> {}

@@ -6,12 +6,17 @@
  */
 package org.elasticsearch.xpack.ml.process.writer;
 
+import org.elasticsearch.logging.Logger;
+import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.xpack.core.ml.process.writer.RecordWriter;
+import org.elasticsearch.xpack.ml.utils.FileUtils;
 
 import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.List;
 
 /**
@@ -27,7 +32,10 @@ import java.util.List;
  */
 public class LengthEncodedWriter implements RecordWriter {
     private OutputStream outputStream;
+    private OutputStream fileOutputStream;
     private ByteBuffer lengthBuffer;
+
+    private Logger logger = LogManager.getLogger(LengthEncodedWriter.class);
 
     /**
      * Create the writer on the OutputStream <code>os</code>.
@@ -37,6 +45,40 @@ public class LengthEncodedWriter implements RecordWriter {
         outputStream = os;
         // This will be used to convert 32 bit integers to network byte order
         lengthBuffer = ByteBuffer.allocate(4); // 4 == sizeof(int)
+        fileOutputStream = null;
+    }
+
+    public LengthEncodedWriter(OutputStream os, String filePath) {
+        outputStream = os;
+        try {
+
+//            FileUtils.recreateTempDirectoryIfNeeded(Path.of(filePath));
+//            tmpFilePath = env.c
+            Path file = Path.of(filePath);
+            logger.info("Opening file: " + filePath + " for writing.");
+            fileOutputStream = Files.newOutputStream(file);
+        } catch (IOException e) {
+            logger.error("Failed to open file: " + filePath + " for writing.");
+            // log error message and stack trace
+            logger.error(e.getMessage(), e);
+            fileOutputStream = null;
+        }
+        // This will be used to convert 32 bit integers to network byte order
+        lengthBuffer = ByteBuffer.allocate(4); // 4 == sizeof(int)
+    }
+
+    // Add public destructor
+    public void close() {
+        // TODO: this should be moved to AbstractNativeProcess
+        if (fileOutputStream != null) {
+            try {
+                fileOutputStream.close();
+            } catch (IOException e) {
+                logger.error("Failed to close file output stream.");
+                // log error message and stack trace
+                logger.error(e.getMessage(), e);
+            }
+        }
     }
 
     /**
@@ -75,6 +117,9 @@ public class LengthEncodedWriter implements RecordWriter {
         lengthBuffer.clear();
         lengthBuffer.putInt(numFields);
         outputStream.write(lengthBuffer.array());
+        if (fileOutputStream != null) {
+            fileOutputStream.write(lengthBuffer.array());
+        }
     }
 
     /**
@@ -87,10 +132,17 @@ public class LengthEncodedWriter implements RecordWriter {
         lengthBuffer.putInt(utf8Bytes.length);
         outputStream.write(lengthBuffer.array());
         outputStream.write(utf8Bytes);
+        if (fileOutputStream != null) {
+            fileOutputStream.write(lengthBuffer.array());
+            fileOutputStream.write(utf8Bytes);
+        }
     }
 
     @Override
     public void flush() throws IOException {
         outputStream.flush();
+        if (fileOutputStream != null) {
+            fileOutputStream.flush();
+        }
     }
 }

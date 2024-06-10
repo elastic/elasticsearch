@@ -159,6 +159,9 @@ public class AutodetectBuilder {
         buildQuantiles(command);
 
         processPipes.addArgs(command);
+
+        // log the command
+        logger.info("Starting autodetect process with command: " + command);
         controller.startProcess(command);
     }
 

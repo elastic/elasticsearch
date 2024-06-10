@@ -25,10 +25,12 @@ import org.elasticsearch.xpack.ml.process.IndexingStateProcessor;
 import org.elasticsearch.xpack.ml.process.NativeController;
 import org.elasticsearch.xpack.ml.process.ProcessPipes;
 import org.elasticsearch.xpack.ml.process.ProcessResultsParser;
+import org.elasticsearch.xpack.ml.utils.FileUtils;
 import org.elasticsearch.xpack.ml.utils.NamedPipeHelper;
 import org.elasticsearch.xpack.ml.utils.persistence.ResultsPersisterService;
 
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -114,7 +116,14 @@ public class NativeAutodetectProcessFactory implements AutodetectProcessFactory 
             resultsParser,
             onProcessCrash
         );
+
+
         try {
+
+            FileUtils.recreateTempDirectoryIfNeeded(env.tmpFile());
+            Path controlMsgFile = Files.createTempFile(env.tmpFile(), "autodetect_control_msg", ".json");
+
+            autodetect.setControlMessageFilePath(controlMsgFile.toString());
             autodetect.start(executorService, stateProcessor);
             return autodetect;
         } catch (IOException | EsRejectedExecutionException e) {

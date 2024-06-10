@@ -10,6 +10,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.process.logging.CppLogMessageHandler;
@@ -62,6 +63,18 @@ public abstract class AbstractNativeProcess implements NativeProcess {
     private volatile boolean processKilled;
     private volatile boolean isReady;
 
+    private boolean DELETE_CONFIG_FILES = false;
+
+    public String getControlMessageFilePath() {
+        return controlMessageFilePath;
+    }
+
+    public void setControlMessageFilePath(String controlMessageFilePath) {
+        this.controlMessageFilePath = controlMessageFilePath;
+    }
+
+    private String controlMessageFilePath = null;
+
     protected AbstractNativeProcess(
         String jobId,
         NativeController nativeController,
@@ -75,7 +88,12 @@ public abstract class AbstractNativeProcess implements NativeProcess {
         this.processPipes = processPipes;
         this.startTime = ZonedDateTime.now();
         this.numberOfFields = numberOfFields;
-        this.filesToDelete = filesToDelete;
+        if (DELETE_CONFIG_FILES) {
+            this.filesToDelete = filesToDelete;
+        } else {
+            LOGGER.info("Following config files will not be deleted: " + filesToDelete);
+            this.filesToDelete = List.of();
+        }
         this.onProcessCrash = Objects.requireNonNull(onProcessCrash);
     }
 
@@ -107,7 +125,7 @@ public abstract class AbstractNativeProcess implements NativeProcess {
         processPipes.connectOtherStreams();
         if (processPipes.getProcessInStream().isPresent()) {
             processInStream.set(new BufferedOutputStream(processPipes.getProcessInStream().get()));
-            this.recordWriter.set(new LengthEncodedWriter(processInStream.get()));
+            this.recordWriter.set(new LengthEncodedWriter(processInStream.get(), getControlMessageFilePath()));
         }
         processOutStream.set(processPipes.getProcessOutStream().orElse(null));
         processRestoreStream.set(processPipes.getRestoreStream().orElse(null));

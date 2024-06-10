@@ -22,7 +22,7 @@ import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.esql.core.plan.QueryPlan;
 import org.elasticsearch.xpack.esql.core.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.core.type.DataTypes;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
+import org.elasticsearch.xpack.esql.optimizer.rules.LiteralsOnTheRight;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
@@ -261,7 +262,7 @@ class OptimizerRules {
     }
 
     /**
-     * This rule must always be placed after {@link org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules.LiteralsOnTheRight}
+     * This rule must always be placed after {@link LiteralsOnTheRight}
      * since it looks at TRUE/FALSE literals' existence on the right hand-side of the {@link Equals}/{@link NotEquals} expressions.
      */
     public static final class BooleanFunctionEqualsElimination extends
@@ -294,12 +295,6 @@ class OptimizerRules {
      * When encountering a different Equals, non-containing {@link Range} or {@link BinaryComparison}, the conjunction becomes false.
      * When encountering a containing {@link Range}, {@link BinaryComparison} or {@link NotEquals}, these get eliminated by the equality.
      *
-     * Since this rule can eliminate Ranges and BinaryComparisons, it should be applied before
-     * {@link org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules.CombineBinaryComparisons}.
-     *
-     * This rule doesn't perform any promotion of {@link BinaryComparison}s, that is handled by
-     * {@link org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules.CombineBinaryComparisons} on purpose as the resulting Range might
-     * be foldable (which is picked by the folding rule on the next run).
      */
     public static final class PropagateEquals extends org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules.OptimizerExpressionRule<
         BinaryLogic> {
@@ -336,14 +331,14 @@ class OptimizerRules {
                 } else if (ex instanceof Equals otherEq) {
                     // equals on different values evaluate to FALSE
                     // ignore date/time fields as equality comparison might actually be a range check
-                    if (otherEq.right().foldable() && DataTypes.isDateTime(otherEq.left().dataType()) == false) {
+                    if (otherEq.right().foldable() && DataType.isDateTime(otherEq.left().dataType()) == false) {
                         for (BinaryComparison eq : equals) {
                             if (otherEq.left().semanticEquals(eq.left())) {
                                 Integer comp = BinaryComparison.compare(eq.right().fold(), otherEq.right().fold());
                                 if (comp != null) {
                                     // var cannot be equal to two different values at the same time
                                     if (comp != 0) {
-                                        return new Literal(and.source(), Boolean.FALSE, DataTypes.BOOLEAN);
+                                        return new Literal(and.source(), Boolean.FALSE, DataType.BOOLEAN);
                                     }
                                 }
                             }
@@ -389,7 +384,7 @@ class OptimizerRules {
                             compare > 0 ||
                             // eq matches the boundary but should not be included
                                 (compare == 0 && range.includeLower() == false))) {
-                                return new Literal(and.source(), Boolean.FALSE, DataTypes.BOOLEAN);
+                                return new Literal(and.source(), Boolean.FALSE, DataType.BOOLEAN);
                             }
                         }
                         if (range.upper().foldable()) {
@@ -399,7 +394,7 @@ class OptimizerRules {
                             compare < 0 ||
                             // eq matches the boundary but should not be included
                                 (compare == 0 && range.includeUpper() == false))) {
-                                return new Literal(and.source(), Boolean.FALSE, DataTypes.BOOLEAN);
+                                return new Literal(and.source(), Boolean.FALSE, DataType.BOOLEAN);
                             }
                         }
 
@@ -416,7 +411,7 @@ class OptimizerRules {
                         Integer comp = BinaryComparison.compare(eqValue, neq.right().fold());
                         if (comp != null) {
                             if (comp == 0) { // clashing and conflicting: a = 1 AND a != 1
-                                return new Literal(and.source(), Boolean.FALSE, DataTypes.BOOLEAN);
+                                return new Literal(and.source(), Boolean.FALSE, DataType.BOOLEAN);
                             } else { // clashing and redundant: a = 1 AND a != 2
                                 iter.remove();
                                 changed = true;
@@ -434,12 +429,12 @@ class OptimizerRules {
                             if (bc instanceof LessThan || bc instanceof LessThanOrEqual) { // a = 2 AND a </<= ?
                                 if ((compare == 0 && bc instanceof LessThan) || // a = 2 AND a < 2
                                     0 < compare) { // a = 2 AND a </<= 1
-                                    return new Literal(and.source(), Boolean.FALSE, DataTypes.BOOLEAN);
+                                    return new Literal(and.source(), Boolean.FALSE, DataType.BOOLEAN);
                                 }
                             } else if (bc instanceof GreaterThan || bc instanceof GreaterThanOrEqual) { // a = 2 AND a >/>= ?
                                 if ((compare == 0 && bc instanceof GreaterThan) || // a = 2 AND a > 2
                                     compare < 0) { // a = 2 AND a >/>= 3
-                                    return new Literal(and.source(), Boolean.FALSE, DataTypes.BOOLEAN);
+                                    return new Literal(and.source(), Boolean.FALSE, DataType.BOOLEAN);
                                 }
                             }
 

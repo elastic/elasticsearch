@@ -11,7 +11,8 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.inference.EmptyTaskSettings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.inference.services.googleaistudio.GoogleAiStudioSecretSettings;
+import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
+import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 
 import java.net.URISyntaxException;
 import java.util.HashMap;
@@ -28,7 +29,8 @@ public class GoogleAiStudioCompletionModelTests extends ESTestCase {
             "service",
             new HashMap<>(Map.of("model_id", "model")),
             new HashMap<>(Map.of()),
-            null
+            null,
+            ConfigurationParseContext.PERSISTENT
         );
 
         assertThat(model.getTaskSettings(), is(EmptyTaskSettings.INSTANCE));
@@ -48,7 +50,7 @@ public class GoogleAiStudioCompletionModelTests extends ESTestCase {
             "service",
             new GoogleAiStudioCompletionServiceSettings(model, null),
             EmptyTaskSettings.INSTANCE,
-            new GoogleAiStudioSecretSettings(new SecureString(apiKey.toCharArray()))
+            new DefaultSecretSettings(new SecureString(apiKey.toCharArray()))
         );
     }
 
@@ -60,7 +62,7 @@ public class GoogleAiStudioCompletionModelTests extends ESTestCase {
             url,
             new GoogleAiStudioCompletionServiceSettings(model, null),
             EmptyTaskSettings.INSTANCE,
-            new GoogleAiStudioSecretSettings(new SecureString(apiKey.toCharArray()))
+            new DefaultSecretSettings(new SecureString(apiKey.toCharArray()))
         );
     }
 }

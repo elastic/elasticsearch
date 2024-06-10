@@ -49,6 +49,7 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Function;
 
 import static org.elasticsearch.core.Strings.format;
 
@@ -67,9 +68,10 @@ public class InferenceRunner {
     private final ExtractedFields extractedFields;
     private final ProgressTracker progressTracker;
     private final DataCountsTracker dataCountsTracker;
+    private final Function<Long, TestDocsIterator> testDocsIteratorFactory;
     private volatile boolean isCancelled;
 
-    public InferenceRunner(
+    InferenceRunner(
         Settings settings,
         Client client,
         ModelLoadingService modelLoadingService,
@@ -78,7 +80,8 @@ public class InferenceRunner {
         DataFrameAnalyticsConfig config,
         ExtractedFields extractedFields,
         ProgressTracker progressTracker,
-        DataCountsTracker dataCountsTracker
+        DataCountsTracker dataCountsTracker,
+        Function<Long, TestDocsIterator> testDocsIteratorFactory
     ) {
         this.settings = Objects.requireNonNull(settings);
         this.client = Objects.requireNonNull(client);
@@ -89,6 +92,7 @@ public class InferenceRunner {
         this.extractedFields = Objects.requireNonNull(extractedFields);
         this.progressTracker = Objects.requireNonNull(progressTracker);
         this.dataCountsTracker = Objects.requireNonNull(dataCountsTracker);
+        this.testDocsIteratorFactory = Objects.requireNonNull(testDocsIteratorFactory);
     }
 
     public void cancel() {
@@ -108,12 +112,7 @@ public class InferenceRunner {
             modelLoadingService.getModelForInternalInference(modelId, localModelPlainActionFuture);
             InferenceState inferenceState = restoreInferenceState();
             dataCountsTracker.setTestDocsCount(inferenceState.processedTestDocsCount);
-            TestDocsIterator testDocsIterator = new TestDocsIterator(
-                new OriginSettingClient(client, ClientHelper.ML_ORIGIN),
-                config,
-                extractedFields,
-                inferenceState.lastIncrementalId
-            );
+            TestDocsIterator testDocsIterator = testDocsIteratorFactory.apply(inferenceState.lastIncrementalId);
             try (LocalModel localModel = localModelPlainActionFuture.actionGet()) {
                 LOGGER.debug("Loaded inference model [{}]", localModel);
                 inferTestDocs(localModel, testDocsIterator, inferenceState.processedTestDocsCount);
@@ -179,8 +178,7 @@ public class InferenceRunner {
         }
     }
 
-    // Visible for testing
-    void inferTestDocs(LocalModel model, TestDocsIterator testDocsIterator, long processedTestDocsCount) {
+    private void inferTestDocs(LocalModel model, TestDocsIterator testDocsIterator, long processedTestDocsCount) {
         long totalDocCount = 0;
         long processedDocCount = processedTestDocsCount;
 
@@ -248,14 +246,35 @@ public class InferenceRunner {
         );
     }
 
-    private static class InferenceState {
-
-        private final Long lastIncrementalId;
-        private final long processedTestDocsCount;
-
-        InferenceState(@Nullable Long lastIncrementalId, long processedTestDocsCount) {
-            this.lastIncrementalId = lastIncrementalId;
-            this.processedTestDocsCount = processedTestDocsCount;
-        }
+    public static InferenceRunner create(
+        Settings settings,
+        Client client,
+        ModelLoadingService modelLoadingService,
+        ResultsPersisterService resultsPersisterService,
+        TaskId parentTaskId,
+        DataFrameAnalyticsConfig config,
+        ExtractedFields extractedFields,
+        ProgressTracker progressTracker,
+        DataCountsTracker dataCountsTracker
+    ) {
+        return new InferenceRunner(
+            settings,
+            client,
+            modelLoadingService,
+            resultsPersisterService,
+            parentTaskId,
+            config,
+            extractedFields,
+            progressTracker,
+            dataCountsTracker,
+            lastIncrementalId -> new TestDocsIterator(
+                new OriginSettingClient(client, ClientHelper.ML_ORIGIN),
+                config,
+                extractedFields,
+                lastIncrementalId
+            )
+        );
     }
+
+    private record InferenceState(@Nullable Long lastIncrementalId, long processedTestDocsCount) {}
 }

@@ -31,6 +31,12 @@
             id="infer-api-task-azure-ai-studio">
       Azure AI Studio
     </button>
+    <button role="tab"
+            aria-selected="false"
+            aria-controls="infer-api-task-mistral-tab"
+            id="infer-api-task-mistral">
+      Mistral
+    </button>
   </div>
   <div tabindex="0"
        role="tabpanel"
@@ -83,6 +89,17 @@ include::infer-api-task.asciidoc[tag=azure-openai]
 ++++
 
 include::infer-api-task.asciidoc[tag=azure-ai-studio]
+
+++++
+  </div>
+  <div tabindex="0"
+       role="tabpanel"
+       id="infer-api-task-mistral-tab"
+       aria-labelledby="infer-api-task-mistral"
+       hidden="">
+++++
+
+include::infer-api-task.asciidoc[tag=mistral]
 
 ++++
   </div>

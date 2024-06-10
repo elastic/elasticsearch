@@ -32,9 +32,9 @@ public final class LeastBooleanEvaluator implements EvalOperator.ExpressionEvalu
 
   public LeastBooleanEvaluator(Source source, EvalOperator.ExpressionEvaluator[] values,
       DriverContext driverContext) {
-    this.warnings = new Warnings(source);
     this.values = values;
     this.driverContext = driverContext;
+    this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
   }
 
   @Override
@@ -84,14 +84,14 @@ public final class LeastBooleanEvaluator implements EvalOperator.ExpressionEvalu
   }
 
   public BooleanVector eval(int positionCount, BooleanVector[] valuesVectors) {
-    try(BooleanVector.Builder result = driverContext.blockFactory().newBooleanVectorBuilder(positionCount)) {
+    try(BooleanVector.FixedBuilder result = driverContext.blockFactory().newBooleanVectorFixedBuilder(positionCount)) {
       boolean[] valuesValues = new boolean[values.length];
       position: for (int p = 0; p < positionCount; p++) {
         // unpack valuesVectors into valuesValues
         for (int i = 0; i < valuesVectors.length; i++) {
           valuesValues[i] = valuesVectors[i].getBoolean(p);
         }
-        result.appendBoolean(Least.process(valuesValues));
+        result.appendBoolean(p, Least.process(valuesValues));
       }
       return result.build();
     }

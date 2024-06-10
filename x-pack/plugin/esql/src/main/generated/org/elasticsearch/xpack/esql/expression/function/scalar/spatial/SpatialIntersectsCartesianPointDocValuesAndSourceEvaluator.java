@@ -38,10 +38,10 @@ public final class SpatialIntersectsCartesianPointDocValuesAndSourceEvaluator im
   public SpatialIntersectsCartesianPointDocValuesAndSourceEvaluator(Source source,
       EvalOperator.ExpressionEvaluator leftValue, EvalOperator.ExpressionEvaluator rightValue,
       DriverContext driverContext) {
-    this.warnings = new Warnings(source);
     this.leftValue = leftValue;
     this.rightValue = rightValue;
     this.driverContext = driverContext;
+    this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
   }
 
   @Override
@@ -96,10 +96,10 @@ public final class SpatialIntersectsCartesianPointDocValuesAndSourceEvaluator im
 
   public BooleanVector eval(int positionCount, LongVector leftValueVector,
       BytesRefVector rightValueVector) {
-    try(BooleanVector.Builder result = driverContext.blockFactory().newBooleanVectorBuilder(positionCount)) {
+    try(BooleanVector.FixedBuilder result = driverContext.blockFactory().newBooleanVectorFixedBuilder(positionCount)) {
       BytesRef rightValueScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendBoolean(SpatialIntersects.processCartesianPointDocValuesAndSource(leftValueVector.getLong(p), rightValueVector.getBytesRef(p, rightValueScratch)));
+        result.appendBoolean(p, SpatialIntersects.processCartesianPointDocValuesAndSource(leftValueVector.getLong(p), rightValueVector.getBytesRef(p, rightValueScratch)));
       }
       return result.build();
     }

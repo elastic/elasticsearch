@@ -15,6 +15,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.core.TimeValue;
@@ -32,7 +33,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.esql.Column;
-import org.elasticsearch.xpack.esql.core.type.DataTypes;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.parser.TypedParamValue;
 
 import java.io.IOException;
@@ -160,41 +161,10 @@ public class EsqlQueryRequestTests extends ESTestCase {
             }""", "unknown field [asdf]");
     }
 
-    public void testAnyVersionIsValid() throws IOException {
-        String validVersionString = randomAlphaOfLength(5);
-
-        String json = String.format(Locale.ROOT, """
-            {
-                "version": "%s",
-                "query": "ROW x = 1"
-            }
-            """, validVersionString);
-
-        EsqlQueryRequest request = parseEsqlQueryRequest(json, randomBoolean());
-        assertNull(request.validate());
-
-        request = parseEsqlQueryRequestAsync(json);
-        assertNull(request.validate());
-    }
-
-    public void testMissingVersionIsValid() throws IOException {
-        String missingVersion = randomBoolean() ? "" : ", \"version\": \"\"";
-        String json = String.format(Locale.ROOT, """
-            {
-                "columnar": true,
-                "query": "row x = 1"
-                %s
-            }""", missingVersion);
-
-        EsqlQueryRequest request = parseEsqlQueryRequest(json, randomBoolean());
-        assertNull(request.validate());
-    }
-
     public void testMissingQueryIsNotValid() throws IOException {
         String json = """
             {
-                "columnar": true,
-                "version": "snapshot"
+                "columnar": true
             }""";
         EsqlQueryRequest request = parseEsqlQueryRequest(json, randomBoolean());
         assertNotNull(request.validate());
@@ -227,7 +197,7 @@ public class EsqlQueryRequestTests extends ESTestCase {
             """;
         EsqlQueryRequest request = parseEsqlQueryRequest(json, randomBoolean());
         Column c = request.tables().get("a").get("c");
-        assertThat(c.type(), equalTo(DataTypes.KEYWORD));
+        assertThat(c.type(), equalTo(DataType.KEYWORD));
         try (
             BytesRefBlock.Builder builder = new BlockFactory(
                 new NoopCircuitBreaker(CircuitBreaker.REQUEST),
@@ -259,7 +229,7 @@ public class EsqlQueryRequestTests extends ESTestCase {
 
         EsqlQueryRequest request = parseEsqlQueryRequest(json, randomBoolean());
         Column c = request.tables().get("a").get("c");
-        assertThat(c.type(), equalTo(DataTypes.INTEGER));
+        assertThat(c.type(), equalTo(DataType.INTEGER));
         try (
             IntBlock.Builder builder = new BlockFactory(new NoopCircuitBreaker(CircuitBreaker.REQUEST), BigArrays.NON_RECYCLING_INSTANCE)
                 .newIntBlockBuilder(10)
@@ -287,7 +257,7 @@ public class EsqlQueryRequestTests extends ESTestCase {
 
         EsqlQueryRequest request = parseEsqlQueryRequest(json, randomBoolean());
         Column c = request.tables().get("a").get("c");
-        assertThat(c.type(), equalTo(DataTypes.LONG));
+        assertThat(c.type(), equalTo(DataType.LONG));
         try (
             LongBlock.Builder builder = new BlockFactory(new NoopCircuitBreaker(CircuitBreaker.REQUEST), BigArrays.NON_RECYCLING_INSTANCE)
                 .newLongBlockBuilder(10)
@@ -299,6 +269,34 @@ public class EsqlQueryRequestTests extends ESTestCase {
             builder.beginPositionEntry();
             builder.appendLong(5);
             builder.appendLong(6);
+            builder.endPositionEntry();
+            assertThat(c.values(), equalTo(builder.build()));
+        }
+        assertTablesOnlyValidOnSnapshot(request);
+    }
+
+    public void testTablesDouble() throws IOException {
+        String json = """
+            {
+                "query": "ROW x = 1",
+                "tables": {"a": {"c:double": [1.1, 2, "3.1415", null, [5.1, "-6"]]}}
+            }
+            """;
+
+        EsqlQueryRequest request = parseEsqlQueryRequest(json, randomBoolean());
+        Column c = request.tables().get("a").get("c");
+        assertThat(c.type(), equalTo(DataType.DOUBLE));
+        try (
+            DoubleBlock.Builder builder = new BlockFactory(new NoopCircuitBreaker(CircuitBreaker.REQUEST), BigArrays.NON_RECYCLING_INSTANCE)
+                .newDoubleBlockBuilder(10)
+        ) {
+            builder.appendDouble(1.1);
+            builder.appendDouble(2);
+            builder.appendDouble(3.1415);
+            builder.appendNull();
+            builder.beginPositionEntry();
+            builder.appendDouble(5.1);
+            builder.appendDouble(-6);
             builder.endPositionEntry();
             assertThat(c.values(), equalTo(builder.build()));
         }
@@ -329,15 +327,15 @@ public class EsqlQueryRequestTests extends ESTestCase {
         EsqlQueryRequest request = parseEsqlQueryRequest(json, randomBoolean());
         assertThat(request.tables().keySet(), hasSize(2));
         Map<String, Column> t1 = request.tables().get("t1");
-        assertThat(t1.get("a").type(), equalTo(DataTypes.LONG));
-        assertThat(t1.get("b").type(), equalTo(DataTypes.LONG));
-        assertThat(t1.get("c").type(), equalTo(DataTypes.KEYWORD));
-        assertThat(t1.get("d").type(), equalTo(DataTypes.LONG));
+        assertThat(t1.get("a").type(), equalTo(DataType.LONG));
+        assertThat(t1.get("b").type(), equalTo(DataType.LONG));
+        assertThat(t1.get("c").type(), equalTo(DataType.KEYWORD));
+        assertThat(t1.get("d").type(), equalTo(DataType.LONG));
         Map<String, Column> t2 = request.tables().get("t2");
-        assertThat(t2.get("a").type(), equalTo(DataTypes.LONG));
-        assertThat(t2.get("b").type(), equalTo(DataTypes.INTEGER));
-        assertThat(t2.get("c").type(), equalTo(DataTypes.LONG));
-        assertThat(t2.get("d").type(), equalTo(DataTypes.LONG));
+        assertThat(t2.get("a").type(), equalTo(DataType.LONG));
+        assertThat(t2.get("b").type(), equalTo(DataType.INTEGER));
+        assertThat(t2.get("c").type(), equalTo(DataType.LONG));
+        assertThat(t2.get("d").type(), equalTo(DataType.LONG));
         assertTablesOnlyValidOnSnapshot(request);
     }
 

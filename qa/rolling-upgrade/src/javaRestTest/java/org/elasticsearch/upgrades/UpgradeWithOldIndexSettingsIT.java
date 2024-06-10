@@ -125,7 +125,7 @@ public class UpgradeWithOldIndexSettingsIT extends AbstractRollingUpgradeTestCas
             Request openRequest = new Request("POST", "/" + indexName + "/_open");
             openRequest.setOptions(
                 expectWarnings(
-                    "[[index.mapper.dynamic] setting was deprecated in Elasticsearch and will "
+                    "[index.mapper.dynamic] setting was deprecated in Elasticsearch and will "
                         + "be removed in a future release! See the breaking changes documentation for the next major version., Setting "
                         + "index.mapper.dynamic was removed after version 6.0.0]"
                 )

@@ -14,6 +14,7 @@ import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
+import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.PriorityQueue;
@@ -361,7 +362,8 @@ public class TimeSeriesSortedSourceOperatorFactory extends LuceneOperator.Factor
                     this.createdThread = Thread.currentThread();
                     tsids = leaf.reader().getSortedDocValues("_tsid");
                     timestamps = leaf.reader().getSortedNumericDocValues("@timestamp");
-                    iterator = weight.scorer(leaf).iterator();
+                    final Scorer scorer = weight.scorer(leaf);
+                    iterator = scorer != null ? scorer.iterator() : DocIdSetIterator.empty();
                 }
 
                 boolean nextDoc() throws IOException {
@@ -384,7 +386,8 @@ public class TimeSeriesSortedSourceOperatorFactory extends LuceneOperator.Factor
                     if (executingThread != createdThread) {
                         tsids = leaf.reader().getSortedDocValues("_tsid");
                         timestamps = leaf.reader().getSortedNumericDocValues("@timestamp");
-                        iterator = weight.scorer(leaf).iterator();
+                        final Scorer scorer = weight.scorer(leaf);
+                        iterator = scorer != null ? scorer.iterator() : DocIdSetIterator.empty();
                         if (docID != -1) {
                             iterator.advance(docID);
                         }

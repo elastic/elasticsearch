@@ -10,12 +10,15 @@ package org.elasticsearch.xpack.deprecation;
 import org.elasticsearch.action.support.nodes.BaseNodesRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.UpdateForV9;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Objects;
 
 public class NodesDeprecationCheckRequest extends BaseNodesRequest<NodesDeprecationCheckRequest> {
+
+    @UpdateForV9 // should be unused now
     public NodesDeprecationCheckRequest(StreamInput in) throws IOException {
         super(in);
     }
@@ -24,6 +27,7 @@ public class NodesDeprecationCheckRequest extends BaseNodesRequest<NodesDeprecat
         super(nodesIds);
     }
 
+    @UpdateForV9 // should be localOnly now
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);

@@ -18,6 +18,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.UpdateForV9;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -39,10 +40,12 @@ public class TrainedModelCacheInfoAction extends ActionType<TrainedModelCacheInf
             super(concreteNodes);
         }
 
+        @UpdateForV9 // should be unused now
         public Request(StreamInput in) throws IOException {
             super(in);
         }
 
+        @UpdateForV9 // should be localOnly now
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);

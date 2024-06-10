@@ -11,6 +11,7 @@ package org.elasticsearch.action.admin.cluster.stats;
 import org.elasticsearch.action.support.nodes.BaseNodesRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -23,6 +24,7 @@ import java.util.Map;
  */
 public class ClusterStatsRequest extends BaseNodesRequest<ClusterStatsRequest> {
 
+    @UpdateForV9 // should be unused now
     public ClusterStatsRequest(StreamInput in) throws IOException {
         super(in);
     }
@@ -40,6 +42,7 @@ public class ClusterStatsRequest extends BaseNodesRequest<ClusterStatsRequest> {
         return new CancellableTask(id, type, action, "", parentTaskId, headers);
     }
 
+    @UpdateForV9 // should be localOnly now
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);

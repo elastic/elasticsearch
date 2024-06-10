@@ -13,6 +13,7 @@ import org.elasticsearch.action.support.nodes.BaseNodesRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -36,9 +37,9 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
         nodesStatsRequestParameters = new NodesStatsRequestParameters();
     }
 
+    @UpdateForV9 // should be unused now
     public NodesStatsRequest(StreamInput in) throws IOException {
         super(in);
-
         nodesStatsRequestParameters = new NodesStatsRequestParameters(in);
     }
 
@@ -178,6 +179,7 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
         nodesStatsRequestParameters.setIncludeShardsStats(includeShardsStats);
     }
 
+    @UpdateForV9 // should be localOnly now
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);

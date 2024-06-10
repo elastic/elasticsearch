@@ -11,6 +11,7 @@ package org.elasticsearch.action.admin.cluster.node.info;
 import org.elasticsearch.action.support.nodes.BaseNodesRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.UpdateForV9;
 
 import java.io.IOException;
 import java.util.Set;
@@ -30,6 +31,7 @@ public final class NodesInfoRequest extends BaseNodesRequest<NodesInfoRequest> {
      * @param in A stream input object.
      * @throws IOException if the stream cannot be deserialized.
      */
+    @UpdateForV9 // should be unused now
     public NodesInfoRequest(StreamInput in) throws IOException {
         super(in);
         nodesInfoMetrics = new NodesInfoMetrics(in);
@@ -111,6 +113,7 @@ public final class NodesInfoRequest extends BaseNodesRequest<NodesInfoRequest> {
         return this;
     }
 
+    @UpdateForV9 // should be localOnly now
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);

@@ -144,7 +144,6 @@ public abstract class TaskManagerTestCase extends ESTestCase {
             ThreadPool threadPool,
             ClusterService clusterService,
             TransportService transportService,
-            Writeable.Reader<NodesRequest> request,
             Writeable.Reader<NodeRequest> nodeRequest
         ) {
             super(

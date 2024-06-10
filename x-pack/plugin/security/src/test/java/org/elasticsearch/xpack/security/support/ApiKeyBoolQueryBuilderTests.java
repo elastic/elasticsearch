@@ -678,7 +678,7 @@ public class ApiKeyBoolQueryBuilderTests extends ESTestCase {
             IllegalArgumentException.class,
             () -> ApiKeyBoolQueryBuilder.build(q1, ignored -> {}, authentication)
         );
-        assertThat(e1.getMessage(), containsString("terms query with terms lookup is not supported for API Key query"));
+        assertThat(e1.getMessage(), containsString("terms query with terms lookup is not currently supported in this context"));
     }
 
     public void testRangeQueryWithRelationIsNotAllowed() {
@@ -688,7 +688,7 @@ public class ApiKeyBoolQueryBuilderTests extends ESTestCase {
             IllegalArgumentException.class,
             () -> ApiKeyBoolQueryBuilder.build(q1, ignored -> {}, authentication)
         );
-        assertThat(e1.getMessage(), containsString("range query with relation is not supported for API Key query"));
+        assertThat(e1.getMessage(), containsString("range query with relation is not currently supported in this context"));
     }
 
     public void testDisallowedQueryTypes() {
@@ -734,7 +734,7 @@ public class ApiKeyBoolQueryBuilderTests extends ESTestCase {
             IllegalArgumentException.class,
             () -> ApiKeyBoolQueryBuilder.build(q1, ignored -> {}, authentication)
         );
-        assertThat(e1.getMessage(), containsString("Query type [" + q1.getName() + "] is not supported for API Key query"));
+        assertThat(e1.getMessage(), containsString("Query type [" + q1.getName() + "] is not currently supported in this context"));
 
         // also wrapped in a boolean query
         {
@@ -756,7 +756,7 @@ public class ApiKeyBoolQueryBuilderTests extends ESTestCase {
                 IllegalArgumentException.class,
                 () -> ApiKeyBoolQueryBuilder.build(q2, ignored -> {}, authentication)
             );
-            assertThat(e2.getMessage(), containsString("Query type [" + q1.getName() + "] is not supported for API Key query"));
+            assertThat(e2.getMessage(), containsString("Query type [" + q1.getName() + "] is not currently supported in this context"));
         }
     }
 

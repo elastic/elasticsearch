@@ -253,7 +253,7 @@ public final class FieldNameTranslators {
         final Consumer<String> fieldNameVisitor = visitor != null ? visitor : ignored -> {};
         fieldSortBuilders.forEach(fieldSortBuilder -> {
             if (fieldSortBuilder.getNestedSort() != null) {
-                throw new IllegalArgumentException("nested sorting is not supported for querying");
+                throw new IllegalArgumentException("nested sorting is not currently supported in this context");
             }
             if (FieldSortBuilder.DOC_FIELD_NAME.equals(fieldSortBuilder.getFieldName())) {
                 searchSourceBuilder.sort(fieldSortBuilder);

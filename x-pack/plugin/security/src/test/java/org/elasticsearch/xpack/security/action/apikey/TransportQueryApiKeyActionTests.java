@@ -102,7 +102,7 @@ public class TransportQueryApiKeyActionTests extends ESTestCase {
                 ignored -> {}
             )
         );
-        assertThat(e.getMessage(), equalTo("nested sorting is not supported for API Key query"));
+        assertThat(e.getMessage(), equalTo("nested sorting is not currently supported in this context"));
     }
 
     private FieldSortBuilder randomFieldSortBuilderWithName(String name) {

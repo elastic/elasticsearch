@@ -36,10 +36,6 @@ import org.elasticsearch.xpack.esql.core.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RegexMatch;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.StringPattern;
 import org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules;
-import org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules.ConstantFolding;
-import org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules.LiteralsOnTheRight;
-import org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules.PruneLiteralsInOrderBy;
-import org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules.SetAsOptimized;
 import org.elasticsearch.xpack.esql.core.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.core.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.core.plan.logical.LogicalPlan;
@@ -63,6 +59,13 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesFunction;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
+import org.elasticsearch.xpack.esql.optimizer.rules.BooleanFunctionEqualsElimination;
+import org.elasticsearch.xpack.esql.optimizer.rules.CombineDisjunctionsToIn;
+import org.elasticsearch.xpack.esql.optimizer.rules.ConstantFolding;
+import org.elasticsearch.xpack.esql.optimizer.rules.LiteralsOnTheRight;
+import org.elasticsearch.xpack.esql.optimizer.rules.PropagateEquals;
+import org.elasticsearch.xpack.esql.optimizer.rules.PruneLiteralsInOrderBy;
+import org.elasticsearch.xpack.esql.optimizer.rules.SetAsOptimized;
 import org.elasticsearch.xpack.esql.optimizer.rules.SimplifyComparisonsArithmetics;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
@@ -159,10 +162,10 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             new BooleanSimplification(),
             new LiteralsOnTheRight(),
             // needs to occur before BinaryComparison combinations (see class)
-            new org.elasticsearch.xpack.esql.optimizer.OptimizerRules.PropagateEquals(),
+            new PropagateEquals(),
             new PropagateNullable(),
-            new org.elasticsearch.xpack.esql.optimizer.OptimizerRules.BooleanFunctionEqualsElimination(),
-            new org.elasticsearch.xpack.esql.optimizer.OptimizerRules.CombineDisjunctionsToIn(),
+            new BooleanFunctionEqualsElimination(),
+            new CombineDisjunctionsToIn(),
             new SimplifyComparisonsArithmetics(EsqlDataTypes::areCompatible),
             // prune/elimination
             new PruneFilters(),

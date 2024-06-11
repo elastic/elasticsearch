@@ -224,7 +224,7 @@ public class Connector implements NamedWriteable, ToXContentObject {
     public static final ParseField SCHEDULING_FIELD = new ParseField("scheduling");
     public static final ParseField SERVICE_TYPE_FIELD = new ParseField("service_type");
     public static final ParseField STATUS_FIELD = new ParseField("status");
-    static final ParseField SYNC_CURSOR_FIELD = new ParseField("sync_cursor");
+    public static final ParseField SYNC_CURSOR_FIELD = new ParseField("sync_cursor");
     static final ParseField SYNC_NOW_FIELD = new ParseField("sync_now");
 
     @SuppressWarnings("unchecked")

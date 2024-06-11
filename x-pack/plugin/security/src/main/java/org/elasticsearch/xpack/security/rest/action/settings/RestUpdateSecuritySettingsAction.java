@@ -11,6 +11,7 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.security.action.settings.UpdateSecuritySettingsAction;
 import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
@@ -36,9 +37,18 @@ public class RestUpdateSecuritySettingsAction extends SecurityBaseRestHandler {
 
     @Override
     protected RestChannelConsumer innerPrepareRequest(RestRequest request, NodeClient client) throws IOException {
-        UpdateSecuritySettingsAction.Request req;
+        final UpdateSecuritySettingsAction.Request req;
         try (var parser = request.contentParser()) {
-            req = UpdateSecuritySettingsAction.Request.parse(parser);
+            req = UpdateSecuritySettingsAction.Request.parse(
+                parser,
+                (mainIndexSettings, tokensIndexSettings, profilesIndexSettings) -> new UpdateSecuritySettingsAction.Request(
+                    RestUtils.getMasterNodeTimeout(request),
+                    RestUtils.getAckTimeout(request),
+                    mainIndexSettings,
+                    tokensIndexSettings,
+                    profilesIndexSettings
+                )
+            );
         }
         return restChannel -> client.execute(UpdateSecuritySettingsAction.INSTANCE, req, new RestToXContentListener<>(restChannel));
     }

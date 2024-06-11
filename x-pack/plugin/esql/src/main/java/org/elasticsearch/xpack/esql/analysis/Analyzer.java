@@ -488,6 +488,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
 
         private LogicalPlan resolveInlineStats(InlineStats stats, List<Attribute> childrenOutput) {
+            // NOCOMMIT this is a carbon copy of above - we should be able to share code
             // if the grouping is resolved but the aggs are not, use the former to resolve the latter
             // e.g. STATS a ... GROUP BY a = x + 1
             Holder<Boolean> changed = new Holder<>(false);

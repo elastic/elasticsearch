@@ -13,11 +13,10 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.common.Randomness;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.RefCounted;
-import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.ReachabilityChecker;
 import org.junit.Before;
@@ -30,7 +29,7 @@ public class LeakTrackerTests extends ESTestCase {
 
     private static final Logger logger = LogManager.getLogger();
 
-    private final TrackedObjectTestCase trackedObjectTestCase;
+    private final TrackedObjectLifecycle trackedObjectLifecycle;
     private ReachabilityChecker reachabilityChecker;
 
     @Before
@@ -38,40 +37,41 @@ public class LeakTrackerTests extends ESTestCase {
         reachabilityChecker = new ReachabilityChecker();
     }
 
-    public LeakTrackerTests(@Name("trackingMethod") TrackedObjectTestCase trackedObjectTestCase) {
-        this.trackedObjectTestCase = trackedObjectTestCase;
+    @Before
+    public void onlyRunWhenAssertionsAreEnabled() {
+        assumeTrue("Many of these tests don't make sense when assertions are disabled", Assertions.ENABLED);
+    }
+
+    public LeakTrackerTests(@Name("trackingMethod") TrackedObjectLifecycle trackedObjectLifecycle) {
+        this.trackedObjectLifecycle = trackedObjectLifecycle;
     }
 
     @ParametersFactory(shuffle = false)
     public static Iterable<Object[]> parameters() {
         return Stream.of(
-            new PojoTrackedObjectTestCase(),
-            new ReleasableTrackedObjectTestCase(),
-            new ReferenceCountedTrackedObjectTestCase()
+            new PojoTrackedObjectLifecycle(),
+            new ReleasableTrackedObjectLifecycle(),
+            new ReferenceCountedTrackedObjectLifecycle()
         ).map(i -> new Object[] { i }).toList();
     }
 
     public void testWillLogErrorWhenTrackedObjectIsNotClosed() throws Exception {
-        trackedObjectTestCase.makeAssumptions();
         // Let it go out of scope without closing
-        trackedObjectTestCase.createAndTrack(reachabilityChecker);
+        trackedObjectLifecycle.createAndTrack(reachabilityChecker);
         reachabilityChecker.ensureUnreachable();
         assertBusy(() -> assertLeakDetected("LEAK: resource was not cleaned up before it was garbage-collected\\.(.*|\\s)*"));
     }
 
     public void testWillNotLogErrorWhenTrackedObjectIsClosed() throws IOException {
-        trackedObjectTestCase.makeAssumptions();
         // Close before letting it go out of scope
-        trackedObjectTestCase.createAndTrack(reachabilityChecker).close();
+        trackedObjectLifecycle.createAndTrack(reachabilityChecker).close();
         reachabilityChecker.ensureUnreachable();
     }
 
     /**
      * Encapsulates the lifecycle for a particular type of tracked object
      */
-    public interface TrackedObjectTestCase {
-
-        default void makeAssumptions() {};
+    public interface TrackedObjectLifecycle {
 
         /**
          * Create the tracked object, implementations must
@@ -83,7 +83,7 @@ public class LeakTrackerTests extends ESTestCase {
         Closeable createAndTrack(ReachabilityChecker reachabilityChecker);
     }
 
-    private static class PojoTrackedObjectTestCase implements TrackedObjectTestCase {
+    private static class PojoTrackedObjectLifecycle implements TrackedObjectLifecycle {
 
         @Override
         public Closeable createAndTrack(ReachabilityChecker reachabilityChecker) {
@@ -101,16 +101,11 @@ public class LeakTrackerTests extends ESTestCase {
         }
     }
 
-    private static class ReferenceCountedTrackedObjectTestCase implements TrackedObjectTestCase {
-
-        @Override
-        public void makeAssumptions() {
-            assumeTrue("ReferenceCounted wrapper is a no-op when assertions are disabled", Assertions.ENABLED);
-        }
+    private static class ReferenceCountedTrackedObjectLifecycle implements TrackedObjectLifecycle {
 
         @Override
         public Closeable createAndTrack(ReachabilityChecker reachabilityChecker) {
-            RefCounted refCounted = LeakTracker.wrap(reachabilityChecker.register(createRefCounted()));
+            RefCounted refCounted = LeakTracker.wrap(reachabilityChecker.register((RefCounted) AbstractRefCounted.of(() -> {})));
             refCounted.incRef();
             refCounted.tryIncRef();
             return () -> {
@@ -124,38 +119,18 @@ public class LeakTrackerTests extends ESTestCase {
         public String toString() {
             return "LeakTracker.wrap(RefCounted)";
         }
-
-        private static RefCounted createRefCounted() {
-            return new AbstractRefCounted() {
-
-                @Override
-                protected void closeInternal() {
-                    // Do nothing
-                }
-            };
-        }
     }
 
-    private static class ReleasableTrackedObjectTestCase implements TrackedObjectTestCase {
-
-        @Override
-        public void makeAssumptions() {
-            assumeTrue("Releasable wrapper is a no-op when assertions are disabled", Assertions.ENABLED);
-        }
+    private static class ReleasableTrackedObjectLifecycle implements TrackedObjectLifecycle {
 
         @Override
         public Closeable createAndTrack(ReachabilityChecker reachabilityChecker) {
-            return LeakTracker.wrap(reachabilityChecker.register(createReleasable()));
+            return LeakTracker.wrap(reachabilityChecker.register(Releasables.assertOnce(() -> {})));
         }
 
         @Override
         public String toString() {
             return "LeakTracker.wrap(Releasable)";
-        }
-
-        private static Releasable createReleasable() {
-            int number = Randomness.get().nextInt();
-            return () -> logger.info("Prevents this returning a non-collectible constant {}", number);
         }
     }
 }

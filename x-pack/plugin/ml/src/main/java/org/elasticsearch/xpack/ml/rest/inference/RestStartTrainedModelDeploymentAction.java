@@ -93,12 +93,18 @@ public class RestStartTrainedModelDeploymentAction extends BaseRestHandler {
             request.setTimeout(openTimeout);
         }
 
-        request.setWaitForState(
-            (AllocationStatus.State) sameParamInQueryAndBody(
-                request.getWaitForState(),
-                AllocationStatus.State.fromString(restRequest.param(WAIT_FOR.getPreferredName()))
-            )
-        );
+        if (restRequest.hasParam(WAIT_FOR.getPreferredName())) {
+            String requestState = null;
+            if (request.getWaitForState() != null) {
+                requestState = request.getWaitForState().toString();
+            }
+
+            request.setWaitForState(
+                AllocationStatus.State.fromString(
+                    (String) sameParamInQueryAndBody(requestState, restRequest.param(WAIT_FOR.getPreferredName()))
+                )
+            );
+        }
 
         RestCompatibilityChecker.checkAndSetDeprecatedParam(
             NUMBER_OF_ALLOCATIONS.getDeprecatedNames()[0],

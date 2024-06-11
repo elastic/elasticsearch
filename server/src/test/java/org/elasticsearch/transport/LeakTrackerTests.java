@@ -156,13 +156,11 @@ public class LeakTrackerTests extends ESTestCase {
         }
 
         private static RefCounted createRefCounted() {
-            int number = Randomness.get().nextInt();
             return new AbstractRefCounted() {
 
                 @Override
                 protected void closeInternal() {
                     // Do nothing
-                    logger.info("Prevents this returning a non-collectible constant {}", number);
                 }
             };
         }

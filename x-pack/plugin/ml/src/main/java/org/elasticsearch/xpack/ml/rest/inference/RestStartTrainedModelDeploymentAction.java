@@ -89,14 +89,14 @@ public class RestStartTrainedModelDeploymentAction extends BaseRestHandler {
             TimeValue openTimeout = (TimeValue) sameParamInQueryAndBody(
                 request.getTimeout(),
                 restRequest.paramAsTime(TIMEOUT.getPreferredName(), null)
-            ); // hasParam, so never default
+            );
             request.setTimeout(openTimeout);
         }
 
         request.setWaitForState(
             (AllocationStatus.State) sameParamInQueryAndBody(
                 request.getWaitForState(),
-                AllocationStatus.State.fromString(restRequest.param(WAIT_FOR.getPreferredName(), AllocationStatus.State.STARTED.toString()))
+                AllocationStatus.State.fromString(restRequest.param(WAIT_FOR.getPreferredName()))
             )
         );
 
@@ -130,8 +130,8 @@ public class RestStartTrainedModelDeploymentAction extends BaseRestHandler {
                     ByteSizeValue.parseBytesSizeValue(restRequest.param(CACHE_SIZE.getPreferredName()), CACHE_SIZE.getPreferredName())
                 )
             );
-        } else if (defaultCacheSize != null) {
-            request.setCacheSize((ByteSizeValue) sameParamInQueryAndBody(request.getCacheSize(), defaultCacheSize));
+        } else if (defaultCacheSize != null && request.getCacheSize() == null) {
+            request.setCacheSize(defaultCacheSize);
         }
 
         request.setPriority(

@@ -243,11 +243,12 @@ public class ProgressListenableActionFutureTests extends ESTestCase {
         var future = new ProgressListenableActionFuture(
             start,
             end,
-            p -> assertThat("LongConsumer should not consumed the same  value twice", consumed.add(p), equalTo(true))
+            p -> assertThat("LongConsumer should not consumed the same value twice", consumed.add(p), equalTo(true))
         );
 
         long position = start;
-        for (int i = 0; i < 25 && position < end - 1L; i++) {
+        int iters = randomIntBetween(10, 25);
+        for (int i = 0; i < iters && position < end - 1L; i++) {
             var progress = randomLongBetween(position + 1L, end - 1L);
 
             var listener = new PlainActionFuture<Long>();
@@ -268,6 +269,8 @@ public class ProgressListenableActionFutureTests extends ESTestCase {
             assertThat(listener.isDone(), equalTo(true));
             position = progress;
         }
+        future.onProgress(end);
+        assertThat("LongConsumer is not called when progress is updated to the end", consumed.contains(end), equalTo(false));
     }
 
     private static ProgressListenableActionFuture randomFuture() {

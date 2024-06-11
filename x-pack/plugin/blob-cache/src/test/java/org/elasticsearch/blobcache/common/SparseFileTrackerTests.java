@@ -562,6 +562,7 @@ public class SparseFileTrackerTests extends ESTestCase {
                             tracker.getComplete(),
                             equalTo(j + 1L)
                         );
+                        assertThat(awaitingListener.isDone(), equalTo(true));
                         latestUpdatedCompletePointer = tracker.getComplete();
                     } else {
                         assertThat(

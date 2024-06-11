@@ -37,7 +37,8 @@ class ProgressListenableActionFuture extends PlainActionFuture<Long> {
 
     /**
      * A consumer that accepts progress made by this {@link ProgressListenableActionFuture}. The consumer is called before listeners are
-     * notified of the updated progress value in {@link #onProgress(long)}. The consumer can be called with out-of-order progress values.
+     * notified of the updated progress value in {@link #onProgress(long)} if the value is less than the actual end. The consumer can be
+     * called with out-of-order progress values.
      */
     @Nullable
     private final LongConsumer progressConsumer;

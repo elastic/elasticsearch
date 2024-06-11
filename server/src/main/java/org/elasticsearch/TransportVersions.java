@@ -189,6 +189,7 @@ public class TransportVersions {
     public static final TransportVersion SECURITY_SETTINGS_REQUEST_TIMEOUTS = def(8_680_00_0);
     public static final TransportVersion QUERY_RULE_CRUD_API_PUT = def(8_681_00_0);
     public static final TransportVersion DELETE_SNAPSHOTS_ASYNC_ADDED = def(8_682_00_0);
+
     /*
      * STOP! READ THIS FIRST! No, really,
      *        ____ _____ ___  ____  _        ____  _____    _    ____    _____ _   _ ___ ____    _____ ___ ____  ____ _____ _

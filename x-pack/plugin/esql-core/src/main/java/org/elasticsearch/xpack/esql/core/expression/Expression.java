@@ -83,13 +83,13 @@ public abstract class Expression extends Node<Expression> implements Resolvable,
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        // TODO this function entirely once all subclasses implement it
+        // TODO remove this function entirely once all subclasses implement it
         throw new UnsupportedOperationException("todo unsupported");
     }
 
     @Override
     public String getWriteableName() {
-        // TODO this function entirely once all subclasses implement it
+        // TODO remove this function entirely once all subclasses implement it
         throw new UnsupportedOperationException("todo unsupported");
     }
 

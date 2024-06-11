@@ -102,7 +102,6 @@ import java.util.function.LongSupplier;
 import static co.elastic.elasticsearch.stateless.Stateless.SHARD_READ_THREAD_POOL;
 import static co.elastic.elasticsearch.stateless.Stateless.SHARD_READ_THREAD_POOL_SETTING;
 import static java.util.Collections.emptyList;
-import static org.elasticsearch.index.engine.EngineTestCase.newUid;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.ArgumentMatchers.any;
@@ -470,7 +469,7 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
             null,
             DocumentSizeObserver.EMPTY_INSTANCE
         );
-        return new Engine.Index(newUid(id), 1L, doc);
+        return new Engine.Index(Uid.encodeId(id), 1L, doc);
     }
 
     static class CapturingEngineEventListener implements Engine.EventListener {

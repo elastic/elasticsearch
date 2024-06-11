@@ -96,13 +96,13 @@ if that is not the case.
 
 ### Snapshot Backwards Compatibility
 
-Snapshots taken by a version X cluster nodes cannot be read by a cluster running older version nodes. However, snapshots taken by
-an older version cluster can continue to be read by newer version clusters: this compatibility goes back many major versions. If
-a newer version cluster writes to a snapshot repository containing snapshots from an older version, then it will do so in a way
-that leaves the repository format (metadata and file layout) readable by those older versions.
+Snapshots taken by a cluster of version X nodes cannot be read by a cluster running older version nodes. However, snapshots taken
+by an older version cluster can continue to be read from and written to by newer version clusters: this compatibility goes back
+many major versions. If a newer version cluster writes to a snapshot repository containing snapshots from an older version, then
+it will do so in a way that leaves the repository format (metadata and file layout) readable by those older versions.
 
-Restoring indexes that have different and no longer supported data formats can be a little trickier: see the
-[public snapshot compatibility docs][].
+Restoring indexes that have different and no longer supported data formats can be tricky: see the
+[public snapshot compatibility docs][] for details.
 
 [public snapshot compatibility docs]: https://www.elastic.co/guide/en/elasticsearch/reference/current/snapshot-restore.html#snapshot-index-compatibility
 

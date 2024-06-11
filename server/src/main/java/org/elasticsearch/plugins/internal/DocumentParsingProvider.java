@@ -8,6 +8,8 @@
 
 package org.elasticsearch.plugins.internal;
 
+import org.elasticsearch.index.IndexMode;
+
 /**
  * An interface to provide instances of document parsing observer and reporter
  */
@@ -32,7 +34,11 @@ public interface DocumentParsingProvider {
     /**
      * @return an instance of a reporter to use when parsing has been completed and indexing successful
      */
-    default DocumentSizeReporter newDocumentSizeReporter(String indexName, DocumentSizeAccumulator documentSizeAccumulator) {
+    default DocumentSizeReporter newDocumentSizeReporter(
+        String indexName,
+        IndexMode indexMode,
+        DocumentSizeAccumulator documentSizeAccumulator
+    ) {
         return DocumentSizeReporter.EMPTY_INSTANCE;
     }
 

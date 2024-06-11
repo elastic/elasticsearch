@@ -104,7 +104,7 @@ public class ClusterRerouteIT extends ESIntegTestCase {
         state = safeGet(
             client().execute(
                 TransportClusterRerouteAction.TYPE,
-                new ClusterRerouteRequest().explain(randomBoolean())
+                new ClusterRerouteRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).explain(randomBoolean())
                     .add(new AllocateEmptyPrimaryAllocationCommand("test", 0, node_1, true))
                     .dryRun(true)
             )
@@ -123,7 +123,8 @@ public class ClusterRerouteIT extends ESIntegTestCase {
         state = safeGet(
             client().execute(
                 TransportClusterRerouteAction.TYPE,
-                new ClusterRerouteRequest().explain(randomBoolean()).add(new AllocateEmptyPrimaryAllocationCommand("test", 0, node_1, true))
+                new ClusterRerouteRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).explain(randomBoolean())
+                    .add(new AllocateEmptyPrimaryAllocationCommand("test", 0, node_1, true))
             )
         ).getState();
         assertThat(state.getRoutingNodes().unassigned().size(), equalTo(1));
@@ -151,7 +152,8 @@ public class ClusterRerouteIT extends ESIntegTestCase {
         state = safeGet(
             client().execute(
                 TransportClusterRerouteAction.TYPE,
-                new ClusterRerouteRequest().explain(randomBoolean()).add(new MoveAllocationCommand("test", 0, node_1, node_2))
+                new ClusterRerouteRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).explain(randomBoolean())
+                    .add(new MoveAllocationCommand("test", 0, node_1, node_2))
             )
         ).getState();
 
@@ -259,7 +261,8 @@ public class ClusterRerouteIT extends ESIntegTestCase {
         state = safeGet(
             client().execute(
                 TransportClusterRerouteAction.TYPE,
-                new ClusterRerouteRequest().explain(randomBoolean()).add(new AllocateEmptyPrimaryAllocationCommand("test", 0, node_1, true))
+                new ClusterRerouteRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).explain(randomBoolean())
+                    .add(new AllocateEmptyPrimaryAllocationCommand("test", 0, node_1, true))
             )
         ).getState();
         assertThat(state.getRoutingNodes().unassigned().size(), equalTo(1));
@@ -311,7 +314,8 @@ public class ClusterRerouteIT extends ESIntegTestCase {
         state = safeGet(
             client().execute(
                 TransportClusterRerouteAction.TYPE,
-                new ClusterRerouteRequest().explain(randomBoolean()).add(new AllocateEmptyPrimaryAllocationCommand("test", 0, node_1, true))
+                new ClusterRerouteRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).explain(randomBoolean())
+                    .add(new AllocateEmptyPrimaryAllocationCommand("test", 0, node_1, true))
             )
         ).getState();
         assertThat(state.getRoutingNodes().unassigned().size(), equalTo(1));
@@ -359,7 +363,10 @@ public class ClusterRerouteIT extends ESIntegTestCase {
         logger.info("--> try to move the shard from node1 to node2");
         MoveAllocationCommand cmd = new MoveAllocationCommand("test", 0, node_1, node_2);
         ClusterRerouteResponse resp = safeGet(
-            client().execute(TransportClusterRerouteAction.TYPE, new ClusterRerouteRequest().add(cmd).explain(true))
+            client().execute(
+                TransportClusterRerouteAction.TYPE,
+                new ClusterRerouteRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).add(cmd).explain(true)
+            )
         );
         RoutingExplanations e = resp.getExplanations();
         assertThat(e.explanations().size(), equalTo(1));
@@ -411,7 +418,9 @@ public class ClusterRerouteIT extends ESIntegTestCase {
             ClusterRerouteResponse dryRunResponse = safeGet(
                 client().execute(
                     TransportClusterRerouteAction.TYPE,
-                    new ClusterRerouteRequest().explain(randomBoolean()).dryRun(true).add(dryRunAllocation)
+                    new ClusterRerouteRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).explain(randomBoolean())
+                        .dryRun(true)
+                        .add(dryRunAllocation)
                 )
             );
 
@@ -445,7 +454,9 @@ public class ClusterRerouteIT extends ESIntegTestCase {
             ClusterRerouteResponse response = safeGet(
                 client().execute(
                     TransportClusterRerouteAction.TYPE,
-                    new ClusterRerouteRequest().explain(true) // so we get a NO decision back rather than an exception
+                    new ClusterRerouteRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+                        // set explain(true) so we get a NO decision back rather than an exception
+                        .explain(true)
                         .add(yesDecisionAllocation)
                         .add(noDecisionAllocation)
                 )

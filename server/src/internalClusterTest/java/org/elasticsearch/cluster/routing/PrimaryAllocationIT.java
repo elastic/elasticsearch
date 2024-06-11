@@ -260,7 +260,7 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
             TransportIndicesShardStoresAction.TYPE,
             new IndicesShardStoresRequest(idxName)
         ).get().getStoreStatuses().get(idxName);
-        final var rerouteRequest = new ClusterRerouteRequest();
+        final var rerouteRequest = new ClusterRerouteRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT);
         for (Map.Entry<Integer, List<IndicesShardStoresResponse.StoreStatus>> shardStoreStatuses : storeStatuses.entrySet()) {
             int shardId = shardStoreStatuses.getKey();
             IndicesShardStoresResponse.StoreStatus storeStatus = randomFrom(shardStoreStatuses.getValue());

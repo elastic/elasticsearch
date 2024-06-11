@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.Diffable;
 import org.elasticsearch.cluster.DiffableUtils;
+import org.elasticsearch.cluster.DiffableUtils.MapDiff;
 import org.elasticsearch.cluster.NamedDiffable;
 import org.elasticsearch.cluster.NamedDiffableValueSerializer;
 import org.elasticsearch.cluster.SimpleDiffable;
@@ -46,6 +47,7 @@ import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.gateway.MetadataStateFormat;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
@@ -219,6 +221,9 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
     private static final NamedDiffableValueSerializer<ProjectCustom> PROJECT_CUSTOM_VALUE_SERIALIZER = new NamedDiffableValueSerializer<>(
         ProjectCustom.class
     );
+
+    @SuppressWarnings({ "rawtypes", "unchecked" })
+    private static final NamedDiffableValueSerializer BWC_CUSTOM_VALUE_SERIALIZER = new NamedDiffableValueSerializer(_Custom.class);
 
     private final String clusterUUID;
     private final boolean clusterUUIDCommitted;
@@ -1628,8 +1633,8 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
         private final Diff<DiffableStringMap> hashesOfConsistentSettings;
         private final Diff<ImmutableOpenMap<String, IndexMetadata>> indices;
         private final Diff<ImmutableOpenMap<String, IndexTemplateMetadata>> templates;
-        private final Diff<ImmutableOpenMap<String, ClusterCustom>> clusterCustoms;
-        private final Diff<ImmutableOpenMap<String, ProjectCustom>> projectCustoms;
+        private final MapDiff<String, ClusterCustom, ImmutableOpenMap<String, ClusterCustom>> clusterCustoms;
+        private final MapDiff<String, ProjectCustom, ImmutableOpenMap<String, ProjectCustom>> projectCustoms;
         private final Diff<Map<String, ReservedStateMetadata>> reservedStateMetadata;
 
         /**
@@ -1698,16 +1703,22 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
             }
             indices = DiffableUtils.readImmutableOpenMapDiff(in, DiffableUtils.getStringKeySerializer(), INDEX_METADATA_DIFF_VALUE_READER);
             templates = DiffableUtils.readImmutableOpenMapDiff(in, DiffableUtils.getStringKeySerializer(), TEMPLATES_DIFF_VALUE_READER);
-            clusterCustoms = DiffableUtils.readImmutableOpenMapDiff(
-                in,
-                DiffableUtils.getStringKeySerializer(),
-                CLUSTER_CUSTOM_VALUE_SERIALIZER
-            );
-            projectCustoms = DiffableUtils.readImmutableOpenMapDiff(
-                in,
-                DiffableUtils.getStringKeySerializer(),
-                PROJECT_CUSTOM_VALUE_SERIALIZER
-            );
+            if (in.getTransportVersion().onOrAfter(TransportVersions.MULTI_PROJECT)) {
+                clusterCustoms = DiffableUtils.readImmutableOpenMapDiff(
+                    in,
+                    DiffableUtils.getStringKeySerializer(),
+                    CLUSTER_CUSTOM_VALUE_SERIALIZER
+                );
+                projectCustoms = DiffableUtils.readImmutableOpenMapDiff(
+                    in,
+                    DiffableUtils.getStringKeySerializer(),
+                    PROJECT_CUSTOM_VALUE_SERIALIZER
+                );
+            } else {
+                var bwcCustoms = readBwcCustoms(in);
+                clusterCustoms = bwcCustoms.v1();
+                projectCustoms = bwcCustoms.v2();
+            }
             if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
                 reservedStateMetadata = DiffableUtils.readJdkMapDiff(
                     in,
@@ -1717,6 +1728,26 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
             } else {
                 reservedStateMetadata = DiffableUtils.emptyDiff();
             }
+        }
+
+        @SuppressWarnings("unchecked")
+        private static
+            Tuple<
+                MapDiff<String, ClusterCustom, ImmutableOpenMap<String, ClusterCustom>>,
+                MapDiff<String, ProjectCustom, ImmutableOpenMap<String, ProjectCustom>>>
+            readBwcCustoms(StreamInput in) throws IOException {
+            MapDiff<String, _Custom<?>, ImmutableOpenMap<String, _Custom<?>>> customs = DiffableUtils.readImmutableOpenMapDiff(
+                in,
+                DiffableUtils.getStringKeySerializer(),
+                BWC_CUSTOM_VALUE_SERIALIZER
+            );
+            return DiffableUtils.split(
+                customs,
+                in.namedWriteableRegistry().getReaders(ClusterCustom.class).keySet(),
+                CLUSTER_CUSTOM_VALUE_SERIALIZER,
+                in.namedWriteableRegistry().getReaders(ProjectCustom.class).keySet(),
+                PROJECT_CUSTOM_VALUE_SERIALIZER
+            );
         }
 
         @Override
@@ -1742,11 +1773,20 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
             }
             indices.writeTo(out);
             templates.writeTo(out);
-            clusterCustoms.writeTo(out);
-            projectCustoms.writeTo(out);
+            if (out.getTransportVersion().onOrAfter(TransportVersions.MULTI_PROJECT)) {
+                clusterCustoms.writeTo(out);
+                projectCustoms.writeTo(out);
+            } else {
+                buildUnifiedCustomDiff().writeTo(out);
+            }
             if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
                 reservedStateMetadata.writeTo(out);
             }
+        }
+
+        @SuppressWarnings("unchecked")
+        private Diff<ImmutableOpenMap<String, ?>> buildUnifiedCustomDiff() {
+            return DiffableUtils.merge(clusterCustoms, projectCustoms, DiffableUtils.getStringKeySerializer(), BWC_CUSTOM_VALUE_SERIALIZER);
         }
 
         @Override
@@ -1810,8 +1850,12 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
         for (int i = 0; i < size; i++) {
             builder.put(IndexTemplateMetadata.readFrom(in));
         }
-        readNamedWriteables(in, ClusterCustom.class, builder::putClusterCustom);
-        readNamedWriteables(in, ProjectCustom.class, builder::putProjectCustom);
+        if (in.getTransportVersion().onOrAfter(TransportVersions.MULTI_PROJECT)) {
+            readNamedWriteables(in, ClusterCustom.class, builder::putClusterCustom);
+            readNamedWriteables(in, ProjectCustom.class, builder::putProjectCustom);
+        } else {
+            readBwcCustoms(in, builder);
+        }
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
             int reservedStateSize = in.readVInt();
             for (int i = 0; i < reservedStateSize; i++) {
@@ -1827,6 +1871,24 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
         for (int i = 0; i < customSize; i++) {
             T customIndexMetadata = in.readNamedWriteable(type);
             consumer.accept(customIndexMetadata.getWriteableName(), customIndexMetadata);
+        }
+    }
+
+    private static <T extends NamedWriteable> void readBwcCustoms(StreamInput in, Builder builder) throws IOException {
+        final Set<String> clusterScopedNames = in.namedWriteableRegistry().getReaders(ClusterCustom.class).keySet();
+        final Set<String> projectScopedNames = in.namedWriteableRegistry().getReaders(ProjectCustom.class).keySet();
+        final int count = in.readVInt();
+        for (int i = 0; i < count; i++) {
+            final String name = in.readString();
+            if (clusterScopedNames.contains(name)) {
+                final ClusterCustom custom = in.readNamedWriteable(ClusterCustom.class, name);
+                builder.putClusterCustom(custom.getWriteableName(), custom);
+            } else if (projectScopedNames.contains(name)) {
+                final ProjectCustom custom = in.readNamedWriteable(ProjectCustom.class, name);
+                builder.putProjectCustom(custom.getWriteableName(), custom);
+            } else {
+                throw new IllegalArgumentException("Unknown custom name [" + name + "]");
+            }
         }
     }
 
@@ -1852,8 +1914,17 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
             indexMetadata.writeTo(out, writeMappingsHash);
         }
         out.writeCollection(templates.values());
-        VersionedNamedWriteable.writeVersionedWritables(out, clusterCustoms);
-        VersionedNamedWriteable.writeVersionedWritables(out, projectCustoms);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.MULTI_PROJECT)) {
+            VersionedNamedWriteable.writeVersionedWritables(out, clusterCustoms);
+            VersionedNamedWriteable.writeVersionedWritables(out, projectCustoms);
+        } else {
+            // It would be nice to do this as flattening iterable (rather than allocation a whole new list), but flattening
+            // Iterable<? extends VersionNamedWriteable> into Iterable<VersionNamedWriteable> is messy, so we can fix that later
+            List<VersionedNamedWriteable> merge = new ArrayList<>(clusterCustoms.size() + projectCustoms.size());
+            merge.addAll(clusterCustoms.values());
+            merge.addAll(projectCustoms.values());
+            VersionedNamedWriteable.writeVersionedWriteables(out, merge);
+        }
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
             out.writeCollection(reservedStateMetadata.values());
         }

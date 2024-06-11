@@ -185,6 +185,7 @@ public class TransportVersions {
     public static final TransportVersion ADD_MISTRAL_EMBEDDINGS_INFERENCE = def(8_676_00_0);
     public static final TransportVersion ML_CHUNK_INFERENCE_OPTION = def(8_677_00_0);
 
+    public static final TransportVersion MULTI_PROJECT = def(8_999_00_0); // THIS IS A HACK FOR NOW (!)
     /*
      * STOP! READ THIS FIRST! No, really,
      *        ____ _____ ___  ____  _        ____  _____    _    ____    _____ _   _ ___ ____    _____ ___ ____  ____ _____ _

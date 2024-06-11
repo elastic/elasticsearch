@@ -10,7 +10,7 @@ package org.elasticsearch.logstashbridge.ingest;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.ingest.Processor;
-import org.elasticsearch.logstashbridge.StableAPI;
+import org.elasticsearch.logstashbridge.StableBridgeAPI;
 import org.elasticsearch.logstashbridge.env.EnvironmentBridge;
 import org.elasticsearch.logstashbridge.script.ScriptServiceBridge;
 import org.elasticsearch.logstashbridge.threadpool.ThreadPoolBridge;
@@ -18,7 +18,7 @@ import org.elasticsearch.logstashbridge.threadpool.ThreadPoolBridge;
 import java.util.Map;
 import java.util.function.BiConsumer;
 
-public interface ProcessorBridge extends StableAPI<Processor> {
+public interface ProcessorBridge extends StableBridgeAPI<Processor> {
     String getType();
 
     String getTag();
@@ -33,7 +33,7 @@ public interface ProcessorBridge extends StableAPI<Processor> {
         return new Wrapped(delegate);
     }
 
-    class Wrapped extends StableAPI.Proxy<Processor> implements ProcessorBridge {
+    class Wrapped extends StableBridgeAPI.Proxy<Processor> implements ProcessorBridge {
         public Wrapped(final Processor delegate) {
             super(delegate);
         }
@@ -61,11 +61,14 @@ public interface ProcessorBridge extends StableAPI<Processor> {
         @Override
         public void execute(final IngestDocumentBridge ingestDocumentBridge, final BiConsumer<IngestDocumentBridge, Exception> handler)
             throws Exception {
-            delegate.execute(StableAPI.unwrapNullable(ingestDocumentBridge), (id, e) -> handler.accept(IngestDocumentBridge.wrap(id), e));
+            delegate.execute(
+                StableBridgeAPI.unwrapNullable(ingestDocumentBridge),
+                (id, e) -> handler.accept(IngestDocumentBridge.wrap(id), e)
+            );
         }
     }
 
-    class Parameters extends StableAPI.Proxy<Processor.Parameters> {
+    class Parameters extends StableBridgeAPI.Proxy<Processor.Parameters> {
 
         public Parameters(
             final EnvironmentBridge environmentBridge,
@@ -99,7 +102,7 @@ public interface ProcessorBridge extends StableAPI<Processor> {
         }
     }
 
-    interface Factory extends StableAPI<Processor.Factory> {
+    interface Factory extends StableBridgeAPI<Processor.Factory> {
         ProcessorBridge create(
             Map<String, ProcessorBridge.Factory> registry,
             String processorTag,
@@ -115,14 +118,14 @@ public interface ProcessorBridge extends StableAPI<Processor> {
         default Processor.Factory unwrap() {
             final Factory stableAPIFactory = this;
             return (registry, tag, description, config) -> stableAPIFactory.create(
-                StableAPI.wrap(registry, Factory::wrap),
+                StableBridgeAPI.wrap(registry, Factory::wrap),
                 tag,
                 description,
                 config
             ).unwrap();
         }
 
-        class Wrapped extends StableAPI.Proxy<Processor.Factory> implements Factory {
+        class Wrapped extends StableBridgeAPI.Proxy<Processor.Factory> implements Factory {
             private Wrapped(final Processor.Factory delegate) {
                 super(delegate);
             }
@@ -134,7 +137,7 @@ public interface ProcessorBridge extends StableAPI<Processor> {
                 final String description,
                 final Map<String, Object> config
             ) throws Exception {
-                return ProcessorBridge.wrap(this.delegate.create(StableAPI.unwrap(registry), processorTag, description, config));
+                return ProcessorBridge.wrap(this.delegate.create(StableBridgeAPI.unwrap(registry), processorTag, description, config));
             }
 
             @Override

@@ -9,7 +9,7 @@ package org.elasticsearch.logstashbridge.ingest;
 
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.LogstashInternalBridge;
-import org.elasticsearch.logstashbridge.StableAPI;
+import org.elasticsearch.logstashbridge.StableBridgeAPI;
 import org.elasticsearch.logstashbridge.script.MetadataBridge;
 import org.elasticsearch.logstashbridge.script.TemplateScriptBridge;
 
@@ -17,7 +17,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.BiConsumer;
 
-public class IngestDocumentBridge extends StableAPI.Proxy<IngestDocument> {
+public class IngestDocumentBridge extends StableBridgeAPI.Proxy<IngestDocument> {
 
     public static String INGEST_KEY = IngestDocument.INGEST_KEY;
 

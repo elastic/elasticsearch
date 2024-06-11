@@ -8,13 +8,13 @@
 package org.elasticsearch.logstashbridge.ingest;
 
 import org.elasticsearch.ingest.Pipeline;
-import org.elasticsearch.logstashbridge.StableAPI;
+import org.elasticsearch.logstashbridge.StableBridgeAPI;
 import org.elasticsearch.logstashbridge.script.ScriptServiceBridge;
 
 import java.util.Map;
 import java.util.function.BiConsumer;
 
-public class PipelineBridge extends StableAPI.Proxy<Pipeline> {
+public class PipelineBridge extends StableBridgeAPI.Proxy<Pipeline> {
     public static PipelineBridge wrap(final Pipeline pipeline) {
         return new PipelineBridge(pipeline);
     }
@@ -25,7 +25,9 @@ public class PipelineBridge extends StableAPI.Proxy<Pipeline> {
         Map<String, ProcessorBridge.Factory> processorFactories,
         ScriptServiceBridge scriptServiceBridge
     ) throws Exception {
-        return wrap(Pipeline.create(id, config, StableAPI.unwrap(processorFactories), StableAPI.unwrapNullable(scriptServiceBridge)));
+        return wrap(
+            Pipeline.create(id, config, StableBridgeAPI.unwrap(processorFactories), StableBridgeAPI.unwrapNullable(scriptServiceBridge))
+        );
     }
 
     public PipelineBridge(final Pipeline delegate) {
@@ -38,7 +40,7 @@ public class PipelineBridge extends StableAPI.Proxy<Pipeline> {
 
     public void execute(final IngestDocumentBridge ingestDocumentBridge, final BiConsumer<IngestDocumentBridge, Exception> handler) {
         this.delegate.execute(
-            StableAPI.unwrapNullable(ingestDocumentBridge),
+            StableBridgeAPI.unwrapNullable(ingestDocumentBridge),
             (unwrapped, e) -> handler.accept(IngestDocumentBridge.wrap(unwrapped), e)
         );
     }

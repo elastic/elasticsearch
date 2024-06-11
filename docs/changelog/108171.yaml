@@ -1,5 +1,5 @@
 pr: 108171
-summary: "[logstash bridge]: stableapi bootstrap"
+summary: "add Elastic-internal stable bridge api for use by Logstash"
 area: Infra/Core
 type: enhancement
 issues: []

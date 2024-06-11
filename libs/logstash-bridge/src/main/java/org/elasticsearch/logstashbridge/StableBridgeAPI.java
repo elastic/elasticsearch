@@ -13,39 +13,39 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
- * A {@code StableAPI} is the stable form of an Elasticsearch API, and can produce comparable instances
+ * A {@code StableBridgeAPI} is the stable bridge to an Elasticsearch API, and can produce instances
  * from the actual API that they mirror. As part of the LogstashBridge project, these classes are relied
  * upon by the "Elastic Integration Filter Plugin" for Logstash and their external shapes mut not change
  * without coordination with the maintainers of that project.
  *
  * @param <T> the actual type of the Elasticsearch API being mirrored
  */
-public interface StableAPI<T> {
+public interface StableBridgeAPI<T> {
     T unwrap();
 
-    static <T> T unwrapNullable(final StableAPI<T> nullableStableAPI) {
-        if (Objects.isNull(nullableStableAPI)) {
+    static <T> T unwrapNullable(final StableBridgeAPI<T> nullableStableBridgeAPI) {
+        if (Objects.isNull(nullableStableBridgeAPI)) {
             return null;
         }
-        return nullableStableAPI.unwrap();
+        return nullableStableBridgeAPI.unwrap();
     }
 
-    static <K, T> Map<K, T> unwrap(final Map<K, ? extends StableAPI<T>> bridgeMap) {
+    static <K, T> Map<K, T> unwrap(final Map<K, ? extends StableBridgeAPI<T>> bridgeMap) {
         return bridgeMap.entrySet().stream().collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, e -> e.getValue().unwrap()));
     }
 
-    static <K, T, B extends StableAPI<T>> Map<K, B> wrap(final Map<K, T> rawMap, final Function<T, B> wrapFunction) {
+    static <K, T, B extends StableBridgeAPI<T>> Map<K, B> wrap(final Map<K, T> rawMap, final Function<T, B> wrapFunction) {
         return rawMap.entrySet().stream().collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, e -> wrapFunction.apply(e.getValue())));
     }
 
-    static <T, B extends StableAPI<T>> B wrap(final T delegate, final Function<T, B> wrapFunction) {
+    static <T, B extends StableBridgeAPI<T>> B wrap(final T delegate, final Function<T, B> wrapFunction) {
         if (Objects.isNull(delegate)) {
             return null;
         }
         return wrapFunction.apply(delegate);
     }
 
-    abstract class Proxy<T> implements StableAPI<T> {
+    abstract class Proxy<T> implements StableBridgeAPI<T> {
         protected final T delegate;
 
         protected Proxy(final T delegate) {

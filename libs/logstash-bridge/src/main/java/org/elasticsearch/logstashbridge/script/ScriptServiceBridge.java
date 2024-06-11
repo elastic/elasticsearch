@@ -8,7 +8,7 @@
 package org.elasticsearch.logstashbridge.script;
 
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.logstashbridge.StableAPI;
+import org.elasticsearch.logstashbridge.StableBridgeAPI;
 import org.elasticsearch.logstashbridge.common.SettingsBridge;
 import org.elasticsearch.painless.PainlessPlugin;
 import org.elasticsearch.painless.PainlessScriptEngine;
@@ -27,7 +27,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.LongSupplier;
 
-public class ScriptServiceBridge extends StableAPI.Proxy<ScriptService> implements Closeable {
+public class ScriptServiceBridge extends StableBridgeAPI.Proxy<ScriptService> implements Closeable {
     public ScriptServiceBridge wrap(final ScriptService delegate) {
         return new ScriptServiceBridge(delegate);
     }

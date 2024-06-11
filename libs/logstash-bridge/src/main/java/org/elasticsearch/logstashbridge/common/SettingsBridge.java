@@ -8,9 +8,9 @@
 package org.elasticsearch.logstashbridge.common;
 
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.logstashbridge.StableAPI;
+import org.elasticsearch.logstashbridge.StableBridgeAPI;
 
-public class SettingsBridge extends StableAPI.Proxy<Settings> {
+public class SettingsBridge extends StableBridgeAPI.Proxy<Settings> {
 
     public static SettingsBridge wrap(final Settings delegate) {
         return new SettingsBridge(delegate);
@@ -29,7 +29,7 @@ public class SettingsBridge extends StableAPI.Proxy<Settings> {
         return this.delegate;
     }
 
-    public static class Builder extends StableAPI.Proxy<Settings.Builder> {
+    public static class Builder extends StableBridgeAPI.Proxy<Settings.Builder> {
         static Builder wrap(final Settings.Builder delegate) {
             return new Builder(delegate);
         }

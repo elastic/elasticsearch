@@ -7,7 +7,7 @@
  */
 package org.elasticsearch.logstashbridge.plugins;
 
-import org.elasticsearch.logstashbridge.StableAPI;
+import org.elasticsearch.logstashbridge.StableBridgeAPI;
 import org.elasticsearch.logstashbridge.ingest.ProcessorBridge;
 import org.elasticsearch.plugins.IngestPlugin;
 
@@ -22,14 +22,14 @@ public interface IngestPluginBridge {
         return new Wrapped(delegate);
     }
 
-    class Wrapped extends StableAPI.Proxy<IngestPlugin> implements IngestPluginBridge, Closeable {
+    class Wrapped extends StableBridgeAPI.Proxy<IngestPlugin> implements IngestPluginBridge, Closeable {
 
         private Wrapped(final IngestPlugin delegate) {
             super(delegate);
         }
 
         public Map<String, ProcessorBridge.Factory> getProcessors(final ProcessorBridge.Parameters parameters) {
-            return StableAPI.wrap(this.delegate.getProcessors(parameters.unwrap()), ProcessorBridge.Factory::wrap);
+            return StableBridgeAPI.wrap(this.delegate.getProcessors(parameters.unwrap()), ProcessorBridge.Factory::wrap);
         }
 
         @Override

@@ -7,12 +7,12 @@
  */
 package org.elasticsearch.logstashbridge.script;
 
-import org.elasticsearch.logstashbridge.StableAPI;
+import org.elasticsearch.logstashbridge.StableBridgeAPI;
 import org.elasticsearch.script.Metadata;
 
 import java.time.ZonedDateTime;
 
-public class MetadataBridge extends StableAPI.Proxy<Metadata> {
+public class MetadataBridge extends StableBridgeAPI.Proxy<Metadata> {
     public MetadataBridge(final Metadata delegate) {
         super(delegate);
     }

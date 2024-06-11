@@ -8,12 +8,12 @@
 package org.elasticsearch.logstashbridge.env;
 
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.logstashbridge.StableAPI;
+import org.elasticsearch.logstashbridge.StableBridgeAPI;
 import org.elasticsearch.logstashbridge.common.SettingsBridge;
 
 import java.nio.file.Path;
 
-public class EnvironmentBridge extends StableAPI.Proxy<Environment> {
+public class EnvironmentBridge extends StableBridgeAPI.Proxy<Environment> {
     public static EnvironmentBridge wrap(final Environment delegate) {
         return new EnvironmentBridge(delegate);
     }

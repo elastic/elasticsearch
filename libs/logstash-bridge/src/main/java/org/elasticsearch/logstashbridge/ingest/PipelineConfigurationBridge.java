@@ -9,12 +9,12 @@ package org.elasticsearch.logstashbridge.ingest;
 
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.ingest.PipelineConfiguration;
-import org.elasticsearch.logstashbridge.StableAPI;
+import org.elasticsearch.logstashbridge.StableBridgeAPI;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.util.Map;
 
-public class PipelineConfigurationBridge extends StableAPI.Proxy<PipelineConfiguration> {
+public class PipelineConfigurationBridge extends StableBridgeAPI.Proxy<PipelineConfiguration> {
     public PipelineConfigurationBridge(final PipelineConfiguration delegate) {
         super(delegate);
     }

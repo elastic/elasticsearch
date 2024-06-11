@@ -7,11 +7,11 @@
  */
 package org.elasticsearch.logstashbridge.script;
 
-import org.elasticsearch.logstashbridge.StableAPI;
+import org.elasticsearch.logstashbridge.StableBridgeAPI;
 import org.elasticsearch.script.TemplateScript;
 
 public class TemplateScriptBridge {
-    public static class Factory extends StableAPI.Proxy<TemplateScript.Factory> {
+    public static class Factory extends StableBridgeAPI.Proxy<TemplateScript.Factory> {
         public static Factory wrap(final TemplateScript.Factory delegate) {
             return new Factory(delegate);
         }

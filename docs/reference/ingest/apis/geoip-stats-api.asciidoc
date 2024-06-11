@@ -180,7 +180,9 @@ GeoIP databases on the node. The field key is the node ID.
 =====
 `databases`::
 (array of objects)
-This provides information about each database that was pulled down from an {es} index onto this node.
+This provides information about each database that exists on this node that is eligible to be used by a geoip processor. Note that only
+one database for a given name will be shown here -- the one that will be used if a processor references a database by that name.
+Databases downloaded by the system (source `downloader`) take precedence over databases that have been manually provided (source `config`).
 +
 .Properties of `databases` objects
 [%collapsible%open]

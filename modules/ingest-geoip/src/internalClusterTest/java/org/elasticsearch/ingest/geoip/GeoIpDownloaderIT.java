@@ -29,6 +29,7 @@ import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.IngestDocument;
+import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.ingest.geoip.stats.GeoIpStatsAction;
 import org.elasticsearch.ingest.geoip.stats.RetrievedDatabaseInfo;
@@ -161,6 +162,54 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
 
         putGeoIpPipeline();
         verifyUpdatedDatabase();
+
+        assertBusy(() -> {
+            /*
+             * Here we make sure that the downloader has run on the ingest nodes, and that the downloaded version of the file takes
+             * precedence over the manually-installed version of the same file.
+             */
+            GeoIpStatsAction.Response response = client().execute(GeoIpStatsAction.INSTANCE, new GeoIpStatsAction.Request()).actionGet();
+
+            assertThat(response.getNodes(), not(empty()));
+            for (GeoIpStatsAction.NodeResponse nodeResponse : response.getNodes()) {
+                assertThat(
+                    nodeResponse.getConfigDatabases(),
+                    containsInAnyOrder("GeoLite2-Country.mmdb", "GeoLite2-City.mmdb", "GeoLite2-ASN.mmdb")
+                );
+                Map<String, String> ingestNodeDatabaseNameToSourceMap = Map.of(
+                    "MyCustomGeoLite2-City.mmdb",
+                    "downloader",
+                    "GeoLite2" + "-Country.mmdb",
+                    "config",
+                    "GeoLite2-City.mmdb",
+                    "downloader",
+                    "GeoLite2-ASN.mmdb",
+                    "config"
+                );
+                Map<String, String> nonIngestNodeDatabaseNameToSourceMap = Map.of(
+                    "GeoLite2" + "-Country.mmdb",
+                    "config",
+                    "GeoLite2-City.mmdb",
+                    "config",
+                    "GeoLite2-ASN.mmdb",
+                    "config"
+                );
+                Map<String, String> responseDatabaseNameToSourceMap = nodeResponse.getDatabases()
+                    .stream()
+                    .collect(Collectors.toMap(RetrievedDatabaseInfo::name, RetrievedDatabaseInfo::source));
+                boolean isIngestNode = internalCluster().getInstance(IngestService.class, nodeResponse.getNode().getName())
+                    .getClusterService()
+                    .state()
+                    .nodes()
+                    .getLocalNode()
+                    .isIngestNode();
+                if (isIngestNode) {
+                    assertThat(responseDatabaseNameToSourceMap, equalTo(ingestNodeDatabaseNameToSourceMap));
+                } else {
+                    assertThat(responseDatabaseNameToSourceMap, equalTo(nonIngestNodeDatabaseNameToSourceMap));
+                }
+            }
+        });
 
         updateClusterSettings(Settings.builder().put("ingest.geoip.database_validity", TimeValue.timeValueMillis(1)));
         updateClusterSettings(
@@ -708,9 +757,19 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
                     nodeResponse.getConfigDatabases(),
                     containsInAnyOrder("GeoLite2-Country.mmdb", "GeoLite2-City.mmdb", "GeoLite2-ASN.mmdb")
                 );
+                Map<String, String> databaseNameToSourceMap = Map.of(
+                    "GeoLite2-Country.mmdb",
+                    "config",
+                    "GeoLite2-City.mmdb",
+                    "config",
+                    "GeoLite2-ASN.mmdb",
+                    "config"
+                );
                 assertThat(
-                    nodeResponse.getDatabases().stream().map(RetrievedDatabaseInfo::name).collect(Collectors.toSet()),
-                    containsInAnyOrder("GeoLite2-Country.mmdb", "GeoLite2-City.mmdb", "GeoLite2-ASN.mmdb")
+                    nodeResponse.getDatabases()
+                        .stream()
+                        .collect(Collectors.toMap(RetrievedDatabaseInfo::name, RetrievedDatabaseInfo::source)),
+                    equalTo(databaseNameToSourceMap)
                 );
                 assertThat(nodeResponse.getFilesInTemp().stream().filter(s -> s.endsWith(".txt") == false).toList(), empty());
             }

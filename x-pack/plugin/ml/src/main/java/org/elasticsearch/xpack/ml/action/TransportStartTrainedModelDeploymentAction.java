@@ -348,7 +348,7 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
                 public void onTimeout(TimeValue timeout) {
                     onFailure(
                         new ElasticsearchStatusException(
-                            "Timed out after [{}] waiting for model deployment to finish. "
+                            "Timed out after [{}] waiting for model deployment to start. "
                                 + "Use the trained model stats API to track the state of the deployment.",
                             RestStatus.REQUEST_TIMEOUT,
                             request.getTimeout() // use the full request timeout in the error message

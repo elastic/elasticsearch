@@ -374,13 +374,11 @@ public class ActionListenerTests extends ESTestCase {
 
     public void testAssertAtLeastOnceWillLogAssertionErrorWhenNotResolved() throws Exception {
         assumeTrue("assertAtLeastOnce will be a no-op when assertions are disabled", Assertions.ENABLED);
-        final AtomicReference<ActionListener<Object>> listenerRef = new AtomicReference<>(
-            ActionListener.assertAtLeastOnce(ActionListener.running(() -> {
-                // Do nothing, but don't use ActionListener.noop() as it'll never be garbage collected
-            }))
-        );
+        ActionListener<Object> listenerRef = ActionListener.assertAtLeastOnce(ActionListener.running(() -> {
+            // Do nothing, but don't use ActionListener.noop() as it'll never be garbage collected
+        }));
         // Nullify reference so it becomes unreachable
-        listenerRef.set(null);
+        listenerRef = null;
         assertBusy(() -> {
             System.gc();
             assertLeakDetected("LEAK: resource was not cleaned up before it was garbage-collected\\.(.*|\\s)*");
@@ -390,19 +388,17 @@ public class ActionListenerTests extends ESTestCase {
     public void testAssertAtLeastOnceWillNotLogWhenResolvedOrFailed() {
         assumeTrue("assertAtLeastOnce will be a no-op when assertions are disabled", Assertions.ENABLED);
         ReachabilityChecker reachabilityChecker = new ReachabilityChecker();
-        final AtomicReference<ActionListener<Object>> listenerRef = new AtomicReference<>(
-            reachabilityChecker.register(ActionListener.assertAtLeastOnce(ActionListener.running(() -> {
-                // Do nothing, but don't use ActionListener.noop() as it'll never be garbage collected
-            })))
-        );
+        ActionListener<Object> listenerRef = reachabilityChecker.register(ActionListener.assertAtLeastOnce(ActionListener.running(() -> {
+            // Do nothing, but don't use ActionListener.noop() as it'll never be garbage collected
+        })));
         // Call onResponse or onFailure
         if (randomBoolean()) {
-            listenerRef.get().onResponse("succeeded");
+            listenerRef.onResponse("succeeded");
         } else {
-            listenerRef.get().onFailure(new RuntimeException("Failed"));
+            listenerRef.onFailure(new RuntimeException("Failed"));
         }
         // Nullify reference so it becomes unreachable
-        listenerRef.set(null);
+        listenerRef = null;
         reachabilityChecker.ensureUnreachable();
     }
 

@@ -70,32 +70,39 @@ state must ever be reloaded from persisted state.
 
 ## Backwards Compatibility
 
-Elasticsearch has major versions (e.g. 8.0.0), minor versions (e.g. 8.3.0) and patch versions (e.g. 8.3.1). Multiversion
-binary backwards compatibility within a cluster is guaranteed for specific situations.
+Elasticsearch versions are composed of three pieces of information: the major version, the minor version, and the patch version,
+in that order (major.minor.patch). Patch releases are typically bug fixes; minor releases are improvements; and major releases
+contain new features. As an example, each of 8.0.0, 8.3.0 and 8.3.1 specifies an exact release version. They all have the same
+major version (8) and the last two have the same minor version (8.3). Multiversion compatibility within a cluster, or backwards
+compatibility with older versions, is guaranteed across specific versions.
 
 ### Transport Layer Backwards Compatibility
 
-Elasticsearch nodes are backwards compatible with all earlier binary version nodes in the same major release: all the earlier
-minor and patch releases within that same major version. All binary versions within one major version X are also compatible with
-the last minor release version of the previous major version, e.g. (X-1).last.0. More concretely, all 8.x.x versions are
-backwards compatible with 7.17.x versions.
+Elasticsearch nodes can communicate over the network with all older version nodes in the same major release: all the older minor
+and patch releases within that same major version. All versions within one major version X are also compatible with the last
+minor version releases of the previous major version, e.g. (X-1).last.x. More concretely, all 8.x.x version nodes can communicate
+with all 7.17.x version nodes.
 
 ### Index Format Backwards Compatibility
 
-Index format backwards compatibility is guaranteed with the entirety of the previous major release version. All 8.x.x versions,
-for example, are backwards compatible with all 7.x.x versions. 9.x.x versions, however, will not be compatible with 7.x.x format
+Index data format backwards compatibility is guaranteed with all versions of the previous major release. All 8.x.x version nodes,
+for example, can read index data written by any 7.x.x version node. 9.x.x versions, however, will not be able to read 7.x.x format
 data files.
 
 Elasticsearch does not have an upgrade process to convert from older to newer index data formats. The user is expected to run
-`reindex` on any remaining untouched data from a previous version before upgrading to the next version. There is a good chance
-that older version index data will age out and be deleted before the user does the next upgrade, but `reindex` can be used if
-that is not the case.
+`reindex` on any remaining untouched data from a previous version upgrade before upgrading to the next version. There is a good
+chance that older version index data will age out and be deleted before the user does the next upgrade, but `reindex` can be used
+if that is not the case.
 
 ### Snapshot Backwards Compatibility
 
-Snapshots taken by version X nodes cannot be read by nodes running earlier versions. However, snapshots taken by old version
-nodes can continue to be read by newer version nodes: this compatibility goes back many major versions. Restoring indexes that
-have different and no longer supported data formats can be a little trickier: see the [public snapshot compatibility docs][].
+Snapshots taken by a version X cluster nodes cannot be read by a cluster running older version nodes. However, snapshots taken by
+an older version cluster can continue to be read by newer version clusters: this compatibility goes back many major versions. If
+a newer version cluster writes to a snapshot repository containing snapshots from an older version, then it will do so in a way
+that leaves the repository format (metadata and file layout) readable by those older versions.
+
+Restoring indexes that have different and no longer supported data formats can be a little trickier: see the
+[public snapshot compatibility docs][].
 
 [public snapshot compatibility docs]: https://www.elastic.co/guide/en/elasticsearch/reference/current/snapshot-restore.html#snapshot-index-compatibility
 

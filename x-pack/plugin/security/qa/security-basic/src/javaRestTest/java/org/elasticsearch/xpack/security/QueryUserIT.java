@@ -195,13 +195,13 @@ public class QueryUserIT extends SecurityInBasicRestTestCase {
         assertQueryError(TEST_USER_NO_READ_USERS_AUTH_HEADER, 403, """
             { "query": { "wildcard": {"name": "*prefix*"} } }""");
 
-        // Range query not supported
+        // Span term query not supported
         assertQueryError(400, """
-            {"query":{"range":{"username":{"lt":"now"}}}}""");
+            {"query":{"span_term":{"username": "X"} } }""");
 
-        // IDs query not supported
+        // Fuzzy query not supported
         assertQueryError(400, """
-            { "query": { "ids": { "values": "abc" } } }""");
+            { "query": { "fuzzy": { "username": "X" } } }""");
 
         // Make sure we can't query reserved users
         String reservedUsername = getReservedUsernameAndAssertExists();

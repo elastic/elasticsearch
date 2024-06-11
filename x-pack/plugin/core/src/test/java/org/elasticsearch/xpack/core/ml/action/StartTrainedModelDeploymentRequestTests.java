@@ -71,11 +71,11 @@ public class StartTrainedModelDeploymentRequestTests extends AbstractXContentSer
         }
         if (randomBoolean()) {
             request.setPriority(randomFrom(Priority.values()).toString());
-            if (request.getNumberOfAllocations() != null && request.getThreadsPerAllocation() != null) {
-                if (request.getNumberOfAllocations() > 1 || request.getThreadsPerAllocation() > 1) {
-                    request.setPriority(Priority.NORMAL.toString());
-                }
+            if ((request.getNumberOfAllocations() != null && request.getNumberOfAllocations() > 1)
+                || (request.getThreadsPerAllocation() != null && request.getThreadsPerAllocation() > 1)) {
+                request.setPriority(Priority.NORMAL.toString());
             }
+
         }
         return request;
     }

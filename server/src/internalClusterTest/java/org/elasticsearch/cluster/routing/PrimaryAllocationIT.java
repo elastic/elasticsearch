@@ -212,9 +212,12 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
         logger.info("--> force allocation of stale copy to node that does not have shard copy");
         assertEquals(
             "No data for shard [0] of index [test] found on any node",
-            ClusterRerouteUtils.expectRerouteFailure(
-                client(),
-                new AllocateStalePrimaryAllocationCommand("test", 0, dataNodeWithNoShardCopy, true)
+            asInstanceOf(
+                IllegalArgumentException.class,
+                ClusterRerouteUtils.expectRerouteFailure(
+                    client(),
+                    new AllocateStalePrimaryAllocationCommand("test", 0, dataNodeWithNoShardCopy, true)
+                )
             ).getMessage()
         );
 
@@ -369,9 +372,12 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
         final int shardId = 0;
         assertEquals(
             "[allocate_stale_primary] primary [" + idxName + "][" + shardId + "] is already assigned",
-            ClusterRerouteUtils.expectRerouteFailure(
-                client(),
-                new AllocateStalePrimaryAllocationCommand(idxName, shardId, nodeWithoutData, true)
+            asInstanceOf(
+                IllegalArgumentException.class,
+                ClusterRerouteUtils.expectRerouteFailure(
+                    client(),
+                    new AllocateStalePrimaryAllocationCommand(idxName, shardId, nodeWithoutData, true)
+                )
             ).getMessage()
         );
     }

@@ -2,4 +2,4 @@ pr: 109492
 summary: Add hexstring support byte painless scorers
 area: Search
 type: bug
-issues: [109412]
+issues: []

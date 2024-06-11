@@ -12,8 +12,8 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.script.ScriptedMetricAggContexts;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
@@ -184,12 +184,12 @@ public class ScriptedMetricAggregationBuilder extends AbstractAggregationBuilder
     protected ScriptedMetricAggregatorFactory doBuild(AggregationContext context, AggregatorFactory parent, Builder subfactoriesBuilder)
         throws IOException {
 
-        List<String> allowedInlineScripts = context.getClusterSettings().get(SearchModule.SCRIPTED_METRICS_AGG_ALLOWED_INLINE_SCRIPTS);
+        ClusterSettings settings = context.getClusterSettings();
 
-        validateScript(INIT_SCRIPT_FIELD.getPreferredName(), name, initScript, allowedInlineScripts);
-        validateScript(MAP_SCRIPT_FIELD.getPreferredName(), name, mapScript, allowedInlineScripts);
-        validateScript(COMBINE_SCRIPT_FIELD.getPreferredName(), name, combineScript, allowedInlineScripts);
-        validateScript(REDUCE_SCRIPT_FIELD.getPreferredName(), name, reduceScript, allowedInlineScripts);
+        validateScript(INIT_SCRIPT_FIELD.getPreferredName(), name, initScript, settings);
+        validateScript(MAP_SCRIPT_FIELD.getPreferredName(), name, mapScript, settings);
+        validateScript(COMBINE_SCRIPT_FIELD.getPreferredName(), name, combineScript, settings);
+        validateScript(REDUCE_SCRIPT_FIELD.getPreferredName(), name, reduceScript, settings);
 
         if (combineScript == null) {
             throw new IllegalArgumentException("[combineScript] must not be null: [" + name + "]");
@@ -241,11 +241,18 @@ public class ScriptedMetricAggregationBuilder extends AbstractAggregationBuilder
         );
     }
 
-    private static void validateScript(String scriptName, String aggName, Script script, List<String> allowedInlineScripts) {
-        if (script != null && allowedInlineScripts.isEmpty() == false) {
-            if (script.getType().equals(ScriptType.INLINE) && allowedInlineScripts.contains(script.getIdOrCode()) == false) {
-                throw new IllegalArgumentException("[" + scriptName + "] contains not allowed script: [" + aggName + "]");
-            }
+    private static void validateScript(String scriptName, String aggName, Script script, ClusterSettings settings) {
+        if (script == null || settings.get(SearchModule.SCRIPTED_METRICS_AGG_ONLY_ALLOWED_SCRIPTS) == false) {
+            return;
+        }
+
+        List<String> allowedScripts = switch (script.getType()) {
+            case INLINE -> settings.get(SearchModule.SCRIPTED_METRICS_AGG_ALLOWED_INLINE_SCRIPTS);
+            case STORED -> settings.get(SearchModule.SCRIPTED_METRICS_AGG_ALLOWED_STORED_SCRIPTS);
+        };
+
+        if (allowedScripts.contains(script.getIdOrCode()) == false) {
+            throw new IllegalArgumentException("[" + scriptName + "] contains not allowed script: [" + aggName + "]");
         }
     }
 

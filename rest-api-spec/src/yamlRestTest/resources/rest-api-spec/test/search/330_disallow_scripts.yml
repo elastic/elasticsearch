@@ -1,4 +1,3 @@
-#TODO: Add option to have 0 allowed scripts; cannot be encoded as `*` as that's a valid script id (and potentially also valid script).
 setup:
   - do:
       indices.create:
@@ -20,8 +19,6 @@ setup:
           - '{"index": {}}'
           - '{"some_value": 3}'
 ---
-#TODO: add stored scripts
-#TODO: add test with some allowed stored scripts + default inline scripts and vice versa
 "all scripts allowed by default":
   - requires:
       cluster_features: ["gte_v8.15.0"]
@@ -42,13 +39,33 @@ setup:
   - match: { aggregations.sum_of_values.value: 6}
 
   - do:
-      cluster.put_settings:
-        body: >
-          {
-            "persistent": {
-              "search.aggs.allowed_inline_metric_scripts": []
-            }
-          }
+      put_script:
+        id: init
+        body:
+          script:
+            source: 'state.transactions = []'
+            lang: painless
+  - do:
+      put_script:
+        id: map
+        body:
+          script:
+            source: 'state.transactions.add(doc.some_value.value)'
+            lang: painless
+  - do:
+      put_script:
+        id: combine
+        body:
+          script:
+            source: 'long sum = 0; for (t in state.transactions) { sum += t } return sum'
+            lang: painless
+  - do:
+      put_script:
+        id: reduce
+        body:
+          script:
+            source: 'long sum = 0; for (a in states) { sum += a } return sum'
+            lang: painless
   - do:
       search:
         index: test_index
@@ -57,14 +74,18 @@ setup:
           aggs:
             sum_of_values:
               scripted_metric:
-                init_script: 'state.transactions = []'
-                map_script: 'state.transactions.add(doc.some_value.value)'
-                combine_script: 'long sum = 0; for (t in state.transactions) { sum += t } return sum'
-                reduce_script: 'long sum = 0; for (a in states) { sum += a } return sum'
+                init_script:
+                  id: init
+                map_script:
+                  id: map
+                combine_script:
+                  id: combine
+                reduce_script:
+                  id: reduce
   - match: { hits.total.value: 3 }
   - match: { aggregations.sum_of_values.value: 6}
 ---
-"explicitly allowed inline scripts work":
+"disallow all for empty allow lists":
   - requires:
       cluster_features: ["gte_v8.15.0"]
       reason: scripted metrics agg allow list settings introduced in 8.15.0
@@ -73,45 +94,10 @@ setup:
         body: >
           {
             "persistent": {
-              "search.aggs.allowed_inline_metric_scripts": [
-                "state.transactions = []",
-                "state.transactions.add(doc.some_value.value)",
-                "long sum = 0; for (t in state.transactions) { sum += t } return sum",
-                "long sum = 0; for (a in states) { sum += a } return sum"
-              ]
+              "search.aggs.only_allowed_metric_scripts": true
             }
           }
-  - do:
-      search:
-        index: test_index
-        size: 0
-        body:
-          aggs:
-            sum_of_values:
-              scripted_metric:
-                init_script: 'state.transactions = []'
-                map_script: 'state.transactions.add(doc.some_value.value)'
-                combine_script: 'long sum = 0; for (t in state.transactions) { sum += t } return sum'
-                reduce_script: 'long sum = 0; for (a in states) { sum += a } return sum'
-  - match: { hits.total.value: 3 }
-  - match: { aggregations.sum_of_values.value: 6}
----
-"inline init_script must be allowed":
-  - requires:
-      cluster_features: ["gte_v8.15.0"]
-      reason: scripted metrics agg allow list settings introduced in 8.15.0
-  - do:
-      cluster.put_settings:
-        body: >
-          {
-            "persistent": {
-              "search.aggs.allowed_inline_metric_scripts": [
-                "state.transactions.add(doc.some_value.value)",
-                "long sum = 0; for (t in state.transactions) { sum += t } return sum",
-                "long sum = 0; for (a in states) { sum += a } return sum"
-              ]
-            }
-          }
+
   - do:
       catch: '/type=illegal_argument_exception, reason=\[init_script\] contains not allowed script: \[sum_of_values\]/'
       search:
@@ -125,8 +111,54 @@ setup:
                 map_script: 'state.transactions.add(doc.some_value.value)'
                 combine_script: 'long sum = 0; for (t in state.transactions) { sum += t } return sum'
                 reduce_script: 'long sum = 0; for (a in states) { sum += a } return sum'
+
+  - do:
+      put_script:
+        id: init
+        body:
+          script:
+            source: 'state.transactions = []'
+            lang: painless
+  - do:
+      put_script:
+        id: map
+        body:
+          script:
+            source: 'state.transactions.add(doc.some_value.value)'
+            lang: painless
+  - do:
+      put_script:
+        id: combine
+        body:
+          script:
+            source: 'long sum = 0; for (t in state.transactions) { sum += t } return sum'
+            lang: painless
+  - do:
+      put_script:
+        id: reduce
+        body:
+          script:
+            source: 'long sum = 0; for (a in states) { sum += a } return sum'
+            lang: painless
+  - do:
+      catch: '/type=illegal_argument_exception, reason=\[init_script\] contains not allowed script: \[sum_of_values\]/'
+      search:
+        index: test_index
+        size: 0
+        body:
+          aggs:
+            sum_of_values:
+              scripted_metric:
+                init_script:
+                  id: init
+                map_script:
+                  id: map
+                combine_script:
+                  id: combine
+                reduce_script:
+                  id: reduce
 ---
-"inline map_script must be allowed":
+"explicitly allowed inline scripts work":
   - requires:
       cluster_features: ["gte_v8.15.0"]
       reason: scripted metrics agg allow list settings introduced in 8.15.0
@@ -135,15 +167,16 @@ setup:
         body: >
           {
             "persistent": {
+              "search.aggs.only_allowed_metric_scripts": true,
               "search.aggs.allowed_inline_metric_scripts": [
                 "state.transactions = []",
+                "state.transactions.add(doc.some_value.value)",
                 "long sum = 0; for (t in state.transactions) { sum += t } return sum",
                 "long sum = 0; for (a in states) { sum += a } return sum"
               ]
             }
           }
   - do:
-      catch: '/type=illegal_argument_exception, reason=\[map_script\] contains not allowed script: \[sum_of_values\]/'
       search:
         index: test_index
         size: 0
@@ -155,8 +188,10 @@ setup:
                 map_script: 'state.transactions.add(doc.some_value.value)'
                 combine_script: 'long sum = 0; for (t in state.transactions) { sum += t } return sum'
                 reduce_script: 'long sum = 0; for (a in states) { sum += a } return sum'
+  - match: { hits.total.value: 3 }
+  - match: { aggregations.sum_of_values.value: 6}
 ---
-"inline combine_script must be allowed":
+"explicitly allowed stored scripts work":
   - requires:
       cluster_features: ["gte_v8.15.0"]
       reason: scripted metrics agg allow list settings introduced in 8.15.0
@@ -165,68 +200,12 @@ setup:
         body: >
           {
             "persistent": {
-              "search.aggs.allowed_inline_metric_scripts": [
-                "state.transactions = []",
-                "state.transactions.add(doc.some_value.value)",
-                "long sum = 0; for (a in states) { sum += a } return sum"
-              ]
-            }
-          }
-  - do:
-      catch: '/type=illegal_argument_exception, reason=\[combine_script\] contains not allowed script: \[sum_of_values\]/'
-      search:
-        index: test_index
-        size: 0
-        body:
-          aggs:
-            sum_of_values:
-              scripted_metric:
-                init_script: 'state.transactions = []'
-                map_script: 'state.transactions.add(doc.some_value.value)'
-                combine_script: 'long sum = 0; for (t in state.transactions) { sum += t } return sum'
-                reduce_script: 'long sum = 0; for (a in states) { sum += a } return sum'
----
-"inline reduce_script must be allowed":
-  - requires:
-      cluster_features: ["gte_v8.15.0"]
-      reason: scripted metrics agg allow list settings introduced in 8.15.0
-  - do:
-      cluster.put_settings:
-        body: >
-          {
-            "persistent": {
-              "search.aggs.allowed_inline_metric_scripts": [
-                "state.transactions = []",
-                "state.transactions.add(doc.some_value.value)",
-                "long sum = 0; for (t in state.transactions) { sum += t } return sum"
-              ]
-            }
-          }
-  - do:
-      catch: '/type=illegal_argument_exception, reason=\[reduce_script\] contains not allowed script: \[sum_of_values\]/'
-      search:
-        index: test_index
-        size: 0
-        body:
-          aggs:
-            sum_of_values:
-              scripted_metric:
-                init_script: 'state.transactions = []'
-                map_script: 'state.transactions.add(doc.some_value.value)'
-                combine_script: 'long sum = 0; for (t in state.transactions) { sum += t } return sum'
-                reduce_script: 'long sum = 0; for (a in states) { sum += a } return sum'
----
-"allowed inline scripts do not affect allowed stored scripts":
-  - requires:
-      cluster_features: ["gte_v8.15.0"]
-      reason: scripted metrics agg allow list settings introduced in 8.15.0
-  - do:
-      cluster.put_settings:
-        body: >
-          {
-            "persistent": {
-              "search.aggs.allowed_inline_metric_scripts": [
-                "foobar"
+              "search.aggs.only_allowed_metric_scripts": true,
+              "search.aggs.allowed_stored_metric_scripts": [
+                "init",
+                "map",
+                "combine",
+                "reduce"
               ]
             }
           }
@@ -277,3 +256,485 @@ setup:
                   id: reduce
   - match: { hits.total.value: 3 }
   - match: { aggregations.sum_of_values.value: 6}
+---
+"inline init_script must be allowed":
+  - requires:
+      cluster_features: ["gte_v8.15.0"]
+      reason: scripted metrics agg allow list settings introduced in 8.15.0
+  - do:
+      cluster.put_settings:
+        body: >
+          {
+            "persistent": {
+              "search.aggs.only_allowed_metric_scripts": true,
+              "search.aggs.allowed_inline_metric_scripts": [
+                "state.transactions.add(doc.some_value.value)",
+                "long sum = 0; for (t in state.transactions) { sum += t } return sum",
+                "long sum = 0; for (a in states) { sum += a } return sum"
+              ]
+            }
+          }
+  - do:
+      catch: '/type=illegal_argument_exception, reason=\[init_script\] contains not allowed script: \[sum_of_values\]/'
+      search:
+        index: test_index
+        size: 0
+        body:
+          aggs:
+            sum_of_values:
+              scripted_metric:
+                init_script: 'state.transactions = []'
+                map_script: 'state.transactions.add(doc.some_value.value)'
+                combine_script: 'long sum = 0; for (t in state.transactions) { sum += t } return sum'
+                reduce_script: 'long sum = 0; for (a in states) { sum += a } return sum'
+---
+"stored init_script must be allowed":
+  - requires:
+      cluster_features: ["gte_v8.15.0"]
+      reason: scripted metrics agg allow list settings introduced in 8.15.0
+  - do:
+      cluster.put_settings:
+        body: >
+          {
+            "persistent": {
+              "search.aggs.only_allowed_metric_scripts": true,
+              "search.aggs.allowed_stored_metric_scripts": [
+                "map",
+                "combine",
+                "reduce"
+              ]
+            }
+          }
+  - do:
+      put_script:
+        id: init
+        body:
+          script:
+            source: 'state.transactions = []'
+            lang: painless
+  - do:
+      put_script:
+        id: map
+        body:
+          script:
+            source: 'state.transactions.add(doc.some_value.value)'
+            lang: painless
+  - do:
+      put_script:
+        id: combine
+        body:
+          script:
+            source: 'long sum = 0; for (t in state.transactions) { sum += t } return sum'
+            lang: painless
+  - do:
+      put_script:
+        id: reduce
+        body:
+          script:
+            source: 'long sum = 0; for (a in states) { sum += a } return sum'
+            lang: painless
+
+  - do:
+      catch: '/type=illegal_argument_exception, reason=\[init_script\] contains not allowed script: \[sum_of_values\]/'
+      search:
+        index: test_index
+        size: 0
+        body:
+          aggs:
+            sum_of_values:
+              scripted_metric:
+                init_script:
+                  id: init
+                map_script:
+                  id: map
+                combine_script:
+                  id: combine
+                reduce_script:
+                  id: reduce
+---
+"inline map_script must be allowed":
+  - requires:
+      cluster_features: ["gte_v8.15.0"]
+      reason: scripted metrics agg allow list settings introduced in 8.15.0
+  - do:
+      cluster.put_settings:
+        body: >
+          {
+            "persistent": {
+              "search.aggs.only_allowed_metric_scripts": true,
+              "search.aggs.allowed_inline_metric_scripts": [
+                "state.transactions = []",
+                "long sum = 0; for (t in state.transactions) { sum += t } return sum",
+                "long sum = 0; for (a in states) { sum += a } return sum"
+              ]
+            }
+          }
+  - do:
+      catch: '/type=illegal_argument_exception, reason=\[map_script\] contains not allowed script: \[sum_of_values\]/'
+      search:
+        index: test_index
+        size: 0
+        body:
+          aggs:
+            sum_of_values:
+              scripted_metric:
+                init_script: 'state.transactions = []'
+                map_script: 'state.transactions.add(doc.some_value.value)'
+                combine_script: 'long sum = 0; for (t in state.transactions) { sum += t } return sum'
+                reduce_script: 'long sum = 0; for (a in states) { sum += a } return sum'
+---
+"stored map_script must be allowed":
+  - requires:
+      cluster_features: ["gte_v8.15.0"]
+      reason: scripted metrics agg allow list settings introduced in 8.15.0
+  - do:
+      cluster.put_settings:
+        body: >
+          {
+            "persistent": {
+              "search.aggs.only_allowed_metric_scripts": true,
+              "search.aggs.allowed_stored_metric_scripts": [
+                "init",
+                "combine",
+                "reduce"
+              ]
+            }
+          }
+  - do:
+      put_script:
+        id: init
+        body:
+          script:
+            source: 'state.transactions = []'
+            lang: painless
+  - do:
+      put_script:
+        id: map
+        body:
+          script:
+            source: 'state.transactions.add(doc.some_value.value)'
+            lang: painless
+  - do:
+      put_script:
+        id: combine
+        body:
+          script:
+            source: 'long sum = 0; for (t in state.transactions) { sum += t } return sum'
+            lang: painless
+  - do:
+      put_script:
+        id: reduce
+        body:
+          script:
+            source: 'long sum = 0; for (a in states) { sum += a } return sum'
+            lang: painless
+
+  - do:
+      catch: '/type=illegal_argument_exception, reason=\[map_script\] contains not allowed script: \[sum_of_values\]/'
+      search:
+        index: test_index
+        size: 0
+        body:
+          aggs:
+            sum_of_values:
+              scripted_metric:
+                init_script:
+                  id: init
+                map_script:
+                  id: map
+                combine_script:
+                  id: combine
+                reduce_script:
+                  id: reduce
+---
+"inline combine_script must be allowed":
+  - requires:
+      cluster_features: ["gte_v8.15.0"]
+      reason: scripted metrics agg allow list settings introduced in 8.15.0
+  - do:
+      cluster.put_settings:
+        body: >
+          {
+            "persistent": {
+              "search.aggs.only_allowed_metric_scripts": true,
+              "search.aggs.allowed_inline_metric_scripts": [
+                "state.transactions = []",
+                "state.transactions.add(doc.some_value.value)",
+                "long sum = 0; for (a in states) { sum += a } return sum"
+              ]
+            }
+          }
+  - do:
+      catch: '/type=illegal_argument_exception, reason=\[combine_script\] contains not allowed script: \[sum_of_values\]/'
+      search:
+        index: test_index
+        size: 0
+        body:
+          aggs:
+            sum_of_values:
+              scripted_metric:
+                init_script: 'state.transactions = []'
+                map_script: 'state.transactions.add(doc.some_value.value)'
+                combine_script: 'long sum = 0; for (t in state.transactions) { sum += t } return sum'
+                reduce_script: 'long sum = 0; for (a in states) { sum += a } return sum'
+---
+"stored combine_script must be allowed":
+  - requires:
+      cluster_features: ["gte_v8.15.0"]
+      reason: scripted metrics agg allow list settings introduced in 8.15.0
+  - do:
+      cluster.put_settings:
+        body: >
+          {
+            "persistent": {
+              "search.aggs.only_allowed_metric_scripts": true,
+              "search.aggs.allowed_stored_metric_scripts": [
+                "init",
+                "map",
+                "reduce"
+              ]
+            }
+          }
+  - do:
+      put_script:
+        id: init
+        body:
+          script:
+            source: 'state.transactions = []'
+            lang: painless
+  - do:
+      put_script:
+        id: map
+        body:
+          script:
+            source: 'state.transactions.add(doc.some_value.value)'
+            lang: painless
+  - do:
+      put_script:
+        id: combine
+        body:
+          script:
+            source: 'long sum = 0; for (t in state.transactions) { sum += t } return sum'
+            lang: painless
+  - do:
+      put_script:
+        id: reduce
+        body:
+          script:
+            source: 'long sum = 0; for (a in states) { sum += a } return sum'
+            lang: painless
+
+  - do:
+      catch: '/type=illegal_argument_exception, reason=\[combine_script\] contains not allowed script: \[sum_of_values\]/'
+      search:
+        index: test_index
+        size: 0
+        body:
+          aggs:
+            sum_of_values:
+              scripted_metric:
+                init_script:
+                  id: init
+                map_script:
+                  id: map
+                combine_script:
+                  id: combine
+                reduce_script:
+                  id: reduce
+---
+"inline reduce_script must be allowed":
+  - requires:
+      cluster_features: ["gte_v8.15.0"]
+      reason: scripted metrics agg allow list settings introduced in 8.15.0
+  - do:
+      cluster.put_settings:
+        body: >
+          {
+            "persistent": {
+              "search.aggs.only_allowed_metric_scripts": true,
+              "search.aggs.allowed_inline_metric_scripts": [
+                "state.transactions = []",
+                "state.transactions.add(doc.some_value.value)",
+                "long sum = 0; for (t in state.transactions) { sum += t } return sum"
+              ]
+            }
+          }
+  - do:
+      catch: '/type=illegal_argument_exception, reason=\[reduce_script\] contains not allowed script: \[sum_of_values\]/'
+      search:
+        index: test_index
+        size: 0
+        body:
+          aggs:
+            sum_of_values:
+              scripted_metric:
+                init_script: 'state.transactions = []'
+                map_script: 'state.transactions.add(doc.some_value.value)'
+                combine_script: 'long sum = 0; for (t in state.transactions) { sum += t } return sum'
+                reduce_script: 'long sum = 0; for (a in states) { sum += a } return sum'
+---
+"stored reduce_script must be allowed":
+  - requires:
+      cluster_features: ["gte_v8.15.0"]
+      reason: scripted metrics agg allow list settings introduced in 8.15.0
+  - do:
+      cluster.put_settings:
+        body: >
+          {
+            "persistent": {
+              "search.aggs.only_allowed_metric_scripts": true,
+              "search.aggs.allowed_stored_metric_scripts": [
+                "init",
+                "map",
+                "combine"
+              ]
+            }
+          }
+  - do:
+      put_script:
+        id: init
+        body:
+          script:
+            source: 'state.transactions = []'
+            lang: painless
+  - do:
+      put_script:
+        id: map
+        body:
+          script:
+            source: 'state.transactions.add(doc.some_value.value)'
+            lang: painless
+  - do:
+      put_script:
+        id: combine
+        body:
+          script:
+            source: 'long sum = 0; for (t in state.transactions) { sum += t } return sum'
+            lang: painless
+  - do:
+      put_script:
+        id: reduce
+        body:
+          script:
+            source: 'long sum = 0; for (a in states) { sum += a } return sum'
+            lang: painless
+
+  - do:
+      catch: '/type=illegal_argument_exception, reason=\[reduce_script\] contains not allowed script: \[sum_of_values\]/'
+      search:
+        index: test_index
+        size: 0
+        body:
+          aggs:
+            sum_of_values:
+              scripted_metric:
+                init_script:
+                  id: init
+                map_script:
+                  id: map
+                combine_script:
+                  id: combine
+                reduce_script:
+                  id: reduce
+---
+"allowed inline scripts do not affect allowed stored scripts":
+  - requires:
+      cluster_features: ["gte_v8.15.0"]
+      reason: scripted metrics agg allow list settings introduced in 8.15.0
+  - do:
+      cluster.put_settings:
+        body: >
+          {
+            "persistent": {
+              "search.aggs.only_allowed_metric_scripts": true,
+              "search.aggs.allowed_inline_metric_scripts": [
+                "state.transactions = []",
+                "state.transactions.add(doc.some_value.value)",
+                "long sum = 0; for (t in state.transactions) { sum += t } return sum",
+                "long sum = 0; for (a in states) { sum += a } return sum",
+                "init",
+                "map",
+                "combine",
+                "reduce"
+              ]
+            }
+          }
+  - do:
+      put_script:
+        id: init
+        body:
+          script:
+            source: 'state.transactions = []'
+            lang: painless
+  - do:
+      put_script:
+        id: map
+        body:
+          script:
+            source: 'state.transactions.add(doc.some_value.value)'
+            lang: painless
+  - do:
+      put_script:
+        id: combine
+        body:
+          script:
+            source: 'long sum = 0; for (t in state.transactions) { sum += t } return sum'
+            lang: painless
+  - do:
+      put_script:
+        id: reduce
+        body:
+          script:
+            source: 'long sum = 0; for (a in states) { sum += a } return sum'
+            lang: painless
+
+  - do:
+      catch: '/type=illegal_argument_exception, reason=\[init_script\] contains not allowed script: \[sum_of_values\]/'
+      search:
+        index: test_index
+        size: 0
+        body:
+          aggs:
+            sum_of_values:
+              scripted_metric:
+                init_script:
+                  id: init
+                map_script:
+                  id: map
+                combine_script:
+                  id: combine
+                reduce_script:
+                  id: reduce
+---
+"allowed stored scripts do not affect allowed inline scripts":
+  - requires:
+      cluster_features: ["gte_v8.15.0"]
+      reason: scripted metrics agg allow list settings introduced in 8.15.0
+  - do:
+      cluster.put_settings:
+        body: >
+          {
+            "persistent": {
+              "search.aggs.only_allowed_metric_scripts": true,
+              "search.aggs.allowed_stored_metric_scripts": [
+                "state.transactions = []",
+                "state.transactions.add(doc.some_value.value)",
+                "long sum = 0; for (t in state.transactions) { sum += t } return sum",
+                "long sum = 0; for (a in states) { sum += a } return sum"
+              ]
+            }
+          }
+
+  - do:
+      catch: '/type=illegal_argument_exception, reason=\[init_script\] contains not allowed script: \[sum_of_values\]/'
+      search:
+        index: test_index
+        size: 0
+        body:
+          aggs:
+            sum_of_values:
+              scripted_metric:
+                init_script: 'state.transactions = []'
+                map_script: 'state.transactions.add(doc.some_value.value)'
+                combine_script: 'long sum = 0; for (t in state.transactions) { sum += t } return sum'
+                reduce_script: 'long sum = 0; for (a in states) { sum += a } return sum'

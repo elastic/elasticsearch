@@ -13,13 +13,13 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
-import org.elasticsearch.xpack.esql.expression.function.scalar.AbstractScalarFunctionTestCase;
 
 import java.util.List;
 import java.util.function.Supplier;
 
-public class PowTests extends AbstractScalarFunctionTestCase {
+public class PowTests extends AbstractFunctionTestCase {
     public PowTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }
@@ -78,16 +78,6 @@ public class PowTests extends AbstractScalarFunctionTestCase {
             )
         );
         return parameterSuppliersFromTypedData(errorsForCasesWithoutExamples(suppliers));
-    }
-
-    @Override
-    protected DataType expectedType(List<DataType> argTypes) {
-        return DataType.DOUBLE;
-    }
-
-    @Override
-    protected List<ArgumentSpec> argSpec() {
-        return List.of(required(numerics()), required(numerics()));
     }
 
     @Override

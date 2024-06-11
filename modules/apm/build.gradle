@@ -16,6 +16,8 @@ def otelVersion = '1.38.0'
 def otelSemconvVersion = '1.21.0-alpha'
 
 dependencies {
+  api project(":libs:elasticsearch-telemetry")
+
   implementation("org.apache.logging.log4j:log4j-jul:2.19.0")
 
   implementation ("io.opentelemetry:opentelemetry-api:${otelVersion}")

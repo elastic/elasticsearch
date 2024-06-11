@@ -25,6 +25,7 @@ module org.elasticsearch.telemetry.apm {
     requires java.management;
     requires jdk.management;
     requires jsr305;
+    requires org.elasticsearch.telemetry;
 
     exports org.elasticsearch.telemetry.apm;
 }

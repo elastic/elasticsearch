@@ -1,0 +1,5 @@
+pr: 109598
+summary: Investigate caching to improve performance, especially when generating text embeddings
+area: ML
+type: feature
+issues: []

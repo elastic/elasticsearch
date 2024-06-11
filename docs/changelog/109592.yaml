@@ -1,0 +1,5 @@
+pr: 109592
+summary: Fixing inference API elasticsearch service task type always set to rerank
+area: Machine Learning
+type: bug
+issues: []

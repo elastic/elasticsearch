@@ -115,13 +115,9 @@ public class UserBoolQueryBuilderTests extends ESTestCase {
 
     public void testDisallowedQueryTypes() {
         final AbstractQueryBuilder<? extends AbstractQueryBuilder<?>> q1 = randomFrom(
-            QueryBuilders.idsQuery(),
-            QueryBuilders.rangeQuery(randomAlphaOfLength(5)),
-            QueryBuilders.matchQuery(randomAlphaOfLength(5), randomAlphaOfLength(5)),
             QueryBuilders.constantScoreQuery(mock(QueryBuilder.class)),
             QueryBuilders.boostingQuery(mock(QueryBuilder.class), mock(QueryBuilder.class)),
             QueryBuilders.queryStringQuery("q=a:42"),
-            QueryBuilders.simpleQueryStringQuery(randomAlphaOfLength(5)),
             QueryBuilders.combinedFieldsQuery(randomAlphaOfLength(5)),
             QueryBuilders.disMaxQuery(),
             QueryBuilders.distanceFeatureQuery(

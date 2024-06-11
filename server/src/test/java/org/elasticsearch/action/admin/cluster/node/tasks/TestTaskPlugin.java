@@ -195,18 +195,10 @@ public class TestTaskPlugin extends Plugin implements ActionPlugin, NetworkPlugi
     }
 
     public static class NodesRequest extends BaseNodesRequest<NodesRequest> {
-        private String requestName;
+        private final String requestName;
         private boolean shouldStoreResult = false;
         private boolean shouldBlock = true;
         private boolean shouldFail = false;
-
-        NodesRequest(StreamInput in) throws IOException {
-            super(in);
-            requestName = in.readString();
-            shouldStoreResult = in.readBoolean();
-            shouldBlock = in.readBoolean();
-            shouldFail = in.readBoolean();
-        }
 
         NodesRequest(String requestName, String... nodesIds) {
             super(nodesIds);

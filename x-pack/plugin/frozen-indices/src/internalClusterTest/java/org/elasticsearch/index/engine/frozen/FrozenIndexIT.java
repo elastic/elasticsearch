@@ -9,6 +9,7 @@ package org.elasticsearch.index.engine.frozen;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteUtils;
 import org.elasticsearch.action.search.ClosePointInTimeRequest;
 import org.elasticsearch.action.search.OpenPointInTimeRequest;
 import org.elasticsearch.action.search.SearchType;
@@ -85,7 +86,7 @@ public class FrozenIndexIT extends ESIntegTestCase {
 
         final String excludeSetting = INDEX_ROUTING_EXCLUDE_GROUP_SETTING.getConcreteSettingForNamespace("_name").getKey();
         updateIndexSettings(Settings.builder().put(excludeSetting, nodeNames.get(0)), "index");
-        assertAcked(clusterAdmin().prepareReroute().add(new CancelAllocationCommand("index", 0, nodeNames.get(0), true)));
+        ClusterRerouteUtils.reroute(client(), new CancelAllocationCommand("index", 0, nodeNames.get(0), true));
         assertThat(clusterAdmin().prepareHealth("index").get().getUnassignedShards(), equalTo(1));
 
         assertThat(client().prepareDelete("index", indexResponse.getId()).get().status(), equalTo(RestStatus.OK));
@@ -107,7 +108,7 @@ public class FrozenIndexIT extends ESIntegTestCase {
         updateIndexSettings(Settings.builder().putNull(excludeSetting), "index");
         assertThat(clusterAdmin().prepareHealth("index").get().getUnassignedShards(), equalTo(2));
 
-        assertAcked(clusterAdmin().prepareReroute().add(new AllocateStalePrimaryAllocationCommand("index", 0, nodeNames.get(0), true)));
+        ClusterRerouteUtils.reroute(client(), new AllocateStalePrimaryAllocationCommand("index", 0, nodeNames.get(0), true));
 
         ensureYellowAndNoInitializingShards("index");
 

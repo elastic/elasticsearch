@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.slm;
 
 import org.elasticsearch.action.ActionFuture;
+import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteUtils;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
@@ -248,7 +249,7 @@ public class SLMSnapshotBlockingIntegTests extends AbstractSnapshotIntegTestCase
             // Check that the snapshot created by the policy has been removed by retention
             assertBusy(() -> {
                 // Trigger a cluster state update so that it re-checks for a snapshot in progress
-                clusterAdmin().prepareReroute().get();
+                ClusterRerouteUtils.reroute(client());
                 logger.info("--> waiting for snapshot to be deleted");
                 try {
                     SnapshotsStatusResponse s = getSnapshotStatus(completedSnapshotName);

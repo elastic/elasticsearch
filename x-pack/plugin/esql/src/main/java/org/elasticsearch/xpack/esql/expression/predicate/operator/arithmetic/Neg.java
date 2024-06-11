@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic;
 
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
@@ -15,9 +17,9 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.expression.function.Warnings;
 import org.elasticsearch.xpack.esql.expression.function.scalar.UnaryScalarFunction;
 
+import java.io.IOException;
 import java.time.Duration;
 import java.time.Period;
 import java.util.List;
@@ -30,12 +32,19 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.TIME_DURATION;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.isTemporalAmount;
 
 public class Neg extends UnaryScalarFunction {
-
-    private final Warnings warnings;
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Neg", Neg::new);
 
     public Neg(Source source, Expression field) {
         super(source, field);
-        warnings = new Warnings(source);
+    }
+
+    public Neg(StreamInput in) throws IOException {
+        super(in);
+    }
+
+    @Override
+    public String getWriteableName() {
+        return ENTRY.name;
     }
 
     @Override

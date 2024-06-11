@@ -26,7 +26,8 @@ public class ClusterRerouteUtils {
     private ClusterRerouteUtils() {/* no instances */}
 
     /**
-     * Execute {@link TransportClusterRerouteAction} with the given (optional) sequence of commands. Asserts that this succeeds.
+     * Execute {@link TransportClusterRerouteAction} with the given (optional) sequence of {@link AllocationCommand} instances. Asserts that
+     * this succeeds.
      */
     public static void reroute(ElasticsearchClient client, AllocationCommand... allocationCommands) {
         doReroute(client, false, allocationCommands);
@@ -51,8 +52,8 @@ public class ClusterRerouteUtils {
     }
 
     /**
-     * Execute {@link TransportClusterRerouteAction} with the given (optional) sequence of commands, asserts that it fails, and returns the
-     * resulting (unwrapped) exception.
+     * Execute {@link TransportClusterRerouteAction} with the given (optional) sequence of {@link AllocationCommand} instances, asserts that
+     * it fails, and returns the resulting (unwrapped) exception.
      */
     public static Exception expectRerouteFailure(ElasticsearchClient client, AllocationCommand... allocationCommands) {
         final Exception wrappedException = safeAwait(

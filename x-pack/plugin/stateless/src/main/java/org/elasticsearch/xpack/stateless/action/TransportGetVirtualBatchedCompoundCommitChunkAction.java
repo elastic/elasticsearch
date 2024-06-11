@@ -25,7 +25,6 @@ import co.elastic.elasticsearch.stateless.engine.IndexEngine;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
@@ -36,11 +35,9 @@ import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.RetryableAction;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
-import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
@@ -49,17 +46,12 @@ import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.IndexNotFoundException;
-import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardNotStartedException;
 import org.elasticsearch.index.shard.IndexShardState;
-import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.node.NodeClosedException;
@@ -122,23 +114,6 @@ public class TransportGetVirtualBatchedCompoundCommitChunkAction extends Transpo
             if (task != null) {
                 request.setParentTask(clusterService.localNode().getId(), task.getId());
             }
-
-            // A relocation of the primary will fail the ongoing search shard recovery by closing the shard.
-            // The initial closing shard is done on the cluster applier thread which needs to obtain the engineMutex.
-            // But opening the engine (as part of the recovery) holds the engineMutex which prevents the indexShard
-            // from being closed and in turn cluster state update. Hence, the retry will never succeed.
-            // On the other hand, the search shard itself can relocate while serving a search request. If the shard's
-            // IndexService or IndexShard is already removed from the parent service, there is no need to retry either.
-            // TODO: Consider removing retries (ES-8402, ES-8601), shard reinit (ES-8602) and release engineMutex (ES-8600)
-            final boolean shouldRetryOnPrimaryNotFound;
-            final IndexService indexService = indicesService.indexService(request.getShardId().getIndex());
-            if (indexService != null) {
-                final IndexShard shard = indexService.getShardOrNull(request.getShardId().id());
-                shouldRetryOnPrimaryNotFound = shard != null && shard.state() != IndexShardState.RECOVERING;
-            } else {
-                shouldRetryOnPrimaryNotFound = false;
-            }
-
             final RetryableAction<GetVirtualBatchedCompoundCommitChunkResponse> retryableAction = new RetryableAction<>(
                 logger,
                 transportService.getThreadPool(),
@@ -150,20 +125,11 @@ public class TransportGetVirtualBatchedCompoundCommitChunkAction extends Transpo
             ) {
                 @Override
                 public void tryAction(ActionListener<GetVirtualBatchedCompoundCommitChunkResponse> listener) {
-                    sendRequestToPrimaryNodeWhenReady(clusterService.state(), request, listener);
+                    sendRequestToPrimaryNode(findPrimaryNode(clusterService.state(), request), request, listener);
                 }
 
                 @Override
                 public boolean shouldRetry(Exception e) {
-                    if (ExceptionsHelper.unwrap(e, IndexNotFoundException.class, ShardNotFoundException.class) != null) {
-                        if (shouldRetryOnPrimaryNotFound == false) {
-                            return false;
-                        }
-                        // If the index shard is still available (meaning it relocated), retry.
-                        var indexRoutingTable = clusterService.state().routingTable().index(request.getShardId().getIndex());
-                        return indexRoutingTable != null && indexRoutingTable.shard(request.getShardId().id()) != null;
-                        // TODO do a RoutingTable#hasShard method and reuse it here and in isPrimaryShardStartedOrDeleted() function.
-                    }
                     return ExceptionsHelper.unwrap(
                         e,
                         ConnectTransportException.class,
@@ -177,88 +143,12 @@ public class TransportGetVirtualBatchedCompoundCommitChunkAction extends Transpo
         });
     }
 
-    /**
-     * Send the request to the ready primary node if found, otherwise observe the cluster state and send the request to the primary node
-     * when it is found and is ready.
-     */
-    private void sendRequestToPrimaryNodeWhenReady(
-        ClusterState clusterState,
-        GetVirtualBatchedCompoundCommitChunkRequest request,
-        ActionListener<GetVirtualBatchedCompoundCommitChunkResponse> listener
-    ) {
-        if (isPrimaryShardActiveOrDeleted(clusterState, request.getShardId())) {
-            sendRequestToPrimaryNode(findPrimaryNode(clusterState, request), request, listener);
-        } else {
-            TimeValue timeout = TimeValue.timeValueMinutes(5);
-            ClusterStateObserver observer = new ClusterStateObserver(
-                clusterState,
-                clusterService,
-                timeout,
-                logger,
-                transportService.getThreadPool().getThreadContext()
-            );
-            observer.waitForNextChange(new ClusterStateObserver.Listener() {
-                @Override
-                public void onNewClusterState(ClusterState state) {
-                    ActionListener.run(listener, l -> sendRequestToPrimaryNode(findPrimaryNode(state, request), request, listener));
-                }
-
-                @Override
-                public void onClusterServiceClose() {
-                    listener.onFailure(new NodeClosedException(clusterService.localNode()));
-                }
-
-                @Override
-                public void onTimeout(TimeValue timeout) {
-                    listener.onFailure(
-                        new ElasticsearchTimeoutException(
-                            Strings.format(
-                                "Timed out while waiting for primary shard to become available " + "[timeout=%s, shard=%s].",
-                                timeout,
-                                request.getShardId()
-                            )
-                        )
-                    );
-                }
-            }, newState -> isPrimaryShardActiveOrDeleted(newState, request.getShardId()));
-        }
-    }
-
-    /**
-     * Returns true if the primary shard is found and is active, or if the primary shard is not found in the cluster state.
-     * Returns false if the primary shard is found and is not active.
-     */
-    private boolean isPrimaryShardActiveOrDeleted(ClusterState clusterState, ShardId shardId) {
-        var indexRoutingTable = clusterState.routingTable().index(shardId.getIndex());
-        if (indexRoutingTable == null) {
-            return true; // index is not in the cluster state, return true, so that an IndexNotFoundException is thrown downstream.
-        }
-        var shardRoutingTable = indexRoutingTable.shard(shardId.id());
-        if (shardRoutingTable == null) {
-            return true; // shard is not in the cluster state, so that an ShardNotFoundException is thrown downstream.
-        }
-        return shardRoutingTable.primaryShard().active();
-    }
-
     private DiscoveryNode findPrimaryNode(ClusterState clusterState, GetVirtualBatchedCompoundCommitChunkRequest request) {
-        // throws IndexNotFoundException or ShardNotFoundException as expected by isPrimaryShardStartedOrDeleted()
-        var shardRoutingTable = clusterState.routingTable().shardRoutingTable(request.getShardId());
-        String nodeId;
-        if (request.getPreferredNodeId() != null
-            && clusterState.nodes().nodeExists(request.getPreferredNodeId())
-            && shardRoutingTable.activeShards()
-                .stream()
-                .filter(ShardRouting::isPromotableToPrimary)
-                .anyMatch(
-                    shard -> request.getPreferredNodeId().equals(shard.currentNodeId())
-                        || request.getPreferredNodeId().equals(shard.relocatingNodeId())
-                )) {
-            nodeId = request.getPreferredNodeId();
+        if (request.getPreferredNodeId() != null && clusterState.nodes().nodeExists(request.getPreferredNodeId())) {
+            return clusterState.nodes().get(request.getPreferredNodeId());
         } else {
-            // TODO evaluate if we should throw a ResourceNotFoundException here
-            nodeId = shardRoutingTable.primaryShard().currentNodeId();
+            throw new ResourceNotFoundException("Unable to find node " + request.getPreferredNodeId() + " in the cluster state");
         }
-        return clusterState.nodes().get(nodeId);
     }
 
     private void sendRequestToPrimaryNode(

@@ -29,6 +29,10 @@ public abstract class IgnoreMalformedStoredValues {
         return XContentDataHelper.storedField(name(name), parser);
     }
 
+    public static StoredField storedField(String name, XContentBuilder builder) throws IOException {
+        return XContentDataHelper.storedField(name(name), builder);
+    }
+
     /**
      * Build a {@link IgnoreMalformedStoredValues} that never contains any values.
      */

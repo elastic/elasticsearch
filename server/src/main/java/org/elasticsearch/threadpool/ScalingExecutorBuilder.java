@@ -35,6 +35,7 @@ public final class ScalingExecutorBuilder extends ExecutorBuilder<ScalingExecuto
     private final Setting<Integer> maxSetting;
     private final Setting<TimeValue> keepAliveSetting;
     private final boolean rejectAfterShutdown;
+    private final EsExecutors.TaskTrackingConfig taskTrackingConfig;
 
     /**
      * Construct a scaling executor builder; the settings will have the
@@ -58,6 +59,47 @@ public final class ScalingExecutorBuilder extends ExecutorBuilder<ScalingExecuto
     }
 
     /**
+     * Construct a scaling executor builder; the settings will have the key prefix "thread_pool." followed by the executor name.
+     *
+     * @param name                the name of the executor
+     * @param core                the minimum number of threads in the pool
+     * @param max                 the maximum number of threads in the pool
+     * @param keepAlive           the time that spare threads above {@code core} threads will be kept alive
+     * @param rejectAfterShutdown set to {@code true} if the executor should reject tasks after shutdown
+     */
+    public ScalingExecutorBuilder(
+        final String name,
+        final int core,
+        final int max,
+        final TimeValue keepAlive,
+        final boolean rejectAfterShutdown,
+        final EsExecutors.TaskTrackingConfig taskTrackingConfig
+    ) {
+        this(name, core, max, keepAlive, rejectAfterShutdown, "thread_pool." + name, taskTrackingConfig);
+    }
+
+    /**
+     * Construct a scaling executor builder; the settings will have the specified key prefix.
+     *
+     * @param name                the name of the executor
+     * @param core                the minimum number of threads in the pool
+     * @param max                 the maximum number of threads in the pool
+     * @param keepAlive           the time that spare threads above {@code core} threads will be kept alive
+     * @param prefix              the prefix for the settings keys
+     * @param rejectAfterShutdown set to {@code true} if the executor should reject tasks after shutdown
+     */
+    public ScalingExecutorBuilder(
+        final String name,
+        final int core,
+        final int max,
+        final TimeValue keepAlive,
+        final boolean rejectAfterShutdown,
+        final String prefix
+    ) {
+        this(name, core, max, keepAlive, rejectAfterShutdown, prefix, null);
+    }
+
+    /**
      * Construct a scaling executor builder; the settings will have the
      * specified key prefix.
      *
@@ -75,13 +117,15 @@ public final class ScalingExecutorBuilder extends ExecutorBuilder<ScalingExecuto
         final int max,
         final TimeValue keepAlive,
         final boolean rejectAfterShutdown,
-        final String prefix
+        final String prefix,
+        final EsExecutors.TaskTrackingConfig taskTrackingConfig
     ) {
         super(name);
         this.coreSetting = Setting.intSetting(settingsKey(prefix, "core"), core, Setting.Property.NodeScope);
         this.maxSetting = Setting.intSetting(settingsKey(prefix, "max"), max, Setting.Property.NodeScope);
         this.keepAliveSetting = Setting.timeSetting(settingsKey(prefix, "keep_alive"), keepAlive, Setting.Property.NodeScope);
         this.rejectAfterShutdown = rejectAfterShutdown;
+        this.taskTrackingConfig = taskTrackingConfig;
     }
 
     @Override
@@ -112,7 +156,8 @@ public final class ScalingExecutorBuilder extends ExecutorBuilder<ScalingExecuto
             TimeUnit.MILLISECONDS,
             rejectAfterShutdown,
             threadFactory,
-            threadContext
+            threadContext,
+            taskTrackingConfig
         );
         return new ThreadPool.ExecutorHolder(executor, info);
     }
@@ -142,5 +187,4 @@ public final class ScalingExecutorBuilder extends ExecutorBuilder<ScalingExecuto
             this.keepAlive = keepAlive;
         }
     }
-
 }

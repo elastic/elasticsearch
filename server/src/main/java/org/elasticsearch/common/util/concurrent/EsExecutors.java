@@ -105,18 +105,46 @@ public class EsExecutors {
         ThreadFactory threadFactory,
         ThreadContext contextHolder
     ) {
+        return newScaling(name, min, max, keepAliveTime, unit, rejectAfterShutdown, threadFactory, contextHolder, null);
+    }
+
+    public static EsThreadPoolExecutor newScaling(
+        String name,
+        int min,
+        int max,
+        long keepAliveTime,
+        TimeUnit unit,
+        boolean rejectAfterShutdown,
+        ThreadFactory threadFactory,
+        ThreadContext contextHolder,
+        TaskTrackingConfig taskTrackingConfig
+    ) {
         ExecutorScalingQueue<Runnable> queue = new ExecutorScalingQueue<>();
-        EsThreadPoolExecutor executor = new EsThreadPoolExecutor(
-            name,
-            min,
-            max,
-            keepAliveTime,
-            unit,
-            queue,
-            threadFactory,
-            new ForceQueuePolicy(rejectAfterShutdown),
-            contextHolder
-        );
+        EsThreadPoolExecutor executor = (taskTrackingConfig != null && taskTrackingConfig.trackExecutionTime())
+            ? new TaskExecutionTimeTrackingEsThreadPoolExecutor(
+                name,
+                min,
+                max,
+                keepAliveTime,
+                unit,
+                queue,
+                TimedRunnable::new,
+                threadFactory,
+                new ForceQueuePolicy(rejectAfterShutdown),
+                contextHolder,
+                taskTrackingConfig
+            )
+            : new EsThreadPoolExecutor(
+                name,
+                min,
+                max,
+                keepAliveTime,
+                unit,
+                queue,
+                threadFactory,
+                new ForceQueuePolicy(rejectAfterShutdown),
+                contextHolder
+            );
         queue.executor = executor;
         return executor;
     }

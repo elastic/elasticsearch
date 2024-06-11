@@ -251,7 +251,7 @@ public class LongBucketedSortTests extends ESTestCase {
         }
     }
 
-    public void testMergeWithHeap() {
+    public void testMergeHeapToHeap() {
         try (LongBucketedSort sort = build(SortOrder.ASC, 3)) {
             collect(sort, 1, 0);
             collect(sort, 2, 0);
@@ -269,7 +269,7 @@ public class LongBucketedSortTests extends ESTestCase {
         }
     }
 
-    public void testMergeNotFull() {
+    public void testMergeNoHeapToNoHeap() {
         try (LongBucketedSort sort = build(SortOrder.ASC, 3)) {
             collect(sort, 1, 0);
             collect(sort, 2, 0);
@@ -285,7 +285,41 @@ public class LongBucketedSortTests extends ESTestCase {
         }
     }
 
-    public void testMergeEmptyReceiver() {
+    public void testMergeHeapToNoHeap() {
+        try (LongBucketedSort sort = build(SortOrder.ASC, 3)) {
+            collect(sort, 1, 0);
+            collect(sort, 2, 0);
+
+            try (LongBucketedSort other = build(SortOrder.ASC, 3)) {
+                collect(other, 1, 0);
+                collect(other, 2, 0);
+                collect(other, 3, 0);
+
+                sort.merge(0, other, 0);
+            }
+
+            assertBlock(sort, 0, expectedSortValue(1), expectedSortValue(1), expectedSortValue(2));
+        }
+    }
+
+    public void testMergeNoHeapToHeap() {
+        try (LongBucketedSort sort = build(SortOrder.ASC, 3)) {
+            collect(sort, 1, 0);
+            collect(sort, 2, 0);
+            collect(sort, 3, 0);
+
+            try (LongBucketedSort other = build(SortOrder.ASC, 3)) {
+                collect(sort, 1, 0);
+                collect(sort, 2, 0);
+
+                sort.merge(0, other, 0);
+            }
+
+            assertBlock(sort, 0, expectedSortValue(1), expectedSortValue(1), expectedSortValue(2));
+        }
+    }
+
+    public void testMergeHeapToEmpty() {
         try (LongBucketedSort sort = build(SortOrder.ASC, 3)) {
             try (LongBucketedSort other = build(SortOrder.ASC, 3)) {
                 collect(other, 1, 0);
@@ -299,7 +333,7 @@ public class LongBucketedSortTests extends ESTestCase {
         }
     }
 
-    public void testMergeEmptyEmitter() {
+    public void testMergeEmptyToHeap() {
         try (LongBucketedSort sort = build(SortOrder.ASC, 3)) {
             collect(sort, 1, 0);
             collect(sort, 2, 0);
@@ -310,6 +344,16 @@ public class LongBucketedSortTests extends ESTestCase {
             }
 
             assertBlock(sort, 0, expectedSortValue(1), expectedSortValue(2), expectedSortValue(3));
+        }
+    }
+
+    public void testMergeEmptyToEmpty() {
+        try (LongBucketedSort sort = build(SortOrder.ASC, 3)) {
+            try (LongBucketedSort other = build(SortOrder.ASC, 3)) {
+                sort.merge(0, other, 0);
+            }
+
+            assertBlock(sort, 0);
         }
     }
 

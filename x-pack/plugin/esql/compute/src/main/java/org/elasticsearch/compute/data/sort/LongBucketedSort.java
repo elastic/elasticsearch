@@ -49,11 +49,11 @@ public class LongBucketedSort implements Releasable {
         this.bigArrays = bigArrays;
         this.order = order;
         this.bucketSize = bucketSize;
-        heapMode = new BitArray(1, bigArrays);
+        heapMode = new BitArray(0, bigArrays);
 
         boolean success = false;
         try {
-            values = bigArrays.newLongArray(1, false);
+            values = bigArrays.newLongArray(0, false);
             success = true;
         } finally {
             if (success == false) {
@@ -97,6 +97,7 @@ public class LongBucketedSort implements Releasable {
     public void merge(int groupId, LongBucketedSort other, int otherGroupId) {
         var otherBounds = other.getBucketValuesBounds(otherGroupId);
 
+        // TODO: This can be improved for heapified buckets by making use of the heap structures
         for (long i = otherBounds.v1(); i < otherBounds.v2(); i++) {
             collect(other.values.get(i), groupId);
         }
@@ -289,7 +290,7 @@ public class LongBucketedSort implements Releasable {
         long rootIndex = bucket * bucketSize + 1;
         if (inHeapMode(bucket)) {
             if (betterThan(value, values.get(rootIndex))) {
-                // Insert the temporal value into the heap
+                // Insert the temporary value into the heap
                 values.set(rootIndex, value);
                 downHeap(rootIndex, 0);
             }

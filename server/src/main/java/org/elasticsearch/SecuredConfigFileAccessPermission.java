@@ -19,8 +19,8 @@ import java.security.BasicPermission;
  * Note that you also need to wrap any access to secured files in an {@code AccessController.doPrivileged()} block
  * as Elasticsearch itself is denied access to files secured by plugins.
  */
-public class SecuredFileAccessPermission extends BasicPermission {
-    public SecuredFileAccessPermission(String path) {
+public class SecuredConfigFileAccessPermission extends BasicPermission {
+    public SecuredConfigFileAccessPermission(String path) {
         super(path, "");
     }
 }

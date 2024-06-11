@@ -17,9 +17,14 @@ import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
 import org.junit.Before;
 
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
+import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
+import java.util.stream.Stream;
 
+import static java.util.stream.Collectors.joining;
 import static org.elasticsearch.test.ESIntegTestCase.Scope.TEST;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
@@ -232,39 +237,57 @@ public class EsqlSearchActionIT extends AbstractEsqlIntegTestCase {
     }
 
     static String prettyResponse(EsqlQueryResponse response) {
+        var maxColWidth = maxColumnWidths(response);
+        StringBuilder sb = new StringBuilder();
+
+        // headings
+        var headings = response.columns().stream().map(col -> col.name() + ":" + col.type()).toList();
+        var h = IntStream.range(0, response.columns().size())
+            .mapToObj(colIdx -> padEnd(headings.get(colIdx), maxColWidth.get(colIdx)))
+            .collect(joining("|"));
+        sb.append("\n").append(h);
+
+        // line break
+        var lb = IntStream.range(0, response.columns().size())
+            .mapToObj(colIdx -> "-".repeat(maxColWidth.get(colIdx)))
+            .collect(joining("+"));
+        sb.append("\n").append(lb);
+
+        // row values
+        response.rows().forEach(row -> {
+            var values = rowValues(row);
+            var s = IntStream.range(0, values.size()).mapToObj(i -> padEnd(values.get(i), maxColWidth.get(i))).collect(joining("|"));
+            sb.append("\n").append(s);
+        });
+
+        return sb.toString();
+    }
+
+    static List<Integer> maxColumnWidths(EsqlQueryResponse response) {
         var headings = response.columns().stream().map(col -> col.name() + ":" + col.type()).toList();
         var maxColWidth = headings.stream().map(String::length).collect(Collectors.toCollection(ArrayList::new));
+        IntStream.range(0, response.columns().size())
+            .forEach(
+                colIdx -> maxColWidth.set(
+                    colIdx,
+                    Math.max(
+                        maxColWidth.get(colIdx),
+                        toStream(response.column(colIdx)).map(String::valueOf).mapToInt(String::length).max().getAsInt()
+                    )
+                )
+            );
+        return maxColWidth;
+    }
 
-        List<List<String>> rowValues = new ArrayList<>();
-        for (var row : response.rows()) {
-            int colIdx = 0;
-            var rowValue = new ArrayList<String>();
-            for (var col : row) {
-                String value = col != null ? col.toString() : "null";
-                rowValue.add(value);
-                maxColWidth.set(colIdx, Math.max(value.length(), maxColWidth.get(colIdx)));
-                colIdx++;
-            }
-            rowValues.add(rowValue);
-        }
+    static <X> Stream<X> toStream(Iterator<X> iter) {
+        return Stream.iterate(iter, Iterator::hasNext, UnaryOperator.identity()).map(Iterator::next);
+    }
 
-        StringBuilder sb = new StringBuilder();
-        sb.append("\n");
-        for (int i = 0; i < headings.size(); i++) {
-            var v = headings.get(i);
-            v = v + " ".repeat(maxColWidth.get(i) - v.length()) + "|";
-            sb.append(v);
-        }
+    static String padEnd(String value, int len) {
+        return value + " ".repeat(len - value.length());
+    }
 
-        for (var row : rowValues) {
-            int colIdx = 0;
-            sb.append("\n");
-            for (var v : row) {
-                v = v + " ".repeat(maxColWidth.get(colIdx) - v.length()) + "|";
-                sb.append(v);
-                colIdx++;
-            }
-        }
-        return sb.toString();
+    static List<String> rowValues(Iterable<Object> row) {
+        return toStream(row.iterator()).map(String::valueOf).toList();
     }
 }

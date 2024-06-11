@@ -79,9 +79,7 @@ public class ClaimConnectorSyncJobAction {
                 String workerHostname = (String) args[0];
                 Object syncCursor = args[1];
 
-                boolean hasSyncCursor = syncCursor != null;
-
-                return new Request(connectorSyncJobId, workerHostname, hasSyncCursor ? syncCursor : null);
+                return new Request(connectorSyncJobId, workerHostname, syncCursor);
             }
         );
 
@@ -99,7 +97,9 @@ public class ClaimConnectorSyncJobAction {
             builder.startObject();
             {
                 builder.field(ConnectorSyncJob.WORKER_HOSTNAME_FIELD.getPreferredName(), workerHostname);
-                builder.field(Connector.SYNC_CURSOR_FIELD.getPreferredName(), syncCursor);
+                if (syncCursor != null) {
+                    builder.field(Connector.SYNC_CURSOR_FIELD.getPreferredName(), syncCursor);
+                }
             }
             builder.endObject();
             return builder;
@@ -124,7 +124,7 @@ public class ClaimConnectorSyncJobAction {
                 );
             }
 
-            if (Strings.isNullOrEmpty(workerHostname)) {
+            if (workerHostname == null) {
                 validationException = addValidationError(
                     ConnectorSyncJobConstants.EMPTY_WORKER_HOSTNAME_ERROR_MESSAGE,
                     validationException

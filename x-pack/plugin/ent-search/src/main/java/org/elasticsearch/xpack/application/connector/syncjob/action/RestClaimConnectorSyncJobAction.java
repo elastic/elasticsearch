@@ -33,7 +33,7 @@ public class RestClaimConnectorSyncJobAction extends BaseRestHandler {
     public List<Route> routes() {
         return List.of(
             new Route(
-                RestRequest.Method.POST,
+                RestRequest.Method.PUT,
                 "/" + EnterpriseSearch.CONNECTOR_SYNC_JOB_API_ENDPOINT + "/{" + CONNECTOR_SYNC_JOB_ID_PARAM + "}/_claim"
             )
         );

@@ -908,7 +908,6 @@ public class ConnectorSyncJobIndexServiceTests extends ESSingleNodeTestCase {
             randomAlphaOfLengthBetween(5, 100),
             Map.of(randomAlphaOfLengthBetween(5, 100), randomAlphaOfLengthBetween(5, 100))
         );
-        safeSleep(ONE_SECOND_IN_MILLIS);
         UpdateResponse claimResponse = awaitClaimConnectorSyncJob(claimRequest);
         Map<String, Object> syncJobSourceAfterUpdate = getConnectorSyncJobSourceById(syncJobId);
         @SuppressWarnings("unchecked")
@@ -973,7 +972,6 @@ public class ConnectorSyncJobIndexServiceTests extends ESSingleNodeTestCase {
             null
         );
 
-        safeSleep(ONE_SECOND_IN_MILLIS);
         UpdateResponse claimResponse = awaitClaimConnectorSyncJob(claimRequest);
         Map<String, Object> syncJobSourceAfterUpdate = getConnectorSyncJobSourceById(syncJobId);
         @SuppressWarnings("unchecked")
@@ -1005,19 +1003,24 @@ public class ConnectorSyncJobIndexServiceTests extends ESSingleNodeTestCase {
         CountDownLatch latch = new CountDownLatch(1);
         final AtomicReference<UpdateResponse> resp = new AtomicReference<>(null);
         final AtomicReference<Exception> exc = new AtomicReference<>(null);
-        connectorSyncJobIndexService.claimConnectorSyncJob(request, new ActionListener<>() {
-            @Override
-            public void onResponse(UpdateResponse updateResponse) {
-                resp.set(updateResponse);
-                latch.countDown();
-            }
+        connectorSyncJobIndexService.claimConnectorSyncJob(
+            request.getConnectorSyncJobId(),
+            request.getWorkerHostname(),
+            request.getSyncCursor(),
+            new ActionListener<>() {
+                @Override
+                public void onResponse(UpdateResponse updateResponse) {
+                    resp.set(updateResponse);
+                    latch.countDown();
+                }
 
-            @Override
-            public void onFailure(Exception e) {
-                exc.set(e);
-                latch.countDown();
+                @Override
+                public void onFailure(Exception e) {
+                    exc.set(e);
+                    latch.countDown();
+                }
             }
-        });
+        );
         assertTrue("Timeout waiting for claim request", latch.await(TIMEOUT_SECONDS, TimeUnit.SECONDS));
         if (exc.get() != null) {
             throw exc.get();

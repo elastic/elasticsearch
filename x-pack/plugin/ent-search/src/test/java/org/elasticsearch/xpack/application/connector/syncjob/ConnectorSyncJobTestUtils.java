@@ -30,6 +30,7 @@ import java.util.Map;
 
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLength;
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLengthBetween;
+import static org.elasticsearch.test.ESTestCase.randomBoolean;
 import static org.elasticsearch.test.ESTestCase.randomFrom;
 import static org.elasticsearch.test.ESTestCase.randomInstantBetween;
 import static org.elasticsearch.test.ESTestCase.randomInt;
@@ -197,6 +198,10 @@ public class ConnectorSyncJobTestUtils {
     }
 
     public static ClaimConnectorSyncJobAction.Request getRandomClaimConnectorSyncJobActionRequest() {
-        return new ClaimConnectorSyncJobAction.Request(randomAlphaOfLength(10), randomAlphaOfLengthBetween(10, 100), Map.of("test", "123"));
+        return new ClaimConnectorSyncJobAction.Request(
+            randomAlphaOfLength(10),
+            randomAlphaOfLengthBetween(10, 100),
+            randomBoolean() ? Map.of("test", "123") : null
+        );
     }
 }

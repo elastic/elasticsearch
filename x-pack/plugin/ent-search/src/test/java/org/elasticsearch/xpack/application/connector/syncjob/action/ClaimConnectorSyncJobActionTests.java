@@ -50,14 +50,6 @@ public class ClaimConnectorSyncJobActionTests extends ESTestCase {
         assertThat(exception.getMessage(), containsString(ConnectorSyncJobConstants.EMPTY_CONNECTOR_SYNC_JOB_ID_ERROR_MESSAGE));
     }
 
-    public void testValidate_WhenWorkerHostnameIsEmpty_ExpectValidationError() {
-        Request request = new Request(randomAlphaOfLength(10), "", null);
-        ActionRequestValidationException exception = request.validate();
-
-        assertThat(exception, notNullValue());
-        assertThat(exception.getMessage(), containsString(ConnectorSyncJobConstants.EMPTY_WORKER_HOSTNAME_ERROR_MESSAGE));
-    }
-
     public void testValidate_WhenWorkerHostnameIsNull_ExpectValidationError() {
         Request request = new Request(randomAlphaOfLength(10), null, null);
         ActionRequestValidationException exception = request.validate();

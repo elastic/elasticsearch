@@ -50,7 +50,6 @@ import org.elasticsearch.xpack.application.connector.ConnectorFiltering;
 import org.elasticsearch.xpack.application.connector.ConnectorSyncStatus;
 import org.elasticsearch.xpack.application.connector.ConnectorTemplateRegistry;
 import org.elasticsearch.xpack.application.connector.filtering.FilteringRules;
-import org.elasticsearch.xpack.application.connector.syncjob.action.ClaimConnectorSyncJobAction;
 import org.elasticsearch.xpack.application.connector.syncjob.action.PostConnectorSyncJobAction;
 import org.elasticsearch.xpack.application.connector.syncjob.action.UpdateConnectorSyncJobIngestionStatsAction;
 
@@ -343,7 +342,7 @@ public class ConnectorSyncJobIndexService {
         String connectorId,
         ConnectorSyncStatus syncStatus,
         List<ConnectorSyncJobType> jobTypeList,
-        ActionListener<ConnectorSyncJobIndexService.ConnectorSyncJobsResult> listener
+        ActionListener<ConnectorSyncJobsResult> listener
     ) {
         try {
             QueryBuilder query = buildListQuery(connectorId, syncStatus, jobTypeList);
@@ -369,7 +368,7 @@ public class ConnectorSyncJobIndexService {
                 @Override
                 public void onFailure(Exception e) {
                     if (e instanceof IndexNotFoundException) {
-                        listener.onResponse(new ConnectorSyncJobIndexService.ConnectorSyncJobsResult(Collections.emptyList(), 0L));
+                        listener.onResponse(new ConnectorSyncJobsResult(Collections.emptyList(), 0L));
                         return;
                     }
                     listener.onFailure(e);
@@ -418,10 +417,7 @@ public class ConnectorSyncJobIndexService {
             .map(ConnectorSyncJobIndexService::hitToConnectorSyncJob)
             .toList();
 
-        return new ConnectorSyncJobIndexService.ConnectorSyncJobsResult(
-            connectorSyncJobs,
-            (int) searchResponse.getHits().getTotalHits().value
-        );
+        return new ConnectorSyncJobsResult(connectorSyncJobs, (int) searchResponse.getHits().getTotalHits().value);
     }
 
     private static ConnectorSyncJobSearchResult hitToConnectorSyncJob(SearchHit searchHit) {
@@ -648,13 +644,17 @@ public class ConnectorSyncJobIndexService {
      * Claims a {@link ConnectorSyncJob} for a worker.
      * This method sets the worker hostname and the sync cursor for the sync job.
      *
-     * @param request                Request containing the worker hostname and the sync cursor.
+     * @param connectorSyncJobId     The id of the connector sync job object.
+     * @param workerHostname         The hostname of the worker claiming the sync job.
+     * @param syncCursor             The sync cursor to set for the sync job.
      * @param listener               The action listener to invoke on response/failure.
      */
-    public void claimConnectorSyncJob(ClaimConnectorSyncJobAction.Request request, ActionListener<UpdateResponse> listener) {
-        String connectorSyncJobId = request.getConnectorSyncJobId();
-        String workerHostname = request.getWorkerHostname();
-        Object syncCursor = request.getSyncCursor();
+    public void claimConnectorSyncJob(
+        String connectorSyncJobId,
+        String workerHostname,
+        Object syncCursor,
+        ActionListener<UpdateResponse> listener
+    ) {
 
         try {
             getConnectorSyncJob(connectorSyncJobId, listener.delegateFailure((getSyncJobListener, syncJobSearchResult) -> {

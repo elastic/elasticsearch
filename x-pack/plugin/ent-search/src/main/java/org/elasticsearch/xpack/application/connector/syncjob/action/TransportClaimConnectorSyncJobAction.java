@@ -42,6 +42,11 @@ public class TransportClaimConnectorSyncJobAction extends HandledTransportAction
         ClaimConnectorSyncJobAction.Request request,
         ActionListener<ConnectorUpdateActionResponse> listener
     ) {
-        connectorSyncJobIndexService.claimConnectorSyncJob(request, listener.map(r -> new ConnectorUpdateActionResponse(r.getResult())));
+        connectorSyncJobIndexService.claimConnectorSyncJob(
+            request.getConnectorSyncJobId(),
+            request.getWorkerHostname(),
+            request.getSyncCursor(),
+            listener.map(r -> new ConnectorUpdateActionResponse(r.getResult()))
+        );
     }
 }

@@ -13,13 +13,13 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.esql.expression.function.scalar.AbstractConfigurationFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.Now;
 import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.hamcrest.Matcher;
 
 import java.util.List;
@@ -42,7 +42,7 @@ public class NowTests extends AbstractConfigurationFunctionTestCase {
                     () -> new TestCaseSupplier.TestCase(
                         List.of(),
                         matchesPattern("LiteralsEvaluator\\[lit=.*\\]"),
-                        DataTypes.DATETIME,
+                        DataType.DATETIME,
                         equalTo(EsqlTestUtils.TEST_CFG.now().toInstant().toEpochMilli())
                     )
                 )

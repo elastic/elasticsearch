@@ -59,7 +59,7 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.script.TemplateScript;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
@@ -756,10 +756,10 @@ public class IngestServiceTests extends ESTestCase {
             XContentType.JSON
         );
         ClusterState clusterState = executePut(putRequest, previousClusterState);
-        MockLogAppender.assertThatLogger(
+        MockLog.assertThatLogger(
             () -> ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState)),
             IngestService.class,
-            new MockLogAppender.SeenEventExpectation(
+            new MockLog.SeenEventExpectation(
                 "test1",
                 IngestService.class.getCanonicalName(),
                 Level.WARN,

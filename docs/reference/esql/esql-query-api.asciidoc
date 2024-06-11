@@ -16,8 +16,7 @@ POST /_query
     | STATS MAX(page_count) BY year
     | SORT year
     | LIMIT 5
-  """,
-  "version": "2024.04.01"
+  """
 }
 ----
 // TEST[setup:library]
@@ -79,9 +78,10 @@ For syntax, refer to <<esql-locale-param>>.
 `query`::
 (Required, string) {esql} query to run. For syntax, refer to <<esql-syntax>>.
 
-`version`::
-(Required, string) {esql} language version. Can be sent in short or long form, e.g.
-`2024.04.01` or `2024.04.01.🚀`. See <<esql-version>> for details.
+ifeval::["{release-state}"=="unreleased"]
+`table`::
+(Optional, object) Named "table" parameters that can be referenced by the <<esql-lookup>> command.
+endif::[]
 
 [discrete]
 [role="child_attributes"]

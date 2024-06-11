@@ -16,7 +16,6 @@ import org.elasticsearch.action.index.TransportIndexAction;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -60,7 +59,7 @@ public class ModelSnapshotSearchIT extends MlNativeAutodetectIntegTestCase {
             client(),
             ClusterState.EMPTY_STATE,
             TestIndexNameExpressionResolver.newInstance(),
-            TimeValue.THIRTY_SECONDS,
+            TEST_REQUEST_TIMEOUT,
             future
         );
         future.actionGet();

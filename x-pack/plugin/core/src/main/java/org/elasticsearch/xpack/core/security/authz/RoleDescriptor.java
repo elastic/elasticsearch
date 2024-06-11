@@ -416,6 +416,10 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
         return toXContent(builder, params, false);
     }
 
+    public XContentBuilder toXContent(XContentBuilder builder, Params params, boolean docCreation) throws IOException {
+        return toXContent(builder, params, docCreation, false);
+    }
+
     /**
      * Generates x-content for this {@link RoleDescriptor} instance.
      *
@@ -424,10 +428,12 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
      * @param docCreation {@code true} if the x-content is being generated for creating a document
      *                    in the security index, {@code false} if the x-content being generated
      *                    is for API display purposes
+     * @param includeMetadataFlattened {@code true} if the metadataFlattened field should be included in doc
      * @return x-content builder
      * @throws IOException if there was an error writing the x-content to the builder
      */
-    public XContentBuilder toXContent(XContentBuilder builder, Params params, boolean docCreation) throws IOException {
+    public XContentBuilder toXContent(XContentBuilder builder, Params params, boolean docCreation, boolean includeMetadataFlattened)
+        throws IOException {
         builder.startObject();
         builder.array(Fields.CLUSTER.getPreferredName(), clusterPrivileges);
         if (configurableClusterPrivileges.length != 0) {
@@ -440,6 +446,9 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
             builder.array(Fields.RUN_AS.getPreferredName(), runAs);
         }
         builder.field(Fields.METADATA.getPreferredName(), metadata);
+        if (includeMetadataFlattened) {
+            builder.field(Fields.METADATA_FLATTENED.getPreferredName(), metadata);
+        }
         if (docCreation) {
             builder.field(Fields.TYPE.getPreferredName(), ROLE_TYPE);
         } else {
@@ -584,6 +593,16 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
                                 );
                             }
                             metadata = parser.map();
+                        } else if (Fields.METADATA_FLATTENED.match(currentFieldName, parser.getDeprecationHandler())) {
+                            if (token != XContentParser.Token.START_OBJECT) {
+                                throw new ElasticsearchParseException(
+                                    "expected field [{}] to be of type object, but found [{}] instead",
+                                    currentFieldName,
+                                    token
+                                );
+                            }
+                            // consume object but just drop
+                            parser.map();
                         } else if (Fields.TRANSIENT_METADATA.match(currentFieldName, parser.getDeprecationHandler())) {
                             if (token == XContentParser.Token.START_OBJECT) {
                                 // consume object but just drop
@@ -1856,6 +1875,8 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
         ParseField GRANT_FIELDS = new ParseField("grant");
         ParseField EXCEPT_FIELDS = new ParseField("except");
         ParseField METADATA = new ParseField("metadata");
+
+        ParseField METADATA_FLATTENED = new ParseField("metadata_flattened");
         ParseField TRANSIENT_METADATA = new ParseField("transient_metadata");
         ParseField TYPE = new ParseField("type");
         ParseField RESTRICTION = new ParseField("restriction");

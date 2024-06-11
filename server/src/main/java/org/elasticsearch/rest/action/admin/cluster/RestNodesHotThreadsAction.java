@@ -27,7 +27,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Locale;
 
-import static org.elasticsearch.rest.ChunkedRestResponseBody.fromTextChunks;
+import static org.elasticsearch.rest.ChunkedRestResponseBodyPart.fromTextChunks;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestResponse.TEXT_CONTENT_TYPE;
 import static org.elasticsearch.rest.RestUtils.getTimeout;

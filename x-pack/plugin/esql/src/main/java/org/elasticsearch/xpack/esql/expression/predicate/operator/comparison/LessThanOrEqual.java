@@ -8,28 +8,27 @@ package org.elasticsearch.xpack.esql.expression.predicate.operator.comparison;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.ann.Evaluator;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.predicate.Negatable;
+import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.EsqlArithmeticOperation;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.predicate.Negatable;
-import org.elasticsearch.xpack.ql.tree.NodeInfo;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.time.ZoneId;
 import java.util.Map;
 
 public class LessThanOrEqual extends EsqlBinaryComparison implements Negatable<EsqlBinaryComparison> {
     private static final Map<DataType, EsqlArithmeticOperation.BinaryEvaluator> evaluatorMap = Map.ofEntries(
-        Map.entry(DataTypes.INTEGER, LessThanOrEqualIntsEvaluator.Factory::new),
-        Map.entry(DataTypes.DOUBLE, LessThanOrEqualDoublesEvaluator.Factory::new),
-        Map.entry(DataTypes.LONG, LessThanOrEqualLongsEvaluator.Factory::new),
-        Map.entry(DataTypes.UNSIGNED_LONG, LessThanOrEqualLongsEvaluator.Factory::new),
-        Map.entry(DataTypes.DATETIME, LessThanOrEqualLongsEvaluator.Factory::new),
-        Map.entry(DataTypes.KEYWORD, LessThanOrEqualKeywordsEvaluator.Factory::new),
-        Map.entry(DataTypes.TEXT, LessThanOrEqualKeywordsEvaluator.Factory::new),
-        Map.entry(DataTypes.VERSION, LessThanOrEqualKeywordsEvaluator.Factory::new),
-        Map.entry(DataTypes.IP, LessThanOrEqualKeywordsEvaluator.Factory::new)
+        Map.entry(DataType.INTEGER, LessThanOrEqualIntsEvaluator.Factory::new),
+        Map.entry(DataType.DOUBLE, LessThanOrEqualDoublesEvaluator.Factory::new),
+        Map.entry(DataType.LONG, LessThanOrEqualLongsEvaluator.Factory::new),
+        Map.entry(DataType.UNSIGNED_LONG, LessThanOrEqualLongsEvaluator.Factory::new),
+        Map.entry(DataType.DATETIME, LessThanOrEqualLongsEvaluator.Factory::new),
+        Map.entry(DataType.KEYWORD, LessThanOrEqualKeywordsEvaluator.Factory::new),
+        Map.entry(DataType.TEXT, LessThanOrEqualKeywordsEvaluator.Factory::new),
+        Map.entry(DataType.VERSION, LessThanOrEqualKeywordsEvaluator.Factory::new),
+        Map.entry(DataType.IP, LessThanOrEqualKeywordsEvaluator.Factory::new)
     );
 
     public LessThanOrEqual(Source source, Expression left, Expression right) {

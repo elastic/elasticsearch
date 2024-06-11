@@ -12,6 +12,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.ingest.PutPipelineRequest;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.ingest.common.IngestCommonPlugin;
 import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -89,7 +90,11 @@ public class DocumentSizeObserverWithPipelinesIT extends ESIntegTestCase {
             return new DocumentParsingProvider() {
 
                 @Override
-                public DocumentSizeReporter newDocumentSizeReporter(String indexName, DocumentSizeAccumulator documentSizeAccumulator) {
+                public DocumentSizeReporter newDocumentSizeReporter(
+                    String indexName,
+                    IndexMode indexMode,
+                    DocumentSizeAccumulator documentSizeAccumulator
+                ) {
                     return DocumentSizeReporter.EMPTY_INSTANCE;
                 }
             };

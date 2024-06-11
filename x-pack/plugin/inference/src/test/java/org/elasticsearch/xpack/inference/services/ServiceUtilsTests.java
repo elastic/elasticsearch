@@ -19,9 +19,9 @@ import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.core.inference.results.TextEmbeddingByteResults;
-import org.elasticsearch.xpack.core.inference.results.TextEmbeddingResults;
-import org.elasticsearch.xpack.inference.results.TextEmbeddingByteResultsTests;
+import org.elasticsearch.xpack.core.inference.results.InferenceTextEmbeddingByteResults;
+import org.elasticsearch.xpack.core.inference.results.InferenceTextEmbeddingFloatResults;
+import org.elasticsearch.xpack.inference.results.InferenceTextEmbeddingByteResultsTests;
 import org.elasticsearch.xpack.inference.results.TextEmbeddingResultsTests;
 
 import java.util.EnumSet;
@@ -307,7 +307,19 @@ public class ServiceUtilsTests extends ESTestCase {
 
         assertNull(uri);
         assertThat(validation.validationErrors().size(), is(1));
-        assertThat(validation.validationErrors().get(0), is("[scope] Invalid url [^^] received for field [name]"));
+        assertThat(validation.validationErrors().get(0), containsString("[scope] Invalid url [^^] received for field [name]"));
+    }
+
+    public void testConvertToUri_AddsValidationError_WhenUrlIsInvalid_PreservesReason() {
+        var validation = new ValidationException();
+        var uri = convertToUri("^^", "name", "scope", validation);
+
+        assertNull(uri);
+        assertThat(validation.validationErrors().size(), is(1));
+        assertThat(
+            validation.validationErrors().get(0),
+            is("[scope] Invalid url [^^] received for field [name]. Error: unable to parse url [^^]. Reason: Illegal character in path")
+        );
     }
 
     public void testCreateUri_CreatesUri() {
@@ -320,7 +332,7 @@ public class ServiceUtilsTests extends ESTestCase {
     public void testCreateUri_ThrowsException_WithInvalidUrl() {
         var exception = expectThrows(IllegalArgumentException.class, () -> createUri("^^"));
 
-        assertThat(exception.getMessage(), is("unable to parse url [^^]"));
+        assertThat(exception.getMessage(), containsString("unable to parse url [^^]"));
     }
 
     public void testCreateUri_ThrowsException_WithNullUrl() {
@@ -707,7 +719,7 @@ public class ServiceUtilsTests extends ESTestCase {
         doAnswer(invocation -> {
             @SuppressWarnings("unchecked")
             ActionListener<InferenceServiceResults> listener = (ActionListener<InferenceServiceResults>) invocation.getArguments()[6];
-            listener.onResponse(new TextEmbeddingResults(List.of()));
+            listener.onResponse(new InferenceTextEmbeddingFloatResults(List.of()));
 
             return Void.TYPE;
         }).when(service).infer(any(), any(), any(), any(), any(), any(), any());
@@ -730,7 +742,7 @@ public class ServiceUtilsTests extends ESTestCase {
         doAnswer(invocation -> {
             @SuppressWarnings("unchecked")
             ActionListener<InferenceServiceResults> listener = (ActionListener<InferenceServiceResults>) invocation.getArguments()[6];
-            listener.onResponse(new TextEmbeddingByteResults(List.of()));
+            listener.onResponse(new InferenceTextEmbeddingByteResults(List.of()));
 
             return Void.TYPE;
         }).when(service).infer(any(), any(), any(), any(), any(), any(), any());
@@ -774,7 +786,7 @@ public class ServiceUtilsTests extends ESTestCase {
         var model = mock(Model.class);
         when(model.getTaskType()).thenReturn(TaskType.TEXT_EMBEDDING);
 
-        var textEmbedding = TextEmbeddingByteResultsTests.createRandomResults();
+        var textEmbedding = InferenceTextEmbeddingByteResultsTests.createRandomResults();
 
         doAnswer(invocation -> {
             @SuppressWarnings("unchecked")

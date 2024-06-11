@@ -13,9 +13,9 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.LogEvent;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.MockLogAppender;
-import org.elasticsearch.test.MockLogAppender.LoggingExpectation;
-import org.elasticsearch.test.MockLogAppender.SeenEventExpectation;
+import org.elasticsearch.test.MockLog;
+import org.elasticsearch.test.MockLog.LoggingExpectation;
+import org.elasticsearch.test.MockLog.SeenEventExpectation;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -62,13 +62,13 @@ public class JULBridgeTests extends ESTestCase {
         Logger testLogger = LogManager.getLogger("");
         Level savedLevel = testLogger.getLevel();
 
-        try (var mockAppender = MockLogAppender.capture("")) {
+        try (var mockLog = MockLog.capture("")) {
             Loggers.setLevel(testLogger, Level.ALL);
             for (var expectation : expectations) {
-                mockAppender.addExpectation(expectation);
+                mockLog.addExpectation(expectation);
             }
             loggingCode.run();
-            mockAppender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
         } finally {
             Loggers.setLevel(testLogger, savedLevel);
         }

@@ -14,7 +14,7 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
 import org.junit.Before;
@@ -262,9 +262,9 @@ public class StoreHeartbeatServiceTests extends ESTestCase {
             fakeClock.set(maxTimeSinceLastHeartbeat.millis() + 1);
             failReadingHeartbeat.set(true);
 
-            try (var mockAppender = MockLogAppender.capture(StoreHeartbeatService.class)) {
-                mockAppender.addExpectation(
-                    new MockLogAppender.SeenEventExpectation(
+            try (var mockLog = MockLog.capture(StoreHeartbeatService.class)) {
+                mockLog.addExpectation(
+                    new MockLog.SeenEventExpectation(
                         "warning log",
                         StoreHeartbeatService.class.getCanonicalName(),
                         Level.WARN,
@@ -272,7 +272,7 @@ public class StoreHeartbeatServiceTests extends ESTestCase {
                     )
                 );
                 heartbeatService.checkLeaderHeartbeatAndRun(() -> fail("should not be called"), hb -> {});
-                mockAppender.assertAllExpectationsMatched();
+                mockLog.assertAllExpectationsMatched();
             }
         }
     }

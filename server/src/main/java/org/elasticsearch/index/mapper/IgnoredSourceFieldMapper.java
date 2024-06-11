@@ -54,6 +54,17 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
      *  - the value, encoded as a byte array
      */
     public record NameValue(String name, int parentOffset, BytesRef value) {
+        /**
+         * Factory method, for use with fields under the parent object. It doesn't apply to objects at root level.
+         * @param context the parser context, containing a non-null parent
+         * @param name the fully-qualified field name, including the path from root
+         * @param value the value to store
+         */
+        public static NameValue fromContext(DocumentParserContext context, String name, BytesRef value) {
+            int parentOffset = context.parent() instanceof RootObjectMapper ? 0 : context.parent().fullPath().length() + 1;
+            return new NameValue(name, parentOffset, value);
+        }
+
         String getParentFieldName() {
             // _doc corresponds to the root object
             return (parentOffset == 0) ? MapperService.SINGLE_MAPPING_NAME : name.substring(0, parentOffset - 1);

@@ -687,6 +687,10 @@ public class ElasticsearchAssertions {
         return transformedMatch(SearchHit::getScore, equalTo(score));
     }
 
+    public static Matcher<SearchHit> hasRank(final int rank) {
+        return transformedMatch(SearchHit::getRank, equalTo(rank));
+    }
+
     public static <T extends Query> T assertBooleanSubQuery(Query query, Class<T> subqueryType, int i) {
         assertThat(query, instanceOf(BooleanQuery.class));
         BooleanQuery q = (BooleanQuery) query;

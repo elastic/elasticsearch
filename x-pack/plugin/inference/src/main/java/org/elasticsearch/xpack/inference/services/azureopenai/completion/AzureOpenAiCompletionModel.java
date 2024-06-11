@@ -14,6 +14,7 @@ import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.external.action.azureopenai.AzureOpenAiActionVisitor;
 import org.elasticsearch.xpack.inference.external.request.azureopenai.AzureOpenAiUtils;
+import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiModel;
 import org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiSecretSettings;
 
@@ -37,13 +38,14 @@ public class AzureOpenAiCompletionModel extends AzureOpenAiModel {
         String service,
         Map<String, Object> serviceSettings,
         Map<String, Object> taskSettings,
-        @Nullable Map<String, Object> secrets
+        @Nullable Map<String, Object> secrets,
+        ConfigurationParseContext context
     ) {
         this(
             inferenceEntityId,
             taskType,
             service,
-            AzureOpenAiCompletionServiceSettings.fromMap(serviceSettings),
+            AzureOpenAiCompletionServiceSettings.fromMap(serviceSettings, context),
             AzureOpenAiCompletionTaskSettings.fromMap(taskSettings),
             AzureOpenAiSecretSettings.fromMap(secrets)
         );

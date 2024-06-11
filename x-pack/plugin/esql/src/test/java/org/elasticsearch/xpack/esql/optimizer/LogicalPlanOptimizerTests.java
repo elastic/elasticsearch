@@ -11,6 +11,7 @@ import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.compute.aggregation.QuantileStates;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.TestBlockFactory;
@@ -19,6 +20,37 @@ import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
+import org.elasticsearch.xpack.esql.core.expression.Alias;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Expressions;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
+import org.elasticsearch.xpack.esql.core.expression.Nullability;
+import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
+import org.elasticsearch.xpack.esql.core.expression.predicate.Predicates;
+import org.elasticsearch.xpack.esql.core.expression.predicate.logical.And;
+import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Or;
+import org.elasticsearch.xpack.esql.core.expression.predicate.nulls.IsNotNull;
+import org.elasticsearch.xpack.esql.core.expression.predicate.nulls.IsNull;
+import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparison;
+import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RLikePattern;
+import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPattern;
+import org.elasticsearch.xpack.esql.core.index.EsIndex;
+import org.elasticsearch.xpack.esql.core.index.IndexResolution;
+import org.elasticsearch.xpack.esql.core.plan.logical.Filter;
+import org.elasticsearch.xpack.esql.core.plan.logical.Limit;
+import org.elasticsearch.xpack.esql.core.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.core.plan.logical.OrderBy;
+import org.elasticsearch.xpack.esql.core.plan.logical.UnaryPlan;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.core.util.Holder;
+import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
@@ -73,6 +105,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
+import org.elasticsearch.xpack.esql.optimizer.rules.LiteralsOnTheRight;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
@@ -84,42 +117,11 @@ import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
+import org.elasticsearch.xpack.esql.plan.logical.join.Join;
+import org.elasticsearch.xpack.esql.plan.logical.join.JoinType;
 import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
-import org.elasticsearch.xpack.ql.expression.Alias;
-import org.elasticsearch.xpack.ql.expression.Attribute;
-import org.elasticsearch.xpack.ql.expression.AttributeSet;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.Expressions;
-import org.elasticsearch.xpack.ql.expression.FieldAttribute;
-import org.elasticsearch.xpack.ql.expression.Literal;
-import org.elasticsearch.xpack.ql.expression.NamedExpression;
-import org.elasticsearch.xpack.ql.expression.Nullability;
-import org.elasticsearch.xpack.ql.expression.ReferenceAttribute;
-import org.elasticsearch.xpack.ql.expression.UnresolvedAttribute;
-import org.elasticsearch.xpack.ql.expression.predicate.Predicates;
-import org.elasticsearch.xpack.ql.expression.predicate.logical.And;
-import org.elasticsearch.xpack.ql.expression.predicate.logical.Or;
-import org.elasticsearch.xpack.ql.expression.predicate.nulls.IsNotNull;
-import org.elasticsearch.xpack.ql.expression.predicate.nulls.IsNull;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparison;
-import org.elasticsearch.xpack.ql.expression.predicate.regex.RLikePattern;
-import org.elasticsearch.xpack.ql.expression.predicate.regex.WildcardPattern;
-import org.elasticsearch.xpack.ql.index.EsIndex;
-import org.elasticsearch.xpack.ql.index.IndexResolution;
-import org.elasticsearch.xpack.ql.optimizer.OptimizerRules;
-import org.elasticsearch.xpack.ql.plan.logical.Filter;
-import org.elasticsearch.xpack.ql.plan.logical.Limit;
-import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.ql.plan.logical.OrderBy;
-import org.elasticsearch.xpack.ql.plan.logical.UnaryPlan;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypes;
-import org.elasticsearch.xpack.ql.type.EsField;
-import org.elasticsearch.xpack.ql.util.Holder;
-import org.elasticsearch.xpack.ql.util.StringUtils;
 import org.junit.BeforeClass;
 
 import java.lang.reflect.Constructor;
@@ -135,6 +137,8 @@ import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static java.util.Collections.singletonList;
+import static org.elasticsearch.test.ListMatcher.matchesList;
+import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.L;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
@@ -144,27 +148,27 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.localSource;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.analysis.Analyzer.NO_FIELDS;
+import static org.elasticsearch.xpack.esql.core.TestUtils.getFieldAttribute;
+import static org.elasticsearch.xpack.esql.core.expression.Literal.FALSE;
+import static org.elasticsearch.xpack.esql.core.expression.Literal.NULL;
+import static org.elasticsearch.xpack.esql.core.expression.Literal.TRUE;
+import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
+import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_POINT;
+import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_SHAPE;
+import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
+import static org.elasticsearch.xpack.esql.core.type.DataType.IP;
+import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
+import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
+import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
+import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
+import static org.elasticsearch.xpack.esql.core.type.DataType.VERSION;
 import static org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison.BinaryComparisonOperation.EQ;
 import static org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison.BinaryComparisonOperation.GT;
 import static org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison.BinaryComparisonOperation.GTE;
 import static org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison.BinaryComparisonOperation.LT;
 import static org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison.BinaryComparisonOperation.LTE;
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.GEO_POINT;
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.GEO_SHAPE;
-import static org.elasticsearch.xpack.ql.TestUtils.getFieldAttribute;
-import static org.elasticsearch.xpack.ql.expression.Literal.FALSE;
-import static org.elasticsearch.xpack.ql.expression.Literal.NULL;
-import static org.elasticsearch.xpack.ql.expression.Literal.TRUE;
-import static org.elasticsearch.xpack.ql.tree.Source.EMPTY;
-import static org.elasticsearch.xpack.ql.type.DataTypes.BOOLEAN;
-import static org.elasticsearch.xpack.ql.type.DataTypes.DOUBLE;
-import static org.elasticsearch.xpack.ql.type.DataTypes.INTEGER;
-import static org.elasticsearch.xpack.ql.type.DataTypes.IP;
-import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
-import static org.elasticsearch.xpack.ql.type.DataTypes.LONG;
-import static org.elasticsearch.xpack.ql.type.DataTypes.TEXT;
-import static org.elasticsearch.xpack.ql.type.DataTypes.UNSIGNED_LONG;
-import static org.elasticsearch.xpack.ql.type.DataTypes.VERSION;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.contains;
@@ -196,7 +200,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
     private static Map<String, EsField> mappingExtra;
     private static Analyzer analyzerExtra;
     private static EnrichResolution enrichResolution;
-    private static final OptimizerRules.LiteralsOnTheRight LITERALS_ON_THE_RIGHT = new OptimizerRules.LiteralsOnTheRight();
+    private static final LiteralsOnTheRight LITERALS_ON_THE_RIGHT = new LiteralsOnTheRight();
 
     private static class SubstitutionOnlyOptimizer extends LogicalPlanOptimizer {
         static SubstitutionOnlyOptimizer INSTANCE = new SubstitutionOnlyOptimizer(new LogicalOptimizerContext(EsqlTestUtils.TEST_CFG));
@@ -779,7 +783,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
     public void testPushDownLikeRlikeFilter() {
         EsRelation relation = relation();
-        org.elasticsearch.xpack.ql.expression.predicate.regex.RLike conditionA = rlike(getFieldAttribute("a"), "foo");
+        org.elasticsearch.xpack.esql.core.expression.predicate.regex.RLike conditionA = rlike(getFieldAttribute("a"), "foo");
         WildcardLike conditionB = wildcardLike(getFieldAttribute("b"), "bar");
 
         Filter fa = new Filter(EMPTY, relation, conditionA);
@@ -995,7 +999,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
         var keep = as(plan, Project.class);
         var dissect = as(keep.child(), Dissect.class);
-        assertThat(dissect.extractedFields(), contains(new ReferenceAttribute(Source.EMPTY, "y", DataTypes.KEYWORD)));
+        assertThat(dissect.extractedFields(), contains(new ReferenceAttribute(Source.EMPTY, "y", DataType.KEYWORD)));
     }
 
     public void testPushDownGrokPastProject() {
@@ -1008,7 +1012,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
         var keep = as(plan, Project.class);
         var grok = as(keep.child(), Grok.class);
-        assertThat(grok.extractedFields(), contains(new ReferenceAttribute(Source.EMPTY, "y", DataTypes.KEYWORD)));
+        assertThat(grok.extractedFields(), contains(new ReferenceAttribute(Source.EMPTY, "y", DataType.KEYWORD)));
     }
 
     public void testPushDownFilterPastProjectUsingEval() {
@@ -3768,7 +3772,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
         assertThat(Expressions.names(agg.aggregates()), contains("$$COUNT$s$0", "w"));
         var countAggLiteral = as(as(Alias.unwrap(agg.aggregates().get(0)), Count.class).field(), Literal.class);
-        assertTrue(countAggLiteral.semanticEquals(new Literal(EMPTY, StringUtils.WILDCARD, DataTypes.KEYWORD)));
+        assertTrue(countAggLiteral.semanticEquals(new Literal(EMPTY, StringUtils.WILDCARD, DataType.KEYWORD)));
 
         var exprs = eval.fields();
         // s == mv_count([1,2]) * count(*)
@@ -3896,7 +3900,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             "count_distinct({}, 1234)",
             c -> new ToLong(
                 EMPTY,
-                new Coalesce(EMPTY, new MvCount(EMPTY, new MvDedupe(EMPTY, c)), List.of(new Literal(EMPTY, 0, DataTypes.INTEGER)))
+                new Coalesce(EMPTY, new MvCount(EMPTY, new MvDedupe(EMPTY, c)), List.of(new Literal(EMPTY, 0, DataType.INTEGER)))
             ),
             ints -> Arrays.stream(ints).distinct().count(),
             d -> 1L
@@ -4089,8 +4093,8 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
                 new Order(
                     limit.source(),
                     salary,
-                    org.elasticsearch.xpack.ql.expression.Order.OrderDirection.ASC,
-                    org.elasticsearch.xpack.ql.expression.Order.NullsPosition.FIRST
+                    org.elasticsearch.xpack.esql.core.expression.Order.OrderDirection.ASC,
+                    org.elasticsearch.xpack.esql.core.expression.Order.NullsPosition.FIRST
                 )
             )
         );
@@ -4168,20 +4172,20 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             assertThat(topN.order().size(), is(3));
 
             var firstOrder = as(topN.order().get(0), Order.class);
-            assertThat(firstOrder.direction(), equalTo(org.elasticsearch.xpack.ql.expression.Order.OrderDirection.ASC));
-            assertThat(firstOrder.nullsPosition(), equalTo(org.elasticsearch.xpack.ql.expression.Order.NullsPosition.FIRST));
+            assertThat(firstOrder.direction(), equalTo(org.elasticsearch.xpack.esql.core.expression.Order.OrderDirection.ASC));
+            assertThat(firstOrder.nullsPosition(), equalTo(org.elasticsearch.xpack.esql.core.expression.Order.NullsPosition.FIRST));
             var renamed_emp_no = as(firstOrder.child(), ReferenceAttribute.class);
             assertThat(renamed_emp_no.toString(), startsWith("$$emp_no$temp_name"));
 
             var secondOrder = as(topN.order().get(1), Order.class);
-            assertThat(secondOrder.direction(), equalTo(org.elasticsearch.xpack.ql.expression.Order.OrderDirection.DESC));
-            assertThat(secondOrder.nullsPosition(), equalTo(org.elasticsearch.xpack.ql.expression.Order.NullsPosition.LAST));
+            assertThat(secondOrder.direction(), equalTo(org.elasticsearch.xpack.esql.core.expression.Order.OrderDirection.DESC));
+            assertThat(secondOrder.nullsPosition(), equalTo(org.elasticsearch.xpack.esql.core.expression.Order.NullsPosition.LAST));
             var renamed_salary = as(secondOrder.child(), ReferenceAttribute.class);
             assertThat(renamed_salary.toString(), startsWith("$$salary$temp_name"));
 
             var thirdOrder = as(topN.order().get(2), Order.class);
-            assertThat(thirdOrder.direction(), equalTo(org.elasticsearch.xpack.ql.expression.Order.OrderDirection.ASC));
-            assertThat(thirdOrder.nullsPosition(), equalTo(org.elasticsearch.xpack.ql.expression.Order.NullsPosition.LAST));
+            assertThat(thirdOrder.direction(), equalTo(org.elasticsearch.xpack.esql.core.expression.Order.OrderDirection.ASC));
+            assertThat(thirdOrder.nullsPosition(), equalTo(org.elasticsearch.xpack.esql.core.expression.Order.NullsPosition.LAST));
             var renamed_emp_no2 = as(thirdOrder.child(), ReferenceAttribute.class);
             assertThat(renamed_emp_no2.toString(), startsWith("$$emp_no$temp_name"));
 
@@ -4249,8 +4253,8 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         assertThat(topN.order().size(), is(1));
 
         var order = as(topN.order().get(0), Order.class);
-        assertThat(order.direction(), equalTo(org.elasticsearch.xpack.ql.expression.Order.OrderDirection.ASC));
-        assertThat(order.nullsPosition(), equalTo(org.elasticsearch.xpack.ql.expression.Order.NullsPosition.LAST));
+        assertThat(order.direction(), equalTo(org.elasticsearch.xpack.esql.core.expression.Order.OrderDirection.ASC));
+        assertThat(order.nullsPosition(), equalTo(org.elasticsearch.xpack.esql.core.expression.Order.NullsPosition.LAST));
         var expression = as(order.child(), ReferenceAttribute.class);
         assertThat(expression.toString(), startsWith("$$order_by$0$"));
 
@@ -4288,14 +4292,14 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         assertThat(topN.order().size(), is(2));
 
         var order = as(topN.order().get(0), Order.class);
-        assertThat(order.direction(), equalTo(org.elasticsearch.xpack.ql.expression.Order.OrderDirection.ASC));
-        assertThat(order.nullsPosition(), equalTo(org.elasticsearch.xpack.ql.expression.Order.NullsPosition.LAST));
+        assertThat(order.direction(), equalTo(org.elasticsearch.xpack.esql.core.expression.Order.OrderDirection.ASC));
+        assertThat(order.nullsPosition(), equalTo(org.elasticsearch.xpack.esql.core.expression.Order.NullsPosition.LAST));
         ReferenceAttribute expression = as(order.child(), ReferenceAttribute.class);
         assertThat(expression.toString(), startsWith("$$order_by$0$"));
 
         order = as(topN.order().get(1), Order.class);
-        assertThat(order.direction(), equalTo(org.elasticsearch.xpack.ql.expression.Order.OrderDirection.DESC));
-        assertThat(order.nullsPosition(), equalTo(org.elasticsearch.xpack.ql.expression.Order.NullsPosition.FIRST));
+        assertThat(order.direction(), equalTo(org.elasticsearch.xpack.esql.core.expression.Order.OrderDirection.DESC));
+        assertThat(order.nullsPosition(), equalTo(org.elasticsearch.xpack.esql.core.expression.Order.NullsPosition.FIRST));
         FieldAttribute empNo = as(order.child(), FieldAttribute.class);
         assertThat(empNo.name(), equalTo("emp_no"));
 
@@ -4365,14 +4369,14 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             assertThat(topN.order().size(), is(2));
 
             var firstOrderExpr = as(topN.order().get(0), Order.class);
-            assertThat(firstOrderExpr.direction(), equalTo(org.elasticsearch.xpack.ql.expression.Order.OrderDirection.ASC));
-            assertThat(firstOrderExpr.nullsPosition(), equalTo(org.elasticsearch.xpack.ql.expression.Order.NullsPosition.LAST));
+            assertThat(firstOrderExpr.direction(), equalTo(org.elasticsearch.xpack.esql.core.expression.Order.OrderDirection.ASC));
+            assertThat(firstOrderExpr.nullsPosition(), equalTo(org.elasticsearch.xpack.esql.core.expression.Order.NullsPosition.LAST));
             var renamedEmpNoSalaryExpression = as(firstOrderExpr.child(), ReferenceAttribute.class);
             assertThat(renamedEmpNoSalaryExpression.toString(), startsWith("$$order_by$0$"));
 
             var secondOrderExpr = as(topN.order().get(1), Order.class);
-            assertThat(secondOrderExpr.direction(), equalTo(org.elasticsearch.xpack.ql.expression.Order.OrderDirection.DESC));
-            assertThat(secondOrderExpr.nullsPosition(), equalTo(org.elasticsearch.xpack.ql.expression.Order.NullsPosition.FIRST));
+            assertThat(secondOrderExpr.direction(), equalTo(org.elasticsearch.xpack.esql.core.expression.Order.OrderDirection.DESC));
+            assertThat(secondOrderExpr.nullsPosition(), equalTo(org.elasticsearch.xpack.esql.core.expression.Order.NullsPosition.FIRST));
             var renamedNegatedSalaryExpression = as(secondOrderExpr.child(), ReferenceAttribute.class);
             assertThat(renamedNegatedSalaryExpression.toString(), startsWith("$$order_by$1$"));
 
@@ -4553,7 +4557,6 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/108388")
     public void testSimplifyComparisonArithmeticsWithFloatingPoints() {
         doTestSimplifyComparisonArithmetics("float / 2 > 4", "float", GT, 8d);
     }
@@ -4577,17 +4580,14 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         doTestSimplifyComparisonArithmetics("((integer + 1) * 2 - 4) * 4 >= 16", "integer", GTE, 3);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/108743")
     public void testSimplifyComparisonArithmeticWithFieldNegation() {
         doTestSimplifyComparisonArithmetics("12 * (-integer - 5) >= -120", "integer", LTE, 5);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/108743")
     public void testSimplifyComparisonArithmeticWithFieldDoubleNegation() {
         doTestSimplifyComparisonArithmetics("12 * -(-integer - 5) <= 120", "integer", LTE, 5);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/108743")
     public void testSimplifyComparisonArithmeticWithConjunction() {
         doTestSimplifyComparisonArithmetics("12 * (-integer - 5) == -120 AND integer < 6 ", "integer", EQ, 5);
     }
@@ -4972,11 +4972,163 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         assertEquals(and, new PropagateNullable().rule(and));
     }
 
+    //
+    // Lookup
+    //
+
+    /**
+     * Expects
+     * {@code
+     * Join[JoinConfig[type=LEFT OUTER, matchFields=[int{r}#4], conditions=[LOOKUP int_number_names ON int]]]
+     * |_EsqlProject[[_meta_field{f}#12, emp_no{f}#6, first_name{f}#7, gender{f}#8, job{f}#13, job.raw{f}#14, languages{f}#9 AS int
+     * , last_name{f}#10, long_noidx{f}#15, salary{f}#11]]
+     * | \_Limit[1000[INTEGER]]
+     * |   \_EsRelation[test][_meta_field{f}#12, emp_no{f}#6, first_name{f}#7, ge..]
+     * \_LocalRelation[[int{f}#16, name{f}#17],[IntVectorBlock[vector=IntArrayVector[positions=10, values=[0, 1, 2, 3, 4, 5, 6, 7, 8,
+     * 9]]], BytesRefVectorBlock[vector=BytesRefArrayVector[positions=10]]]]
+     * }
+     */
+    public void testLookupSimple() {
+        var plan = optimizedPlan("""
+              FROM test
+            | RENAME languages AS int
+            | LOOKUP int_number_names ON int
+            """);
+        var join = as(plan, Join.class);
+
+        // Right is the lookup table
+        var right = as(join.right(), LocalRelation.class);
+        assertMap(
+            right.output().stream().map(Object::toString).sorted().toList(),
+            matchesList().item(containsString("int{f}")).item(containsString("name{f}"))
+        );
+
+        // Left is the rest of the query
+        var left = as(join.left(), EsqlProject.class);
+        assertThat(left.output().toString(), containsString("int{r}"));
+        var limit = as(left.child(), Limit.class);
+        assertThat(limit.limit().fold(), equalTo(1000));
+
+        assertThat(join.config().type(), equalTo(JoinType.LEFT));
+        assertThat(join.config().matchFields().stream().map(Object::toString).toList(), matchesList().item(startsWith("int{r}")));
+        assertThat(join.config().conditions().size(), equalTo(1));
+        Equals eq = as(join.config().conditions().get(0), Equals.class);
+        assertThat(eq.left().toString(), startsWith("int{r}"));
+        assertThat(eq.right().toString(), startsWith("int{r}"));
+        assertTrue(join.children().get(0).outputSet() + " contains " + eq.left(), join.children().get(0).outputSet().contains(eq.left()));
+        assertTrue(join.children().get(1).outputSet() + " contains " + eq.right(), join.children().get(1).outputSet().contains(eq.right()));
+
+        // Join's output looks sensible too
+        assertMap(
+            join.output().stream().map(Object::toString).toList(),
+            matchesList().item(startsWith("_meta_field{f}"))
+                // TODO prune unused columns down through the join
+                .item(startsWith("emp_no{f}"))
+                .item(startsWith("first_name{f}"))
+                .item(startsWith("gender{f}"))
+                .item(startsWith("job{f}"))
+                .item(startsWith("job.raw{f}"))
+                /*
+                 * Int is a reference here because we renamed it in project.
+                 * If we hadn't it'd be a field and that'd be fine.
+                 */
+                .item(containsString("int{r}"))
+                .item(startsWith("last_name{f}"))
+                .item(startsWith("long_noidx{f}"))
+                .item(startsWith("salary{f}"))
+                /*
+                 * It's important that name is returned as a *reference* here
+                 * instead of a field. If it were a field we'd use SearchStats
+                 * on it and discover that it doesn't exist in the index. It doesn't!
+                 * We don't expect it to. It exists only in the lookup table.
+                 */
+                .item(containsString("name{r}"))
+        );
+    }
+
+    /**
+     * Expects
+     * {@code
+     * Limit[1000[INTEGER]]
+     * \_Aggregate[[name{r}#20],[MIN(emp_no{f}#9) AS MIN(emp_no), name{r}#20]]
+     *   \_Join[JoinConfig[type=LEFT OUTER, matchFields=[int{r}#4], conditions=[LOOKUP int_number_names ON int]]]
+     *     |_EsqlProject[[_meta_field{f}#15, emp_no{f}#9, first_name{f}#10, gender{f}#11, job{f}#16, job.raw{f}#17, languages{f}#12 AS
+     * int, last_name{f}#13, long_noidx{f}#18, salary{f}#14]]
+     *     | \_EsRelation[test][_meta_field{f}#15, emp_no{f}#9, first_name{f}#10, g..]
+     *     \_LocalRelation[[int{f}#19, name{f}#20],[IntVectorBlock[vector=IntArrayVector[positions=10, values=[0, 1, 2, 3, 4, 5, 6, 7, 8,
+     * 9]]], BytesRefVectorBlock[vector=BytesRefArrayVector[positions=10]]]]
+     * }
+     */
+    public void testLookupStats() {
+        var plan = optimizedPlan("""
+              FROM test
+            | RENAME languages AS int
+            | LOOKUP int_number_names ON int
+            | STATS MIN(emp_no) BY name
+            """);
+        var limit = as(plan, Limit.class);
+        assertThat(limit.limit().fold(), equalTo(1000));
+
+        var agg = as(limit.child(), Aggregate.class);
+        assertMap(
+            agg.aggregates().stream().map(Object::toString).sorted().toList(),
+            matchesList().item(startsWith("MIN(emp_no)")).item(startsWith("name{r}"))
+        );
+        assertMap(agg.groupings().stream().map(Object::toString).toList(), matchesList().item(startsWith("name{r}")));
+
+        var join = as(agg.child(), Join.class);
+        // Right is the lookup table
+        var right = as(join.right(), LocalRelation.class);
+        assertMap(
+            right.output().stream().map(Object::toString).toList(),
+            matchesList().item(containsString("int{f}")).item(containsString("name{f}"))
+        );
+
+        // Left is the rest of the query
+        var left = as(join.left(), EsqlProject.class);
+        assertThat(left.output().toString(), containsString("int{r}"));
+        as(left.child(), EsRelation.class);
+
+        assertThat(join.config().type(), equalTo(JoinType.LEFT));
+        assertThat(join.config().matchFields().stream().map(Object::toString).toList(), matchesList().item(startsWith("int{r}")));
+        assertThat(join.config().conditions().size(), equalTo(1));
+        Equals eq = as(join.config().conditions().get(0), Equals.class);
+        assertThat(eq.left().toString(), startsWith("int{r}"));
+        assertThat(eq.right().toString(), startsWith("int{r}"));
+
+        // Join's output looks sensible too
+        assertMap(
+            join.output().stream().map(Object::toString).toList(),
+            matchesList().item(startsWith("_meta_field{f}"))
+                // TODO prune unused columns down through the join
+                .item(startsWith("emp_no{f}"))
+                .item(startsWith("first_name{f}"))
+                .item(startsWith("gender{f}"))
+                .item(startsWith("job{f}"))
+                .item(startsWith("job.raw{f}"))
+                /*
+                 * Int is a reference here because we renamed it in project.
+                 * If we hadn't it'd be a field and that'd be fine.
+                 */
+                .item(containsString("int{r}"))
+                .item(startsWith("last_name{f}"))
+                .item(startsWith("long_noidx{f}"))
+                .item(startsWith("salary{f}"))
+                /*
+                 * It's important that name is returned as a *reference* here
+                 * instead of a field. If it were a field we'd use SearchStats
+                 * on it and discover that it doesn't exist in the index. It doesn't!
+                 * We don't expect it to. It exists only in the lookup table.
+                 */
+                .item(containsString("name{r}"))
+        );
+    }
+
     private Literal nullOf(DataType dataType) {
         return new Literal(Source.EMPTY, null, dataType);
     }
 
     public static EsRelation relation() {
-        return new EsRelation(EMPTY, new EsIndex(randomAlphaOfLength(8), emptyMap()), randomBoolean());
+        return new EsRelation(EMPTY, new EsIndex(randomAlphaOfLength(8), emptyMap()), randomFrom(IndexMode.values()), randomBoolean());
     }
 }

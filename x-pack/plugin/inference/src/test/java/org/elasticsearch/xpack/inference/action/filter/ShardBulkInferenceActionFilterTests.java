@@ -33,14 +33,15 @@ import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
-import org.elasticsearch.xpack.core.inference.results.ChunkedSparseEmbeddingResults;
 import org.elasticsearch.xpack.core.inference.results.ErrorChunkedInferenceResults;
+import org.elasticsearch.xpack.core.inference.results.InferenceChunkedSparseEmbeddingResults;
 import org.elasticsearch.xpack.inference.model.TestModel;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 import org.junit.After;
 import org.junit.Before;
 import org.mockito.stubbing.Answer;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -323,7 +324,7 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
     private static BulkItemRequest[] randomBulkItemRequest(
         Map<String, StaticModel> modelMap,
         Map<String, InferenceFieldMetadata> fieldInferenceMap
-    ) {
+    ) throws IOException {
         Map<String, Object> docMap = new LinkedHashMap<>();
         Map<String, Object> expectedDocMap = new LinkedHashMap<>();
         XContentType requestContentType = randomFrom(XContentType.values());
@@ -376,7 +377,7 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
         }
 
         ChunkedInferenceServiceResults getResults(String text) {
-            return resultMap.getOrDefault(text, new ChunkedSparseEmbeddingResults(List.of()));
+            return resultMap.getOrDefault(text, new InferenceChunkedSparseEmbeddingResults(List.of()));
         }
 
         void putResult(String text, ChunkedInferenceServiceResults result) {

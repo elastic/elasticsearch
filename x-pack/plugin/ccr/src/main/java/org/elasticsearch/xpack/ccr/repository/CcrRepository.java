@@ -26,6 +26,7 @@ import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.support.ListenerTimeouts;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.ThreadedActionListener;
+import org.elasticsearch.action.support.UnsafePlainActionFuture;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.RemoteClusterClient;
 import org.elasticsearch.cluster.ClusterName;
@@ -599,7 +600,11 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
         Client followerClient,
         Index followerIndex
     ) {
-        final PlainActionFuture<IndexMetadata> indexMetadataFuture = new PlainActionFuture<>();
+        // todo: this could manifest in production and seems we could make this async easily.
+        final PlainActionFuture<IndexMetadata> indexMetadataFuture = new UnsafePlainActionFuture<>(
+            Ccr.CCR_THREAD_POOL_NAME,
+            ThreadPool.Names.GENERIC
+        );
         final long startTimeInNanos = System.nanoTime();
         final Supplier<TimeValue> timeout = () -> {
             final long elapsedInNanos = System.nanoTime() - startTimeInNanos;

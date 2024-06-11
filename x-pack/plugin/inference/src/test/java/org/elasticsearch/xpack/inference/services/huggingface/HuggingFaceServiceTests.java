@@ -31,8 +31,8 @@ import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
-import org.elasticsearch.xpack.core.inference.results.ChunkedSparseEmbeddingResults;
-import org.elasticsearch.xpack.core.inference.results.ChunkedTextEmbeddingResults;
+import org.elasticsearch.xpack.core.inference.results.InferenceChunkedSparseEmbeddingResults;
+import org.elasticsearch.xpack.core.inference.results.InferenceChunkedTextEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.ml.inference.results.ChunkedNlpInferenceResults;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
@@ -56,11 +56,11 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.xpack.core.inference.results.InferenceChunkedTextEmbeddingFloatResultsTests.asMapWithListsInsteadOfArrays;
 import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityPool;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
-import static org.elasticsearch.xpack.inference.results.ChunkedTextEmbeddingResultsTests.asMapWithListsInsteadOfArrays;
 import static org.elasticsearch.xpack.inference.results.TextEmbeddingResultsTests.buildExpectationFloat;
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
 import static org.elasticsearch.xpack.inference.services.huggingface.HuggingFaceServiceSettingsTests.getServiceSettingsMap;
@@ -494,7 +494,7 @@ public class HuggingFaceServiceTests extends ESTestCase {
             assertThat(
                 result.asMap(),
                 Matchers.is(
-                    SparseEmbeddingResultsTests.buildExpectation(
+                    SparseEmbeddingResultsTests.buildExpectationSparseEmbeddings(
                         List.of(new SparseEmbeddingResultsTests.EmbeddingExpectation(Map.of(".", 0.13315596f), false))
                     )
                 )
@@ -591,6 +591,7 @@ public class HuggingFaceServiceTests extends ESTestCase {
         }
     }
 
+    // TODO
     public void testChunkedInfer_CallsInfer_TextEmbedding_ConvertsFloatResponse() throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
@@ -598,12 +599,12 @@ public class HuggingFaceServiceTests extends ESTestCase {
 
             String responseJson = """
                 {
-                    "embeddings": [
-                        [
-                            -0.0123,
-                            0.0123
-                        ]
-                    ]
+                "embeddings": [
+                [
+                -0.0123,
+                0.0123
+                ]
+                ]
                 {
                 """;
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
@@ -621,20 +622,15 @@ public class HuggingFaceServiceTests extends ESTestCase {
             );
 
             var result = listener.actionGet(TIMEOUT).get(0);
-            assertThat(result, CoreMatchers.instanceOf(ChunkedTextEmbeddingResults.class));
+            assertThat(result, CoreMatchers.instanceOf(InferenceChunkedTextEmbeddingFloatResults.class));
 
             MatcherAssert.assertThat(
-                asMapWithListsInsteadOfArrays((ChunkedTextEmbeddingResults) result),
+                asMapWithListsInsteadOfArrays((InferenceChunkedTextEmbeddingFloatResults) result),
                 Matchers.is(
                     Map.of(
-                        ChunkedTextEmbeddingResults.FIELD_NAME,
+                        InferenceChunkedTextEmbeddingFloatResults.FIELD_NAME,
                         List.of(
-                            Map.of(
-                                ChunkedNlpInferenceResults.TEXT,
-                                "abc",
-                                ChunkedNlpInferenceResults.INFERENCE,
-                                List.of((double) -0.0123f, (double) 0.0123f)
-                            )
+                            Map.of(ChunkedNlpInferenceResults.TEXT, "abc", ChunkedNlpInferenceResults.INFERENCE, List.of(-0.0123f, 0.0123f))
                         )
                     )
                 )
@@ -685,7 +681,7 @@ public class HuggingFaceServiceTests extends ESTestCase {
                 result.asMap(),
                 Matchers.is(
                     Map.of(
-                        ChunkedSparseEmbeddingResults.FIELD_NAME,
+                        InferenceChunkedSparseEmbeddingResults.FIELD_NAME,
                         List.of(
                             Map.of(ChunkedNlpInferenceResults.TEXT, "abc", ChunkedNlpInferenceResults.INFERENCE, Map.of(".", 0.13315596f))
                         )

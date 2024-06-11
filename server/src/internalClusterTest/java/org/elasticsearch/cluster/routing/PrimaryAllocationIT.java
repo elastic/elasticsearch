@@ -349,9 +349,12 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
 
         assertEquals(
             "No data for shard [" + shardId + "] of index [" + idxName + "] found on node [" + nodeWithoutData + ']',
-            ClusterRerouteUtils.expectRerouteFailure(
-                client(),
-                new AllocateStalePrimaryAllocationCommand(idxName, shardId, nodeWithoutData, true)
+            asInstanceOf(
+                IllegalArgumentException.class,
+                ClusterRerouteUtils.expectRerouteFailure(
+                    client(),
+                    new AllocateStalePrimaryAllocationCommand(idxName, shardId, nodeWithoutData, true)
+                )
             ).getMessage()
         );
     }

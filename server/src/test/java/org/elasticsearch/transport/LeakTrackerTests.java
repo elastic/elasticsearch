@@ -41,15 +41,16 @@ public class LeakTrackerTests extends ESTestCase {
     }
 
     @ParametersFactory(shuffle = false)
-    public static Iterable<TrackedObjectTestCase[]> parameters() {
+    public static Iterable<Object[]> parameters() {
         return Stream.of(
             new PojoTrackedObjectTestCase(),
             new ReleasableTrackedObjectTestCase(),
             new ReferenceCountedTrackedObjectTestCase()
-        ).map(i -> new TrackedObjectTestCase[] { i }).toList();
+        ).map(i -> new Object[] { i }).toList();
     }
 
     public void testWillLogErrorWhenTrackedObjectIsNotClosed() throws Exception {
+        trackedObjectTestCase.makeAssumptions();
         trackedObjectTestCase.createAndTrack(reachabilityChecker);
         // Do not close leak before nullifying
         trackedObjectTestCase.nullifyReference();
@@ -58,7 +59,7 @@ public class LeakTrackerTests extends ESTestCase {
     }
 
     public void testWillNotLogErrorWhenTrackedObjectIsClosed() {
-        assumeTrue("assertAtLeastOnce will be a no-op when assertions are disabled", Assertions.ENABLED);
+        trackedObjectTestCase.makeAssumptions();
         trackedObjectTestCase.createAndTrack(reachabilityChecker);
         trackedObjectTestCase.closeLeak();
         trackedObjectTestCase.nullifyReference();
@@ -70,6 +71,8 @@ public class LeakTrackerTests extends ESTestCase {
      * Encapsulates the lifecycle for a particular type of tracked object
      */
     public interface TrackedObjectTestCase {
+
+        default void makeAssumptions() {};
 
         /**
          * Create the tracked object, implementations must
@@ -123,6 +126,11 @@ public class LeakTrackerTests extends ESTestCase {
         private RefCounted refCounted;
 
         @Override
+        public void makeAssumptions() {
+            assumeTrue("ReferenceCounted wrapper is a no-op when assertions are disabled", Assertions.ENABLED);
+        }
+
+        @Override
         public void createAndTrack(ReachabilityChecker reachabilityChecker) {
             RefCounted refCounted = reachabilityChecker.register(createRefCounted());
             this.refCounted = LeakTracker.wrap(refCounted);
@@ -137,9 +145,9 @@ public class LeakTrackerTests extends ESTestCase {
 
         @Override
         public void closeLeak() {
-            refCounted.decRef();
-            refCounted.decRef();
-            refCounted.decRef();
+            refCounted.decRef();    // tryIncRef
+            refCounted.decRef();    // incRef
+            refCounted.decRef();    // implicit
         }
 
         @Override
@@ -163,6 +171,11 @@ public class LeakTrackerTests extends ESTestCase {
     private static class ReleasableTrackedObjectTestCase implements TrackedObjectTestCase {
 
         private Releasable releasable;
+
+        @Override
+        public void makeAssumptions() {
+            assumeTrue("Releasable wrapper is a no-op when assertions are disabled", Assertions.ENABLED);
+        }
 
         @Override
         public void createAndTrack(ReachabilityChecker reachabilityChecker) {

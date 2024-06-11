@@ -13,6 +13,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.NoShardAvailableActionException;
+import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteUtils;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -233,7 +234,7 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
                 // is the super-connected node and recovery source and target are on opposite sides of the bridge
                 if (disruptionScheme instanceof NetworkDisruption networkDisruption
                     && networkDisruption.getDisruptedLinks() instanceof Bridge) {
-                    assertBusy(() -> assertAcked(clusterAdmin().prepareReroute().setRetryFailed(true)));
+                    assertBusy(() -> ClusterRerouteUtils.rerouteRetryFailed(client()));
                 }
                 ensureGreen("test");
 

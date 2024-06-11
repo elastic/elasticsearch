@@ -26,22 +26,30 @@ import java.io.IOException;
 /**
  * Holds data stream dedicated configuration options such as failure store, (in the future lifecycle). Currently, it
  * supports the following configurations:
+ * - lifecycle
  * - failure store
  */
-public record DataStreamOptions(@Nullable DataStreamFailureStore failureStore)
+public record DataStreamOptions(@Nullable DataStreamLifecycle lifecycle, @Nullable DataStreamFailureStore failureStore)
     implements
         SimpleDiffable<DataStreamOptions>,
         ToXContentObject {
 
+    public static final ParseField LIFECYCLE_FIELD = new ParseField("lifecycle");
     public static final ParseField FAILURE_STORE_FIELD = new ParseField("failure_store");
 
     public static final ConstructingObjectParser<DataStreamOptions, Void> PARSER = new ConstructingObjectParser<>(
         "options",
         false,
-        (args, unused) -> new DataStreamOptions((DataStreamFailureStore) args[0])
+        (args, unused) -> new DataStreamOptions((DataStreamLifecycle) args[0], (DataStreamFailureStore) args[1])
     );
 
     static {
+        PARSER.declareField(
+            ConstructingObjectParser.optionalConstructorArg(),
+            (p, c) -> DataStreamLifecycle.fromXContent(p),
+            LIFECYCLE_FIELD,
+            ObjectParser.ValueType.OBJECT_OR_NULL
+        );
         PARSER.declareField(
             ConstructingObjectParser.optionalConstructorArg(),
             (p, c) -> DataStreamFailureStore.fromXContent(p),
@@ -51,16 +59,14 @@ public record DataStreamOptions(@Nullable DataStreamFailureStore failureStore)
     }
 
     public DataStreamOptions() {
-        this(null);
+        this(null, null);
     }
 
     public static DataStreamOptions read(StreamInput in) throws IOException {
-        return new DataStreamOptions(in.readOptionalWriteable(DataStreamFailureStore::read));
-    }
-
-    @Nullable
-    public DataStreamFailureStore getFailureStore() {
-        return failureStore;
+        return new DataStreamOptions(
+            in.readOptionalWriteable(DataStreamLifecycle::new),
+            in.readOptionalWriteable(DataStreamFailureStore::read)
+        );
     }
 
     public static Diff<DataStreamOptions> readDiffFrom(StreamInput in) throws IOException {
@@ -69,6 +75,7 @@ public record DataStreamOptions(@Nullable DataStreamFailureStore failureStore)
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        out.writeOptionalWriteable(lifecycle);
         out.writeOptionalWriteable(failureStore);
     }
 
@@ -80,6 +87,10 @@ public record DataStreamOptions(@Nullable DataStreamFailureStore failureStore)
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
+        if (lifecycle != null) {
+            builder.field(LIFECYCLE_FIELD.getPreferredName());
+            builder.value(lifecycle);
+        }
         if (failureStore != null) {
             builder.field(FAILURE_STORE_FIELD.getPreferredName());
             builder.value(failureStore);

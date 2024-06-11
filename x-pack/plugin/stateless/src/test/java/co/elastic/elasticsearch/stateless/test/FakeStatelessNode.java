@@ -47,6 +47,7 @@ import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.NoDeletionPolicy;
+import org.apache.lucene.index.Term;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -75,9 +76,10 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.index.engine.EngineTestCase;
+import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
@@ -353,7 +355,11 @@ public class FakeStatelessNode implements Closeable {
                     LuceneDocument delete = tombstone.docs().get(0);
                     NumericDocValuesField field = Lucene.newSoftDeletesField();
                     delete.add(field);
-                    indexWriter.softUpdateDocument(EngineTestCase.newUid(deleteId), delete.getFields(), Lucene.newSoftDeletesField());
+                    indexWriter.softUpdateDocument(
+                        new Term(IdFieldMapper.NAME, Uid.encodeId(deleteId)),
+                        delete.getFields(),
+                        Lucene.newSoftDeletesField()
+                    );
                 }
                 if (merge) {
                     indexWriter.forceMerge(1, true);

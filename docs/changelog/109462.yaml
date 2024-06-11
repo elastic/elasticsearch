@@ -1,5 +1,5 @@
 pr: 109462
-summary: WIP Add `wait_for_completion` parameter to delete snapshot request
+summary: Add `wait_for_completion` parameter to delete snapshot request
 area: Distributed
 type: enhancement
 issues:

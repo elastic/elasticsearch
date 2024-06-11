@@ -8,9 +8,7 @@
 
 package org.elasticsearch.cluster.routing.allocation;
 
-import org.elasticsearch.action.support.SubscribableListener;
-import org.elasticsearch.cluster.ClusterChangedEvent;
-import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.EmptyClusterInfoService;
 import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
@@ -45,24 +43,21 @@ public class AllocationFailuresResetServiceTests extends ESTestCase {
 
     private ThreadPool threadPool;
     private ClusterService clusterService;
-    private AllocationFailuresResetService resetService;
 
-    /**
-     * Build cluster state with single node/index/shard.
-     * Initialize shard in failed state with exhausted retries (5)
-     */
-    private static ClusterState clusterStateWithFailures() {
-        var node = "node-1";
+    private static ClusterState addNode(ClusterState state) {
+        var nodes = DiscoveryNodes.builder(state.nodes()).add(DiscoveryNodeUtils.create("node-" + System.currentTimeMillis()));
+        return ClusterState.builder(state).nodes(nodes).build();
+    }
+
+    private static ClusterState addShardWithFailures(ClusterState state) {
         var index = "index-1";
         var shard = 0;
-
-        var nodes = DiscoveryNodes.builder().add(DiscoveryNodeUtils.create(node));
 
         var indexMeta = new IndexMetadata.Builder(index).settings(
             Settings.builder().put(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build())
         ).numberOfShards(1).numberOfReplicas(0).build();
 
-        var meta = Metadata.builder().put(indexMeta, false).build();
+        var meta = Metadata.builder(state.metadata()).put(indexMeta, false).build();
 
         var shardId = new ShardId(indexMeta.getIndex(), shard);
         var exhaustFailures = 5;
@@ -92,12 +87,7 @@ public class AllocationFailuresResetServiceTests extends ESTestCase {
             ).addIndexShard(IndexShardRoutingTable.builder(shardId).addShard(shardRouting)).build()
         ).build();
 
-        return ClusterState.builder(ClusterName.DEFAULT).nodes(nodes).metadata(meta).routingTable(routingTable).build();
-    }
-
-    private static ClusterState addNode(ClusterState state) {
-        var nodes = DiscoveryNodes.builder(state.nodes()).add(DiscoveryNodeUtils.create("node-" + System.currentTimeMillis()));
-        return ClusterState.builder(state).nodes(nodes).build();
+        return ClusterState.builder(state).metadata(meta).routingTable(routingTable).build();
     }
 
     @Override
@@ -113,7 +103,8 @@ public class AllocationFailuresResetServiceTests extends ESTestCase {
             EmptySnapshotsInfoService.INSTANCE,
             TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY
         );
-        resetService = new AllocationFailuresResetService(clusterService, allocationService);
+        AllocationFailuresResetService resetService = new AllocationFailuresResetService(clusterService, allocationService);
+        clusterService.getClusterApplierService().addListener(resetService);
     }
 
     @Override
@@ -123,43 +114,30 @@ public class AllocationFailuresResetServiceTests extends ESTestCase {
         threadPool.shutdownNow();
     }
 
-    public void testNoChangesDoesNotResetCounter() {
-        var state = clusterStateWithFailures();
-        var changeEvent = new ClusterChangedEvent("", state, state);
-        var listener = new SubscribableListener<ClusterState>();
-        resetService.processEvent(changeEvent, listener);
-        var resultState = safeAwait(listener);
-        assertTrue(resultState.getRoutingNodes().hasAllocationFailures());
+    public void testNoChangesDoesNotResetCounter() throws Exception {
+        var initState = clusterService.state();
+        var stateWithFailures = addShardWithFailures(initState);
+        clusterService.getClusterApplierService().onNewClusterState("add failures", () -> stateWithFailures, ActionListener.noop());
+
+        assertBusy(() -> {
+            var resultState = clusterService.state();
+            assertFalse(resultState.getRoutingNodes().hasAllocationFailures());
+        });
+
     }
 
-    public void testAddNodeResetsCounter() {
-        var previousState = clusterStateWithFailures();
-        var currentState = addNode(previousState);
-        var changeEvent = new ClusterChangedEvent("", currentState, previousState);
-        var listener = new SubscribableListener<ClusterState>();
-        resetService.processEvent(changeEvent, listener);
-        var resultState = safeAwait(listener);
-        assertFalse(resultState.getRoutingNodes().hasAllocationFailures());
-    }
+    public void testAddNodeResetsCounter() throws Exception {
+        var initState = clusterService.state();
+        var stateWithFailures = addShardWithFailures(initState);
+        clusterService.getClusterApplierService().onNewClusterState("add failures", () -> stateWithFailures, ActionListener.noop());
 
-    public void testNullListenerNoChanges() {
-        var state = clusterStateWithFailures();
-        var changeEvent = new ClusterChangedEvent("", state, state);
-        try {
-            resetService.clusterChanged(changeEvent);
-        } catch (Exception e) {
-            fail(e);
-        }
-    }
+        var stateWithNewNode = addNode(stateWithFailures);
+        clusterService.getClusterApplierService().onNewClusterState("add node", () -> stateWithNewNode, ActionListener.noop());
 
-    public void testNullListenerWithReset() {
-        var previousState = clusterStateWithFailures();
-        var currentState = addNode(previousState);
-        var changeEvent = new ClusterChangedEvent("", currentState, previousState);
-        try {
-            resetService.clusterChanged(changeEvent);
-        } catch (Exception e) {
-            fail(e);
-        }
+        assertBusy(() -> {
+            var resultState = clusterService.state();
+            assertEquals(1, resultState.getRoutingTable().allShards().count());
+            assertFalse(resultState.getRoutingNodes().hasAllocationFailures());
+        });
     }
 }

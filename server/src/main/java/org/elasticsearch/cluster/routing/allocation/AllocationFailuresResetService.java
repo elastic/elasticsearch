@@ -15,7 +15,6 @@ import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.routing.allocation.command.AllocationCommands;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -39,49 +38,20 @@ public class AllocationFailuresResetService implements ClusterStateListener {
 
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
-        processEvent(event, null);
-    }
-
-    /**
-     * Unit-test-friendly method, result listener completes with new ClusterState
-     * after reroute with reset counter. Returns current cluster state if reset
-     * condition does not happen.
-     */
-    protected void processEvent(ClusterChangedEvent event, @Nullable ActionListener<ClusterState> result) {
         if (event.nodesAdded() && event.state().getRoutingNodes().hasAllocationFailures()) {
             submitUnbatchedStateUpdateTask(new ClusterStateUpdateTask() {
                 @Override
                 public ClusterState execute(ClusterState currentState) {
-                    var nextState = allocationService.reroute(
-                        currentState,
-                        new AllocationCommands(),
-                        false,
-                        true,
-                        false,
-                        ActionListener.noop()
-                    ).clusterState();
-                    return nextState;
+                    return allocationService.reroute(currentState, new AllocationCommands(), false, true, false, ActionListener.noop())
+                        .clusterState();
                 }
 
                 @Override
                 public void onFailure(Exception e) {
                     logger.warn(() -> "cluster update failure: reset allocation failures counter", e);
-                    if (result != null) {
-                        result.onFailure(e);
-                    }
-                }
 
-                @Override
-                public void clusterStateProcessed(ClusterState initialState, ClusterState newState) {
-                    if (result != null) {
-                        result.onResponse(newState);
-                    }
                 }
             });
-        } else {
-            if (result != null) {
-                result.onResponse(event.state());
-            }
         }
     }
 

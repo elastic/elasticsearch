@@ -51,7 +51,7 @@ public class UpgradeWithOldIndexSettingsIT extends ParameterizedFullClusterResta
     public void testMapperDynamicIndexSetting() throws IOException {
         assumeTrue(
             "Setting deprecated in 6.x, but remained in 7.x and is no longer defined in 8.x",
-            getOldClusterTestVersion().before("8.0.0")
+            getOldClusterTestVersion().before("8.0.0") && getOldClusterTestVersion().after("7.17.21")
         );
         String indexName = "my-index";
         if (isRunningAgainstOldCluster()) {

@@ -27,7 +27,7 @@ adding the other fields from the `table` to the output.
 *Examples*
 
 // tag::examples[]
-[source,console]
+[source,console,id=esql-lookup-example]
 ----
 POST /_query?format=txt
 {
@@ -40,8 +40,8 @@ POST /_query?format=txt
   """,
   "tables": {
     "era": {
-      "author:keyword": ["Frank Herbert", "Peter F. Hamilton", "Vernor Vinge", "Alastair Reynolds", "James S.A. Corey"],
-      "era:keyword"   : [ "The New Wave",           "Diamond",      "Diamond",           "Diamond",           "Hadron"]
+      "author": {"keyword": ["Frank Herbert", "Peter F. Hamilton", "Vernor Vinge", "Alastair Reynolds", "James S.A. Corey"]},
+      "era":    {"keyword": [ "The New Wave",           "Diamond",      "Diamond",           "Diamond",           "Hadron"]}
     }
   }
 }

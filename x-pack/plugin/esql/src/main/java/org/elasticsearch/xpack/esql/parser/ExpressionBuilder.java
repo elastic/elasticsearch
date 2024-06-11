@@ -18,7 +18,6 @@ import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
-import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -68,7 +67,6 @@ import java.time.temporal.TemporalAmount;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 
@@ -82,6 +80,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.TIME_DURATION;
 import static org.elasticsearch.xpack.esql.core.util.NumericUtils.asLongUnsigned;
 import static org.elasticsearch.xpack.esql.core.util.NumericUtils.unsignedLongAsNumber;
 import static org.elasticsearch.xpack.esql.core.util.StringUtils.WILDCARD;
+import static org.elasticsearch.xpack.esql.core.util.StringUtils.isInteger;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.bigIntegerToUnsignedLong;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.parseTemporalAmout;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToIntegral;
@@ -95,9 +94,9 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
      */
     public static final int MAX_EXPRESSION_DEPTH = 500;
 
-    private final Map<Token, TypedParamValue> params;
+    protected final QueryParams params;
 
-    ExpressionBuilder(Map<Token, TypedParamValue> params) {
+    ExpressionBuilder(QueryParams params) {
         this.params = params;
     }
 
@@ -691,62 +690,64 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
 
     @Override
     public Object visitInputParam(EsqlBaseParser.InputParamContext ctx) {
-        TypedParamValue param = param(ctx.PARAM());
-        DataType dataType = EsqlDataTypes.fromTypeName(param.type);
-        Source source = source(ctx);
-        if (dataType == null) {
-            throw new ParsingException(source, "Invalid parameter data type [{}]", param.type);
-        }
-        if (param.value == null) {
-            // no conversion is required for null values
-            return new Literal(source, null, dataType);
-        }
-        final DataType sourceType;
-        try {
-            sourceType = DataType.fromJava(param.value);
-        } catch (QlIllegalArgumentException ex) {
-            throw new ParsingException(
-                ex,
-                source,
-                "Unexpected actual parameter type [{}] for type [{}]",
-                param.value.getClass().getName(),
-                param.type
-            );
-        }
-        if (sourceType == dataType) {
-            // no conversion is required if the value is already have correct type
-            return new Literal(source, param.value, dataType);
-        }
-        // otherwise we need to make sure that xcontent-serialized value is converted to the correct type
-        try {
-
-            if (EsqlDataTypeConverter.canConvert(sourceType, dataType) == false) {
-                throw new ParsingException(
-                    source,
-                    "Cannot cast value [{}] of type [{}] to parameter type [{}]",
-                    param.value,
-                    sourceType,
-                    dataType
-                );
-            }
-            return new Literal(source, EsqlDataTypeConverter.converterFor(sourceType, dataType).convert(param.value), dataType);
-        } catch (QlIllegalArgumentException ex) {
-            throw new ParsingException(ex, source, "Unexpected actual parameter type [{}] for type [{}]", sourceType, param.type);
-        }
+        QueryParam param = paramByToken(ctx.PARAM());
+        return visitParam(ctx, param);
     }
 
-    private TypedParamValue param(TerminalNode node) {
+    @Override
+    public Object visitInputNamedOrPositionalParam(EsqlBaseParser.InputNamedOrPositionalParamContext ctx) {
+        QueryParam param = paramByNameOrPosition(ctx.NAMED_OR_POSITIONAL_PARAM());
+        if (param == null) {
+            return Literal.NULL;
+        }
+        return visitParam(ctx, param);
+    }
+
+    private Object visitParam(EsqlBaseParser.ParamsContext ctx, QueryParam param) {
+        Source source = source(ctx);
+        DataType type = param.type();
+        return new Literal(source, param.value(), type);
+    }
+
+    QueryParam paramByToken(TerminalNode node) {
         if (node == null) {
             return null;
         }
-
         Token token = node.getSymbol();
-
-        if (params.containsKey(token) == false) {
+        if (params.contains(token) == false) {
             throw new ParsingException(source(node), "Unexpected parameter");
         }
-
         return params.get(token);
     }
 
+    QueryParam paramByNameOrPosition(TerminalNode node) {
+        if (node == null) {
+            return null;
+        }
+        Token token = node.getSymbol();
+        String nameOrPosition = token.getText().substring(1);
+        if (isInteger(nameOrPosition)) {
+            int index = Integer.parseInt(nameOrPosition);
+            if (params.get(index) == null) {
+                String message = "";
+                int np = params.positionalParams().size();
+                if (np > 0) {
+                    message = ", did you mean " + (np == 1 ? "position 1?" : "any position between 1 and " + np + "?");
+                }
+                params.addParsingError(new ParsingException(source(node), "No parameter is defined for position " + index + message));
+            }
+            return params.get(index);
+        } else {
+            if (params.contains(nameOrPosition) == false) {
+                String message = "";
+                List<String> potentialMatches = StringUtils.findSimilar(nameOrPosition, params.namedParams().keySet());
+                if (potentialMatches.size() > 0) {
+                    message = ", did you mean "
+                        + (potentialMatches.size() == 1 ? "[" + potentialMatches.get(0) + "]?" : "any of " + potentialMatches + "?");
+                }
+                params.addParsingError(new ParsingException(source(node), "Unknown query parameter [" + nameOrPosition + "]" + message));
+            }
+            return params.get(nameOrPosition);
+        }
+    }
 }

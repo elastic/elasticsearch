@@ -15,7 +15,9 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.core.capabilities.UnresolvedException;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.EmptyAttribute;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
@@ -1152,7 +1154,7 @@ public class StatementParserTests extends ESTestCase {
                 """,
             new Filter(
                 EMPTY,
-                new EsqlUnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, "index"), List.of(), IndexMode.STANDARD),
+                esqlUnresolvedRelation("index", List.of(), IndexMode.STANDARD),
                 new GreaterThan(EMPTY, attribute("a"), integer(1))
             )
         );
@@ -1167,7 +1169,7 @@ public class StatementParserTests extends ESTestCase {
                 EMPTY,
                 new Filter(
                     EMPTY,
-                    new EsqlUnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, "index"), List.of(), IndexMode.STANDARD),
+                    esqlUnresolvedRelation("index", List.of(), IndexMode.STANDARD),
                     new GreaterThan(EMPTY, attribute("a"), integer(1))
                 ),
                 namedExpression("emp_no")
@@ -1185,7 +1187,7 @@ public class StatementParserTests extends ESTestCase {
                 integer(101),
                 new Filter(
                     EMPTY,
-                    new EsqlUnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, "index"), List.of(), IndexMode.STANDARD),
+                    esqlUnresolvedRelation("index", List.of(), IndexMode.STANDARD),
                     new GreaterThan(EMPTY, attribute("a"), integer(1))
                 )
             )
@@ -1202,7 +1204,7 @@ public class StatementParserTests extends ESTestCase {
                 """,
             new Rank(
                 EMPTY,
-                new EsqlUnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, "index"), List.of(), IndexMode.STANDARD),
+                esqlUnresolvedRelation("index", List.of(), IndexMode.STANDARD),
                 new GreaterThan(EMPTY, attribute("a"), integer(1))
             )
         );
@@ -1216,11 +1218,7 @@ public class StatementParserTests extends ESTestCase {
             new Limit(
                 EMPTY,
                 integer(100),
-                new Rank(
-                    EMPTY,
-                    new EsqlUnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, "index"), List.of(), IndexMode.STANDARD),
-                    new MatchQueryPredicate(EMPTY, attribute("item"), "iphone red", null)
-                )
+                new Rank(EMPTY, esqlUnresolvedRelation("index", List.of(), IndexMode.STANDARD), matchQueryPredicate("item", "iphone red"))
             )
         );
 
@@ -1231,12 +1229,8 @@ public class StatementParserTests extends ESTestCase {
                 """,
             new Rank(
                 EMPTY,
-                new EsqlUnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, "index"), List.of(), IndexMode.STANDARD),
-                new And(
-                    EMPTY,
-                    new MatchQueryPredicate(EMPTY, attribute("item"), "iphone", null),
-                    new MatchQueryPredicate(EMPTY, attribute("color"), "red", null)
-                )
+                esqlUnresolvedRelation("index", List.of(), IndexMode.STANDARD),
+                and(matchQueryPredicate("item", "iphone"), matchQueryPredicate("color", "red"))
             )
         );
 
@@ -1247,12 +1241,8 @@ public class StatementParserTests extends ESTestCase {
                 """,
             new Rank(
                 EMPTY,
-                new EsqlUnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, "index"), List.of(), IndexMode.STANDARD),
-                new Or(
-                    EMPTY,
-                    new MatchQueryPredicate(EMPTY, attribute("country"), "mexico", null),
-                    new MatchQueryPredicate(EMPTY, attribute("country"), "spain", null)
-                )
+                esqlUnresolvedRelation("index", List.of(), IndexMode.STANDARD),
+                or(matchQueryPredicate("country", "mexico"), matchQueryPredicate("country", "spain"))
             )
         );
     }
@@ -1286,12 +1276,7 @@ public class StatementParserTests extends ESTestCase {
                                 EMPTY,
                                 new Filter(
                                     EMPTY,
-                                    new EsqlUnresolvedRelation(
-                                        EMPTY,
-                                        new TableIdentifier(EMPTY, null, "images"),
-                                        List.of(),
-                                        IndexMode.STANDARD
-                                    ),
+                                    esqlUnresolvedRelation("images", List.of(), IndexMode.STANDARD),
                                     new GreaterThan(
                                         EMPTY,
                                         attribute("date"),
@@ -1302,7 +1287,7 @@ public class StatementParserTests extends ESTestCase {
                                         )
                                     )
                                 ),
-                                new MatchQueryPredicate(EMPTY, attribute("scene"), "mountain lake", null)
+                                matchQueryPredicate("scene", "mountain lake")
                             ),
                             new GreaterThan(EMPTY, attribute("_score"), literalDouble(0.1))
                         )
@@ -1434,6 +1419,22 @@ public class StatementParserTests extends ESTestCase {
 
     private static List<NamedExpression> namedExpression(String name) {
         return List.of(attribute(name));
+    }
+
+    static EsqlUnresolvedRelation esqlUnresolvedRelation(String index, List<Attribute> metadataFields, IndexMode indexMode) {
+        return new EsqlUnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, index), metadataFields, indexMode);
+    }
+
+    static MatchQueryPredicate matchQueryPredicate(String attr, String query) {
+        return new MatchQueryPredicate(EMPTY, attribute(attr), query, null);
+    }
+
+    static And and(Expression left, Expression right) {
+        return new And(EMPTY, left, right);
+    }
+
+    static Or or(Expression left, Expression right) {
+        return new Or(EMPTY, left, right);
     }
 
     private void expectError(String query, String errorMessage) {

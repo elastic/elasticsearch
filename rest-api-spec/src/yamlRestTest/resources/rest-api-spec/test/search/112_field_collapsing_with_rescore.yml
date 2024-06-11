@@ -1,4 +1,7 @@
 setup:
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/issues/109476"
+      version: "8.13.0 - 8.13.4"
   - requires:
       cluster_features: "gte_v8.15.0"
       reason: Collapse with rescore added in 8.15.0

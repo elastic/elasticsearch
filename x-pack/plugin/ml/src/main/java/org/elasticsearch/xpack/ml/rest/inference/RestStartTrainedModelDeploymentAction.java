@@ -131,7 +131,7 @@ public class RestStartTrainedModelDeploymentAction extends BaseRestHandler {
                 )
             );
         } else if (defaultCacheSize != null) {
-            request.setCacheSize(defaultCacheSize);
+            request.setCacheSize((ByteSizeValue) sameParamInQueryAndBody(request.getCacheSize(), defaultCacheSize));
         }
 
         request.setPriority(

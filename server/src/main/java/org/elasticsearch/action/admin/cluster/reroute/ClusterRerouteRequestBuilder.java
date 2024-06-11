@@ -8,7 +8,9 @@
 
 package org.elasticsearch.action.admin.cluster.reroute;
 
+import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedRequestBuilder;
+import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.client.internal.ElasticsearchClient;
 import org.elasticsearch.cluster.routing.allocation.command.AllocationCommand;
 
@@ -23,7 +25,14 @@ public class ClusterRerouteRequestBuilder extends AcknowledgedRequestBuilder<
     ClusterRerouteResponse,
     ClusterRerouteRequestBuilder> {
     public ClusterRerouteRequestBuilder(ElasticsearchClient client) {
-        super(client, TransportClusterRerouteAction.TYPE, new ClusterRerouteRequest());
+        super(
+            client,
+            TransportClusterRerouteAction.TYPE,
+            new ClusterRerouteRequest(
+                MasterNodeRequest.TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT,
+                AcknowledgedRequest.DEFAULT_ACK_TIMEOUT
+            )
+        );
     }
 
     /**

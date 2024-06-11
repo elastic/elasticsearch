@@ -925,12 +925,22 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
     /**
      * @param timestampRange new @timestamp range
-     * @param eventIngestedRange new event.ingested range
+     * @param eventIngestedRange new 'event.ingested' range
+     * @param minClusterTransportVersion minimum transport version used between nodes of this cluster
      * @return copy of this instance with updated timestamp range
      */
-    public IndexMetadata withTimestampRanges(IndexLongFieldRange timestampRange, IndexLongFieldRange eventIngestedRange) {
+    public IndexMetadata withTimestampRanges(
+        IndexLongFieldRange timestampRange,
+        IndexLongFieldRange eventIngestedRange,
+        TransportVersion minClusterTransportVersion
+    ) {
         if (timestampRange.equals(this.timestampRange) && eventIngestedRange.equals(this.eventIngestedRange)) {
             return this;
+        }
+        IndexLongFieldRange allowedEventIngestedRange = eventIngestedRange;
+        if (minClusterTransportVersion.before(TransportVersions.EVENT_INGESTED_RANGE_IN_CLUSTER_STATE)) {
+            // while still in mixed-cluster state, keep the event.ingested range as UNKNOWN in cluster state
+            allowedEventIngestedRange = IndexLongFieldRange.UNKNOWN;
         }
         return new IndexMetadata(
             this.index,
@@ -961,7 +971,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             this.isSystem,
             this.isHidden,
             timestampRange,
-            eventIngestedRange,
+            allowedEventIngestedRange,
             this.priority,
             this.creationDate,
             this.ignoreDiskWatermarks,

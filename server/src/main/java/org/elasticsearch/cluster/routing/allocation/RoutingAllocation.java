@@ -8,6 +8,7 @@
 
 package org.elasticsearch.cluster.routing.allocation;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.DiskUsage;
@@ -338,8 +339,8 @@ public class RoutingAllocation {
     /**
      * Returns updated {@link Metadata} based on the changes that were made to the routing nodes
      */
-    public Metadata updateMetadataWithRoutingChanges(RoutingTable newRoutingTable) {
-        Metadata metadata = indexMetadataUpdater.applyChanges(metadata(), newRoutingTable);
+    public Metadata updateMetadataWithRoutingChanges(RoutingTable newRoutingTable, TransportVersion minClusterTransportVersion) {
+        Metadata metadata = indexMetadataUpdater.applyChanges(metadata(), newRoutingTable, minClusterTransportVersion);
         return resizeSourceIndexUpdater.applyChanges(metadata, newRoutingTable);
     }
 

@@ -8,6 +8,7 @@
 
 package org.elasticsearch.cluster.routing.allocation;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterName;
@@ -321,7 +322,10 @@ public class MaxRetryAllocationDeciderTests extends ESAllocationTestCase {
             return state;
         }
         final RoutingTable newRoutingTable = RoutingTable.of(state.routingTable().version(), allocation.routingNodes());
-        final Metadata newMetadata = allocation.updateMetadataWithRoutingChanges(newRoutingTable);
+        final Metadata newMetadata = allocation.updateMetadataWithRoutingChanges(
+            newRoutingTable,
+            randomFrom(TransportVersions.V_7_0_0, TransportVersions.EVENT_INGESTED_RANGE_IN_CLUSTER_STATE)
+        );
         assert newRoutingTable.validate(newMetadata);
 
         return state.copyAndUpdate(builder -> builder.routingTable(newRoutingTable).metadata(newMetadata));

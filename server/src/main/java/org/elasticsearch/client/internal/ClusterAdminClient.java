@@ -206,7 +206,7 @@ public class ClusterAdminClient implements ElasticsearchClient {
     /**
      * @deprecated use {@code ClusterRerouteUtils} in tests, or just run the action directly
      */
-    @Deprecated(forRemoval = true)
+    @Deprecated(forRemoval = true) // temporary compatibility shim
     public ActionFuture<ClusterRerouteResponse> reroute(final ClusterRerouteRequest request) {
         return execute(TransportClusterRerouteAction.TYPE, request);
     }
@@ -214,7 +214,7 @@ public class ClusterAdminClient implements ElasticsearchClient {
     /**
      * @deprecated use {@code ClusterRerouteUtils} in tests, or just run the action directly
      */
-    @Deprecated(forRemoval = true)
+    @Deprecated(forRemoval = true) // temporary compatibility shim
     public void reroute(final ClusterRerouteRequest request, final ActionListener<ClusterRerouteResponse> listener) {
         execute(TransportClusterRerouteAction.TYPE, request, listener);
     }
@@ -222,7 +222,7 @@ public class ClusterAdminClient implements ElasticsearchClient {
     /**
      * @deprecated use {@code ClusterRerouteUtils} in tests, or just run the action directly
      */
-    @Deprecated(forRemoval = true)
+    @Deprecated(forRemoval = true) // temporary compatibility shim
     public ClusterRerouteRequestBuilder prepareReroute() {
         return new ClusterRerouteRequestBuilder(this);
     }

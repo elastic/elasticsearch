@@ -74,7 +74,7 @@ Elasticsearch versions are composed of three pieces of information: the major ve
 in that order (major.minor.patch). Patch releases are typically bug fixes; minor releases are improvements; and major releases
 contain new features. As an example, each of 8.0.0, 8.3.0 and 8.3.1 specifies an exact release version. They all have the same
 major version (8) and the last two have the same minor version (8.3). Multiversion compatibility within a cluster, or backwards
-compatibility with older versions, is guaranteed across specific versions.
+compatibility with older version nodes, is guaranteed across specific versions.
 
 ### Transport Layer Backwards Compatibility
 
@@ -96,10 +96,10 @@ if that is not the case.
 
 ### Snapshot Backwards Compatibility
 
-Snapshots taken by a cluster of version X nodes cannot be read by a cluster running older version nodes. However, snapshots taken
-by an older version cluster can continue to be read from and written to by newer version clusters: this compatibility goes back
-many major versions. If a newer version cluster writes to a snapshot repository containing snapshots from an older version, then
-it will do so in a way that leaves the repository format (metadata and file layout) readable by those older versions.
+Snapshots taken by a cluster of version X cannot be read by a cluster running older version nodes. However, snapshots taken by an
+older version cluster can continue to be read from and written to by newer version clusters: this compatibility goes back many
+major versions. If a newer version cluster writes to a snapshot repository containing snapshots from an older version, then it
+will do so in a way that leaves the repository format (metadata and file layout) readable by those older versions.
 
 Restoring indexes that have different and no longer supported data formats can be tricky: see the
 [public snapshot compatibility docs][] for details.

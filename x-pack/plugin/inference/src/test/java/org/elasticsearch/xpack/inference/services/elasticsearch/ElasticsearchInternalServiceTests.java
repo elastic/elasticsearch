@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.core.inference.results.InferenceChunkedTextEmbedd
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
 import org.elasticsearch.xpack.core.ml.action.InferModelAction;
 import org.elasticsearch.xpack.core.ml.action.InferTrainedModelDeploymentAction;
+import org.elasticsearch.xpack.core.ml.action.PutTrainedModelAction;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelPrefixStrings;
 import org.elasticsearch.xpack.core.ml.inference.results.ErrorInferenceResults;
@@ -44,6 +45,7 @@ import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.settings.InternalServiceSettings;
 import org.junit.After;
 import org.junit.Before;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 
 import java.util.ArrayList;
@@ -692,6 +694,44 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
         );
         assertEquals(timeout, request.getInferenceTimeout());
         assertEquals(chunk, request.isChunked());
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testPutModel() {
+        var client = mock(Client.class);
+        ArgumentCaptor<PutTrainedModelAction.Request> argument = ArgumentCaptor.forClass(PutTrainedModelAction.Request.class);
+
+        doAnswer(invocation -> {
+            var listener = (ActionListener<PutTrainedModelAction.Response>) invocation.getArguments()[2];
+            listener.onResponse(new PutTrainedModelAction.Response(mock(TrainedModelConfig.class)));
+            return null;
+        }).when(client).execute(Mockito.same(PutTrainedModelAction.INSTANCE), argument.capture(), any());
+
+        when(client.threadPool()).thenReturn(threadPool);
+
+        var service = createService(client);
+
+        var model = new MultilingualE5SmallModel(
+            "my-e5",
+            TaskType.TEXT_EMBEDDING,
+            "e5",
+            new MultilingualE5SmallInternalServiceSettings(1, 1, ".multilingual-e5-small")
+        );
+
+        service.putModel(model, new ActionListener<>() {
+            @Override
+            public void onResponse(Boolean success) {
+                assertTrue(success);
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                fail(e);
+            }
+        });
+
+        var putConfig = argument.getValue().getTrainedModelConfig();
+        assertEquals("text_field", putConfig.getInput().getFieldNames().get(0));
     }
 
     private ElasticsearchInternalService createService(Client client) {

@@ -18,6 +18,7 @@ base {
 dependencies {
   compileOnly project(path: xpackModule('core'))
   api project(path: ':modules:transport-netty4')
+  compileOnly project(":libs:elasticsearch-telemetry")
 
   testImplementation project(path: xpackModule('ilm'))
   testImplementation project(path: xpackModule('downsample'))

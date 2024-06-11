@@ -11,6 +11,7 @@ module org.elasticsearch.searchablesnapshots {
     requires org.elasticsearch.xcore;
     requires org.elasticsearch.xcontent;
 
+    requires org.elasticsearch.telemetry;
     requires org.elasticsearch.blobcache;
 
     requires org.apache.logging.log4j;

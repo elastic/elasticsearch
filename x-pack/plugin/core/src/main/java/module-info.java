@@ -7,6 +7,7 @@
 
 module org.elasticsearch.xcore {
     requires org.elasticsearch.cli;
+    requires org.elasticsearch.telemetry;
     requires org.elasticsearch.base;
     requires org.elasticsearch.grok;
     requires org.elasticsearch.server;

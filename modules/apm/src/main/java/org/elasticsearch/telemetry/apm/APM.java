@@ -11,6 +11,7 @@ package org.elasticsearch.telemetry.apm;
 import io.opentelemetry.api.common.AttributeKey;
 import io.opentelemetry.api.common.Attributes;
 
+import io.opentelemetry.api.metrics.LongCounter;
 import io.opentelemetry.exporter.otlp.http.metrics.OtlpHttpMetricExporter;
 import io.opentelemetry.exporter.otlp.http.trace.OtlpHttpSpanExporter;
 
@@ -46,7 +47,6 @@ import io.opentelemetry.sdk.trace.SdkTracerProvider;
 import io.opentelemetry.sdk.trace.export.BatchSpanProcessor;
 
 import org.elasticsearch.telemetry.apm.jvm.JvmFdMetrics;
-import org.elasticsearch.telemetry.metric.LongCounter;
 
 import java.security.AccessController;
 import java.security.PrivilegedAction;
@@ -88,7 +88,7 @@ public class APM extends Plugin implements NetworkPlugin, TelemetryPlugin {
     @Override
     public TelemetryProvider getTelemetryProvider(Settings settings) {
         Log4jBridgeHandler.install(false,"",true);
-
+//metrics to check https://test-apm-9fc321.kb.us-central1.gcp.cloud.es.io:9243/app/r/s/Zy7QT
         String ENDPOINT = "https://3b4a40972a494625a76de9ef337ef425.apm.us-central1.gcp.cloud.es.io:443";
         AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
             createOtel(ENDPOINT);
@@ -110,7 +110,7 @@ public class APM extends Plugin implements NetworkPlugin, TelemetryPlugin {
             .addHeader("Authorization", "Bearer RXX6gm1WeXlx8qHw3a")
             .build();
         Resource resource = Resource.getDefault().merge(Resource.create(
-            Attributes.of(AttributeKey.stringKey("service.name"), "elasticsearch")));
+            Attributes.of(AttributeKey.stringKey("service.name"), "testing_otel_sdk")));
 
         SdkMeterProvider sdkMeterProvider = SdkMeterProvider.builder()
             .setResource(resource)
@@ -125,6 +125,8 @@ public class APM extends Plugin implements NetworkPlugin, TelemetryPlugin {
             .setTracerProvider(sdkTracerProvider)
             .setMeterProvider(sdkMeterProvider)
             .buildAndRegisterGlobal();
+
+
     }
 
     @Override

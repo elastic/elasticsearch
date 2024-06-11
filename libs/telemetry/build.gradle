@@ -12,6 +12,9 @@ apply plugin: 'elasticsearch.build'
 tasks.named("loggerUsageCheck").configure {enabled = false }
 
 dependencies {
+  api project(':libs:elasticsearch-core')
+
+
   testImplementation(project(":test:framework")) {
     exclude group: 'org.elasticsearch', module: 'elasticsearch-logging'
   }

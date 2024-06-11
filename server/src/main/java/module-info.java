@@ -56,6 +56,7 @@ module org.elasticsearch.server {
     requires org.apache.lucene.queryparser;
     requires org.apache.lucene.sandbox;
     requires org.apache.lucene.suggest;
+    requires org.elasticsearch.telemetry;
 
     exports org.elasticsearch;
     exports org.elasticsearch.action;
@@ -397,10 +398,6 @@ module org.elasticsearch.server {
             org.elasticsearch.serverless.constants,
             org.elasticsearch.serverless.apifiltering,
             org.elasticsearch.internal.security;
-
-    exports org.elasticsearch.telemetry.tracing;
-    exports org.elasticsearch.telemetry;
-    exports org.elasticsearch.telemetry.metric;
 
     provides java.util.spi.CalendarDataProvider with org.elasticsearch.common.time.IsoCalendarDataProvider;
     provides org.elasticsearch.xcontent.ErrorOnUnknown with org.elasticsearch.common.xcontent.SuggestingErrorOnUnknown;

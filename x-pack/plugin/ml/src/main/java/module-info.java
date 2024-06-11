@@ -28,6 +28,7 @@ module org.elasticsearch.ml {
     requires org.apache.lucene.analysis.kuromoji;
     requires commons.math3;
     requires ojalgo;
+    requires org.elasticsearch.telemetry;
 
     opens org.elasticsearch.xpack.ml to org.elasticsearch.painless.spi; // whitelist resource access
     opens org.elasticsearch.xpack.ml.utils; // for exact.properties access

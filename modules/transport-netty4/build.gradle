@@ -35,6 +35,7 @@ configurations {
 
 dependencies {
   api project(":libs:elasticsearch-ssl-config")
+  api project(":libs:elasticsearch-telemetry")
 
   // network stack
   api "io.netty:netty-buffer:${versions.netty}"

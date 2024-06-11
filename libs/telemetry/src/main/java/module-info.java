@@ -7,6 +7,7 @@
  */
 
 module org.elasticsearch.telemetry {
+    requires org.elasticsearch.base;
     exports org.elasticsearch.telemetry;
     exports org.elasticsearch.telemetry.metric;
     exports org.elasticsearch.telemetry.tracing;

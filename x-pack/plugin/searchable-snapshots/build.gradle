@@ -13,6 +13,7 @@ base {
 }
 
 dependencies {
+  api project(":libs:elasticsearch-telemetry")
   compileOnly project(path: xpackModule('core'))
   compileOnly project(path: xpackModule('blob-cache'))
   testImplementation(testArtifact(project(xpackModule('blob-cache'))))

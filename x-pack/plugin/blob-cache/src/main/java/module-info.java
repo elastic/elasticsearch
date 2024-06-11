@@ -12,6 +12,7 @@ module org.elasticsearch.blobcache {
 
     requires org.apache.logging.log4j;
     requires org.apache.lucene.core;
+    requires org.elasticsearch.telemetry;
 
     exports org.elasticsearch.blobcache;
     exports org.elasticsearch.blobcache.common;

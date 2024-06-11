@@ -17,6 +17,8 @@ dependencies {
   api(project(':libs:elasticsearch-x-content')) {
     transitive = false
   }
+  api project(":libs:elasticsearch-telemetry")//no modules, compilation failed without this.
+
   api project(':x-pack:plugin:core')
   api project(':x-pack:plugin:ql')
   api project(':x-pack:plugin:sql:sql-proto')

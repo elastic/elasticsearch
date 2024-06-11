@@ -8,22 +8,20 @@
 package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.TopValuesListDoubleAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.TopValuesListIntAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.TopValuesListLongAggregatorFunctionSupplier;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
-import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvSlice;
-import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvSort;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 import org.elasticsearch.xpack.esql.planner.ToAggregator;
-import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -41,16 +39,12 @@ public class TopValuesList extends AggregateFunction implements ToAggregator, Su
     private static final String ORDER_ASC = "ASC";
     private static final String ORDER_DESC = "DESC";
 
-    @FunctionInfo(
-        returnType = { "boolean", "date", "double", "integer", "ip", "keyword", "long", "text", "version" },
-        description = "Collects the top values for a field.",
-        isAggregation = true
-    )
+    @FunctionInfo(returnType = { "double", "integer", "long" }, description = "Collects the top values for a field.", isAggregation = true)
     public TopValuesList(
         Source source,
         @Param(
             name = "field",
-            type = { "boolean", "date", "double", "integer", "ip", "keyword", "long", "text", "version" },
+            type = { "double", "integer", "long" },
             description = "The field to collect the top values for."
         ) Expression field,
         @Param(name = "limit", type = { "integer" }, description = "The maximum number of values to collect.") Expression limit,
@@ -98,9 +92,13 @@ public class TopValuesList extends AggregateFunction implements ToAggregator, Su
             return new TypeResolution("Unresolved children");
         }
 
-        var typeResolution = isType(field(), EsqlDataTypes::isRepresentable, sourceText(), FIRST, "representable").and(
-            isFoldable(limitField(), sourceText(), SECOND)
-        )
+        var typeResolution = isType(
+            field(),
+            dt -> dt == DataType.DATETIME || dt.isNumeric() && dt != DataType.UNSIGNED_LONG,
+            sourceText(),
+            FIRST,
+            "representable"
+        ).and(isFoldable(limitField(), sourceText(), SECOND))
             .and(isType(limitField(), dt -> dt == DataType.INTEGER, sourceText(), SECOND, "integer"))
             .and(isFoldable(orderField(), sourceText(), THIRD))
             .and(isString(orderField(), sourceText(), THIRD));
@@ -144,6 +142,12 @@ public class TopValuesList extends AggregateFunction implements ToAggregator, Su
         if (type == DataType.LONG || type == DataType.DATETIME) {
             return new TopValuesListLongAggregatorFunctionSupplier(inputChannels, limitValue(), orderValue());
         }
+        if (type == DataType.INTEGER) {
+            return new TopValuesListIntAggregatorFunctionSupplier(inputChannels, limitValue(), orderValue());
+        }
+        if (type == DataType.DOUBLE) {
+            return new TopValuesListDoubleAggregatorFunctionSupplier(inputChannels, limitValue(), orderValue());
+        }
         throw EsqlIllegalArgumentException.illegalDataType(type);
     }
 
@@ -155,15 +159,14 @@ public class TopValuesList extends AggregateFunction implements ToAggregator, Su
             return null;
         }
 
-        // TODO: Replace with Max if bucket size = 1
+        if (limitValue() == 1) {
+            if (orderValue()) {
+                return new Min(s, field());
+            } else {
+                return new Max(s, field());
+            }
+        }
 
-        // Base, unoptimized implementation
-        // TODO: VALUES() doesn't keep duplicates! So we can't surrogate this for foldable expressions
-        return new MvSlice(
-            s,
-            new MvSort(s, new Values(s, field()), orderField()),
-            new Literal(s, 0, DataType.INTEGER),
-            new Literal(s, limitValue() - 1, DataType.INTEGER)
-        );
+        return null;
     }
 }

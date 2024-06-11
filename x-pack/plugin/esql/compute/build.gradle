@@ -438,6 +438,24 @@ tasks.named('stringTemplates').configure {
     it.outputFile = "org/elasticsearch/compute/aggregation/RateDoubleAggregator.java"
   }
 
+
+  File topValuesListAggregatorInputFile = new File("${projectDir}/src/main/java/org/elasticsearch/compute/aggregation/X-TopValuesListAggregator.java.st")
+  template {
+    it.properties = intProperties
+    it.inputFile =  topValuesListAggregatorInputFile
+    it.outputFile = "org/elasticsearch/compute/aggregation/TopValuesListIntAggregator.java"
+  }
+  template {
+    it.properties = longProperties
+    it.inputFile =  topValuesListAggregatorInputFile
+    it.outputFile = "org/elasticsearch/compute/aggregation/TopValuesListLongAggregator.java"
+  }
+  template {
+    it.properties = doubleProperties
+    it.inputFile =  topValuesListAggregatorInputFile
+    it.outputFile = "org/elasticsearch/compute/aggregation/TopValuesListDoubleAggregator.java"
+  }
+
   File multivalueDedupeInputFile = file("src/main/java/org/elasticsearch/compute/operator/mvdedupe/X-MultivalueDedupe.java.st")
   template {
     it.properties = intProperties

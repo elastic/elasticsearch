@@ -293,8 +293,8 @@ public class SearchModule {
         Setting.Property.NodeScope
     );
 
-    public static final Setting<List<String>> SCRIPTED_METRICS_AGG_ALLOWED_SCRIPTS_SETTING = Setting.stringListSetting(
-        "search.aggs.allowed_metric_scripts",
+    public static final Setting<List<String>> SCRIPTED_METRICS_AGG_ALLOWED_INLINE_SCRIPTS = Setting.stringListSetting(
+        "search.aggs.allowed_inline_metric_scripts",
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );

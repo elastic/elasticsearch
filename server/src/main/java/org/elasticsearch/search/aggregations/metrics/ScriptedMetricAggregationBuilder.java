@@ -13,6 +13,7 @@ import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.script.ScriptedMetricAggContexts;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
@@ -183,12 +184,12 @@ public class ScriptedMetricAggregationBuilder extends AbstractAggregationBuilder
     protected ScriptedMetricAggregatorFactory doBuild(AggregationContext context, AggregatorFactory parent, Builder subfactoriesBuilder)
         throws IOException {
 
-        List<String> allowedScripts = context.getClusterSettings().get(SearchModule.SCRIPTED_METRICS_AGG_ALLOWED_SCRIPTS_SETTING);
+        List<String> allowedInlineScripts = context.getClusterSettings().get(SearchModule.SCRIPTED_METRICS_AGG_ALLOWED_INLINE_SCRIPTS);
 
-        validateScript(INIT_SCRIPT_FIELD.getPreferredName(), name, initScript, allowedScripts);
-        validateScript(MAP_SCRIPT_FIELD.getPreferredName(), name, mapScript, allowedScripts);
-        validateScript(COMBINE_SCRIPT_FIELD.getPreferredName(), name, combineScript, allowedScripts);
-        validateScript(REDUCE_SCRIPT_FIELD.getPreferredName(), name, reduceScript, allowedScripts);
+        validateScript(INIT_SCRIPT_FIELD.getPreferredName(), name, initScript, allowedInlineScripts);
+        validateScript(MAP_SCRIPT_FIELD.getPreferredName(), name, mapScript, allowedInlineScripts);
+        validateScript(COMBINE_SCRIPT_FIELD.getPreferredName(), name, combineScript, allowedInlineScripts);
+        validateScript(REDUCE_SCRIPT_FIELD.getPreferredName(), name, reduceScript, allowedInlineScripts);
 
         if (combineScript == null) {
             throw new IllegalArgumentException("[combineScript] must not be null: [" + name + "]");
@@ -240,9 +241,9 @@ public class ScriptedMetricAggregationBuilder extends AbstractAggregationBuilder
         );
     }
 
-    private static void validateScript(String scriptName, String aggName, Script script, List<String> allowedScripts) {
-        if (script != null && allowedScripts.isEmpty() == false) {
-            if (allowedScripts.contains(script.getIdOrCode()) == false) {
+    private static void validateScript(String scriptName, String aggName, Script script, List<String> allowedInlineScripts) {
+        if (script != null && allowedInlineScripts.isEmpty() == false) {
+            if (script.getType().equals(ScriptType.INLINE) && allowedInlineScripts.contains(script.getIdOrCode()) == false) {
                 throw new IllegalArgumentException("[" + scriptName + "] contains not allowed script: [" + aggName + "]");
             }
         }

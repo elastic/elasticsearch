@@ -337,8 +337,14 @@ setup:
 ---
 "Test Named Input Params":
   - requires:
-      cluster_features: ["gte_v8.15.0"]
-      reason: "Support named parameters in 8.15+"
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ named_positional_parameter ]
+      reason: "named or positional parameters"
+
   - do:
       esql.query:
         body:

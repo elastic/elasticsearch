@@ -18,7 +18,6 @@ import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
-import org.elasticsearch.xpack.esql.core.common.Failure;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -735,7 +734,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
                 if (np > 0) {
                     message = ", did you mean " + (np == 1 ? "position 1?" : "any position between 1 and " + np + "?");
                 }
-                params.addParsingError(new Failure(null, "No parameter is defined for position " + index + message));
+                params.addParsingError(new ParsingException(source(node), "No parameter is defined for position " + index + message));
             }
             return params.get(index);
         } else {
@@ -746,7 +745,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
                     message = ", did you mean "
                         + (potentialMatches.size() == 1 ? "[" + potentialMatches.get(0) + "]?" : "any of " + potentialMatches + "?");
                 }
-                params.addParsingError(new Failure(null, "Unknown query parameter [" + nameOrPosition + "]" + message));
+                params.addParsingError(new ParsingException(source(node), "Unknown query parameter [" + nameOrPosition + "]" + message));
             }
             return params.get(nameOrPosition);
         }

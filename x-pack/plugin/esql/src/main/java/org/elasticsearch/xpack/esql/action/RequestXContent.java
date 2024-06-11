@@ -134,8 +134,6 @@ final class RequestXContent {
         List<QueryParam> unNamedParams = new ArrayList<>();
         List<XContentParseException> errors = new ArrayList<>();
         XContentParser.Token token = p.currentToken();
-        // BitSet parameterTypes = new BitSet(2);
-        // BitSet newType = new BitSet(2);
 
         if (token == XContentParser.Token.START_ARRAY) {
             Object value = null;
@@ -145,7 +143,6 @@ final class RequestXContent {
 
             while ((token = p.nextToken()) != XContentParser.Token.END_ARRAY) {
                 XContentLocation loc = p.getTokenLocation();
-                // newType.clear();
                 if (token == XContentParser.Token.START_OBJECT) {
                     param = PARAM_PARSER.apply(p, null);
                     if (param.fields.size() > 1) {
@@ -174,8 +171,6 @@ final class RequestXContent {
                         }
                         currentParam = new QueryParam(entry.getKey(), entry.getValue(), type);
                         namedParams.add(currentParam);
-                        // newType.set(0);
-                        // checkParameterTypes(parameterTypes, newType, loc, currentParam, result, errors);
                     }
                 } else {
                     if (token == XContentParser.Token.VALUE_STRING) {
@@ -204,10 +199,7 @@ final class RequestXContent {
                     }
                     currentParam = new QueryParam(null, value, type);
                     unNamedParams.add(currentParam);
-                    // newType.set(1);
-                    // checkParameterTypes(parameterTypes, newType, loc, currentParam, result, errors);
                 }
-                // result.add(currentParam);
             }
         }
         if (namedParams.isEmpty() == false && unNamedParams.isEmpty() == false) {
@@ -227,30 +219,4 @@ final class RequestXContent {
         }
         return new QueryParams(namedParams.isEmpty() ? unNamedParams : namedParams);
     }
-
-    /*
-    private static void checkParameterTypes(
-        BitSet oldTypes,
-        BitSet newTypes,
-        XContentLocation loc,
-        QueryParam param,
-        List<QueryParam> params,
-        List<XContentParseException> errors
-    ) {
-        if (oldTypes.cardinality() < 2) {
-            oldTypes.or(newTypes);
-            if (oldTypes.cardinality() == 2) {
-                errors.add(
-                    new XContentParseException(
-                        loc,
-                        "Params cannot contain both named and unnamed parameters; got ["
-                            + param.nameValue()
-                            + "] and "
-                            + Arrays.toString(params.stream().map(QueryParam::nameValue).toArray())
-                    )
-                );
-            }
-        }
-    }
-     */
 }

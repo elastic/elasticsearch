@@ -918,8 +918,8 @@ public class StatementParserTests extends ESTestCase {
         expectError(
             "from test | where x < ?0 and y < ?2",
             List.of(new QueryParam(null, 5, INTEGER)),
-            "No parameter is defined for position 0, did you mean position 1?, "
-                + "No parameter is defined for position 2, did you mean position 1?"
+            "line 1:24: No parameter is defined for position 0, did you mean position 1?; "
+                + "line 1:35: No parameter is defined for position 2, did you mean position 1?"
         );
 
         expectError(
@@ -931,7 +931,7 @@ public class StatementParserTests extends ESTestCase {
         expectError(
             "from test | where x < ?0",
             List.of(new QueryParam(null, 5, INTEGER), new QueryParam(null, 10, INTEGER)),
-            "No parameter is defined for position 0, did you mean any position between 1 and 2?]"
+            "No parameter is defined for position 0, did you mean any position between 1 and 2?"
         );
     }
 

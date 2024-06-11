@@ -137,9 +137,9 @@ public class EsqlParser {
         public Token nextToken() {
             Token token = delegate.nextToken();
             if (token.getType() == EsqlBaseLexer.PARAM) {
-                checkAnonymousParam();
+                checkAnonymousParam(token);
                 if (param >= params.positionalParams().size()) {
-                    throw new ParsingException("Not enough actual parameters {}", params.positionalParams().size());
+                    throw new ParsingException(source(token), "Not enough actual parameters {}", params.positionalParams().size());
                 }
                 paramTokens.put(token, params.positionalParams().get(param));
                 param++;
@@ -147,9 +147,9 @@ public class EsqlParser {
 
             if (token.getType() == EsqlBaseLexer.NAMED_OR_POSITIONAL_PARAM) {
                 if (isInteger(token.getText().substring(1))) {
-                    checkPositionalParam();
+                    checkPositionalParam(token);
                 } else {
-                    checkNamedParam();
+                    checkNamedParam(token);
                 }
             }
             return token;
@@ -185,24 +185,24 @@ public class EsqlParser {
             return delegate.getTokenFactory();
         }
 
-        private void checkAnonymousParam() {
+        private void checkAnonymousParam(Token token) {
             paramTypes.set(0);
             if (paramTypes.cardinality() > 1) {
-                throw new ParsingException(message + "anonymous and " + (paramTypes.get(1) ? "named" : "positional"));
+                throw new ParsingException(source(token), message + "anonymous and " + (paramTypes.get(1) ? "named" : "positional"));
             }
         }
 
-        private void checkNamedParam() {
+        private void checkNamedParam(Token token) {
             paramTypes.set(1);
             if (paramTypes.cardinality() > 1) {
-                throw new ParsingException(message + "named and " + (paramTypes.get(0) ? "anonymous" : "positional"));
+                throw new ParsingException(source(token), message + "named and " + (paramTypes.get(0) ? "anonymous" : "positional"));
             }
         }
 
-        private void checkPositionalParam() {
+        private void checkPositionalParam(Token token) {
             paramTypes.set(2);
             if (paramTypes.cardinality() > 1) {
-                throw new ParsingException(message + "positional and " + (paramTypes.get(0) ? "anonymous" : "named"));
+                throw new ParsingException(source(token), message + "positional and " + (paramTypes.get(0) ? "anonymous" : "named"));
             }
         }
     }

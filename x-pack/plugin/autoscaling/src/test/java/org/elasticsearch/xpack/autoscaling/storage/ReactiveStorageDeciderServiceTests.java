@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.autoscaling.storage;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -763,7 +764,10 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
         final RoutingTable oldRoutingTable = oldState.routingTable();
         final RoutingNodes newRoutingNodes = allocation.routingNodes();
         final RoutingTable newRoutingTable = RoutingTable.of(oldRoutingTable.version(), newRoutingNodes);
-        final Metadata newMetadata = allocation.updateMetadataWithRoutingChanges(newRoutingTable);
+        final Metadata newMetadata = allocation.updateMetadataWithRoutingChanges(
+            newRoutingTable,
+            randomFrom(TransportVersions.V_7_0_0, TransportVersions.EVENT_INGESTED_RANGE_IN_CLUSTER_STATE)
+        );
         assert newRoutingTable.validate(newMetadata); // validates the routing table is coherent with the cluster state metadata
 
         return ClusterState.builder(oldState).routingTable(newRoutingTable).metadata(newMetadata).build();

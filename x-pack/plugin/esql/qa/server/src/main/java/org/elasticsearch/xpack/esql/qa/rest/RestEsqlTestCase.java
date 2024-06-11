@@ -109,11 +109,13 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         this.mode = mode;
     }
 
+    public record TypeAndValues(String type, List<?> values) {}
+
     public static class RequestObjectBuilder {
         private final XContentBuilder builder;
         private boolean isBuilt = false;
 
-        private Map<String, Map<String, List<?>>> tables;
+        private Map<String, Map<String, TypeAndValues>> tables;
 
         private Boolean keepOnCompletion = null;
 
@@ -131,7 +133,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
             return this;
         }
 
-        public RequestObjectBuilder tables(Map<String, Map<String, List<?>>> tables) {
+        public RequestObjectBuilder tables(Map<String, Map<String, TypeAndValues>> tables) {
             this.tables = tables;
             return this;
         }
@@ -181,7 +183,17 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         public RequestObjectBuilder build() throws IOException {
             if (isBuilt == false) {
                 if (tables != null) {
-                    builder.field("tables", tables);
+                    builder.startObject("tables");
+                    for (var table : tables.entrySet()) {
+                        builder.startObject(table.getKey());
+                        for (var column : table.getValue().entrySet()) {
+                            builder.startObject(column.getKey());
+                            builder.field(column.getValue().type(), column.getValue().values());
+                            builder.endObject();
+                        }
+                        builder.endObject();
+                    }
+                    builder.endObject();
                 }
                 builder.endObject();
                 isBuilt = true;

@@ -133,6 +133,14 @@ teardown:
         rule_id: nonexistent-rule
 
 ---
+"Delete Query Rule - Ruleset does not exist":
+  - do:
+      catch: "missing"
+      query_rule.delete:
+        ruleset_id: nonexistent-query-ruleset
+        rule_id: nonexistent-rule
+
+---
 'Delete Query Ruleset - Insufficient privilege':
   - skip:
       features: headers

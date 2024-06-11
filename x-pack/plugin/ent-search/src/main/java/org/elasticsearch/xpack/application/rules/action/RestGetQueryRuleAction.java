@@ -34,7 +34,7 @@ public class RestGetQueryRuleAction extends EnterpriseSearchBaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(GET, "/" + EnterpriseSearch.QUERY_RULES_API_ENDPOINT + "/{ruleset_id}/{rule_id}"));
+        return List.of(new Route(GET, "/" + EnterpriseSearch.QUERY_RULES_API_ENDPOINT + "/{ruleset_id}/_rule/{rule_id}"));
     }
 
     @Override

@@ -68,20 +68,6 @@ public final class FieldNameTranslators {
         )
     );
 
-    public static final FieldNameTranslators ROLE_FIELD_NAME_TRANSLATORS = new FieldNameTranslators(
-        List.of(
-            new ExactFieldNameTranslator(s -> "name", "name"),
-            new ExactFieldNameTranslator(s -> "description", "description"),
-            new ExactFieldNameTranslator(s -> "applications.application", "applications.application"),
-            new ExactFieldNameTranslator(s -> "applications.resources", "applications.resource"),
-            new ExactFieldNameTranslator(s -> "applications.privileges", "applications.privilege"),
-            // allows querying on all metadata values as keywords because "metadata_flattened" is a flattened field type
-            new ExactFieldNameTranslator(s -> "metadata_flattened", "metadata"),
-            // allows querying on any concrete (i.e. non-wildcard) fields under the "metadata." prefix
-            new PrefixFieldNameTranslator(s -> "metadata_flattened." + s.substring("metadata.".length()), "metadata.")
-        )
-    );
-
     final List<FieldNameTranslator> fieldNameTranslators;
 
     private FieldNameTranslators(List<FieldNameTranslator> fieldNameTranslators) {
@@ -329,7 +315,7 @@ public final class FieldNameTranslators {
         return indexFieldNames;
     }
 
-    abstract static class FieldNameTranslator {
+    private abstract static class FieldNameTranslator {
 
         private final Function<String, String> translationFunc;
 
@@ -344,7 +330,7 @@ public final class FieldNameTranslators {
         abstract boolean supports(String fieldName);
     }
 
-    static class ExactFieldNameTranslator extends FieldNameTranslator {
+    private static class ExactFieldNameTranslator extends FieldNameTranslator {
         private final String name;
 
         ExactFieldNameTranslator(Function<String, String> translationFunc, String name) {
@@ -362,7 +348,7 @@ public final class FieldNameTranslators {
         }
     }
 
-    static class PrefixFieldNameTranslator extends FieldNameTranslator {
+    private static class PrefixFieldNameTranslator extends FieldNameTranslator {
         private final String prefix;
 
         PrefixFieldNameTranslator(Function<String, String> translationFunc, String prefix) {

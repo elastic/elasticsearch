@@ -22,6 +22,8 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.ReachabilityChecker;
 import org.junit.Before;
 
+import java.io.Closeable;
+import java.io.IOException;
 import java.util.stream.Stream;
 
 public class LeakTrackerTests extends ESTestCase {
@@ -51,19 +53,16 @@ public class LeakTrackerTests extends ESTestCase {
 
     public void testWillLogErrorWhenTrackedObjectIsNotClosed() throws Exception {
         trackedObjectTestCase.makeAssumptions();
+        // Let it go out of scope without closing
         trackedObjectTestCase.createAndTrack(reachabilityChecker);
-        // Do not close leak before nullifying
-        trackedObjectTestCase.nullifyReference();
         reachabilityChecker.ensureUnreachable();
         assertBusy(() -> assertLeakDetected("LEAK: resource was not cleaned up before it was garbage-collected\\.(.*|\\s)*"));
     }
 
-    public void testWillNotLogErrorWhenTrackedObjectIsClosed() {
+    public void testWillNotLogErrorWhenTrackedObjectIsClosed() throws IOException {
         trackedObjectTestCase.makeAssumptions();
-        trackedObjectTestCase.createAndTrack(reachabilityChecker);
-        trackedObjectTestCase.closeLeak();
-        trackedObjectTestCase.nullifyReference();
-        // Should not detect a leak
+        // Close before letting it go out of scope
+        trackedObjectTestCase.createAndTrack(reachabilityChecker).close();
         reachabilityChecker.ensureUnreachable();
     }
 
@@ -78,41 +77,22 @@ public class LeakTrackerTests extends ESTestCase {
          * Create the tracked object, implementations must
          * - track it with the {@link LeakTracker}
          * - register it with the passed reachability checker
-         * - retain a reference to it
          * @param reachabilityChecker The reachability checker
+         * @return A {@link Closeable} that retains a reference to the tracked object, and when closed will do the appropriate cleanup
          */
-        void createAndTrack(ReachabilityChecker reachabilityChecker);
-
-        /**
-         * Nullify the retained reference
-         */
-        void nullifyReference();
-
-        /**
-         * Close the {@link LeakTracker.Leak}
-         */
-        void closeLeak();
+        Closeable createAndTrack(ReachabilityChecker reachabilityChecker);
     }
 
     private static class PojoTrackedObjectTestCase implements TrackedObjectTestCase {
 
-        private Object object;
-        private LeakTracker.Leak leak;
-
         @Override
-        public void createAndTrack(ReachabilityChecker reachabilityChecker) {
-            object = reachabilityChecker.register(new Object());
-            leak = LeakTracker.INSTANCE.track(object);
-        }
-
-        @Override
-        public void nullifyReference() {
-            object = null;
-        }
-
-        @Override
-        public void closeLeak() {
-            leak.close();
+        public Closeable createAndTrack(ReachabilityChecker reachabilityChecker) {
+            final Object object = reachabilityChecker.register(new Object());
+            final LeakTracker.Leak leak = LeakTracker.INSTANCE.track(object);
+            return () -> {
+                logger.info("This log line retains a reference to {}", object);
+                leak.close();
+            };
         }
 
         @Override
@@ -123,31 +103,21 @@ public class LeakTrackerTests extends ESTestCase {
 
     private static class ReferenceCountedTrackedObjectTestCase implements TrackedObjectTestCase {
 
-        private RefCounted refCounted;
-
         @Override
         public void makeAssumptions() {
             assumeTrue("ReferenceCounted wrapper is a no-op when assertions are disabled", Assertions.ENABLED);
         }
 
         @Override
-        public void createAndTrack(ReachabilityChecker reachabilityChecker) {
-            RefCounted refCounted = reachabilityChecker.register(createRefCounted());
-            this.refCounted = LeakTracker.wrap(refCounted);
-            this.refCounted.incRef();
-            this.refCounted.tryIncRef();
-        }
-
-        @Override
-        public void nullifyReference() {
-            refCounted = null;
-        }
-
-        @Override
-        public void closeLeak() {
-            refCounted.decRef();    // tryIncRef
-            refCounted.decRef();    // incRef
-            refCounted.decRef();    // implicit
+        public Closeable createAndTrack(ReachabilityChecker reachabilityChecker) {
+            RefCounted refCounted = LeakTracker.wrap(reachabilityChecker.register(createRefCounted()));
+            refCounted.incRef();
+            refCounted.tryIncRef();
+            return () -> {
+                refCounted.decRef();    // tryIncRef
+                refCounted.decRef();    // incRef
+                refCounted.decRef();    // implicit
+            };
         }
 
         @Override
@@ -168,27 +138,14 @@ public class LeakTrackerTests extends ESTestCase {
 
     private static class ReleasableTrackedObjectTestCase implements TrackedObjectTestCase {
 
-        private Releasable releasable;
-
         @Override
         public void makeAssumptions() {
             assumeTrue("Releasable wrapper is a no-op when assertions are disabled", Assertions.ENABLED);
         }
 
         @Override
-        public void createAndTrack(ReachabilityChecker reachabilityChecker) {
-            Releasable releasable = reachabilityChecker.register(createReleasable());
-            this.releasable = LeakTracker.wrap(releasable);
-        }
-
-        @Override
-        public void nullifyReference() {
-            releasable = null;
-        }
-
-        @Override
-        public void closeLeak() {
-            releasable.close();
+        public Closeable createAndTrack(ReachabilityChecker reachabilityChecker) {
+            return LeakTracker.wrap(reachabilityChecker.register(createReleasable()));
         }
 
         @Override

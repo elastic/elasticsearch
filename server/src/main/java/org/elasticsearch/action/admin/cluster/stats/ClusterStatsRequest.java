@@ -24,7 +24,7 @@ import java.util.Map;
  */
 public class ClusterStatsRequest extends BaseNodesRequest<ClusterStatsRequest> {
 
-    @UpdateForV9 // should be unused now
+    @UpdateForV9 // this constructor is unused in v9
     public ClusterStatsRequest(StreamInput in) throws IOException {
         super(in);
     }
@@ -42,7 +42,7 @@ public class ClusterStatsRequest extends BaseNodesRequest<ClusterStatsRequest> {
         return new CancellableTask(id, type, action, "", parentTaskId, headers);
     }
 
-    @UpdateForV9 // should be localOnly now
+    @UpdateForV9 // this method can just call localOnly() in v9
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);

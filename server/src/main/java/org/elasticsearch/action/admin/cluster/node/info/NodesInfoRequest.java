@@ -31,7 +31,7 @@ public final class NodesInfoRequest extends BaseNodesRequest<NodesInfoRequest> {
      * @param in A stream input object.
      * @throws IOException if the stream cannot be deserialized.
      */
-    @UpdateForV9 // should be unused now
+    @UpdateForV9 // this constructor is unused in v9
     public NodesInfoRequest(StreamInput in) throws IOException {
         super(in);
         nodesInfoMetrics = new NodesInfoMetrics(in);
@@ -113,7 +113,7 @@ public final class NodesInfoRequest extends BaseNodesRequest<NodesInfoRequest> {
         return this;
     }
 
-    @UpdateForV9 // should be localOnly now
+    @UpdateForV9 // this method can just call localOnly() in v9
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);

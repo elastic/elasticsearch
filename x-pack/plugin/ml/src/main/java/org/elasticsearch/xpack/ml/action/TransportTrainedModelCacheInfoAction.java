@@ -87,7 +87,7 @@ public class TransportTrainedModelCacheInfoAction extends TransportNodesAction<
         );
     }
 
-    @UpdateForV9 // should be TransportRequest.Empty now
+    @UpdateForV9 // this can be replaced with TransportRequest.Empty in v9
     public static class NodeModelCacheInfoRequest extends TransportRequest {
 
         NodeModelCacheInfoRequest() {}

@@ -18,7 +18,7 @@ import java.util.Objects;
 
 public class NodesDeprecationCheckRequest extends BaseNodesRequest<NodesDeprecationCheckRequest> {
 
-    @UpdateForV9 // should be unused now
+    @UpdateForV9 // this constructor is unused in v9
     public NodesDeprecationCheckRequest(StreamInput in) throws IOException {
         super(in);
     }
@@ -27,7 +27,7 @@ public class NodesDeprecationCheckRequest extends BaseNodesRequest<NodesDeprecat
         super(nodesIds);
     }
 
-    @UpdateForV9 // should be localOnly now
+    @UpdateForV9 // this method can just call localOnly() in v9
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);

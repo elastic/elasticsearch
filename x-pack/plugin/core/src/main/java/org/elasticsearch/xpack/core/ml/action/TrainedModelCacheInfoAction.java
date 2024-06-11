@@ -40,12 +40,12 @@ public class TrainedModelCacheInfoAction extends ActionType<TrainedModelCacheInf
             super(concreteNodes);
         }
 
-        @UpdateForV9 // should be unused now
+        @UpdateForV9 // this constructor is unused in v9
         public Request(StreamInput in) throws IOException {
             super(in);
         }
 
-        @UpdateForV9 // should be localOnly now
+        @UpdateForV9 // this method can just call localOnly() in v9
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);

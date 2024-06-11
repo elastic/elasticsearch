@@ -37,7 +37,7 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
         nodesStatsRequestParameters = new NodesStatsRequestParameters();
     }
 
-    @UpdateForV9 // should be unused now
+    @UpdateForV9 // this constructor is unused in v9
     public NodesStatsRequest(StreamInput in) throws IOException {
         super(in);
         nodesStatsRequestParameters = new NodesStatsRequestParameters(in);
@@ -179,7 +179,7 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
         nodesStatsRequestParameters.setIncludeShardsStats(includeShardsStats);
     }
 
-    @UpdateForV9 // should be localOnly now
+    @UpdateForV9 // this method can just call localOnly() in v9
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);

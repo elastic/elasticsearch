@@ -1,6 +1,6 @@
 // tag::own-deployment[]
 
-First ingest some sample data. In {kib}, open the main menu and select *Dev
+First, you'll need to ingest the sample data. In {kib}, open the main menu and select *Dev
 Tools*. Run the following two requests:
 
 [source,console]

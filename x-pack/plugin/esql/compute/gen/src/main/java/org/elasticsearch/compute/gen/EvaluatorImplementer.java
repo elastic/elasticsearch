@@ -456,6 +456,9 @@ public class EvaluatorImplementer {
         String closeInvocation();
     }
 
+    /**
+     * Represents an int, long, double, boolean or BytesRef argument.
+     */
     private record StandardProcessFunctionArg(TypeName type, String name) implements ProcessFunctionArg {
         @Override
         public TypeName dataType(boolean blockStyle) {
@@ -576,6 +579,9 @@ public class EvaluatorImplementer {
         }
     }
 
+    /**
+     * Represents an array of int, long, double, boolean or BytesRef argument.
+     */
     private record ArrayProcessFunctionArg(TypeName componentType, String name) implements ProcessFunctionArg {
         @Override
         public TypeName dataType(boolean blockStyle) {
@@ -710,6 +716,9 @@ public class EvaluatorImplementer {
         }
     }
 
+    /**
+     * Represents a Fixed argument.
+     */
     private record FixedProcessFunctionArg(TypeName type, String name, boolean includeInToString, boolean build, boolean releasable)
         implements
             ProcessFunctionArg {
@@ -806,6 +815,9 @@ public class EvaluatorImplementer {
         }
     }
 
+    /**
+     * Represents a Builder argument, when a Builder argument is provided, the builder is responsible for generating the results.
+     */
     private record BuilderProcessFunctionArg(ClassName type, String name) implements ProcessFunctionArg {
         @Override
         public TypeName dataType(boolean blockStyle) {
@@ -890,6 +902,9 @@ public class EvaluatorImplementer {
         }
     }
 
+    /**
+     * Represents a Block argument, if there is null value or MV, null will be returned as the result.
+     */
     private record BlockProcessFunctionArg(TypeName type, String name) implements ProcessFunctionArg {
         @Override
         public TypeName dataType(boolean blockStyle) {
@@ -977,6 +992,10 @@ public class EvaluatorImplementer {
         }
     }
 
+    /**
+     * Represents an array of Blocks argument, the process method is responsible to iterate the array and process the null values and MV
+     * for each Block.
+     */
     private record BlockArrayProcessFunctionArg(TypeName componentType, String name) implements ProcessFunctionArg {
         @Override
         public TypeName dataType(boolean blockStyle) {

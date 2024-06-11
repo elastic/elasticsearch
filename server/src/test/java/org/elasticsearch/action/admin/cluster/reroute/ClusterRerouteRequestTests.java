@@ -198,13 +198,13 @@ public class ClusterRerouteRequestTests extends ESTestCase {
         }
         params.put("explain", Boolean.toString(original.explain()));
         if (false == original.ackTimeout().equals(DEFAULT_ACK_TIMEOUT) || randomBoolean()) {
-            params.put("timeout", original.ackTimeout().toString());
+            params.put("timeout", original.ackTimeout().getStringRep());
         }
         if (original.isRetryFailed() || randomBoolean()) {
             params.put("retry_failed", Boolean.toString(original.isRetryFailed()));
         }
         if (false == original.masterNodeTimeout().equals(RestUtils.REST_MASTER_TIMEOUT_DEFAULT) || randomBoolean()) {
-            params.put(REST_MASTER_TIMEOUT_PARAM, original.masterNodeTimeout().toString());
+            params.put(REST_MASTER_TIMEOUT_PARAM, original.masterNodeTimeout().getStringRep());
         }
         if (original.getCommands() != null) {
             hasBody = true;

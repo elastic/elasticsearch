@@ -68,6 +68,43 @@ state must ever be reloaded from persisted state.
 
 ## Deprecations
 
+## Backwards Compatibility
+
+Elasticsearch has major versions (e.g. 8.0.0), minor versions (e.g. 8.3.0) and patch versions (e.g. 8.3.1). Multiversion
+binary backwards compatibility within a cluster is guaranteed for specific situations.
+
+### Transport Layer Backwards Compatibility
+
+Elasticsearch nodes are backwards compatible with all earlier binary version nodes in the same major release: all the earlier
+minor and patch releases within that same major version. All binary versions within one major version X are also compatible with
+the last minor release version of the previous major version, e.g. (X-1).last.0. More concretely, all 8.x.x versions are
+backwards compatible with 7.17.x versions.
+
+### Index Format Backwards Compatibility
+
+Index format backwards compatibility is guaranteed with the entirety of the previous major release version. All 8.x.x versions,
+for example, are backwards compatible with all 7.x.x versions. 9.x.x versions, however, will not be compatible with 7.x.x format
+data files.
+
+Elasticsearch does not have an upgrade process to convert from older to newer index data formats. The user is expected to run
+`reindex` on any remaining untouched data from a previous version before upgrading to the next version. There is a good chance
+that older version index data will age out and be deleted before the user does the next upgrade, but `reindex` can be used if
+that is not the case.
+
+### Snapshot Backwards Compatibility
+
+Snapshots taken by version X nodes cannot be read by nodes running earlier versions. However, snapshots taken by old version
+nodes can continue to be read by newer version nodes: this compatibility goes back many major versions. Restoring indexes that
+have different and no longer supported data formats can be a little trickier: see the [public snapshot compatibility docs][].
+
+[public snapshot compatibility docs]: https://www.elastic.co/guide/en/elasticsearch/reference/current/snapshot-restore.html#snapshot-index-compatibility
+
+### Upgrade
+
+See the [public upgrade docs][] for the upgrade process.
+
+[public upgrade docs]: https://www.elastic.co/guide/en/elasticsearch/reference/current/setup-upgrade.html
+
 ## Plugins
 
 (what warrants a plugin?)

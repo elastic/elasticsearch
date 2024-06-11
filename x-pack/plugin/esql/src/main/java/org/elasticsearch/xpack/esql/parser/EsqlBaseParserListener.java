@@ -962,6 +962,18 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    */
   void exitSearchLogicalBinary(EsqlBaseParser.SearchLogicalBinaryContext ctx);
   /**
+   * Enter a parse tree produced by the {@code searchParenthesizedExpression}
+   * labeled alternative in {@link EsqlBaseParser#searchRankExpression}.
+   * @param ctx the parse tree
+   */
+  void enterSearchParenthesizedExpression(EsqlBaseParser.SearchParenthesizedExpressionContext ctx);
+  /**
+   * Exit a parse tree produced by the {@code searchParenthesizedExpression}
+   * labeled alternative in {@link EsqlBaseParser#searchRankExpression}.
+   * @param ctx the parse tree
+   */
+  void exitSearchParenthesizedExpression(EsqlBaseParser.SearchParenthesizedExpressionContext ctx);
+  /**
    * Enter a parse tree produced by the {@code searchMatchQuery}
    * labeled alternative in {@link EsqlBaseParser#searchRankExpression}.
    * @param ctx the parse tree

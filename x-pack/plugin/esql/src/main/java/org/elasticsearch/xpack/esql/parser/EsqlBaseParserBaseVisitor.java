@@ -641,6 +641,13 @@ public class EsqlBaseParserBaseVisitor<T> extends AbstractParseTreeVisitor<T> im
    * <p>The default implementation returns the result of calling
    * {@link #visitChildren} on {@code ctx}.</p>
    */
+  @Override public T visitSearchParenthesizedExpression(EsqlBaseParser.SearchParenthesizedExpressionContext ctx) { return visitChildren(ctx); }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation returns the result of calling
+   * {@link #visitChildren} on {@code ctx}.</p>
+   */
   @Override public T visitSearchMatchQuery(EsqlBaseParser.SearchMatchQueryContext ctx) { return visitChildren(ctx); }
   /**
    * {@inheritDoc}

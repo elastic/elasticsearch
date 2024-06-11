@@ -328,6 +328,7 @@ searchMatchingExpression
 searchRankExpression
     : NOT searchRankExpression                                                    #searchLogicalNot
     | valueExpression                                                             #searchBooleanDefault
+    | LP searchRankExpression RP                                                  #searchParenthesizedExpression
     | SEARCH_EXPR_MATCH LP singleField=qualifiedName COMMA queryString=string RP  #searchMatchQuery
     | left=searchRankExpression operator=AND right=searchRankExpression           #searchLogicalBinary
     | left=searchRankExpression operator=OR right=searchRankExpression            #searchLogicalBinary

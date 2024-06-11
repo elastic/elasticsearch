@@ -577,6 +577,13 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitSearchLogicalBinary(EsqlBaseParser.SearchLogicalBinaryContext ctx);
   /**
+   * Visit a parse tree produced by the {@code searchParenthesizedExpression}
+   * labeled alternative in {@link EsqlBaseParser#searchRankExpression}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitSearchParenthesizedExpression(EsqlBaseParser.SearchParenthesizedExpressionContext ctx);
+  /**
    * Visit a parse tree produced by the {@code searchMatchQuery}
    * labeled alternative in {@link EsqlBaseParser#searchRankExpression}.
    * @param ctx the parse tree

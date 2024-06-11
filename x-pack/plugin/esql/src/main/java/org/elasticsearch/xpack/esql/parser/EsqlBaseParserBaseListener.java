@@ -1085,6 +1085,18 @@ public class EsqlBaseParserBaseListener implements EsqlBaseParserListener {
    *
    * <p>The default implementation does nothing.</p>
    */
+  @Override public void enterSearchParenthesizedExpression(EsqlBaseParser.SearchParenthesizedExpressionContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitSearchParenthesizedExpression(EsqlBaseParser.SearchParenthesizedExpressionContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
   @Override public void enterSearchMatchQuery(EsqlBaseParser.SearchMatchQueryContext ctx) { }
   /**
    * {@inheritDoc}

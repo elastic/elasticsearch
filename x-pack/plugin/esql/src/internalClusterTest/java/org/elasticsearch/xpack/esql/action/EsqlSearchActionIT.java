@@ -151,6 +151,28 @@ public class EsqlSearchActionIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    public void testRankMatchAndOr() {
+        var query = """
+            SEARCH test [
+              | RANK MATCH(content, "brown") AND (MATCH(content, "fox") OR MATCH(content, "dog"))
+              | LIMIT 100
+              ]
+            | KEEP id, _score, content
+            """;   // default rank sort is score descending
+        try (var resp = run(query)) {
+            logger.info("response=" + prettyResponse(resp));
+            assertThat(resp.columns().stream().map(ColumnInfo::name).toList(), contains("id", "_score", "content"));
+            assertThat(resp.columns().stream().map(ColumnInfo::type).toList(), contains("integer", "float", "text"));
+            // values
+            List<List<Object>> values = getValuesList(resp);
+            assertThat(values.get(0), contains(6, 1.5159746F, "The quick brown fox jumps over the lazy dog"));
+            assertThat(values.get(1), contains(1, 1.4274533F, "This is a brown fox"));
+            assertThat(values.get(2), contains(2, 0.76719964F, "This is a brown dog"));
+            assertThat(values.get(3), contains(3, 0.76719964F, "This dog is really brown"));
+            assertThat(values.get(4), contains(4, 0.54663825F, "The dog is brown but this document is very very long"));
+        }
+    }
+
     @AwaitsFix(bugUrl = "") // TODO: all scores are 0.0 ? why? fix this
     public void testRankMatchWithPrefilter() {
         var query = """

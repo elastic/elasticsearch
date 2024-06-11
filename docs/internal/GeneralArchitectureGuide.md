@@ -70,18 +70,20 @@ state must ever be reloaded from persisted state.
 
 ## Backwards Compatibility
 
+major releases are mostly about breaking compatibility and dropping deprecated functionality.
+
 Elasticsearch versions are composed of three pieces of information: the major version, the minor version, and the patch version,
-in that order (major.minor.patch). Patch releases are typically bug fixes; minor releases are improvements; and major releases
-contain new features. As an example, each of 8.0.0, 8.3.0 and 8.3.1 specifies an exact release version. They all have the same
-major version (8) and the last two have the same minor version (8.3). Multiversion compatibility within a cluster, or backwards
-compatibility with older version nodes, is guaranteed across specific versions.
+in that order (major.minor.patch). Patch releases are typically bug fixes; minor releases contain improvements / new features;
+and major releases essentially break compatibility and enable removal of deprecated functionality. As an example, each of 8.0.0,
+8.3.0 and 8.3.1 specifies an exact release version. They all have the same major version (8) and the last two have the same minor
+version (8.3). Multiversion compatibility within a cluster, or backwards compatibility with older version nodes, is guaranteed
+across specific versions.
 
 ### Transport Layer Backwards Compatibility
 
-Elasticsearch nodes can communicate over the network with all older version nodes in the same major release: all the older minor
-and patch releases within that same major version. All versions within one major version X are also compatible with the last
-minor version releases of the previous major version, e.g. (X-1).last.x. More concretely, all 8.x.x version nodes can communicate
-with all 7.17.x version nodes.
+Elasticsearch nodes can communicate over the network with all node versions within the same major release. All versions within
+one major version X are also compatible with the last minor version releases of the previous major version, i.e. (X-1).last.
+More concretely, all 8.x.x version nodes can communicate with all 7.17.x version nodes.
 
 ### Index Format Backwards Compatibility
 

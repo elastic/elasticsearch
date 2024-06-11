@@ -797,7 +797,10 @@ public abstract class ESTestCase extends LuceneTestCase {
      */
     protected static void assertLeakDetected(String expectedPattern) {
         synchronized (loggedLeaks) {
-            assertTrue(loggedLeaks.removeIf(leakText -> Pattern.matches(expectedPattern, leakText)));
+            assertTrue(
+                "No leak detected matching the pattern: " + expectedPattern,
+                loggedLeaks.removeIf(leakText -> Pattern.matches(expectedPattern, leakText))
+            );
         }
     }
 

@@ -874,7 +874,6 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
     private static Settings getWatchesIndexSettings() {
         return Settings.builder()
             .put("index.number_of_shards", 1)
-            .put("index.number_of_replicas", 0)
             .put("index.auto_expand_replicas", "0-1")
             .put(IndexMetadata.INDEX_FORMAT_SETTING.getKey(), 6)
             .put(IndexMetadata.SETTING_PRIORITY, 800)

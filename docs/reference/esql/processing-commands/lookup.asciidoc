@@ -27,7 +27,7 @@ adding the other fields from the `table` to the output.
 *Examples*
 
 // tag::examples[]
-[source,console]
+[source,console,id=esql-lookup-example]
 ----
 POST /_query?format=txt
 {

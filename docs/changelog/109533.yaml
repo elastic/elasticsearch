@@ -1,0 +1,5 @@
+pr: 109533
+summary: Fix IndexOutOfBoundsException during inference
+area: Machine Learning
+type: bug
+issues: []

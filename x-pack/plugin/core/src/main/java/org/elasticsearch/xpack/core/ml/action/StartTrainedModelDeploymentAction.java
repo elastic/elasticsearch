@@ -137,12 +137,12 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
         private String modelId;
         private String deploymentId;
         private TimeValue timeout;
-        private AllocationStatus.State waitForState;
+        private AllocationStatus.State waitForState = AllocationStatus.State.DEFAULT;
         private ByteSizeValue cacheSize;
         private Integer numberOfAllocations;
         private Integer threadsPerAllocation;
         private Integer queueCapacity;
-        private Priority priority;
+        private Priority priority = Priority.DEFAULT;
         private boolean didSetDefaults = false;
 
         /**
@@ -154,7 +154,7 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
                 timeout = DEFAULT_TIMEOUT;
             }
 
-            if (waitForState == null) {
+            if (waitForState == AllocationStatus.State.DEFAULT) {
                 waitForState = AllocationStatus.State.STARTED;
             }
 
@@ -170,7 +170,7 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
                 queueCapacity = 1024;
             }
 
-            if (priority == null) {
+            if (priority == Priority.DEFAULT) {
                 priority = Priority.NORMAL;
             }
 
@@ -281,7 +281,7 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
         }
 
         public String getPriorityAsString() {
-            if (priority == null) {
+            if (priority == Priority.DEFAULT) {
                 return null;
             } else {
                 return priority.toString();
@@ -290,7 +290,7 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
 
         public void setPriority(String priority) {
             if (priority == null) {
-                this.priority = null;
+                this.priority = Priority.DEFAULT;
             } else {
                 this.priority = Priority.fromString(priority);
             }
@@ -302,7 +302,6 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
             if (didSetDefaults == false) {
                 // Integer attributes could throw NPE if setDefaults was not called
                 logger.warn("setDefaults was not called before writeTo. now calling setDefaults before writing to stream.");
-                assert didSetDefaults;
                 setDefaults();
             }
 
@@ -325,10 +324,15 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            if (didSetDefaults == false) {
+                // null values could cause serialization errors if setDefaults was not called, this mostly effects tests
+                logger.warn("setDefaults was not called before serialization. now calling setDefaults before writing toXContent.");
+                setDefaults();
+            }
             builder.startObject();
             builder.field(MODEL_ID.getPreferredName(), modelId);
             builder.field(DEPLOYMENT_ID.getPreferredName(), deploymentId);
-            builder.field(TIMEOUT.getPreferredName(), timeout.getStringRep());
+            builder.field(TIMEOUT.getPreferredName(), timeout == null ? null : timeout.getStringRep());
             builder.field(WAIT_FOR.getPreferredName(), waitForState);
             builder.field(NUMBER_OF_ALLOCATIONS.getPreferredName(), numberOfAllocations);
             builder.field(THREADS_PER_ALLOCATION.getPreferredName(), threadsPerAllocation);

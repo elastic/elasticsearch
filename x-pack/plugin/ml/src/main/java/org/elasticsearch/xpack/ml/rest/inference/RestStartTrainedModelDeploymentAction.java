@@ -93,7 +93,7 @@ public class RestStartTrainedModelDeploymentAction extends BaseRestHandler {
 
         if (restRequest.hasParam(WAIT_FOR.getPreferredName())) {
             String requestState = null;
-            if (request.getWaitForState() != null) {
+            if (request.getWaitForState() != AllocationStatus.State.DEFAULT) {
                 requestState = request.getWaitForState().toString();
             }
 

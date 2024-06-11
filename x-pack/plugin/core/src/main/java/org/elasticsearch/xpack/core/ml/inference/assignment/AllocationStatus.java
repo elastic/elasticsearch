@@ -26,7 +26,8 @@ public class AllocationStatus implements Writeable, ToXContentObject {
     public enum State {
         STARTING,
         STARTED,
-        FULLY_ALLOCATED;
+        FULLY_ALLOCATED,
+        DEFAULT;
 
         public static State fromString(String value) {
             return valueOf(value.toUpperCase(Locale.ROOT));

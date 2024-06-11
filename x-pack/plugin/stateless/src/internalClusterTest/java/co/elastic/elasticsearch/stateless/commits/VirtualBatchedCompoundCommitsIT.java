@@ -55,7 +55,6 @@ import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.node.NodeClosedException;
@@ -448,10 +447,11 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessIntegTestC
         }
     }
 
-    public void testGetVirtualBatchedCompoundCommitChunkRetriesIfPrimaryRelocates() throws Exception {
+    public void testGetVirtualBatchedCompoundCommitIfPrimaryRelocates() throws Exception {
         startMasterOnlyNode();
         final var indexNodeA = startIndexNode();
         var searchNode = startSearchNode();
+
         final var indexNodeB = startIndexNode();
         ensureStableCluster(4);
         var indexName = randomIdentifier();
@@ -504,12 +504,14 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessIntegTestC
         assertBusy(() -> assertThat(internalCluster().nodesInclude(indexName), not(hasItem(indexNodeA))));
         logger.info("relocated primary");
 
+        CountDownLatch indexNotFoundOnIndexNodeA = new CountDownLatch(1);
         final var indexNodeATransportService = MockTransportService.getInstance(indexNodeA);
         indexNodeATransportService.addRequestHandlingBehavior(
             TransportGetVirtualBatchedCompoundCommitChunkAction.NAME + "[p]",
             (handler, request, channel, task) -> handler.messageReceived(request, new TransportChannel() {
                 @Override
                 public void sendResponse(Exception exception) {
+                    indexNotFoundOnIndexNodeA.countDown();
                     assertThat(exception, instanceOf(IndexNotFoundException.class));
                     channel.sendResponse(exception);
                 }
@@ -527,17 +529,15 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessIntegTestC
         );
 
         final var indexNodeBTransportService = MockTransportService.getInstance(indexNodeB);
-        CountDownLatch actionOnNewPrimarySeen = new CountDownLatch(1);
         indexNodeBTransportService.addRequestHandlingBehavior(
             TransportGetVirtualBatchedCompoundCommitChunkAction.NAME + "[p]",
             (handler, request, channel, task) -> {
-                actionOnNewPrimarySeen.countDown();
-                handler.messageReceived(request, channel, task);
+                assert false : "Search shard should not send any requests to the indexNodeB and should have fetched from object store";
             }
         );
 
         getVBCCChunkBlocked.countDown();
-        safeAwait(actionOnNewPrimarySeen);
+        safeAwait(indexNotFoundOnIndexNodeA);
         thread.join();
     }
 
@@ -663,8 +663,7 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessIntegTestC
                         randomFrom(
                             new ConnectTransportException(transportService.getLocalNode(), "simulated"),
                             new CircuitBreakingException("Simulated", CircuitBreaker.Durability.TRANSIENT),
-                            new NodeClosedException(transportService.getLocalNode()),
-                            new ShardNotFoundException(indexShard.shardId())
+                            new NodeClosedException(transportService.getLocalNode())
                         )
                     );
                 } else {

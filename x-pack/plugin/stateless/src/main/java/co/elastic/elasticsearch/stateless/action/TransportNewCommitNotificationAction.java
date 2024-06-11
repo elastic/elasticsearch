@@ -22,25 +22,29 @@ import co.elastic.elasticsearch.stateless.autoscaling.search.ShardSizeCollector;
 import co.elastic.elasticsearch.stateless.engine.NewCommitNotification;
 import co.elastic.elasticsearch.stateless.engine.SearchEngine;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.broadcast.unpromotable.TransportBroadcastUnpromotableAction;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.indices.IndicesService;
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
+import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 
@@ -129,14 +133,39 @@ public class TransportNewCommitNotificationAction extends TransportBroadcastUnpr
             // Step 3: notify the engine of the new commit, and wait for it to finish processing this notification
             .<SearchEngine>andThen((l, searchEngine) -> {
                 assert assertRequestNodeIdMatchesParentTaskNodeId(request, task);
-                var notification = new NewCommitNotification(
-                    request.getCompoundCommit(),
-                    request.getBatchedCompoundCommitGeneration(),
-                    request.getLatestUploadedBatchedCompoundCommitTermAndGen(),
-                    request.getClusterStateVersion() == null ? -1 : request.getClusterStateVersion(),
-                    request.getNodeId() != null ? request.getNodeId() : task.getParentTaskId().getNodeId()
+                ClusterStateObserver.waitForState(
+                    clusterService,
+                    clusterService.threadPool().getThreadContext(),
+                    new ClusterStateObserver.Listener() {
+                        @Override
+                        public void onNewClusterState(ClusterState state) {
+                            var notification = new NewCommitNotification(
+                                request.getCompoundCommit(),
+                                request.getBatchedCompoundCommitGeneration(),
+                                request.getLatestUploadedBatchedCompoundCommitTermAndGen(),
+                                request.getClusterStateVersion(),
+                                request.getNodeId()
+                            );
+                            searchEngine.onCommitNotification(notification, l.map(v -> searchEngine));
+                        }
+
+                        @Override
+                        public void onClusterServiceClose() {
+                            l.onFailure(new NodeClosedException(clusterService.localNode()));
+                        }
+
+                        @Override
+                        public void onTimeout(TimeValue timeout) {
+                            assert false : "Timed out waiting for cluster state";
+                            l.onFailure(new ElasticsearchException("Timed out waiting for cluster state"));
+                        }
+                    },
+                    state -> state.version() >= request.getClusterStateVersion()
+                        || state.nodes().get(request.getNodeId()) != null
+                        || request.isUploaded(),
+                    TimeValue.MAX_VALUE,
+                    logger
                 );
-                searchEngine.onCommitNotification(notification, l.map(v -> searchEngine));
             })
 
             // Step 4: update the things that need updating, and compute the final response containing the commits that are still in use

@@ -397,10 +397,9 @@ public class ShrinkIndexIT extends ESIntegTestCase {
 
         refreshClusterInfo();
         // kick off a retry and wait until it's done!
-        final var clusterRerouteResponse = client().execute(
-            TransportClusterRerouteAction.TYPE,
-            new ClusterRerouteRequest().setRetryFailed(true)
-        ).actionGet(SAFE_AWAIT_TIMEOUT);
+        final var clusterRerouteResponse = safeGet(
+            client().execute(TransportClusterRerouteAction.TYPE, new ClusterRerouteRequest().setRetryFailed(true))
+        );
         long expectedShardSize = clusterRerouteResponse.getState().routingTable().index("target").shard(0).shard(0).getExpectedShardSize();
         // we support the expected shard size in the allocator to sum up over the source index shards
         assertTrue("expected shard size must be set but wasn't: " + expectedShardSize, expectedShardSize > 0);

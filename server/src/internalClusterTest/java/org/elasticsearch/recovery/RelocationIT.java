@@ -622,7 +622,7 @@ public class RelocationIT extends ESIntegTestCase {
                     .execute()
             );
         }
-        relocationListener.actionGet();
+        safeGet(relocationListener);
         clusterHealthResponse = clusterAdmin().prepareHealth()
             .setWaitForEvents(Priority.LANGUID)
             .setWaitForNoRelocatingShards(true)

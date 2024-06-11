@@ -1560,12 +1560,23 @@ public class SnapshotStressTestsIT extends AbstractSnapshotIntegTestCase {
             /**
              * We must not close an index while it's being partially snapshotted; this counter tracks the number of ongoing
              * close operations (positive) or partial snapshot operations (negative) in order to avoid them happening concurrently.
+             * <p>
+             * This is only a problem for partial snapshots because we release the index permit once a partial snapshot has started. With
+             * non-partial snapshots we retain the index permit until it completes which blocks other operations.
              */
             private final AtomicInteger closingOrPartialSnapshottingCount = new AtomicInteger();
 
+            private static boolean closingPermitAvailable(int value) {
+                return value >= 0 && value != Integer.MAX_VALUE;
+            }
+
+            private static boolean partialSnapshottingPermitAvailable(int value) {
+                return value <= 0 && value != Integer.MIN_VALUE;
+            }
+
             Releasable tryAcquireClosingPermit() {
-                final var prevCount = closingOrPartialSnapshottingCount.getAndUpdate(c -> c >= 0 ? c + 1 : c);
-                if (prevCount >= 0) {
+                final var previous = closingOrPartialSnapshottingCount.getAndUpdate(c -> closingPermitAvailable(c) ? c + 1 : c);
+                if (closingPermitAvailable(previous)) {
                     return () -> assertThat(closingOrPartialSnapshottingCount.getAndDecrement(), greaterThan(0));
                 } else {
                     return null;
@@ -1573,8 +1584,8 @@ public class SnapshotStressTestsIT extends AbstractSnapshotIntegTestCase {
             }
 
             Releasable tryAcquirePartialSnapshottingPermit() {
-                final var prevCount = closingOrPartialSnapshottingCount.getAndUpdate(c -> c <= 0 ? c - 1 : c);
-                if (prevCount <= 0) {
+                final var previous = closingOrPartialSnapshottingCount.getAndUpdate(c -> partialSnapshottingPermitAvailable(c) ? c - 1 : c);
+                if (partialSnapshottingPermitAvailable(previous)) {
                     return () -> assertThat(closingOrPartialSnapshottingCount.getAndIncrement(), lessThan(0));
                 } else {
                     return null;

@@ -19,6 +19,7 @@ import java.util.List;
  */
 public interface Phased {
     LogicalPlan firstPhase();
+
     LogicalPlan nextPhase(List<Attribute> layout, List<Page> firstPhaseResult);
 
     static LogicalPlan extractNextPhase(LogicalPlan plan) {

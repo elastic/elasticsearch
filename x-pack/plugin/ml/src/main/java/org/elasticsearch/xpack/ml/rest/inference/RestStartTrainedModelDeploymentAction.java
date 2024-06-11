@@ -86,11 +86,9 @@ public class RestStartTrainedModelDeploymentAction extends BaseRestHandler {
         }
 
         if (restRequest.hasParam(TIMEOUT.getPreferredName())) {
-            TimeValue openTimeout = (TimeValue) sameParamInQueryAndBody(
-                request.getTimeout(),
-                restRequest.paramAsTime(TIMEOUT.getPreferredName(), null)
+            request.setTimeout(
+                (TimeValue) sameParamInQueryAndBody(request.getTimeout(), restRequest.paramAsTime(TIMEOUT.getPreferredName(), null))
             );
-            request.setTimeout(openTimeout);
         }
 
         if (restRequest.hasParam(WAIT_FOR.getPreferredName())) {
@@ -142,11 +140,12 @@ public class RestStartTrainedModelDeploymentAction extends BaseRestHandler {
 
         request.setPriority(
             (String) sameParamInQueryAndBody(
-                request.getPriority().toString(),
+                request.getPriorityAsString(),
                 restRequest.param(StartTrainedModelDeploymentAction.TaskParams.PRIORITY.getPreferredName(), null)
             )
         );
 
+        request.setDefaults();
         return channel -> client.execute(StartTrainedModelDeploymentAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }
 

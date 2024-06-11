@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.core.ml.action;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
@@ -47,6 +49,7 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
 
     public static final StartTrainedModelDeploymentAction INSTANCE = new StartTrainedModelDeploymentAction();
     public static final String NAME = "cluster:admin/xpack/ml/trained_models/deployment/start";
+    private static final Logger logger = LogManager.getLogger(StartTrainedModelDeploymentAction.class);
 
     public static final TimeValue DEFAULT_TIMEOUT = new TimeValue(30, TimeUnit.SECONDS);
 
@@ -130,15 +133,49 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
             return request;
         }
 
+        // null attribute values indicate default values should be used at execution
         private String modelId;
         private String deploymentId;
-        private TimeValue timeout = DEFAULT_TIMEOUT;
-        private AllocationStatus.State waitForState = AllocationStatus.State.STARTED;
+        private TimeValue timeout;
+        private AllocationStatus.State waitForState;
         private ByteSizeValue cacheSize;
-        private int numberOfAllocations = 1;
-        private int threadsPerAllocation = 1;
-        private int queueCapacity = 1024;
-        private Priority priority = Priority.NORMAL;
+        private Integer numberOfAllocations;
+        private Integer threadsPerAllocation;
+        private Integer queueCapacity;
+        private Priority priority;
+        private boolean didSetDefaults = false;
+
+        /**
+         * Sets null attributes to default values (if applicable).
+         * Must be the final step in the request creation, before execution
+         */
+        public void setDefaults() {
+            if (timeout == null) {
+                timeout = DEFAULT_TIMEOUT;
+            }
+
+            if (waitForState == null) {
+                waitForState = AllocationStatus.State.STARTED;
+            }
+
+            if (numberOfAllocations == null) {
+                numberOfAllocations = 1;
+            }
+
+            if (threadsPerAllocation == null) {
+                threadsPerAllocation = 1;
+            }
+
+            if (queueCapacity == null) {
+                queueCapacity = 1024;
+            }
+
+            if (priority == null) {
+                priority = Priority.NORMAL;
+            }
+
+            didSetDefaults = true;
+        }
 
         private Request() {
             super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
@@ -207,27 +244,27 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
             return this;
         }
 
-        public int getNumberOfAllocations() {
+        public Integer getNumberOfAllocations() {
             return numberOfAllocations;
         }
 
-        public void setNumberOfAllocations(int numberOfAllocations) {
+        public void setNumberOfAllocations(Integer numberOfAllocations) {
             this.numberOfAllocations = numberOfAllocations;
         }
 
-        public int getThreadsPerAllocation() {
+        public Integer getThreadsPerAllocation() {
             return threadsPerAllocation;
         }
 
-        public void setThreadsPerAllocation(int threadsPerAllocation) {
+        public void setThreadsPerAllocation(Integer threadsPerAllocation) {
             this.threadsPerAllocation = threadsPerAllocation;
         }
 
-        public int getQueueCapacity() {
+        public Integer getQueueCapacity() {
             return queueCapacity;
         }
 
-        public void setQueueCapacity(int queueCapacity) {
+        public void setQueueCapacity(Integer queueCapacity) {
             this.queueCapacity = queueCapacity;
         }
 
@@ -243,13 +280,32 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
             return priority;
         }
 
+        public String getPriorityAsString() {
+            if (priority == null) {
+                return null;
+            } else {
+                return priority.toString();
+            }
+        }
+
         public void setPriority(String priority) {
-            this.priority = Priority.fromString(priority);
+            if (priority == null) {
+                this.priority = null;
+            } else {
+                this.priority = Priority.fromString(priority);
+            }
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
+            if (didSetDefaults == false) {
+                // Integer attributes could throw NPE if setDefaults was not called
+                logger.warn("setDefaults was not called before writeTo. now calling setDefaults before writing to stream.");
+                assert didSetDefaults;
+                setDefaults();
+            }
+
             out.writeString(modelId);
             out.writeTimeValue(timeout);
             out.writeEnum(waitForState);
@@ -287,6 +343,13 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
 
         @Override
         public ActionRequestValidationException validate() {
+            if (didSetDefaults == false) {
+                // setDefaults must be called before validate/execute
+                logger.warn("setDefaults was not called before validate/execute. now calling setDefaults.");
+                assert didSetDefaults;
+                setDefaults();
+            }
+
             ActionRequestValidationException validationException = new ActionRequestValidationException();
             if (waitForState.isAnyOf(VALID_WAIT_STATES) == false) {
                 validationException.addValidationError(
@@ -360,9 +423,9 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
                 && Objects.equals(timeout, other.timeout)
                 && Objects.equals(waitForState, other.waitForState)
                 && Objects.equals(cacheSize, other.cacheSize)
-                && numberOfAllocations == other.numberOfAllocations
-                && threadsPerAllocation == other.threadsPerAllocation
-                && queueCapacity == other.queueCapacity
+                && Objects.equals(numberOfAllocations, other.numberOfAllocations)
+                && Objects.equals(threadsPerAllocation, other.threadsPerAllocation)
+                && Objects.equals(queueCapacity, other.queueCapacity)
                 && priority == other.priority;
         }
 

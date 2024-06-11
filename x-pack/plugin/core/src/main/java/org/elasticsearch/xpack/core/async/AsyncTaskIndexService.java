@@ -99,7 +99,6 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
         return Settings.builder()
             .put("index.codec", "best_compression")
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
             .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
             .build();
     }

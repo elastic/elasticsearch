@@ -762,11 +762,6 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
         return subfieldsAndMultifieldsIterator();
     }
 
-    @Override
-    protected SyntheticSourceMode syntheticSourceMode() {
-        return SyntheticSourceMode.FALLBACK;
-    }
-
     /**
      * An analyzer wrapper to add a shingle token filter, an edge ngram token filter or both to its wrapped analyzer. When adding an edge
      * ngrams token filter, it also adds a {@link TrailingShingleTokenFilter} to add extra position increments at the end of the stream

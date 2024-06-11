@@ -42,6 +42,7 @@ import org.elasticsearch.xpack.inference.services.azureopenai.embeddings.AzureOp
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 import static org.elasticsearch.xpack.core.inference.results.ResultUtils.createInvalidChunkedResultException;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInvalidModelException;
@@ -52,6 +53,8 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwIfNot
 
 public class AzureOpenAiService extends SenderService {
     public static final String NAME = "azureopenai";
+    private final Map<String, InferenceServiceResults> cache = new ConcurrentHashMap<>();
+
 
     public AzureOpenAiService(HttpRequestSender.Factory factory, ServiceComponents serviceComponents) {
         super(factory, serviceComponents);
@@ -200,11 +203,32 @@ public class AzureOpenAiService extends SenderService {
         }
 
         AzureOpenAiModel azureOpenAiModel = (AzureOpenAiModel) model;
-        var actionCreator = new AzureOpenAiActionCreator(getSender(), getServiceComponents());
+        String cacheKey = generateCacheKey(input, taskSettings);
+        if (cache.containsKey(cacheKey)) {
+            listener.onResponse(cache.get(cacheKey));
+            return;
+        }
 
+        var actionCreator = new AzureOpenAiActionCreator(getSender(), getServiceComponents());
         var action = azureOpenAiModel.accept(actionCreator, taskSettings);
-        action.execute(new DocumentsOnlyInput(input), timeout, listener);
+        action.execute(new DocumentsOnlyInput(input), timeout, new ActionListener<>() {
+            @Override
+            public void onResponse(InferenceServiceResults response) {
+                cache.put(cacheKey, response);
+                listener.onResponse(response);
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                listener.onFailure(e);
+            }
+        });
     }
+
+    private String generateCacheKey(List<String> input, Map<String, Object> taskSettings) {
+        return input.toString() + taskSettings.toString();
+    }
+
 
     @Override
     protected void doInfer(

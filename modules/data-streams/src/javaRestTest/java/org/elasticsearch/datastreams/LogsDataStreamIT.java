@@ -379,7 +379,7 @@ public class LogsDataStreamIT extends ESRestTestCase {
             // successful access to subfields verifies that dot expansion is part of the pipeline
             // NOTE: dotted field names are expanded to the corresponding objects when synthetic source
             // is used, as it is the case for logs. This will be fixed by having `subobjects: false` by
-            // defaut. See https://github.com/elastic/elasticsearch/issues/106812
+            // default. See https://github.com/elastic/elasticsearch/issues/106812
             final Map<String, Object> log = (Map<String, Object>) source.get("log");
             assertThat(log.get("level"), is("INFO"));
             final Map<String, Object> ecs = (Map<String, Object>) source.get("ecs");

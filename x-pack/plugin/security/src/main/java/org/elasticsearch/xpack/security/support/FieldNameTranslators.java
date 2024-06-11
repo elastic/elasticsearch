@@ -39,14 +39,10 @@ import java.util.function.Function;
 
 import static org.elasticsearch.xpack.security.action.apikey.TransportQueryApiKeyAction.API_KEY_TYPE_RUNTIME_MAPPING_FIELD;
 
-/**
- * A class to translate query level field names to index level field names.
- */
-public class ApiKeyFieldNameTranslators {
-    static final List<FieldNameTranslator> FIELD_NAME_TRANSLATORS;
+public final class FieldNameTranslators {
 
-    static {
-        FIELD_NAME_TRANSLATORS = List.of(
+    public static final FieldNameTranslators API_KEY_FIELD_NAME_TRANSLATORS = new FieldNameTranslators(
+        List.of(
             new ExactFieldNameTranslator(s -> "creator.principal", "username"),
             new ExactFieldNameTranslator(s -> "creator.realm", "realm_name"),
             new ExactFieldNameTranslator(s -> "name", "name"),
@@ -57,53 +53,39 @@ public class ApiKeyFieldNameTranslators {
             new ExactFieldNameTranslator(s -> "invalidation_time", "invalidation"),
             // allows querying on all metadata values as keywords because "metadata_flattened" is a flattened field type
             new ExactFieldNameTranslator(s -> "metadata_flattened", "metadata"),
+            // allows querying on any concrete (i.e. non-wildcard) fields under the "metadata." prefix
             new PrefixFieldNameTranslator(s -> "metadata_flattened." + s.substring("metadata.".length()), "metadata.")
-        );
-    }
+        )
+    );
 
-    /**
-     * Adds the {@param fieldSortBuilders} to the {@param searchSourceBuilder}, translating the field names,
-     * form query level to index level, see {@link #translate}.
-     * The optional {@param visitor} can be used to collect all the translated field names.
-     */
-    public static void translateFieldSortBuilders(
-        List<FieldSortBuilder> fieldSortBuilders,
-        SearchSourceBuilder searchSourceBuilder,
-        @Nullable Consumer<String> visitor
-    ) {
-        final Consumer<String> fieldNameVisitor = visitor != null ? visitor : ignored -> {};
-        fieldSortBuilders.forEach(fieldSortBuilder -> {
-            if (fieldSortBuilder.getNestedSort() != null) {
-                throw new IllegalArgumentException("nested sorting is not supported for API Key query");
-            }
-            if (FieldSortBuilder.DOC_FIELD_NAME.equals(fieldSortBuilder.getFieldName())) {
-                searchSourceBuilder.sort(fieldSortBuilder);
-            } else {
-                final String translatedFieldName = translate(fieldSortBuilder.getFieldName());
-                fieldNameVisitor.accept(translatedFieldName);
-                if (translatedFieldName.equals(fieldSortBuilder.getFieldName())) {
-                    searchSourceBuilder.sort(fieldSortBuilder);
-                } else {
-                    final FieldSortBuilder translatedFieldSortBuilder = new FieldSortBuilder(translatedFieldName).order(
-                        fieldSortBuilder.order()
-                    )
-                        .missing(fieldSortBuilder.missing())
-                        .unmappedType(fieldSortBuilder.unmappedType())
-                        .setFormat(fieldSortBuilder.getFormat());
+    public static final FieldNameTranslators USER_FIELD_NAME_TRANSLATORS = new FieldNameTranslators(
+        List.of(
+            new ExactFieldNameTranslator(s -> "username", "username"),
+            new ExactFieldNameTranslator(s -> "roles", "roles"),
+            new ExactFieldNameTranslator(s -> "full_name", "full_name"),
+            new ExactFieldNameTranslator(s -> "email", "email"),
+            new ExactFieldNameTranslator(s -> "enabled", "enabled")
+        )
+    );
 
-                    if (fieldSortBuilder.sortMode() != null) {
-                        translatedFieldSortBuilder.sortMode(fieldSortBuilder.sortMode());
-                    }
-                    if (fieldSortBuilder.getNestedSort() != null) {
-                        translatedFieldSortBuilder.setNestedSort(fieldSortBuilder.getNestedSort());
-                    }
-                    if (fieldSortBuilder.getNumericType() != null) {
-                        translatedFieldSortBuilder.setNumericType(fieldSortBuilder.getNumericType());
-                    }
-                    searchSourceBuilder.sort(translatedFieldSortBuilder);
-                }
-            }
-        });
+    public static final FieldNameTranslators ROLE_FIELD_NAME_TRANSLATORS = new FieldNameTranslators(
+        List.of(
+            new ExactFieldNameTranslator(s -> "name", "name"),
+            new ExactFieldNameTranslator(s -> "description", "description"),
+            new ExactFieldNameTranslator(s -> "applications.application", "applications.application"),
+            new ExactFieldNameTranslator(s -> "applications.resources", "applications.resource"),
+            new ExactFieldNameTranslator(s -> "applications.privileges", "applications.privilege"),
+            // allows querying on all metadata values as keywords because "metadata_flattened" is a flattened field type
+            new ExactFieldNameTranslator(s -> "metadata_flattened", "metadata"),
+            // allows querying on any concrete (i.e. non-wildcard) fields under the "metadata." prefix
+            new PrefixFieldNameTranslator(s -> "metadata_flattened." + s.substring("metadata.".length()), "metadata.")
+        )
+    );
+
+    final List<FieldNameTranslator> fieldNameTranslators;
+
+    private FieldNameTranslators(List<FieldNameTranslator> fieldNameTranslators) {
+        this.fieldNameTranslators = fieldNameTranslators;
     }
 
     /**
@@ -114,7 +96,7 @@ public class ApiKeyFieldNameTranslators {
      * associated query level field names match the pattern.
      * The optional {@param visitor} can be used to collect all the translated field names.
      */
-    public static QueryBuilder translateQueryBuilderFields(QueryBuilder queryBuilder, @Nullable Consumer<String> visitor) {
+    public QueryBuilder translateQueryBuilderFields(QueryBuilder queryBuilder, @Nullable Consumer<String> visitor) {
         Objects.requireNonNull(queryBuilder, "unsupported \"null\" query builder for field name translation");
         final Consumer<String> fieldNameVisitor = visitor != null ? visitor : ignored -> {};
         if (queryBuilder instanceof final BoolQueryBuilder query) {
@@ -147,7 +129,7 @@ public class ApiKeyFieldNameTranslators {
             return QueryBuilders.existsQuery(translatedFieldName).boost(query.boost()).queryName(query.queryName());
         } else if (queryBuilder instanceof final TermsQueryBuilder query) {
             if (query.termsLookup() != null) {
-                throw new IllegalArgumentException("terms query with terms lookup is not supported for API Key query");
+                throw new IllegalArgumentException("terms query with terms lookup is not currently supported in this context");
             }
             final String translatedFieldName = translate(query.fieldName());
             fieldNameVisitor.accept(translatedFieldName);
@@ -200,7 +182,7 @@ public class ApiKeyFieldNameTranslators {
             return matchQueryBuilder;
         } else if (queryBuilder instanceof final RangeQueryBuilder query) {
             if (query.relation() != null) {
-                throw new IllegalArgumentException("range query with relation is not supported for API Key query");
+                throw new IllegalArgumentException("range query with relation is not currently supported in this context");
             }
             final String translatedFieldName = translate(query.fieldName());
             fieldNameVisitor.accept(translatedFieldName);
@@ -264,34 +246,79 @@ public class ApiKeyFieldNameTranslators {
                 .boost(query.boost())
                 .queryName(query.queryName());
         } else {
-            throw new IllegalArgumentException("Query type [" + queryBuilder.getName() + "] is not supported for API Key query");
+            throw new IllegalArgumentException("Query type [" + queryBuilder.getName() + "] is not currently supported in this context");
         }
+    }
+
+    /**
+     * Adds the {@param fieldSortBuilders} to the {@param searchSourceBuilder}, translating the field names,
+     * form query level to index level, see {@link #translate}.
+     * The optional {@param visitor} can be used to collect all the translated field names.
+     */
+    public void translateFieldSortBuilders(
+        List<FieldSortBuilder> fieldSortBuilders,
+        SearchSourceBuilder searchSourceBuilder,
+        @Nullable Consumer<String> visitor
+    ) {
+        final Consumer<String> fieldNameVisitor = visitor != null ? visitor : ignored -> {};
+        fieldSortBuilders.forEach(fieldSortBuilder -> {
+            if (fieldSortBuilder.getNestedSort() != null) {
+                throw new IllegalArgumentException("nested sorting is not currently supported in this context");
+            }
+            if (FieldSortBuilder.DOC_FIELD_NAME.equals(fieldSortBuilder.getFieldName())) {
+                searchSourceBuilder.sort(fieldSortBuilder);
+            } else {
+                final String translatedFieldName = translate(fieldSortBuilder.getFieldName());
+                fieldNameVisitor.accept(translatedFieldName);
+                if (translatedFieldName.equals(fieldSortBuilder.getFieldName())) {
+                    searchSourceBuilder.sort(fieldSortBuilder);
+                } else {
+                    final FieldSortBuilder translatedFieldSortBuilder = new FieldSortBuilder(translatedFieldName).order(
+                        fieldSortBuilder.order()
+                    )
+                        .missing(fieldSortBuilder.missing())
+                        .unmappedType(fieldSortBuilder.unmappedType())
+                        .setFormat(fieldSortBuilder.getFormat());
+
+                    if (fieldSortBuilder.sortMode() != null) {
+                        translatedFieldSortBuilder.sortMode(fieldSortBuilder.sortMode());
+                    }
+                    if (fieldSortBuilder.getNestedSort() != null) {
+                        translatedFieldSortBuilder.setNestedSort(fieldSortBuilder.getNestedSort());
+                    }
+                    if (fieldSortBuilder.getNumericType() != null) {
+                        translatedFieldSortBuilder.setNumericType(fieldSortBuilder.getNumericType());
+                    }
+                    searchSourceBuilder.sort(translatedFieldSortBuilder);
+                }
+            }
+        });
     }
 
     /**
      * Translate the query level field name to index level field names.
      * It throws an exception if the field name is not explicitly allowed.
      */
-    protected static String translate(String fieldName) {
+    public String translate(String fieldName) {
         // protected for testing
         if (Regex.isSimpleMatchPattern(fieldName)) {
-            throw new IllegalArgumentException("Field name pattern [" + fieldName + "] is not allowed for API Key query or aggregation");
+            throw new IllegalArgumentException("Field name pattern [" + fieldName + "] is not allowed for querying or aggregation");
         }
-        for (FieldNameTranslator translator : FIELD_NAME_TRANSLATORS) {
+        for (FieldNameTranslator translator : fieldNameTranslators) {
             if (translator.supports(fieldName)) {
                 return translator.translate(fieldName);
             }
         }
-        throw new IllegalArgumentException("Field [" + fieldName + "] is not allowed for API Key query or aggregation");
+        throw new IllegalArgumentException("Field [" + fieldName + "] is not allowed for querying or aggregation");
     }
 
     /**
      * Translates a query level field name pattern to the matching index level field names.
      * The result can be the empty set, if the pattern doesn't match any of the allowed index level field names.
      */
-    private static Set<String> translatePattern(String fieldNameOrPattern) {
+    public Set<String> translatePattern(String fieldNameOrPattern) {
         Set<String> indexFieldNames = new HashSet<>();
-        for (FieldNameTranslator translator : FIELD_NAME_TRANSLATORS) {
+        for (FieldNameTranslator translator : fieldNameTranslators) {
             if (translator.supports(fieldNameOrPattern)) {
                 indexFieldNames.add(translator.translate(fieldNameOrPattern));
             }
@@ -344,16 +371,17 @@ public class ApiKeyFieldNameTranslators {
         }
 
         @Override
-        boolean supports(String fieldNamePrefix) {
-            // a pattern can generally match a prefix in multiple ways
-            // moreover, it's not possible to iterate the concrete fields matching the prefix
-            if (Regex.isSimpleMatchPattern(fieldNamePrefix)) {
-                // this means that e.g. `metadata.*` and `metadata.x*` are expanded to the empty list,
+        boolean supports(String fieldNameOrPattern) {
+            if (Regex.isSimpleMatchPattern(fieldNameOrPattern)) {
+                // It is not possible to translate a pattern into concrete field names,
+                // because we do not store the list of concrete field names sharing this same prefix.
+                // That means that e.g. `metadata.*` and `metadata.x*` are expanded to the empty list,
                 // rather than be replaced with `metadata_flattened.*` and `metadata_flattened.x*`
-                // (but, in any case, `metadata_flattened.*` and `metadata.x*` are going to be ignored)
+                // (but, in any case, `metadata_flattened.*` and `metadata.x*` are eventually ignored,
+                // because of the way that the flattened field type works in ES)
                 return false;
             }
-            return fieldNamePrefix.startsWith(prefix);
+            return fieldNameOrPattern.startsWith(prefix);
         }
     }
 }

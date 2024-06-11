@@ -23,7 +23,7 @@ import java.util.Set;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.xpack.security.action.apikey.TransportQueryApiKeyAction.API_KEY_TYPE_RUNTIME_MAPPING_FIELD;
-import static org.elasticsearch.xpack.security.support.ApiKeyFieldNameTranslators.translateQueryBuilderFields;
+import static org.elasticsearch.xpack.security.support.FieldNameTranslators.API_KEY_FIELD_NAME_TRANSLATORS;
 
 public class ApiKeyBoolQueryBuilder extends BoolQueryBuilder {
 
@@ -69,7 +69,7 @@ public class ApiKeyBoolQueryBuilder extends BoolQueryBuilder {
     ) {
         final ApiKeyBoolQueryBuilder finalQuery = new ApiKeyBoolQueryBuilder();
         if (queryBuilder != null) {
-            QueryBuilder processedQuery = translateQueryBuilderFields(queryBuilder, fieldNameVisitor);
+            QueryBuilder processedQuery = API_KEY_FIELD_NAME_TRANSLATORS.translateQueryBuilderFields(queryBuilder, fieldNameVisitor);
             finalQuery.must(processedQuery);
         }
         finalQuery.filter(QueryBuilders.termQuery("doc_type", "api_key"));
@@ -112,5 +112,4 @@ public class ApiKeyBoolQueryBuilder extends BoolQueryBuilder {
     static boolean isIndexFieldNameAllowed(String fieldName) {
         return ALLOWED_EXACT_INDEX_FIELD_NAMES.contains(fieldName) || fieldName.startsWith("metadata_flattened.");
     }
-
 }

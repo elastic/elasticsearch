@@ -36,8 +36,8 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.xpack.security.support.FieldNameTranslators.USER_FIELD_NAME_TRANSLATORS;
 import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_MAIN_ALIAS;
-import static org.elasticsearch.xpack.security.support.UserBoolQueryBuilder.USER_FIELD_NAME_TRANSLATOR;
 
 public final class TransportQueryUserAction extends TransportAction<QueryUserRequest, QueryUserResponse> {
     private final NativeUsersStore usersStore;
@@ -145,7 +145,7 @@ public final class TransportQueryUserAction extends TransportAction<QueryUserReq
             if (FieldSortBuilder.DOC_FIELD_NAME.equals(fieldSortBuilder.getFieldName())) {
                 searchSourceBuilder.sort(fieldSortBuilder);
             } else {
-                final String translatedFieldName = USER_FIELD_NAME_TRANSLATOR.translate(fieldSortBuilder.getFieldName());
+                final String translatedFieldName = USER_FIELD_NAME_TRANSLATORS.translate(fieldSortBuilder.getFieldName());
                 if (FIELD_NAMES_WITH_SORT_SUPPORT.contains(translatedFieldName) == false) {
                     throw new IllegalArgumentException(
                         String.format(Locale.ROOT, "sorting is not supported for field [%s] in User query", fieldSortBuilder.getFieldName())

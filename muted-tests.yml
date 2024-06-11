@@ -64,9 +64,6 @@ tests:
   method: "test {yaml=reference/esql/processing-commands/lookup/line_31}"
 - class: DenseVectorMappingUpdateIT
   issue: "https://github.com/elastic/elasticsearch/issues/109571"
-- class: "org.elasticsearch.compute.lucene.TimeSeriesSortedSourceOperatorTests"
-  issue: "https://github.com/elastic/elasticsearch/issues/109578"
-  method: "testMatchNone"
 
 # Examples:
 #

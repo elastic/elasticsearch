@@ -126,7 +126,7 @@ public sealed interface IntVector extends Vector permits ConstantIntVector, IntA
     private static IntVector readValues(int positions, StreamInput in, BlockFactory blockFactory) throws IOException {
         try (var builder = blockFactory.newIntVectorFixedBuilder(positions)) {
             for (int i = 0; i < positions; i++) {
-                builder.appendInt(in.readInt());
+                builder.appendInt(i, in.readInt());
             }
             return builder.build();
         }
@@ -169,5 +169,8 @@ public sealed interface IntVector extends Vector permits ConstantIntVector, IntA
          */
         @Override
         FixedBuilder appendInt(int value);
+
+        FixedBuilder appendInt(int index, int value);
+
     }
 }

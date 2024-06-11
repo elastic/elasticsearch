@@ -275,8 +275,8 @@ public class TimeSeriesSortedSourceOperatorFactory extends LuceneOperator.Factor
 
             void consume() throws IOException {
                 if (queue != null) {
-                    currentTsid = BytesRef.deepCopyOf(queue.top().timeSeriesHash);
                     if (queue.size() > 0) {
+                        currentTsid = BytesRef.deepCopyOf(queue.top().timeSeriesHash);
                         queue.top().reinitializeIfNeeded(Thread.currentThread());
                     }
                     while (queue.size() > 0) {

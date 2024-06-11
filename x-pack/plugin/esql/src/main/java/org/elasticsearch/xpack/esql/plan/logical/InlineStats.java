@@ -7,23 +7,40 @@
 
 package org.elasticsearch.xpack.esql.plan.logical;
 
+import org.elasticsearch.common.collect.Iterators;
+import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
+import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.core.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
+import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
+import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
+import java.util.stream.IntStream;
 
-public class InlineStats extends UnaryPlan {
+import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputAttributes;
+
+public class InlineStats extends UnaryPlan implements Phased {
 
     private final List<Expression> groupings;
     private final List<? extends NamedExpression> aggregates;
+    private List<Attribute> output;
 
     public InlineStats(Source source, LogicalPlan child, List<Expression> groupings, List<? extends NamedExpression> aggregates) {
         super(source, child);
@@ -56,7 +73,34 @@ public class InlineStats extends UnaryPlan {
 
     @Override
     public List<Attribute> output() {
-        return Expressions.asAttributes(aggregates);
+        // NOCOMMIT when is this one called?
+        if (this.output == null) {
+            this.output = mergeOutputAttributes(Expressions.asAttributes(aggregates), child().output());
+        }
+        return output;
+    }
+
+    @Override
+    public LogicalPlan firstPhase() {
+        return new Aggregate(source(), child(), groupings, aggregates);
+    }
+
+    @Override
+    public LogicalPlan nextPhase(List<Attribute> layout, List<Page> firstPhaseResult) {
+        // NOCOMMIT memory tracking
+        if (firstPhaseResult.size() > 1) {
+            throw new UnsupportedOperationException();
+        }
+        List<NamedExpression> namedGroupings = groupings.stream().map(Expressions::wrapAsNamed).toList();
+        Page page = firstPhaseResult.get(0);
+        Block[] blocks = IntStream.range(0, page.getBlockCount()).mapToObj(b -> {
+            Block block = page.getBlock(b);
+            Block.Builder builder = block.elementType().newBlockBuilder(block.getPositionCount(), PlannerUtils.NON_BREAKING_BLOCK_FACTORY);
+            builder.copyFrom(block, 0, block.getPositionCount());
+            return builder.build();
+        }).toArray(Block[]::new);
+        LocalRelation local = new LocalRelation(source(), layout, LocalSupplier.of(blocks));
+        return new Lookup(source(), child(), new ReferenceAttribute(source(), "unused", DataType.KEYWORD), namedGroupings, local);
     }
 
     @Override

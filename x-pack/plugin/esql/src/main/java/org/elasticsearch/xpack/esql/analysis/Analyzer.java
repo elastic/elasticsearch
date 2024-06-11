@@ -69,6 +69,7 @@ import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.EsqlAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsqlUnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
+import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.Keep;
 import org.elasticsearch.xpack.esql.plan.logical.Lookup;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
@@ -333,6 +334,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
         @Override
         protected LogicalPlan rule(Lookup lookup, AnalyzerContext context) {
+            if (lookup.localRelation() != null) {
+                return lookup;
+            }
             // the parser passes the string wrapped in a literal
             Source source = lookup.source();
             Expression tableNameExpression = lookup.tableName();
@@ -392,6 +396,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
             if (plan instanceof Aggregate agg) {
                 return resolveAggregate(agg, childrenOutput);
+            }
+
+            if (plan instanceof InlineStats stats) {
+                return resolveInlineStats(stats, childrenOutput);
             }
 
             if (plan instanceof Drop d) {
@@ -476,6 +484,59 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             }
 
             return a;
+        }
+
+        private LogicalPlan resolveInlineStats(InlineStats stats, List<Attribute> childrenOutput) {
+            // if the grouping is resolved but the aggs are not, use the former to resolve the latter
+            // e.g. STATS a ... GROUP BY a = x + 1
+            Holder<Boolean> changed = new Holder<>(false);
+            List<Expression> groupings = stats.groupings();
+            // first resolve groupings since the aggs might refer to them
+            // trying to globally resolve unresolved attributes will lead to some being marked as unresolvable
+            if (Resolvables.resolved(groupings) == false) {
+                List<Expression> newGroupings = new ArrayList<>(groupings.size());
+                for (Expression g : groupings) {
+                    Expression resolved = g.transformUp(UnresolvedAttribute.class, ua -> maybeResolveAttribute(ua, childrenOutput));
+                    if (resolved != g) {
+                        changed.set(true);
+                    }
+                    newGroupings.add(resolved);
+                }
+                groupings = newGroupings;
+                if (changed.get()) {
+                    stats = new InlineStats(stats.source(), stats.child(), newGroupings, stats.aggregates());
+                    changed.set(false);
+                }
+            }
+
+            if (stats.expressionsResolved() == false) {
+                AttributeMap<Expression> resolved = new AttributeMap<>();
+                for (Expression e : groupings) {
+                    Attribute attr = Expressions.attribute(e);
+                    if (attr != null && attr.resolved()) {
+                        resolved.put(attr, attr);
+                    }
+                }
+                List<Attribute> resolvedList = NamedExpressions.mergeOutputAttributes(new ArrayList<>(resolved.keySet()), childrenOutput);
+                List<NamedExpression> newAggregates = new ArrayList<>();
+
+                for (NamedExpression aggregate : stats.aggregates()) {
+                    var agg = (NamedExpression) aggregate.transformUp(UnresolvedAttribute.class, ua -> {
+                        Expression ne = ua;
+                        Attribute maybeResolved = maybeResolveAttribute(ua, resolvedList);
+                        if (maybeResolved != null) {
+                            changed.set(true);
+                            ne = maybeResolved;
+                        }
+                        return ne;
+                    });
+                    newAggregates.add(agg);
+                }
+
+                stats = changed.get() ? new InlineStats(stats.source(), stats.child(), groupings, newAggregates) : stats;
+            }
+
+            return stats;
         }
 
         private LogicalPlan resolveMvExpand(MvExpand p, List<Attribute> childrenOutput) {

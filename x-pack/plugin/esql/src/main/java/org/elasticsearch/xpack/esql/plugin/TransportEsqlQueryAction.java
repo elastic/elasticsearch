@@ -158,35 +158,21 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             request.tables()
         );
         String sessionId = sessionID(task);
-        planExecutor.esql(
-            request,
-            sessionId,
-            configuration,
-            enrichPolicyResolver,
-            listener.delegateFailureAndWrap(
-                (delegate, physicalPlan) -> computeService.execute(
-                    sessionId,
-                    (CancellableTask) task,
-                    physicalPlan,
-                    configuration,
-                    delegate.map(result -> {
-                        List<ColumnInfo> columns = physicalPlan.output()
-                            .stream()
-                            .map(c -> new ColumnInfo(c.qualifiedName(), EsqlDataTypes.outputType(c.dataType())))
-                            .toList();
-                        EsqlQueryResponse.Profile profile = configuration.profile()
-                            ? new EsqlQueryResponse.Profile(result.profiles())
-                            : null;
-                        if (task instanceof EsqlQueryTask asyncTask && request.keepOnCompletion()) {
-                            String id = asyncTask.getExecutionId().getEncoded();
-                            return new EsqlQueryResponse(columns, result.pages(), profile, request.columnar(), id, false, request.async());
-                        } else {
-                            return new EsqlQueryResponse(columns, result.pages(), profile, request.columnar(), request.async());
-                        }
-                    })
-                )
-            )
-        );
+        planExecutor.esql(request, sessionId, configuration, enrichPolicyResolver, (physicalPlan, resultListener) -> {
+            computeService.execute(sessionId, (CancellableTask) task, physicalPlan, configuration, resultListener);
+        }, listener.map(result -> {
+            List<ColumnInfo> columns = result.layout()
+                .stream()
+                .map(c -> new ColumnInfo(c.qualifiedName(), EsqlDataTypes.outputType(c.dataType())))
+                .toList();
+            EsqlQueryResponse.Profile profile = configuration.profile() ? new EsqlQueryResponse.Profile(result.profiles()) : null;
+            if (task instanceof EsqlQueryTask asyncTask && request.keepOnCompletion()) {
+                String id = asyncTask.getExecutionId().getEncoded();
+                return new EsqlQueryResponse(columns, result.pages(), profile, request.columnar(), id, false, request.async());
+            } else {
+                return new EsqlQueryResponse(columns, result.pages(), profile, request.columnar(), request.async());
+            }
+        }));
     }
 
     /**

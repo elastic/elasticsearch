@@ -11,6 +11,8 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.DriverProfile;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.logging.LogManager;
@@ -50,12 +52,14 @@ import org.elasticsearch.xpack.esql.parser.TypedParamValue;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.Keep;
+import org.elasticsearch.xpack.esql.plan.logical.Phased;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.RegexExtract;
 import org.elasticsearch.xpack.esql.plan.physical.EstimatesRowSize;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.planner.Mapper;
+import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -63,6 +67,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -73,6 +78,7 @@ import static org.elasticsearch.xpack.esql.core.util.ActionListeners.map;
 import static org.elasticsearch.xpack.esql.core.util.StringUtils.WILDCARD;
 
 public class EsqlSession {
+    public record Result(List<Page> pages, List<Attribute> layout, List<DriverProfile> profiles) {}
 
     private static final Logger LOGGER = LogManager.getLogger(EsqlSession.class);
 
@@ -119,10 +125,52 @@ public class EsqlSession {
         return sessionId;
     }
 
-    public void execute(EsqlQueryRequest request, ActionListener<PhysicalPlan> listener) {
+    public void execute(
+        EsqlQueryRequest request,
+        BiConsumer<PhysicalPlan, ActionListener<Result>> runPhase,
+        ActionListener<Result> listener
+    ) {
         LOGGER.debug("ESQL query:\n{}", request.query());
+        LogicalPlan logicalPlan = parse(request.query(), request.params());
+        LogicalPlan nextPhase = Phased.extractNextPhase(logicalPlan);
+        if (nextPhase == null) {
+            logicalPlanToPhysicalPlan(logicalPlan, request, listener.delegateFailureAndWrap((l, r) -> runPhase.accept(r, l)));
+        } else {
+            executePhased(new ArrayList<>(), request, logicalPlan, nextPhase, runPhase, listener);
+        }
+    }
+
+    void executePhased(
+        List<DriverProfile> profileAccumulator,
+        EsqlQueryRequest request,
+        LogicalPlan entirePlan,
+        LogicalPlan nextPhase,
+        BiConsumer<PhysicalPlan, ActionListener<Result>> runPhase,
+        ActionListener<Result> listener
+    ) {
+        // NOCOMMIT this adds the `LIMIT 1000` to each phase
+        logicalPlanToPhysicalPlan(nextPhase, request, ActionListener.wrap(physicalPlan -> {
+            runPhase.accept(physicalPlan, ActionListener.wrap(result -> {
+                profileAccumulator.addAll(result.profiles());
+                LogicalPlan withPrevPhaseResults = Phased.applyResultsFromNextPhase(entirePlan, physicalPlan.output(), result.pages());
+                LogicalPlan newNextPhase = Phased.extractNextPhase(withPrevPhaseResults);
+                if (newNextPhase == null) {
+                    logicalPlanToPhysicalPlan(withPrevPhaseResults, request, ActionListener.wrap(finalLogicalPlan -> {
+                        runPhase.accept(finalLogicalPlan, ActionListener.wrap(finalResult -> {
+                            profileAccumulator.addAll(finalResult.profiles());
+                            listener.onResponse(new Result(finalResult.pages(), finalResult.layout(), profileAccumulator));
+                        }, listener::onFailure));
+                    }, listener::onFailure));
+                } else {
+                    executePhased(profileAccumulator, request, withPrevPhaseResults, newNextPhase, runPhase, listener);
+                }
+            }, listener::onFailure));
+        }, listener::onFailure));
+    }
+
+    private void logicalPlanToPhysicalPlan(LogicalPlan logicalPlan, EsqlQueryRequest request, ActionListener<PhysicalPlan> listener) {
         optimizedPhysicalPlan(
-            parse(request.query(), request.params()),
+            logicalPlan,
             listener.map(plan -> EstimatesRowSize.estimateRowSize(0, plan.transformUp(FragmentExec.class, f -> {
                 QueryBuilder filter = request.filter();
                 if (filter != null) {

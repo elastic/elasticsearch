@@ -72,6 +72,7 @@ import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
+import org.elasticsearch.xpack.esql.session.EsqlSession;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -89,8 +90,6 @@ import static org.elasticsearch.xpack.esql.plugin.EsqlPlugin.ESQL_WORKER_THREAD_
  * Computes the result of a {@link PhysicalPlan}.
  */
 public class ComputeService {
-    public record Result(List<Page> pages, List<DriverProfile> profiles) {}
-
     private static final Logger LOGGER = LogManager.getLogger(ComputeService.class);
     private final SearchService searchService;
     private final BigArrays bigArrays;
@@ -136,7 +135,7 @@ public class ComputeService {
         CancellableTask rootTask,
         PhysicalPlan physicalPlan,
         EsqlConfiguration configuration,
-        ActionListener<Result> listener
+        ActionListener<EsqlSession.Result> listener
     ) {
         Tuple<PhysicalPlan, PhysicalPlan> coordinatorAndDataNodePlan = PlannerUtils.breakPlanBetweenCoordinatorAndDataNode(
             physicalPlan,
@@ -176,7 +175,7 @@ public class ComputeService {
                 rootTask,
                 computeContext,
                 coordinatorPlan,
-                listener.map(driverProfiles -> new Result(collectedPages, driverProfiles))
+                listener.map(driverProfiles -> new EsqlSession.Result(collectedPages, physicalPlan.output(), driverProfiles))
             );
             return;
         } else {
@@ -201,7 +200,9 @@ public class ComputeService {
         );
         try (
             Releasable ignored = exchangeSource.addEmptySink();
-            RefCountingListener refs = new RefCountingListener(listener.map(unused -> new Result(collectedPages, collectedProfiles)))
+            RefCountingListener refs = new RefCountingListener(
+                listener.map(unused -> new EsqlSession.Result(collectedPages, physicalPlan.output(), collectedProfiles))
+            )
         ) {
             // run compute on the coordinator
             exchangeSource.addCompletionListener(refs.acquire());

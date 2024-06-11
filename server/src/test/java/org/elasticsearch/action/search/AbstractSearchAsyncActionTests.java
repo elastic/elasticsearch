@@ -88,8 +88,7 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
             null,
             results,
             request.getMaxConcurrentShardRequests(),
-            SearchResponse.Clusters.EMPTY,
-            null
+            SearchResponse.Clusters.EMPTY
         ) {
             @Override
             protected SearchPhase getNextPhase(final SearchPhaseResults<SearchPhaseResult> results, SearchPhaseContext context) {

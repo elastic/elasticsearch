@@ -215,8 +215,7 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
                 task,
                 new ArraySearchPhaseResults<>(shardIterators.size()),
                 searchRequest.getMaxConcurrentShardRequests(),
-                clusters,
-                client
+                clusters
             ) {
                 @Override
                 protected void executePhaseOnShard(

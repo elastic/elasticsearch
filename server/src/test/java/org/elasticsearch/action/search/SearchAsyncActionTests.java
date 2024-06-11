@@ -112,8 +112,7 @@ public class SearchAsyncActionTests extends ESTestCase {
             null,
             new ArraySearchPhaseResults<>(shardsIter.size()),
             request.getMaxConcurrentShardRequests(),
-            SearchResponse.Clusters.EMPTY,
-            null
+            SearchResponse.Clusters.EMPTY
         ) {
 
             @Override
@@ -221,8 +220,7 @@ public class SearchAsyncActionTests extends ESTestCase {
                 null,
                 results,
                 request.getMaxConcurrentShardRequests(),
-                SearchResponse.Clusters.EMPTY,
-                null
+                SearchResponse.Clusters.EMPTY
             ) {
 
                 @Override
@@ -335,8 +333,7 @@ public class SearchAsyncActionTests extends ESTestCase {
                 null,
                 results,
                 request.getMaxConcurrentShardRequests(),
-                SearchResponse.Clusters.EMPTY,
-                null
+                SearchResponse.Clusters.EMPTY
             ) {
 
                 @Override
@@ -461,8 +458,7 @@ public class SearchAsyncActionTests extends ESTestCase {
                 null,
                 new ArraySearchPhaseResults<>(shardsIter.size()),
                 request.getMaxConcurrentShardRequests(),
-                SearchResponse.Clusters.EMPTY,
-                null
+                SearchResponse.Clusters.EMPTY
             ) {
                 @Override
                 protected void executePhaseOnShard(
@@ -570,8 +566,7 @@ public class SearchAsyncActionTests extends ESTestCase {
                 null,
                 results,
                 request.getMaxConcurrentShardRequests(),
-                SearchResponse.Clusters.EMPTY,
-                null
+                SearchResponse.Clusters.EMPTY
             ) {
 
                 @Override
@@ -671,8 +666,7 @@ public class SearchAsyncActionTests extends ESTestCase {
             null,
             new ArraySearchPhaseResults<>(shardsIter.size()),
             request.getMaxConcurrentShardRequests(),
-            SearchResponse.Clusters.EMPTY,
-            null
+            SearchResponse.Clusters.EMPTY
         ) {
 
             @Override

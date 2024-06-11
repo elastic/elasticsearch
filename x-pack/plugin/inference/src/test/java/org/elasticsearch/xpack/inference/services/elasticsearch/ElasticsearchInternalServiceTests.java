@@ -703,16 +703,18 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
         );
 
         var serviceSettings = new CustomElandInternalServiceSettings(1, 4, "custom-model");
+        var taskType = randomFrom(TaskType.values());
+        var taskSettings = taskType == TaskType.RERANK ? CustomElandRerankTaskSettings.DEFAULT_SETTINGS : null;
         var expectedModel = CustomElandModel.build(
             randomInferenceEntityId,
-            TaskType.TEXT_EMBEDDING,
+            taskType,
             ElasticsearchInternalService.NAME,
             serviceSettings,
-            null
+            taskSettings
         );
 
         PlainActionFuture<Model> listener = new PlainActionFuture<>();
-        service.parseRequestConfig(randomInferenceEntityId, TaskType.TEXT_EMBEDDING, settings, Set.of(), listener);
+        service.parseRequestConfig(randomInferenceEntityId, taskType, settings, Set.of(), listener);
         var model = listener.actionGet(TimeValue.THIRTY_SECONDS);
         assertThat(model, is(expectedModel));
     }

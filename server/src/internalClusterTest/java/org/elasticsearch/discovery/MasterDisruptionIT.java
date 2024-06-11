@@ -8,6 +8,7 @@
 
 package org.elasticsearch.discovery;
 
+import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteUtils;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
@@ -116,7 +117,7 @@ public class MasterDisruptionIT extends AbstractDisruptionTestCase {
 
         logger.info("issue a reroute");
         // trigger a reroute now, instead of waiting for the background reroute of RerouteService
-        assertAcked(clusterAdmin().prepareReroute());
+        ClusterRerouteUtils.reroute(client());
         // and wait for it to finish and for the cluster to stabilize
         ensureGreen("test");
 

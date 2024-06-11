@@ -2,6 +2,9 @@ setup:
   - requires:
       cluster_features: "gte_v8.15.0"
       reason: 'updatable dense vector field types was added in 8.15'
+  - skip:
+      reason: "contains is a newly added assertion"
+      features: contains
 ---
 "Test create and update dense vector mapping with per-doc indexing and flush":
   - do:
@@ -110,9 +113,9 @@ setup:
 
   - match: { hits.total.value: 10 }
   - length: {hits.hits: 3}
-  - match: { hits.hits.0._id: "1" }
-  - match: { hits.hits.1._id: "2" }
-  - match: { hits.hits.2._id: "3" }
+  - contains: { hits.hits: { _id: "1" } }
+  - contains: { hits.hits: { _id: "2" } }
+  - contains: { hits.hits: { _id: "3" } }
 
   - do:
       indices.put_mapping:
@@ -216,9 +219,9 @@ setup:
 
   - match: { hits.total.value: 20 }
   - length: { hits.hits: 3 }
-  - match: { hits.hits.0._id: "1" }
-  - match: { hits.hits.1._id: "11" }
-  - match: { hits.hits.2._id: "2" }
+  - contains: { hits.hits: { _id: "1" } }
+  - contains: { hits.hits: { _id: "11" } }
+  - contains: { hits.hits: { _id: "2" } }
 
   - do:
       indices.put_mapping:
@@ -323,10 +326,10 @@ setup:
 
   - match: { hits.total.value: 30 }
   - length: { hits.hits: 4 }
-  - match: { hits.hits.0._id: "1" }
-  - match: { hits.hits.1._id: "11" }
-  - match: { hits.hits.2._id: "2" }
-  - match: { hits.hits.3._id: "21" }
+  - contains: {hits.hits: {_id: "1"}}
+  - contains: {hits.hits: {_id: "11"}}
+  - contains: {hits.hits: {_id: "2"}}
+  - contains: {hits.hits: {_id: "21"}}
 
   - do:
       indices.put_mapping:
@@ -431,12 +434,11 @@ setup:
 
   - match: { hits.total.value: 40 }
   - length: { hits.hits: 5 }
-  - match: { hits.hits.0._id: "1" }
-  - match: { hits.hits.1._id: "11" }
-  - match: { hits.hits.2._id: "31" }
-  - match: { hits.hits.3._id: "2" }
-  - match: { hits.hits.4._id: "21" }
-
+  - contains: {hits.hits: {_id: "1"}}
+  - contains: {hits.hits: {_id: "11"}}
+  - contains: {hits.hits: {_id: "2"}}
+  - contains: {hits.hits: {_id: "21"}}
+  - contains: {hits.hits: {_id: "31"}}
 
 ---
 "Test create and update dense vector mapping with bulk indexing":
@@ -501,9 +503,9 @@ setup:
 
   - match: { hits.total.value: 10 }
   - length: {hits.hits: 3}
-  - match: { hits.hits.0._id: "1" }
-  - match: { hits.hits.1._id: "2" }
-  - match: { hits.hits.2._id: "3" }
+  - contains: { hits.hits: { _id: "1" } }
+  - contains: { hits.hits: { _id: "2" } }
+  - contains: { hits.hits: { _id: "3" } }
 
   - do:
       indices.put_mapping:
@@ -561,9 +563,9 @@ setup:
 
   - match: { hits.total.value: 20 }
   - length: { hits.hits: 3 }
-  - match: { hits.hits.0._id: "1" }
-  - match: { hits.hits.1._id: "2" }
-  - match: { hits.hits.2._id: "11" }
+  - contains: { hits.hits: { _id: "1" } }
+  - contains: { hits.hits: { _id: "2" } }
+  - contains: { hits.hits: { _id: "11" } }
 
   - do:
       indices.put_mapping:
@@ -622,10 +624,10 @@ setup:
 
   - match: { hits.total.value: 30 }
   - length: { hits.hits: 4 }
-  - match: { hits.hits.0._id: "1" }
-  - match: { hits.hits.1._id: "2" }
-  - match: { hits.hits.2._id: "21" }
-  - match: { hits.hits.3._id: "11" }
+  - contains: { hits.hits: { _id: "1" } }
+  - contains: { hits.hits: { _id: "11" } }
+  - contains: { hits.hits: { _id: "2" } }
+  - contains: { hits.hits: { _id: "21" } }
 
   - do:
       indices.put_mapping:
@@ -684,11 +686,11 @@ setup:
 
   - match: { hits.total.value: 40 }
   - length: { hits.hits: 5 }
-  - match: { hits.hits.0._id: "1" }
-  - match: { hits.hits.1._id: "2" }
-  - match: { hits.hits.2._id: "21" }
-  - match: { hits.hits.3._id: "31" }
-  - match: { hits.hits.4._id: "11" }
+  - contains: { hits.hits: { _id: "1" } }
+  - contains: { hits.hits: { _id: "11" } }
+  - contains: { hits.hits: { _id: "2" } }
+  - contains: { hits.hits: { _id: "21" } }
+  - contains: { hits.hits: { _id: "31" } }
 
 ---
 "Index, update and merge":
@@ -753,9 +755,9 @@ setup:
 
   - match: { hits.total.value: 10 }
   - length: { hits.hits: 3 }
-  - match: { hits.hits.0._id: "1" }
-  - match: { hits.hits.1._id: "2" }
-  - match: { hits.hits.2._id: "3" }
+  - contains: { hits.hits: { _id: "1" } }
+  - contains: { hits.hits: { _id: "2" } }
+  - contains: { hits.hits: { _id: "3" } }
 
   - do:
       indices.put_mapping:
@@ -793,9 +795,9 @@ setup:
 
   - match: { hits.total.value: 10 }
   - length: { hits.hits: 3 }
-  - match: { hits.hits.0._id: "1" }
-  - match: { hits.hits.1._id: "2" }
-  - match: { hits.hits.2._id: "3" }
+  - contains: { hits.hits: { _id: "1" } }
+  - contains: { hits.hits: { _id: "2" } }
+  - contains: { hits.hits: { _id: "3" } }
 
   - do:
       bulk:
@@ -835,9 +837,9 @@ setup:
 
   - match: { hits.total.value: 20 }
   - length: { hits.hits: 3 }
-  - match: { hits.hits.0._id: "1" }
-  - match: { hits.hits.1._id: "2" }
-  - match: { hits.hits.2._id: "11" }
+  - contains: { hits.hits: { _id: "1" } }
+  - contains: { hits.hits: { _id: "2" } }
+  - contains: { hits.hits: { _id: "11" } }
 
   - do:
       indices.put_mapping:
@@ -871,9 +873,9 @@ setup:
 
   - match: { hits.total.value: 20 }
   - length: { hits.hits: 3 }
-  - match: { hits.hits.0._id: "1" }
-  - match: { hits.hits.1._id: "2" }
-  - match: { hits.hits.2._id: "11" }
+  - contains: { hits.hits: { _id: "1" } }
+  - contains: { hits.hits: { _id: "2" } }
+  - contains: { hits.hits: { _id: "11" } }
 
   - do:
       bulk:
@@ -913,10 +915,10 @@ setup:
 
   - match: { hits.total.value: 30 }
   - length: { hits.hits: 4 }
-  - match: { hits.hits.0._id: "1" }
-  - match: { hits.hits.1._id: "2" }
-  - match: { hits.hits.2._id: "21" }
-  - match: { hits.hits.3._id: "11" }
+  - contains: { hits.hits: { _id: "1" } }
+  - contains: { hits.hits: { _id: "11" } }
+  - contains: { hits.hits: { _id: "2" } }
+  - contains: { hits.hits: { _id: "21" } }
 
   - do:
       indices.forcemerge:
@@ -936,10 +938,10 @@ setup:
 
   - match: { hits.total.value: 30 }
   - length: { hits.hits: 4 }
-  - match: { hits.hits.0._id: "1" }
-  - match: { hits.hits.1._id: "2" }
-  - match: { hits.hits.2._id: "21" }
-  - match: { hits.hits.3._id: "11" }
+  - contains: { hits.hits: { _id: "1" } }
+  - contains: { hits.hits: { _id: "11" } }
+  - contains: { hits.hits: { _id: "2" } }
+  - contains: { hits.hits: { _id: "21" } }
 
 
 ---

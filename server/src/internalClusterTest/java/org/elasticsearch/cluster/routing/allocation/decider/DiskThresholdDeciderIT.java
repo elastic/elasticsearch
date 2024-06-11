@@ -8,6 +8,7 @@
 
 package org.elasticsearch.cluster.routing.allocation.decider;
 
+import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteUtils;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
@@ -314,7 +315,7 @@ public class DiskThresholdDeciderIT extends DiskUsageIntegTestCase {
             .values()
             .stream()
             .allMatch(e -> e.freeBytes() > WATERMARK_BYTES)) {
-            assertAcked(clusterAdmin().prepareReroute());
+            ClusterRerouteUtils.reroute(client());
         }
 
         assertFalse(

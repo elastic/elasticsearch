@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.esql.core.CsvSpecReader;
 import org.elasticsearch.xpack.esql.core.CsvSpecReader.CsvTestCase;
 import org.elasticsearch.xpack.esql.core.SpecReader;
 import org.elasticsearch.xpack.esql.qa.rest.EsqlSpecTestCase;
+import org.hamcrest.Matchers;
 import org.junit.AfterClass;
 import org.junit.ClassRule;
 import org.junit.rules.RuleChain;
@@ -194,7 +195,6 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
         String query = testCase.query;
         String[] commands = query.split("\\|");
         String first = commands[0].trim();
-
         if (commands[0].toLowerCase(Locale.ROOT).startsWith("from")) {
             String[] parts = commands[0].split("(?i)metadata");
             assert parts.length >= 1 : parts;
@@ -208,30 +208,12 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
             testCase.query = newFrom + query.substring(first.length());
         }
         if (commands[0].toLowerCase(Locale.ROOT).startsWith("metrics")) {
-            String command = commands[0];
-            int startIndex = "metrics".length();
-            while (startIndex < command.length() && Character.isWhitespace(command.charAt(startIndex))) {
-                startIndex++;
-            }
-            boolean toExit = false;
-            int endIndex = startIndex + 1;
-            while (endIndex < command.length()) {
-                char c = command.charAt(endIndex);
-                if (c == ',') {
-                    toExit = false;
-                } else if (Character.isWhitespace(c)) {
-                    toExit = true;
-                } else if (toExit) {
-                    break;
-                }
-                endIndex++;
-            }
-            String[] localIndices = command.substring(startIndex, endIndex).split(",");
-            String remoteIndices = Arrays.stream(localIndices)
-                .map(index -> "*:" + index.trim() + "," + index.trim())
-                .collect(Collectors.joining(","));
-            String newMetrics = "METRICS " + remoteIndices + " " + command.substring(endIndex);
-            testCase.query = newMetrics + query.substring(first.length());
+            String[] parts = commands[0].split("\\s+");
+            assert parts.length >= 2 : commands[0];
+            String[] indices = parts[1].split(",");
+            parts[1] = Arrays.stream(indices).map(index -> "*:" + index + "," + index).collect(Collectors.joining(","));
+            String newNewMetrics = String.join(" ", parts);
+            testCase.query = newNewMetrics + query.substring(first.length());
         }
         int offset = testCase.query.length() - query.length();
         if (offset != 0) {

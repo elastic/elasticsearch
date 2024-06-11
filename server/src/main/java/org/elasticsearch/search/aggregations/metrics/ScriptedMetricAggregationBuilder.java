@@ -27,6 +27,7 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.ToLongFunction;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
@@ -265,6 +266,11 @@ public class ScriptedMetricAggregationBuilder extends AbstractAggregationBuilder
     @Override
     public TransportVersion getMinimalSupportedVersion() {
         return TransportVersions.ZERO;
+    }
+
+    @Override
+    public boolean supportsParallelCollection(ToLongFunction<String> fieldCardinalityResolver) {
+        return false;
     }
 
     @Override

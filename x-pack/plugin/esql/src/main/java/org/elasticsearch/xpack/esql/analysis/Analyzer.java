@@ -335,6 +335,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         @Override
         protected LogicalPlan rule(Lookup lookup, AnalyzerContext context) {
             if (lookup.localRelation() != null) {
+                // we've already looked up the result
                 return lookup;
             }
             // the parser passes the string wrapped in a literal

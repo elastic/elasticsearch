@@ -747,6 +747,11 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
     }
 
     @Override
+    public Expression visitSearchParenthesizedExpression(EsqlBaseParser.SearchParenthesizedExpressionContext ctx) {
+        return expression(ctx.searchRankExpression());
+    }
+
+    @Override
     public Not visitSearchLogicalNot(EsqlBaseParser.SearchLogicalNotContext ctx) {
         return new Not(source(ctx), expression(ctx.searchRankExpression()));
     }

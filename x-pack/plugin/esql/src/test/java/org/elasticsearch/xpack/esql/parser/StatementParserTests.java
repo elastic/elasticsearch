@@ -1245,6 +1245,30 @@ public class StatementParserTests extends ESTestCase {
                 or(matchQueryPredicate("country", "mexico"), matchQueryPredicate("country", "spain"))
             )
         );
+
+        assertStatement(
+            """
+                SEARCH index [
+                  | RANK MATCH(pet, "dog") AND (MATCH(color, "brown") OR MATCH(color, "red")) ]
+                """,
+            new Rank(
+                EMPTY,
+                esqlUnresolvedRelation("index", List.of(), IndexMode.STANDARD),
+                and(matchQueryPredicate("pet", "dog"), or(matchQueryPredicate("color", "brown"), matchQueryPredicate("color", "red")))
+            )
+        );
+
+        assertStatement(
+            """
+                SEARCH index [
+                  | RANK (MATCH(color, "brown") OR MATCH(color, "red")) AND MATCH(pet, "dog") ]
+                """,
+            new Rank(
+                EMPTY,
+                esqlUnresolvedRelation("index", List.of(), IndexMode.STANDARD),
+                and(or(matchQueryPredicate("color", "brown"), matchQueryPredicate("color", "red")), matchQueryPredicate("pet", "dog"))
+            )
+        );
     }
 
     public void testSearchExamples() {

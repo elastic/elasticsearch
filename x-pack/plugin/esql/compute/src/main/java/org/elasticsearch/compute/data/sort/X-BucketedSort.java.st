@@ -17,11 +17,10 @@ package org.elasticsearch.compute.data.sort;
 
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BitArray;
-import org.elasticsearch.common.util.LongArray;
+import org.elasticsearch.common.util.$Type$Array;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.IntVector;
-import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.Tuple;
@@ -31,9 +30,11 @@ import org.elasticsearch.search.sort.SortOrder;
 import java.util.Arrays;
 
 /**
- * TODO: Describe class, or redirect to {@link BucketedSort}.
+ * Aggregates the top N $type$ values per bucket.
+ * See {@link BucketedSort} for more information.
+ * This class is generated. Edit @{code X-BucketedSort.java.st} instead of this file.
  */
-public class LongBucketedSort implements Releasable {
+public class $Type$BucketedSort implements Releasable {
 
     private final BigArrays bigArrays;
     private final SortOrder order;
@@ -43,9 +44,9 @@ public class LongBucketedSort implements Releasable {
      * it is still gathering.
      */
     private final BitArray heapMode;
-    private LongArray values;
+    private $Type$Array values;
 
-    public LongBucketedSort(BigArrays bigArrays, SortOrder order, int bucketSize) {
+    public $Type$BucketedSort(BigArrays bigArrays, SortOrder order, int bucketSize) {
         this.bigArrays = bigArrays;
         this.order = order;
         this.bucketSize = bucketSize;
@@ -53,7 +54,7 @@ public class LongBucketedSort implements Releasable {
 
         boolean success = false;
         try {
-            values = bigArrays.newLongArray(0, false);
+            values = bigArrays.new$Type$Array(0, false);
             success = true;
         } finally {
             if (success == false) {
@@ -65,7 +66,7 @@ public class LongBucketedSort implements Releasable {
     /**
      * The order of the sort.
      */
-    public final SortOrder getOrder() {
+    public SortOrder getOrder() {
         return order;
     }
 
@@ -94,7 +95,7 @@ public class LongBucketedSort implements Releasable {
     /**
      * Merge the values from {@code other}'s {@code otherGroupId} into {@code groupId}.
      */
-    public void merge(int groupId, LongBucketedSort other, int otherGroupId) {
+    public void merge(int groupId, $Type$BucketedSort other, int otherGroupId) {
         var otherBounds = other.getBucketValuesBounds(otherGroupId);
 
         // TODO: This can be improved for heapified buckets by making use of the heap structures
@@ -108,9 +109,9 @@ public class LongBucketedSort implements Releasable {
      */
     public Block toBlock(BlockFactory blockFactory, IntVector selected) {
         // Used to sort the values in the bucket.
-        long[] bucketValues = new long[bucketSize];
+        var bucketValues = new $type$[bucketSize];
 
-        try (LongBlock.Builder builder = blockFactory.newLongBlockBuilder(selected.getPositionCount())) {
+        try (var builder = blockFactory.new$Type$BlockBuilder(selected.getPositionCount())) {
             for (int s = 0; s < selected.getPositionCount(); s++) {
                 int bucket = selected.getInt(s);
 
@@ -123,7 +124,7 @@ public class LongBucketedSort implements Releasable {
                 }
 
                 if (size == 1) {
-                    builder.appendLong(values.get(bounds.v1()));
+                    builder.append$Type$(values.get(bounds.v1()));
                     continue;
                 }
 
@@ -136,11 +137,11 @@ public class LongBucketedSort implements Releasable {
                 builder.beginPositionEntry();
                 if (order == SortOrder.ASC) {
                     for (int i = 0; i < size; i++) {
-                        builder.appendLong(bucketValues[i]);
+                        builder.append$Type$(bucketValues[i]);
                     }
                 } else {
                     for (int i = (int) size - 1; i >= 0; i--) {
-                        builder.appendLong(bucketValues[i]);
+                        builder.append$Type$(bucketValues[i]);
                     }
                 }
                 builder.endPositionEntry();
@@ -152,7 +153,7 @@ public class LongBucketedSort implements Releasable {
     /**
      * Is this bucket a min heap {@code true} or in gathering mode {@code false}?
      */
-    public boolean inHeapMode(long bucket) {
+    private boolean inHeapMode(long bucket) {
         return heapMode.get(bucket);
     }
 
@@ -161,7 +162,11 @@ public class LongBucketedSort implements Releasable {
      * at {@code rootIndex}.
      */
     private int getNextGatherOffset(long rootIndex) {
+$if(int)$
+        return values.get(rootIndex);
+$else$
         return (int) values.get(rootIndex);
+$endif$
     }
 
     /**
@@ -177,15 +182,15 @@ public class LongBucketedSort implements Releasable {
      * the entry at {@code rhs}. "Better" in this means "lower" for
      * {@link SortOrder#ASC} and "higher" for {@link SortOrder#DESC}.
      */
-    private boolean betterThan(long lhs, long rhs) {
-        return getOrder().reverseMul() * Long.compare(lhs, rhs) < 0;
+    private boolean betterThan($type$ lhs, $type$ rhs) {
+        return getOrder().reverseMul() * $Wrapper$.compare(lhs, rhs) < 0;
     }
 
     /**
      * Swap the data at two indices.
      */
     private void swap(long lhs, long rhs) {
-        long tmp = values.get(lhs);
+        var tmp = values.get(lhs);
         values.set(lhs, values.get(rhs));
         values.set(rhs, tmp);
     }
@@ -285,7 +290,7 @@ public class LongBucketedSort implements Releasable {
      *     It may or may not be inserted in the heap, depending on if it is better than the current root.
      * </p>
      */
-    public void collect(long value, long bucket) {
+    public void collect($type$ value, long bucket) {
         long rootIndex = bucket * bucketSize;
         if (inHeapMode(bucket)) {
             if (betterThan(value, values.get(rootIndex))) {

@@ -1500,8 +1500,28 @@ public class SnapshotResiliencyTests extends ESTestCase {
                             l.onResponse(null);
                         }
                     })
+            )
+            // attempt to clone snapshot
+            .<AcknowledgedResponse>andThen(
+                (l, ignored) -> client().admin()
+                    .cluster()
+                    .prepareCloneSnapshot(repoName, snapshotName, snapshotName)
+                    .setIndices("*")
+                    .execute(new ActionListener<>() {
+                        @Override
+                        public void onResponse(AcknowledgedResponse acknowledgedResponse) {
+                            fail("snapshot should not have started");
+                        }
+
+                        @Override
+                        public void onFailure(Exception e) {
+                            assertThat(ExceptionsHelper.unwrapCause(e), instanceOf(SnapshotNameAlreadyInUseException.class));
+                            l.onResponse(null);
+                        }
+                    })
             );
 
+        final var expectedMessage = Strings.format("Invalid snapshot name [%s], snapshot with the same name already exists", snapshotName);
         MockLog.assertThatLogger(() -> {
             deterministicTaskQueue.runAllRunnableTasks();
             assertTrue("executed all runnable tasks but test steps are still incomplete", testListener.isDone());
@@ -1512,7 +1532,13 @@ public class SnapshotResiliencyTests extends ESTestCase {
                 "INFO log",
                 SnapshotsService.class.getCanonicalName(),
                 Level.INFO,
-                Strings.format("*failed to create snapshot*Invalid snapshot name [%s]*", snapshotName)
+                Strings.format("*failed to create snapshot*%s", expectedMessage)
+            ),
+            new MockLog.SeenEventExpectation(
+                "INFO log",
+                SnapshotsService.class.getCanonicalName(),
+                Level.INFO,
+                Strings.format("*failed to clone snapshot*%s", expectedMessage)
             )
         );
     }

@@ -68,7 +68,7 @@ public final class FieldNameTranslators {
         )
     );
 
-    final List<FieldNameTranslator> fieldNameTranslators;
+    private final List<FieldNameTranslator> fieldNameTranslators;
 
     private FieldNameTranslators(List<FieldNameTranslator> fieldNameTranslators) {
         this.fieldNameTranslators = fieldNameTranslators;
@@ -313,6 +313,10 @@ public final class FieldNameTranslators {
         // For eg, the SimpleQueryString query type is lenient in the sense that it ignores unknown fields and field name patterns,
         // so this preprocessing can ignore them too.
         return indexFieldNames;
+    }
+
+    public boolean isFieldAllowed(String fieldName) {
+        return fieldNameTranslators.stream().anyMatch(t -> t.supports(fieldName));
     }
 
     private abstract static class FieldNameTranslator {

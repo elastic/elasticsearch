@@ -37,8 +37,8 @@ import org.elasticsearch.search.rank.context.QueryPhaseRankCoordinatorContext;
 import org.elasticsearch.search.rank.context.QueryPhaseRankShardContext;
 import org.elasticsearch.search.rank.context.RankFeaturePhaseRankCoordinatorContext;
 import org.elasticsearch.search.rank.context.RankFeaturePhaseRankShardContext;
+import org.elasticsearch.search.rank.feature.RankFeatureDoc;
 import org.elasticsearch.search.rank.rerank.AbstractRerankerIT;
-import org.elasticsearch.search.rank.rerank.ActionRequestRankFeaturePhaseRankCoordinatorContext;
 import org.elasticsearch.search.rank.rerank.RerankingQueryPhaseRankCoordinatorContext;
 import org.elasticsearch.search.rank.rerank.RerankingQueryPhaseRankShardContext;
 import org.elasticsearch.search.rank.rerank.RerankingRankFeaturePhaseRankShardContext;
@@ -51,6 +51,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
@@ -224,9 +225,11 @@ public class MockedRequestActionBasedRerankerIT extends AbstractRerankerIT {
         }
     }
 
-    public static class TestRerankingRankFeaturePhaseRankCoordinatorContext extends ActionRequestRankFeaturePhaseRankCoordinatorContext<
-        TestRerankingActionRequest,
-        TestRerankingActionResponse> {
+    public static class TestRerankingRankFeaturePhaseRankCoordinatorContext extends RankFeaturePhaseRankCoordinatorContext {
+
+        private final String inferenceId;
+        private final String inferenceText;
+        private final Client client;
 
         TestRerankingRankFeaturePhaseRankCoordinatorContext(
             int size,
@@ -236,26 +239,47 @@ public class MockedRequestActionBasedRerankerIT extends AbstractRerankerIT {
             String inferenceId,
             String inferenceText
         ) {
-            super(size, from, windowSize, client, inferenceId, inferenceText);
+            super(size, from, windowSize);
+            this.client = client;
+            this.inferenceId = inferenceId;
+            this.inferenceText = inferenceText;
         }
 
-        @Override
         protected TestRerankingActionRequest generateRequest(List<String> docFeatures) {
             return new TestRerankingActionRequest(docFeatures);
         }
 
-        @Override
         protected ActionType<TestRerankingActionResponse> actionType() {
             return TEST_RERANKING_ACTION_TYPE;
         }
 
-        @Override
         protected float[] extractScoresFromResponse(TestRerankingActionResponse response) {
             float[] scores = new float[response.scores.size()];
             for (int i = 0; i < response.scores.size(); i++) {
                 scores[i] = response.scores.get(i);
             }
             return scores;
+        }
+
+        protected void computeScores(RankFeatureDoc[] featureDocs, ActionListener<float[]> scoreListener) {
+            // Wrap the provided rankListener to an ActionListener that would handle the response from the inference service
+            // and then pass the results
+            final ActionListener<TestRerankingActionResponse> actionListener = scoreListener.delegateFailureAndWrap((l, r) -> {
+                float[] scores = extractScoresFromResponse(r);
+                assert scores.length == featureDocs.length;
+                l.onResponse(scores);
+            });
+
+            List<String> featureData = Arrays.stream(featureDocs).map(x -> x.featureData).toList();
+            TestRerankingActionRequest request = generateRequest(featureData);
+            try {
+                ActionType<TestRerankingActionResponse> action = actionType();
+                client.execute(action, request, actionListener);
+            } finally {
+                if (request != null) {
+                    request.decRef();
+                }
+            }
         }
     }
 

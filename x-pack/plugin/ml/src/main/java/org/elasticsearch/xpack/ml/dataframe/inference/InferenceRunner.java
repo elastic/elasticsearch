@@ -17,6 +17,7 @@ import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.common.settings.Settings;
@@ -28,9 +29,11 @@ import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.metrics.Max;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.dataframe.DestinationIndex;
 import org.elasticsearch.xpack.ml.dataframe.stats.DataCountsTracker;
 import org.elasticsearch.xpack.ml.dataframe.stats.ProgressTracker;
@@ -47,6 +50,7 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.Executor;
 import java.util.function.Function;
 
 import static org.elasticsearch.core.Strings.format;
@@ -67,6 +71,7 @@ public class InferenceRunner {
     private final ProgressTracker progressTracker;
     private final DataCountsTracker dataCountsTracker;
     private final Function<Long, TestDocsIterator> testDocsIteratorFactory;
+    private final Executor executor;
     private volatile boolean isCancelled;
 
     InferenceRunner(
@@ -79,7 +84,8 @@ public class InferenceRunner {
         ExtractedFields extractedFields,
         ProgressTracker progressTracker,
         DataCountsTracker dataCountsTracker,
-        Function<Long, TestDocsIterator> testDocsIteratorFactory
+        Function<Long, TestDocsIterator> testDocsIteratorFactory,
+        Executor executor
     ) {
         this.settings = Objects.requireNonNull(settings);
         this.client = Objects.requireNonNull(client);
@@ -91,6 +97,7 @@ public class InferenceRunner {
         this.progressTracker = Objects.requireNonNull(progressTracker);
         this.dataCountsTracker = Objects.requireNonNull(dataCountsTracker);
         this.testDocsIteratorFactory = Objects.requireNonNull(testDocsIteratorFactory);
+        this.executor = executor;
     }
 
     public void cancel() {
@@ -104,20 +111,19 @@ public class InferenceRunner {
         }
 
         LOGGER.info("[{}] Started inference on test data against model [{}]", config.getId(), modelId);
-        var handler = listener.delegateResponse((delegate, e) -> delegate.onFailure(handleException(modelId, e)));
-        try {
+        SubscribableListener.<LocalModel>newForked(l -> modelLoadingService.getModelForInternalInference(modelId, l))
+            .andThen(executor, null, this::handleLocalModel)
+            .addListener(listener.delegateResponse((delegate, e) -> delegate.onFailure(handleException(modelId, e))));
+    }
+
+    private void handleLocalModel(ActionListener<Void> listener, LocalModel localModel) {
+        try (localModel) {
             InferenceState inferenceState = restoreInferenceState();
             dataCountsTracker.setTestDocsCount(inferenceState.processedTestDocsCount);
             var testDocsIterator = testDocsIteratorFactory.apply(inferenceState.lastIncrementalId);
-            modelLoadingService.getModelForInternalInference(modelId, handler.map(localModel -> {
-                try (localModel) {
-                    LOGGER.debug("Loaded inference model [{}]", localModel);
-                    inferTestDocs(localModel, testDocsIterator, inferenceState.processedTestDocsCount);
-                    return null; // void
-                }
-            }));
-        } catch (Exception e) {
-            handler.onFailure(e);
+            LOGGER.debug("Loaded inference model [{}]", localModel);
+            inferTestDocs(localModel, testDocsIterator, inferenceState.processedTestDocsCount);
+            listener.onResponse(null); // void
         }
     }
 
@@ -183,6 +189,11 @@ public class InferenceRunner {
     }
 
     private void inferTestDocs(LocalModel model, TestDocsIterator testDocsIterator, long processedTestDocsCount) {
+        assert ThreadPool.assertCurrentThreadPool(MachineLearning.UTILITY_THREAD_POOL_NAME)
+            : format(
+                "inferTestDocs must execute from [MachineLearning.UTILITY_THREAD_POOL_NAME] but thread is [%s]",
+                Thread.currentThread().getName()
+            );
         long totalDocCount = 0;
         long processedDocCount = processedTestDocsCount;
 
@@ -259,7 +270,8 @@ public class InferenceRunner {
         DataFrameAnalyticsConfig config,
         ExtractedFields extractedFields,
         ProgressTracker progressTracker,
-        DataCountsTracker dataCountsTracker
+        DataCountsTracker dataCountsTracker,
+        ThreadPool threadPool
     ) {
         return new InferenceRunner(
             settings,
@@ -276,7 +288,8 @@ public class InferenceRunner {
                 config,
                 extractedFields,
                 lastIncrementalId
-            )
+            ),
+            threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME)
         );
     }
 

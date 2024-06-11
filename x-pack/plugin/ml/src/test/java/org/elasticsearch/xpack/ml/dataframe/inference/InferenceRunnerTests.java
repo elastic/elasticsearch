@@ -20,6 +20,7 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.search.DocValueFormat;
@@ -197,7 +198,8 @@ public class InferenceRunnerTests extends ESTestCase {
             extractedFields,
             progressTracker,
             new DataCountsTracker(new DataCounts(config.getId())),
-            id -> testDocsIterator
+            id -> testDocsIterator,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
     }
 

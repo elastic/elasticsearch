@@ -97,7 +97,6 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
         super.shouldSkipTest(testName);
         checkCapabilities(remoteClusterClient(), remoteFeaturesService(), testName, testCase);
         assumeFalse("can't test with _index metadata", hasIndexMetadata(testCase.query));
-        assumeTrue("can't test with metrics across cluster", hasMetricsCommand(testCase.query));
         assumeTrue("Test " + testName + " is skipped on " + Clusters.oldVersion(), isEnabled(testName, Clusters.oldVersion()));
     }
 
@@ -207,6 +206,32 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
                 .collect(Collectors.joining(","));
             var newFrom = "FROM " + remoteIndices + " " + commands[0].substring(fromStatement.length());
             testCase.query = newFrom + query.substring(first.length());
+        }
+        if (commands[0].toLowerCase(Locale.ROOT).startsWith("metrics")) {
+            String command = commands[0];
+            int startIndex = "metrics".length();
+            while (startIndex < command.length() && Character.isWhitespace(command.charAt(startIndex))) {
+                startIndex++;
+            }
+            boolean toExit = false;
+            int endIndex = startIndex + 1;
+            while (endIndex < command.length()) {
+                char c = command.charAt(endIndex);
+                if (c == ',') {
+                    toExit = false;
+                } else if (Character.isWhitespace(c)) {
+                    toExit = true;
+                } else if (toExit) {
+                    break;
+                }
+                endIndex++;
+            }
+            String[] localIndices = command.substring(startIndex, endIndex).split(",");
+            String remoteIndices = Arrays.stream(localIndices)
+                .map(index -> "*:" + index.trim() + "," + index.trim())
+                .collect(Collectors.joining(","));
+            String newMetrics = "METRICS " + remoteIndices + " " + command.substring(endIndex);
+            testCase.query = newMetrics + query.substring(first.length());
         }
         int offset = testCase.query.length() - query.length();
         if (offset != 0) {

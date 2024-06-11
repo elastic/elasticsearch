@@ -21,6 +21,7 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
@@ -152,6 +153,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
      * TODO: Remove in 9.0
      */
     @Deprecated
+    @UpdateForV9
     public static final Setting<Boolean> INDEX_MAPPER_DYNAMIC_SETTING = Setting.boolSetting(
         "index.mapper.dynamic",
         true,

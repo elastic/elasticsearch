@@ -81,7 +81,7 @@ public class LongBucketedSort implements Releasable {
      * Returns [0, 0] if the bucket has never been collected.
      */
     private Tuple<Long, Long> getBucketValuesBounds(long bucket) {
-        long rootIndex = bucket * bucketSize + 1;
+        long rootIndex = bucket * bucketSize;
         if (rootIndex >= values.size()) {
             // We've never seen this bucket.
             return Tuple.tuple(0L, 0L);
@@ -198,8 +198,7 @@ public class LongBucketedSort implements Releasable {
         long oldMax = values.size();
         values = bigArrays.grow(values, minSize);
         // Set the next gather offsets for all newly allocated buckets.
-        // Subtracting 1 from oldMax to ignore the first element, which is the temporal value.
-        setNextGatherOffsets(oldMax - ((oldMax - 1) % getBucketSize()));
+        setNextGatherOffsets(oldMax - (oldMax % getBucketSize()));
     }
 
     /**
@@ -287,10 +286,9 @@ public class LongBucketedSort implements Releasable {
      * </p>
      */
     public void collect(long value, long bucket) {
-        long rootIndex = bucket * bucketSize + 1;
+        long rootIndex = bucket * bucketSize;
         if (inHeapMode(bucket)) {
             if (betterThan(value, values.get(rootIndex))) {
-                // Insert the temporary value into the heap
                 values.set(rootIndex, value);
                 downHeap(rootIndex, 0);
             }

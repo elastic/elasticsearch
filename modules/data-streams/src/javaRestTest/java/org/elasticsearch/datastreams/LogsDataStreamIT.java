@@ -377,12 +377,21 @@ public class LogsDataStreamIT extends ESRestTestCase {
             assertThat(((List<String>) fields.get("message")).get(0), is("json"));
 
             // successful access to subfields verifies that dot expansion is part of the pipeline
-            assertThat(source.get("log.level"), is("INFO"));
-            assertThat(source.get("ecs.version"), is("1.6.0"));
-            assertThat(source.get("service.name"), is("my-app"));
-            assertThat(source.get("event.dataset"), is("my-app.RollingFile"));
-            assertThat(source.get("process.thread.name"), is("main"));
-            assertThat(source.get("log.logger"), is("root.pkg.MyApp"));
+            // NOTE: dotted field names are expanded to the corresponding objects when synthetic source
+            // is used, as it is the case for logs. This will be fixed by having `subobjects: false` by
+            // defaut. See https://github.com/elastic/elasticsearch/issues/106812
+            final Map<String, Object> log = (Map<String, Object>) source.get("log");
+            assertThat(log.get("level"), is("INFO"));
+            final Map<String, Object> ecs = (Map<String, Object>) source.get("ecs");
+            assertThat(ecs.get("version"), is("1.6.0"));
+            final Map<String, Object> service = (Map<String, Object>) source.get("service");
+            assertThat(service.get("name"), is("my-app"));
+            final Map<String, Object> event = (Map<String, Object>) source.get("event");
+            assertThat(event.get("dataset"), is("my-app.RollingFile"));
+            final Map<String, Object> process = (Map<String, Object>) source.get("process");
+            final Map<String, Object> thread = (Map<String, Object>) process.get("thread");
+            assertThat(thread.get("name"), is("main"));
+            assertThat(log.get("logger"), is("root.pkg.MyApp"));
             // _tmp_json_message should be removed by the pipeline
             assertThat(source.get("_tmp_json_message"), is(nullValue()));
         }
@@ -411,7 +420,7 @@ public class LogsDataStreamIT extends ESRestTestCase {
             Map<String, Object> source = ((Map<String, Map<String, Object>>) results.get(0)).get("_source");
 
             // root field parsed from JSON should win
-            assertThat(source.get("@timestamp"), is("2023-05-10"));
+            assertThat(source.get("@timestamp"), is("2023-05-10T00:00:00.000Z"));
             assertThat(source.get("message"), is("{\"@timestamp\":\"2023-05-09T16:48:34.135Z\", \"message\":\"malformed_json\"}}"));
             assertThat(source.get("_tmp_json_message"), is(nullValue()));
         }
@@ -440,7 +449,7 @@ public class LogsDataStreamIT extends ESRestTestCase {
             Map<String, Object> source = ((Map<String, Map<String, Object>>) results.get(0)).get("_source");
             Map<String, Object> fields = ((Map<String, Map<String, Object>>) results.get(0)).get("fields");
 
-            assertThat(source.get("message"), is(42));
+            assertThat(source.get("message"), is("42"));
             assertThat(((List<String>) fields.get("message")).get(0), is("42"));
         }
     }

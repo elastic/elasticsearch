@@ -9,6 +9,7 @@
 package org.elasticsearch.rest.action.admin.cluster;
 
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteRequest;
+import org.elasticsearch.action.admin.cluster.reroute.TransportClusterRerouteAction;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.allocation.command.AllocationCommands;
@@ -86,7 +87,11 @@ public class RestClusterRerouteAction extends BaseRestHandler {
         if (metric == null) {
             request.params().put("metric", DEFAULT_METRICS);
         }
-        return channel -> client.admin().cluster().reroute(clusterRerouteRequest, new RestRefCountedChunkedToXContentListener<>(channel));
+        return channel -> client.execute(
+            TransportClusterRerouteAction.TYPE,
+            clusterRerouteRequest,
+            new RestRefCountedChunkedToXContentListener<>(channel)
+        );
     }
 
     @Override

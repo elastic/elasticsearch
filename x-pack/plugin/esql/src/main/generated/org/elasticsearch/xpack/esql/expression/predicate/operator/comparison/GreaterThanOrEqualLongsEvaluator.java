@@ -89,9 +89,9 @@ public final class GreaterThanOrEqualLongsEvaluator implements EvalOperator.Expr
   }
 
   public BooleanVector eval(int positionCount, LongVector lhsVector, LongVector rhsVector) {
-    try(BooleanVector.Builder result = driverContext.blockFactory().newBooleanVectorBuilder(positionCount)) {
+    try(BooleanVector.FixedBuilder result = driverContext.blockFactory().newBooleanVectorFixedBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendBoolean(GreaterThanOrEqual.processLongs(lhsVector.getLong(p), rhsVector.getLong(p)));
+        result.appendBoolean(p, GreaterThanOrEqual.processLongs(lhsVector.getLong(p), rhsVector.getLong(p)));
       }
       return result.build();
     }

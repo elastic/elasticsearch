@@ -15,7 +15,7 @@ This getting started is also available as an https://github.com/elastic/elastics
 [[esql-getting-started-prerequisites]]
 === Prerequisites
 
-To follow along with the queries in this guide, you'll need an {es} deployment on version {version}.
+To follow along with the queries in this guide, you'll need an {es} deployment with our sample data.
 
 include::{es-ref-dir}/tab-widgets/esql/esql-getting-started-sample-data.asciidoc[tag=own-deployment]
 

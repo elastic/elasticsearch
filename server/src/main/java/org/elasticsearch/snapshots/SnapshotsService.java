@@ -2193,8 +2193,6 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
 
             @Override
             public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
-                listener.onResponse(newDelete);
-
                 logger.info(
                     () -> format("deleting snapshots [%s] from repository [%s]", arrayToCommaDelimitedString(snapshotNames), repositoryName)
                 );
@@ -2209,6 +2207,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                         Runnable::run
                     );
                 }
+                listener.onResponse(newDelete);
 
                 if (newDelete != null) {
                     if (reusedExistingDelete) {

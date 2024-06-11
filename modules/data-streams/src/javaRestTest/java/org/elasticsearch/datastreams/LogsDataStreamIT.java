@@ -221,6 +221,7 @@ public class LogsDataStreamIT extends ESRestTestCase {
     }
 
     @SuppressWarnings("unchecked")
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/106483")
     public void testLogsDefaultPipeline() throws Exception {
         {
             Request request = new Request("POST", "/_component_template/logs@custom");

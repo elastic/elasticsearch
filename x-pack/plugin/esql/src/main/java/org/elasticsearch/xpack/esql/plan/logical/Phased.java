@@ -14,6 +14,9 @@ import org.elasticsearch.xpack.esql.core.util.Holder;
 
 import java.util.List;
 
+/**
+ * NOCOMMIT javadocs
+ */
 public interface Phased {
     LogicalPlan firstPhase();
     LogicalPlan nextPhase(List<Attribute> layout, List<Page> firstPhaseResult);

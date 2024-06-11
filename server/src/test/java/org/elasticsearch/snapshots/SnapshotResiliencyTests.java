@@ -2051,6 +2051,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                 threadPool = deterministicTaskQueue.getThreadPool(runnable -> DeterministicTaskQueue.onNodeLog(node, runnable));
                 masterService = new FakeThreadPoolMasterService(node.getName(), threadPool, deterministicTaskQueue::scheduleNow);
                 final Settings settings = environment.settings();
+                client = new NodeClient(settings, threadPool);
                 final ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
                 clusterService = new ClusterService(
                     settings,
@@ -2142,13 +2143,13 @@ public class SnapshotResiliencyTests extends ESTestCase {
                 repositoriesService = new RepositoriesService(
                     settings,
                     clusterService,
-                    transportService,
                     Collections.singletonMap(
                         FsRepository.TYPE,
                         metadata -> new FsRepository(metadata, environment, xContentRegistry(), clusterService, bigArrays, recoverySettings)
                     ),
                     emptyMap(),
                     threadPool,
+                    client,
                     List.of()
                 );
                 final ActionFilters actionFilters = new ActionFilters(emptySet());
@@ -2165,7 +2166,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                 nodeEnv = new NodeEnvironment(settings, environment);
                 final NamedXContentRegistry namedXContentRegistry = new NamedXContentRegistry(Collections.emptyList());
                 final ScriptService scriptService = new ScriptService(settings, emptyMap(), emptyMap(), () -> 1L);
-                client = new NodeClient(settings, threadPool);
+
                 final SetOnce<RerouteService> rerouteServiceSetOnce = new SetOnce<>();
                 final SnapshotsInfoService snapshotsInfoService = new InternalSnapshotsInfoService(
                     settings,

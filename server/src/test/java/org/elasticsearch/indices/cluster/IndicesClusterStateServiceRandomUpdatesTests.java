@@ -528,16 +528,16 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
             Collections.emptySet()
         );
         final ClusterService clusterService = mock(ClusterService.class);
+        final NodeClient client = mock(NodeClient.class);
         final RepositoriesService repositoriesService = new RepositoriesService(
             settings,
             clusterService,
-            transportService,
             Collections.emptyMap(),
             Collections.emptyMap(),
             threadPool,
+            client,
             List.of()
         );
-        final NodeClient client = mock(NodeClient.class);
         final PeerRecoveryTargetService recoveryTargetService = new PeerRecoveryTargetService(
             client,
             threadPool,

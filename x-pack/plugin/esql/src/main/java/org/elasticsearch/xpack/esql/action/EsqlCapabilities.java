@@ -58,6 +58,11 @@ public class EsqlCapabilities {
     private static final String LOOKUP_COMMAND = "lookup_command";
 
     /**
+     * Support for the syntax {@code "tables": {"type": [<values>]}}.
+     */
+    private static final String TABLES_TYPES = "tables_types";
+
+    /**
      * Support for requesting the "REPEAT" command.
      */
     private static final String REPEAT = "repeat";

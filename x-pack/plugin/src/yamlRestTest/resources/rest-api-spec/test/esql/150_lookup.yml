@@ -38,7 +38,7 @@ basic:
         - method: POST
           path: /_query
           parameters: []
-          capabilities: [lookup_command]
+          capabilities: [lookup_command, tables_types]
       reason: "uses LOOKUP"
 
   - do:
@@ -48,8 +48,8 @@ basic:
           columnar: true
           tables:
             colors:
-              "color:keyword":  ["red", "green", "blue"]
-              "rgb:integer": [16711680,   65280,    255]
+              color: { keyword:  ["red", "green", "blue"] }
+              rgb: { integer: [16711680,   65280,    255] }
 
   - match: {columns.0.name: "color"}
   - match: {columns.0.type: "keyword"}
@@ -66,7 +66,7 @@ read multivalue keyword:
         - method: POST
           path: /_query
           parameters: []
-          capabilities: [lookup_command]
+          capabilities: [lookup_command, tables_types]
       reason: "uses LOOKUP"
 
   - do:
@@ -76,11 +76,12 @@ read multivalue keyword:
           columnar: true
           tables:
             color_associations:
-              "color:keyword":  ["red", "green", "blue"]
-              "association:keyword":
-                - ["love", "passion", "blood", "happiness"]
-                - ["nature", "healing", "health", "youth"]
-                - ["serenity", "wisdom", "ocean", "sky"]
+              color: {keyword: ["red", "green", "blue"] }
+              association:
+                keyword:
+                  - ["love", "passion", "blood", "happiness"]
+                  - ["nature", "healing", "health", "youth"]
+                  - ["serenity", "wisdom", "ocean", "sky"]
 
   - match: {columns.0.name: "color"}
   - match: {columns.0.type: "keyword"}
@@ -97,7 +98,7 @@ keyword matches text:
         - method: POST
           path: /_query
           parameters: []
-          capabilities: [lookup_command]
+          capabilities: [lookup_command, tables_types]
       reason: "uses LOOKUP"
 
   - do:
@@ -125,8 +126,8 @@ keyword matches text:
           columnar: true
           tables:
             colors:
-              "color:keyword":  ["red", "green", "blue"]
-              "rgb:integer": [16711680,   65280,    255]
+              color: { keyword:   ["red", "green", "blue"] }
+              rgb: { integer:  [16711680,   65280,    255] }
 
   - match: {columns.0.name: "color"}
   - match: {columns.0.type: "text"}
@@ -136,28 +137,6 @@ keyword matches text:
   - match: {values.1: [16711680]}
 
 ---
-duplicate column names in table:
-  - requires:
-      test_runner_features: [capabilities]
-      capabilities:
-        - method: POST
-          path: /_query
-          parameters: []
-          capabilities: [lookup_command]
-      reason: "uses LOOKUP"
-
-  - do:
-      catch: /duplicate column name \[color\]/
-      esql.query:
-        body:
-          query: 'FROM test | LOOKUP colors ON color | SORT time | KEEP color, rgb | LIMIT 2'
-          columnar: true
-          tables:
-            colors:
-              "color:keyword":    ["red", "green", "blue"]
-              "color:integer": [16711680,   65280,    255]
-
----
 duplicate keys:
   - requires:
       test_runner_features: [capabilities]
@@ -165,7 +144,7 @@ duplicate keys:
         - method: POST
           path: /_query
           parameters: []
-          capabilities: [lookup_command]
+          capabilities: [lookup_command, tables_types]
       reason: "uses LOOKUP"
 
   - do:
@@ -177,8 +156,8 @@ duplicate keys:
           columnar: true
           tables:
             colors:
-              "color:keyword":  ["red",   "red", "blue"]
-              "rgb:integer": [16711680,   65280,    255]
+              color: {keyword:  ["red",   "red", "blue"] }
+              rgb: {integer: [16711680,   65280,    255] }
 
 ---
 multivalued keys:
@@ -188,7 +167,7 @@ multivalued keys:
         - method: POST
           path: /_query
           parameters: []
-          capabilities: [lookup_command]
+          capabilities: [lookup_command, tables_types]
       reason: "uses LOOKUP"
 
   - do:
@@ -200,8 +179,8 @@ multivalued keys:
           columnar: true
           tables:
             colors:
-              "color:keyword":  [["red", "blue"],   "white", "blue"]
-              "rgb:integer":           [16711680,     65280,    255]
+              color: { keyword: [["red", "blue"],   "white", "blue"] }
+              rgb: { integer:          [16711680,     65280,    255] }
 
 ---
 index named lookup still works:
@@ -230,7 +209,7 @@ on function:
         - method: POST
           path: /_query
           parameters: []
-          capabilities: [lookup_command]
+          capabilities: [lookup_command, tables_types]
       reason: "uses LOOKUP"
 
   - do:
@@ -241,5 +220,5 @@ on function:
           columnar: true
           tables:
             colors:
-              "color:keyword":  ["red", "green", "blue"]
-              "rgb:integer": [16711680,   65280,    255]
+              color:  { keyword: ["red", "green", "blue"] }
+              rgb: { integer: [16711680,   65280,    255] }

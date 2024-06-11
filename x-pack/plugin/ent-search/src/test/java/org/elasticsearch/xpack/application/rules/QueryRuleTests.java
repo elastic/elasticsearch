@@ -17,7 +17,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.application.search.SearchApplicationTestUtils;
+import org.elasticsearch.xpack.application.EnterpriseSearchModuleTestUtils;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -28,6 +28,8 @@ import java.util.Map;
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
+import static org.elasticsearch.xpack.application.rules.QueryRule.MAX_PRIORITY;
+import static org.elasticsearch.xpack.application.rules.QueryRule.MIN_PRIORITY;
 import static org.elasticsearch.xpack.application.rules.QueryRuleCriteriaType.EXACT;
 import static org.elasticsearch.xpack.application.rules.QueryRuleCriteriaType.PREFIX;
 import static org.elasticsearch.xpack.application.rules.QueryRuleCriteriaType.SUFFIX;
@@ -46,7 +48,7 @@ public class QueryRuleTests extends ESTestCase {
 
     public final void testRandomSerialization() throws IOException {
         for (int runs = 0; runs < 10; runs++) {
-            QueryRule testInstance = SearchApplicationTestUtils.randomQueryRule();
+            QueryRule testInstance = EnterpriseSearchModuleTestUtils.randomQueryRule();
             assertTransportSerialization(testInstance);
             assertXContent(testInstance, randomBoolean());
         }
@@ -62,7 +64,8 @@ public class QueryRuleTests extends ESTestCase {
               ],
               "actions": {
                 "ids": ["id1", "id2"]
-              }
+              },
+              "priority": 5
             }""");
 
         QueryRule queryRule = QueryRule.fromXContentBytes(new BytesArray(content), XContentType.JSON);
@@ -73,20 +76,6 @@ public class QueryRuleTests extends ESTestCase {
             parsed = QueryRule.fromXContent(parser);
         }
         assertToXContentEquivalent(originalBytes, toXContent(parsed, XContentType.JSON, humanReadable), XContentType.JSON);
-    }
-
-    public void testToXContentMissingQueryRuleId() throws IOException {
-        String content = XContentHelper.stripWhitespace("""
-            {
-              "type": "pinned",
-              "criteria": [
-                { "type": "exact", "metadata": "query_string", "values": ["foo", "bar"] }
-              ],
-              "actions": {
-                  "ids": ["id1", "id2"]
-                }
-            }""");
-        expectThrows(IllegalArgumentException.class, () -> QueryRule.fromXContentBytes(new BytesArray(content), XContentType.JSON));
     }
 
     public void testToXContentEmptyCriteria() throws IOException {
@@ -170,7 +159,8 @@ public class QueryRuleTests extends ESTestCase {
             randomAlphaOfLength(10),
             QueryRule.QueryRuleType.PINNED,
             List.of(new QueryRuleCriteria(EXACT, "query", List.of("elastic"))),
-            Map.of("ids", List.of("id1", "id2"))
+            Map.of("ids", List.of("id1", "id2")),
+            randomBoolean() ? randomIntBetween(MIN_PRIORITY, MAX_PRIORITY) : null
         );
         AppliedQueryRules appliedQueryRules = new AppliedQueryRules();
         rule.applyRule(appliedQueryRules, Map.of("query", "elastic"));
@@ -186,7 +176,8 @@ public class QueryRuleTests extends ESTestCase {
             randomAlphaOfLength(10),
             QueryRule.QueryRuleType.PINNED,
             List.of(new QueryRuleCriteria(PREFIX, "query", List.of("elastic")), new QueryRuleCriteria(SUFFIX, "query", List.of("search"))),
-            Map.of("ids", List.of("id1", "id2"))
+            Map.of("ids", List.of("id1", "id2")),
+            randomBoolean() ? randomIntBetween(MIN_PRIORITY, MAX_PRIORITY) : null
         );
         AppliedQueryRules appliedQueryRules = new AppliedQueryRules();
         rule.applyRule(appliedQueryRules, Map.of("query", "elastic - you know, for search"));

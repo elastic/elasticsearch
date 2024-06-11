@@ -10,12 +10,15 @@ package org.elasticsearch.xpack.apmdata;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.features.FeatureService;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
@@ -39,12 +42,15 @@ import static org.elasticsearch.xpack.apmdata.ResourceUtils.loadVersionedResourc
  */
 public class APMIndexTemplateRegistry extends IndexTemplateRegistry {
     private static final Logger logger = LogManager.getLogger(APMIndexTemplateRegistry.class);
-
+    // this node feature is a redefinition of {@link DataStreamFeatures#DATA_STREAM_LIFECYCLE} and it's meant to avoid adding a
+    // dependency to the data-streams module just for this
+    public static final NodeFeature DATA_STREAM_LIFECYCLE = new NodeFeature("data_stream.lifecycle");
     private final int version;
 
     private final Map<String, ComponentTemplate> componentTemplates;
     private final Map<String, ComposableIndexTemplate> composableIndexTemplates;
     private final List<IngestPipelineConfig> ingestPipelines;
+    private final FeatureService featureService;
     private volatile boolean enabled;
 
     @SuppressWarnings("unchecked")
@@ -53,7 +59,8 @@ public class APMIndexTemplateRegistry extends IndexTemplateRegistry {
         ClusterService clusterService,
         ThreadPool threadPool,
         Client client,
-        NamedXContentRegistry xContentRegistry
+        NamedXContentRegistry xContentRegistry,
+        FeatureService featureService
     ) {
         super(nodeSettings, clusterService, threadPool, client, xContentRegistry);
 
@@ -78,6 +85,7 @@ public class APMIndexTemplateRegistry extends IndexTemplateRegistry {
                 Map.Entry<String, Map<String, Object>> pipelineConfig = map.entrySet().iterator().next();
                 return loadIngestPipeline(pipelineConfig.getKey(), version, (List<String>) pipelineConfig.getValue().get("dependencies"));
             }).collect(Collectors.toList());
+            this.featureService = featureService;
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
@@ -103,6 +111,13 @@ public class APMIndexTemplateRegistry extends IndexTemplateRegistry {
     @Override
     protected String getOrigin() {
         return ClientHelper.APM_ORIGIN;
+    }
+
+    @Override
+    protected boolean isClusterReady(ClusterChangedEvent event) {
+        // Ensure current version of the components are installed only after versions that support data stream lifecycle
+        // due to the use of the feature in all the `@lifecycle` component templates
+        return featureService.clusterHasFeature(event.state(), DATA_STREAM_LIFECYCLE);
     }
 
     @Override

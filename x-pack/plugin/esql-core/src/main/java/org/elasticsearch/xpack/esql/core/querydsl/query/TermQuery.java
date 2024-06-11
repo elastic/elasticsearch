@@ -14,7 +14,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 
-public class TermQuery extends LeafQuery {
+public class TermQuery extends Query {
 
     private final String term;
     private final Object value;

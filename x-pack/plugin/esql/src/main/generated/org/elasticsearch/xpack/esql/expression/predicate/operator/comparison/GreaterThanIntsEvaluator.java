@@ -34,10 +34,10 @@ public final class GreaterThanIntsEvaluator implements EvalOperator.ExpressionEv
 
   public GreaterThanIntsEvaluator(Source source, EvalOperator.ExpressionEvaluator lhs,
       EvalOperator.ExpressionEvaluator rhs, DriverContext driverContext) {
-    this.warnings = new Warnings(source);
     this.lhs = lhs;
     this.rhs = rhs;
     this.driverContext = driverContext;
+    this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
   }
 
   @Override
@@ -89,9 +89,9 @@ public final class GreaterThanIntsEvaluator implements EvalOperator.ExpressionEv
   }
 
   public BooleanVector eval(int positionCount, IntVector lhsVector, IntVector rhsVector) {
-    try(BooleanVector.Builder result = driverContext.blockFactory().newBooleanVectorBuilder(positionCount)) {
+    try(BooleanVector.FixedBuilder result = driverContext.blockFactory().newBooleanVectorFixedBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendBoolean(GreaterThan.processInts(lhsVector.getInt(p), rhsVector.getInt(p)));
+        result.appendBoolean(p, GreaterThan.processInts(lhsVector.getInt(p), rhsVector.getInt(p)));
       }
       return result.build();
     }

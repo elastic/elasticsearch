@@ -32,9 +32,9 @@ public final class CbrtUnsignedLongEvaluator implements EvalOperator.ExpressionE
 
   public CbrtUnsignedLongEvaluator(Source source, EvalOperator.ExpressionEvaluator val,
       DriverContext driverContext) {
-    this.warnings = new Warnings(source);
     this.val = val;
     this.driverContext = driverContext;
+    this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
   }
 
   @Override
@@ -69,9 +69,9 @@ public final class CbrtUnsignedLongEvaluator implements EvalOperator.ExpressionE
   }
 
   public DoubleVector eval(int positionCount, LongVector valVector) {
-    try(DoubleVector.Builder result = driverContext.blockFactory().newDoubleVectorBuilder(positionCount)) {
+    try(DoubleVector.FixedBuilder result = driverContext.blockFactory().newDoubleVectorFixedBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendDouble(Cbrt.processUnsignedLong(valVector.getLong(p)));
+        result.appendDouble(p, Cbrt.processUnsignedLong(valVector.getLong(p)));
       }
       return result.build();
     }

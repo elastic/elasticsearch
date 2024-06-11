@@ -13,7 +13,6 @@ import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.index.IndexResolution;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.type.DataTypes;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.session.EsqlIndexResolver;
 
@@ -25,18 +24,18 @@ import static org.hamcrest.Matchers.equalTo;
 public class EsqlDataTypeRegistryTests extends ESTestCase {
 
     public void testCounter() {
-        resolve("long", TimeSeriesParams.MetricType.COUNTER, EsqlDataTypes.COUNTER_LONG);
-        resolve("integer", TimeSeriesParams.MetricType.COUNTER, EsqlDataTypes.COUNTER_INTEGER);
-        resolve("double", TimeSeriesParams.MetricType.COUNTER, EsqlDataTypes.COUNTER_DOUBLE);
+        resolve("long", TimeSeriesParams.MetricType.COUNTER, DataType.COUNTER_LONG);
+        resolve("integer", TimeSeriesParams.MetricType.COUNTER, DataType.COUNTER_INTEGER);
+        resolve("double", TimeSeriesParams.MetricType.COUNTER, DataType.COUNTER_DOUBLE);
 
     }
 
     public void testGauge() {
-        resolve("long", TimeSeriesParams.MetricType.GAUGE, DataTypes.LONG);
+        resolve("long", TimeSeriesParams.MetricType.GAUGE, DataType.LONG);
     }
 
     public void testLong() {
-        resolve("long", null, DataTypes.LONG);
+        resolve("long", null, DataType.LONG);
     }
 
     private void resolve(String esTypeName, TimeSeriesParams.MetricType metricType, DataType expected) {

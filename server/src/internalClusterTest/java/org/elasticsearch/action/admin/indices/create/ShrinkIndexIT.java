@@ -386,9 +386,9 @@ public class ShrinkIndexIT extends ESIntegTestCase {
             assertTrue(routingTables.index("target").shard(0).shard(0).unassigned());
             assertEquals(
                 UnassignedInfo.Reason.ALLOCATION_FAILED,
-                routingTables.index("target").shard(0).shard(0).unassignedInfo().getReason()
+                routingTables.index("target").shard(0).shard(0).unassignedInfo().reason()
             );
-            assertEquals(1, routingTables.index("target").shard(0).shard(0).unassignedInfo().getNumFailedAllocations());
+            assertEquals(1, routingTables.index("target").shard(0).shard(0).unassignedInfo().failedAllocations());
         });
         // now relocate them all to the right node
         updateIndexSettings(Settings.builder().put("index.routing.allocation.require._name", mergeNode), "source");

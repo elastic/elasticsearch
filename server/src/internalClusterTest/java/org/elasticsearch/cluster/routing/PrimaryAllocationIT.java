@@ -202,7 +202,7 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
                 .shard(0)
                 .primaryShard()
                 .unassignedInfo()
-                .getReason(),
+                .reason(),
             equalTo(UnassignedInfo.Reason.NODE_LEFT)
         );
 
@@ -227,7 +227,7 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
                 .shard(0)
                 .primaryShard()
                 .unassignedInfo()
-                .getReason(),
+                .reason(),
             equalTo(UnassignedInfo.Reason.NODE_LEFT)
         );
     }

@@ -31,7 +31,6 @@ import org.elasticsearch.xpack.esql.core.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.core.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.core.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.type.DataTypes;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.RLike;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.WildcardLike;
@@ -49,6 +48,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Explain;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
+import org.elasticsearch.xpack.esql.plan.logical.Lookup;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
@@ -68,7 +68,7 @@ import static org.elasticsearch.xpack.esql.core.expression.Literal.FALSE;
 import static org.elasticsearch.xpack.esql.core.expression.Literal.TRUE;
 import static org.elasticsearch.xpack.esql.core.expression.function.FunctionResolutionStrategy.DEFAULT;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.KEYWORD;
+import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.util.NumericUtils.asLongUnsigned;
 import static org.elasticsearch.xpack.esql.parser.ExpressionBuilder.breakIntoFragments;
 import static org.hamcrest.Matchers.allOf;
@@ -728,15 +728,15 @@ public class StatementParserTests extends ESTestCase {
             processingCommand("enrich _" + mode.name() + ":countries ON country_code")
         );
 
-        expectError("from a | enrich countries on foo* ", "Using wildcards (*) in ENRICH WITH projections is not allowed [foo*]");
-        expectError("from a | enrich countries on foo with bar*", "Using wildcards (*) in ENRICH WITH projections is not allowed [bar*]");
+        expectError("from a | enrich countries on foo* ", "Using wildcards [*] in ENRICH WITH projections is not allowed [foo*]");
+        expectError("from a | enrich countries on foo with bar*", "Using wildcards [*] in ENRICH WITH projections is not allowed [bar*]");
         expectError(
             "from a | enrich countries on foo with x = bar* ",
-            "Using wildcards (*) in ENRICH WITH projections is not allowed [bar*]"
+            "Using wildcards [*] in ENRICH WITH projections is not allowed [bar*]"
         );
         expectError(
             "from a | enrich countries on foo with x* = bar ",
-            "Using wildcards (*) in ENRICH WITH projections is not allowed [x*]"
+            "Using wildcards [*] in ENRICH WITH projections is not allowed [x*]"
         );
         expectError(
             "from a | enrich typo:countries on foo",
@@ -946,6 +946,16 @@ public class StatementParserTests extends ESTestCase {
         expectError("ROW (1+2)::doesnotexist", "line 1:13: Unknown data type named [doesnotexist]");
     }
 
+    public void testLookup() {
+        var plan = statement("ROW a = 1 | LOOKUP t ON j");
+        var lookup = as(plan, Lookup.class);
+        var tableName = as(lookup.tableName(), Literal.class);
+        assertThat(tableName.fold(), equalTo("t"));
+        assertThat(lookup.matchFields(), hasSize(1));
+        var matchField = as(lookup.matchFields().get(0), UnresolvedAttribute.class);
+        assertThat(matchField.name(), equalTo("j"));
+    }
+
     public void testInlineConvertUnsupportedType() {
         expectError("ROW 3::BYTE", "line 1:6: Unsupported conversion to type [BYTE]");
     }
@@ -1129,39 +1139,39 @@ public class StatementParserTests extends ESTestCase {
     }
 
     private static Literal integer(int i) {
-        return new Literal(EMPTY, i, DataTypes.INTEGER);
+        return new Literal(EMPTY, i, DataType.INTEGER);
     }
 
     private static Literal integers(int... ints) {
-        return new Literal(EMPTY, Arrays.stream(ints).boxed().toList(), DataTypes.INTEGER);
+        return new Literal(EMPTY, Arrays.stream(ints).boxed().toList(), DataType.INTEGER);
     }
 
     private static Literal literalLong(long i) {
-        return new Literal(EMPTY, i, DataTypes.LONG);
+        return new Literal(EMPTY, i, DataType.LONG);
     }
 
     private static Literal literalLongs(long... longs) {
-        return new Literal(EMPTY, Arrays.stream(longs).boxed().toList(), DataTypes.LONG);
+        return new Literal(EMPTY, Arrays.stream(longs).boxed().toList(), DataType.LONG);
     }
 
     private static Literal literalDouble(double d) {
-        return new Literal(EMPTY, d, DataTypes.DOUBLE);
+        return new Literal(EMPTY, d, DataType.DOUBLE);
     }
 
     private static Literal literalDoubles(double... doubles) {
-        return new Literal(EMPTY, Arrays.stream(doubles).boxed().toList(), DataTypes.DOUBLE);
+        return new Literal(EMPTY, Arrays.stream(doubles).boxed().toList(), DataType.DOUBLE);
     }
 
     private static Literal literalUnsignedLong(String ulong) {
-        return new Literal(EMPTY, asLongUnsigned(new BigInteger(ulong)), DataTypes.UNSIGNED_LONG);
+        return new Literal(EMPTY, asLongUnsigned(new BigInteger(ulong)), DataType.UNSIGNED_LONG);
     }
 
     private static Literal literalUnsignedLongs(String... ulongs) {
-        return new Literal(EMPTY, Arrays.stream(ulongs).map(s -> asLongUnsigned(new BigInteger(s))).toList(), DataTypes.UNSIGNED_LONG);
+        return new Literal(EMPTY, Arrays.stream(ulongs).map(s -> asLongUnsigned(new BigInteger(s))).toList(), DataType.UNSIGNED_LONG);
     }
 
     private static Literal literalBoolean(boolean b) {
-        return new Literal(EMPTY, b, DataTypes.BOOLEAN);
+        return new Literal(EMPTY, b, DataType.BOOLEAN);
     }
 
     private static Literal literalBooleans(boolean... booleans) {
@@ -1169,15 +1179,15 @@ public class StatementParserTests extends ESTestCase {
         for (boolean b : booleans) {
             v.add(b);
         }
-        return new Literal(EMPTY, v, DataTypes.BOOLEAN);
+        return new Literal(EMPTY, v, DataType.BOOLEAN);
     }
 
     private static Literal literalString(String s) {
-        return new Literal(EMPTY, s, DataTypes.KEYWORD);
+        return new Literal(EMPTY, s, DataType.KEYWORD);
     }
 
     private static Literal literalStrings(String... strings) {
-        return new Literal(EMPTY, Arrays.asList(strings), DataTypes.KEYWORD);
+        return new Literal(EMPTY, Arrays.asList(strings), DataType.KEYWORD);
     }
 
     private void expectError(String query, String errorMessage) {

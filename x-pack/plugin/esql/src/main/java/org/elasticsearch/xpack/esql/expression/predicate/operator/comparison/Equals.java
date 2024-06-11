@@ -13,29 +13,27 @@ import org.elasticsearch.xpack.esql.core.expression.predicate.Negatable;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.type.DataTypes;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.EsqlArithmeticOperation;
-import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 
 import java.time.ZoneId;
 import java.util.Map;
 
 public class Equals extends EsqlBinaryComparison implements Negatable<EsqlBinaryComparison> {
     private static final Map<DataType, EsqlArithmeticOperation.BinaryEvaluator> evaluatorMap = Map.ofEntries(
-        Map.entry(DataTypes.BOOLEAN, EqualsBoolsEvaluator.Factory::new),
-        Map.entry(DataTypes.INTEGER, EqualsIntsEvaluator.Factory::new),
-        Map.entry(DataTypes.DOUBLE, EqualsDoublesEvaluator.Factory::new),
-        Map.entry(DataTypes.LONG, EqualsLongsEvaluator.Factory::new),
-        Map.entry(DataTypes.UNSIGNED_LONG, EqualsLongsEvaluator.Factory::new),
-        Map.entry(DataTypes.DATETIME, EqualsLongsEvaluator.Factory::new),
-        Map.entry(EsqlDataTypes.GEO_POINT, EqualsGeometriesEvaluator.Factory::new),
-        Map.entry(EsqlDataTypes.CARTESIAN_POINT, EqualsGeometriesEvaluator.Factory::new),
-        Map.entry(EsqlDataTypes.GEO_SHAPE, EqualsGeometriesEvaluator.Factory::new),
-        Map.entry(EsqlDataTypes.CARTESIAN_SHAPE, EqualsGeometriesEvaluator.Factory::new),
-        Map.entry(DataTypes.KEYWORD, EqualsKeywordsEvaluator.Factory::new),
-        Map.entry(DataTypes.TEXT, EqualsKeywordsEvaluator.Factory::new),
-        Map.entry(DataTypes.VERSION, EqualsKeywordsEvaluator.Factory::new),
-        Map.entry(DataTypes.IP, EqualsKeywordsEvaluator.Factory::new)
+        Map.entry(DataType.BOOLEAN, EqualsBoolsEvaluator.Factory::new),
+        Map.entry(DataType.INTEGER, EqualsIntsEvaluator.Factory::new),
+        Map.entry(DataType.DOUBLE, EqualsDoublesEvaluator.Factory::new),
+        Map.entry(DataType.LONG, EqualsLongsEvaluator.Factory::new),
+        Map.entry(DataType.UNSIGNED_LONG, EqualsLongsEvaluator.Factory::new),
+        Map.entry(DataType.DATETIME, EqualsLongsEvaluator.Factory::new),
+        Map.entry(DataType.GEO_POINT, EqualsGeometriesEvaluator.Factory::new),
+        Map.entry(DataType.CARTESIAN_POINT, EqualsGeometriesEvaluator.Factory::new),
+        Map.entry(DataType.GEO_SHAPE, EqualsGeometriesEvaluator.Factory::new),
+        Map.entry(DataType.CARTESIAN_SHAPE, EqualsGeometriesEvaluator.Factory::new),
+        Map.entry(DataType.KEYWORD, EqualsKeywordsEvaluator.Factory::new),
+        Map.entry(DataType.TEXT, EqualsKeywordsEvaluator.Factory::new),
+        Map.entry(DataType.VERSION, EqualsKeywordsEvaluator.Factory::new),
+        Map.entry(DataType.IP, EqualsKeywordsEvaluator.Factory::new)
     );
 
     public Equals(Source source, Expression left, Expression right) {

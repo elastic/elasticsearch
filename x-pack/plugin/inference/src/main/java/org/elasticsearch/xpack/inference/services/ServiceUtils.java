@@ -21,8 +21,8 @@ import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
+import org.elasticsearch.xpack.core.inference.results.InferenceTextEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.inference.results.TextEmbedding;
-import org.elasticsearch.xpack.core.inference.results.TextEmbeddingResults;
 import org.elasticsearch.xpack.inference.services.settings.ApiKeySecrets;
 
 import java.net.URI;
@@ -39,7 +39,7 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.SIMILARITY;
 
-public class ServiceUtils {
+public final class ServiceUtils {
     /**
      * Remove the object from the map and cast to the expected type.
      * If the object cannot be cast to type an ElasticsearchStatusException
@@ -196,8 +196,8 @@ public class ServiceUtils {
         );
     }
 
-    public static String invalidUrlErrorMsg(String url, String settingName, String settingScope) {
-        return Strings.format("[%s] Invalid url [%s] received for field [%s]", settingScope, url, settingName);
+    public static String invalidUrlErrorMsg(String url, String settingName, String settingScope, String error) {
+        return Strings.format("[%s] Invalid url [%s] received for field [%s]. Error: %s", settingScope, url, settingName, error);
     }
 
     public static String mustBeNonEmptyString(String settingName, String scope) {
@@ -231,7 +231,6 @@ public class ServiceUtils {
         return Strings.format("[%s] does not allow the setting [%s]", scope, settingName);
     }
 
-    // TODO improve URI validation logic
     public static URI convertToUri(@Nullable String url, String settingName, String settingScope, ValidationException validationException) {
         try {
             if (url == null) {
@@ -239,8 +238,8 @@ public class ServiceUtils {
             }
 
             return createUri(url);
-        } catch (IllegalArgumentException ignored) {
-            validationException.addValidationError(ServiceUtils.invalidUrlErrorMsg(url, settingName, settingScope));
+        } catch (IllegalArgumentException cause) {
+            validationException.addValidationError(ServiceUtils.invalidUrlErrorMsg(url, settingName, settingScope, cause.getMessage()));
             return null;
         }
     }
@@ -251,7 +250,7 @@ public class ServiceUtils {
         try {
             return new URI(url);
         } catch (URISyntaxException e) {
-            throw new IllegalArgumentException(format("unable to parse url [%s]", url), e);
+            throw new IllegalArgumentException(format("unable to parse url [%s]. Reason: %s", url, e.getReason()), e);
         }
     }
 
@@ -607,7 +606,7 @@ public class ServiceUtils {
                         new ElasticsearchStatusException(
                             "Could not determine embedding size. "
                                 + "Expected a result of type ["
-                                + TextEmbeddingResults.NAME
+                                + InferenceTextEmbeddingFloatResults.NAME
                                 + "] got ["
                                 + r.getWriteableName()
                                 + "]",
@@ -625,4 +624,6 @@ public class ServiceUtils {
         // To avoid a possible null pointer throughout the code we'll create a noop api key of an empty array
         return secrets == null ? new SecureString(new char[0]) : secrets.apiKey();
     }
+
+    private ServiceUtils() {}
 }

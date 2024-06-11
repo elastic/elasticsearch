@@ -7,13 +7,17 @@
 package org.elasticsearch.xpack.esql.core.expression;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.type.DataTypes;
 import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.core.util.PlanStreamInput;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
 
+import java.io.IOException;
 import java.util.Objects;
 
 /**
@@ -25,9 +29,13 @@ import java.util.Objects;
  * - nestedParent - if nested, what's the parent (which might not be the immediate one)
  */
 public class FieldAttribute extends TypedAttribute {
+    static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
+        Attribute.class,
+        "FieldAttribute",
+        FieldAttribute::new
+    );
 
     private final FieldAttribute parent;
-    private final FieldAttribute nestedParent;
     private final String path;
     private final EsField field;
 
@@ -67,16 +75,47 @@ public class FieldAttribute extends TypedAttribute {
         this.path = parent != null ? parent.name() : StringUtils.EMPTY;
         this.parent = parent;
         this.field = field;
+    }
 
-        // figure out the last nested parent
-        FieldAttribute nestedPar = null;
-        if (parent != null) {
-            nestedPar = parent.nestedParent;
-            if (parent.dataType() == DataTypes.NESTED) {
-                nestedPar = parent;
-            }
-        }
-        this.nestedParent = nestedPar;
+    @SuppressWarnings("unchecked")
+    public FieldAttribute(StreamInput in) throws IOException {
+        /*
+         * The funny casting dance with `(StreamInput & PlanStreamInput) in` is required
+         * because we're in esql-core here and the real PlanStreamInput is in
+         * esql-proper. And because NamedWriteableRegistry.Entry needs StreamInput,
+         * not a PlanStreamInput. And we need PlanStreamInput to handle Source
+         * and NameId. This should become a hard cast when we move everything out
+         * of esql-core.
+         */
+        this(
+            Source.readFrom((StreamInput & PlanStreamInput) in),
+            in.readOptionalWriteable(FieldAttribute::new),
+            in.readString(),
+            DataType.readFrom(in),
+            in.readNamedWriteable(EsField.class),
+            in.readOptionalString(),
+            in.readEnum(Nullability.class),
+            NameId.readFrom((StreamInput & PlanStreamInput) in),
+            in.readBoolean()
+        );
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        Source.EMPTY.writeTo(out);
+        out.writeOptionalWriteable(parent);
+        out.writeString(name());
+        dataType().writeTo(out);
+        out.writeNamedWriteable(field);
+        out.writeOptionalString(qualifier());
+        out.writeEnum(nullable());
+        id().writeTo(out);
+        out.writeBoolean(synthetic());
+    }
+
+    @Override
+    public String getWriteableName() {
+        return ENTRY.name;
     }
 
     @Override
@@ -95,14 +134,6 @@ public class FieldAttribute extends TypedAttribute {
     public String qualifiedPath() {
         // return only the qualifier is there's no path
         return qualifier() != null ? qualifier() + (Strings.hasText(path) ? "." + path : StringUtils.EMPTY) : path;
-    }
-
-    public boolean isNested() {
-        return nestedParent != null;
-    }
-
-    public FieldAttribute nestedParent() {
-        return nestedParent;
     }
 
     public EsField.Exact getExactInfo() {

@@ -30,7 +30,6 @@ import org.elasticsearch.xpack.esql.core.rule.ParameterizedRule;
 import org.elasticsearch.xpack.esql.core.rule.ParameterizedRuleExecutor;
 import org.elasticsearch.xpack.esql.core.rule.Rule;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.type.DataTypes;
 import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
@@ -41,10 +40,10 @@ import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
+import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.planner.AbstractPhysicalOperationProviders;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
-import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
@@ -125,7 +124,7 @@ public class LocalLogicalPlanOptimizer extends ParameterizedRuleExecutor<Logical
         }
 
         private LogicalPlan missingToNull(LogicalPlan plan, SearchStats stats) {
-            if (plan instanceof EsRelation) {
+            if (plan instanceof EsRelation || plan instanceof LocalRelation) {
                 return plan;
             }
 
@@ -137,7 +136,7 @@ public class LocalLogicalPlanOptimizer extends ParameterizedRuleExecutor<Logical
             else if (plan instanceof Project project) {
                 var projections = project.projections();
                 List<NamedExpression> newProjections = new ArrayList<>(projections.size());
-                Map<DataType, Alias> nullLiteral = Maps.newLinkedHashMapWithExpectedSize(EsqlDataTypes.types().size());
+                Map<DataType, Alias> nullLiteral = Maps.newLinkedHashMapWithExpectedSize(DataType.types().size());
 
                 for (NamedExpression projection : projections) {
                     if (projection instanceof FieldAttribute f && stats.exists(f.qualifiedName()) == false) {
@@ -277,7 +276,7 @@ public class LocalLogicalPlanOptimizer extends ParameterizedRuleExecutor<Logical
             for (Attribute o : output) {
                 DataType dataType = o.dataType();
                 // boolean right now is used for the internal #seen so always return true
-                var value = dataType == DataTypes.BOOLEAN ? true
+                var value = dataType == DataType.BOOLEAN ? true
                     // look for count(literal) with literal != null
                     : aggFunc instanceof Count count && (count.foldable() == false || count.fold() != null) ? 0L
                     // otherwise nullify

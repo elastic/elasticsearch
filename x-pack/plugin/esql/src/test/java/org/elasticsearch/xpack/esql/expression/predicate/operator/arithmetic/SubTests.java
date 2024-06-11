@@ -12,10 +12,9 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.DataTypes;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
-import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 
 import java.time.Duration;
 import java.time.Period;
@@ -74,62 +73,62 @@ public class SubTests extends AbstractFunctionTestCase {
             BigInteger rhsBI = unsignedLongAsBigInteger(rhs);
             return new TestCase(
                 Source.EMPTY,
-                List.of(new TypedData(lhs, DataTypes.UNSIGNED_LONG, "lhs"), new TypedData(rhs, DataTypes.UNSIGNED_LONG, "rhs")),
+                List.of(new TypedData(lhs, DataType.UNSIGNED_LONG, "lhs"), new TypedData(rhs, DataType.UNSIGNED_LONG, "rhs")),
                 "SubUnsignedLongsEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",
                 equalTo(asLongUnsigned(lhsBI.subtract(rhsBI).longValue()))
             );
           }) */
 
         suppliers.add(new TestCaseSupplier("Datetime - Period", () -> {
-            long lhs = (Long) randomLiteral(DataTypes.DATETIME).value();
-            Period rhs = (Period) randomLiteral(EsqlDataTypes.DATE_PERIOD).value();
+            long lhs = (Long) randomLiteral(DataType.DATETIME).value();
+            Period rhs = (Period) randomLiteral(DataType.DATE_PERIOD).value();
             return new TestCaseSupplier.TestCase(
                 List.of(
-                    new TestCaseSupplier.TypedData(lhs, DataTypes.DATETIME, "lhs"),
-                    new TestCaseSupplier.TypedData(rhs, EsqlDataTypes.DATE_PERIOD, "rhs")
+                    new TestCaseSupplier.TypedData(lhs, DataType.DATETIME, "lhs"),
+                    new TestCaseSupplier.TypedData(rhs, DataType.DATE_PERIOD, "rhs")
                 ),
                 "SubDatetimesEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",
-                DataTypes.DATETIME,
+                DataType.DATETIME,
                 equalTo(asMillis(asDateTime(lhs).minus(rhs)))
             );
         }));
         suppliers.add(new TestCaseSupplier("Period - Period", () -> {
-            Period lhs = (Period) randomLiteral(EsqlDataTypes.DATE_PERIOD).value();
-            Period rhs = (Period) randomLiteral(EsqlDataTypes.DATE_PERIOD).value();
+            Period lhs = (Period) randomLiteral(DataType.DATE_PERIOD).value();
+            Period rhs = (Period) randomLiteral(DataType.DATE_PERIOD).value();
             return new TestCaseSupplier.TestCase(
                 List.of(
-                    new TestCaseSupplier.TypedData(lhs, EsqlDataTypes.DATE_PERIOD, "lhs"),
-                    new TestCaseSupplier.TypedData(rhs, EsqlDataTypes.DATE_PERIOD, "rhs")
+                    new TestCaseSupplier.TypedData(lhs, DataType.DATE_PERIOD, "lhs"),
+                    new TestCaseSupplier.TypedData(rhs, DataType.DATE_PERIOD, "rhs")
                 ),
                 "Only folding possible, so there's no evaluator",
-                EsqlDataTypes.DATE_PERIOD,
+                DataType.DATE_PERIOD,
                 equalTo(lhs.minus(rhs))
             );
         }));
         suppliers.add(new TestCaseSupplier("Datetime - Duration", () -> {
-            long lhs = (Long) randomLiteral(DataTypes.DATETIME).value();
-            Duration rhs = (Duration) randomLiteral(EsqlDataTypes.TIME_DURATION).value();
+            long lhs = (Long) randomLiteral(DataType.DATETIME).value();
+            Duration rhs = (Duration) randomLiteral(DataType.TIME_DURATION).value();
             TestCaseSupplier.TestCase testCase = new TestCaseSupplier.TestCase(
                 List.of(
-                    new TestCaseSupplier.TypedData(lhs, DataTypes.DATETIME, "lhs"),
-                    new TestCaseSupplier.TypedData(rhs, EsqlDataTypes.TIME_DURATION, "rhs")
+                    new TestCaseSupplier.TypedData(lhs, DataType.DATETIME, "lhs"),
+                    new TestCaseSupplier.TypedData(rhs, DataType.TIME_DURATION, "rhs")
                 ),
                 "SubDatetimesEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",
-                DataTypes.DATETIME,
+                DataType.DATETIME,
                 equalTo(asMillis(asDateTime(lhs).minus(rhs)))
             );
             return testCase;
         }));
         suppliers.add(new TestCaseSupplier("Duration - Duration", () -> {
-            Duration lhs = (Duration) randomLiteral(EsqlDataTypes.TIME_DURATION).value();
-            Duration rhs = (Duration) randomLiteral(EsqlDataTypes.TIME_DURATION).value();
+            Duration lhs = (Duration) randomLiteral(DataType.TIME_DURATION).value();
+            Duration rhs = (Duration) randomLiteral(DataType.TIME_DURATION).value();
             return new TestCaseSupplier.TestCase(
                 List.of(
-                    new TestCaseSupplier.TypedData(lhs, EsqlDataTypes.TIME_DURATION, "lhs"),
-                    new TestCaseSupplier.TypedData(rhs, EsqlDataTypes.TIME_DURATION, "rhs")
+                    new TestCaseSupplier.TypedData(lhs, DataType.TIME_DURATION, "lhs"),
+                    new TestCaseSupplier.TypedData(rhs, DataType.TIME_DURATION, "rhs")
                 ),
                 "Only folding possible, so there's no evaluator",
-                EsqlDataTypes.TIME_DURATION,
+                DataType.TIME_DURATION,
                 equalTo(lhs.minus(rhs))
             );
         }));
@@ -140,11 +139,11 @@ public class SubTests extends AbstractFunctionTestCase {
             int lhs2 = randomIntBetween((Integer.MIN_VALUE >> 1) - 1, (Integer.MAX_VALUE >> 1) - 1);
             return new TestCaseSupplier.TestCase(
                 List.of(
-                    new TestCaseSupplier.TypedData(List.of(lhs, lhs2), DataTypes.INTEGER, "lhs"),
-                    new TestCaseSupplier.TypedData(rhs, DataTypes.INTEGER, "rhs")
+                    new TestCaseSupplier.TypedData(List.of(lhs, lhs2), DataType.INTEGER, "lhs"),
+                    new TestCaseSupplier.TypedData(rhs, DataType.INTEGER, "rhs")
                 ),
                 "SubIntsEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",
-                DataTypes.INTEGER,
+                DataType.INTEGER,
                 is(nullValue())
             ).withWarning("Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.")
                 .withWarning("Line -1:-1: java.lang.IllegalArgumentException: single-value function encountered multi-value");
@@ -152,7 +151,7 @@ public class SubTests extends AbstractFunctionTestCase {
         // exact math arithmetic exceptions
         suppliers.add(
             arithmeticExceptionOverflowCase(
-                DataTypes.INTEGER,
+                DataType.INTEGER,
                 () -> Integer.MIN_VALUE,
                 () -> randomIntBetween(1, Integer.MAX_VALUE),
                 "SubIntsEvaluator"
@@ -160,7 +159,7 @@ public class SubTests extends AbstractFunctionTestCase {
         );
         suppliers.add(
             arithmeticExceptionOverflowCase(
-                DataTypes.INTEGER,
+                DataType.INTEGER,
                 () -> randomIntBetween(Integer.MIN_VALUE, -2),
                 () -> Integer.MAX_VALUE,
                 "SubIntsEvaluator"
@@ -168,7 +167,7 @@ public class SubTests extends AbstractFunctionTestCase {
         );
         suppliers.add(
             arithmeticExceptionOverflowCase(
-                DataTypes.LONG,
+                DataType.LONG,
                 () -> Long.MIN_VALUE,
                 () -> randomLongBetween(1L, Long.MAX_VALUE),
                 "SubLongsEvaluator"
@@ -176,7 +175,7 @@ public class SubTests extends AbstractFunctionTestCase {
         );
         suppliers.add(
             arithmeticExceptionOverflowCase(
-                DataTypes.LONG,
+                DataType.LONG,
                 () -> randomLongBetween(Long.MIN_VALUE, -2L),
                 () -> Long.MAX_VALUE,
                 "SubLongsEvaluator"
@@ -184,7 +183,7 @@ public class SubTests extends AbstractFunctionTestCase {
         );
         suppliers.add(
             arithmeticExceptionOverflowCase(
-                DataTypes.UNSIGNED_LONG,
+                DataType.UNSIGNED_LONG,
                 () -> ZERO_AS_UNSIGNED_LONG,
                 () -> randomLongBetween(-Long.MAX_VALUE, Long.MAX_VALUE),
                 "SubUnsignedLongsEvaluator"

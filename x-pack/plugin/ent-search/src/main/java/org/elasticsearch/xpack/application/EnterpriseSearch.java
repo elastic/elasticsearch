@@ -58,6 +58,7 @@ import org.elasticsearch.xpack.application.connector.action.RestUpdateConnectorA
 import org.elasticsearch.xpack.application.connector.action.RestUpdateConnectorApiKeyIdAction;
 import org.elasticsearch.xpack.application.connector.action.RestUpdateConnectorConfigurationAction;
 import org.elasticsearch.xpack.application.connector.action.RestUpdateConnectorErrorAction;
+import org.elasticsearch.xpack.application.connector.action.RestUpdateConnectorFeaturesAction;
 import org.elasticsearch.xpack.application.connector.action.RestUpdateConnectorFilteringAction;
 import org.elasticsearch.xpack.application.connector.action.RestUpdateConnectorFilteringValidationAction;
 import org.elasticsearch.xpack.application.connector.action.RestUpdateConnectorIndexNameAction;
@@ -78,6 +79,7 @@ import org.elasticsearch.xpack.application.connector.action.TransportUpdateConne
 import org.elasticsearch.xpack.application.connector.action.TransportUpdateConnectorApiKeyIdAction;
 import org.elasticsearch.xpack.application.connector.action.TransportUpdateConnectorConfigurationAction;
 import org.elasticsearch.xpack.application.connector.action.TransportUpdateConnectorErrorAction;
+import org.elasticsearch.xpack.application.connector.action.TransportUpdateConnectorFeaturesAction;
 import org.elasticsearch.xpack.application.connector.action.TransportUpdateConnectorFilteringAction;
 import org.elasticsearch.xpack.application.connector.action.TransportUpdateConnectorFilteringValidationAction;
 import org.elasticsearch.xpack.application.connector.action.TransportUpdateConnectorIndexNameAction;
@@ -93,6 +95,7 @@ import org.elasticsearch.xpack.application.connector.action.UpdateConnectorActiv
 import org.elasticsearch.xpack.application.connector.action.UpdateConnectorApiKeyIdAction;
 import org.elasticsearch.xpack.application.connector.action.UpdateConnectorConfigurationAction;
 import org.elasticsearch.xpack.application.connector.action.UpdateConnectorErrorAction;
+import org.elasticsearch.xpack.application.connector.action.UpdateConnectorFeaturesAction;
 import org.elasticsearch.xpack.application.connector.action.UpdateConnectorFilteringAction;
 import org.elasticsearch.xpack.application.connector.action.UpdateConnectorFilteringValidationAction;
 import org.elasticsearch.xpack.application.connector.action.UpdateConnectorIndexNameAction;
@@ -148,14 +151,17 @@ import org.elasticsearch.xpack.application.rules.RuleQueryBuilder;
 import org.elasticsearch.xpack.application.rules.action.DeleteQueryRulesetAction;
 import org.elasticsearch.xpack.application.rules.action.GetQueryRulesetAction;
 import org.elasticsearch.xpack.application.rules.action.ListQueryRulesetsAction;
+import org.elasticsearch.xpack.application.rules.action.PutQueryRuleAction;
 import org.elasticsearch.xpack.application.rules.action.PutQueryRulesetAction;
 import org.elasticsearch.xpack.application.rules.action.RestDeleteQueryRulesetAction;
 import org.elasticsearch.xpack.application.rules.action.RestGetQueryRulesetAction;
 import org.elasticsearch.xpack.application.rules.action.RestListQueryRulesetsAction;
+import org.elasticsearch.xpack.application.rules.action.RestPutQueryRuleAction;
 import org.elasticsearch.xpack.application.rules.action.RestPutQueryRulesetAction;
 import org.elasticsearch.xpack.application.rules.action.TransportDeleteQueryRulesetAction;
 import org.elasticsearch.xpack.application.rules.action.TransportGetQueryRulesetAction;
 import org.elasticsearch.xpack.application.rules.action.TransportListQueryRulesetsAction;
+import org.elasticsearch.xpack.application.rules.action.TransportPutQueryRuleAction;
 import org.elasticsearch.xpack.application.rules.action.TransportPutQueryRulesetAction;
 import org.elasticsearch.xpack.application.search.SearchApplicationIndexService;
 import org.elasticsearch.xpack.application.search.action.DeleteSearchApplicationAction;
@@ -248,6 +254,7 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
                 new ActionHandler<>(GetQueryRulesetAction.INSTANCE, TransportGetQueryRulesetAction.class),
                 new ActionHandler<>(ListQueryRulesetsAction.INSTANCE, TransportListQueryRulesetsAction.class),
                 new ActionHandler<>(PutQueryRulesetAction.INSTANCE, TransportPutQueryRulesetAction.class),
+                new ActionHandler<>(PutQueryRuleAction.INSTANCE, TransportPutQueryRuleAction.class),
 
                 usageAction,
                 infoAction
@@ -267,6 +274,7 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
                     new ActionHandler<>(UpdateConnectorApiKeyIdAction.INSTANCE, TransportUpdateConnectorApiKeyIdAction.class),
                     new ActionHandler<>(UpdateConnectorConfigurationAction.INSTANCE, TransportUpdateConnectorConfigurationAction.class),
                     new ActionHandler<>(UpdateConnectorErrorAction.INSTANCE, TransportUpdateConnectorErrorAction.class),
+                    new ActionHandler<>(UpdateConnectorFeaturesAction.INSTANCE, TransportUpdateConnectorFeaturesAction.class),
                     new ActionHandler<>(UpdateConnectorFilteringAction.INSTANCE, TransportUpdateConnectorFilteringAction.class),
                     new ActionHandler<>(UpdateConnectorActiveFilteringAction.INSTANCE, TransportUpdateConnectorActiveFilteringAction.class),
                     new ActionHandler<>(
@@ -350,7 +358,8 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
                 new RestDeleteQueryRulesetAction(getLicenseState()),
                 new RestGetQueryRulesetAction(getLicenseState()),
                 new RestListQueryRulesetsAction(getLicenseState()),
-                new RestPutQueryRulesetAction(getLicenseState())
+                new RestPutQueryRulesetAction(getLicenseState()),
+                new RestPutQueryRuleAction(getLicenseState())
             )
         );
 
@@ -368,6 +377,7 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
                     new RestUpdateConnectorConfigurationAction(),
                     new RestUpdateConnectorErrorAction(),
                     new RestUpdateConnectorActiveFilteringAction(),
+                    new RestUpdateConnectorFeaturesAction(),
                     new RestUpdateConnectorFilteringValidationAction(),
                     new RestUpdateConnectorFilteringAction(),
                     new RestUpdateConnectorIndexNameAction(),

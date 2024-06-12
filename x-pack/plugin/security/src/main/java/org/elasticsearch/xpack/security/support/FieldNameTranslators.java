@@ -35,7 +35,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Consumer;
-import java.util.function.Function;
 
 import static org.elasticsearch.xpack.security.action.apikey.TransportQueryApiKeyAction.API_KEY_TYPE_RUNTIME_MAPPING_FIELD;
 
@@ -43,28 +42,27 @@ public final class FieldNameTranslators {
 
     public static final FieldNameTranslators API_KEY_FIELD_NAME_TRANSLATORS = new FieldNameTranslators(
         List.of(
-            new ExactFieldNameTranslator(s -> "creator.principal", "username"),
-            new ExactFieldNameTranslator(s -> "creator.realm", "realm_name"),
-            new ExactFieldNameTranslator(s -> "name", "name"),
-            new ExactFieldNameTranslator(s -> API_KEY_TYPE_RUNTIME_MAPPING_FIELD, "type"),
-            new ExactFieldNameTranslator(s -> "creation_time", "creation"),
-            new ExactFieldNameTranslator(s -> "expiration_time", "expiration"),
-            new ExactFieldNameTranslator(s -> "api_key_invalidated", "invalidated"),
-            new ExactFieldNameTranslator(s -> "invalidation_time", "invalidation"),
-            // allows querying on all metadata values as keywords because "metadata_flattened" is a flattened field type
-            new ExactFieldNameTranslator(s -> "metadata_flattened", "metadata"),
-            // allows querying on any concrete (i.e. non-wildcard) fields under the "metadata." prefix
-            new PrefixFieldNameTranslator(s -> "metadata_flattened." + s.substring("metadata.".length()), "metadata.")
+            new ExactFieldNameTranslator("creator.principal", "username"),
+            new ExactFieldNameTranslator("creator.realm", "realm_name"),
+            new ExactFieldNameTranslator("name", "name"),
+            new ExactFieldNameTranslator(API_KEY_TYPE_RUNTIME_MAPPING_FIELD, "type"),
+            new ExactFieldNameTranslator("creation_time", "creation"),
+            new ExactFieldNameTranslator("expiration_time", "expiration"),
+            new ExactFieldNameTranslator("api_key_invalidated", "invalidated"),
+            new ExactFieldNameTranslator("invalidation_time", "invalidation"),
+            // allows querying on any non-wildcard sub-fields under the "metadata." prefix
+            // also allows querying on the metadata field itself
+            new FlattenedFieldNameTranslator("metadata_flattened", "metadata")
         )
     );
 
     public static final FieldNameTranslators USER_FIELD_NAME_TRANSLATORS = new FieldNameTranslators(
         List.of(
-            new ExactFieldNameTranslator(s -> "username", "username"),
-            new ExactFieldNameTranslator(s -> "roles", "roles"),
-            new ExactFieldNameTranslator(s -> "full_name", "full_name"),
-            new ExactFieldNameTranslator(s -> "email", "email"),
-            new ExactFieldNameTranslator(s -> "enabled", "enabled")
+            new ExactFieldNameTranslator("username", "username"),
+            new ExactFieldNameTranslator("roles", "roles"),
+            new ExactFieldNameTranslator("full_name", "full_name"),
+            new ExactFieldNameTranslator("email", "email"),
+            new ExactFieldNameTranslator("enabled", "enabled")
         )
     );
 
@@ -285,17 +283,17 @@ public final class FieldNameTranslators {
      * Translate the query level field name to index level field names.
      * It throws an exception if the field name is not explicitly allowed.
      */
-    public String translate(String fieldName) {
+    public String translate(String queryFieldName) {
         // protected for testing
-        if (Regex.isSimpleMatchPattern(fieldName)) {
-            throw new IllegalArgumentException("Field name pattern [" + fieldName + "] is not allowed for querying or aggregation");
+        if (Regex.isSimpleMatchPattern(queryFieldName)) {
+            throw new IllegalArgumentException("Field name pattern [" + queryFieldName + "] is not allowed for querying or aggregation");
         }
         for (FieldNameTranslator translator : fieldNameTranslators) {
-            if (translator.supports(fieldName)) {
-                return translator.translate(fieldName);
+            if (translator.supports(queryFieldName)) {
+                return translator.translate(queryFieldName);
             }
         }
-        throw new IllegalArgumentException("Field [" + fieldName + "] is not allowed for querying or aggregation");
+        throw new IllegalArgumentException("Field [" + queryFieldName + "] is not allowed for querying or aggregation");
     }
 
     /**
@@ -319,59 +317,66 @@ public final class FieldNameTranslators {
         return fieldNameTranslators.stream().anyMatch(t -> t.supports(fieldName));
     }
 
-    private abstract static class FieldNameTranslator {
+    private interface FieldNameTranslator {
+        String translate(String fieldName);
 
-        private final Function<String, String> translationFunc;
-
-        protected FieldNameTranslator(Function<String, String> translationFunc) {
-            this.translationFunc = translationFunc;
-        }
-
-        String translate(String fieldName) {
-            return translationFunc.apply(fieldName);
-        }
-
-        abstract boolean supports(String fieldName);
+        boolean supports(String fieldName);
     }
 
-    private static class ExactFieldNameTranslator extends FieldNameTranslator {
-        private final String name;
+    private static class ExactFieldNameTranslator implements FieldNameTranslator {
+        private final String indexFieldName;
+        private final String queryFieldName;
 
-        ExactFieldNameTranslator(Function<String, String> translationFunc, String name) {
-            super(translationFunc);
-            this.name = name;
+        ExactFieldNameTranslator(String indexFieldName, String queryFieldName) {
+            this.indexFieldName = indexFieldName;
+            this.queryFieldName = queryFieldName;
         }
 
         @Override
         public boolean supports(String fieldNameOrPattern) {
             if (Regex.isSimpleMatchPattern(fieldNameOrPattern)) {
-                return Regex.simpleMatch(fieldNameOrPattern, name);
+                return Regex.simpleMatch(fieldNameOrPattern, queryFieldName);
             } else {
-                return name.equals(fieldNameOrPattern);
+                return queryFieldName.equals(fieldNameOrPattern);
             }
-        }
-    }
-
-    private static class PrefixFieldNameTranslator extends FieldNameTranslator {
-        private final String prefix;
-
-        PrefixFieldNameTranslator(Function<String, String> translationFunc, String prefix) {
-            super(translationFunc);
-            this.prefix = prefix;
         }
 
         @Override
-        boolean supports(String fieldNameOrPattern) {
+        public String translate(String fieldNameOrPattern) {
+            return indexFieldName;
+        }
+    }
+
+    private static class FlattenedFieldNameTranslator implements FieldNameTranslator {
+        private final String indexFieldName;
+        private final String queryFieldName;
+
+        FlattenedFieldNameTranslator(String indexFieldName, String queryFieldName) {
+            this.indexFieldName = indexFieldName;
+            this.queryFieldName = queryFieldName;
+        }
+
+        @Override
+        public boolean supports(String fieldNameOrPattern) {
             if (Regex.isSimpleMatchPattern(fieldNameOrPattern)) {
-                // It is not possible to translate a pattern into concrete field names,
-                // because we do not store the list of concrete field names sharing this same prefix.
-                // That means that e.g. `metadata.*` and `metadata.x*` are expanded to the empty list,
-                // rather than be replaced with `metadata_flattened.*` and `metadata_flattened.x*`
-                // (but, in any case, `metadata_flattened.*` and `metadata.x*` are eventually ignored,
-                // because of the way that the flattened field type works in ES)
-                return false;
+                // It is not possible to translate a pattern for subfields of a flattened field
+                // (because there's no list of subfields of the flattened field).
+                // But the pattern can still match the flattened field itself.
+                return Regex.simpleMatch(fieldNameOrPattern, queryFieldName);
+            } else {
+                return fieldNameOrPattern.equals(queryFieldName) || fieldNameOrPattern.startsWith(queryFieldName + ".");
             }
-            return fieldNameOrPattern.startsWith(prefix);
+        }
+
+        @Override
+        public String translate(String fieldNameOrPattern) {
+            if (Regex.isSimpleMatchPattern(fieldNameOrPattern) || fieldNameOrPattern.equals(queryFieldName)) {
+                // the pattern can only refer to the flattened field itself, not to its subfields
+                return indexFieldName;
+            } else {
+                assert fieldNameOrPattern.startsWith(queryFieldName + ".");
+                return indexFieldName + fieldNameOrPattern.substring(queryFieldName.length());
+            }
         }
     }
 }

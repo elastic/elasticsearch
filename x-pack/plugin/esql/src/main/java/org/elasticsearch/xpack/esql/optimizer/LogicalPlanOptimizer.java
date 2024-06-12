@@ -8,12 +8,10 @@
 package org.elasticsearch.xpack.esql.optimizer;
 
 import org.elasticsearch.common.util.Maps;
-import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.VerificationException;
-import org.elasticsearch.xpack.esql.core.analyzer.AnalyzerRules;
 import org.elasticsearch.xpack.esql.core.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -77,6 +75,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.PushDownAndCombineOrderBy;
 import org.elasticsearch.xpack.esql.optimizer.rules.PushDownEnrich;
 import org.elasticsearch.xpack.esql.optimizer.rules.PushDownEval;
 import org.elasticsearch.xpack.esql.optimizer.rules.PushDownRegexExtract;
+import org.elasticsearch.xpack.esql.optimizer.rules.RemoveStatsOverride;
 import org.elasticsearch.xpack.esql.optimizer.rules.SetAsOptimized;
 import org.elasticsearch.xpack.esql.optimizer.rules.SimplifyComparisonsArithmetics;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
@@ -916,58 +915,6 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
                 }
                 return convert;
             });
-        }
-    }
-
-    /**
-     * Rule that removes Aggregate overrides in grouping, aggregates and across them inside.
-     * The overrides appear when the same alias is used multiple times in aggregations and/or groupings:
-     * STATS x = COUNT(*), x = MIN(a) BY x = b + 1, x = c + 10
-     * becomes
-     * STATS BY x = c + 10
-     * That is the last declaration for a given alias, overrides all the other declarations, with
-     * groups having priority vs aggregates.
-     * Separately, it replaces expressions used as group keys inside the aggregates with references:
-     * STATS max(a + b + 1) BY a + b
-     * becomes
-     * STATS max($x + 1) BY $x = a + b
-     */
-    private static class RemoveStatsOverride extends AnalyzerRules.AnalyzerRule<Aggregate> {
-
-        @Override
-        protected boolean skipResolved() {
-            return false;
-        }
-
-        @Override
-        protected LogicalPlan rule(Aggregate agg) {
-            return agg.resolved() ? removeAggDuplicates(agg) : agg;
-        }
-
-        private static Aggregate removeAggDuplicates(Aggregate agg) {
-            var groupings = agg.groupings();
-            var aggregates = agg.aggregates();
-
-            groupings = removeDuplicateNames(groupings);
-            aggregates = removeDuplicateNames(aggregates);
-
-            // replace EsqlAggregate with Aggregate
-            return new Aggregate(agg.source(), agg.child(), groupings, aggregates);
-        }
-
-        private static <T extends Expression> List<T> removeDuplicateNames(List<T> list) {
-            var newList = new ArrayList<>(list);
-            var nameSet = Sets.newHashSetWithExpectedSize(list.size());
-
-            // remove duplicates
-            for (int i = list.size() - 1; i >= 0; i--) {
-                var element = list.get(i);
-                var name = Expressions.name(element);
-                if (nameSet.add(name) == false) {
-                    newList.remove(i);
-                }
-            }
-            return newList.size() == list.size() ? list : newList;
         }
     }
 

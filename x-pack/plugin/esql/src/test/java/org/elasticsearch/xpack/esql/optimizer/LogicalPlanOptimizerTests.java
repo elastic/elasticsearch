@@ -106,6 +106,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Les
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.esql.optimizer.rules.LiteralsOnTheRight;
+import org.elasticsearch.xpack.esql.optimizer.rules.PushDownAndCombineFilters;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
@@ -749,7 +750,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
         assertEquals(
             new Filter(EMPTY, relation, new And(EMPTY, conditionA, conditionB)),
-            new LogicalPlanOptimizer.PushDownAndCombineFilters().apply(fb)
+            new PushDownAndCombineFilters().apply(fb)
         );
     }
 
@@ -763,7 +764,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
         assertEquals(
             new Filter(EMPTY, relation, new And(EMPTY, conditionA, conditionB)),
-            new LogicalPlanOptimizer.PushDownAndCombineFilters().apply(fb)
+            new PushDownAndCombineFilters().apply(fb)
         );
     }
 
@@ -778,7 +779,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         Filter fb = new Filter(EMPTY, keep, conditionB);
 
         Filter combinedFilter = new Filter(EMPTY, relation, new And(EMPTY, conditionA, conditionB));
-        assertEquals(new EsqlProject(EMPTY, combinedFilter, projections), new LogicalPlanOptimizer.PushDownAndCombineFilters().apply(fb));
+        assertEquals(new EsqlProject(EMPTY, combinedFilter, projections), new PushDownAndCombineFilters().apply(fb));
     }
 
     public void testPushDownLikeRlikeFilter() {
@@ -792,7 +793,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         Filter fb = new Filter(EMPTY, keep, conditionB);
 
         Filter combinedFilter = new Filter(EMPTY, relation, new And(EMPTY, conditionA, conditionB));
-        assertEquals(new EsqlProject(EMPTY, combinedFilter, projections), new LogicalPlanOptimizer.PushDownAndCombineFilters().apply(fb));
+        assertEquals(new EsqlProject(EMPTY, combinedFilter, projections), new PushDownAndCombineFilters().apply(fb));
     }
 
     // from ... | where a > 1 | stats count(1) by b | where count(1) >= 3 and b < 2
@@ -819,7 +820,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             ),
             aggregateCondition
         );
-        assertEquals(expected, new LogicalPlanOptimizer.PushDownAndCombineFilters().apply(fb));
+        assertEquals(expected, new PushDownAndCombineFilters().apply(fb));
     }
 
     public void testSelectivelyPushDownFilterPastRefAgg() {

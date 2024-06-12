@@ -18,7 +18,6 @@ import org.elasticsearch.xpack.esql.core.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeMap;
-import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.EmptyAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
@@ -27,13 +26,11 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.Order;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
-import org.elasticsearch.xpack.esql.core.expression.predicate.Predicates;
 import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.esql.core.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RegexMatch;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.StringPattern;
 import org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules;
-import org.elasticsearch.xpack.esql.core.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.core.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.core.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.core.plan.logical.OrderBy;
@@ -74,6 +71,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.PruneFilters;
 import org.elasticsearch.xpack.esql.optimizer.rules.PruneLiteralsInOrderBy;
 import org.elasticsearch.xpack.esql.optimizer.rules.PruneOrderByBeforeStats;
 import org.elasticsearch.xpack.esql.optimizer.rules.PruneRedundantSortClauses;
+import org.elasticsearch.xpack.esql.optimizer.rules.PushDownAndCombineFilters;
 import org.elasticsearch.xpack.esql.optimizer.rules.SetAsOptimized;
 import org.elasticsearch.xpack.esql.optimizer.rules.SimplifyComparisonsArithmetics;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
@@ -99,7 +97,6 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Predicate;
 
 import static java.util.Arrays.asList;
 import static java.util.Collections.singleton;
@@ -486,69 +483,6 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
         return new LocalRelation(plan.source(), plan.output(), supplier);
     }
 
-    protected static class PushDownAndCombineFilters extends OptimizerRules.OptimizerRule<Filter> {
-        @Override
-        protected LogicalPlan rule(Filter filter) {
-            LogicalPlan plan = filter;
-            LogicalPlan child = filter.child();
-            Expression condition = filter.condition();
-
-            if (child instanceof Filter f) {
-                // combine nodes into a single Filter with updated ANDed condition
-                plan = f.with(Predicates.combineAnd(List.of(f.condition(), condition)));
-            } else if (child instanceof Aggregate agg) { // TODO: re-evaluate along with multi-value support
-                // Only push [parts of] a filter past an agg if these/it operates on agg's grouping[s], not output.
-                plan = maybePushDownPastUnary(
-                    filter,
-                    agg,
-                    e -> e instanceof Attribute && agg.output().contains(e) && agg.groupings().contains(e) == false
-                        || e instanceof AggregateFunction
-                );
-            } else if (child instanceof Eval eval) {
-                // Don't push if Filter (still) contains references of Eval's fields.
-                var attributes = new AttributeSet(Expressions.asAttributes(eval.fields()));
-                plan = maybePushDownPastUnary(filter, eval, attributes::contains);
-            } else if (child instanceof RegexExtract re) {
-                // Push down filters that do not rely on attributes created by RegexExtract
-                var attributes = new AttributeSet(Expressions.asAttributes(re.extractedFields()));
-                plan = maybePushDownPastUnary(filter, re, attributes::contains);
-            } else if (child instanceof Enrich enrich) {
-                // Push down filters that do not rely on attributes created by Enrich
-                var attributes = new AttributeSet(Expressions.asAttributes(enrich.enrichFields()));
-                plan = maybePushDownPastUnary(filter, enrich, attributes::contains);
-            } else if (child instanceof Project) {
-                return pushDownPastProject(filter);
-            } else if (child instanceof OrderBy orderBy) {
-                // swap the filter with its child
-                plan = orderBy.replaceChild(filter.with(orderBy.child(), condition));
-            }
-            // cannot push past a Limit, this could change the tailing result set returned
-            return plan;
-        }
-
-        private static LogicalPlan maybePushDownPastUnary(Filter filter, UnaryPlan unary, Predicate<Expression> cannotPush) {
-            LogicalPlan plan;
-            List<Expression> pushable = new ArrayList<>();
-            List<Expression> nonPushable = new ArrayList<>();
-            for (Expression exp : Predicates.splitAnd(filter.condition())) {
-                (exp.anyMatch(cannotPush) ? nonPushable : pushable).add(exp);
-            }
-            // Push the filter down even if it might not be pushable all the way to ES eventually: eval'ing it closer to the source,
-            // potentially still in the Exec Engine, distributes the computation.
-            if (pushable.size() > 0) {
-                if (nonPushable.size() > 0) {
-                    Filter pushed = new Filter(filter.source(), unary.child(), Predicates.combineAnd(pushable));
-                    plan = filter.with(unary.replaceChild(pushed), Predicates.combineAnd(nonPushable));
-                } else {
-                    plan = unary.replaceChild(filter.with(unary.child(), filter.condition()));
-                }
-            } else {
-                plan = filter;
-            }
-            return plan;
-        }
-    }
-
     protected static class PushDownEval extends OptimizerRules.OptimizerRule<Eval> {
         @Override
         protected LogicalPlan rule(Eval eval) {
@@ -677,7 +611,7 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
         }
     }
 
-    private static Project pushDownPastProject(UnaryPlan parent) {
+    public static Project pushDownPastProject(UnaryPlan parent) {
         if (parent.child() instanceof Project project) {
             AttributeMap.Builder<Expression> aliasBuilder = AttributeMap.builder();
             project.forEachExpression(Alias.class, a -> aliasBuilder.put(a.toAttribute(), a.child()));

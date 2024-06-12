@@ -56,8 +56,9 @@ tests:
 - class: "org.elasticsearch.xpack.inference.InferenceCrudIT"
   issue: "https://github.com/elastic/elasticsearch/issues/109391"
   method: "testDeleteEndpointWhileReferencedByPipeline"
-- class: DenseVectorMappingUpdateIT
-  issue: "https://github.com/elastic/elasticsearch/issues/109571"
+- class: "org.elasticsearch.xpack.rollup.job.RollupIndexerStateTests"
+  issue: "https://github.com/elastic/elasticsearch/issues/109627"
+  method: "testMultipleJobTriggering"
 
 # Examples:
 #

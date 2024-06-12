@@ -68,7 +68,7 @@ public class ReplaceStatsAggExpressionWithEval extends OptimizerRules.OptimizerR
         List<NamedExpression> newAggs = new ArrayList<>();
 
         Holder<Boolean> changed = new Holder<>(false);
-        int[] counter = new int[]{0};
+        int[] counter = new int[] { 0 };
 
         for (NamedExpression agg : aggs) {
             if (agg instanceof Alias as) {

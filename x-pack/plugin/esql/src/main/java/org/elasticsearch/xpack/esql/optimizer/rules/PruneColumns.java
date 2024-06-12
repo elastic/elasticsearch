@@ -63,7 +63,7 @@ public class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
                                     aggregate.source(),
                                     List.of(new EmptyAttribute(aggregate.source())),
                                     LocalSupplier.of(
-                                        new Block[]{BlockUtils.constantBlock(PlannerUtils.NON_BREAKING_BLOCK_FACTORY, null, 1)}
+                                        new Block[] { BlockUtils.constantBlock(PlannerUtils.NON_BREAKING_BLOCK_FACTORY, null, 1) }
                                     )
                                 );
                             } else {

@@ -58,7 +58,7 @@ public class SubstituteSurrogates extends OptimizerRules.OptimizerRule<Aggregate
             }
         }
 
-        int[] counter = new int[]{0};
+        int[] counter = new int[] { 0 };
         // 0. check list of surrogate expressions
         for (NamedExpression agg : aggs) {
             Expression e = Alias.unwrap(agg);
@@ -113,7 +113,7 @@ public class SubstituteSurrogates extends OptimizerRules.OptimizerRule<Aggregate
                 plan = new LocalRelation(
                     source,
                     List.of(new EmptyAttribute(source)),
-                    LocalSupplier.of(new Block[]{BlockUtils.constantBlock(PlannerUtils.NON_BREAKING_BLOCK_FACTORY, null, 1)})
+                    LocalSupplier.of(new Block[] { BlockUtils.constantBlock(PlannerUtils.NON_BREAKING_BLOCK_FACTORY, null, 1) })
                 );
             }
             // 5. force the initial projection in place

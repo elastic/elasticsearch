@@ -750,10 +750,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         Filter fa = new Filter(EMPTY, relation, conditionA);
         Filter fb = new Filter(EMPTY, fa, conditionB);
 
-        assertEquals(
-            new Filter(EMPTY, relation, new And(EMPTY, conditionA, conditionB)),
-            new PushDownAndCombineFilters().apply(fb)
-        );
+        assertEquals(new Filter(EMPTY, relation, new And(EMPTY, conditionA, conditionB)), new PushDownAndCombineFilters().apply(fb));
     }
 
     public void testCombineFiltersLikeRLike() {
@@ -764,10 +761,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         Filter fa = new Filter(EMPTY, relation, conditionA);
         Filter fb = new Filter(EMPTY, fa, conditionB);
 
-        assertEquals(
-            new Filter(EMPTY, relation, new And(EMPTY, conditionA, conditionB)),
-            new PushDownAndCombineFilters().apply(fb)
-        );
+        assertEquals(new Filter(EMPTY, relation, new And(EMPTY, conditionA, conditionB)), new PushDownAndCombineFilters().apply(fb));
     }
 
     public void testPushDownFilter() {

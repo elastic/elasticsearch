@@ -302,5 +302,4 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
 
         protected abstract LogicalPlan rule(SubPlan plan, P context);
     }
-
 }

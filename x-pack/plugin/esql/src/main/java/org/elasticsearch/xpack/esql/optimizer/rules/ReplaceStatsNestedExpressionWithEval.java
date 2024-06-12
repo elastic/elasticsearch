@@ -66,7 +66,7 @@ public class ReplaceStatsNestedExpressionWithEval extends OptimizerRules.Optimiz
             expToAttribute.put(a.child().canonical(), a.toAttribute());
         }
 
-        int[] counter = new int[]{0};
+        int[] counter = new int[] { 0 };
         // for the aggs make sure to unwrap the agg function and check the existing groupings
         for (NamedExpression agg : aggs) {
             NamedExpression a = (NamedExpression) agg.transformDown(Alias.class, as -> {

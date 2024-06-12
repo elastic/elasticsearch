@@ -40,8 +40,8 @@ public class PruneOrderByBeforeStats extends OptimizerRules.OptimizerRule<Aggreg
             || plan instanceof Project
             || plan instanceof RegexExtract
             || plan instanceof Enrich) {
-            pullable = findPullableOrderBy(((UnaryPlan) plan).child());
-        }
+                pullable = findPullableOrderBy(((UnaryPlan) plan).child());
+            }
         return pullable;
     }
 

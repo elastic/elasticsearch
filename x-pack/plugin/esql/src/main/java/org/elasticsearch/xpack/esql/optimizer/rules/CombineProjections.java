@@ -110,10 +110,7 @@ public class CombineProjections extends OptimizerRules.OptimizerRule<UnaryPlan> 
     // normally only the upper projections should survive but since the lower list might have aliases definitions
     // that might be reused by the upper one, these need to be replaced.
     // for example an alias defined in the lower list might be referred in the upper - without replacing it the alias becomes invalid
-    private static List<NamedExpression> combineProjections(
-        List<? extends NamedExpression> upper,
-        List<? extends NamedExpression> lower
-    ) {
+    private static List<NamedExpression> combineProjections(List<? extends NamedExpression> upper, List<? extends NamedExpression> lower) {
 
         // collect named expressions declaration in the lower list
         AttributeMap<NamedExpression> namedExpressions = new AttributeMap<>();

@@ -7,9 +7,10 @@
 
 package org.elasticsearch.compute.aggregation;
 
+import com.carrotsearch.hppc.BitMixer;
+
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
-import org.apache.lucene.util.hppc.BitMixer;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.hash.MurmurHash3;
 import org.elasticsearch.common.io.stream.ByteArrayStreamInput;

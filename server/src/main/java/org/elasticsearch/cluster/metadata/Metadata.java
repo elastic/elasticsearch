@@ -2980,21 +2980,19 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
                             if (token == XContentParser.Token.FIELD_NAME) {
                                 currentFieldName = parser.currentName();
                                 if (parser.nextToken() == XContentParser.Token.START_OBJECT) {
-                                    try {
-                                        ProjectCustom custom = parser.namedObject(ProjectCustom.class, currentFieldName, null);
-                                        builder.putProjectCustom(custom.getWriteableName(), custom);
-                                    } catch (NamedObjectNotFoundException ex) {
-                                        logger.warn("Skipping unknown custom object with type {}", currentFieldName);
-                                        parser.skipChildren();
-                                    }
+                                    parseCustomObject(parser, currentFieldName, ProjectCustom.class, builder::putProjectCustom);
                                 }
                             }
                         }
                     } else {
-                        try {
-                            ClusterCustom custom = parser.namedObject(ClusterCustom.class, currentFieldName, null);
-                            builder.putClusterCustom(custom.getWriteableName(), custom);
-                        } catch (NamedObjectNotFoundException _ex) {
+                        // Older clusters didn't separate cluster-scoped and project-scope customs so a top-level custom object might
+                        // actually be a project-scoped custom
+                        final NamedXContentRegistry registry = parser.getXContentRegistry();
+                        if (registry.hasParser(ClusterCustom.class, currentFieldName, parser.getRestApiVersion())) {
+                            parseCustomObject(parser, currentFieldName, ClusterCustom.class, builder::putClusterCustom);
+                        } else if (registry.hasParser(ProjectCustom.class, currentFieldName, parser.getRestApiVersion())) {
+                            parseCustomObject(parser, currentFieldName, ProjectCustom.class, builder::putProjectCustom);
+                        } else {
                             logger.warn("Skipping unknown custom object with type {}", currentFieldName);
                             parser.skipChildren();
                         }
@@ -3015,6 +3013,21 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
             }
             XContentParserUtils.ensureExpectedToken(XContentParser.Token.END_OBJECT, parser.nextToken(), parser);
             return builder.build();
+        }
+
+        private static <C extends _Custom<C>> void parseCustomObject(
+            XContentParser parser,
+            String name,
+            Class<C> categoryClass,
+            BiConsumer<String, C> consumer
+        ) throws IOException {
+            try {
+                C custom = parser.namedObject(categoryClass, name, null);
+                consumer.accept(custom.getWriteableName(), custom);
+            } catch (NamedObjectNotFoundException _ex) {
+                logger.warn("Skipping unknown custom [{}] object with type {}", categoryClass.getSimpleName(), name);
+                parser.skipChildren();
+            }
         }
 
         /**

@@ -35,6 +35,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Predicates;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.health.node.selection.HealthNodeTaskExecutor;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSettings;
@@ -42,6 +43,7 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.alias.RandomAliasActionsGenerator;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.ingest.IngestMetadata;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.plugins.FieldPredicate;
@@ -50,9 +52,11 @@ import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.upgrades.FeatureMigrationResults;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
@@ -654,6 +658,97 @@ public class MetadataTests extends ESTestCase {
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder))) {
             final CoordinationMetadata fromXContentMeta = Metadata.fromXContent(parser).coordinationMetadata();
             assertThat(fromXContentMeta, equalTo(originalMeta));
+        }
+    }
+
+    public void testParseXContentFormatBeforeMultiProject() throws IOException {
+        final String json = org.elasticsearch.core.Strings.format("""
+            {
+              "meta-data": {
+                "version": 54321,
+                "cluster_uuid":"aba1aa1ababbbaabaabaab",
+                "cluster_uuid_committed":false,
+                "cluster_coordination":{
+                  "term":1,
+                  "last_committed_config":[],
+                  "last_accepted_config":[],
+                  "voting_config_exclusions":[]
+                },
+                "templates":{
+                  "template":{
+                    "order":0,
+                    "index_patterns":["index-*"],
+                    "settings":{
+                      "something":true
+                    },
+                    "mappings":{ },
+                    "aliases":{ }
+                  }
+                },
+                "persistent_tasks": {
+                  "last_allocation_id": 1,
+                  "tasks": [
+                    {
+                      "id": "health-node",
+                      "task":{ "health-node": {"params":{}} }
+                    }
+                  ]
+                },
+                "index-graveyard":{
+                  "tombstones":[{
+                    "index":{
+                      "index_name":"old-index",
+                      "index_uuid":"index_index_index_1234"
+                    },
+                    "delete_date_in_millis":1717170000000
+                  }]
+                },
+                "desired_nodes":{
+                  "latest": {
+                    "history_id": "test",
+                    "version": 1,
+                    "nodes": [{
+                      "settings":{ "node":{"name":"node-dn1"} },
+                      "processors": 3.5,
+                      "memory": "32gb",
+                      "storage": "256gb",
+                      "status": 0
+                    }]
+                  }
+                },
+                "component_template":{
+                  "component_template":{
+                    "sample-template":{
+                      "template":{
+                        "mappings":"REZMAKtWKijKL0gtKslMLVayqlaKCndxiwAxSioLUpWslLJTK8vzi1KUamtrAQ=="
+                      },
+                      "_meta":{
+                        "awesome":true
+                      },
+                      "deprecated":false
+                    }
+                  }
+                },
+                "reserved_state":{ }
+              }
+            }
+            """, IndexVersion.current(), IndexVersion.current());
+
+        List<NamedXContentRegistry.Entry> registry = new ArrayList<>();
+        registry.addAll(ClusterModule.getNamedXWriteables());
+        registry.addAll(IndicesModule.getNamedXContents());
+        registry.addAll(HealthNodeTaskExecutor.getNamedXContentParsers());
+
+        XContentParserConfiguration config = XContentParserConfiguration.EMPTY.withRegistry(new NamedXContentRegistry(registry));
+        try (XContentParser parser = JsonXContent.jsonXContent.createParser(config, json)) {
+            final var metatdata = Metadata.fromXContent(parser);
+            assertThat(metatdata, notNullValue());
+            assertThat(metatdata.clusterUUID(), is("aba1aa1ababbbaabaabaab"));
+            assertThat(metatdata.clusterCustoms().keySet(), containsInAnyOrder("desired_nodes"));
+            assertThat(
+                metatdata.projectCustoms().keySet(),
+                containsInAnyOrder("persistent_tasks", "index-graveyard", "component_template")
+            );
         }
     }
 

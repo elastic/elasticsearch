@@ -24,7 +24,6 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.RefCountingRunnable;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
@@ -2003,12 +2002,12 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
      * @param request         delete snapshot request
      * @param listener        listener a listener which will be resolved according to the wait_for_completion parameter
      */
-    public void deleteSnapshots(final DeleteSnapshotRequest request, final ActionListener<AcknowledgedResponse> listener) {
+    public void deleteSnapshots(final DeleteSnapshotRequest request, final ActionListener<Void> listener) {
         deleteSnapshotsAsynchronously(request, listener.delegateFailure((l, scheduledDelete) -> {
             if (scheduledDelete == null || request.waitForCompletion() == false) {
-                l.onResponse(AcknowledgedResponse.TRUE);
+                l.onResponse(null);
             } else {
-                addDeleteListener(scheduledDelete.uuid(), l.map(v -> AcknowledgedResponse.TRUE));
+                addDeleteListener(scheduledDelete.uuid(), l);
             }
         }));
     }

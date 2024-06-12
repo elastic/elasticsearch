@@ -51,6 +51,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.shard.IndexShard;
@@ -274,6 +275,9 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessIntegTestC
         var shard = findIndexShard(indexName);
         var directory = shard.store().directory();
 
+        // Disable scheduled refresh and manually perform local refresh to get expected directory size
+        final TimeValue originalRefreshInterval = shard.indexSettings().getRefreshInterval();
+        updateIndexSettings(Settings.builder().put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1), indexName);
         do {
             final int newDocs = randomIntBetween(10, 20);
             totalDocs += newDocs;
@@ -301,7 +305,12 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessIntegTestC
                 }
             }
             assertNoFailures(bulkRequest.get());
+            shard.refresh("update directory size");
         } while (getDirectorySize(directory) <= PAGE_SIZE * pages);
+        updateIndexSettings(
+            Settings.builder().put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), originalRefreshInterval),
+            indexName
+        );
 
         assertNoFailures(client().admin().indices().prepareRefresh(indexName).execute().get());
         logger.info(

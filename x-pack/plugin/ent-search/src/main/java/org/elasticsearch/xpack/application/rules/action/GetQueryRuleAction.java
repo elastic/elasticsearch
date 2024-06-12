@@ -29,7 +29,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg
 
 public class GetQueryRuleAction {
 
-    public static final String NAME = "cluster:admin/xpack/query_rule/get";
+    public static final String NAME = "cluster:admin/xpack/query_rules/rule/get";
     public static final ActionType<GetQueryRuleAction.Response> INSTANCE = new ActionType<>(NAME);
 
     private GetQueryRuleAction() {/* no instances */}

@@ -28,7 +28,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg
 
 public class DeleteQueryRuleAction {
 
-    public static final String NAME = "cluster:admin/xpack/query_rule/delete";
+    public static final String NAME = "cluster:admin/xpack/query_rules/rule/delete";
     public static final ActionType<AcknowledgedResponse> INSTANCE = new ActionType<>(NAME);
 
     private DeleteQueryRuleAction() {/* no instances */}

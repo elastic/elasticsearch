@@ -44,7 +44,6 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.application.connector.action.ConnectorCreateActionResponse;
 import org.elasticsearch.xpack.application.connector.action.UpdateConnectorApiKeyIdAction;
 import org.elasticsearch.xpack.application.connector.action.UpdateConnectorConfigurationAction;
-import org.elasticsearch.xpack.application.connector.action.UpdateConnectorErrorAction;
 import org.elasticsearch.xpack.application.connector.action.UpdateConnectorIndexNameAction;
 import org.elasticsearch.xpack.application.connector.action.UpdateConnectorLastSyncStatsAction;
 import org.elasticsearch.xpack.application.connector.action.UpdateConnectorNameAction;
@@ -470,17 +469,21 @@ public class ConnectorIndexService {
     /**
      * Updates the error property of a {@link Connector}.
      *
-     * @param request  The request for updating the connector's error.
-     * @param listener The listener for handling responses, including successful updates or errors.
+     * @param connectorId The ID of the {@link Connector} to be updated.
+     * @param error       An instance of error property of {@link Connector}, can be reset to [null].
+     * @param listener    The listener for handling responses, including successful updates or errors.
      */
-    public void updateConnectorError(UpdateConnectorErrorAction.Request request, ActionListener<UpdateResponse> listener) {
+    public void updateConnectorError(String connectorId, String error, ActionListener<UpdateResponse> listener) {
         try {
-            String connectorId = request.getConnectorId();
             final UpdateRequest updateRequest = new UpdateRequest(CONNECTOR_INDEX_NAME, connectorId).doc(
                 new IndexRequest(CONNECTOR_INDEX_NAME).opType(DocWriteRequest.OpType.INDEX)
                     .id(connectorId)
                     .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-                    .source(Map.of(Connector.ERROR_FIELD.getPreferredName(), request.getError()))
+                    .source(new HashMap<>() {
+                        {
+                            put(Connector.ERROR_FIELD.getPreferredName(), error);
+                        }
+                    })
             );
             client.update(updateRequest, new DelegatingIndexNotFoundActionListener<>(connectorId, listener, (l, updateResponse) -> {
                 if (updateResponse.getResult() == UpdateResponse.Result.NOT_FOUND) {

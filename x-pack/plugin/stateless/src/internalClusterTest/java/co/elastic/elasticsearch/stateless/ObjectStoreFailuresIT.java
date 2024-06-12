@@ -20,6 +20,7 @@ package co.elastic.elasticsearch.stateless;
 import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
 import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreTestUtils;
 
+import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteUtils;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
@@ -169,7 +170,7 @@ public class ObjectStoreFailuresIT extends AbstractStatelessIntegTestCase {
         if (randomBoolean()) repository.setRandomIOExceptionPattern(".*stateless_commit_.*");
 
         logger.info("--> move replica shard from: {} to: {}", searchNodeA, searchNodeB);
-        clusterAdmin().prepareReroute().add(new MoveAllocationCommand(indexName, 0, searchNodeA, searchNodeB)).execute().actionGet();
+        ClusterRerouteUtils.reroute(client(), new MoveAllocationCommand(indexName, 0, searchNodeA, searchNodeB));
 
         ensureGreen();
         assertThat(repository.getFailureCount(), greaterThan(0L));
@@ -242,7 +243,7 @@ public class ObjectStoreFailuresIT extends AbstractStatelessIntegTestCase {
         repository.setRandomIOExceptionPattern(".*stateless_commit_.*");
 
         logger.info("--> move primary shard from: {} to: {}", indexNodeA, indexNodeB);
-        clusterAdmin().prepareReroute().add(new MoveAllocationCommand(indexName, 0, indexNodeA, indexNodeB)).execute().actionGet();
+        ClusterRerouteUtils.reroute(client(), new MoveAllocationCommand(indexName, 0, indexNodeA, indexNodeB));
 
         ensureGreen();
         assertThat(repository.getFailureCount(), greaterThan(0L));

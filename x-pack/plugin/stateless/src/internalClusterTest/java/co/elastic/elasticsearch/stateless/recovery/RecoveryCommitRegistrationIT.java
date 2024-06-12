@@ -20,6 +20,7 @@ package co.elastic.elasticsearch.stateless.recovery;
 import co.elastic.elasticsearch.stateless.AbstractStatelessIntegTestCase;
 import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
 
+import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteUtils;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.coordination.Coordinator;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -179,7 +180,7 @@ public class RecoveryCommitRegistrationIT extends AbstractStatelessIntegTestCase
         });
         // initiate a relocation
         logger.info("--> move primary shard from: {} to: {}", indexNodeA, indexNodeB);
-        clusterAdmin().prepareReroute().add(new MoveAllocationCommand(indexName, 0, indexNodeA, indexNodeB)).execute().actionGet();
+        ClusterRerouteUtils.reroute(client(), new MoveAllocationCommand(indexName, 0, indexNodeA, indexNodeB));
         logger.info("--> waiting for nodeB sending SHARD_STARTED ");
         safeAwait(nodeBSendingShardStarted);
         // start search shard, You should see the last commit but the registration should go to the old indexing shard

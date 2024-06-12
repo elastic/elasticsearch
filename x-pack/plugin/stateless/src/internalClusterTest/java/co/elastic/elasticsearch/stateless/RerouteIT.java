@@ -22,6 +22,7 @@ import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreTestUtils;
 
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
+import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteUtils;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.cluster.routing.RecoverySource;
@@ -79,7 +80,7 @@ public class RerouteIT extends AbstractStatelessIntegTestCase {
         repository.setBlockOnAnyFiles();
 
         logger.info("--> move shard from: {} to: {}", nodeA, nodeB);
-        clusterAdmin().prepareReroute().add(new MoveAllocationCommand(indexName, 0, nodeA, nodeB)).execute().actionGet().getState();
+        ClusterRerouteUtils.reroute(client(), new MoveAllocationCommand(indexName, 0, nodeA, nodeB));
 
         logger.info("--> waiting for recovery to start both on source and target");
         final Index index = resolveIndex(indexName);
@@ -188,7 +189,7 @@ public class RerouteIT extends AbstractStatelessIntegTestCase {
         repository.setBlockOnAnyFiles();
 
         logger.info("--> move replica shard from: {} to: {}", nodeB, nodeC);
-        clusterAdmin().prepareReroute().add(new MoveAllocationCommand(indexName, 0, nodeB, nodeC)).execute().actionGet().getState();
+        ClusterRerouteUtils.reroute(client(), new MoveAllocationCommand(indexName, 0, nodeB, nodeC));
 
         RecoveryResponse response = indicesAdmin().prepareRecoveries(indexName).execute().actionGet();
         List<RecoveryState> recoveryStates = response.shardRecoveryStates().get(indexName);

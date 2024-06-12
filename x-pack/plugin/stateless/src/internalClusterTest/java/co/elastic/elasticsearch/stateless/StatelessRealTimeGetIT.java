@@ -27,6 +27,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.NoShardAvailableActionException;
+import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteUtils;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.refresh.TransportShardRefreshAction;
@@ -751,7 +752,7 @@ public class StatelessRealTimeGetIT extends AbstractStatelessIntegTestCase {
         var getFuture = client().prepareGet(indexName, getNonExistingId ? "non-existing" : id).setRealtime(true).execute();
         safeAwait(receivedGetFromTranslog);
         logger.info("--> starting promotable shard relocation");
-        clusterAdmin().prepareReroute().add(new MoveAllocationCommand(indexName, 0, indexNodeA, indexNodeB)).execute().actionGet();
+        ClusterRerouteUtils.reroute(client(), new MoveAllocationCommand(indexName, 0, indexNodeA, indexNodeB));
         ensureGreen(indexName);
         logger.info("--> relocation finished");
         continueGetFromTranslog.countDown();

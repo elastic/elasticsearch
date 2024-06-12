@@ -21,7 +21,6 @@ import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.function.Function;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.type.DataTypes;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.CountDistinct;
@@ -44,8 +43,8 @@ import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.CARTESIAN_POINT;
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.GEO_POINT;
+import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_POINT;
+import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_POINT;
 
 final class AggregateMapper {
 
@@ -228,11 +227,11 @@ final class AggregateMapper {
     // defaults to aggstate, but we'll eventually be able to remove this
     private static DataType toDataType(ElementType elementType) {
         return switch (elementType) {
-            case BOOLEAN -> DataTypes.BOOLEAN;
-            case BYTES_REF -> DataTypes.KEYWORD;
-            case INT -> DataTypes.INTEGER;
-            case LONG -> DataTypes.LONG;
-            case DOUBLE -> DataTypes.DOUBLE;
+            case BOOLEAN -> DataType.BOOLEAN;
+            case BYTES_REF -> DataType.KEYWORD;
+            case INT -> DataType.INTEGER;
+            case LONG -> DataType.LONG;
+            case DOUBLE -> DataType.DOUBLE;
             default -> throw new EsqlIllegalArgumentException("unsupported agg type: " + elementType);
         };
     }
@@ -242,18 +241,18 @@ final class AggregateMapper {
         if (aggClass == Count.class) {
             return "";  // no type distinction
         }
-        if (type.equals(DataTypes.BOOLEAN)) {
+        if (type.equals(DataType.BOOLEAN)) {
             return "Boolean";
-        } else if (type.equals(DataTypes.INTEGER)) {
+        } else if (type.equals(DataType.INTEGER)) {
             return "Int";
-        } else if (type.equals(DataTypes.LONG) || type.equals(DataTypes.DATETIME)) {
+        } else if (type.equals(DataType.LONG) || type.equals(DataType.DATETIME)) {
             return "Long";
-        } else if (type.equals(DataTypes.DOUBLE)) {
+        } else if (type.equals(DataType.DOUBLE)) {
             return "Double";
-        } else if (type.equals(DataTypes.KEYWORD)
-            || type.equals(DataTypes.IP)
-            || type.equals(DataTypes.VERSION)
-            || type.equals(DataTypes.TEXT)) {
+        } else if (type.equals(DataType.KEYWORD)
+            || type.equals(DataType.IP)
+            || type.equals(DataType.VERSION)
+            || type.equals(DataType.TEXT)) {
                 return "BytesRef";
             } else if (type.equals(GEO_POINT)) {
                 return "GeoPoint";

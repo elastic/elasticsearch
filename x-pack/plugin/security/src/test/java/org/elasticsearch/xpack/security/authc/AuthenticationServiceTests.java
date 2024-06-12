@@ -332,7 +332,8 @@ public class AuthenticationServiceTests extends ESTestCase {
             securityIndex,
             clusterService,
             mock(CacheInvalidatorRegistry.class),
-            threadPool
+            threadPool,
+            MeterRegistry.NOOP
         );
         tokenService = new TokenService(
             settings,
@@ -2512,10 +2513,13 @@ public class AuthenticationServiceTests extends ESTestCase {
             true,
             true,
             null,
+            null,
+            null,
             concreteSecurityIndexName,
             indexStatus,
             IndexMetadata.State.OPEN,
-            "my_uuid"
+            "my_uuid",
+            Set.of()
         );
     }
 

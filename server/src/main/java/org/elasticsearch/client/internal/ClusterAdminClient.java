@@ -13,10 +13,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplainRequest;
-import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplainRequestBuilder;
-import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplainResponse;
-import org.elasticsearch.action.admin.cluster.allocation.TransportClusterAllocationExplainAction;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequestBuilder;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
@@ -207,14 +203,26 @@ public class ClusterAdminClient implements ElasticsearchClient {
         return new ClusterUpdateSettingsRequestBuilder(this);
     }
 
+    /**
+     * @deprecated use {@code ClusterRerouteUtils} in tests, or just run the action directly
+     */
+    @Deprecated(forRemoval = true) // temporary compatibility shim
     public ActionFuture<ClusterRerouteResponse> reroute(final ClusterRerouteRequest request) {
         return execute(TransportClusterRerouteAction.TYPE, request);
     }
 
+    /**
+     * @deprecated use {@code ClusterRerouteUtils} in tests, or just run the action directly
+     */
+    @Deprecated(forRemoval = true) // temporary compatibility shim
     public void reroute(final ClusterRerouteRequest request, final ActionListener<ClusterRerouteResponse> listener) {
         execute(TransportClusterRerouteAction.TYPE, request, listener);
     }
 
+    /**
+     * @deprecated use {@code ClusterRerouteUtils} in tests, or just run the action directly
+     */
+    @Deprecated(forRemoval = true) // temporary compatibility shim
     public ClusterRerouteRequestBuilder prepareReroute() {
         return new ClusterRerouteRequestBuilder(this);
     }
@@ -453,18 +461,6 @@ public class ClusterAdminClient implements ElasticsearchClient {
 
     public SimulatePipelineRequestBuilder prepareSimulatePipeline(BytesReference source, XContentType xContentType) {
         return new SimulatePipelineRequestBuilder(this, source, xContentType);
-    }
-
-    public void allocationExplain(ClusterAllocationExplainRequest request, ActionListener<ClusterAllocationExplainResponse> listener) {
-        execute(TransportClusterAllocationExplainAction.TYPE, request, listener);
-    }
-
-    public ActionFuture<ClusterAllocationExplainResponse> allocationExplain(ClusterAllocationExplainRequest request) {
-        return execute(TransportClusterAllocationExplainAction.TYPE, request);
-    }
-
-    public ClusterAllocationExplainRequestBuilder prepareAllocationExplain() {
-        return new ClusterAllocationExplainRequestBuilder(this);
     }
 
     public PutStoredScriptRequestBuilder preparePutStoredScript() {

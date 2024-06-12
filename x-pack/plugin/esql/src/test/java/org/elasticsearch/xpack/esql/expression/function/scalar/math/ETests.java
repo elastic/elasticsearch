@@ -14,7 +14,7 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.DataTypes;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.hamcrest.Matcher;
@@ -33,9 +33,9 @@ public class ETests extends AbstractFunctionTestCase {
     public static Iterable<Object[]> parameters() {
         return parameterSuppliersFromTypedData(List.of(new TestCaseSupplier("E Test", () -> {
             return new TestCaseSupplier.TestCase(
-                List.of(new TestCaseSupplier.TypedData(1, DataTypes.INTEGER, "foo")),
+                List.of(new TestCaseSupplier.TypedData(1, DataType.INTEGER, "foo")),
                 "LiteralsEvaluator[lit=2.718281828459045]",
-                DataTypes.DOUBLE,
+                DataType.DOUBLE,
                 equalTo(Math.E)
             );
         })));

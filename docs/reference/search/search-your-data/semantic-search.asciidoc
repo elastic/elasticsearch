@@ -1,25 +1,29 @@
 [[semantic-search]]
 == Semantic search
 
-Semantic search is a search method that helps you find data based on the intent
-and contextual meaning of a search query, instead of a match on query terms
+Semantic search is a search method that helps you find data based on the intent and contextual meaning of a search query, instead of a match on query terms
 (lexical search).
 
-{es} provides semantic search capabilities using {ml-docs}/ml-nlp.html[natural
-language processing (NLP)] and vector search. Deploying an NLP model to {es}
-enables it to extract text embeddings out of text. Embeddings are vectors that
-provide a numeric representation of a text. Pieces of content with similar
-meaning have similar representations. 
+{es} provides various semantic search capabilities using {ml-docs}/ml-nlp.html[natural language processing (NLP)] and vector search.
+Using an NLP model enables you to extract text embeddings out of text.
+Embeddings are vectors that provide a numeric representation of a text.
+Pieces of content with similar meaning have similar representations. 
+NLP models can be used in the {stack} various ways, you can:
+
+* deploy models in {es}
+* use the <<semantic-search-semantic-text, `semantic_text` workflow>> (recommended)
+* use the <<semantic-search-inference, {infer} API workflow>>
+
 
 [[semantic-search-diagram]]
 .A simplified representation of encoding textual concepts as vectors
 image::images/search/vector-search-oversimplification.png[A simplified representation of encoding textual concepts as vectors,align="center"]
 
-At query time, {es} can use the same NLP model to convert a query into
-embeddings, enabling you to find documents with similar text embeddings.
+At query time, {es} can use the same NLP model to convert a query into embeddings, enabling you to find documents with similar text embeddings.
 
-This guide shows you how to implement semantic search with {es}, from selecting
-an NLP model, to writing queries.
+This guide shows you how to implement semantic search with {es}: From selecting an NLP model, to writing queries.
+
+IMPORTANT: For the easiest way to perform semantic search in the {stack}, refer to the <<semantic-search-semantic-text, `semantic_text`>> end-to-end tutorial.
 
 [discrete]
 [[semantic-search-select-nlp-model]]
@@ -135,5 +139,6 @@ include::{es-ref-dir}/tab-widgets/semantic-search/hybrid-search-widget.asciidoc[
 ** The https://github.com/elastic/elasticsearch-labs[`elasticsearch-labs`] repo contains a number of interactive semantic search examples in the form of executable Python notebooks, using the {es} Python client
 
 include::semantic-search-elser.asciidoc[]
+include::semantic-search-semantic-text.asciidoc[]
 include::semantic-search-inference.asciidoc[]
 include::cohere-es.asciidoc[]

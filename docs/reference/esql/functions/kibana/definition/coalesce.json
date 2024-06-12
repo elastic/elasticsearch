@@ -38,6 +38,96 @@
       "params" : [
         {
           "name" : "first",
+          "type" : "cartesian_point",
+          "optional" : false,
+          "description" : "Expression to evaluate."
+        },
+        {
+          "name" : "rest",
+          "type" : "cartesian_point",
+          "optional" : true,
+          "description" : "Other expression to evaluate."
+        }
+      ],
+      "variadic" : true,
+      "returnType" : "cartesian_point"
+    },
+    {
+      "params" : [
+        {
+          "name" : "first",
+          "type" : "cartesian_shape",
+          "optional" : false,
+          "description" : "Expression to evaluate."
+        },
+        {
+          "name" : "rest",
+          "type" : "cartesian_shape",
+          "optional" : true,
+          "description" : "Other expression to evaluate."
+        }
+      ],
+      "variadic" : true,
+      "returnType" : "cartesian_shape"
+    },
+    {
+      "params" : [
+        {
+          "name" : "first",
+          "type" : "datetime",
+          "optional" : false,
+          "description" : "Expression to evaluate."
+        },
+        {
+          "name" : "rest",
+          "type" : "datetime",
+          "optional" : true,
+          "description" : "Other expression to evaluate."
+        }
+      ],
+      "variadic" : true,
+      "returnType" : "datetime"
+    },
+    {
+      "params" : [
+        {
+          "name" : "first",
+          "type" : "geo_point",
+          "optional" : false,
+          "description" : "Expression to evaluate."
+        },
+        {
+          "name" : "rest",
+          "type" : "geo_point",
+          "optional" : true,
+          "description" : "Other expression to evaluate."
+        }
+      ],
+      "variadic" : true,
+      "returnType" : "geo_point"
+    },
+    {
+      "params" : [
+        {
+          "name" : "first",
+          "type" : "geo_shape",
+          "optional" : false,
+          "description" : "Expression to evaluate."
+        },
+        {
+          "name" : "rest",
+          "type" : "geo_shape",
+          "optional" : true,
+          "description" : "Other expression to evaluate."
+        }
+      ],
+      "variadic" : true,
+      "returnType" : "geo_shape"
+    },
+    {
+      "params" : [
+        {
+          "name" : "first",
           "type" : "integer",
           "optional" : false,
           "description" : "Expression to evaluate."
@@ -63,6 +153,24 @@
       ],
       "variadic" : true,
       "returnType" : "integer"
+    },
+    {
+      "params" : [
+        {
+          "name" : "first",
+          "type" : "ip",
+          "optional" : false,
+          "description" : "Expression to evaluate."
+        },
+        {
+          "name" : "rest",
+          "type" : "ip",
+          "optional" : true,
+          "description" : "Other expression to evaluate."
+        }
+      ],
+      "variadic" : true,
+      "returnType" : "ip"
     },
     {
       "params" : [
@@ -153,6 +261,24 @@
       ],
       "variadic" : true,
       "returnType" : "text"
+    },
+    {
+      "params" : [
+        {
+          "name" : "first",
+          "type" : "version",
+          "optional" : false,
+          "description" : "Expression to evaluate."
+        },
+        {
+          "name" : "rest",
+          "type" : "version",
+          "optional" : true,
+          "description" : "Other expression to evaluate."
+        }
+      ],
+      "variadic" : true,
+      "returnType" : "version"
     }
   ],
   "examples" : [

@@ -9,7 +9,9 @@ package org.elasticsearch.xpack.esql.analysis;
 
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
+import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
+import org.elasticsearch.xpack.esql.Column;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.core.analyzer.AnalyzerRules;
@@ -46,7 +48,6 @@ import org.elasticsearch.xpack.esql.core.rule.RuleExecutor;
 import org.elasticsearch.xpack.esql.core.session.Configuration;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.type.DataTypes;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
 import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
@@ -58,6 +59,7 @@ import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.DateTimeArithmeticOperation;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.EsqlArithmeticOperation;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
@@ -68,10 +70,13 @@ import org.elasticsearch.xpack.esql.plan.logical.EsqlAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsqlUnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Keep;
+import org.elasticsearch.xpack.esql.plan.logical.Lookup;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
+import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
+import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 import org.elasticsearch.xpack.esql.stats.FeatureMetric;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
@@ -94,40 +99,42 @@ import java.util.stream.Collectors;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.core.enrich.EnrichPolicy.GEO_MATCH_TYPE;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.BOOLEAN;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.DATETIME;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.DOUBLE;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.FLOAT;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.INTEGER;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.IP;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.KEYWORD;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.LONG;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.NESTED;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.TEXT;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.VERSION;
+import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.DataType.FLOAT;
+import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_POINT;
+import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_SHAPE;
+import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
+import static org.elasticsearch.xpack.esql.core.type.DataType.IP;
+import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
+import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
+import static org.elasticsearch.xpack.esql.core.type.DataType.NESTED;
+import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
+import static org.elasticsearch.xpack.esql.core.type.DataType.VERSION;
 import static org.elasticsearch.xpack.esql.stats.FeatureMetric.LIMIT;
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.GEO_POINT;
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.GEO_SHAPE;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.isTemporalAmount;
 
 public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerContext> {
     // marker list of attributes for plans that do not have any concrete fields to return, but have other computed columns to return
     // ie from test | stats c = count(*)
     public static final List<Attribute> NO_FIELDS = List.of(
-        new ReferenceAttribute(Source.EMPTY, "<no-fields>", DataTypes.NULL, null, Nullability.TRUE, null, true)
+        new ReferenceAttribute(Source.EMPTY, "<no-fields>", DataType.NULL, null, Nullability.TRUE, null, true)
     );
     private static final Iterable<RuleExecutor.Batch<LogicalPlan>> rules;
 
     static {
-        var resolution = new Batch<>(
-            "Resolution",
+        var init = new Batch<>(
+            "Initialize",
+            Limiter.ONCE,
             new ResolveTable(),
             new ResolveEnrich(),
-            new ResolveFunctions(),
-            new ResolveRefs(),
-            new ImplicitCasting()
+            new ResolveLookupTables(),
+            new ResolveFunctions()
         );
+        var resolution = new Batch<>("Resolution", new ResolveRefs(), new ImplicitCasting());
         var finish = new Batch<>("Finish Analysis", Limiter.ONCE, new AddImplicitLimit());
-        rules = List.of(resolution, finish);
+        rules = List.of(init, resolution, finish);
     }
 
     private final Verifier verifier;
@@ -322,10 +329,60 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
     }
 
-    private static class ResolveRefs extends BaseAnalyzerRule {
+    private static class ResolveLookupTables extends ParameterizedAnalyzerRule<Lookup, AnalyzerContext> {
 
         @Override
+        protected LogicalPlan rule(Lookup lookup, AnalyzerContext context) {
+            // the parser passes the string wrapped in a literal
+            Source source = lookup.source();
+            Expression tableNameExpression = lookup.tableName();
+            String tableName = lookup.tableName().toString();
+            Map<String, Map<String, Column>> tables = context.configuration().tables();
+            LocalRelation localRelation = null;
+
+            if (tables.containsKey(tableName) == false) {
+                String message = "Unknown table [" + tableName + "]";
+                // typos check
+                List<String> potentialMatches = StringUtils.findSimilar(tableName, tables.keySet());
+                if (CollectionUtils.isEmpty(potentialMatches) == false) {
+                    message = UnresolvedAttribute.errorMessage(tableName, potentialMatches).replace("column", "table");
+                }
+                tableNameExpression = new UnresolvedAttribute(tableNameExpression.source(), tableName, null, message);
+            }
+            // wrap the table in a local relationship for idiomatic field resolution
+            else {
+                localRelation = tableMapAsRelation(source, tables.get(tableName));
+                // postpone the resolution for ResolveRefs
+            }
+
+            return new Lookup(source, lookup.child(), tableNameExpression, lookup.matchFields(), localRelation);
+        }
+
+        private LocalRelation tableMapAsRelation(Source source, Map<String, Column> mapTable) {
+            Block[] blocks = new Block[mapTable.size()];
+
+            List<Attribute> attributes = new ArrayList<>(blocks.length);
+            int i = 0;
+            for (Map.Entry<String, Column> entry : mapTable.entrySet()) {
+                String name = entry.getKey();
+                Column column = entry.getValue();
+                // create a fake ES field - alternative is to use a ReferenceAttribute
+                EsField field = new EsField(name, column.type(), Map.of(), false, false);
+                attributes.add(new FieldAttribute(source, null, name, field));
+                // prepare the block for the supplier
+                blocks[i++] = column.values();
+            }
+            LocalSupplier supplier = LocalSupplier.of(blocks);
+            return new LocalRelation(source, attributes, supplier);
+        }
+    }
+
+    private static class ResolveRefs extends BaseAnalyzerRule {
+        @Override
         protected LogicalPlan doRule(LogicalPlan plan) {
+            if (plan.childrenResolved() == false) {
+                return plan;
+            }
             final List<Attribute> childrenOutput = new ArrayList<>();
 
             for (LogicalPlan child : plan.children()) {
@@ -359,6 +416,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
             if (plan instanceof MvExpand p) {
                 return resolveMvExpand(p, childrenOutput);
+            }
+
+            if (plan instanceof Lookup l) {
+                return resolveLookup(l, childrenOutput);
             }
 
             return plan.transformExpressionsOnly(UnresolvedAttribute.class, ua -> maybeResolveAttribute(ua, childrenOutput));
@@ -441,6 +502,70 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 );
             }
             return p;
+        }
+
+        private LogicalPlan resolveLookup(Lookup l, List<Attribute> childrenOutput) {
+            // check if the table exists before performing any resolution
+            if (l.localRelation() == null) {
+                return l;
+            }
+
+            // check the on field against both the child output and the inner relation
+            List<NamedExpression> matchFields = new ArrayList<>(l.matchFields().size());
+            List<Attribute> localOutput = l.localRelation().output();
+            boolean modified = false;
+
+            for (NamedExpression ne : l.matchFields()) {
+                NamedExpression matchFieldChildReference = ne;
+                if (ne instanceof UnresolvedAttribute ua && ua.customMessage() == false) {
+                    modified = true;
+                    Attribute joinedAttribute = maybeResolveAttribute(ua, localOutput);
+                    // can't find the field inside the local relation
+                    if (joinedAttribute instanceof UnresolvedAttribute lua) {
+                        // adjust message
+                        matchFieldChildReference = lua.withUnresolvedMessage(
+                            lua.unresolvedMessage().replace("Unknown column", "Unknown column in lookup target")
+                        );
+                    } else {
+                        // check also the child output by resolving to it
+                        Attribute attr = maybeResolveAttribute(ua, childrenOutput);
+                        matchFieldChildReference = attr;
+                        if (attr instanceof UnresolvedAttribute == false) {
+                            /*
+                             * If they do, make sure the data types line up. If either is
+                             * null it's fine to match it against anything.
+                             */
+                            boolean dataTypesOk = joinedAttribute.dataType().equals(attr.dataType());
+                            if (false == dataTypesOk) {
+                                dataTypesOk = joinedAttribute.dataType() == DataType.NULL || attr.dataType() == DataType.NULL;
+                            }
+                            if (false == dataTypesOk) {
+                                dataTypesOk = joinedAttribute.dataType().equals(KEYWORD) && attr.dataType().equals(TEXT);
+                            }
+                            if (false == dataTypesOk) {
+                                matchFieldChildReference = new UnresolvedAttribute(
+                                    attr.source(),
+                                    attr.name(),
+                                    attr.qualifier(),
+                                    attr.id(),
+                                    "column type mismatch, table column was ["
+                                        + joinedAttribute.dataType().typeName()
+                                        + "] and original column was ["
+                                        + attr.dataType().typeName()
+                                        + "]",
+                                    null
+                                );
+                            }
+                        }
+                    }
+                }
+
+                matchFields.add(matchFieldChildReference);
+            }
+            if (modified) {
+                return new Lookup(l.source(), l.child(), l.tableName(), matchFields, l.localRelation());
+            }
+            return l;
         }
 
         private Attribute maybeResolveAttribute(UnresolvedAttribute ua, List<Attribute> childrenOutput) {
@@ -783,7 +908,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 limit = context.configuration().resultTruncationMaxSize(); // user provided a limit: cap result entries to the max
             }
             var source = logicalPlan.source();
-            return new Limit(source, new Literal(source, limit, DataTypes.INTEGER), logicalPlan);
+            return new Limit(source, new Literal(source, limit, DataType.INTEGER), logicalPlan);
         }
     }
 
@@ -826,7 +951,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             }
             List<Expression> newChildren = new ArrayList<>(args.size());
             boolean childrenChanged = false;
-            DataType targetDataType = DataTypes.NULL;
+            DataType targetDataType = DataType.NULL;
             Expression arg;
             for (int i = 0; i < args.size(); i++) {
                 arg = args.get(i);
@@ -834,7 +959,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     if (i < targetDataTypes.size()) {
                         targetDataType = targetDataTypes.get(i);
                     }
-                    if (targetDataType != DataTypes.NULL && targetDataType != DataTypes.UNSUPPORTED) {
+                    if (targetDataType != DataType.NULL && targetDataType != DataType.UNSUPPORTED) {
                         Expression e = castStringLiteral(arg, targetDataType);
                         childrenChanged = true;
                         newChildren.add(e);
@@ -854,22 +979,26 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             }
             List<Expression> newChildren = new ArrayList<>(2);
             boolean childrenChanged = false;
-            DataType targetDataType = DataTypes.NULL;
+            DataType targetDataType = DataType.NULL;
             Expression from = Literal.NULL;
 
-            if (left.dataType() == KEYWORD
-                && left.foldable()
-                && (supportsImplicitCasting(right.dataType()))
-                && ((left instanceof EsqlScalarFunction) == false)) {
-                targetDataType = right.dataType();
-                from = left;
+            if (left.dataType() == KEYWORD && left.foldable() && (left instanceof EsqlScalarFunction == false)) {
+                if (supportsImplicitCasting(right.dataType())) {
+                    targetDataType = right.dataType();
+                    from = left;
+                } else if (supportsImplicitTemporalCasting(right, o)) {
+                    targetDataType = DATETIME;
+                    from = left;
+                }
             }
-            if (right.dataType() == KEYWORD
-                && right.foldable()
-                && (supportsImplicitCasting(left.dataType()))
-                && ((right instanceof EsqlScalarFunction) == false)) {
-                targetDataType = left.dataType();
-                from = right;
+            if (right.dataType() == KEYWORD && right.foldable() && (right instanceof EsqlScalarFunction == false)) {
+                if (supportsImplicitCasting(left.dataType())) {
+                    targetDataType = left.dataType();
+                    from = right;
+                } else if (supportsImplicitTemporalCasting(left, o)) {
+                    targetDataType = DATETIME;
+                    from = right;
+                }
             }
             if (from != Literal.NULL) {
                 Expression e = castStringLiteral(from, targetDataType);
@@ -901,6 +1030,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             }
             newChildren.add(left);
             return childrenChanged ? in.replaceChildren(newChildren) : in;
+        }
+
+        private static boolean supportsImplicitTemporalCasting(Expression e, BinaryOperator<?, ?, ?, ?> o) {
+            return isTemporalAmount(e.dataType()) && (o instanceof DateTimeArithmeticOperation);
         }
 
         private static boolean supportsImplicitCasting(DataType type) {

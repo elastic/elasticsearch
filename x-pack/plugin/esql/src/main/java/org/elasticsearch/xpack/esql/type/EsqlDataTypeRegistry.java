@@ -13,10 +13,10 @@ import org.elasticsearch.xpack.esql.core.type.DataTypeRegistry;
 
 import java.util.Collection;
 
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.DATETIME;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.isDateTime;
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.DATE_PERIOD;
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.TIME_DURATION;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_PERIOD;
+import static org.elasticsearch.xpack.esql.core.type.DataType.TIME_DURATION;
+import static org.elasticsearch.xpack.esql.core.type.DataType.isDateTime;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.isDateTimeOrTemporal;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.isNullOrDatePeriod;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.isNullOrTemporalAmount;
@@ -30,7 +30,7 @@ public class EsqlDataTypeRegistry implements DataTypeRegistry {
 
     @Override
     public Collection<DataType> dataTypes() {
-        return EsqlDataTypes.types();
+        return DataType.types();
     }
 
     @Override

@@ -12,7 +12,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.DataTypes;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
@@ -34,7 +34,7 @@ public class SignumTests extends AbstractFunctionTestCase {
         TestCaseSupplier.forUnaryInt(
             suppliers,
             "SignumIntEvaluator[val=" + read + "]",
-            DataTypes.DOUBLE,
+            DataType.DOUBLE,
             i -> (double) Math.signum(i),
             Integer.MIN_VALUE,
             Integer.MAX_VALUE,
@@ -44,7 +44,7 @@ public class SignumTests extends AbstractFunctionTestCase {
         TestCaseSupplier.forUnaryLong(
             suppliers,
             "SignumLongEvaluator[val=" + read + "]",
-            DataTypes.DOUBLE,
+            DataType.DOUBLE,
             l -> (double) Math.signum(l),
             Long.MIN_VALUE,
             Long.MAX_VALUE,
@@ -54,7 +54,7 @@ public class SignumTests extends AbstractFunctionTestCase {
         TestCaseSupplier.forUnaryUnsignedLong(
             suppliers,
             "SignumUnsignedLongEvaluator[val=" + read + "]",
-            DataTypes.DOUBLE,
+            DataType.DOUBLE,
             ul -> Math.signum(NumericUtils.unsignedLongToDouble(NumericUtils.asLongUnsigned(ul))),
             BigInteger.ZERO,
             UNSIGNED_LONG_MAX,
@@ -63,7 +63,7 @@ public class SignumTests extends AbstractFunctionTestCase {
         TestCaseSupplier.forUnaryDouble(
             suppliers,
             "SignumDoubleEvaluator[val=" + read + "]",
-            DataTypes.DOUBLE,
+            DataType.DOUBLE,
             Math::signum,
             -Double.MAX_VALUE,
             Double.MAX_VALUE,

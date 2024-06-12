@@ -34,7 +34,7 @@ import java.util.function.Function;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.NULL;
+import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
 
 /**
  * Function returning the first non-null value.
@@ -43,7 +43,19 @@ public class Coalesce extends EsqlScalarFunction implements OptionalArgument {
     private DataType dataType;
 
     @FunctionInfo(
-        returnType = { "boolean", "text", "integer", "keyword", "long" },
+        returnType = {
+            "boolean",
+            "cartesian_point",
+            "cartesian_shape",
+            "date",
+            "geo_point",
+            "geo_shape",
+            "integer",
+            "ip",
+            "keyword",
+            "long",
+            "text",
+            "version" },
         description = "Returns the first of its arguments that is not null. If all arguments are null, it returns `null`.",
         examples = { @Example(file = "null", tag = "coalesce") }
     )
@@ -51,12 +63,36 @@ public class Coalesce extends EsqlScalarFunction implements OptionalArgument {
         Source source,
         @Param(
             name = "first",
-            type = { "boolean", "text", "integer", "keyword", "long" },
+            type = {
+                "boolean",
+                "cartesian_point",
+                "cartesian_shape",
+                "date",
+                "geo_point",
+                "geo_shape",
+                "integer",
+                "ip",
+                "keyword",
+                "long",
+                "text",
+                "version" },
             description = "Expression to evaluate."
         ) Expression first,
         @Param(
             name = "rest",
-            type = { "boolean", "text", "integer", "keyword", "long" },
+            type = {
+                "boolean",
+                "cartesian_point",
+                "cartesian_shape",
+                "date",
+                "geo_point",
+                "geo_shape",
+                "integer",
+                "ip",
+                "keyword",
+                "long",
+                "text",
+                "version" },
             description = "Other expression to evaluate.",
             optional = true
         ) List<Expression> rest

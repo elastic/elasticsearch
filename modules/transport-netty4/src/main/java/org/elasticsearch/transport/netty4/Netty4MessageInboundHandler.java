@@ -15,6 +15,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
+import org.elasticsearch.common.network.ThreadWatchdog;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.transport.InboundPipeline;
@@ -30,9 +31,16 @@ public class Netty4MessageInboundHandler extends ChannelInboundHandlerAdapter {
 
     private final InboundPipeline pipeline;
 
-    public Netty4MessageInboundHandler(Netty4Transport transport, InboundPipeline inboundPipeline) {
+    private final ThreadWatchdog.ActivityTracker activityTracker;
+
+    public Netty4MessageInboundHandler(
+        Netty4Transport transport,
+        InboundPipeline inboundPipeline,
+        ThreadWatchdog.ActivityTracker activityTracker
+    ) {
         this.transport = transport;
         this.pipeline = inboundPipeline;
+        this.activityTracker = activityTracker;
     }
 
     @Override
@@ -44,8 +52,11 @@ public class Netty4MessageInboundHandler extends ChannelInboundHandlerAdapter {
         final ByteBuf buffer = (ByteBuf) msg;
         Netty4TcpChannel channel = ctx.channel().attr(Netty4Transport.CHANNEL_KEY).get();
         final BytesReference wrapped = Netty4Utils.toBytesReference(buffer);
+        activityTracker.startActivity();
         try (ReleasableBytesReference reference = new ReleasableBytesReference(wrapped, new ByteBufRefCounted(buffer))) {
             pipeline.handleBytes(channel, reference);
+        } finally {
+            activityTracker.stopActivity();
         }
     }
 

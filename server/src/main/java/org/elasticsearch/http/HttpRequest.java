@@ -10,7 +10,7 @@ package org.elasticsearch.http;
 
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.rest.ChunkedRestResponseBody;
+import org.elasticsearch.rest.ChunkedRestResponseBodyPart;
 import org.elasticsearch.rest.RestStatus;
 
 import java.util.List;
@@ -40,7 +40,7 @@ public interface HttpRequest extends HttpPreRequest {
      */
     HttpResponse createResponse(RestStatus status, BytesReference content);
 
-    HttpResponse createResponse(RestStatus status, ChunkedRestResponseBody content);
+    HttpResponse createResponse(RestStatus status, ChunkedRestResponseBodyPart firstBodyPart);
 
     @Nullable
     Exception getInboundException();

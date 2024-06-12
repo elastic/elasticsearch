@@ -143,7 +143,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
      */
     public static EnumSet<XContentContext> ALL_CONTEXTS = EnumSet.allOf(XContentContext.class);
 
-    public interface _Custom<SELF> extends NamedDiffable<SELF>, ChunkedToXContent {
+    public interface MetadataCustom<SELF> extends NamedDiffable<SELF>, ChunkedToXContent {
 
         EnumSet<XContentContext> context();
 
@@ -160,13 +160,13 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
      * Cluster-level custom metadata that persists (via XContent) across restarts.
      * The deserialization method for each implementation must be registered with the {@link NamedXContentRegistry}.
      */
-    public interface ClusterCustom extends _Custom<ClusterCustom> {}
+    public interface ClusterCustom extends MetadataCustom<ClusterCustom> {}
 
     /**
      * Project-level custom metadata that persists (via XContent) across restarts.
      * The deserialization method for each implementation must be registered with the {@link NamedXContentRegistry}.
      */
-    public interface ProjectCustom extends _Custom<ProjectCustom> {}
+    public interface ProjectCustom extends MetadataCustom<ProjectCustom> {}
 
     public static final Setting<Boolean> SETTING_READ_ONLY_SETTING = Setting.boolSetting(
         "cluster.blocks.read_only",
@@ -223,9 +223,9 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
     );
 
     @SuppressWarnings({ "rawtypes", "unchecked" })
-    private static final NamedDiffableValueSerializer BWC_CUSTOM_VALUE_SERIALIZER = new NamedDiffableValueSerializer(_Custom.class) {
+    private static final NamedDiffableValueSerializer BWC_CUSTOM_VALUE_SERIALIZER = new NamedDiffableValueSerializer(MetadataCustom.class) {
         @Override
-        public _Custom read(StreamInput in, String key) throws IOException {
+        public MetadataCustom read(StreamInput in, String key) throws IOException {
             final Set<String> clusterScopedNames = in.namedWriteableRegistry().getReaders(ClusterCustom.class).keySet();
             final Set<String> projectScopedNames = in.namedWriteableRegistry().getReaders(ProjectCustom.class).keySet();
             if (clusterScopedNames.contains(key)) {
@@ -337,7 +337,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
 
     private boolean assertConsistent() {
         final var lookup = this.indicesLookup;
-        final var dsMetadata = custom(DataStreamMetadata.TYPE, DataStreamMetadata.EMPTY);
+        final var dsMetadata = projectCustom(DataStreamMetadata.TYPE, DataStreamMetadata.EMPTY);
         assert lookup == null || lookup.equals(Builder.buildIndicesLookup(dsMetadata, indices));
         try {
             Builder.ensureNoNameCollisions(aliasedIndices.keySet(), indices, dsMetadata);
@@ -823,7 +823,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
         if (i != null) {
             return i;
         }
-        i = Builder.buildIndicesLookup(custom(DataStreamMetadata.TYPE, DataStreamMetadata.EMPTY), indices);
+        i = Builder.buildIndicesLookup(projectCustom(DataStreamMetadata.TYPE, DataStreamMetadata.EMPTY), indices);
         indicesLookup = i;
         return i;
     }
@@ -1374,11 +1374,11 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
     }
 
     public Map<String, DataStream> dataStreams() {
-        return this.custom(DataStreamMetadata.TYPE, DataStreamMetadata.EMPTY).dataStreams();
+        return this.projectCustom(DataStreamMetadata.TYPE, DataStreamMetadata.EMPTY).dataStreams();
     }
 
     public Map<String, DataStreamAlias> dataStreamAliases() {
-        return this.custom(DataStreamMetadata.TYPE, DataStreamMetadata.EMPTY).getDataStreamAliases();
+        return this.projectCustom(DataStreamMetadata.TYPE, DataStreamMetadata.EMPTY).getDataStreamAliases();
     }
 
     /**
@@ -1401,7 +1401,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
     }
 
     public NodesShutdownMetadata nodeShutdowns() {
-        return custom(NodesShutdownMetadata.TYPE, NodesShutdownMetadata.EMPTY);
+        return clusterCustom(NodesShutdownMetadata.TYPE, NodesShutdownMetadata.EMPTY);
     }
 
     /**
@@ -1460,7 +1460,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
     }
 
     @SuppressWarnings("unchecked")
-    public <T extends ClusterCustom> T custom(String type, T defaultValue) {
+    public <T extends ClusterCustom> T clusterCustom(String type, T defaultValue) {
         return (T) clusterCustoms.getOrDefault(type, defaultValue);
     }
 
@@ -1470,7 +1470,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
     }
 
     @SuppressWarnings("unchecked")
-    public <T extends ProjectCustom> T custom(String type, T defaultValue) {
+    public <T extends ProjectCustom> T projectCustom(String type, T defaultValue) {
         return (T) projectCustoms.getOrDefault(type, defaultValue);
     }
 
@@ -1536,7 +1536,10 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
         return true;
     }
 
-    private static <C extends _Custom<C>> boolean customsEqual(ImmutableOpenMap<String, C> customs1, ImmutableOpenMap<String, C> customs2) {
+    private static <C extends MetadataCustom<C>> boolean customsEqual(
+        ImmutableOpenMap<String, C> customs1,
+        ImmutableOpenMap<String, C> customs2
+    ) {
         // Check if any persistent metadata needs to be saved
         int customCount1 = 0;
         for (Map.Entry<String, C> cursor : customs1.entrySet()) {
@@ -1749,11 +1752,8 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
                 MapDiff<String, ClusterCustom, ImmutableOpenMap<String, ClusterCustom>>,
                 MapDiff<String, ProjectCustom, ImmutableOpenMap<String, ProjectCustom>>>
             readBwcCustoms(StreamInput in) throws IOException {
-            MapDiff<String, _Custom<?>, ImmutableOpenMap<String, _Custom<?>>> customs = DiffableUtils.readImmutableOpenMapDiff(
-                in,
-                DiffableUtils.getStringKeySerializer(),
-                BWC_CUSTOM_VALUE_SERIALIZER
-            );
+            MapDiff<String, MetadataCustom<?>, ImmutableOpenMap<String, MetadataCustom<?>>> customs = DiffableUtils
+                .readImmutableOpenMapDiff(in, DiffableUtils.getStringKeySerializer(), BWC_CUSTOM_VALUE_SERIALIZER);
             return DiffableUtils.split(
                 customs,
                 in.namedWriteableRegistry().getReaders(ClusterCustom.class).keySet(),
@@ -1824,7 +1824,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
             builder.projectCustoms(projectCustoms.apply(part.projectCustoms));
             builder.put(reservedStateMetadata.apply(part.reservedStateMetadata));
             if (part.indices == updatedIndices
-                && builder.dataStreamMetadata() == part.custom(DataStreamMetadata.TYPE, DataStreamMetadata.EMPTY)) {
+                && builder.dataStreamMetadata() == part.projectCustom(DataStreamMetadata.TYPE, DataStreamMetadata.EMPTY)) {
                 builder.previousIndicesLookup = part.indicesLookup;
             }
             return builder.build(true);
@@ -3028,7 +3028,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
             return builder.build();
         }
 
-        private static <C extends _Custom<C>> void parseCustomObject(
+        private static <C extends MetadataCustom<C>> void parseCustomObject(
             XContentParser parser,
             String name,
             Class<C> categoryClass,

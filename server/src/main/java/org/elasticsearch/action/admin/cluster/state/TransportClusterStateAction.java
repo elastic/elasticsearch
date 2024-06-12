@@ -212,7 +212,7 @@ public class TransportClusterStateAction extends TransportMasterNodeReadAction<C
                 mdBuilder = Metadata.builder(currentState.metadata());
             }
 
-            final BiPredicate<String, Metadata._Custom<?>> notApi = (ignore, custom) -> custom.context()
+            final BiPredicate<String, Metadata.MetadataCustom<?>> notApi = (ignore, custom) -> custom.context()
                 .contains(Metadata.XContentContext.API) == false;
             mdBuilder.removeClusterCustomIf(notApi);
             mdBuilder.removeProjectCustomIf(notApi);

@@ -132,7 +132,10 @@ public class ClusterChangedEvent {
         return changedCustoms(state.metadata().projectCustoms(), previousState.metadata().projectCustoms());
     }
 
-    private <C extends Metadata._Custom<C>> Set<String> changedCustoms(Map<String, C> currentCustoms, Map<String, C> previousCustoms) {
+    private <C extends Metadata.MetadataCustom<C>> Set<String> changedCustoms(
+        Map<String, C> currentCustoms,
+        Map<String, C> previousCustoms
+    ) {
         Set<String> result = new HashSet<>();
         if (currentCustoms.equals(previousCustoms) == false) {
             for (var currentCustomMetadata : currentCustoms.entrySet()) {

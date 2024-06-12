@@ -57,7 +57,7 @@ public final class RoleMappingMetadata extends AbstractNamedDiffable<Metadata.Pr
     private static final RoleMappingMetadata EMPTY = new RoleMappingMetadata(Set.of());
 
     public static RoleMappingMetadata getFromClusterState(ClusterState clusterState) {
-        return clusterState.metadata().custom(RoleMappingMetadata.TYPE, RoleMappingMetadata.EMPTY);
+        return clusterState.metadata().projectCustom(RoleMappingMetadata.TYPE, RoleMappingMetadata.EMPTY);
     }
 
     private final Set<ExpressionRoleMapping> roleMappings;

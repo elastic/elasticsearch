@@ -212,7 +212,7 @@ public abstract class ElasticsearchNodeCommand extends EnvironmentAwareCommand {
         return parser;
     }
 
-    public abstract static class AbstractUnknownCustom<T> implements Metadata._Custom<T> {
+    public abstract static class AbstractUnknownCustom<T> implements Metadata.MetadataCustom<T> {
 
         private final String name;
         private final Map<String, Object> contents;

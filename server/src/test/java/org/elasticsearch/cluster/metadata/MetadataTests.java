@@ -2629,7 +2629,7 @@ public class MetadataTests extends ESTestCase {
         }
     }
 
-    private abstract static class AbstractCustomMetadata<C extends Metadata._Custom<C>> implements Metadata._Custom<C> {
+    private abstract static class AbstractCustomMetadata<C extends Metadata.MetadataCustom<C>> implements Metadata.MetadataCustom<C> {
 
         @Override
         public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {

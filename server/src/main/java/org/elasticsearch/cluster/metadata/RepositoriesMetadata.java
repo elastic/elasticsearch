@@ -51,7 +51,7 @@ public class RepositoriesMetadata extends AbstractNamedDiffable<Metadata.Project
     private final List<RepositoryMetadata> repositories;
 
     public static RepositoriesMetadata get(ClusterState state) {
-        return state.metadata().custom(TYPE, EMPTY);
+        return state.metadata().projectCustom(TYPE, EMPTY);
     }
 
     /**

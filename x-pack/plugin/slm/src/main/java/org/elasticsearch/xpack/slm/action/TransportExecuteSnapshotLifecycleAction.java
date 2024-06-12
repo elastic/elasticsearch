@@ -71,7 +71,8 @@ public class TransportExecuteSnapshotLifecycleAction extends TransportMasterNode
     ) {
         try {
             final String policyId = request.getLifecycleId();
-            SnapshotLifecycleMetadata snapMeta = state.metadata().custom(SnapshotLifecycleMetadata.TYPE, SnapshotLifecycleMetadata.EMPTY);
+            SnapshotLifecycleMetadata snapMeta = state.metadata()
+                .projectCustom(SnapshotLifecycleMetadata.TYPE, SnapshotLifecycleMetadata.EMPTY);
             SnapshotLifecyclePolicyMetadata policyMetadata = snapMeta.getSnapshotConfigurations().get(policyId);
             if (policyMetadata == null) {
                 listener.onFailure(new IllegalArgumentException("no such snapshot lifecycle policy [" + policyId + "]"));

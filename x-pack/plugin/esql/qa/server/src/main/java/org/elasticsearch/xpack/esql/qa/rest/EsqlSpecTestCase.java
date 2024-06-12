@@ -63,8 +63,8 @@ import static org.elasticsearch.xpack.esql.CsvTestUtils.isEnabled;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.loadCsvSpecValues;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.CSV_DATASET_MAP;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.loadDataSetIntoEs;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.classpathResources;
 import static org.elasticsearch.xpack.esql.core.CsvSpecReader.specParser;
-import static org.elasticsearch.xpack.esql.core.TestUtils.classpathResources;
 
 // This test can run very long in serverless configurations
 @TimeoutSuite(millis = 30 * TimeUnits.MINUTE)
@@ -321,43 +321,52 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
      * "tables" parameter sent if there is a LOOKUP in the request. If you
      * add to this, you must also add to {@link EsqlTestUtils#tables};
      */
-    private Map<String, Map<String, List<?>>> tables() {
-        Map<String, Map<String, List<?>>> tables = new TreeMap<>();
+    private Map<String, Map<String, RestEsqlTestCase.TypeAndValues>> tables() {
+        Map<String, Map<String, RestEsqlTestCase.TypeAndValues>> tables = new TreeMap<>();
         tables.put(
             "int_number_names",
             EsqlTestUtils.table(
-                Map.entry("int:integer", IntStream.range(0, 10).boxed().toList()),
-                Map.entry("name:keyword", IntStream.range(0, 10).mapToObj(EsqlTestUtils::numberName).toList())
+                Map.entry("int", new RestEsqlTestCase.TypeAndValues("integer", IntStream.range(0, 10).boxed().toList())),
+                Map.entry(
+                    "name",
+                    new RestEsqlTestCase.TypeAndValues("keyword", IntStream.range(0, 10).mapToObj(EsqlTestUtils::numberName).toList())
+                )
             )
         );
         tables.put(
             "long_number_names",
             EsqlTestUtils.table(
-                Map.entry("long:long", LongStream.range(0, 10).boxed().toList()),
-                Map.entry("name:keyword", IntStream.range(0, 10).mapToObj(EsqlTestUtils::numberName).toList())
+                Map.entry("long", new RestEsqlTestCase.TypeAndValues("long", LongStream.range(0, 10).boxed().toList())),
+                Map.entry(
+                    "name",
+                    new RestEsqlTestCase.TypeAndValues("keyword", IntStream.range(0, 10).mapToObj(EsqlTestUtils::numberName).toList())
+                )
             )
         );
         tables.put(
             "double_number_names",
             EsqlTestUtils.table(
-                Map.entry("double:double", List.of(2.03, 2.08)),
-                Map.entry("name:keyword", List.of("two point zero three", "two point zero eight"))
+                Map.entry("double", new RestEsqlTestCase.TypeAndValues("double", List.of(2.03, 2.08))),
+                Map.entry("name", new RestEsqlTestCase.TypeAndValues("keyword", List.of("two point zero three", "two point zero eight")))
             )
         );
         tables.put(
             "double_number_names_with_null",
             EsqlTestUtils.table(
-                Map.entry("double:double", List.of(2.03, 2.08, 0.0)),
-                Map.entry("name:keyword", Arrays.asList("two point zero three", "two point zero eight", null))
+                Map.entry("double", new RestEsqlTestCase.TypeAndValues("double", List.of(2.03, 2.08, 0.0))),
+                Map.entry(
+                    "name",
+                    new RestEsqlTestCase.TypeAndValues("keyword", Arrays.asList("two point zero three", "two point zero eight", null))
+                )
             )
         );
         tables.put(
             "big",
             EsqlTestUtils.table(
-                Map.entry("aa:keyword", List.of("foo", "bar", "baz", "foo")),
-                Map.entry("ab:keyword", List.of("zoo", "zop", "zoi", "foo")),
-                Map.entry("na:integer", List.of(1, 10, 100, 2)),
-                Map.entry("nb:integer", List.of(-1, -10, -100, -2))
+                Map.entry("aa", new RestEsqlTestCase.TypeAndValues("keyword", List.of("foo", "bar", "baz", "foo"))),
+                Map.entry("ab", new RestEsqlTestCase.TypeAndValues("keyword", List.of("zoo", "zop", "zoi", "foo"))),
+                Map.entry("na", new RestEsqlTestCase.TypeAndValues("integer", List.of(1, 10, 100, 2))),
+                Map.entry("nb", new RestEsqlTestCase.TypeAndValues("integer", List.of(-1, -10, -100, -2)))
             )
         );
         return tables;

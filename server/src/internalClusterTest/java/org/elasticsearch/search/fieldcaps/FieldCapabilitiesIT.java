@@ -13,6 +13,7 @@ import org.apache.http.entity.StringEntity;
 import org.apache.logging.log4j.Level;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteUtils;
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesFailure;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
@@ -549,18 +550,14 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
                     if (targetNodes.isEmpty()) {
                         continue;
                     }
-
-                    safeGet(
-                        clusterAdmin().prepareReroute()
-                            .add(
-                                new MoveAllocationCommand(
-                                    shardId.getIndexName(),
-                                    shardId.id(),
-                                    indicesService.clusterService().localNode().getId(),
-                                    randomFrom(targetNodes)
-                                )
-                            )
-                            .execute()
+                    ClusterRerouteUtils.reroute(
+                        client(),
+                        new MoveAllocationCommand(
+                            shardId.getIndexName(),
+                            shardId.id(),
+                            indicesService.clusterService().localNode().getId(),
+                            randomFrom(targetNodes)
+                        )
                     );
                 }
             }

@@ -1123,6 +1123,11 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         @Nullable
         ShardLongFieldRange getTimestampRange();
 
+        // TODO: bogus impl until first PR merges
+        default ShardLongFieldRange getEventIngestedRange() {
+            return ShardLongFieldRange.UNKNOWN;
+        }
+
         /**
          * Updates the shard state based on an incoming cluster state:
          * - Updates and persists the new routing value.

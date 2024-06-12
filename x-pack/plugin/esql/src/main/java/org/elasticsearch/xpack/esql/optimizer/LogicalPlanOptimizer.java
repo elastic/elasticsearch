@@ -47,7 +47,6 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.core.util.Holder;
-import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
@@ -1380,75 +1379,6 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
         }
 
         protected abstract LogicalPlan rule(SubPlan plan, P context);
-    }
-
-    /**
-     * Normalize aggregation functions by:
-     * 1. replaces reference to field attributes with their source
-     * 2. in case of Count, aligns the various forms (Count(1), Count(0), Count(), Count(*)) to Count(*)
-     */
-    // TODO still needed?
-    static class NormalizeAggregate extends Rule<LogicalPlan, LogicalPlan> {
-
-        @Override
-        public LogicalPlan apply(LogicalPlan plan) {
-            AttributeMap<Expression> aliases = new AttributeMap<>();
-
-            // traverse the tree bottom-up
-            // 1. if it's Aggregate, normalize the aggregates
-            // regardless, collect the attributes but only if they refer to an attribute or literal
-            plan = plan.transformUp(p -> {
-                if (p instanceof Aggregate agg) {
-                    p = normalize(agg, aliases);
-                }
-                p.forEachExpression(Alias.class, a -> {
-                    var child = a.child();
-                    if (child.foldable() || child instanceof NamedExpression) {
-                        aliases.putIfAbsent(a.toAttribute(), child);
-                    }
-                });
-
-                return p;
-            });
-            return plan;
-        }
-
-        private static LogicalPlan normalize(Aggregate aggregate, AttributeMap<Expression> aliases) {
-            var aggs = aggregate.aggregates();
-            List<NamedExpression> newAggs = new ArrayList<>(aggs.size());
-            final Holder<Boolean> changed = new Holder<>(false);
-
-            for (NamedExpression agg : aggs) {
-                var newAgg = (NamedExpression) agg.transformDown(AggregateFunction.class, af -> {
-                    // replace field reference
-                    if (af.field() instanceof NamedExpression ne) {
-                        Attribute attr = ne.toAttribute();
-                        var resolved = aliases.resolve(attr, attr);
-                        if (resolved != attr) {
-                            changed.set(true);
-                            var newChildren = CollectionUtils.combine(Collections.singletonList(resolved), af.parameters());
-                            // update the reference so Count can pick it up
-                            af = (AggregateFunction) af.replaceChildren(newChildren);
-                        }
-                    }
-                    // handle Count(*)
-                    if (af instanceof Count count) {
-                        var field = af.field();
-                        if (field.foldable()) {
-                            var fold = field.fold();
-                            if (fold != null && StringUtils.WILDCARD.equals(fold) == false) {
-                                changed.set(true);
-                                var source = count.source();
-                                af = new Count(source, new Literal(source, StringUtils.WILDCARD, DataType.KEYWORD));
-                            }
-                        }
-                    }
-                    return af;
-                });
-                newAggs.add(newAgg);
-            }
-            return changed.get() ? new Aggregate(aggregate.source(), aggregate.child(), aggregate.groupings(), newAggs) : aggregate;
-        }
     }
 
     public static class PropagateNullable extends OptimizerRules.PropagateNullable {

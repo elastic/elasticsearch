@@ -119,7 +119,6 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
-import static org.junit.Assume.assumeThat;
 
 /**
  * CSV-based unit testing.
@@ -223,15 +222,6 @@ public class CsvTests extends ESTestCase {
     public final void test() throws Throwable {
         try {
             assumeTrue("Test " + testName + " is not enabled", isEnabled(testName, Version.CURRENT));
-
-            if (Build.current().isSnapshot()) {
-                assumeThat(
-                    "nonexistent capabilities declared as required",
-                    testCase.requiredCapabilities,
-                    everyItem(in(EsqlCapabilities.CAPABILITIES))
-                );
-            }
-
             /*
              * The csv tests support all but a few features. The unsupported features
              * are tested in integration tests.
@@ -240,6 +230,14 @@ public class CsvTests extends ESTestCase {
             assumeFalse("enrich can't load fields in csv tests", testCase.requiredCapabilities.contains(cap(EsqlFeatures.ENRICH_LOAD)));
             assumeFalse("can't load metrics in csv tests", testCase.requiredCapabilities.contains(cap(EsqlFeatures.METRICS_SYNTAX)));
             assumeFalse("multiple indices aren't supported", testCase.requiredCapabilities.contains(EsqlCapabilities.UNION_TYPES));
+
+            if (Build.current().isSnapshot()) {
+                assertThat(
+                    "nonexistent capabilities declared as required",
+                    testCase.requiredCapabilities,
+                    everyItem(in(EsqlCapabilities.CAPABILITIES))
+                );
+            }
 
             doTest();
         } catch (Throwable th) {

@@ -1,5 +1,5 @@
 pr: 109435
-summary: Adding `ActionRequest-based` reranker
+summary: Adding support for InferenceAPI-based reranking 
 area: Ranking
 type: enhancement
 issues: []

@@ -26,6 +26,7 @@ import org.apache.logging.log4j.Level;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
+import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteUtils;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexRequestBuilder;
@@ -448,7 +449,7 @@ public class IndexingShardRelocationIT extends AbstractStatelessIntegTestCase {
         final CountDownLatch requestFailed = startBreakingActions(indexNodeA, indexNodeB, actionToBreak);
 
         logger.info("--> move primary shard from: {} to: {}", indexNodeA, indexNodeB);
-        clusterAdmin().prepareReroute().add(new MoveAllocationCommand(indexName, 0, indexNodeA, indexNodeB)).execute().actionGet();
+        ClusterRerouteUtils.reroute(client(), new MoveAllocationCommand(indexName, 0, indexNodeA, indexNodeB));
 
         assertTrue(requestFailed.await(30, TimeUnit.SECONDS));
         stopBreakingActions(indexNodeA, indexNodeB);
@@ -552,7 +553,7 @@ public class IndexingShardRelocationIT extends AbstractStatelessIntegTestCase {
         });
         try {
             logger.info("--> move primary shard from: {} to: {}", indexNodeA, indexNodeB);
-            clusterAdmin().prepareReroute().add(new MoveAllocationCommand(indexName, 0, indexNodeA, indexNodeB)).execute().actionGet();
+            ClusterRerouteUtils.reroute(client(), new MoveAllocationCommand(indexName, 0, indexNodeA, indexNodeB));
 
             safeAwait(relocationStartReadyBlocked);
             internalCluster().restartNode(

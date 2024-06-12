@@ -164,8 +164,8 @@ setup:
 ---
 "Dynamic dimensions for hex-encoded string":
   - requires:
-      cluster_features: "gte_v8.15.0"
-      reason: 'hex encoding for byte vectors fixed in 8.15'
+      cluster_features: "gte_v8.14.1"
+      reason: 'hex encoding for byte vectors fixed in 8.14.1'
 
   - do:
       indices.create:

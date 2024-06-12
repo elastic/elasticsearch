@@ -10,9 +10,9 @@ package org.elasticsearch.xpack.inference.common;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.inference.ChunkedInferenceServiceResults;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.core.inference.results.ChunkedTextEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.inference.results.ErrorChunkedInferenceResults;
-import org.elasticsearch.xpack.core.inference.results.TextEmbeddingResults;
+import org.elasticsearch.xpack.core.inference.results.InferenceChunkedTextEmbeddingFloatResults;
+import org.elasticsearch.xpack.core.inference.results.InferenceTextEmbeddingFloatResults;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -177,34 +177,34 @@ public class EmbeddingRequestChunkerTests extends ESTestCase {
 
         // 4 inputs in 2 batches
         {
-            var embeddings = new ArrayList<TextEmbeddingResults.Embedding>();
+            var embeddings = new ArrayList<InferenceTextEmbeddingFloatResults.InferenceFloatEmbedding>();
             for (int i = 0; i < batchSize; i++) {
-                embeddings.add(new TextEmbeddingResults.Embedding(new float[] { randomFloat() }));
+                embeddings.add(new InferenceTextEmbeddingFloatResults.InferenceFloatEmbedding(new float[] { randomFloat() }));
             }
-            batches.get(0).listener().onResponse(new TextEmbeddingResults(embeddings));
+            batches.get(0).listener().onResponse(new InferenceTextEmbeddingFloatResults(embeddings));
         }
         {
-            var embeddings = new ArrayList<TextEmbeddingResults.Embedding>();
+            var embeddings = new ArrayList<InferenceTextEmbeddingFloatResults.InferenceFloatEmbedding>();
             for (int i = 0; i < 4; i++) { // 4 requests in the 2nd batch
-                embeddings.add(new TextEmbeddingResults.Embedding(new float[] { randomFloat() }));
+                embeddings.add(new InferenceTextEmbeddingFloatResults.InferenceFloatEmbedding(new float[] { randomFloat() }));
             }
-            batches.get(1).listener().onResponse(new TextEmbeddingResults(embeddings));
+            batches.get(1).listener().onResponse(new InferenceTextEmbeddingFloatResults(embeddings));
         }
 
         assertNotNull(finalListener.results);
         assertThat(finalListener.results, hasSize(4));
         {
             var chunkedResult = finalListener.results.get(0);
-            assertThat(chunkedResult, instanceOf(ChunkedTextEmbeddingFloatResults.class));
-            var chunkedFloatResult = (ChunkedTextEmbeddingFloatResults) chunkedResult;
+            assertThat(chunkedResult, instanceOf(InferenceChunkedTextEmbeddingFloatResults.class));
+            var chunkedFloatResult = (InferenceChunkedTextEmbeddingFloatResults) chunkedResult;
             assertThat(chunkedFloatResult.chunks(), hasSize(1));
             assertEquals("1st small", chunkedFloatResult.chunks().get(0).matchedText());
         }
         {
             // this is the large input split in multiple chunks
             var chunkedResult = finalListener.results.get(1);
-            assertThat(chunkedResult, instanceOf(ChunkedTextEmbeddingFloatResults.class));
-            var chunkedFloatResult = (ChunkedTextEmbeddingFloatResults) chunkedResult;
+            assertThat(chunkedResult, instanceOf(InferenceChunkedTextEmbeddingFloatResults.class));
+            var chunkedFloatResult = (InferenceChunkedTextEmbeddingFloatResults) chunkedResult;
             assertThat(chunkedFloatResult.chunks(), hasSize(6));
             assertThat(chunkedFloatResult.chunks().get(0).matchedText(), startsWith("passage_input0 "));
             assertThat(chunkedFloatResult.chunks().get(1).matchedText(), startsWith(" passage_input20 "));
@@ -215,15 +215,15 @@ public class EmbeddingRequestChunkerTests extends ESTestCase {
         }
         {
             var chunkedResult = finalListener.results.get(2);
-            assertThat(chunkedResult, instanceOf(ChunkedTextEmbeddingFloatResults.class));
-            var chunkedFloatResult = (ChunkedTextEmbeddingFloatResults) chunkedResult;
+            assertThat(chunkedResult, instanceOf(InferenceChunkedTextEmbeddingFloatResults.class));
+            var chunkedFloatResult = (InferenceChunkedTextEmbeddingFloatResults) chunkedResult;
             assertThat(chunkedFloatResult.chunks(), hasSize(1));
             assertEquals("2nd small", chunkedFloatResult.chunks().get(0).matchedText());
         }
         {
             var chunkedResult = finalListener.results.get(3);
-            assertThat(chunkedResult, instanceOf(ChunkedTextEmbeddingFloatResults.class));
-            var chunkedFloatResult = (ChunkedTextEmbeddingFloatResults) chunkedResult;
+            assertThat(chunkedResult, instanceOf(InferenceChunkedTextEmbeddingFloatResults.class));
+            var chunkedFloatResult = (InferenceChunkedTextEmbeddingFloatResults) chunkedResult;
             assertThat(chunkedFloatResult.chunks(), hasSize(1));
             assertEquals("3rd small", chunkedFloatResult.chunks().get(0).matchedText());
         }
@@ -251,10 +251,10 @@ public class EmbeddingRequestChunkerTests extends ESTestCase {
         var batches = new EmbeddingRequestChunker(inputs, 10, 100, 0).batchRequestsWithListeners(listener);
         assertThat(batches, hasSize(1));
 
-        var embeddings = new ArrayList<TextEmbeddingResults.Embedding>();
-        embeddings.add(new TextEmbeddingResults.Embedding(new float[] { randomFloat() }));
-        embeddings.add(new TextEmbeddingResults.Embedding(new float[] { randomFloat() }));
-        batches.get(0).listener().onResponse(new TextEmbeddingResults(embeddings));
+        var embeddings = new ArrayList<InferenceTextEmbeddingFloatResults.InferenceFloatEmbedding>();
+        embeddings.add(new InferenceTextEmbeddingFloatResults.InferenceFloatEmbedding(new float[] { randomFloat() }));
+        embeddings.add(new InferenceTextEmbeddingFloatResults.InferenceFloatEmbedding(new float[] { randomFloat() }));
+        batches.get(0).listener().onResponse(new InferenceTextEmbeddingFloatResults(embeddings));
         assertEquals("Error the number of embedding responses [2] does not equal the number of requests [3]", failureMessage.get());
     }
 

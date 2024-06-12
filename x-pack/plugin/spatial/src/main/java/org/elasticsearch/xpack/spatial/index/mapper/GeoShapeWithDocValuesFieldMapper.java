@@ -482,11 +482,6 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
         super.checkIncomingMergeType(mergeWith);
     }
 
-    @Override
-    protected SyntheticSourceMode syntheticSourceMode() {
-        return SyntheticSourceMode.FALLBACK;
-    }
-
     public static class GeoShapeDocValuesField extends AbstractScriptFieldFactory<GeoShapeValues.GeoShapeValue>
         implements
             Field<GeoShapeValues.GeoShapeValue>,

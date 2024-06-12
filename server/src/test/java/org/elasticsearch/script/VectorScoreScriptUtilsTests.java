@@ -26,6 +26,7 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.HexFormat;
 import java.util.List;
 
 import static org.hamcrest.Matchers.containsString;
@@ -128,6 +129,7 @@ public class VectorScoreScriptUtilsTests extends ESTestCase {
         float[] docVector = new float[] { 1, 127, -128, 5, -10 };
         List<Number> queryVector = Arrays.asList((byte) 1, (byte) 125, (byte) -12, (byte) 2, (byte) 4);
         List<Number> invalidQueryVector = Arrays.asList((byte) 1, (byte) 1);
+        String hexidecimalString = HexFormat.of().formatHex(new byte[] { 1, 125, -12, 2, 4 });
 
         List<DenseVectorDocValuesField> fields = List.of(
             new ByteBinaryDenseVectorDocValuesField(
@@ -147,6 +149,14 @@ public class VectorScoreScriptUtilsTests extends ESTestCase {
             // Test cosine similarity explicitly, as it must perform special logic on top of the doc values
             CosineSimilarity function = new CosineSimilarity(scoreScript, queryVector, fieldName);
             float cosineSimilarityExpected = 0.765f;
+            assertEquals(
+                "cosineSimilarity result is not equal to the expected value!",
+                cosineSimilarityExpected,
+                function.cosineSimilarity(),
+                0.001
+            );
+
+            function = new CosineSimilarity(scoreScript, hexidecimalString, fieldName);
             assertEquals(
                 "cosineSimilarity result is not equal to the expected value!",
                 cosineSimilarityExpected,
@@ -191,10 +201,13 @@ public class VectorScoreScriptUtilsTests extends ESTestCase {
             );
 
             // Check scripting infrastructure integration
-            DotProduct dotProduct = new DotProduct(scoreScript, queryVector, fieldName);
-            assertEquals(17382.0, dotProduct.dotProduct(), 0.001);
+            assertEquals(17382.0, new DotProduct(scoreScript, queryVector, fieldName).dotProduct(), 0.001);
+            assertEquals(17382.0, new DotProduct(scoreScript, hexidecimalString, fieldName).dotProduct(), 0.001);
             assertEquals(135.0, new L1Norm(scoreScript, queryVector, fieldName).l1norm(), 0.001);
+            assertEquals(135.0, new L1Norm(scoreScript, hexidecimalString, fieldName).l1norm(), 0.001);
             assertEquals(116.897, new L2Norm(scoreScript, queryVector, fieldName).l2norm(), 0.001);
+            assertEquals(116.897, new L2Norm(scoreScript, hexidecimalString, fieldName).l2norm(), 0.001);
+            DotProduct dotProduct = new DotProduct(scoreScript, queryVector, fieldName);
             when(scoreScript._getDocId()).thenReturn(1);
             e = expectThrows(IllegalArgumentException.class, dotProduct::dotProduct);
             assertEquals("A document doesn't have a value for a vector field!", e.getMessage());

@@ -209,3 +209,92 @@
           query:
             exists:
               field: ml.tokens
+
+---
+"sparse_vector synthetic source":
+
+  - requires:
+      cluster_features: ["mapper.source.synthetic_source_fallback"]
+      reason: introduced in 8.15.0
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            _source:
+              mode: synthetic
+            properties:
+              ml.tokens:
+                type: sparse_vector
+
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test
+        id: "1"
+        body:
+          ml:
+            tokens:
+              running: 2.4097164
+              good: 2.170997
+              run: 2.052153
+              race: 1.4575411
+              for: 1.1908325
+
+  - match: { result: "created" }
+
+  - do:
+      index:
+        index: test
+        id: "2"
+        body:
+          ml:
+            tokens: []
+
+  - match: { result: "created" }
+
+  - do:
+      index:
+        index: test
+        id: "3"
+        body:
+          ml:
+            tokens: {}
+
+  - match: { result: "created" }
+
+  - do:
+      indices.refresh: { }
+
+  - do:
+      get:
+        index: test
+        id: "1"
+
+  - match:
+      _source:
+        ml:
+          tokens:
+            running: 2.4097164
+            good: 2.170997
+            run: 2.052153
+            race: 1.4575411
+            for: 1.1908325
+
+  - do:
+      get:
+        index: test
+        id: "2"
+
+  - match:
+      _source.ml.tokens: []
+
+  - do:
+      get:
+        index: test
+        id: "3"
+
+  - match:
+      _source.ml.tokens: {}

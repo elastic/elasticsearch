@@ -1,0 +1,5 @@
+pr: 109332
+summary: "ES|QL: vectorize eval"
+area: ES|QL
+type: enhancement
+issues: []

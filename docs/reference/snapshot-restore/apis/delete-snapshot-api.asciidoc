@@ -30,7 +30,6 @@ PUT /_snapshot/my_repository/snapshot_3?wait_for_completion=true
 -----------------------------------
 DELETE /_snapshot/my_repository/my_snapshot
 -----------------------------------
-// TEST[s/my_snapshot/my_snapshot?wait_for_completion=false/]
 
 [[delete-snapshot-api-request]]
 ==== {api-request-title}

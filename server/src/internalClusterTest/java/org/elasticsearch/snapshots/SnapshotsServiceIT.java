@@ -11,7 +11,9 @@ package org.elasticsearch.snapshots;
 import org.apache.logging.log4j.Level;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.cluster.SnapshotDeletionsInProgress;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
@@ -21,6 +23,7 @@ import org.elasticsearch.test.MockLog;
 
 import java.util.List;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
@@ -118,15 +121,18 @@ public class SnapshotsServiceIT extends AbstractSnapshotIntegTestCase {
         createSnapshot("test-repo", "test-snapshot", List.of("test-index"));
         MockRepository repository = getRepositoryOnMaster("test-repo");
         PlainActionFuture<AcknowledgedResponse> listener = new PlainActionFuture<>();
+        SubscribableListener<Void> snapshotDeletionListener = createSnapshotDeletionListener("test-repo");
         repository.blockOnDataFiles();
         try {
             clusterAdmin().prepareDeleteSnapshot("test-repo", "test-snapshot").setWaitForCompletion(false).execute(listener);
-            listener.get(5, TimeUnit.SECONDS);
-            assertNotNull(getSnapshot("test-repo", "test-snapshot"));
+            // The request will complete as soon as the deletion is scheduled
+            safeGet(listener);
+            // The deletion won't complete until the block is removed
+            assertFalse(snapshotDeletionListener.isDone());
         } finally {
             repository.unblock();
         }
-        assertBusy(() -> assertThrows(SnapshotMissingException.class, () -> getSnapshot("test-repo", "test-snapshot")));
+        safeAwait(snapshotDeletionListener);
     }
 
     public void testDeleteSnapshotWhenWaitingForCompletion() throws Exception {
@@ -134,18 +140,45 @@ public class SnapshotsServiceIT extends AbstractSnapshotIntegTestCase {
         createRepository("test-repo", "mock");
         createSnapshot("test-repo", "test-snapshot", List.of("test-index"));
         MockRepository repository = getRepositoryOnMaster("test-repo");
-        PlainActionFuture<AcknowledgedResponse> listener = new PlainActionFuture<>();
+        PlainActionFuture<AcknowledgedResponse> requestCompleteListener = new PlainActionFuture<>();
+        SubscribableListener<Void> snapshotDeletionListener = createSnapshotDeletionListener("test-repo");
         repository.blockOnDataFiles();
         try {
-            clusterAdmin().prepareDeleteSnapshot("test-repo", "test-snapshot").setWaitForCompletion(true).execute(listener);
-            // The listener won't be resolved, and snapshot won't be deleted until we remove the block
-            assertFalse(listener.isDone());
-            assertNotNull(getSnapshot("test-repo", "test-snapshot"));
+            clusterAdmin().prepareDeleteSnapshot("test-repo", "test-snapshot").setWaitForCompletion(true).execute(requestCompleteListener);
+            // Neither the request nor the deletion will complete until we remove the block
+            assertFalse(requestCompleteListener.isDone());
+            assertFalse(snapshotDeletionListener.isDone());
         } finally {
             repository.unblock();
         }
-        listener.get(5, TimeUnit.SECONDS);
-        assertThrows(SnapshotMissingException.class, () -> getSnapshot("test-repo", "test-snapshot"));
+        safeGet(requestCompleteListener);
+        safeAwait(snapshotDeletionListener);
+    }
+
+    /**
+     * Create a listener that completes once it has observed a snapshot delete begin and end for a specific repository
+     *
+     * @param repositoryName The repository to monitor for deletions
+     * @return the listener
+     */
+    private SubscribableListener<Void> createSnapshotDeletionListener(String repositoryName) {
+        AtomicBoolean deleteHasStarted = new AtomicBoolean(false);
+        return ClusterServiceUtils.addTemporaryStateListener(
+            internalCluster().getCurrentMasterNodeInstance(ClusterService.class),
+            state -> {
+                SnapshotDeletionsInProgress deletionsInProgress = (SnapshotDeletionsInProgress) state.getCustoms()
+                    .get(SnapshotDeletionsInProgress.TYPE);
+                if (deletionsInProgress == null) {
+                    return false;
+                }
+                if (deleteHasStarted.get() == false) {
+                    deleteHasStarted.set(deletionsInProgress.hasExecutingDeletion(repositoryName));
+                    return false;
+                } else {
+                    return deletionsInProgress.hasExecutingDeletion(repositoryName) == false;
+                }
+            }
+        );
     }
 
     public void testRerouteWhenShardSnapshotsCompleted() throws Exception {

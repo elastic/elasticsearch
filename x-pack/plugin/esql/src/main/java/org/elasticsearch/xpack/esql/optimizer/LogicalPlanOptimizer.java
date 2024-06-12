@@ -73,6 +73,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.PruneOrderByBeforeStats;
 import org.elasticsearch.xpack.esql.optimizer.rules.PruneRedundantSortClauses;
 import org.elasticsearch.xpack.esql.optimizer.rules.PushDownAndCombineFilters;
 import org.elasticsearch.xpack.esql.optimizer.rules.PushDownAndCombineLimits;
+import org.elasticsearch.xpack.esql.optimizer.rules.PushDownAndCombineOrderBy;
 import org.elasticsearch.xpack.esql.optimizer.rules.SetAsOptimized;
 import org.elasticsearch.xpack.esql.optimizer.rules.SimplifyComparisonsArithmetics;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
@@ -532,22 +533,6 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
         }
 
         return new AttributeReplacement(rewrittenExpressions, aliasesForReplacedAttributes);
-    }
-
-    protected static class PushDownAndCombineOrderBy extends OptimizerRules.OptimizerRule<OrderBy> {
-        @Override
-        protected LogicalPlan rule(OrderBy orderBy) {
-            LogicalPlan child = orderBy.child();
-
-            if (child instanceof OrderBy childOrder) {
-                // combine orders
-                return new OrderBy(orderBy.source(), childOrder.child(), orderBy.order());
-            } else if (child instanceof Project) {
-                return pushDownPastProject(orderBy);
-            }
-
-            return orderBy;
-        }
     }
 
     public static Project pushDownPastProject(UnaryPlan parent) {

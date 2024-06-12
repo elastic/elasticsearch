@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.optimizer;
 
-import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
@@ -31,12 +30,8 @@ import org.elasticsearch.xpack.esql.core.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.core.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.core.rule.ParameterizedRule;
 import org.elasticsearch.xpack.esql.core.rule.ParameterizedRuleExecutor;
-import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
-import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
-import org.elasticsearch.xpack.esql.expression.function.grouping.GroupingFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.AbstractConvertFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesFunction;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
@@ -74,6 +69,8 @@ import org.elasticsearch.xpack.esql.optimizer.rules.ReplaceLimitAndSortAsTopN;
 import org.elasticsearch.xpack.esql.optimizer.rules.ReplaceLookupWithJoin;
 import org.elasticsearch.xpack.esql.optimizer.rules.ReplaceOrderByExpressionWithEval;
 import org.elasticsearch.xpack.esql.optimizer.rules.ReplaceRegexMatch;
+import org.elasticsearch.xpack.esql.optimizer.rules.ReplaceStatsAggExpressionWithEval;
+import org.elasticsearch.xpack.esql.optimizer.rules.ReplaceStatsNestedExpressionWithEval;
 import org.elasticsearch.xpack.esql.optimizer.rules.SetAsOptimized;
 import org.elasticsearch.xpack.esql.optimizer.rules.SimplifyComparisonsArithmetics;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
@@ -94,7 +91,6 @@ import java.util.Map;
 import java.util.Set;
 
 import static java.util.Arrays.asList;
-import static java.util.Collections.singleton;
 import static org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules.TransformDirection;
 import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputExpressions;
 
@@ -290,7 +286,7 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             return plan;
         }
 
-        static String temporaryName(Expression inner, Expression outer, int suffix) {
+        public static String temporaryName(Expression inner, Expression outer, int suffix) {
             String in = toString(inner);
             String out = toString(outer);
             return rawTemporaryName(in, out, String.valueOf(suffix));
@@ -492,244 +488,6 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             return project.replaceChild(expressionsWithResolvedAliases.replaceChild(project.child()));
         } else {
             throw new EsqlIllegalArgumentException("Expected child to be instance of Project");
-        }
-    }
-
-    /**
-     * Replace nested expressions inside an aggregate with synthetic eval (which end up being projected away by the aggregate).
-     * stats sum(a + 1) by x % 2
-     * becomes
-     * eval `a + 1` = a + 1, `x % 2` = x % 2 | stats sum(`a+1`_ref) by `x % 2`_ref
-     */
-    static class ReplaceStatsNestedExpressionWithEval extends OptimizerRules.OptimizerRule<Aggregate> {
-
-        @Override
-        protected LogicalPlan rule(Aggregate aggregate) {
-            List<Alias> evals = new ArrayList<>();
-            Map<String, Attribute> evalNames = new HashMap<>();
-            Map<GroupingFunction, Attribute> groupingAttributes = new HashMap<>();
-            List<Expression> newGroupings = new ArrayList<>(aggregate.groupings());
-            boolean groupingChanged = false;
-
-            // start with the groupings since the aggs might duplicate it
-            for (int i = 0, s = newGroupings.size(); i < s; i++) {
-                Expression g = newGroupings.get(i);
-                // move the alias into an eval and replace it with its attribute
-                if (g instanceof Alias as) {
-                    groupingChanged = true;
-                    var attr = as.toAttribute();
-                    evals.add(as);
-                    evalNames.put(as.name(), attr);
-                    newGroupings.set(i, attr);
-                    if (as.child() instanceof GroupingFunction gf) {
-                        groupingAttributes.put(gf, attr);
-                    }
-                }
-            }
-
-            Holder<Boolean> aggsChanged = new Holder<>(false);
-            List<? extends NamedExpression> aggs = aggregate.aggregates();
-            List<NamedExpression> newAggs = new ArrayList<>(aggs.size());
-
-            // map to track common expressions
-            Map<Expression, Attribute> expToAttribute = new HashMap<>();
-            for (Alias a : evals) {
-                expToAttribute.put(a.child().canonical(), a.toAttribute());
-            }
-
-            int[] counter = new int[] { 0 };
-            // for the aggs make sure to unwrap the agg function and check the existing groupings
-            for (NamedExpression agg : aggs) {
-                NamedExpression a = (NamedExpression) agg.transformDown(Alias.class, as -> {
-                    // if the child is a nested expression
-                    Expression child = as.child();
-
-                    // shortcut for common scenario
-                    if (child instanceof AggregateFunction af && af.field() instanceof Attribute) {
-                        return as;
-                    }
-
-                    // check if the alias matches any from grouping otherwise unwrap it
-                    Attribute ref = evalNames.get(as.name());
-                    if (ref != null) {
-                        aggsChanged.set(true);
-                        return ref;
-                    }
-
-                    // 1. look for the aggregate function
-                    var replaced = child.transformUp(AggregateFunction.class, af -> {
-                        Expression result = af;
-
-                        Expression field = af.field();
-                        // 2. if the field is a nested expression (not attribute or literal), replace it
-                        if (field instanceof Attribute == false && field.foldable() == false) {
-                            // 3. create a new alias if one doesn't exist yet no reference
-                            Attribute attr = expToAttribute.computeIfAbsent(field.canonical(), k -> {
-                                Alias newAlias = new Alias(k.source(), syntheticName(k, af, counter[0]++), null, k, null, true);
-                                evals.add(newAlias);
-                                return newAlias.toAttribute();
-                            });
-                            aggsChanged.set(true);
-                            // replace field with attribute
-                            List<Expression> newChildren = new ArrayList<>(af.children());
-                            newChildren.set(0, attr);
-                            result = af.replaceChildren(newChildren);
-                        }
-                        return result;
-                    });
-                    // replace any grouping functions with their references pointing to the added synthetic eval
-                    replaced = replaced.transformDown(GroupingFunction.class, gf -> {
-                        aggsChanged.set(true);
-                        // should never return null, as it's verified.
-                        // but even if broken, the transform will fail safely; otoh, returning `gf` will fail later due to incorrect plan.
-                        return groupingAttributes.get(gf);
-                    });
-
-                    return as.replaceChild(replaced);
-                });
-
-                newAggs.add(a);
-            }
-
-            if (evals.size() > 0) {
-                var groupings = groupingChanged ? newGroupings : aggregate.groupings();
-                var aggregates = aggsChanged.get() ? newAggs : aggregate.aggregates();
-
-                var newEval = new Eval(aggregate.source(), aggregate.child(), evals);
-                aggregate = new Aggregate(aggregate.source(), newEval, groupings, aggregates);
-            }
-
-            return aggregate;
-        }
-
-        static String syntheticName(Expression expression, AggregateFunction af, int counter) {
-            return SubstituteSurrogates.temporaryName(expression, af, counter);
-        }
-    }
-
-    /**
-     * Replace nested expressions over aggregates with synthetic eval post the aggregation
-     * stats a = sum(a) + min(b) by x
-     * becomes
-     * stats a1 = sum(a), a2 = min(b) by x | eval a = a1 + a2 | keep a, x
-     * The rule also considers expressions applied over groups:
-     * stats a = x + 1 by x becomes stats by x | eval a = x + 1 | keep a, x
-     * And to combine the two:
-     * stats a = x + count(*) by x
-     * becomes
-     * stats a1 = count(*) by x | eval a = x + a1 | keep a1, x
-     * Since the logic is very similar, this rule also handles duplicate aggregate functions to avoid duplicate compute
-     * stats a = min(x), b = min(x), c = count(*), d = count() by g
-     * becomes
-     * stats a = min(x), c = count(*) by g | eval b = a, d = c | keep a, b, c, d, g
-     */
-    static class ReplaceStatsAggExpressionWithEval extends OptimizerRules.OptimizerRule<Aggregate> {
-        ReplaceStatsAggExpressionWithEval() {
-            super(TransformDirection.UP);
-        }
-
-        @Override
-        protected LogicalPlan rule(Aggregate aggregate) {
-            // build alias map
-            AttributeMap<Expression> aliases = new AttributeMap<>();
-            aggregate.forEachExpressionUp(Alias.class, a -> aliases.put(a.toAttribute(), a.child()));
-
-            // break down each aggregate into AggregateFunction and/or grouping key
-            // preserve the projection at the end
-            List<? extends NamedExpression> aggs = aggregate.aggregates();
-
-            // root/naked aggs
-            Map<AggregateFunction, Alias> rootAggs = Maps.newLinkedHashMapWithExpectedSize(aggs.size());
-            // evals (original expression relying on multiple aggs)
-            List<Alias> newEvals = new ArrayList<>();
-            List<NamedExpression> newProjections = new ArrayList<>();
-            // track the aggregate aggs (including grouping which is not an AggregateFunction)
-            List<NamedExpression> newAggs = new ArrayList<>();
-
-            Holder<Boolean> changed = new Holder<>(false);
-            int[] counter = new int[] { 0 };
-
-            for (NamedExpression agg : aggs) {
-                if (agg instanceof Alias as) {
-                    // if the child a nested expression
-                    Expression child = as.child();
-
-                    // common case - handle duplicates
-                    if (child instanceof AggregateFunction af) {
-                        AggregateFunction canonical = (AggregateFunction) af.canonical();
-                        Expression field = canonical.field().transformUp(e -> aliases.resolve(e, e));
-                        canonical = (AggregateFunction) canonical.replaceChildren(
-                            CollectionUtils.combine(singleton(field), canonical.parameters())
-                        );
-
-                        Alias found = rootAggs.get(canonical);
-                        // aggregate is new
-                        if (found == null) {
-                            rootAggs.put(canonical, as);
-                            newAggs.add(as);
-                            newProjections.add(as.toAttribute());
-                        }
-                        // agg already exists - preserve the current alias but point it to the existing agg
-                        // thus don't add it to the list of aggs as we don't want duplicated compute
-                        else {
-                            changed.set(true);
-                            newProjections.add(as.replaceChild(found.toAttribute()));
-                        }
-                    }
-                    // nested expression over aggregate function or groups
-                    // replace them with reference and move the expression into a follow-up eval
-                    else {
-                        changed.set(true);
-                        Expression aggExpression = child.transformUp(AggregateFunction.class, af -> {
-                            AggregateFunction canonical = (AggregateFunction) af.canonical();
-                            Alias alias = rootAggs.get(canonical);
-                            if (alias == null) {
-                                // create synthetic alias ove the found agg function
-                                alias = new Alias(
-                                    af.source(),
-                                    syntheticName(canonical, child, counter[0]++),
-                                    as.qualifier(),
-                                    canonical,
-                                    null,
-                                    true
-                                );
-                                // and remember it to remove duplicates
-                                rootAggs.put(canonical, alias);
-                                // add it to the list of aggregates and continue
-                                newAggs.add(alias);
-                            }
-                            // (even when found) return a reference to it
-                            return alias.toAttribute();
-                        });
-
-                        Alias alias = as.replaceChild(aggExpression);
-                        newEvals.add(alias);
-                        newProjections.add(alias.toAttribute());
-                    }
-                }
-                // not an alias (e.g. grouping field)
-                else {
-                    newAggs.add(agg);
-                    newProjections.add(agg.toAttribute());
-                }
-            }
-
-            LogicalPlan plan = aggregate;
-            if (changed.get()) {
-                Source source = aggregate.source();
-                plan = new Aggregate(source, aggregate.child(), aggregate.groupings(), newAggs);
-                if (newEvals.size() > 0) {
-                    plan = new Eval(source, plan, newEvals);
-                }
-                // preserve initial projection
-                plan = new Project(source, plan, newProjections);
-            }
-
-            return plan;
-        }
-
-        static String syntheticName(Expression expression, Expression af, int counter) {
-            return SubstituteSurrogates.temporaryName(expression, af, counter);
         }
     }
 

@@ -74,10 +74,10 @@ import org.elasticsearch.xpack.esql.optimizer.rules.PruneRedundantSortClauses;
 import org.elasticsearch.xpack.esql.optimizer.rules.PushDownAndCombineFilters;
 import org.elasticsearch.xpack.esql.optimizer.rules.PushDownAndCombineLimits;
 import org.elasticsearch.xpack.esql.optimizer.rules.PushDownAndCombineOrderBy;
+import org.elasticsearch.xpack.esql.optimizer.rules.PushDownEnrich;
 import org.elasticsearch.xpack.esql.optimizer.rules.SetAsOptimized;
 import org.elasticsearch.xpack.esql.optimizer.rules.SimplifyComparisonsArithmetics;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
-import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Lookup;
@@ -437,13 +437,6 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
         }
     }
 
-    protected static class PushDownEnrich extends OptimizerRules.OptimizerRule<Enrich> {
-        @Override
-        protected LogicalPlan rule(Enrich en) {
-            return pushGeneratingPlanPastProjectAndOrderBy(en, asAttributes(en.enrichFields()));
-        }
-    }
-
     /**
      * Pushes LogicalPlans which generate new attributes (Eval, Grok/Dissect, Enrich), past OrderBys and Projections.
      * Although it seems arbitrary whether the OrderBy or the Eval is executed first, this transformation ensures that OrderBys only
@@ -470,7 +463,7 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
      *
      * ... | eval $$a = a | eval a = b + 1 | sort $$a | drop $$a
      */
-    private static LogicalPlan pushGeneratingPlanPastProjectAndOrderBy(UnaryPlan generatingPlan, List<Attribute> generatedAttributes) {
+    public static LogicalPlan pushGeneratingPlanPastProjectAndOrderBy(UnaryPlan generatingPlan, List<Attribute> generatedAttributes) {
         LogicalPlan child = generatingPlan.child();
 
         if (child instanceof OrderBy orderBy) {

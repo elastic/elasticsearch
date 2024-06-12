@@ -50,7 +50,6 @@ import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.grouping.GroupingFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.AbstractConvertFunction;
-import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesFunction;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
@@ -68,6 +67,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.LiteralsOnTheRight;
 import org.elasticsearch.xpack.esql.optimizer.rules.PartiallyFoldCase;
 import org.elasticsearch.xpack.esql.optimizer.rules.PropagateEmptyRelation;
 import org.elasticsearch.xpack.esql.optimizer.rules.PropagateEquals;
+import org.elasticsearch.xpack.esql.optimizer.rules.PropagateNullable;
 import org.elasticsearch.xpack.esql.optimizer.rules.PruneFilters;
 import org.elasticsearch.xpack.esql.optimizer.rules.PruneLiteralsInOrderBy;
 import org.elasticsearch.xpack.esql.optimizer.rules.SetAsOptimized;
@@ -1332,19 +1332,6 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
         }
 
         protected abstract LogicalPlan rule(SubPlan plan, P context);
-    }
-
-    public static class PropagateNullable extends OptimizerRules.PropagateNullable {
-        protected Expression nullify(Expression exp, Expression nullExp) {
-            if (exp instanceof Coalesce) {
-                List<Expression> newChildren = new ArrayList<>(exp.children());
-                newChildren.removeIf(e -> e.semanticEquals(nullExp));
-                if (newChildren.size() != exp.children().size() && newChildren.size() > 0) { // coalesce needs at least one input
-                    return exp.replaceChildren(newChildren);
-                }
-            }
-            return Literal.of(exp, null);
-        }
     }
 
 }

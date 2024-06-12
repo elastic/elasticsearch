@@ -502,6 +502,8 @@ Valid values are:
 * `clusterning`: use it for the embeddings run through a clustering algorithm.
 * `ingest`: use it for storing document embeddings in a vector database.
 * `search`: use it for storing embeddings of search queries run against a vector database to find relevant documents.
++
+IMPORTANT: The `input_type` field is required when using embedding models `v3` and higher.
 
 `truncate`:::
 (Optional, string)

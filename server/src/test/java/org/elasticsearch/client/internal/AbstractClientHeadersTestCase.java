@@ -121,7 +121,7 @@ public abstract class AbstractClientHeadersTestCase extends ESTestCase {
             .execute(new AssertingActionListener<>(TransportCreateSnapshotAction.TYPE.name(), client.threadPool()));
         client.execute(
             TransportClusterRerouteAction.TYPE,
-            new ClusterRerouteRequest(),
+            new ClusterRerouteRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT),
             new AssertingActionListener<>(TransportClusterRerouteAction.TYPE.name(), client.threadPool())
         );
 

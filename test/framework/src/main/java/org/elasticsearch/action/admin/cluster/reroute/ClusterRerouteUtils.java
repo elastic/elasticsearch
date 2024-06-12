@@ -14,6 +14,7 @@ import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.client.internal.ElasticsearchClient;
 import org.elasticsearch.cluster.routing.allocation.command.AllocationCommand;
 
+import static org.elasticsearch.test.ESTestCase.TEST_REQUEST_TIMEOUT;
 import static org.elasticsearch.test.ESTestCase.asInstanceOf;
 import static org.elasticsearch.test.ESTestCase.safeAwait;
 import static org.elasticsearch.test.ESTestCase.safeGet;
@@ -45,7 +46,8 @@ public class ClusterRerouteUtils {
             safeGet(
                 client.execute(
                     TransportClusterRerouteAction.TYPE,
-                    new ClusterRerouteRequest().setRetryFailed(retryFailed).add(allocationCommands)
+                    new ClusterRerouteRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).setRetryFailed(retryFailed)
+                        .add(allocationCommands)
                 )
             )
         );
@@ -60,7 +62,7 @@ public class ClusterRerouteUtils {
             SubscribableListener.newForked(
                 l -> client.execute(
                     TransportClusterRerouteAction.TYPE,
-                    new ClusterRerouteRequest().add(allocationCommands),
+                    new ClusterRerouteRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).add(allocationCommands),
                     ActionTestUtils.assertNoSuccessListener(l::onResponse)
                 )
             )

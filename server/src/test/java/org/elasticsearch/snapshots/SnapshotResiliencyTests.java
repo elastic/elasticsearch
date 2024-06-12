@@ -1052,7 +1052,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                             scheduleNow(
                                 () -> testClusterNodes.randomMasterNodeSafe().client.execute(
                                     TransportClusterRerouteAction.TYPE,
-                                    new ClusterRerouteRequest().add(
+                                    new ClusterRerouteRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).add(
                                         new AllocateEmptyPrimaryAllocationCommand(
                                             index,
                                             shardRouting.shardId().id(),
@@ -2451,7 +2451,8 @@ public class SnapshotResiliencyTests extends ESTestCase {
                         namedWriteableRegistry,
                         EmptySystemIndices.INSTANCE.getExecutorSelector(),
                         new SearchTransportAPMMetrics(TelemetryProvider.NOOP.getMeterRegistry()),
-                        new SearchResponseMetrics(TelemetryProvider.NOOP.getMeterRegistry())
+                        new SearchResponseMetrics(TelemetryProvider.NOOP.getMeterRegistry()),
+                        client
                     )
                 );
                 actions.put(

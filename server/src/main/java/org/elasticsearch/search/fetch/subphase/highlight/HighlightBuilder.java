@@ -301,7 +301,7 @@ public final class HighlightBuilder extends AbstractHighlighterBuilder<Highlight
             targetOptionsBuilder.boundaryMaxScan(highlighterBuilder.boundaryMaxScan);
         }
         if (highlighterBuilder.boundaryChars != null) {
-            targetOptionsBuilder.boundaryChars(convertCharArray(highlighterBuilder.boundaryChars));
+            targetOptionsBuilder.boundaryChars(highlighterBuilder.boundaryChars);
         }
         if (highlighterBuilder.boundaryScannerLocale != null) {
             targetOptionsBuilder.boundaryScannerLocale(highlighterBuilder.boundaryScannerLocale);

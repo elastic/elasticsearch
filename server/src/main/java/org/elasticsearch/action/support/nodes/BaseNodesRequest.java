@@ -39,6 +39,14 @@ public abstract class BaseNodesRequest<Request extends BaseNodesRequest<Request>
 
     private TimeValue timeout;
 
+    /**
+     * @deprecated {@link BaseNodesRequest} derivatives are quite heavyweight and should never need sending over the wire. Do not include
+     * the full top-level request directly in the node-level requests. Instead, copy the needed fields over to a dedicated node-level
+     * request.
+     *
+     * @see <a href="https://github.com/elastic/elasticsearch/issues/100878">#100878</a>
+     */
+    @Deprecated(forRemoval = true)
     protected BaseNodesRequest(StreamInput in) throws IOException {
         // A bare `BaseNodesRequest` is never sent over the wire, but several implementations send the full top-level request to each node
         // (wrapped up in another request). They shouldn't, but until we fix that we must keep this. See #100878.

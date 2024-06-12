@@ -28,10 +28,10 @@ import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.ClientHelper;
-import org.elasticsearch.xpack.core.inference.results.ChunkedTextEmbeddingResults;
 import org.elasticsearch.xpack.core.inference.results.ErrorChunkedInferenceResults;
+import org.elasticsearch.xpack.core.inference.results.InferenceChunkedTextEmbeddingFloatResults;
+import org.elasticsearch.xpack.core.inference.results.InferenceTextEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.inference.results.RankedDocsResults;
-import org.elasticsearch.xpack.core.inference.results.TextEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
 import org.elasticsearch.xpack.core.ml.action.InferModelAction;
 import org.elasticsearch.xpack.core.ml.action.PutTrainedModelAction;
@@ -41,6 +41,7 @@ import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelInput;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelPrefixStrings;
 import org.elasticsearch.xpack.core.ml.inference.results.ErrorInferenceResults;
+import org.elasticsearch.xpack.core.ml.inference.results.MlChunkedTextEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextEmbeddingConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextSimilarityConfigUpdate;
@@ -131,16 +132,10 @@ public class ElasticsearchInternalService implements InferenceService {
                 ).build();
                 throwIfNotEmptyMap(serviceSettingsMap, name());
 
-                var taskSettings = CustomElandModel.taskSettingsFromMap(TaskType.RERANK, taskSettingsMap);
+                var taskSettings = CustomElandModel.taskSettingsFromMap(taskType, taskSettingsMap);
                 throwIfNotEmptyMap(taskSettingsMap, name());
 
-                var model = CustomElandModel.build(
-                    inferenceEntityId,
-                    TaskType.RERANK,
-                    name(),
-                    customElandInternalServiceSettings,
-                    taskSettings
-                );
+                var model = CustomElandModel.build(inferenceEntityId, taskType, name(), customElandInternalServiceSettings, taskSettings);
                 delegate.onResponse(model);
             }
         });
@@ -267,7 +262,7 @@ public class ElasticsearchInternalService implements InferenceService {
             InferModelAction.INSTANCE,
             request,
             listener.delegateFailureAndWrap(
-                (l, inferenceResult) -> l.onResponse(TextEmbeddingResults.of(inferenceResult.getInferenceResults()))
+                (l, inferenceResult) -> l.onResponse(InferenceTextEmbeddingFloatResults.of(inferenceResult.getInferenceResults()))
             )
         );
     }
@@ -370,12 +365,12 @@ public class ElasticsearchInternalService implements InferenceService {
     }
 
     private static ChunkedInferenceServiceResults translateToChunkedResult(InferenceResults inferenceResult) {
-        if (inferenceResult instanceof org.elasticsearch.xpack.core.ml.inference.results.ChunkedTextEmbeddingResults mlChunkedResult) {
-            return ChunkedTextEmbeddingResults.ofMlResult(mlChunkedResult);
+        if (inferenceResult instanceof MlChunkedTextEmbeddingFloatResults mlChunkedResult) {
+            return InferenceChunkedTextEmbeddingFloatResults.ofMlResults(mlChunkedResult);
         } else if (inferenceResult instanceof ErrorInferenceResults error) {
             return new ErrorChunkedInferenceResults(error.getException());
         } else {
-            throw createInvalidChunkedResultException(inferenceResult.getWriteableName());
+            throw createInvalidChunkedResultException(MlChunkedTextEmbeddingFloatResults.NAME, inferenceResult.getWriteableName());
         }
     }
 
@@ -417,9 +412,8 @@ public class ElasticsearchInternalService implements InferenceService {
             return;
         } else if (model instanceof MultilingualE5SmallModel e5Model) {
             String modelId = e5Model.getServiceSettings().getModelId();
-            var fieldNames = List.<String>of();
-            var input = new TrainedModelInput(fieldNames);
-            var config = TrainedModelConfig.builder().setInput(input).setModelId(modelId).build();
+            var input = new TrainedModelInput(List.<String>of("text_field")); // by convention text_field is used
+            var config = TrainedModelConfig.builder().setInput(input).setModelId(modelId).validate(true).build();
             PutTrainedModelAction.Request putRequest = new PutTrainedModelAction.Request(config, false, true);
             executeAsyncWithOrigin(
                 client,

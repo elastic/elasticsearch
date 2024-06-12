@@ -30,7 +30,6 @@ public interface Compressor {
             @Override
             public int read() throws IOException {
                 if (pos >= count) {
-                    // Let superclass replenish the buffer
                     return super.read();
                 }
                 return buf[pos++] & 0xFF;

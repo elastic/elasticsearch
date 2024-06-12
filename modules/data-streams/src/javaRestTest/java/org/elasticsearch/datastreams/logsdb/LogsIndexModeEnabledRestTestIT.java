@@ -75,20 +75,20 @@ public class LogsIndexModeEnabledRestTestIT extends LogsIndexModeRestTestIT {
         { "@timestamp": "2023-01-01T05:13:00Z", "host.name": "baz", "method" : "PUT", "message": "baz put message" }
         """;
 
-    public void testLogsSettingsIndexModeCreateDataStream() throws IOException {
+    public void testCreateDataStream() throws IOException {
         assertOK(putComponentTemplate(client, "logs@custom", MAPPINGS));
         assertOK(createDataStream(client, "logs-custom-dev"));
         final String indexMode = (String) getSetting(client, getDataStreamBackingIndex(client, "logs-custom-dev", 0), "index.mode");
         assertThat(indexMode, equalTo(IndexMode.LOGS.getName()));
     }
 
-    public void testLogsIndexBulkIndexing() throws IOException {
+    public void testBulkIndexing() throws IOException {
         assertOK(putComponentTemplate(client, "logs@custom", MAPPINGS));
         assertOK(createDataStream(client, "logs-custom-dev"));
         assertOK(bulkIndex(client, "logs-custom-dev", () -> BULK_INDEX_REQUEST));
     }
 
-    public void testLogsIndexRollover() throws IOException {
+    public void testRolloverDataStream() throws IOException {
         assertOK(putComponentTemplate(client, "logs@custom", MAPPINGS));
         assertOK(createDataStream(client, "logs-custom-dev"));
         final String firstBackingIndex = getDataStreamBackingIndex(client, "logs-custom-dev", 0);

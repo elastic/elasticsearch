@@ -10,6 +10,8 @@ import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeAction;
+import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequestBuilder;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.get.GetResponse;
@@ -45,6 +47,9 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.bucket.global.Global;
+import org.elasticsearch.search.aggregations.bucket.terms.IncludeExclude;
+import org.elasticsearch.search.aggregations.bucket.terms.LongTerms;
+import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.profile.ProfileResult;
@@ -85,6 +90,7 @@ import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.integration.FieldLevelSecurityTests.openPointInTime;
 import static org.elasticsearch.join.query.JoinQueryBuilders.hasChildQuery;
 import static org.elasticsearch.join.query.JoinQueryBuilders.hasParentQuery;
+import static org.elasticsearch.search.aggregations.InternalAggregation.EXCLUDE_DELETED_DOCS;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
@@ -93,9 +99,12 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSear
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.BASIC_AUTH_HEADER;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
+import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 
 @LuceneTestCase.SuppressCodecs("*") // suppress test codecs otherwise test using completion suggester fails
@@ -148,6 +157,9 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
             + "\n"
             + "user5:"
             + usersPasswdHashed
+            + "\n"
+            + "user6:"
+            + usersPasswdHashed
             + "\n";
     }
 
@@ -158,7 +170,8 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
             + "role2:user1,user3\n"
             + "role3:user2,user3\n"
             + "role4:user4\n"
-            + "role5:user5\n";
+            + "role5:user5\n"
+            + "role6:user6\n";
     }
 
     @Override
@@ -203,7 +216,13 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
             + "    - names: [ 'fls-index' ]\n"
             + "      privileges: [ read ]\n"
             + "      field_security:\n"
-            + "         grant: [ 'field1', 'other_field', 'suggest_field2' ]\n";
+            + "         grant: [ 'field1', 'other_field', 'suggest_field2' ]\n"
+            + "role6:\n"
+            + "  cluster: [ all ]\n"
+            + "  indices:\n"
+            + "   - names: '*'\n"
+            + "     privileges: [ ALL ]\n"
+            + "     query: '{\"term\" : {\"color\" : \"red\"}}'\n";
     }
 
     @Override
@@ -951,6 +970,132 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
         assertThat(globalAgg.getDocCount(), equalTo(2L));
         termsAgg = globalAgg.getAggregations().get("field2");
         assertThat(termsAgg.getBuckets().size(), equalTo(1));
+    }
+
+    public void testZeroMinDocAggregation() throws Exception {
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareCreate("test")
+                .addMapping("_doc", "color", "type=keyword", "fruit", "type=keyword", "count", "type=integer")
+                .setSettings(Collections.singletonMap("index.number_of_shards", 1))
+        );
+        client().prepareIndex("test", "_doc")
+            .setId("1")
+            .setSource("color", "red", "fruit", "apple", "count", -1)
+            .setRefreshPolicy(IMMEDIATE)
+            .get();
+        client().prepareIndex("test", "_doc")
+            .setId("2")
+            .setSource("color", "yellow", "fruit", "banana", "count", -2)
+            .setRefreshPolicy(IMMEDIATE)
+            .get();
+        client().prepareIndex("test", "_doc")
+            .setId("3")
+            .setSource("color", "green", "fruit", "grape", "count", -3)
+            .setRefreshPolicy(IMMEDIATE)
+            .get();
+        client().prepareIndex("test", "_doc")
+            .setId("4")
+            .setSource("color", "red", "fruit", "grape", "count", -4)
+            .setRefreshPolicy(IMMEDIATE)
+            .get();
+        new ForceMergeRequestBuilder(client(), ForceMergeAction.INSTANCE).setIndices("test").get();
+
+        SearchResponse response = client().filterWithHeader(
+            Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user6", USERS_PASSWD))
+        )
+            .prepareSearch("test")
+            .setQuery(termQuery("fruit", "apple"))
+            // global ordinal
+            .addAggregation(AggregationBuilders.terms("colors1").field("color").minDocCount(0))
+            .addAggregation(AggregationBuilders.terms("fruits").field("fruit").minDocCount(0))
+            // global ordinal remapped
+            .addAggregation(
+                AggregationBuilders.terms("colors2")
+                    .field("color")
+                    .minDocCount(0)
+                    .includeExclude(new IncludeExclude(".*", null, null, null))
+            )
+            // mapped
+            .addAggregation(AggregationBuilders.terms("colors3").field("color").minDocCount(0).executionHint("map"))
+            // numeric
+            .addAggregation(AggregationBuilders.terms("counts").field("count").minDocCount(0))
+            // nested
+            .addAggregation(
+                AggregationBuilders.terms("nested")
+                    .field("color")
+                    .minDocCount(0)
+                    .subAggregation(
+                        AggregationBuilders.terms("fruits")
+                            .field("fruit")
+                            .minDocCount(0)
+                            .executionHint("map")
+                            .subAggregation(AggregationBuilders.terms("counts").field("count").minDocCount(0))
+                    )
+                    .minDocCount(0)
+            )
+            .get();
+
+        assertThat(response.toString(), not(containsString(EXCLUDE_DELETED_DOCS)));
+        assertThat(
+            response.toString(),
+            allOf(containsString("apple"), containsString("grape"), containsString("red"), containsString("-1"), containsString("-4"))
+        );
+        assertThat(
+            response.toString(),
+            allOf(
+                not(containsString("banana")),
+                not(containsString("yellow")),
+                not(containsString("green")),
+                not(containsString("-2")),
+                not(containsString("-3"))
+            )
+        );
+        assertHitCount(response, 1);
+        assertSearchHits(response, "1");
+        // fruits
+        StringTerms fruits = response.getAggregations().get("fruits");
+        assertThat(fruits.getBuckets().size(), equalTo(2));
+        List<StringTerms.Bucket> fruitBuckets = fruits.getBuckets();
+        assertTrue(fruitBuckets.stream().anyMatch(bucket -> bucket.getKeyAsString().equals("apple") && bucket.getDocCount() == 1));
+        assertTrue(fruitBuckets.stream().anyMatch(bucket -> bucket.getKeyAsString().equals("grape") && bucket.getDocCount() == 0));
+        // counts
+        LongTerms counts = response.getAggregations().get("counts");
+        assertThat(counts.getBuckets().size(), equalTo(2));
+        List<LongTerms.Bucket> countsBuckets = counts.getBuckets();
+        assertTrue(countsBuckets.stream().anyMatch(bucket -> bucket.getKeyAsString().equals("-1") && bucket.getDocCount() == 1));
+        assertTrue(countsBuckets.stream().anyMatch(bucket -> bucket.getKeyAsString().equals("-4") && bucket.getDocCount() == 0));
+        // colors
+        for (int i = 1; i <= 3; i++) {
+            StringTerms colors = response.getAggregations().get("colors" + i);
+            assertThat(colors.getBuckets().size(), equalTo(1));
+            assertThat(colors.getBuckets().get(0).getKeyAsString(), equalTo("red"));
+            assertThat(colors.getBuckets().get(0).getDocCount(), equalTo(1L));
+        }
+        // nested
+        StringTerms nested = response.getAggregations().get("nested");
+        assertThat(nested.getBuckets().size(), equalTo(1));
+        assertThat(nested.getBuckets().get(0).getKeyAsString(), equalTo("red"));
+        assertThat(nested.getBuckets().get(0).getDocCount(), equalTo(1L));
+        StringTerms innerFruits = nested.getBuckets().get(0).getAggregations().get("fruits");
+        List<StringTerms.Bucket> innerFruitsBuckets = innerFruits.getBuckets();
+        assertTrue(innerFruitsBuckets.stream().anyMatch(b -> b.getKeyAsString().equals("apple") && b.getDocCount() == 1));
+        assertTrue(innerFruitsBuckets.stream().anyMatch(b -> b.getKeyAsString().equals("grape") && b.getDocCount() == 0));
+        assertThat(innerFruitsBuckets.size(), equalTo(2));
+
+        for (int i = 0; i <= 1; i++) {
+            String parentBucketKey = innerFruitsBuckets.get(i).getKeyAsString();
+            LongTerms innerCounts = innerFruitsBuckets.get(i).getAggregations().get("counts");
+            assertThat(innerCounts.getBuckets().size(), equalTo(2));
+            List<LongTerms.Bucket> icb = innerCounts.getBuckets();
+            if ("apple".equals(parentBucketKey)) {
+                assertTrue(icb.stream().anyMatch(bucket -> bucket.getKeyAsString().equals("-1") && bucket.getDocCount() == 1));
+            } else {
+                assertTrue(icb.stream().anyMatch(bucket -> bucket.getKeyAsString().equals("-1") && bucket.getDocCount() == 0));
+            }
+            assertTrue(icb.stream().anyMatch(bucket -> bucket.getKeyAsString().equals("-4") && bucket.getDocCount() == 0));
+        }
     }
 
     public void testParentChild() throws Exception {

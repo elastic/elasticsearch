@@ -2,3 +2,4 @@ boolean:boolean,date:date,keyword:keyword,text:text,ip:ip,version:version,float:
 false,1953-09-03T00:00:00Z,A keyword,Some text,127.0.0.1,1.1.2,1.5,0.148,127,2767,647,75807,72036085407758070,POINT(42.12 23),"MULTIPOINT(0.5 0.5\, 2.5 0.5\, 2.5 2.5\, 0.5 2.5)"
 true,2020-09-15T00:00:59Z,Another keyword,Some extra text,::0,0.0.1,0,0,0,0,0,0,0,POINT(0 0),"MULTIPOINT(0 0\, 0 0\, 0 0)"
 true,2022-09-15T00:00:00Z,Yet another keyword,,::1,0.0.10,9e8,1e250,1,1,1,1,1,POINT(1 1),"MULTIPOINT(1 0\, 0 1\, 1 1)"
+true,2022-09-15T00:00:00Z,Yet another keyword,,::1,0.0.10,9e8,1e250,1,1,1,1,1,POINT(1 1),"MULTIPOINT(1 0\, 0 1\, 1 1)"

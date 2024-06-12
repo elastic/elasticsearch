@@ -16,19 +16,14 @@ topValuesListAllTypes
 required_capability: agg_top_values_list
 FROM all_types
 | STATS
-    boolean = TOP_VALUES_LIST(boolean, 1, "asc"),
     date = TOP_VALUES_LIST(date, 1, "asc"),
-    keyword = TOP_VALUES_LIST(keyword, 1, "asc"),
-    text = TOP_VALUES_LIST(text, 1, "asc"),
-    ip = TOP_VALUES_LIST(ip, 1, "asc"),
-    version = TOP_VALUES_LIST(version, 1, "asc"),
     double = TOP_VALUES_LIST(double, 1, "asc"),
     integer = TOP_VALUES_LIST(integer, 1, "asc"),
     long = TOP_VALUES_LIST(long, 1, "asc")
 ;
 
-boolean:boolean | date:date | keyword:keyword | text:text | ip:ip | version:version | double:double | integer:integer | long:long
-false | 1953-09-03T00:00:00Z | A keyword | Some extra text | ::0 | 0.0.1 | 0 | 0 | 0
+date:date | double:double | integer:integer | long:long
+1953-09-03T00:00:00Z | 0 | 0 | 0
 ;
 
 topValuesListAscDesc
@@ -55,9 +50,10 @@ null
 topValuesListDuplicates
 required_capability: agg_top_values_list
 FROM all_types
-| STATS boolean = TOP_VALUES_LIST(boolean, 3, "asc")
+| WHERE integer > 0
+| STATS integer = TOP_VALUES_LIST(integer, 2, "asc")
 ;
 
-boolean:boolean
-[false, true, true]
+integer:integer
+[1, 1]
 ;

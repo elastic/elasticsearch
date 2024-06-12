@@ -24,5 +24,6 @@
  *     - evaluateFinal
  *   - State class and methods:
  *     - toIntermediate
+ * - Add to AggregateMapper
  */
 package org.elasticsearch.xpack.esql.expression.function.aggregate;

@@ -13,8 +13,13 @@ import org.elasticsearch.compute.ann.GroupingAggregator;
 import org.elasticsearch.compute.ann.IntermediateState;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
-import org.elasticsearch.compute.data.IntVector;
+$if(!long)$
 import org.elasticsearch.compute.data.$Type$Block;
+$endif$
+import org.elasticsearch.compute.data.IntVector;
+$if(long)$
+import org.elasticsearch.compute.data.$Type$Block;
+$endif$
 import org.elasticsearch.compute.data.sort.$Type$BucketedSort;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.Releasable;

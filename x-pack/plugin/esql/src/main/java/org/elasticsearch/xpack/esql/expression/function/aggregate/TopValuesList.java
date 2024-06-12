@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.TopValuesListDoubleAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.TopValuesListIntAggregatorFunctionSupplier;
@@ -82,8 +83,12 @@ public class TopValuesList extends AggregateFunction implements ToAggregator, Su
         return (int) limitField().fold();
     }
 
+    private String orderRawValue() {
+        return BytesRefs.toString(orderField().fold());
+    }
+
     private boolean orderValue() {
-        return orderField().fold().toString().equalsIgnoreCase(ORDER_ASC);
+        return orderRawValue().equalsIgnoreCase(ORDER_ASC);
     }
 
     @Override
@@ -97,7 +102,7 @@ public class TopValuesList extends AggregateFunction implements ToAggregator, Su
             dt -> dt == DataType.DATETIME || dt.isNumeric() && dt != DataType.UNSIGNED_LONG,
             sourceText(),
             FIRST,
-            "representable"
+            "numeric except unsigned_long or counter types"
         ).and(isFoldable(limitField(), sourceText(), SECOND))
             .and(isType(limitField(), dt -> dt == DataType.INTEGER, sourceText(), SECOND, "integer"))
             .and(isFoldable(orderField(), sourceText(), THIRD))
@@ -108,7 +113,7 @@ public class TopValuesList extends AggregateFunction implements ToAggregator, Su
         }
 
         var limit = limitValue();
-        var order = orderField().fold().toString();
+        var order = orderRawValue();
 
         if (limit <= 0) {
             return new TypeResolution(format(null, "Limit must be greater than 0. Got {}", limit));
@@ -154,10 +159,6 @@ public class TopValuesList extends AggregateFunction implements ToAggregator, Su
     @Override
     public Expression surrogate() {
         var s = source();
-
-        if (field().dataType() == DataType.LONG) {
-            return null;
-        }
 
         if (limitValue() == 1) {
             if (orderValue()) {

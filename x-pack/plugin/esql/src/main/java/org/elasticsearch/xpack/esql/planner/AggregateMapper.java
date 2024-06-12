@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Percentile;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialAggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialCentroid;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.TopValuesList;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
 
 import java.lang.invoke.MethodHandle;
@@ -61,7 +62,8 @@ final class AggregateMapper {
         Percentile.class,
         SpatialCentroid.class,
         Sum.class,
-        Values.class
+        Values.class,
+        TopValuesList.class
     );
 
     /** Record of agg Class, type, and grouping (or non-grouping). */
@@ -143,6 +145,8 @@ final class AggregateMapper {
         } else if (Values.class.isAssignableFrom(clazz)) {
             // TODO can't we figure this out from the function itself?
             types = List.of("Int", "Long", "Double", "Boolean", "BytesRef");
+        } else if (TopValuesList.class.isAssignableFrom(clazz)) {
+            types = List.of("Int", "Long", "Double");
         } else {
             assert clazz == CountDistinct.class : "Expected CountDistinct, got: " + clazz;
             types = Stream.concat(NUMERIC.stream(), Stream.of("Boolean", "BytesRef")).toList();

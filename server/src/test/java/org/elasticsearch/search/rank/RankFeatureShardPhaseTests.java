@@ -8,10 +8,12 @@
 
 package org.elasticsearch.search.rank;
 
+import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.Index;
@@ -129,6 +131,12 @@ public class RankFeatureShardPhaseTests extends ESTestCase {
                 return false;
             }
 
+            @Override
+            public Explanation explainHit(Explanation baseExplanation, RankDoc scoreDoc, List<String> queryNames) {
+                // no-op
+                return baseExplanation;
+            }
+
             // no work to be done on the query phase
             @Override
             public QueryPhaseRankShardContext buildQueryPhaseShardContext(List<Query> queries, int from) {
@@ -160,7 +168,7 @@ public class RankFeatureShardPhaseTests extends ESTestCase {
 
             // no work to be done on the coordinator node for the rank feature phase
             @Override
-            public RankFeaturePhaseRankCoordinatorContext buildRankFeaturePhaseCoordinatorContext(int size, int from) {
+            public RankFeaturePhaseRankCoordinatorContext buildRankFeaturePhaseCoordinatorContext(int size, int from, Client client) {
                 return null;
             }
 

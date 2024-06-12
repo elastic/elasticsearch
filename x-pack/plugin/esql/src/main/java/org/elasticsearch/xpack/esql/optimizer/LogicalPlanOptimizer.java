@@ -75,6 +75,8 @@ import org.elasticsearch.xpack.esql.optimizer.rules.PushDownAndCombineFilters;
 import org.elasticsearch.xpack.esql.optimizer.rules.PushDownAndCombineLimits;
 import org.elasticsearch.xpack.esql.optimizer.rules.PushDownAndCombineOrderBy;
 import org.elasticsearch.xpack.esql.optimizer.rules.PushDownEnrich;
+import org.elasticsearch.xpack.esql.optimizer.rules.PushDownEval;
+import org.elasticsearch.xpack.esql.optimizer.rules.PushDownRegexExtract;
 import org.elasticsearch.xpack.esql.optimizer.rules.SetAsOptimized;
 import org.elasticsearch.xpack.esql.optimizer.rules.SimplifyComparisonsArithmetics;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
@@ -82,7 +84,6 @@ import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Lookup;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
-import org.elasticsearch.xpack.esql.plan.logical.RegexExtract;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
@@ -100,7 +101,6 @@ import java.util.Set;
 
 import static java.util.Arrays.asList;
 import static java.util.Collections.singleton;
-import static org.elasticsearch.xpack.esql.core.expression.Expressions.asAttributes;
 import static org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules.TransformDirection;
 import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputExpressions;
 import static org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer.SubstituteSurrogates.rawTemporaryName;
@@ -421,20 +421,6 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
 
     public static LogicalPlan skipPlan(UnaryPlan plan, LocalSupplier supplier) {
         return new LocalRelation(plan.source(), plan.output(), supplier);
-    }
-
-    protected static class PushDownEval extends OptimizerRules.OptimizerRule<Eval> {
-        @Override
-        protected LogicalPlan rule(Eval eval) {
-            return pushGeneratingPlanPastProjectAndOrderBy(eval, asAttributes(eval.fields()));
-        }
-    }
-
-    protected static class PushDownRegexExtract extends OptimizerRules.OptimizerRule<RegexExtract> {
-        @Override
-        protected LogicalPlan rule(RegexExtract re) {
-            return pushGeneratingPlanPastProjectAndOrderBy(re, re.extractedFields());
-        }
     }
 
     /**

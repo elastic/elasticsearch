@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
+import org.elasticsearch.cluster.routing.allocation.Explanations;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
@@ -682,7 +683,11 @@ public class TransportGetShutdownStatusActionTests extends ESTestCase {
             1,
             allOf(containsString(index.getName()), containsString("[2] [primary]"), containsString("is waiting to be moved"))
         );
-        assertThat(status.getAllocationDecision(), notNullValue());
+        var explain = status.getAllocationDecision();
+        assertThat(explain, notNullValue());
+        assertThat(explain.getAllocateDecision().isDecisionTaken(), is(false));
+        assertThat(explain.getMoveDecision().isDecisionTaken(), is(true));
+        assertThat(explain.getMoveDecision().getExplanation(), equalTo(Explanations.Move.THROTTLED));
     }
 
     public void testIlmShrinkingIndexAvoidsStall() {

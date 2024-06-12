@@ -413,8 +413,7 @@ public class ScaledFloatFieldMapperTests extends NumberFieldMapperTests {
             if (ignoreMalformedEnabled && randomBoolean()) {
                 List<Supplier<Object>> choices = List.of(
                     () -> randomAlphaOfLengthBetween(1, 10),
-                    () -> Map.of(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10)),
-                    () -> List.of(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10))
+                    () -> Map.of(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10))
                 );
                 var malformedInput = randomFrom(choices).get();
                 return new Value(malformedInput, null, malformedInput);

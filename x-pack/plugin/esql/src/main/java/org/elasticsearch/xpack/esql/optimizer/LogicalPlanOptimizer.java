@@ -51,7 +51,6 @@ import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.grouping.GroupingFunction;
-import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.AbstractConvertFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesFunction;
@@ -68,6 +67,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.ConvertStringToByteRef;
 import org.elasticsearch.xpack.esql.optimizer.rules.DuplicateLimitAfterMvExpand;
 import org.elasticsearch.xpack.esql.optimizer.rules.FoldNull;
 import org.elasticsearch.xpack.esql.optimizer.rules.LiteralsOnTheRight;
+import org.elasticsearch.xpack.esql.optimizer.rules.PartiallyFoldCase;
 import org.elasticsearch.xpack.esql.optimizer.rules.PropagateEquals;
 import org.elasticsearch.xpack.esql.optimizer.rules.PruneFilters;
 import org.elasticsearch.xpack.esql.optimizer.rules.PruneLiteralsInOrderBy;
@@ -102,7 +102,6 @@ import static java.util.Arrays.asList;
 import static java.util.Collections.singleton;
 import static org.elasticsearch.xpack.esql.core.expression.Expressions.asAttributes;
 import static org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules.TransformDirection;
-import static org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules.TransformDirection.DOWN;
 import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputExpressions;
 import static org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer.SubstituteSurrogates.rawTemporaryName;
 
@@ -1394,24 +1393,4 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
         }
     }
 
-    /**
-     * Fold the arms of {@code CASE} statements.
-     * <pre>{@code
-     * EVAL c=CASE(true, foo, bar)
-     * }</pre>
-     * becomes
-     * <pre>{@code
-     * EVAL c=foo
-     * }</pre>
-     */
-    static class PartiallyFoldCase extends OptimizerRules.OptimizerExpressionRule<Case> {
-        PartiallyFoldCase() {
-            super(DOWN);
-        }
-
-        @Override
-        protected Expression rule(Case c) {
-            return c.partiallyFold();
-        }
-    }
 }

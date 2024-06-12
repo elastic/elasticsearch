@@ -71,9 +71,11 @@ public class StartTrainedModelDeploymentRequestTests extends AbstractXContentSer
         }
         if (randomBoolean()) {
             request.setPriority(randomFrom(Priority.values()).toString());
-            if (request.getNumberOfAllocations() > 1 || request.getThreadsPerAllocation() > 1) {
+            if ((request.getNumberOfAllocations() != null && request.getNumberOfAllocations() > 1)
+                || (request.getThreadsPerAllocation() != null && request.getThreadsPerAllocation() > 1)) {
                 request.setPriority(Priority.NORMAL.toString());
             }
+
         }
         return request;
     }
@@ -82,6 +84,7 @@ public class StartTrainedModelDeploymentRequestTests extends AbstractXContentSer
         Request request = createRandom();
         request.setThreadsPerAllocation(0);
 
+        request.setDefaults();
         ActionRequestValidationException e = request.validate();
 
         assertThat(e, is(not(nullValue())));
@@ -92,6 +95,7 @@ public class StartTrainedModelDeploymentRequestTests extends AbstractXContentSer
         Request request = createRandom();
         request.setThreadsPerAllocation(randomIntBetween(-100, -1));
 
+        request.setDefaults();
         ActionRequestValidationException e = request.validate();
 
         assertThat(e, is(not(nullValue())));
@@ -106,6 +110,7 @@ public class StartTrainedModelDeploymentRequestTests extends AbstractXContentSer
             Request request = createRandom();
             request.setThreadsPerAllocation(n);
 
+            request.setDefaults();
             ActionRequestValidationException e = request.validate();
 
             assertThat(e, is(not(nullValue())));
@@ -119,6 +124,7 @@ public class StartTrainedModelDeploymentRequestTests extends AbstractXContentSer
             request.setPriority(Priority.NORMAL.toString());
             request.setThreadsPerAllocation(n);
 
+            request.setDefaults();
             ActionRequestValidationException e = request.validate();
 
             assertThat(e, is(nullValue()));
@@ -129,6 +135,7 @@ public class StartTrainedModelDeploymentRequestTests extends AbstractXContentSer
         Request request = createRandom();
         request.setNumberOfAllocations(0);
 
+        request.setDefaults();
         ActionRequestValidationException e = request.validate();
 
         assertThat(e, is(not(nullValue())));
@@ -139,6 +146,7 @@ public class StartTrainedModelDeploymentRequestTests extends AbstractXContentSer
         Request request = createRandom();
         request.setNumberOfAllocations(randomIntBetween(-100, -1));
 
+        request.setDefaults();
         ActionRequestValidationException e = request.validate();
 
         assertThat(e, is(not(nullValue())));
@@ -149,6 +157,7 @@ public class StartTrainedModelDeploymentRequestTests extends AbstractXContentSer
         Request request = createRandom();
         request.setQueueCapacity(0);
 
+        request.setDefaults();
         ActionRequestValidationException e = request.validate();
 
         assertThat(e, is(not(nullValue())));
@@ -159,6 +168,7 @@ public class StartTrainedModelDeploymentRequestTests extends AbstractXContentSer
         Request request = createRandom();
         request.setQueueCapacity(randomIntBetween(Integer.MIN_VALUE, -1));
 
+        request.setDefaults();
         ActionRequestValidationException e = request.validate();
 
         assertThat(e, is(not(nullValue())));
@@ -169,6 +179,7 @@ public class StartTrainedModelDeploymentRequestTests extends AbstractXContentSer
         Request request = createRandom();
         request.setQueueCapacity(1_000_000);
 
+        request.setDefaults();
         ActionRequestValidationException e = request.validate();
 
         assertThat(e, is(nullValue()));
@@ -178,6 +189,7 @@ public class StartTrainedModelDeploymentRequestTests extends AbstractXContentSer
         Request request = createRandom();
         request.setQueueCapacity(1_000_001);
 
+        request.setDefaults();
         ActionRequestValidationException e = request.validate();
 
         assertThat(e, is(not(nullValue())));
@@ -188,6 +200,7 @@ public class StartTrainedModelDeploymentRequestTests extends AbstractXContentSer
         Request request = createRandom();
         request.setTimeout(TimeValue.parseTimeValue("-1s", "timeout"));
 
+        request.setDefaults();
         ActionRequestValidationException e = request.validate();
 
         assertThat(e, is(not(nullValue())));
@@ -198,6 +211,7 @@ public class StartTrainedModelDeploymentRequestTests extends AbstractXContentSer
         Request request = createRandom();
         request.setTimeout(TimeValue.parseTimeValue("0s", "timeout"));
 
+        request.setDefaults();
         ActionRequestValidationException e = request.validate();
 
         assertThat(e, is(not(nullValue())));
@@ -209,6 +223,7 @@ public class StartTrainedModelDeploymentRequestTests extends AbstractXContentSer
         request.setPriority(Priority.LOW.toString());
         request.setThreadsPerAllocation(randomFrom(2, 4, 8, 16, 32));
 
+        request.setDefaults();
         ActionRequestValidationException e = request.validate();
 
         assertThat(e, is(not(nullValue())));
@@ -220,6 +235,7 @@ public class StartTrainedModelDeploymentRequestTests extends AbstractXContentSer
         request.setPriority(Priority.LOW.toString());
         request.setNumberOfAllocations(randomIntBetween(2, 32));
 
+        request.setDefaults();
         ActionRequestValidationException e = request.validate();
 
         assertThat(e, is(not(nullValue())));
@@ -228,6 +244,7 @@ public class StartTrainedModelDeploymentRequestTests extends AbstractXContentSer
 
     public void testDefaults() {
         Request request = new Request(randomAlphaOfLength(10), randomAlphaOfLength(10));
+        request.setDefaults();
         assertThat(request.getTimeout(), equalTo(TimeValue.timeValueSeconds(30)));
         assertThat(request.getWaitForState(), equalTo(AllocationStatus.State.STARTED));
         assertThat(request.getNumberOfAllocations(), equalTo(1));

@@ -48,6 +48,6 @@ public interface SourceProvider {
      * multiple threads.
      */
     static SourceProvider fromSyntheticSource(Mapping mapping, SourceFieldMetrics metrics) {
-        return new SyntheticSourceProvider(new SourceLoader.Synthetic(mapping, metrics));
+        return new SyntheticSourceProvider(new SourceLoader.Synthetic(mapping::syntheticFieldLoader, metrics));
     }
 }

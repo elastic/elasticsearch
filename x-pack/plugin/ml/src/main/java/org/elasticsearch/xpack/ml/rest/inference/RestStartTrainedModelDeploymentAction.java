@@ -156,6 +156,7 @@ public class RestStartTrainedModelDeploymentAction extends BaseRestHandler {
             )
         );
 
+        request.setDefaults();
         return channel -> client.execute(StartTrainedModelDeploymentAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }
 

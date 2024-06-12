@@ -54,7 +54,8 @@ public class Coalesce extends EsqlScalarFunction implements OptionalArgument {
             "ip",
             "keyword",
             "long",
-            "text" },
+            "text",
+            "version" },
         description = "Returns the first of its arguments that is not null. If all arguments are null, it returns `null`.",
         examples = { @Example(file = "null", tag = "coalesce") }
     )
@@ -73,7 +74,8 @@ public class Coalesce extends EsqlScalarFunction implements OptionalArgument {
                 "ip",
                 "keyword",
                 "long",
-                "text" },
+                "text",
+                "version" },
             description = "Expression to evaluate."
         ) Expression first,
         @Param(
@@ -89,7 +91,8 @@ public class Coalesce extends EsqlScalarFunction implements OptionalArgument {
                 "ip",
                 "keyword",
                 "long",
-                "text" },
+                "text",
+                "version" },
             description = "Other expression to evaluate.",
             optional = true
         ) List<Expression> rest

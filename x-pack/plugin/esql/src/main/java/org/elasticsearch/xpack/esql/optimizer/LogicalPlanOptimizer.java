@@ -20,14 +20,10 @@ import org.elasticsearch.xpack.esql.core.expression.EmptyAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
-import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.Order;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Or;
-import org.elasticsearch.xpack.esql.core.expression.predicate.nulls.IsNotNull;
-import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RegexMatch;
-import org.elasticsearch.xpack.esql.core.expression.predicate.regex.StringPattern;
 import org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules;
 import org.elasticsearch.xpack.esql.core.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.core.plan.logical.LogicalPlan;
@@ -36,7 +32,6 @@ import org.elasticsearch.xpack.esql.core.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.core.rule.ParameterizedRule;
 import org.elasticsearch.xpack.esql.core.rule.ParameterizedRuleExecutor;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
@@ -44,7 +39,6 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunct
 import org.elasticsearch.xpack.esql.expression.function.grouping.GroupingFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.AbstractConvertFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesFunction;
-import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.optimizer.rules.AddDefaultTopN;
 import org.elasticsearch.xpack.esql.optimizer.rules.BooleanFunctionEqualsElimination;
@@ -79,6 +73,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.ReplaceAliasingEvalWithProje
 import org.elasticsearch.xpack.esql.optimizer.rules.ReplaceLimitAndSortAsTopN;
 import org.elasticsearch.xpack.esql.optimizer.rules.ReplaceLookupWithJoin;
 import org.elasticsearch.xpack.esql.optimizer.rules.ReplaceOrderByExpressionWithEval;
+import org.elasticsearch.xpack.esql.optimizer.rules.ReplaceRegexMatch;
 import org.elasticsearch.xpack.esql.optimizer.rules.SetAsOptimized;
 import org.elasticsearch.xpack.esql.optimizer.rules.SimplifyComparisonsArithmetics;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
@@ -497,34 +492,6 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             return project.replaceChild(expressionsWithResolvedAliases.replaceChild(project.child()));
         } else {
             throw new EsqlIllegalArgumentException("Expected child to be instance of Project");
-        }
-    }
-
-    public static class ReplaceRegexMatch extends org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules.OptimizerExpressionRule<
-        RegexMatch<?>> {
-
-        ReplaceRegexMatch() {
-            super(org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules.TransformDirection.DOWN);
-        }
-
-        @Override
-        public Expression rule(RegexMatch<?> regexMatch) {
-            Expression e = regexMatch;
-            StringPattern pattern = regexMatch.pattern();
-            if (pattern.matchesAll()) {
-                e = new IsNotNull(e.source(), regexMatch.field());
-            } else {
-                String match = pattern.exactMatch();
-                if (match != null) {
-                    Literal literal = new Literal(regexMatch.source(), match, DataType.KEYWORD);
-                    e = regexToEquals(regexMatch, literal);
-                }
-            }
-            return e;
-        }
-
-        protected Expression regexToEquals(RegexMatch<?> regexMatch, Literal literal) {
-            return new Equals(regexMatch.source(), regexMatch.field(), literal);
         }
     }
 

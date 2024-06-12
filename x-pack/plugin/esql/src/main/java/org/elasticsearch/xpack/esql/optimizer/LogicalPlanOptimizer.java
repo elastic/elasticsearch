@@ -18,7 +18,6 @@ import org.elasticsearch.xpack.esql.core.expression.AttributeMap;
 import org.elasticsearch.xpack.esql.core.expression.EmptyAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
-import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.Order;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
@@ -32,7 +31,6 @@ import org.elasticsearch.xpack.esql.core.rule.ParameterizedRule;
 import org.elasticsearch.xpack.esql.core.rule.ParameterizedRuleExecutor;
 import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
-import org.elasticsearch.xpack.esql.expression.function.scalar.convert.AbstractConvertFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesFunction;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.optimizer.rules.AddDefaultTopN;
@@ -71,6 +69,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.ReplaceOrderByExpressionWith
 import org.elasticsearch.xpack.esql.optimizer.rules.ReplaceRegexMatch;
 import org.elasticsearch.xpack.esql.optimizer.rules.ReplaceStatsAggExpressionWithEval;
 import org.elasticsearch.xpack.esql.optimizer.rules.ReplaceStatsNestedExpressionWithEval;
+import org.elasticsearch.xpack.esql.optimizer.rules.ReplaceTrivialTypeConversions;
 import org.elasticsearch.xpack.esql.optimizer.rules.SetAsOptimized;
 import org.elasticsearch.xpack.esql.optimizer.rules.SimplifyComparisonsArithmetics;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
@@ -488,23 +487,6 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             return project.replaceChild(expressionsWithResolvedAliases.replaceChild(project.child()));
         } else {
             throw new EsqlIllegalArgumentException("Expected child to be instance of Project");
-        }
-    }
-
-    /**
-     * Replace type converting eval with aliasing eval when type change does not occur.
-     * A following {@link ReplaceAliasingEvalWithProject} will effectively convert {@link ReferenceAttribute} into {@link FieldAttribute},
-     * something very useful in local physical planning.
-     */
-    static class ReplaceTrivialTypeConversions extends OptimizerRules.OptimizerRule<Eval> {
-        @Override
-        protected LogicalPlan rule(Eval eval) {
-            return eval.transformExpressionsOnly(AbstractConvertFunction.class, convert -> {
-                if (convert.field() instanceof FieldAttribute fa && fa.dataType() == convert.dataType()) {
-                    return fa;
-                }
-                return convert;
-            });
         }
     }
 

@@ -90,52 +90,32 @@ public class VerifyNodeRepositoryCoordinationAction extends ActionType<VerifyNod
             final CopyOnWriteArrayList<VerificationFailure> errors = new CopyOnWriteArrayList<>();
             final AtomicInteger counter = new AtomicInteger(nodes.size());
             for (final DiscoveryNode node : nodes) {
-                if (node.equals(localNode)) {
-                    client.executeLocally(VerifyNodeRepositoryAction.INSTANCE, request, new ActionListener<>() {
+                transportService.sendRequest(
+                    node,
+                    VerifyNodeRepositoryAction.ACTION_NAME,
+                    request,
+                    new TransportResponseHandler.Empty() {
                         @Override
-                        public void onResponse(ActionResponse.Empty empty) {
+                        public Executor executor() {
+                            return TransportResponseHandler.TRANSPORT_WORKER;
+                        }
+
+                        @Override
+                        public void handleResponse() {
                             if (counter.decrementAndGet() == 0) {
                                 finishVerification(request.repository, listener, nodes, errors);
                             }
                         }
 
                         @Override
-                        public void onFailure(Exception e) {
-                            logger.warn(() -> "[" + request.repository + "] failed to verify repository", e);
-                            errors.add(new VerificationFailure(node.getId(), e));
+                        public void handleException(TransportException exp) {
+                            errors.add(new VerificationFailure(node.getId(), exp));
                             if (counter.decrementAndGet() == 0) {
                                 finishVerification(request.repository, listener, nodes, errors);
                             }
                         }
-                    });
-                } else {
-                    transportService.sendRequest(
-                        node,
-                        VerifyNodeRepositoryAction.ACTION_NAME,
-                        request,
-                        new TransportResponseHandler.Empty() {
-                            @Override
-                            public Executor executor() {
-                                return TransportResponseHandler.TRANSPORT_WORKER;
-                            }
-
-                            @Override
-                            public void handleResponse() {
-                                if (counter.decrementAndGet() == 0) {
-                                    finishVerification(request.repository, listener, nodes, errors);
-                                }
-                            }
-
-                            @Override
-                            public void handleException(TransportException exp) {
-                                errors.add(new VerificationFailure(node.getId(), exp));
-                                if (counter.decrementAndGet() == 0) {
-                                    finishVerification(request.repository, listener, nodes, errors);
-                                }
-                            }
-                        }
-                    );
-                }
+                    }
+                );
             }
         }
 

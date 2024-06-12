@@ -26,14 +26,13 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 
-public class VerifyNodeRepositoryAction extends ActionType<ActionResponse.Empty> {
+public class VerifyNodeRepositoryAction {
 
     public static final String ACTION_NAME = "internal:admin/repository/verify";
-    public static final VerifyNodeRepositoryAction INSTANCE = new VerifyNodeRepositoryAction();
+    public static final ActionType<ActionResponse.Empty> TYPE = new ActionType<>(ACTION_NAME);
 
-    private VerifyNodeRepositoryAction() {
-        super(ACTION_NAME);
-    }
+    // no construction
+    private VerifyNodeRepositoryAction() {}
 
     public static class TransportAction extends HandledTransportAction<Request, ActionResponse.Empty> {
 
@@ -59,7 +58,7 @@ public class VerifyNodeRepositoryAction extends ActionType<ActionResponse.Empty>
             try {
                 Repository repository = repositoriesService.repository(request.repository);
                 repository.verify(request.verificationToken, localNode);
-                listener.onResponse(new ActionResponse.Empty());
+                listener.onResponse(ActionResponse.Empty.INSTANCE);
             } catch (Exception e) {
                 logger.warn(() -> "[" + request.repository + "] failed to verify repository", e);
                 listener.onFailure(e);

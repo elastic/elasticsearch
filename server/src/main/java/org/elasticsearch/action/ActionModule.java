@@ -652,7 +652,7 @@ public class ActionModule extends AbstractModule {
         actions.register(TransportDeleteRepositoryAction.TYPE, TransportDeleteRepositoryAction.class);
         actions.register(VerifyRepositoryAction.INSTANCE, TransportVerifyRepositoryAction.class);
         actions.register(VerifyNodeRepositoryCoordinationAction.INSTANCE, VerifyNodeRepositoryCoordinationAction.LocalAction.class);
-        actions.register(VerifyNodeRepositoryAction.INSTANCE, VerifyNodeRepositoryAction.TransportAction.class);
+        actions.register(VerifyNodeRepositoryAction.TYPE, VerifyNodeRepositoryAction.TransportAction.class);
         actions.register(TransportCleanupRepositoryAction.TYPE, TransportCleanupRepositoryAction.class);
         actions.register(TransportGetSnapshotsAction.TYPE, TransportGetSnapshotsAction.class);
         actions.register(TransportDeleteSnapshotAction.TYPE, TransportDeleteSnapshotAction.class);

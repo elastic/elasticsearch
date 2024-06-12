@@ -48,6 +48,7 @@ import java.util.regex.Pattern;
 
 import static java.util.stream.Collectors.toList;
 import static java.util.stream.Collectors.toMap;
+import static org.elasticsearch.search.aggregations.InternalAggregation.EXCLUDE_DELETED_DOCS;
 
 /**
  * An immutable collection of {@link AggregatorFactories}.
@@ -372,7 +373,7 @@ public class AggregatorFactories {
                         // since it will break serialization for mixed clusters with 7.17.x and earlier versions of 8.x. This hack uses the
                         // metadata field to serialize the excludeDeletedDocs flag.
                         Map<String, Object> metadata = new HashMap<>(termsBuilder.getMetadata());
-                        metadata.put("exclude_deleted_docs", true);
+                        metadata.put(EXCLUDE_DELETED_DOCS, true);
                         termsBuilder.setMetadata(metadata);
                         // end 7.17.x serialization compatibility
                     }

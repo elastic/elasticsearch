@@ -90,6 +90,7 @@ import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.integration.FieldLevelSecurityTests.openPointInTime;
 import static org.elasticsearch.join.query.JoinQueryBuilders.hasChildQuery;
 import static org.elasticsearch.join.query.JoinQueryBuilders.hasParentQuery;
+import static org.elasticsearch.search.aggregations.InternalAggregation.EXCLUDE_DELETED_DOCS;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
@@ -1036,7 +1037,7 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
             )
             .get();
 
-        assertThat(response.toString(), not(containsString("exclude_deleted_docs")));
+        assertThat(response.toString(), not(containsString(EXCLUDE_DELETED_DOCS)));
         assertThat(
             response.toString(),
             allOf(containsString("apple"), containsString("grape"), containsString("red"), containsString("-1"), containsString("-4"))

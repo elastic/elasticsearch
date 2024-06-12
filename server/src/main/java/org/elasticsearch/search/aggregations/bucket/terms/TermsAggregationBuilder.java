@@ -35,6 +35,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.search.aggregations.InternalAggregation.EXCLUDE_DELETED_DOCS;
+
 public class TermsAggregationBuilder extends ValuesSourceAggregationBuilder<TermsAggregationBuilder> {
     public static final String NAME = "terms";
     public static final ValuesSourceRegistry.RegistryKey<TermsAggregatorSupplier> REGISTRY_KEY = new ValuesSourceRegistry.RegistryKey<>(
@@ -158,7 +160,7 @@ public class TermsAggregationBuilder extends ValuesSourceAggregationBuilder<Term
         // due to a long-standing issue with transport serialization, you can not introduce new serialization in 7.17.x since it will break
         // serialization for mixed clusters with 7.17.x and earlier versions of 8.x. This hack uses the metadata field to serialize
         // the excludeDeletedDocs flag.
-        if (metadata != null && metadata.get("exclude_deleted_docs") != null) {
+        if (metadata != null && metadata.get(EXCLUDE_DELETED_DOCS) != null) {
             excludeDeletedDocs = true;
         }
         // end 7.17.x serialization compatibility

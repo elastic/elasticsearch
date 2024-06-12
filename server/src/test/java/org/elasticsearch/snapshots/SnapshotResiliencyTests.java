@@ -1050,19 +1050,18 @@ public class SnapshotResiliencyTests extends ESTestCase {
                                         .deleteSnapshot(new DeleteSnapshotRequest(repoName, snapshotName), ActionListener.noop());
                                 }));
                             scheduleNow(
-                                () -> testClusterNodes.randomMasterNodeSafe().client.admin()
-                                    .cluster()
-                                    .reroute(
-                                        new ClusterRerouteRequest().add(
-                                            new AllocateEmptyPrimaryAllocationCommand(
-                                                index,
-                                                shardRouting.shardId().id(),
-                                                otherNode.node.getName(),
-                                                true
-                                            )
-                                        ),
-                                        ActionListener.noop()
-                                    )
+                                () -> testClusterNodes.randomMasterNodeSafe().client.execute(
+                                    TransportClusterRerouteAction.TYPE,
+                                    new ClusterRerouteRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).add(
+                                        new AllocateEmptyPrimaryAllocationCommand(
+                                            index,
+                                            shardRouting.shardId().id(),
+                                            otherNode.node.getName(),
+                                            true
+                                        )
+                                    ),
+                                    ActionListener.noop()
+                                )
                             );
                         } else {
                             scheduleSoon(this);

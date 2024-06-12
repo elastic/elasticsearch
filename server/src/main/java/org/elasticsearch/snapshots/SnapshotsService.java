@@ -2003,26 +2003,6 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
      * @param listener        listener a listener which will be resolved according to the wait_for_completion parameter
      */
     public void deleteSnapshots(final DeleteSnapshotRequest request, final ActionListener<Void> listener) {
-        deleteSnapshotsAsynchronously(request, listener.delegateFailure((l, scheduledDelete) -> {
-            if (scheduledDelete == null || request.waitForCompletion() == false) {
-                l.onResponse(null);
-            } else {
-                addDeleteListener(scheduledDelete.uuid(), l);
-            }
-        }));
-    }
-
-    /**
-     * Deletes snapshots from the repository. In-progress snapshots matched by the delete will be aborted before deleting them.
-     *
-     * @param request         delete snapshot request
-     * @param listener        listener a listener which will be complete the {@link SnapshotDeletionsInProgress.Entry} if any
-     *                        deletions are scheduled, or null if no deletions were necessary
-     */
-    private void deleteSnapshotsAsynchronously(
-        final DeleteSnapshotRequest request,
-        final ActionListener<SnapshotDeletionsInProgress.Entry> listener
-    ) {
         final String repositoryName = request.repository();
         final String[] snapshotNames = request.snapshots();
 
@@ -2213,8 +2193,11 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                         Runnable::run
                     );
                 }
-                listener.onResponse(newDelete);
-
+                if (newDelete == null || request.waitForCompletion() == false) {
+                    listener.onResponse(null);
+                } else {
+                    addDeleteListener(newDelete.uuid(), listener);
+                }
                 if (newDelete != null) {
                     if (reusedExistingDelete) {
                         return;

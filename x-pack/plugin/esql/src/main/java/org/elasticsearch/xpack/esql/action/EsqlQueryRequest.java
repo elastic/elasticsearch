@@ -21,12 +21,11 @@ import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xpack.esql.Column;
-import org.elasticsearch.xpack.esql.parser.TypedParamValue;
+import org.elasticsearch.xpack.esql.parser.QueryParams;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
 import java.io.IOException;
 import java.util.Iterator;
-import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.TreeMap;
@@ -46,7 +45,7 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
     private Locale locale;
     private QueryBuilder filter;
     private QueryPragmas pragmas = new QueryPragmas(Settings.EMPTY);
-    private List<TypedParamValue> params = List.of();
+    private QueryParams params = QueryParams.EMPTY;
     private TimeValue waitForCompletionTimeout = DEFAULT_WAIT_FOR_COMPLETION;
     private TimeValue keepAlive = DEFAULT_KEEP_ALIVE;
     private boolean keepOnCompletion;
@@ -159,11 +158,11 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
         return pragmas;
     }
 
-    public List<TypedParamValue> params() {
+    public QueryParams params() {
         return params;
     }
 
-    public void params(List<TypedParamValue> params) {
+    public void params(QueryParams params) {
         this.params = params;
     }
 

@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.application.search.action;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xpack.application.search.SearchApplicationTestUtils;
+import org.elasticsearch.xpack.application.EnterpriseSearchModuleTestUtils;
 import org.elasticsearch.xpack.core.ml.AbstractBWCSerializationTestCase;
 
 import java.io.IOException;
@@ -26,7 +26,7 @@ public class SearchApplicationSearchRequestBWCSerializingTests extends AbstractB
     protected SearchApplicationSearchRequest createTestInstance() {
         return new SearchApplicationSearchRequest(
             randomAlphaOfLengthBetween(1, 10),
-            SearchApplicationTestUtils.randomSearchApplicationQueryParams()
+            EnterpriseSearchModuleTestUtils.randomSearchApplicationQueryParams()
         );
     }
 

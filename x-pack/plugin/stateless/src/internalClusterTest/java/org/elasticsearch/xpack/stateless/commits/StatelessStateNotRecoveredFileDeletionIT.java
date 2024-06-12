@@ -90,12 +90,14 @@ public class StatelessStateNotRecoveredFileDeletionIT extends AbstractStatelessI
         // need 3 data nodes for gateway to recover state.
         String search1 = startSearchNode();
         String search2 = startSearchNode();
+        ensureStableCluster(4);
         createIndex("test", 1, 0);
         indexDocs("test", 10);
         flush("test");
         indexDocs("test", 10);
         flush("test");
         String indexNodeB = startIndexNode();
+        ensureStableCluster(5);
 
         BlockUploads blockUploads = new BlockUploads();
         setNodeRepositoryStrategy(indexNodeA, blockUploads);

@@ -20,6 +20,7 @@ package co.elastic.elasticsearch.stateless.commits;
 import co.elastic.elasticsearch.stateless.AbstractStatelessIntegTestCase;
 import co.elastic.elasticsearch.stateless.IndexingDiskController;
 import co.elastic.elasticsearch.stateless.action.NewCommitNotificationRequest;
+import co.elastic.elasticsearch.stateless.action.NewCommitNotificationResponse;
 import co.elastic.elasticsearch.stateless.action.TransportGetVirtualBatchedCompoundCommitChunkAction;
 import co.elastic.elasticsearch.stateless.action.TransportNewCommitNotificationAction;
 import co.elastic.elasticsearch.stateless.cluster.coordination.StatelessClusterConsistencyService;
@@ -61,6 +62,8 @@ import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.TestTransportChannel;
+import org.elasticsearch.transport.TransportChannel;
+import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportSettings;
 
 import java.io.IOException;
@@ -644,10 +647,28 @@ public class StatelessFileDeletionIT extends AbstractStatelessIntegTestCase {
         assertThat(blobsBeforeReleasingScroll.containsAll(blobsUsedForScroll), is(true));
 
         AtomicInteger countNewCommitNotifications = new AtomicInteger();
+        AtomicReference<Set<PrimaryTermAndGeneration>> termAndGensInUse = new AtomicReference<>();
         MockTransportService.getInstance(searchNode)
             .addRequestHandlingBehavior(TransportNewCommitNotificationAction.NAME + "[u]", (handler, request, channel, task) -> {
-                countNewCommitNotifications.incrementAndGet();
-                handler.messageReceived(request, channel, task);
+                handler.messageReceived(request, new TransportChannel() {
+                    @Override
+                    public String getProfileName() {
+                        return "default";
+                    }
+
+                    @Override
+                    public void sendResponse(TransportResponse response) {
+                        countNewCommitNotifications.incrementAndGet();
+                        termAndGensInUse.set(((NewCommitNotificationResponse) response).getPrimaryTermAndGenerationsInUse());
+                        channel.sendResponse(response);
+                    }
+
+                    @Override
+                    public void sendResponse(Exception exception) {
+                        channel.sendResponse(exception);
+
+                    }
+                }, task);
             });
 
         switch (testCase) {
@@ -679,9 +700,21 @@ public class StatelessFileDeletionIT extends AbstractStatelessIntegTestCase {
             var blobsAfterReleasingScroll = listBlobsWithAbsolutePath(shardCommitsContainer);
             assertThat(Sets.intersection(blobsUsedForScroll, blobsAfterReleasingScroll), empty());
         });
+        // responses from newCommitNotification must be received
         assertThat(countNewCommitNotifications.get(), greaterThan(0));
 
         if (testCase == TestSearchScrollCase.COMMITS_DROPPED_AFTER_SCROLL_CLOSES_AND_INDEXING_INACTIVITY) {
+            // The last notification response should no longer contain blobs used for scroll
+            assertThat(
+                Sets.intersection(
+                    blobsUsedForScroll.stream()
+                        .map(name -> name.substring(name.lastIndexOf('/') + 1))
+                        .map(StatelessCompoundCommit::parseGenerationFromBlobName)
+                        .collect(Collectors.toUnmodifiableSet()),
+                    termAndGensInUse.get().stream().map(PrimaryTermAndGeneration::generation).collect(Collectors.toUnmodifiableSet())
+                ),
+                empty()
+            );
             // Verify that there is no more new commit notifications sent
             int currentCount = countNewCommitNotifications.get();
             var indexShardCommitService = internalCluster().getInstance(StatelessCommitService.class, indexNode);

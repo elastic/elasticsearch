@@ -166,6 +166,14 @@ abstract class PositionToXContent {
                     }
                 }
             };
+            case "float" -> new PositionToXContent(block) {
+                @Override
+                protected XContentBuilder valueToXContent(XContentBuilder builder, ToXContent.Params params, int valueIndex)
+                    throws IOException {
+                    Float val = Float.intBitsToFloat(((IntBlock) block).getInt(valueIndex));
+                    return builder.value(val);
+                }
+            };
             default -> throw new IllegalArgumentException("can't convert values of type [" + columnInfo.type() + "]");
         };
     }

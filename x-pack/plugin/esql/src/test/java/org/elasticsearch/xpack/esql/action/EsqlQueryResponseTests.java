@@ -388,6 +388,32 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
         }
     }
 
+    public void testScoreColumnXContent() {
+        try (
+            EsqlQueryResponse response = new EsqlQueryResponse(
+                List.of(new ColumnInfo("_score", "float")),
+                List.of(
+                    new Page(
+                        blockFactory.newIntArrayVector(new int[] { Float.floatToIntBits(5.1F), Float.floatToIntBits(2.1F) }, 2).asBlock()
+                    )
+                ),
+                null,
+                false,
+                null,
+                false,
+                false
+            )
+        ) {
+            assertThat(
+                Strings.toString(wrapAsToXContent(response), new ToXContent.MapParams(Map.of(DROP_NULL_COLUMNS_OPTION, "true"))),
+                equalTo("{" + """
+                    "all_columns":[{"name":"_score","type":"float"}],""" + """
+                    "columns":[{"name":"_score","type":"float"}],""" + """
+                    "values":[[5.1],[2.1]]}""")
+            );
+        }
+    }
+
     public void testNullColumnsXContentDropNulls() {
         try (
             EsqlQueryResponse response = new EsqlQueryResponse(

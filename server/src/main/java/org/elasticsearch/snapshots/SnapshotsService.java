@@ -24,6 +24,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.RefCountingRunnable;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
@@ -1996,15 +1997,18 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
     /**
      * Deletes snapshots from the repository. In-progress snapshots matched by the delete will be aborted before deleting them.
      *
+     * When <code>wait_for_completion</code> is set to true, the passed action listener will only complete when all
+     * matching snapshots are deleted, when it is false it will complete as soon as the deletes are scheduled
+     *
      * @param request         delete snapshot request
-     * @param listener        listener a listener which will be resolved once all scheduled deletions are completed
+     * @param listener        listener a listener which will be resolved according to the wait_for_completion parameter
      */
-    public void deleteSnapshotsAndWait(final DeleteSnapshotRequest request, ActionListener<Void> listener) {
-        deleteSnapshots(request, listener.delegateFailure((l, scheduledDelete) -> {
-            if (scheduledDelete == null) {
-                l.onResponse(null);
+    public void deleteSnapshots(final DeleteSnapshotRequest request, final ActionListener<AcknowledgedResponse> listener) {
+        deleteSnapshotsAsynchronously(request, listener.delegateFailure((l, scheduledDelete) -> {
+            if (scheduledDelete == null || request.waitForCompletion() == false) {
+                l.onResponse(AcknowledgedResponse.TRUE);
             } else {
-                addDeleteListener(scheduledDelete.uuid(), l);
+                addDeleteListener(scheduledDelete.uuid(), l.map(v -> AcknowledgedResponse.TRUE));
             }
         }));
     }
@@ -2013,10 +2017,13 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
      * Deletes snapshots from the repository. In-progress snapshots matched by the delete will be aborted before deleting them.
      *
      * @param request         delete snapshot request
-     * @param listener        listener a listener which will be resolved with the {@link SnapshotDeletionsInProgress.Entry} if any
+     * @param listener        listener a listener which will be complete the {@link SnapshotDeletionsInProgress.Entry} if any
      *                        deletions are scheduled, or null if no deletions were necessary
      */
-    public void deleteSnapshots(final DeleteSnapshotRequest request, final ActionListener<SnapshotDeletionsInProgress.Entry> listener) {
+    private void deleteSnapshotsAsynchronously(
+        final DeleteSnapshotRequest request,
+        final ActionListener<SnapshotDeletionsInProgress.Entry> listener
+    ) {
         final String repositoryName = request.repository();
         final String[] snapshotNames = request.snapshots();
 

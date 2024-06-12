@@ -17,6 +17,7 @@ module org.elasticsearch.compute {
     requires org.elasticsearch.logging;
     requires org.elasticsearch.tdigest;
     requires org.elasticsearch.geo;
+    requires hppc;
 
     exports org.elasticsearch.compute;
     exports org.elasticsearch.compute.aggregation;

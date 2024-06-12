@@ -72,8 +72,8 @@ setup:
 ---
 "L1 norm hexidecimal":
   - requires:
-      cluster_features: "gte_v8.15.0"
-      reason: "support for hexidecimal byte vectors added in 8.15"
+      cluster_features: "gte_v8.14.1"
+      reason: "support for hexidecimal byte vectors added in 8.14"
   - do:
       headers:
         Content-Type: application/json
@@ -130,8 +130,8 @@ setup:
 ---
 "L2 norm hexidecimal":
   - requires:
-      cluster_features: "gte_v8.15.0"
-      reason: "support for hexidecimal byte vectors added in 8.15"
+      cluster_features: "gte_v8.14.1"
+      reason: "support for hexidecimal byte vectors added in 8.14"
   - do:
       headers:
         Content-Type: application/json

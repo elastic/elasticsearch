@@ -56,11 +56,9 @@ tests:
 - class: "org.elasticsearch.xpack.inference.InferenceCrudIT"
   issue: "https://github.com/elastic/elasticsearch/issues/109391"
   method: "testDeleteEndpointWhileReferencedByPipeline"
-- class: org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvAppendTests
-  method: testEvaluateBlockWithoutNulls {TestCase=<cartesian_shape>, <cartesian_shape>}
-  issue: https://github.com/elastic/elasticsearch/issues/109409
-- class: DenseVectorMappingUpdateIT
-  issue: "https://github.com/elastic/elasticsearch/issues/109571"
+- class: "org.elasticsearch.xpack.rollup.job.RollupIndexerStateTests"
+  issue: "https://github.com/elastic/elasticsearch/issues/109627"
+  method: "testMultipleJobTriggering"
 
 # Examples:
 #

@@ -9,11 +9,8 @@ package org.elasticsearch.xpack.entityanalytics.models;
 
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.index.query.functionscore.FieldValueFactorFunctionBuilder;
-import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregation;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregationBuilder;
@@ -30,7 +27,7 @@ import java.util.List;
 import java.util.Map;
 
 public class RiskScoreQueryHelper {
-    private static final int COMPOSITE_PAGE_SIZE_PER_ENTITY_TYPE = 500;
+    private static final int COMPOSITE_PAGE_SIZE_PER_ENTITY_TYPE = 1000;
     private static final int TOP_HITS_PER_ENTITY = 100;
     private static final String[] SOURCE_FIELDS_NEEDED_FOR_RISK_SCORING = new String[] {
         "kibana.alert.risk_score",
@@ -97,23 +94,63 @@ public class RiskScoreQueryHelper {
     public static SearchRequest buildRiskScoreSearchRequest(String index, EntityType[] entityTypes) {
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
 
-        // Calculate current time and 30 days ago in Unix time as 'now-30d' was causing 'failed to create query: For input
-        // string: \"now-30d\"'
-        // long now = Instant.now().toEpochMilli();
-        // long nowMinus30Days = Instant.now().minus(30, ChronoUnit.DAYS).toEpochMilli();
+        // Using the query builder was adding some unexpected "boost" calls and an extra filter to the function score
+        // I tried using raw json but it didn't improve perf
+        // BoolQueryBuilder boolQuery = QueryBuilders.boolQuery()
+        // .filter(QueryBuilders.rangeQuery("@timestamp").gte("now-30d").lt("now"))
+        // .filter(QueryBuilders.boolQuery().mustNot(QueryBuilders.termQuery("kibana.alert.workflow_status", "closed")))
+        // .filter(QueryBuilders.existsQuery("kibana.alert.risk_score"))
+        // .should(QueryBuilders.matchAllQuery());
+        //
+        // FunctionScoreQueryBuilder functionScoreQuery = QueryBuilders.functionScoreQuery(
+        // boolQuery,
+        // new FieldValueFactorFunctionBuilder("kibana.alert.risk_score")
+        // );
+        String json = """
+            {
+                "function_score": {
+                    "query": {
+                        "bool": {
+                            "filter": [
+                                {
+                                    "range": {
+                                        "@timestamp": {
+                                            "lt": "now",
+                                            "gte": "now-30d"
+                                        }
+                                    }
+                                },
+                                {
+                                    "bool": {
+                                        "must_not": {
+                                            "term": {
+                                                "kibana.alert.workflow_status": "closed"
+                                            }
+                                        }
+                                    }
+                                },
+                                {
+                                    "exists": {
+                                        "field": "kibana.alert.risk_score"
+                                    }
+                                }
+                            ],
+                            "should": [
+                                {
+                                    "match_all": {}
+                                }
+                            ]
+                        }
+                    },
+                    "field_value_factor": {
+                        "field": "kibana.alert.risk_score"
+                    }
+                }
+            }
+            }
+            """;
 
-        BoolQueryBuilder boolQuery = QueryBuilders.boolQuery()
-            .filter(QueryBuilders.rangeQuery("@timestamp").gte("now-30d").lt("now"))
-            .filter(QueryBuilders.boolQuery().mustNot(QueryBuilders.termQuery("kibana.alert.workflow_status", "closed")))
-            .filter(QueryBuilders.existsQuery("kibana.alert.risk_score"))
-            .should(QueryBuilders.matchAllQuery());
-
-        FunctionScoreQueryBuilder functionScoreQuery = QueryBuilders.functionScoreQuery(
-            boolQuery,
-            new FieldValueFactorFunctionBuilder("kibana.alert.risk_score")
-        );
-
-        searchSourceBuilder.query(functionScoreQuery);
+        searchSourceBuilder.query(QueryBuilders.wrapperQuery(json));
         searchSourceBuilder.size(0);
 
         for (EntityType entityType : entityTypes) {
@@ -122,6 +159,10 @@ public class RiskScoreQueryHelper {
 
         SearchRequest searchRequest = new SearchRequest();
         searchRequest.source(searchSourceBuilder);
+
+        System.out.println("-------------------");
+        System.out.println(searchRequest.source().toString());
+        System.out.println("-------------------");
         return searchRequest;
     }
 

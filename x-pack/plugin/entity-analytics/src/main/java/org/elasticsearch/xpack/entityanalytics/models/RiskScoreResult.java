@@ -12,35 +12,38 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 
 public class RiskScoreResult implements ToXContentObject {
     public EntityScore[] userScores;
     public EntityScore[] hostScores;
 
+    public RiskScoreResult() {
+        this.userScores = new EntityScore[0];
+        this.hostScores = new EntityScore[0];
+    }
+
     public RiskScoreResult(EntityScore[] userScores, EntityScore[] hostScores) {
         this.userScores = userScores;
         this.hostScores = hostScores;
     }
 
-    public static RiskScoreResult mergeResults(List<RiskScoreResult> results) {
+    private void setScores(EntityScore[] userScores, EntityScore[] hostScores) {
+        this.userScores = userScores;
+        this.hostScores = hostScores;
+    }
+
+    public void mergeResult(RiskScoreResult result) {
         List<EntityScore> mergedUserScores = new ArrayList<>();
         List<EntityScore> mergedHostScores = new ArrayList<>();
 
-        for (RiskScoreResult result : results) {
-            if (result.userScores != null) {
-                Collections.addAll(mergedUserScores, result.userScores);
-            }
-            if (result.hostScores != null) {
-                Collections.addAll(mergedHostScores, result.hostScores);
-            }
-        }
+        mergedUserScores.addAll(List.of(userScores));
+        mergedUserScores.addAll(List.of(result.userScores));
 
-        EntityScore[] mergedUserScoresArray = mergedUserScores.toArray(new EntityScore[0]);
-        EntityScore[] mergedHostScoresArray = mergedHostScores.toArray(new EntityScore[0]);
+        mergedHostScores.addAll(List.of(hostScores));
+        mergedHostScores.addAll(List.of(result.hostScores));
 
-        return new RiskScoreResult(mergedUserScoresArray, mergedHostScoresArray);
+        setScores(mergedUserScores.toArray(new EntityScore[0]), mergedHostScores.toArray(new EntityScore[0]));
     }
 
     @Override

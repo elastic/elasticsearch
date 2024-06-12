@@ -16,7 +16,7 @@ public final class Constants {
      * Represents the maximum possible risk score sum. This value is derived from RISK_SCORING_SUM_VALUE, but we store the precomputed value here to be used more conveniently in normalization.
      * @see #RISK_SCORING_SUM_VALUE
      */
-    public static double RISK_SCORING_SUM_MAX = 261.2;
+    public static double RISK_SCORING_SUM_MAX = 241.29;
 
     /**
      * This value represents the maximum possible risk score after normalization.

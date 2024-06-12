@@ -33,9 +33,6 @@ import org.elasticsearch.xpack.entityanalytics.models.RiskScoreCalculator;
 import org.elasticsearch.xpack.entityanalytics.models.RiskScoreQueryHelper;
 import org.elasticsearch.xpack.entityanalytics.models.RiskScoreResult;
 
-import java.util.ArrayList;
-import java.util.List;
-
 /*
  * TODO: comment here
  */
@@ -101,7 +98,7 @@ public class EntityRiskScoringAction extends ActionType<EntityRiskScoringRespons
         ) {
             try {
                 var sr = RiskScoreQueryHelper.buildRiskScoreSearchRequest(category1Index, entityTypes);
-                List<RiskScoreResult> accumulatedResults = new ArrayList<>();
+                RiskScoreResult accumulatedResults = new RiskScoreResult();
                 performAggregation(sr, entityTypes, listener, accumulatedResults);
             } catch (Exception e) {
                 logger.error("unable to execute the entity analytics query", e);
@@ -113,15 +110,16 @@ public class EntityRiskScoringAction extends ActionType<EntityRiskScoringRespons
             SearchRequest sr,
             EntityType[] entityTypes,
             ActionListener<EntityRiskScoringResponse> listener,
-            List<RiskScoreResult> accumulatedResults
+            RiskScoreResult accumulatedResults
         ) {
-
+            long startTime = System.currentTimeMillis();
             client.search(sr, new DelegatingActionListener<>(listener) {
                 @Override
                 public void onResponse(SearchResponse searchResponse) {
+                    logger.info("Risk score aggregation took {}ms", System.currentTimeMillis() - startTime);
                     try {
                         var result = RiskScoreCalculator.calculateRiskScores(entityTypes, searchResponse);
-                        accumulatedResults.add(result);
+                        accumulatedResults.mergeResult(result);
 
                         var afterKeysByEntityType = RiskScoreQueryHelper.getAfterKeysForEntityTypes(entityTypes, searchResponse);
                         EntityType[] entityTypesWithAfterKeys = afterKeysByEntityType.keySet().toArray(new EntityType[0]);
@@ -129,8 +127,7 @@ public class EntityRiskScoringAction extends ActionType<EntityRiskScoringRespons
                             var updatedSr = RiskScoreQueryHelper.updateAggregationsWithAfterKeys(afterKeysByEntityType, sr);
                             performAggregation(updatedSr, entityTypesWithAfterKeys, listener, accumulatedResults);
                         } else {
-                            var mergedResult = RiskScoreResult.mergeResults(accumulatedResults);
-                            listener.onResponse(new EntityRiskScoringResponse(mergedResult));
+                            listener.onResponse(new EntityRiskScoringResponse(accumulatedResults));
                         }
                     } catch (Exception e) {
                         logger.error("Error processing search response", e);

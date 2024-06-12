@@ -1,0 +1,6 @@
+pr: 109636
+summary: "[Bug] During heavy indexing load it's possible for lazy rollover to trigger\
+  \ multiple rollovers"
+area: Data streams
+type: bug
+issues: []

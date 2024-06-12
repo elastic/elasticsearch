@@ -44,9 +44,12 @@ import java.util.List;
 import java.util.function.BiConsumer;
 
 import static co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit.blobNameFromGeneration;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_SETTING;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -195,6 +198,60 @@ public class IndexingShardRecoveryIT extends AbstractStatelessIntegTestCase {
         );
         assertBusyCommitsMatchExpectedResults(indexName, expectedResults(afterRestore, 0));
         assertDocsCount(indexName, totalDocs);
+    }
+
+    public void testPeerRecovery() throws Exception {
+        startMasterOnlyNode();
+        var indexNode = startIndexNode();
+        var indexName = createIndex(randomIntBetween(1, 3), 0);
+
+        var currentGeneration = new PrimaryTermAndGeneration(1L, 3L);
+        assertBusyCommitsMatchExpectedResults(indexName, expectedResults(currentGeneration, 0));
+
+        long totalDocs = 0L;
+        assertDocsCount(indexName, totalDocs);
+
+        int iters = randomIntBetween(1, 5);
+        for (int i = 0; i < iters; i++) {
+            long expectedGenerationAfterRelocation;
+            if (randomBoolean()) {
+                var generated = generateCommits(indexName);
+                logger.info("--> iteration {}/{}: {} docs indexed in {} commits", i, iters, generated.docs, generated.commits);
+                assertDocsCount(indexName, totalDocs + generated.docs);
+
+                var expected = expectedResults(currentGeneration, generated.commits);
+                assertBusyCommitsMatchExpectedResults(indexName, expected);
+
+                if (expected.lastVirtualBcc != null) {
+                    // there is a flush before relocating the shard so last CC of VBCC is uploaded, in addition to
+                    // generation increments due to a flush on the target shard after peer-recovery
+                    expectedGenerationAfterRelocation = expected.lastVirtualCc.generation() + 1L;
+                } else {
+                    // generation increments due to a flush on the target shard after peer-recovery
+                    expectedGenerationAfterRelocation = expected.lastUploadedCc.generation() + 1L;
+                }
+                totalDocs += generated.docs;
+            } else {
+                // generation increments due to a flush on the target shard after peer-recovery
+                expectedGenerationAfterRelocation = currentGeneration.generation() + 1L;
+            }
+
+            var newIndexNode = startIndexNode();
+            logger.info("--> iteration {}/{}: node {} started", i, iters, newIndexNode);
+
+            var excludedNode = indexNode;
+            updateIndexSettings(Settings.builder().put(INDEX_ROUTING_EXCLUDE_GROUP_SETTING.getKey() + "_name", excludedNode), indexName);
+            assertBusy(() -> assertThat(internalCluster().nodesInclude(indexName), not(hasItem(excludedNode))));
+            assertNodeHasNoCurrentRecoveries(newIndexNode);
+            internalCluster().stopNode(excludedNode);
+            indexNode = newIndexNode;
+            ensureGreen(indexName);
+
+            var expected = new PrimaryTermAndGeneration(currentGeneration.primaryTerm(), expectedGenerationAfterRelocation);
+            assertBusyCommitsMatchExpectedResults(indexName, expectedResults(expected, 0));
+            assertDocsCount(indexName, totalDocs);
+            currentGeneration = expected;
+        }
     }
 
     private static void assertBusyCommitsMatchExpectedResults(String indexName, ExpectedCommits expected) throws Exception {

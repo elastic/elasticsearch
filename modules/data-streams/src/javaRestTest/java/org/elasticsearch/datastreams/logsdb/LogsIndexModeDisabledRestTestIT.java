@@ -47,24 +47,7 @@ public class LogsIndexModeDisabledRestTestIT extends LogsIndexModeRestTestIT {
 
     private RestClient client;
 
-    private static final String MAPPINGS = """
-        {
-          "template": {
-            "mappings": {
-              "properties": {
-                "method": {
-                  "type": "keyword"
-                },
-                "message": {
-                  "type": "text"
-                }
-              }
-            }
-          }
-        }""";
-
     public void testLogsSettingsIndexModeDisabled() throws IOException {
-        assertOK(putComponentTemplate(client, "logs@custom", MAPPINGS));
         assertOK(createDataStream(client, "logs-custom-dev"));
         final String indexMode = (String) getSetting(client, getDataStreamBackingIndex(client, "logs-custom-dev", 0), "index.mode");
         assertThat(indexMode, Matchers.not(equalTo(IndexMode.LOGS.getName())));

@@ -1,0 +1,6 @@
+pr: 109185
+summary: Handle unmatching remote cluster wildcards properly for `IndicesRequest.SingleIndexNoWildcards`
+  requests
+area: Authorization
+type: bug
+issues: []

@@ -100,13 +100,6 @@ tasks.named("forbiddenPatterns").configure {
     exclude '**/*.st'
 }
 
-tasks.named('forbiddenApisMain').configure {
-  addSignatureFiles 'hppc-signatures'
-}
-tasks.named('forbiddenApisTest').configure {
-  addSignatureFiles 'hppc-signatures'
-}
-
 tasks.named('internalClusterTestTestingConventions').configure {
     baseClass "org.elasticsearch.test.AbstractMultiClustersTestCase"
     baseClass "org.elasticsearch.test.ESIntegTestCase"

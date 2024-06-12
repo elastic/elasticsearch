@@ -61,10 +61,13 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equ
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.optimizer.rules.AddDefaultTopN;
 import org.elasticsearch.xpack.esql.optimizer.rules.BooleanFunctionEqualsElimination;
+import org.elasticsearch.xpack.esql.optimizer.rules.BooleanSimplification;
 import org.elasticsearch.xpack.esql.optimizer.rules.CombineDisjunctionsToIn;
+import org.elasticsearch.xpack.esql.optimizer.rules.CombineEvals;
 import org.elasticsearch.xpack.esql.optimizer.rules.ConstantFolding;
 import org.elasticsearch.xpack.esql.optimizer.rules.LiteralsOnTheRight;
 import org.elasticsearch.xpack.esql.optimizer.rules.PropagateEquals;
+import org.elasticsearch.xpack.esql.optimizer.rules.PruneFilters;
 import org.elasticsearch.xpack.esql.optimizer.rules.PruneLiteralsInOrderBy;
 import org.elasticsearch.xpack.esql.optimizer.rules.SetAsOptimized;
 import org.elasticsearch.xpack.esql.optimizer.rules.SimplifyComparisonsArithmetics;
@@ -578,29 +581,9 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
     }
 
     /**
-     * Combine multiple Evals into one in order to reduce the number of nodes in a plan.
-     * TODO: eliminate unnecessary fields inside the eval as well
+     * Replace any reference attribute with its source, if it does not affect the result.
+     * This avoids ulterior look-ups between attributes and its source across nodes.
      */
-    static class CombineEvals extends OptimizerRules.OptimizerRule<Eval> {
-
-        CombineEvals() {
-            super(TransformDirection.UP);
-        }
-
-        @Override
-        protected LogicalPlan rule(Eval eval) {
-            LogicalPlan plan = eval;
-            if (eval.child() instanceof Eval subEval) {
-                plan = new Eval(eval.source(), subEval.child(), CollectionUtils.combine(subEval.fields(), eval.fields()));
-            }
-            return plan;
-        }
-    }
-
-    //
-    // Replace any reference attribute with its source, if it does not affect the result.
-    // This avoids ulterior look-ups between attributes and its source across nodes.
-    //
     static class PropagateEvalFoldables extends Rule<LogicalPlan, LogicalPlan> {
 
         @Override
@@ -815,27 +798,6 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
         }
     }
 
-    private static class BooleanSimplification extends org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules.BooleanSimplification {
-
-        BooleanSimplification() {
-            super();
-        }
-
-        @Override
-        protected Expression maybeSimplifyNegatable(Expression e) {
-            return null;
-        }
-
-    }
-
-    static class PruneFilters extends OptimizerRules.PruneFilters {
-
-        @Override
-        protected LogicalPlan skipPlan(Filter filter) {
-            return LogicalPlanOptimizer.skipPlan(filter);
-        }
-    }
-
     static class SkipQueryOnLimitZero extends OptimizerRules.SkipQueryOnLimitZero {
 
         @Override
@@ -905,7 +867,7 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
         }
     }
 
-    private static LogicalPlan skipPlan(UnaryPlan plan) {
+    public static LogicalPlan skipPlan(UnaryPlan plan) {
         return new LocalRelation(plan.source(), plan.output(), LocalSupplier.EMPTY);
     }
 

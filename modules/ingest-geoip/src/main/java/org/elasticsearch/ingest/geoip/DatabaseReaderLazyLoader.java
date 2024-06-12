@@ -12,14 +12,6 @@ import com.maxmind.db.NoCache;
 import com.maxmind.db.Reader;
 import com.maxmind.geoip2.DatabaseReader;
 import com.maxmind.geoip2.model.AbstractResponse;
-import com.maxmind.geoip2.model.AnonymousIpResponse;
-import com.maxmind.geoip2.model.AsnResponse;
-import com.maxmind.geoip2.model.CityResponse;
-import com.maxmind.geoip2.model.ConnectionTypeResponse;
-import com.maxmind.geoip2.model.CountryResponse;
-import com.maxmind.geoip2.model.DomainResponse;
-import com.maxmind.geoip2.model.EnterpriseResponse;
-import com.maxmind.geoip2.model.IspResponse;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -156,54 +148,6 @@ class DatabaseReaderLazyLoader implements GeoIpDatabase, Closeable {
         return Files.newInputStream(databasePath);
     }
 
-    @Nullable
-    @Override
-    public CityResponse getCity(InetAddress ipAddress) {
-        return getResponse(ipAddress, DatabaseReader::tryCity);
-    }
-
-    @Nullable
-    @Override
-    public CountryResponse getCountry(InetAddress ipAddress) {
-        return getResponse(ipAddress, DatabaseReader::tryCountry);
-    }
-
-    @Nullable
-    @Override
-    public AsnResponse getAsn(InetAddress ipAddress) {
-        return getResponse(ipAddress, DatabaseReader::tryAsn);
-    }
-
-    @Nullable
-    @Override
-    public AnonymousIpResponse getAnonymousIp(InetAddress ipAddress) {
-        return getResponse(ipAddress, DatabaseReader::tryAnonymousIp);
-    }
-
-    @Nullable
-    @Override
-    public ConnectionTypeResponse getConnectionType(InetAddress ipAddress) {
-        return getResponse(ipAddress, DatabaseReader::tryConnectionType);
-    }
-
-    @Nullable
-    @Override
-    public DomainResponse getDomain(InetAddress ipAddress) {
-        return getResponse(ipAddress, DatabaseReader::tryDomain);
-    }
-
-    @Nullable
-    @Override
-    public EnterpriseResponse getEnterprise(InetAddress ipAddress) {
-        return getResponse(ipAddress, DatabaseReader::tryEnterprise);
-    }
-
-    @Nullable
-    @Override
-    public IspResponse getIsp(InetAddress ipAddress) {
-        return getResponse(ipAddress, DatabaseReader::tryIsp);
-    }
-
     boolean preLookup() {
         return currentUsages.updateAndGet(current -> current < 0 ? current : current + 1) > 0;
     }
@@ -220,7 +164,7 @@ class DatabaseReaderLazyLoader implements GeoIpDatabase, Closeable {
     }
 
     @Nullable
-    private <T extends AbstractResponse> T getResponse(
+    public <T extends AbstractResponse> T getResponse(
         InetAddress ipAddress,
         CheckedBiFunction<DatabaseReader, InetAddress, Optional<T>, Exception> responseProvider
     ) {

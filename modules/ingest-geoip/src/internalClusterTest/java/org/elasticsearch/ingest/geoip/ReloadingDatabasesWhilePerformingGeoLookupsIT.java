@@ -8,6 +8,8 @@
 
 package org.elasticsearch.ingest.geoip;
 
+import com.maxmind.geoip2.DatabaseReader;
+
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
@@ -210,10 +212,10 @@ public class ReloadingDatabasesWhilePerformingGeoLookupsIT extends ESTestCase {
     private static void lazyLoadReaders(DatabaseNodeService databaseNodeService) throws IOException {
         if (databaseNodeService.get("GeoLite2-City.mmdb") != null) {
             databaseNodeService.get("GeoLite2-City.mmdb").getDatabaseType();
-            databaseNodeService.get("GeoLite2-City.mmdb").getCity(InetAddresses.forString("2.125.160.216"));
+            databaseNodeService.get("GeoLite2-City.mmdb").getResponse(InetAddresses.forString("2.125.160.216"), DatabaseReader::tryCity);
         }
         databaseNodeService.get("GeoLite2-City-Test.mmdb").getDatabaseType();
-        databaseNodeService.get("GeoLite2-City-Test.mmdb").getCity(InetAddresses.forString("2.125.160.216"));
+        databaseNodeService.get("GeoLite2-City-Test.mmdb").getResponse(InetAddresses.forString("2.125.160.216"), DatabaseReader::tryCity);
     }
 
 }

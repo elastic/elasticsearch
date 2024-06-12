@@ -358,6 +358,26 @@ public class MaxMindSupportTests extends ESTestCase {
         IspResponse.class
     );
 
+    private static final Map<Class<? extends AbstractResponse>, Class<? extends GeoDataLookup>> MAX_MIND_CLASS_TO_IMPLEMENTATION_CLASS = Map
+        .of(
+            CityResponse.class,
+            MaxmindGeoDataLookups.City.class,
+            CountryResponse.class,
+            MaxmindGeoDataLookups.Country.class,
+            AsnResponse.class,
+            MaxmindGeoDataLookups.Asn.class,
+            AnonymousIpResponse.class,
+            MaxmindGeoDataLookups.AnonymousIp.class,
+            ConnectionTypeResponse.class,
+            MaxmindGeoDataLookups.ConnectionType.class,
+            DomainResponse.class,
+            MaxmindGeoDataLookups.Domain.class,
+            EnterpriseResponse.class,
+            MaxmindGeoDataLookups.Enterprise.class,
+            IspResponse.class,
+            MaxmindGeoDataLookups.Isp.class
+        );
+
     private static final Set<Class<? extends AbstractResponse>> KNOWN_UNSUPPORTED_RESPONSE_CLASSES = Set.of(IpRiskResponse.class);
 
     public void testMaxMindSupport() {
@@ -471,7 +491,7 @@ public class MaxMindSupportTests extends ESTestCase {
      * This tests that this test has a mapping in TYPE_TO_MAX_MIND_CLASS for all MaxMind classes exposed through GeoIpDatabase.
      */
     public void testUsedMaxMindResponseClassesAreAccountedFor() {
-        Set<Class<? extends AbstractResponse>> usedMaxMindResponseClasses = getUsedMaxMindResponseClasses();
+        Set<Class<? extends AbstractResponse>> usedMaxMindResponseClasses = MAX_MIND_CLASS_TO_IMPLEMENTATION_CLASS.keySet();
         Set<Class<? extends AbstractResponse>> supportedMaxMindClasses = new HashSet<>(TYPE_TO_MAX_MIND_CLASS.values());
         Set<Class<? extends AbstractResponse>> usedButNotSupportedMaxMindResponseClasses = Sets.difference(
             usedMaxMindResponseClasses,
@@ -614,24 +634,5 @@ public class MaxMindSupportTests extends ESTestCase {
             }
         }
         return result.toString();
-    }
-
-    /*
-     * This returns all AbstractResponse classes that are returned from getter methods on GeoIpDatabase.
-     */
-    private static Set<Class<? extends AbstractResponse>> getUsedMaxMindResponseClasses() {
-        Set<Class<? extends AbstractResponse>> result = new HashSet<>();
-        Method[] methods = GeoIpDatabase.class.getMethods();
-        for (Method method : methods) {
-            if (method.getName().startsWith("get")) {
-                Class<?> returnType = method.getReturnType();
-                try {
-                    result.add(returnType.asSubclass(AbstractResponse.class));
-                } catch (ClassCastException ignore) {
-                    // This is not what we were looking for, move on
-                }
-            }
-        }
-        return result;
     }
 }

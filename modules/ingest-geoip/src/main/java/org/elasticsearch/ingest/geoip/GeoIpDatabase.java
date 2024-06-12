@@ -8,19 +8,15 @@
 
 package org.elasticsearch.ingest.geoip;
 
-import com.maxmind.geoip2.model.AnonymousIpResponse;
-import com.maxmind.geoip2.model.AsnResponse;
-import com.maxmind.geoip2.model.CityResponse;
-import com.maxmind.geoip2.model.ConnectionTypeResponse;
-import com.maxmind.geoip2.model.CountryResponse;
-import com.maxmind.geoip2.model.DomainResponse;
-import com.maxmind.geoip2.model.EnterpriseResponse;
-import com.maxmind.geoip2.model.IspResponse;
+import com.maxmind.geoip2.DatabaseReader;
+import com.maxmind.geoip2.model.AbstractResponse;
 
+import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.core.Nullable;
 
 import java.io.IOException;
 import java.net.InetAddress;
+import java.util.Optional;
 
 /**
  * Provides a uniform interface for interacting with various GeoIP databases.
@@ -34,44 +30,17 @@ public interface GeoIpDatabase {
     String getDatabaseType() throws IOException;
 
     /**
-     * @param ipAddress the IP address to look up
-     * @return a response containing the city data for the given address if it exists, or <code>null</code> if it could not be found
-     * @throws UnsupportedOperationException may be thrown if the implementation does not support retrieving city data
+     * Returns a response from this database's reader for the given IP address
+     * @param ipAddress the address to lookup
+     * @param responseProvider typically a method-reference like {@code DatabaseReader::tryCity}
+     * @return a possibly-null response
+     * @param <RESPONSE> the subtype of {@link AbstractResponse} that will be returned
      */
     @Nullable
-    CityResponse getCity(InetAddress ipAddress);
-
-    /**
-     * @param ipAddress the IP address to look up
-     * @return a response containing the country data for the given address if it exists, or <code>null</code> if it could not be found
-     * @throws UnsupportedOperationException may be thrown if the implementation does not support retrieving country data
-     */
-    @Nullable
-    CountryResponse getCountry(InetAddress ipAddress);
-
-    /**
-     * @param ipAddress the IP address to look up
-     * @return a response containing the Autonomous System Number for the given address if it exists, or <code>null</code> if it could not
-     *         be found
-     * @throws UnsupportedOperationException may be thrown if the implementation does not support retrieving ASN data
-     */
-    @Nullable
-    AsnResponse getAsn(InetAddress ipAddress);
-
-    @Nullable
-    AnonymousIpResponse getAnonymousIp(InetAddress ipAddress);
-
-    @Nullable
-    ConnectionTypeResponse getConnectionType(InetAddress ipAddress);
-
-    @Nullable
-    DomainResponse getDomain(InetAddress ipAddress);
-
-    @Nullable
-    EnterpriseResponse getEnterprise(InetAddress ipAddress);
-
-    @Nullable
-    IspResponse getIsp(InetAddress ipAddress);
+    <RESPONSE extends AbstractResponse> RESPONSE getResponse(
+        InetAddress ipAddress,
+        CheckedBiFunction<DatabaseReader, InetAddress, Optional<RESPONSE>, Exception> responseProvider
+    );
 
     /**
      * Releases the current database object. Called after processing a single document. Databases should be closed or returned to a

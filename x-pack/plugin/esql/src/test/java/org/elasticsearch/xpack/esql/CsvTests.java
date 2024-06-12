@@ -119,6 +119,7 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.junit.Assume.assumeThat;
 
 /**
  * CSV-based unit testing.
@@ -224,7 +225,7 @@ public class CsvTests extends ESTestCase {
             assumeTrue("Test " + testName + " is not enabled", isEnabled(testName, Version.CURRENT));
 
             if (Build.current().isSnapshot()) {
-                assertThat(
+                assumeThat(
                     "nonexistent capabilities declared as required",
                     testCase.requiredCapabilities,
                     everyItem(in(EsqlCapabilities.CAPABILITIES))

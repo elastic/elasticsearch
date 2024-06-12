@@ -289,7 +289,7 @@ public final class FieldNameTranslators {
             throw new IllegalArgumentException("Field name pattern [" + queryFieldName + "] is not allowed for querying or aggregation");
         }
         for (FieldNameTranslator translator : fieldNameTranslators) {
-            if (translator.supports(queryFieldName)) {
+            if (translator.isQueryFieldSupported(queryFieldName)) {
                 return translator.translate(queryFieldName);
             }
         }
@@ -303,7 +303,7 @@ public final class FieldNameTranslators {
     public Set<String> translatePattern(String fieldNameOrPattern) {
         Set<String> indexFieldNames = new HashSet<>();
         for (FieldNameTranslator translator : fieldNameTranslators) {
-            if (translator.supports(fieldNameOrPattern)) {
+            if (translator.isQueryFieldSupported(fieldNameOrPattern)) {
                 indexFieldNames.add(translator.translate(fieldNameOrPattern));
             }
         }
@@ -313,14 +313,20 @@ public final class FieldNameTranslators {
         return indexFieldNames;
     }
 
-    public boolean isFieldAllowed(String fieldName) {
-        return fieldNameTranslators.stream().anyMatch(t -> t.supports(fieldName));
+    public boolean isQueryFieldSupported(String fieldName) {
+        return fieldNameTranslators.stream().anyMatch(t -> t.isQueryFieldSupported(fieldName));
+    }
+
+    public boolean isIndexFieldSupported(String fieldName) {
+        return fieldNameTranslators.stream().anyMatch(t -> t.isIndexFieldSupported(fieldName));
     }
 
     private interface FieldNameTranslator {
         String translate(String fieldName);
 
-        boolean supports(String fieldName);
+        boolean isQueryFieldSupported(String fieldName);
+
+        boolean isIndexFieldSupported(String fieldName);
     }
 
     private static class ExactFieldNameTranslator implements FieldNameTranslator {
@@ -333,12 +339,17 @@ public final class FieldNameTranslators {
         }
 
         @Override
-        public boolean supports(String fieldNameOrPattern) {
+        public boolean isQueryFieldSupported(String fieldNameOrPattern) {
             if (Regex.isSimpleMatchPattern(fieldNameOrPattern)) {
                 return Regex.simpleMatch(fieldNameOrPattern, queryFieldName);
             } else {
                 return queryFieldName.equals(fieldNameOrPattern);
             }
+        }
+
+        @Override
+        public boolean isIndexFieldSupported(String fieldName) {
+            return fieldName.equals(indexFieldName);
         }
 
         @Override
@@ -357,7 +368,7 @@ public final class FieldNameTranslators {
         }
 
         @Override
-        public boolean supports(String fieldNameOrPattern) {
+        public boolean isQueryFieldSupported(String fieldNameOrPattern) {
             if (Regex.isSimpleMatchPattern(fieldNameOrPattern)) {
                 // It is not possible to translate a pattern for subfields of a flattened field
                 // (because there's no list of subfields of the flattened field).
@@ -366,6 +377,11 @@ public final class FieldNameTranslators {
             } else {
                 return fieldNameOrPattern.equals(queryFieldName) || fieldNameOrPattern.startsWith(queryFieldName + ".");
             }
+        }
+
+        @Override
+        public boolean isIndexFieldSupported(String fieldName) {
+            return fieldName.equals(indexFieldName) || fieldName.startsWith(indexFieldName + ".");
         }
 
         @Override

@@ -17,22 +17,10 @@ import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore;
 
 import java.io.IOException;
-import java.util.Set;
 
 import static org.elasticsearch.xpack.security.support.FieldNameTranslators.USER_FIELD_NAME_TRANSLATORS;
 
-public class UserBoolQueryBuilder extends BoolQueryBuilder {
-
-    // Field names allowed at the index level
-    private static final Set<String> ALLOWED_EXACT_INDEX_FIELD_NAMES = Set.of(
-        "_id",
-        "type",
-        "username",
-        "roles",
-        "full_name",
-        "email",
-        "enabled"
-    );
+public final class UserBoolQueryBuilder extends BoolQueryBuilder {
 
     private UserBoolQueryBuilder() {}
 
@@ -62,6 +50,8 @@ public class UserBoolQueryBuilder extends BoolQueryBuilder {
     }
 
     boolean isIndexFieldNameAllowed(String fieldName) {
-        return ALLOWED_EXACT_INDEX_FIELD_NAMES.contains(fieldName);
+        return "_id".equals(fieldName)
+            || User.Fields.TYPE.getPreferredName().equals(fieldName)
+            || USER_FIELD_NAME_TRANSLATORS.isIndexFieldSupported(fieldName);
     }
 }

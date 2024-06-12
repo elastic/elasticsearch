@@ -88,7 +88,8 @@ public class RestStartTrainedModelDeploymentAction extends BaseRestHandler {
         if (restRequest.hasParam(TIMEOUT.getPreferredName())) {
             TimeValue openTimeout = (TimeValue) sameParamInQueryAndBody(
                 request.getTimeout(),
-                restRequest.paramAsTime(TIMEOUT.getPreferredName(), null)
+                restRequest.paramAsTime(TIMEOUT.getPreferredName(), StartTrainedModelDeploymentAction.DEFAULT_TIMEOUT),
+                StartTrainedModelDeploymentAction.DEFAULT_TIMEOUT
             ); // hasParam, so never default
             request.setTimeout(openTimeout);
         }
@@ -96,7 +97,10 @@ public class RestStartTrainedModelDeploymentAction extends BaseRestHandler {
         request.setWaitForState(
             (AllocationStatus.State) sameParamInQueryAndBody(
                 request.getWaitForState(),
-                AllocationStatus.State.fromString(restRequest.param(WAIT_FOR.getPreferredName(), AllocationStatus.State.STARTED.toString()))
+                AllocationStatus.State.fromString(
+                    restRequest.param(WAIT_FOR.getPreferredName(), StartTrainedModelDeploymentAction.DEFAULT_WAITFOR_STATE.toString())
+                ),
+                StartTrainedModelDeploymentAction.DEFAULT_WAITFOR_STATE
             )
         );
 
@@ -105,7 +109,11 @@ public class RestStartTrainedModelDeploymentAction extends BaseRestHandler {
             NUMBER_OF_ALLOCATIONS.getPreferredName(),
             RestApiVersion.V_8,
             restRequest,
-            (r, s) -> (Integer) sameParamInQueryAndBody(request.getNumberOfAllocations(), negativeIntToNull(r.paramAsInt(s, -1))),
+            (r, s) -> (Integer) sameParamInQueryAndBody(
+                request.getNumberOfAllocations(),
+                r.paramAsInt(s, StartTrainedModelDeploymentAction.DEFAULT_NUM_ALLOCATIONS),
+                StartTrainedModelDeploymentAction.DEFAULT_NUM_ALLOCATIONS
+            ),
             request::setNumberOfAllocations
         );
         RestCompatibilityChecker.checkAndSetDeprecatedParam(
@@ -113,13 +121,18 @@ public class RestStartTrainedModelDeploymentAction extends BaseRestHandler {
             THREADS_PER_ALLOCATION.getPreferredName(),
             RestApiVersion.V_8,
             restRequest,
-            (r, s) -> (Integer) sameParamInQueryAndBody(request.getThreadsPerAllocation(), negativeIntToNull(r.paramAsInt(s, -1))),
+            (r, s) -> (Integer) sameParamInQueryAndBody(
+                request.getThreadsPerAllocation(),
+                r.paramAsInt(s, StartTrainedModelDeploymentAction.DEFAULT_NUM_THREADS),
+                StartTrainedModelDeploymentAction.DEFAULT_NUM_THREADS
+            ),
             request::setThreadsPerAllocation
         );
         request.setQueueCapacity(
             (Integer) sameParamInQueryAndBody(
                 request.getQueueCapacity(),
-                negativeIntToNull(restRequest.paramAsInt(QUEUE_CAPACITY.getPreferredName(), -1))
+                restRequest.paramAsInt(QUEUE_CAPACITY.getPreferredName(), StartTrainedModelDeploymentAction.DEFAULT_QUEUE_CAPACITY),
+                StartTrainedModelDeploymentAction.DEFAULT_QUEUE_CAPACITY
             )
         );
 
@@ -127,32 +140,32 @@ public class RestStartTrainedModelDeploymentAction extends BaseRestHandler {
             request.setCacheSize(
                 (ByteSizeValue) sameParamInQueryAndBody(
                     request.getCacheSize(),
-                    ByteSizeValue.parseBytesSizeValue(restRequest.param(CACHE_SIZE.getPreferredName()), CACHE_SIZE.getPreferredName())
+                    ByteSizeValue.parseBytesSizeValue(restRequest.param(CACHE_SIZE.getPreferredName()), CACHE_SIZE.getPreferredName()),
+                    null
                 )
             );
-        } else if (defaultCacheSize != null) {
+        } else if (defaultCacheSize != null && request.getCacheSize() == null) {
             request.setCacheSize(defaultCacheSize);
         }
 
         request.setPriority(
             (String) sameParamInQueryAndBody(
                 request.getPriority().toString(),
-                restRequest.param(StartTrainedModelDeploymentAction.TaskParams.PRIORITY.getPreferredName(), null)
+                restRequest.param(StartTrainedModelDeploymentAction.TaskParams.PRIORITY.getPreferredName()),
+                StartTrainedModelDeploymentAction.DEFAULT_PRIORITY.toString()
             )
         );
 
         return channel -> client.execute(StartTrainedModelDeploymentAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }
 
-    private Integer negativeIntToNull(int maybeNegativeInt) {
-        if (maybeNegativeInt < 0) {
-            return null;
-        } else {
-            return maybeNegativeInt;
+    private Object sameParamInQueryAndBody(Object bodyParam, Object queryParam, Object paramDefault) {
+        if (Objects.equals(bodyParam, paramDefault) && queryParam != null) {
+            // the body param is the same as the default for this value. We cannot tell if this was set intentionally, or if it was just the
+            // default, thus we will assume it was the default
+            return queryParam;
         }
-    }
 
-    private Object sameParamInQueryAndBody(Object bodyParam, Object queryParam) {
         if (Objects.equals(bodyParam, queryParam)) {
             return bodyParam;
         } else if (bodyParam == null) {

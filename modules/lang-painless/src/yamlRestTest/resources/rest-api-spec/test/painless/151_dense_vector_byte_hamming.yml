@@ -1,6 +1,6 @@
 setup:
   - requires:
-      cluster_features: ["gte_v8.15.0"]
+      cluster_features: ["script.hamming"]
       reason: "support for hamming distance added in 8.15"
       test_runner_features: headers
 
@@ -91,6 +91,58 @@ setup:
                 source: "hamming(params.query_vector, 'my_dense_vector_indexed')"
                 params:
                   query_vector: [0, 111, -13, 14, -124]
+
+  - match: {hits.total: 3}
+
+  - match: {hits.hits.0._id: "2"}
+  - match: {hits.hits.0._score: 17.0}
+
+  - match: {hits.hits.1._id: "1"}
+  - match: {hits.hits.1._score: 16.0}
+
+  - match: {hits.hits.2._id: "3"}
+  - match: {hits.hits.2._score: 11.0}
+---
+"Hamming distance hexidecimal":
+  - do:
+      headers:
+        Content-Type: application/json
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query:
+            script_score:
+              query: {match_all: {} }
+              script:
+                source: "hamming(params.query_vector, 'my_dense_vector')"
+                params:
+                  query_vector: "006ff30e84"
+
+  - match: {hits.total: 3}
+
+  - match: {hits.hits.0._id: "2"}
+  - match: {hits.hits.0._score: 17.0}
+
+  - match: {hits.hits.1._id: "1"}
+  - match: {hits.hits.1._score: 16.0}
+
+  - match: {hits.hits.2._id: "3"}
+  - match: {hits.hits.2._score: 11.0}
+
+
+  - do:
+      headers:
+        Content-Type: application/json
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query:
+            script_score:
+              query: {match_all: {} }
+              script:
+                source: "hamming(params.query_vector, 'my_dense_vector_indexed')"
+                params:
+                  query_vector: "006ff30e84"
 
   - match: {hits.total: 3}
 

@@ -220,6 +220,7 @@ public class VectorScoreScriptUtilsTests extends ESTestCase {
             assertEquals(116.897, new L2Norm(scoreScript, queryVector, fieldName).l2norm(), 0.001);
             assertEquals(116.897, new L2Norm(scoreScript, hexidecimalString, fieldName).l2norm(), 0.001);
             assertEquals(13.0, new Hamming(scoreScript, queryVector, fieldName).hamming(), 0.001);
+            assertEquals(13.0, new Hamming(scoreScript, hexidecimalString, fieldName).hamming(), 0.001);
             DotProduct dotProduct = new DotProduct(scoreScript, queryVector, fieldName);
             when(scoreScript._getDocId()).thenReturn(1);
             e = expectThrows(IllegalArgumentException.class, dotProduct::dotProduct);

@@ -9,6 +9,7 @@
 package org.elasticsearch.script;
 
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.script.field.vectors.DenseVector;
 import org.elasticsearch.script.field.vectors.DenseVectorDocValuesField;
@@ -18,6 +19,8 @@ import java.util.HexFormat;
 import java.util.List;
 
 public class VectorScoreScriptUtils {
+
+    public static final NodeFeature HAMMING_DISTANCE_FUNCTION = new NodeFeature("script.hamming");
 
     public static class DenseVectorFunction {
         protected final ScoreScript scoreScript;
@@ -199,6 +202,10 @@ public class VectorScoreScriptUtils {
             super(scoreScript, field, queryVector);
         }
 
+        public ByteHammingDistance(ScoreScript scoreScript, DenseVectorDocValuesField field, byte[] queryVector) {
+            super(scoreScript, field, queryVector);
+        }
+
         public int hamming() {
             setNextVector();
             return field.get().hamming(queryVector);
@@ -209,12 +216,20 @@ public class VectorScoreScriptUtils {
 
         private final HammingDistanceInterface function;
 
-        public Hamming(ScoreScript scoreScript, List<Number> queryVector, String fieldName) {
+        @SuppressWarnings("unchecked")
+        public Hamming(ScoreScript scoreScript, Object queryVector, String fieldName) {
             DenseVectorDocValuesField field = (DenseVectorDocValuesField) scoreScript.field(fieldName);
             if (field.getElementType() != DenseVectorFieldMapper.ElementType.BYTE) {
                 throw new IllegalArgumentException("hamming distance is only supported for byte vectors");
             }
-            function = new ByteHammingDistance(scoreScript, field, queryVector);
+            if (queryVector instanceof List) {
+                function = new ByteHammingDistance(scoreScript, field, (List<Number>) queryVector);
+            } else if (queryVector instanceof String s) {
+                byte[] parsedQueryVector = HexFormat.of().parseHex(s);
+                function = new ByteHammingDistance(scoreScript, field, parsedQueryVector);
+            } else {
+                throw new IllegalArgumentException("Unsupported input object for byte vectors: " + queryVector.getClass().getName());
+            }
         }
 
         public double hamming() {

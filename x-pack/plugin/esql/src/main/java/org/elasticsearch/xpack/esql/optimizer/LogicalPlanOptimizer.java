@@ -77,14 +77,13 @@ import org.elasticsearch.xpack.esql.optimizer.rules.PushDownRegexExtract;
 import org.elasticsearch.xpack.esql.optimizer.rules.RemoveStatsOverride;
 import org.elasticsearch.xpack.esql.optimizer.rules.ReplaceAliasingEvalWithProject;
 import org.elasticsearch.xpack.esql.optimizer.rules.ReplaceLimitAndSortAsTopN;
+import org.elasticsearch.xpack.esql.optimizer.rules.ReplaceLookupWithJoin;
 import org.elasticsearch.xpack.esql.optimizer.rules.SetAsOptimized;
 import org.elasticsearch.xpack.esql.optimizer.rules.SimplifyComparisonsArithmetics;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
-import org.elasticsearch.xpack.esql.plan.logical.Lookup;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
-import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
@@ -527,19 +526,6 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             return project.replaceChild(expressionsWithResolvedAliases.replaceChild(project.child()));
         } else {
             throw new EsqlIllegalArgumentException("Expected child to be instance of Project");
-        }
-    }
-
-    private static class ReplaceLookupWithJoin extends OptimizerRules.OptimizerRule<Lookup> {
-
-        ReplaceLookupWithJoin() {
-            super(TransformDirection.UP);
-        }
-
-        @Override
-        protected LogicalPlan rule(Lookup lookup) {
-            // left join between the main relation and the local, lookup relation
-            return new Join(lookup.source(), lookup.child(), lookup.localRelation(), lookup.joinConfig());
         }
     }
 

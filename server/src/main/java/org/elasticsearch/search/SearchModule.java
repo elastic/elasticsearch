@@ -295,6 +295,23 @@ public class SearchModule {
         Setting.Property.NodeScope
     );
 
+    public static final Setting<Boolean> SCRIPTED_METRICS_AGG_ONLY_ALLOWED_SCRIPTS = Setting.boolSetting(
+        "search.aggs.only_allowed_metric_scripts",
+        false,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+    public static final Setting<List<String>> SCRIPTED_METRICS_AGG_ALLOWED_INLINE_SCRIPTS = Setting.stringListSetting(
+        "search.aggs.allowed_inline_metric_scripts",
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+    public static final Setting<List<String>> SCRIPTED_METRICS_AGG_ALLOWED_STORED_SCRIPTS = Setting.stringListSetting(
+        "search.aggs.allowed_stored_metric_scripts",
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
     /**
      * Metric name for aggregation usage statistics
      */

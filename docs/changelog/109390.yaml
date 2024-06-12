@@ -1,0 +1,6 @@
+pr: 109390
+summary: Limit number of synonyms that can be created
+area: Mapping
+type: "bug, enhancement"
+issues:
+ - 108785

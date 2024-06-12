@@ -34,8 +34,8 @@ public final class DotProduct extends AbstractScalarQuantizedVectorScorer {
         checkOrdinal(secondOrd);
 
         final int length = dims;
-        int firstByteOffset = firstOrd * (length + Float.BYTES);
-        int secondByteOffset = secondOrd * (length + Float.BYTES);
+        long firstByteOffset = (long) firstOrd * (length + Float.BYTES);
+        long secondByteOffset = (long) secondOrd * (length + Float.BYTES);
 
         MemorySegment firstSeg = segmentSlice(firstByteOffset, length);
         input.seek(firstByteOffset + length);
@@ -52,5 +52,10 @@ public final class DotProduct extends AbstractScalarQuantizedVectorScorer {
         } else {
             return fallbackScore(firstByteOffset, secondByteOffset);
         }
+    }
+
+    @Override
+    public DotProduct copy() {
+        return new DotProduct(dims, maxOrd, scoreCorrectionConstant, input.clone());
     }
 }

@@ -4,12 +4,14 @@
 <titleabbrev>Delete connector</titleabbrev>
 ++++
 
-preview::[]
+beta::[]
 
 Removes a connector and associated sync jobs.
 This is a destructive action that is not recoverable.
 
 Note: this action doesn't delete any API key, ingest pipeline or data index associated with the connector. These need to be removed manually.
+
+To get started with Connector APIs, check out the {enterprise-search-ref}/connectors-tutorial-api.html[tutorial^].
 
 [[delete-connector-api-request]]
 ==== {api-request-title}

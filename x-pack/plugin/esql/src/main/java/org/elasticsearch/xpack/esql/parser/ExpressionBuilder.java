@@ -87,6 +87,13 @@ import static org.elasticsearch.xpack.ql.util.StringUtils.WILDCARD;
 
 public abstract class ExpressionBuilder extends IdentifierBuilder {
 
+    private int expressionDepth = 0;
+
+    /**
+     * Maximum depth for nested expressions
+     */
+    public static final int MAX_EXPRESSION_DEPTH = 500;
+
     private final Map<Token, TypedParamValue> params;
 
     ExpressionBuilder(Map<Token, TypedParamValue> params) {
@@ -94,7 +101,19 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
     }
 
     protected Expression expression(ParseTree ctx) {
-        return typedParsing(this, ctx, Expression.class);
+        expressionDepth++;
+        if (expressionDepth > MAX_EXPRESSION_DEPTH) {
+            throw new ParsingException(
+                "ESQL statement exceeded the maximum expression depth allowed ({}): [{}]",
+                MAX_EXPRESSION_DEPTH,
+                ctx.getParent().getText()
+            );
+        }
+        try {
+            return typedParsing(this, ctx, Expression.class);
+        } finally {
+            expressionDepth--;
+        }
     }
 
     protected List<Expression> expressions(List<? extends ParserRuleContext> contexts) {

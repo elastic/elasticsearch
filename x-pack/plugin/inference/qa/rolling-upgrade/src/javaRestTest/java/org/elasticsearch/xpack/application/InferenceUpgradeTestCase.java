@@ -13,7 +13,7 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.http.MockWebServer;
-import org.elasticsearch.upgrades.ParameterizedRollingUpgradeTestCase;
+import org.elasticsearch.upgrades.AbstractRollingUpgradeTestCase;
 
 import java.io.IOException;
 import java.util.List;
@@ -21,7 +21,7 @@ import java.util.Map;
 
 import static org.elasticsearch.core.Strings.format;
 
-public class InferenceUpgradeTestCase extends ParameterizedRollingUpgradeTestCase {
+public class InferenceUpgradeTestCase extends AbstractRollingUpgradeTestCase {
 
     public InferenceUpgradeTestCase(@Name("upgradedNodes") int upgradedNodes) {
         super(upgradedNodes);

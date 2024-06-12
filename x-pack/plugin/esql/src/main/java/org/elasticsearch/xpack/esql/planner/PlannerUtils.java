@@ -40,7 +40,6 @@ import org.elasticsearch.xpack.ql.expression.AttributeSet;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.expression.predicate.Predicates;
-import org.elasticsearch.xpack.ql.options.EsSourceOptions;
 import org.elasticsearch.xpack.ql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.ql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.ql.plan.logical.Filter;
@@ -219,12 +218,6 @@ public class PlannerUtils {
         });
 
         return Queries.combine(FILTER, asList(requestFilter));
-    }
-
-    public static EsSourceOptions esSourceOptions(PhysicalPlan plan) {
-        Holder<EsSourceOptions> holder = new Holder<>();
-        plan.forEachUp(FragmentExec.class, f -> f.fragment().forEachUp(EsRelation.class, r -> holder.set(r.esSourceOptions())));
-        return holder.get();
     }
 
     /**

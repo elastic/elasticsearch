@@ -34,8 +34,8 @@ public final class Euclidean extends AbstractScalarQuantizedVectorScorer {
         checkOrdinal(secondOrd);
 
         final int length = dims;
-        int firstByteOffset = firstOrd * (length + Float.BYTES);
-        int secondByteOffset = secondOrd * (length + Float.BYTES);
+        long firstByteOffset = (long) firstOrd * (length + Float.BYTES);
+        long secondByteOffset = (long) secondOrd * (length + Float.BYTES);
 
         MemorySegment firstSeg = segmentSlice(firstByteOffset, length);
         MemorySegment secondSeg = segmentSlice(secondByteOffset, length);
@@ -47,5 +47,10 @@ public final class Euclidean extends AbstractScalarQuantizedVectorScorer {
         } else {
             return fallbackScore(firstByteOffset, secondByteOffset);
         }
+    }
+
+    @Override
+    public Euclidean copy() {
+        return new Euclidean(dims, maxOrd, scoreCorrectionConstant, input.clone());
     }
 }

@@ -1746,6 +1746,10 @@ public abstract class ESRestTestCase extends ESTestCase {
         return createIndex(client, name, settings, null, null);
     }
 
+    protected static CreateIndexResponse createIndex(RestClient client, String name, Settings settings, String mapping) throws IOException {
+        return createIndex(client, name, settings, mapping, null);
+    }
+
     protected static CreateIndexResponse createIndex(String name, Settings settings, String mapping) throws IOException {
         return createIndex(name, settings, mapping, null);
     }

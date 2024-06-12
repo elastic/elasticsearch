@@ -19,6 +19,7 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
@@ -144,6 +145,19 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         0,
         Property.Dynamic,
         Property.IndexScope
+    );
+    /**
+     * Legacy index setting, kept for 7.x BWC compatibility. This setting has no effect in 8.x. Do not use.
+     * TODO: Remove in 9.0
+     */
+    @Deprecated
+    @UpdateForV9
+    public static final Setting<Boolean> INDEX_MAPPER_DYNAMIC_SETTING = Setting.boolSetting(
+        "index.mapper.dynamic",
+        true,
+        Property.Dynamic,
+        Property.IndexScope,
+        Property.IndexSettingDeprecatedInV7AndRemovedInV8
     );
 
     private final IndexAnalyzers indexAnalyzers;
@@ -475,8 +489,11 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
                         if (baseMap.containsKey("subobjects")) {
                             mergedMappings.put("subobjects", baseMap.get("subobjects"));
                         }
-                        // recursively merge these two field mappings
-                        XContentHelper.merge(key, mergedMappings, mapToMerge, INSTANCE);
+                        // Recursively merge these two field mappings.
+                        // Since "key" is an arbitrary field name, for which we only need plain mapping subtrees merge, no need to pass it
+                        // to the recursion as it shouldn't affect the merge logic. Specifically, passing a parent may cause merge
+                        // failures of fields named "properties". See https://github.com/elastic/elasticsearch/issues/108866
+                        XContentHelper.merge(mergedMappings, mapToMerge, INSTANCE);
                         return mergedMappings;
                     } else {
                         // non-mergeable types - replace the entire mapping subtree for this field

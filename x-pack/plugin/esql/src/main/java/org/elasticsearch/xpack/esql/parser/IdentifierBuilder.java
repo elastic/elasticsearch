@@ -25,7 +25,7 @@ abstract class IdentifierBuilder extends AbstractBuilder {
 
     @Override
     public String visitFromIdentifier(FromIdentifierContext ctx) {
-        return ctx == null ? null : unquoteIdentifier(ctx.QUOTED_IDENTIFIER(), ctx.FROM_UNQUOTED_IDENTIFIER());
+        return ctx == null ? null : unquoteIdentifier(null, ctx.FROM_UNQUOTED_IDENTIFIER());
     }
 
     protected static String unquoteIdentifier(TerminalNode quotedNode, TerminalNode unquotedNode) {

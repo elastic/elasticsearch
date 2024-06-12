@@ -4,9 +4,11 @@
 <titleabbrev>Update connector scheduling</titleabbrev>
 ++++
 
-preview::[]
+beta::[]
 
 Updates the `scheduling` configuration of a connector.
+
+To get started with Connector APIs, check out the {enterprise-search-ref}/connectors-tutorial-api.html[tutorial^].
 
 [[update-connector-scheduling-api-request]]
 ==== {api-request-title}

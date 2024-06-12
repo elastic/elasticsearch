@@ -21,6 +21,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.loadMapping;
 import static org.elasticsearch.xpack.ql.type.DataTypes.UNSIGNED_LONG;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.matchesRegex;
 
 //@TestLogging(value = "org.elasticsearch.xpack.esql:TRACE,org.elasticsearch.compute:TRACE", reason = "debug")
 public class VerifierTests extends ESTestCase {
@@ -385,7 +386,7 @@ public class VerifierTests extends ESTestCase {
 
     public void testWrongInputParam() {
         assertEquals(
-            "1:29: Cannot convert string [foo] to [INTEGER], error [Cannot parse number [foo]]",
+            "1:19: first argument of [emp_no == ?] is [numeric] so second argument must also be [numeric] but was [keyword]",
             error("from test | where emp_no == ?", "foo")
         );
 
@@ -474,6 +475,33 @@ public class VerifierTests extends ESTestCase {
         assertEquals("1:36: cannot sort on cartesian_point", error("FROM airports_web | LIMIT 5 | sort location", airportsWeb));
         assertEquals("1:38: cannot sort on geo_shape", error("FROM countries_bbox | LIMIT 5 | sort shape", countriesBbox));
         assertEquals("1:42: cannot sort on cartesian_shape", error("FROM countries_bbox_web | LIMIT 5 | sort shape", countriesBboxWeb));
+    }
+
+    public void testAggsResolutionWithUnresolvedGroupings() {
+        String agg_func = randomFrom(
+            new String[] { "avg", "count", "count_distinct", "min", "max", "median", "median_absolute_deviation", "sum", "values" }
+        );
+
+        assertThat(error("FROM tests | STATS " + agg_func + "(emp_no) by foobar"), matchesRegex("1:\\d+: Unknown column \\[foobar]"));
+        assertThat(
+            error("FROM tests | STATS " + agg_func + "(x) by foobar, x = emp_no"),
+            matchesRegex("1:\\d+: Unknown column \\[foobar]")
+        );
+        assertThat(error("FROM tests | STATS " + agg_func + "(foobar) by foobar"), matchesRegex("1:\\d+: Unknown column \\[foobar]"));
+        assertThat(
+            error("FROM tests | STATS " + agg_func + "(foobar) by BUCKET(languages, 10)"),
+            matchesRegex(
+                "1:\\d+: function expects exactly four arguments when the first one is of type \\[INTEGER]"
+                    + " and the second of type \\[INTEGER]\n"
+                    + "line 1:\\d+: Unknown column \\[foobar]"
+            )
+        );
+        assertThat(error("FROM tests | STATS " + agg_func + "(foobar) by emp_no"), matchesRegex("1:\\d+: Unknown column \\[foobar]"));
+        // TODO: Ideally, we'd detect that count_distinct(x) doesn't require an error message.
+        assertThat(
+            error("FROM tests | STATS " + agg_func + "(x) by x = foobar"),
+            matchesRegex("1:\\d+: Unknown column \\[foobar]\n" + "line 1:\\d+: Unknown column \\[x]")
+        );
     }
 
     private String error(String query) {

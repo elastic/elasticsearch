@@ -5,11 +5,14 @@
 <titleabbrev>Type conversion functions</titleabbrev>
 ++++
 
+[TIP]
+====
+{esql} supports implicit casting from string literals to certain data types. Refer to <<esql-implicit-casting,implicit casting>> for details.
+====
+
 {esql} supports these type conversion functions:
 
 // tag::type_list[]
-* <<esql-from_base64>>
-* <<esql-to_base64>>
 * <<esql-to_boolean>>
 * <<esql-to_cartesianpoint>>
 * <<esql-to_cartesianshape>>
@@ -27,8 +30,6 @@
 * <<esql-to_version>>
 // end::type_list[]
 
-include::layout/from_base64.asciidoc[]
-include::layout/to_base64.asciidoc[]
 include::to_boolean.asciidoc[]
 include::to_cartesianpoint.asciidoc[]
 include::to_cartesianshape.asciidoc[]

@@ -483,22 +483,22 @@ public final class GeoIpProcessor extends AbstractProcessor {
                     }
                 }
                 case HOSTING_PROVIDER -> {
-                    geoData.put("is_hosting_provider", isHostingProvider);
+                    geoData.put("hosting_provider", isHostingProvider);
                 }
                 case TOR_EXIT_NODE -> {
-                    geoData.put("is_tor_exit_node", isTorExitNode);
+                    geoData.put("tor_exit_node", isTorExitNode);
                 }
                 case ANONYMOUS_VPN -> {
-                    geoData.put("is_anonymous_vpn", isAnonymousVpn);
+                    geoData.put("anonymous_vpn", isAnonymousVpn);
                 }
                 case ANONYMOUS -> {
-                    geoData.put("is_anonymous", isAnonymous);
+                    geoData.put("anonymous", isAnonymous);
                 }
                 case PUBLIC_PROXY -> {
-                    geoData.put("is_public_proxy", isPublicProxy);
+                    geoData.put("public_proxy", isPublicProxy);
                 }
                 case RESIDENTIAL_PROXY -> {
-                    geoData.put("is_residential_proxy", isResidentialProxy);
+                    geoData.put("residential_proxy", isResidentialProxy);
                 }
             }
         }

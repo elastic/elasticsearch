@@ -99,20 +99,11 @@ field
     ;
 
 fromCommand
-    : FROM fromIdentifier (COMMA fromIdentifier)* metadata? fromOptions?
+    : FROM fromIdentifier (COMMA fromIdentifier)* metadata?
     ;
 
 fromIdentifier
     : FROM_UNQUOTED_IDENTIFIER
-    | QUOTED_IDENTIFIER
-    ;
-
-fromOptions
-    : OPTIONS configOption (COMMA configOption)*
-    ;
-
-configOption
-    : string ASSIGN string
     ;
 
 metadata

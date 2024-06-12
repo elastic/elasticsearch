@@ -4,9 +4,11 @@
 <titleabbrev>Cancel connector sync job</titleabbrev>
 ++++
 
-preview::[]
+beta::[]
 
 Cancels a connector sync job.
+
+To get started with Connector APIs, check out the {enterprise-search-ref}/connectors-tutorial-api.html[tutorial^].
 
 [[cancel-connector-sync-job-api-request]]
 ==== {api-request-title}

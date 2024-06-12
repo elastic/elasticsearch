@@ -8,18 +8,31 @@
 
 package org.elasticsearch.vec;
 
+import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
+
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.MMapDirectory;
+import org.apache.lucene.util.hnsw.RandomVectorScorer;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.Random;
+import java.util.concurrent.Callable;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
+import java.util.function.Predicate;
+import java.util.stream.IntStream;
 
+import static org.elasticsearch.test.hamcrest.OptionalMatchers.isEmpty;
 import static org.elasticsearch.vec.VectorSimilarityType.COSINE;
 import static org.elasticsearch.vec.VectorSimilarityType.DOT_PRODUCT;
 import static org.elasticsearch.vec.VectorSimilarityType.EUCLIDEAN;
@@ -221,6 +234,139 @@ public class VectorScorerFactoryTests extends AbstractVectorTestCase {
                 }
             }
         }
+    }
+
+    // Tests with a large amount of data (> 2GB), which ensures that data offsets do not overflow
+    @Nightly
+    public void testLarge() throws IOException {
+        var factory = AbstractVectorTestCase.factory.get();
+
+        try (Directory dir = new MMapDirectory(createTempDir(getTestName()))) {
+            final int dims = 8192;
+            final int size = 262144;
+            final float correction = randomFloat();
+
+            String fileName = getTestName() + "-" + dims;
+            logger.info("Testing " + fileName);
+            try (IndexOutput out = dir.createOutput(fileName, IOContext.DEFAULT)) {
+                for (int i = 0; i < size; i++) {
+                    var vec = vector(i, dims);
+                    var off = (float) i;
+                    out.writeBytes(vec, 0, vec.length);
+                    out.writeInt(Float.floatToIntBits(off));
+                }
+            }
+            try (IndexInput in = dir.openInput(fileName, IOContext.DEFAULT)) {
+                for (int times = 0; times < TIMES; times++) {
+                    int idx0 = randomIntBetween(0, size - 1);
+                    int idx1 = size - 1;
+                    float off0 = (float) idx0;
+                    float off1 = (float) idx1;
+                    // dot product
+                    float expected = luceneScore(DOT_PRODUCT, vector(idx0, dims), vector(idx1, dims), correction, off0, off1);
+                    var scorer = factory.getScalarQuantizedVectorScorer(dims, size, correction, DOT_PRODUCT, in).get();
+                    assertThat(scorer.score(idx0, idx1), equalTo(expected));
+                    assertThat((new VectorScorerSupplierAdapter(scorer)).scorer(idx0).score(idx1), equalTo(expected));
+                    // max inner product
+                    expected = luceneScore(MAXIMUM_INNER_PRODUCT, vector(idx0, dims), vector(idx1, dims), correction, off0, off1);
+                    scorer = factory.getScalarQuantizedVectorScorer(dims, size, correction, MAXIMUM_INNER_PRODUCT, in).get();
+                    assertThat(scorer.score(idx0, idx1), equalTo(expected));
+                    assertThat((new VectorScorerSupplierAdapter(scorer)).scorer(idx0).score(idx1), equalTo(expected));
+                    // cosine
+                    expected = luceneScore(COSINE, vector(idx0, dims), vector(idx1, dims), correction, off0, off1);
+                    scorer = factory.getScalarQuantizedVectorScorer(dims, size, correction, COSINE, in).get();
+                    assertThat(scorer.score(idx0, idx1), equalTo(expected));
+                    assertThat((new VectorScorerSupplierAdapter(scorer)).scorer(idx0).score(idx1), equalTo(expected));
+                    // euclidean
+                    expected = luceneScore(EUCLIDEAN, vector(idx0, dims), vector(idx1, dims), correction, off0, off1);
+                    scorer = factory.getScalarQuantizedVectorScorer(dims, size, correction, EUCLIDEAN, in).get();
+                    assertThat(scorer.score(idx0, idx1), equalTo(expected));
+                    assertThat((new VectorScorerSupplierAdapter(scorer)).scorer(idx0).score(idx1), equalTo(expected));
+                }
+            }
+        }
+    }
+
+    public void testRace() throws Exception {
+        testRaceImpl(COSINE);
+        testRaceImpl(DOT_PRODUCT);
+        testRaceImpl(EUCLIDEAN);
+        testRaceImpl(MAXIMUM_INNER_PRODUCT);
+    }
+
+    // Tests that copies in threads do not interfere with each other
+    void testRaceImpl(VectorSimilarityType sim) throws Exception {
+        assumeTrue(notSupportedMsg(), supported());
+        var factory = AbstractVectorTestCase.factory.get();
+
+        final long maxChunkSize = 32;
+        final int dims = 34; // dimensions that are larger than the chunk size, to force fallback
+        byte[] vec1 = new byte[dims];
+        byte[] vec2 = new byte[dims];
+        IntStream.range(0, dims).forEach(i -> vec1[i] = 1);
+        IntStream.range(0, dims).forEach(i -> vec2[i] = 2);
+        try (Directory dir = new MMapDirectory(createTempDir("testRace"), maxChunkSize)) {
+            String fileName = getTestName() + "-" + dims;
+            try (IndexOutput out = dir.createOutput(fileName, IOContext.DEFAULT)) {
+                var one = floatToByteArray(1f);
+                byte[] bytes = concat(vec1, one, vec1, one, vec2, one, vec2, one);
+                out.writeBytes(bytes, 0, bytes.length);
+            }
+            var expectedScore1 = luceneScore(sim, vec1, vec1, 1, 1, 1);
+            var expectedScore2 = luceneScore(sim, vec2, vec2, 1, 1, 1);
+
+            try (IndexInput in = dir.openInput(fileName, IOContext.DEFAULT)) {
+                var scoreSupplier = factory.getScalarQuantizedVectorScorer(dims, 4, 1, sim, in).get();
+                var scorer = new VectorScorerSupplierAdapter(scoreSupplier);
+                var tasks = List.<Callable<Optional<Throwable>>>of(
+                    new ScoreCallable(scorer.copy().scorer(0), 1, expectedScore1),
+                    new ScoreCallable(scorer.copy().scorer(2), 3, expectedScore2)
+                );
+                var executor = Executors.newFixedThreadPool(2);
+                var results = executor.invokeAll(tasks);
+                executor.shutdown();
+                assertTrue(executor.awaitTermination(60, TimeUnit.SECONDS));
+                assertThat(results.stream().filter(Predicate.not(Future::isDone)).count(), equalTo(0L));
+                for (var res : results) {
+                    assertThat("Unexpected exception" + res.get(), res.get(), isEmpty());
+                }
+            }
+        }
+    }
+
+    static class ScoreCallable implements Callable<Optional<Throwable>> {
+
+        final RandomVectorScorer scorer;
+        final int ord;
+        final float expectedScore;
+
+        ScoreCallable(RandomVectorScorer scorer, int ord, float expectedScore) {
+            this.scorer = scorer;
+            this.ord = ord;
+            this.expectedScore = expectedScore;
+        }
+
+        @Override
+        public Optional<Throwable> call() throws Exception {
+            try {
+                for (int i = 0; i < 100; i++) {
+                    assertThat(scorer.score(ord), equalTo(expectedScore));
+                }
+            } catch (Throwable t) {
+                return Optional.of(t);
+            }
+            return Optional.empty();
+        }
+    }
+
+    // creates the vector based on the given ordinal, which is reproducible given the ord and dims
+    static byte[] vector(int ord, int dims) {
+        var random = new Random(Objects.hash(ord, dims));
+        byte[] ba = new byte[dims];
+        for (int i = 0; i < dims; i++) {
+            ba[i] = (byte) RandomNumbers.randomIntBetween(random, Byte.MIN_VALUE, Byte.MAX_VALUE);
+        }
+        return ba;
     }
 
     static Function<Integer, byte[]> BYTE_ARRAY_MAX_FUNC = size -> {

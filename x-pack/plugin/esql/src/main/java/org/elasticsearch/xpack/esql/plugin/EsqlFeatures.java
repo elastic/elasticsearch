@@ -98,6 +98,7 @@ public class EsqlFeatures implements FeatureSpecification {
     /**
      * Does ESQL support FROM OPTIONS?
      */
+    @Deprecated
     public static final NodeFeature FROM_OPTIONS = new NodeFeature("esql.from_options");
 
     /**
@@ -109,6 +110,16 @@ public class EsqlFeatures implements FeatureSpecification {
      * Base64 encoding and decoding functions.
      */
     public static final NodeFeature BASE64_DECODE_ENCODE = new NodeFeature("esql.base64_decode_encode");
+
+    /**
+     * Support for metadata fields.
+     */
+    public static final NodeFeature METADATA_FIELDS = new NodeFeature("esql.metadata_fields");
+
+    /**
+     * Cast string literals to a desired data type for IN predicate and more types for BinaryComparison.
+     */
+    public static final NodeFeature STRING_LITERAL_AUTO_CASTING_EXTENDED = new NodeFeature("esql.string_literal_auto_casting_extended");
 
     @Override
     public Set<NodeFeature> getFeatures() {
@@ -126,7 +137,9 @@ public class EsqlFeatures implements FeatureSpecification {
             ST_INTERSECTS,
             ST_CONTAINS_WITHIN,
             ST_DISJOINT,
-            STRING_LITERAL_AUTO_CASTING
+            STRING_LITERAL_AUTO_CASTING,
+            METADATA_FIELDS,
+            STRING_LITERAL_AUTO_CASTING_EXTENDED
         );
     }
 

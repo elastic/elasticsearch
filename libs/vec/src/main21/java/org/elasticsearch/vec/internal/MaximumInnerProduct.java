@@ -34,8 +34,8 @@ public final class MaximumInnerProduct extends AbstractScalarQuantizedVectorScor
         checkOrdinal(secondOrd);
 
         final int length = dims;
-        int firstByteOffset = firstOrd * (length + Float.BYTES);
-        int secondByteOffset = secondOrd * (length + Float.BYTES);
+        long firstByteOffset = (long) firstOrd * (length + Float.BYTES);
+        long secondByteOffset = (long) secondOrd * (length + Float.BYTES);
 
         MemorySegment firstSeg = segmentSlice(firstByteOffset, length);
         input.seek(firstByteOffset + length);
@@ -63,5 +63,10 @@ public final class MaximumInnerProduct extends AbstractScalarQuantizedVectorScor
             return 1 / (1 + -1 * rawSimilarity);
         }
         return rawSimilarity + 1;
+    }
+
+    @Override
+    public MaximumInnerProduct copy() {
+        return new MaximumInnerProduct(dims, maxOrd, scoreCorrectionConstant, input.clone());
     }
 }

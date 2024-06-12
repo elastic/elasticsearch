@@ -4,7 +4,7 @@
 <titleabbrev>Create connector</titleabbrev>
 ++++
 
-preview::[]
+beta::[]
 
 Creates an Elastic connector.
 Connectors are {es} integrations that bring content from third-party data sources, which can be deployed on {ecloud} or hosted on your own infrastructure:
@@ -13,6 +13,8 @@ Connectors are {es} integrations that bring content from third-party data source
 * *Connector clients* are self-managed on your infrastructure
 
 Find a list of all supported service types in the {enterprise-search-ref}/connectors.html[connectors documentation^].
+
+To get started with Connector APIs, check out the {enterprise-search-ref}/connectors-tutorial-api.html[tutorial^].
 
 [source,console]
 --------------------------------------------------

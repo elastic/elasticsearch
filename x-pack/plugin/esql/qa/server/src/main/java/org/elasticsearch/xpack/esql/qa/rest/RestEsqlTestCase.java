@@ -16,12 +16,10 @@ import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.WarningsHandler;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.logging.LogManager;
@@ -113,7 +111,6 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
     public static class RequestObjectBuilder {
         private final XContentBuilder builder;
         private boolean isBuilt = false;
-        private String version;
 
         private Boolean keepOnCompletion = null;
 
@@ -128,11 +125,6 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
 
         public RequestObjectBuilder query(String query) throws IOException {
             builder.field("query", query);
-            return this;
-        }
-
-        public RequestObjectBuilder version(String version) throws IOException {
-            this.version = version;
             return this;
         }
 
@@ -180,9 +172,6 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
 
         public RequestObjectBuilder build() throws IOException {
             if (isBuilt == false) {
-                if (version != null) {
-                    builder.field("version", version);
-                }
                 builder.endObject();
                 isBuilt = true;
             }
@@ -220,84 +209,6 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         assertEquals(400, e.getResponse().getStatusLine().getStatusCode());
         assertThat(e.getMessage(), containsString("verification_exception"));
         assertThat(e.getMessage(), containsString("Unknown index [doesNotExist]"));
-    }
-
-    public void testUseKnownIndexWithUnknownIndex() throws IOException {
-        // to ignore a concrete non-existent index, we need to opt in (which is not the default)
-        useKnownIndexWithOther("noSuchIndex", "ignore_unavailable");
-    }
-
-    public void testUseKnownIndexWithUnknownPattern() throws IOException {
-        // to not ignore a non-existing index, we need to opt in (which is the default)
-        useKnownIndexWithOther("noSuchPattern*", "allow_no_indices");
-    }
-
-    private void useKnownIndexWithOther(String other, String option) throws IOException {
-        final int count = randomIntBetween(1, 10);
-        bulkLoadTestData(count);
-
-        CheckedFunction<Boolean, RequestObjectBuilder, IOException> builder = o -> {
-            String q = fromIndex() + ',' + other;
-            q += " OPTIONS \"" + option + "\"=\"" + o + "\"";
-            q += " | KEEP keyword, integer | SORT integer asc | LIMIT 10";
-            return requestObjectBuilder().query(q);
-        };
-
-        // test failure
-        ResponseException e = expectThrows(ResponseException.class, () -> runEsql(builder.apply(false)));
-        assertEquals(404, e.getResponse().getStatusLine().getStatusCode());
-        assertThat(e.getMessage(), containsString("no such index [" + other + "]"));
-
-        // test success
-        assertEquals(expectedTextBody("txt", count, null), runEsqlAsTextWithFormat(builder.apply(true), "txt", null));
-    }
-
-    // https://github.com/elastic/elasticsearch/issues/106805
-    public void testUseUnknownIndexOnly() {
-        useUnknownIndex("ignore_unavailable");
-        useUnknownIndex("allow_no_indices");
-    }
-
-    private void useUnknownIndex(String option) {
-        CheckedFunction<Boolean, RequestObjectBuilder, IOException> builder = o -> {
-            String q = "FROM doesnotexist OPTIONS \"" + option + "\"=\"" + o + "\"";
-            q += " | KEEP keyword, integer | SORT integer asc | LIMIT 10";
-            return requestObjectBuilder().query(q);
-        };
-
-        // test failure 404 from resolver
-        ResponseException e = expectThrows(ResponseException.class, () -> runEsql(builder.apply(false)));
-        assertEquals(404, e.getResponse().getStatusLine().getStatusCode());
-        assertThat(e.getMessage(), containsString("index_not_found_exception"));
-        assertThat(e.getMessage(), containsString("no such index [doesnotexist]"));
-
-        // test failure 400 from verifier
-        e = expectThrows(ResponseException.class, () -> runEsql(builder.apply(true)));
-        assertEquals(400, e.getResponse().getStatusLine().getStatusCode());
-        assertThat(e.getMessage(), containsString("verification_exception"));
-        assertThat(e.getMessage(), containsString("Unknown index [doesnotexist]"));
-
-    }
-
-    public void testSearchPreference() throws IOException {
-        final int count = randomIntBetween(1, 10);
-        bulkLoadTestData(count);
-
-        CheckedFunction<String, RequestObjectBuilder, IOException> builder = o -> {
-            String q = fromIndex();
-            if (Strings.hasText(o)) {
-                q += " OPTIONS " + o;
-            }
-            q += " | KEEP keyword, integer | SORT integer asc | LIMIT 10";
-            return requestObjectBuilder().query(q);
-        };
-
-        // verify that it returns as expected
-        assertEquals(expectedTextBody("txt", count, null), runEsqlAsTextWithFormat(builder.apply(null), "txt", null));
-
-        // returns nothing (0 for count), given the non-existing shard as preference
-        String option = "\"preference\"=\"_shards:666\"";
-        assertEquals(expectedTextBody("txt", 0, null), runEsqlAsTextWithFormat(builder.apply(option), "txt", null));
     }
 
     public void testNullInAggs() throws IOException {
@@ -700,10 +611,6 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         RequestOptions.Builder options = request.getOptions().toBuilder();
         options.setWarningsHandler(WarningsHandler.PERMISSIVE); // We assert the warnings ourselves
         options.addHeader("Content-Type", mediaType);
-        if ("true".equals(System.getProperty("tests.version_parameter_unsupported"))) {
-            // Masquerade as an old version of the official client, so we get the oldest version by default
-            options.addHeader("x-elastic-client-meta", "es=8.13");
-        }
 
         if (randomBoolean()) {
             options.addHeader("Accept", mediaType);
@@ -729,10 +636,6 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         RequestOptions.Builder options = request.getOptions().toBuilder();
         options.setWarningsHandler(WarningsHandler.PERMISSIVE); // We assert the warnings ourselves
         options.addHeader("Content-Type", mediaType);
-        if ("true".equals(System.getProperty("tests.version_parameter_unsupported"))) {
-            // Masquerade as an old version of the official client, so we get the oldest version by default
-            options.addHeader("x-elastic-client-meta", "es=8.13");
-        }
 
         if (randomBoolean()) {
             options.addHeader("Accept", mediaType);
@@ -1015,12 +918,8 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         return "[" + value + ", " + value + "]";
     }
 
-    public static RequestObjectBuilder requestObjectBuilder(String version) throws IOException {
-        return new RequestObjectBuilder().version(version);
-    }
-
     public static RequestObjectBuilder requestObjectBuilder() throws IOException {
-        return requestObjectBuilder(EsqlTestUtils.latestEsqlVersionOrSnapshot());
+        return new RequestObjectBuilder();
     }
 
     @After

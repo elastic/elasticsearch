@@ -370,3 +370,49 @@ version:version | name:keyword
            null | lllll
           5.2.9 | mmmmm
 ;
+
+implictCastingEqual
+required_feature: esql.string_literal_auto_casting_extended
+from apps | where version == "1.2.3.4" | sort name | keep name, version;
+
+name:keyword | version:version
+aaaaa        | 1.2.3.4
+hhhhh        | 1.2.3.4
+;
+
+implictCastingNotEqual
+required_feature: esql.string_literal_auto_casting_extended
+from apps | where version != "1.2.3.4" | sort name, version | keep name, version | limit 2;
+
+name:keyword | version:version
+aaaaa        | 1
+bbbbb        | 2.1
+;
+
+implictCastingGreaterThan
+required_feature: esql.string_literal_auto_casting_extended
+from apps | where version > "1.2.3.4" | sort name, version | keep name, version | limit 2;
+
+name:keyword | version:version
+bbbbb        | 2.1
+ccccc        | 2.3.4
+;
+
+implictCastingLessThanOrEqual
+required_feature: esql.string_literal_auto_casting_extended
+from apps | where version <= "1.2.3.4" | sort name, version | keep name, version | limit 2;
+
+name:keyword | version:version
+aaaaa        | 1
+aaaaa        | 1.2.3.4
+;
+
+implictCastingIn
+required_feature: esql.string_literal_auto_casting_extended
+from apps | where version in ( "1.2.3.4", "bad" ) | sort name | keep name, version;
+
+name:keyword | version:version
+aaaaa        | 1.2.3.4
+hhhhh        | 1.2.3.4
+iiiii        | bad
+;

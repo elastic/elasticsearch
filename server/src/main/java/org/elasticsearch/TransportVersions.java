@@ -133,6 +133,7 @@ public class TransportVersions {
     public static final TransportVersion INDEX_REQUEST_NORMALIZED_BYTES_PARSED = def(8_593_00_0);
     public static final TransportVersion INGEST_GRAPH_STRUCTURE_EXCEPTION = def(8_594_00_0);
     public static final TransportVersion ML_MODEL_IN_SERVICE_SETTINGS = def(8_595_00_0);
+    public static final TransportVersion SHUTDOWN_REQUEST_TIMEOUTS_FIX_8_13 = def(8_595_00_1);
     // 8.14.0+
     public static final TransportVersion RANDOM_AGG_SHARD_SEED = def(8_596_00_0);
     public static final TransportVersion ESQL_TIMINGS = def(8_597_00_0);
@@ -175,6 +176,7 @@ public class TransportVersions {
     public static final TransportVersion ML_INFERENCE_AZURE_OPENAI_EMBEDDINGS = def(8_634_00_0);
     public static final TransportVersion ILM_SHRINK_ENABLE_WRITE = def(8_635_00_0);
     public static final TransportVersion GEOIP_CACHE_STATS = def(8_636_00_0);
+    public static final TransportVersion SHUTDOWN_REQUEST_TIMEOUTS_FIX_8_14 = def(8_636_00_1);
 
     /*
      * STOP! READ THIS FIRST! No, really,
@@ -239,7 +241,7 @@ public class TransportVersions {
      * Reference to the minimum transport version that can be used with CCS.
      * This should be the transport version used by the previous minor release.
      */
-    public static final TransportVersion MINIMUM_CCS_VERSION = V_8_12_0;
+    public static final TransportVersion MINIMUM_CCS_VERSION = ML_MODEL_IN_SERVICE_SETTINGS;
 
     static final NavigableMap<Integer, TransportVersion> VERSION_IDS = getAllVersionIds(TransportVersions.class);
 

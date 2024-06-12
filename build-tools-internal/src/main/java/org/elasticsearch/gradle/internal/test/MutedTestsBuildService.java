@@ -13,7 +13,9 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 
+import org.gradle.api.file.RegularFile;
 import org.gradle.api.file.RegularFileProperty;
+import org.gradle.api.provider.ListProperty;
 import org.gradle.api.services.BuildService;
 import org.gradle.api.services.BuildServiceParameters;
 
@@ -28,17 +30,15 @@ import java.util.Collections;
 import java.util.List;
 
 public abstract class MutedTestsBuildService implements BuildService<MutedTestsBuildService.Params> {
-    private final List<String> excludePatterns;
+    private final List<String> excludePatterns = new ArrayList<>();
+    private final ObjectMapper objectMapper = new ObjectMapper(new YAMLFactory());
 
     public MutedTestsBuildService() {
         File infoPath = getParameters().getInfoPath().get().getAsFile();
         File mutedTestsFile = new File(infoPath, "muted-tests.yml");
-        try (InputStream is = new BufferedInputStream(new FileInputStream(mutedTestsFile))) {
-            ObjectMapper objectMapper = new ObjectMapper(new YAMLFactory());
-            List<MutedTest> mutedTests = objectMapper.readValue(is, MutedTests.class).getTests();
-            excludePatterns = buildExcludePatterns(mutedTests == null ? Collections.emptyList() : mutedTests);
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
+        excludePatterns.addAll(buildExcludePatterns(mutedTestsFile));
+        for (RegularFile regularFile : getParameters().getAdditionalFiles().get()) {
+            excludePatterns.addAll(buildExcludePatterns(regularFile.getAsFile()));
         }
     }
 
@@ -46,7 +46,18 @@ public abstract class MutedTestsBuildService implements BuildService<MutedTestsB
         return excludePatterns;
     }
 
-    private static List<String> buildExcludePatterns(List<MutedTest> mutedTests) {
+    private List<String> buildExcludePatterns(File file) {
+        List<MutedTest> mutedTests;
+
+        try (InputStream is = new BufferedInputStream(new FileInputStream(file))) {
+            mutedTests = objectMapper.readValue(is, MutedTests.class).getTests();
+            if (mutedTests == null) {
+                return Collections.emptyList();
+            }
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+
         List<String> excludes = new ArrayList<>();
         if (mutedTests.isEmpty() == false) {
             for (MutedTestsBuildService.MutedTest mutedTest : mutedTests) {
@@ -84,6 +95,8 @@ public abstract class MutedTestsBuildService implements BuildService<MutedTestsB
 
     public interface Params extends BuildServiceParameters {
         RegularFileProperty getInfoPath();
+
+        ListProperty<RegularFile> getAdditionalFiles();
     }
 
     public static class MutedTest {

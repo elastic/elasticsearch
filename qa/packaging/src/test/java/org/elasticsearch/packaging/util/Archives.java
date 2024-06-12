@@ -264,7 +264,7 @@ public class Archives {
             Locale.ROOT,
             """
                 expect - <<EXPECT
-                set timeout 60
+                set timeout 120
                 spawn -ignore HUP %s
                 %s
                 %s

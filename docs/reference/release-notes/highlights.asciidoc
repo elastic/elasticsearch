@@ -31,21 +31,48 @@ endif::[]
 // tag::notable-highlights[]
 
 [discrete]
-[[add_global_retention_in_data_stream_lifecycle]]
-=== Add global retention in data stream lifecycle
-Data stream lifecycle now supports configuring retention on a cluster level, namely global retention. Global retention 
-allows us to configure two different retentions:
+[[query_phase_knn_supports_query_vector_builder]]
+=== Query phase KNN now supports query_vector_builder
+It is now possible to pass `model_text` and `model_id` within a `knn` query
+in the https://www.elastic.co/guide/en/elasticsearch/reference/current/query-dsl-knn-query.html[query DSL] to convert a text query into a dense vector and run the
+nearest neighbor query on it, instead of requiring the dense vector to be
+directly passed (within the `query_vector` parameter). Similar to the
+https://www.elastic.co/guide/en/elasticsearch/reference/current/knn-search.html[top-level knn query] (executed in the DFS phase), it is possible to supply
+a `query_vector_builder` object containing a `text_embedding` object with
+`model_text` (the text query to be converted into a dense vector) and
+`model_id` (the identifier of a deployed model responsible for transforming
+the text query into a dense vector). Note that an embedding model with the
+referenced `model_id` needs to be https://www.elastic.co/guide/en/machine-learning/current/ml-nlp-deploy-models.html[deployed on a ML node].
+in the cluster.
 
-- `default_retention` is applied to all data streams managed by the data stream lifecycle that do not have retention
-defined on the data stream level.
-- `max_retention` is applied to all data streams managed by the data stream lifecycle and it allows any data stream 
-data to be deleted after the `max_retention` has passed.
+{es-pull}106068[#106068]
 
-Furthermore, we introduce the term `effective_retention` which is the retention applied at a certain moment to a data
-stream considering all the available retention configurations.
+[discrete]
+[[simd_neon_optimised_vector_distance_function_for_merging_int8_scalar_quantized_vectors_has_been_added]]
+=== A SIMD (Neon) optimised vector distance function for merging int8 Scalar Quantized vectors has been added
+An optimised int8 vector distance implementation for aarch64 has been added.
+This implementation is currently only used during merging.
+The vector distance implementation outperforms Lucene's Pamana Vector
+implementation for binary comparisons by approx 5x (depending on the number
+of dimensions). It does so by means of SIMD (Neon) intrinsics compiled into a
+separate native library and link by Panama's FFI. Comparisons are performed on
+off-heap mmap'ed vector data.
+Macro benchmarks, SO_Dense_Vector with scalar quantization enabled, shows
+significant improvements in merge times, approximately 3 times faster.
 
-{es-pull}105682[#105682]
+{es-pull}106133[#106133]
 
 // end::notable-highlights[]
 
+
+[discrete]
+[[preview_support_for_anonymous_ip_enterprise_databases_in_geoip_processor]]
+=== Preview: Support for the 'Anonymous IP' and 'Enterprise' databases in the geoip processor
+As a Technical Preview, the {ref}/geoip-processor.html[`geoip`] processor can now use the commercial
+https://www.maxmind.com/en/solutions/geoip2-enterprise-product-suite/enterprise-database[GeoIP2 'Enterprise']
+and
+https://www.maxmind.com/en/solutions/geoip2-enterprise-product-suite/anonymous-ip-database[GeoIP2 'Anonymous IP']
+databases from MaxMind.
+
+{es-pull}107377[#107377]
 

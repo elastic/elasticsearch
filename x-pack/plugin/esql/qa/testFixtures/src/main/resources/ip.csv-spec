@@ -432,3 +432,56 @@ required_feature: esql.agg_values
 [fe80::cae2:65ff:fece:feb9, fe80::cae2:65ff:fece:fec0, fe80::cae2:65ff:fece:fec1, fe81::cae2:65ff:fece:feb9, fe82::cae2:65ff:fece:fec0] | epsilon
 fe80::cae2:65ff:fece:feb9 | gamma
 ;
+
+implictCastingEqual
+required_feature: esql.string_literal_auto_casting_extended
+from hosts | where mv_first(ip0) == "127.0.0.1" | keep host, ip0;
+
+host:keyword | ip0:ip
+alpha        | 127.0.0.1
+beta         | 127.0.0.1
+beta         | 127.0.0.1
+beta         | 127.0.0.1
+;
+
+implictCastingNotEqual
+required_feature: esql.string_literal_auto_casting_extended
+from hosts | where mv_first(ip0) != "127.0.0.1" | keep host, ip0 | sort host, ip0 | limit 3;
+
+host:keyword | ip0:ip
+alpha        | ::1
+epsilon      | [fe80::cae2:65ff:fece:feb9, fe80::cae2:65ff:fece:fec0, fe80::cae2:65ff:fece:fec1]
+epsilon      | [fe81::cae2:65ff:fece:feb9, fe82::cae2:65ff:fece:fec0]
+;
+
+implictCastingGreaterThan
+required_feature: esql.string_literal_auto_casting_extended
+from hosts | where mv_first(ip0) > "127.0.0.1" | keep host, ip0 | sort host, ip0 | limit 3;
+
+host:keyword | ip0:ip
+epsilon      | [fe80::cae2:65ff:fece:feb9, fe80::cae2:65ff:fece:fec0, fe80::cae2:65ff:fece:fec1]
+epsilon      | [fe81::cae2:65ff:fece:feb9, fe82::cae2:65ff:fece:fec0]
+gamma        | fe80::cae2:65ff:fece:feb9
+;
+
+implictCastingLessThanOrEqual
+required_feature: esql.string_literal_auto_casting_extended
+from hosts | where mv_first(ip0) <= "127.0.0.1" | keep host, ip0 | sort host, ip0 | limit 3;
+
+host:keyword | ip0:ip
+alpha        | ::1
+alpha        | 127.0.0.1
+beta         | 127.0.0.1
+;
+
+implictCastingIn
+required_feature: esql.string_literal_auto_casting_extended
+from hosts | where mv_first(ip0) in ( "127.0.0.1", "::1") | keep host, ip0 | sort host, ip0;
+
+host:keyword | ip0:ip
+alpha        | ::1
+alpha        | 127.0.0.1
+beta         | 127.0.0.1
+beta         | 127.0.0.1
+beta         | 127.0.0.1
+;

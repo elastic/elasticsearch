@@ -119,7 +119,7 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
     public void testGetApiKeyRoleDescriptors() throws IOException {
         // First key without assigned role descriptors, i.e. it inherits owner user's permission
         // This can be achieved by either omitting the role_descriptors field in the request or
-        // explicitly set it to an empty object
+        // explicitly set it to an empty object.
         final Request createApiKeyRequest1 = new Request("POST", "_security/api_key");
         if (randomBoolean()) {
             createApiKeyRequest1.setJsonEntity("""
@@ -871,8 +871,7 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
               "access": {
                 "search": [
                   {
-                    "names": [ "metrics" ],
-                    "query": "{\\"term\\":{\\"score\\":42}}"
+                    "names": [ "metrics" ]
                   }
                 ],
                 "replication": [
@@ -937,7 +936,6 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
                                 RoleDescriptor.IndicesPrivileges.builder()
                                     .indices("metrics")
                                     .privileges("read", "read_cross_cluster", "view_index_metadata")
-                                    .query("{\"term\":{\"score\":42}}")
                                     .build(),
                                 RoleDescriptor.IndicesPrivileges.builder()
                                     .indices("logs")
@@ -957,7 +955,6 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
                     "names": [
                       "metrics"
                     ],
-                    "query": "{\\"term\\":{\\"score\\":42}}",
                     "allow_restricted_indices": false
                   }
                 ],
@@ -1233,6 +1230,67 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
             }""", "replication does not support document or field level security");
     }
 
+    public void testCrossClusterApiKeyDoesNotAllowDlsFlsForSearchWhenReplicationAssigned() throws IOException {
+        assertBadCreateCrossClusterApiKeyRequest("""
+            {
+              "name": "key",
+              "access": {
+                "search": [ {"names": ["logs"], "query":{"term": {"tag": 42}}} ],
+                "replication": [ {"names": ["logs"]} ]
+              }
+            }""", "search does not support document or field level security if replication is assigned");
+
+        assertBadCreateCrossClusterApiKeyRequest("""
+            {
+              "name": "key",
+              "access": {
+                "search": [ {"names": ["logs"], "field_security": {"grant": ["*"], "except": ["private"]}} ],
+                "replication": [ {"names": ["logs"]} ]
+              }
+            }""", "search does not support document or field level security if replication is assigned");
+
+        assertBadCreateCrossClusterApiKeyRequest("""
+            {
+              "name": "key",
+              "access": {
+                "search": [ {
+                  "names": ["logs"],
+                  "query": {"term": {"tag": 42}},
+                  "field_security": {"grant": ["*"], "except": ["private"]}
+                 } ],
+                 "replication": [ {"names": ["logs"]} ]
+              }
+            }""", "search does not support document or field level security if replication is assigned");
+
+        assertBadUpdateCrossClusterApiKeyRequest("""
+            {
+              "access": {
+                "search": [ {"names": ["logs"], "query":{"term": {"tag": 42}}} ],
+                "replication": [ {"names": ["logs"]} ]
+              }
+            }""", "search does not support document or field level security if replication is assigned");
+
+        assertBadUpdateCrossClusterApiKeyRequest("""
+            {
+              "access": {
+                "search": [ {"names": ["logs"], "field_security": {"grant": ["*"], "except": ["private"]}} ],
+                "replication": [ {"names": ["logs"]} ]
+              }
+            }""", "search does not support document or field level security if replication is assigned");
+
+        assertBadUpdateCrossClusterApiKeyRequest("""
+            {
+              "access": {
+                "search": [ {
+                  "names": ["logs"],
+                  "query": {"term": {"tag": 42}},
+                  "field_security": {"grant": ["*"], "except": ["private"]}
+                 } ],
+                 "replication": [ {"names": ["logs"]} ]
+              }
+            }""", "search does not support document or field level security if replication is assigned");
+    }
+
     public void testCrossClusterApiKeyRequiresName() throws IOException {
         assertBadCreateCrossClusterApiKeyRequest("""
             {
@@ -1266,8 +1324,7 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
               "access": {
                 "search": [
                   {
-                    "names": [ "data" ],
-                    "query": "{\\"term\\":{\\"score\\":42}}"
+                    "names": [ "data" ]
                   }
                 ],
                 "replication": [
@@ -1289,7 +1346,6 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices("data")
                     .privileges("read", "read_cross_cluster", "view_index_metadata")
-                    .query("{\"term\":{\"score\":42}}")
                     .build(),
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices("logs")
@@ -1309,7 +1365,6 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
               "search": [
                 {
                   "names": [ "data" ],
-                  "query": "{\\"term\\":{\\"score\\":42}}",
                   "allow_restricted_indices": false
                 }
               ],
@@ -1773,6 +1828,16 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
         createRequest.setJsonEntity(body);
         setUserForRequest(createRequest, MANAGE_SECURITY_USER, END_USER_PASSWORD);
         final ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(createRequest));
+        assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(400));
+        assertThat(e.getMessage(), containsString(expectedErrorMessage));
+    }
+
+    private void assertBadUpdateCrossClusterApiKeyRequest(String body, String expectedErrorMessage) throws IOException {
+        // doesn't matter that `id` does not exist: validation happens before that check
+        final Request request = new Request("PUT", "/_security/cross_cluster/api_key/id");
+        request.setJsonEntity(body);
+        setUserForRequest(request, MANAGE_SECURITY_USER, END_USER_PASSWORD);
+        final ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(request));
         assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(400));
         assertThat(e.getMessage(), containsString(expectedErrorMessage));
     }

@@ -292,10 +292,14 @@ public record TimeSeriesSortedSourceOperatorFactory(
                             queue.pop();
                             newTop = queue.size() > 0 ? queue.top() : null;
                         }
-                        if (newTop != null && newTop.timeSeriesHash.equals(currentTsid) == false) {
-                            newTop.reinitializeIfNeeded(Thread.currentThread());
-                            globalTsidOrd++;
-                            currentTsid = BytesRef.deepCopyOf(newTop.timeSeriesHash);
+                        if (newTop != null) {
+                            if (newTop != leaf) {
+                                newTop.reinitializeIfNeeded(Thread.currentThread());
+                            }
+                            if (newTop.timeSeriesHash.equals(currentTsid) == false) {
+                                globalTsidOrd++;
+                                currentTsid = BytesRef.deepCopyOf(newTop.timeSeriesHash);
+                            }
                         }
                     }
                 } else {

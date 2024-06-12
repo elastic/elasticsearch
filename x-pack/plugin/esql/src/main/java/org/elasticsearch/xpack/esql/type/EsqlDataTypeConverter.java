@@ -242,8 +242,8 @@ public class EsqlDataTypeConverter {
         return new Version(field.utf8ToString()).toBytesRef();
     }
 
-    public static Version stringToVersion(String field) {
-        return new Version(field);
+    public static BytesRef stringToVersion(String field) {
+        return new Version(field).toBytesRef();
     }
 
     public static String versionToString(BytesRef field) {

@@ -46,7 +46,6 @@ import org.elasticsearch.xpack.ql.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.ql.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.ql.expression.UnresolvedStar;
 import org.elasticsearch.xpack.ql.expression.function.UnresolvedFunction;
-import org.elasticsearch.xpack.ql.options.EsSourceOptions;
 import org.elasticsearch.xpack.ql.parser.ParserUtils;
 import org.elasticsearch.xpack.ql.plan.TableIdentifier;
 import org.elasticsearch.xpack.ql.plan.logical.Filter;
@@ -76,6 +75,13 @@ import static org.elasticsearch.xpack.ql.parser.ParserUtils.visitList;
 
 public class LogicalPlanBuilder extends ExpressionBuilder {
 
+    private int queryDepth = 0;
+
+    /**
+     * Maximum number of commands allowed per query
+     */
+    public static final int MAX_QUERY_DEPTH = 500;
+
     public LogicalPlanBuilder(Map<Token, TypedParamValue> params) {
         super(params);
     }
@@ -95,9 +101,21 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
     @Override
     public LogicalPlan visitCompositeQuery(EsqlBaseParser.CompositeQueryContext ctx) {
-        LogicalPlan input = plan(ctx.query());
-        PlanFactory makePlan = typedParsing(this, ctx.processingCommand(), PlanFactory.class);
-        return makePlan.apply(input);
+        queryDepth++;
+        if (queryDepth > MAX_QUERY_DEPTH) {
+            throw new ParsingException(
+                "ESQL statement exceeded the maximum query depth allowed ({}): [{}]",
+                MAX_QUERY_DEPTH,
+                ctx.getText()
+            );
+        }
+        try {
+            LogicalPlan input = plan(ctx.query());
+            PlanFactory makePlan = typedParsing(this, ctx.processingCommand(), PlanFactory.class);
+            return makePlan.apply(input);
+        } finally {
+            queryDepth--;
+        }
     }
 
     @Override
@@ -215,21 +233,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                 }
             }
         }
-        EsSourceOptions esSourceOptions = new EsSourceOptions();
-        if (ctx.fromOptions() != null) {
-            for (var o : ctx.fromOptions().configOption()) {
-                var nameContext = o.string().get(0);
-                String name = visitString(nameContext).fold().toString();
-                String value = visitString(o.string().get(1)).fold().toString();
-                try {
-                    esSourceOptions.addOption(name, value);
-                } catch (IllegalArgumentException iae) {
-                    var cause = iae.getCause() != null ? ". " + iae.getCause().getMessage() : "";
-                    throw new ParsingException(iae, source(nameContext), "invalid options provided: " + iae.getMessage() + cause);
-                }
-            }
-        }
-        return new EsqlUnresolvedRelation(source, table, Arrays.asList(metadataMap.values().toArray(Attribute[]::new)), esSourceOptions);
+        return new EsqlUnresolvedRelation(source, table, Arrays.asList(metadataMap.values().toArray(Attribute[]::new)));
     }
 
     @Override

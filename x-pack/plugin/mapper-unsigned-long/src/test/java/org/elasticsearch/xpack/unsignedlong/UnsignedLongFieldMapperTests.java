@@ -447,7 +447,9 @@ public class UnsignedLongFieldMapperTests extends WholeNumberFieldMapperTests {
             List<Object> outList = Stream.concat(outputFromDocValues.stream(), malformedOutput).toList();
             Object out = outList.size() == 1 ? outList.get(0) : outList;
 
-            return new SyntheticSourceExample(in, out, outputFromDocValues, this::mapping);
+            Object outBlock = outputFromDocValues.size() == 1 ? outputFromDocValues.get(0) : outputFromDocValues;
+
+            return new SyntheticSourceExample(in, out, outBlock, this::mapping);
         }
 
         private record Value(Object input, BigInteger output, Object malformedOutput) {}

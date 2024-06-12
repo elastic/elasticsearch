@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.optimizer;
 
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.compute.data.Block;
@@ -66,6 +65,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.CombineDisjunctionsToIn;
 import org.elasticsearch.xpack.esql.optimizer.rules.CombineEvals;
 import org.elasticsearch.xpack.esql.optimizer.rules.CombineProjections;
 import org.elasticsearch.xpack.esql.optimizer.rules.ConstantFolding;
+import org.elasticsearch.xpack.esql.optimizer.rules.ConvertStringToByteRef;
 import org.elasticsearch.xpack.esql.optimizer.rules.LiteralsOnTheRight;
 import org.elasticsearch.xpack.esql.optimizer.rules.PropagateEquals;
 import org.elasticsearch.xpack.esql.optimizer.rules.PruneFilters;
@@ -367,36 +367,6 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
                 var newOrderBy = new OrderBy(orderBy.source(), new Eval(orderBy.source(), orderBy.child(), evals), newOrders);
                 return new Project(orderBy.source(), newOrderBy, orderBy.output());
             }
-        }
-    }
-
-    static class ConvertStringToByteRef extends OptimizerRules.OptimizerExpressionRule<Literal> {
-
-        ConvertStringToByteRef() {
-            super(TransformDirection.UP);
-        }
-
-        @Override
-        protected Expression rule(Literal lit) {
-            Object value = lit.value();
-
-            if (value == null) {
-                return lit;
-            }
-            if (value instanceof String s) {
-                return Literal.of(lit, new BytesRef(s));
-            }
-            if (value instanceof List<?> l) {
-                if (l.isEmpty() || false == l.get(0) instanceof String) {
-                    return lit;
-                }
-                List<BytesRef> byteRefs = new ArrayList<>(l.size());
-                for (Object v : l) {
-                    byteRefs.add(new BytesRef(v.toString()));
-                }
-                return Literal.of(lit, byteRefs);
-            }
-            return lit;
         }
     }
 

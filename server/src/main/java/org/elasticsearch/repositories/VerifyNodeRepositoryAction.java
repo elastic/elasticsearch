@@ -17,6 +17,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.tasks.Task;
@@ -39,6 +40,7 @@ public class VerifyNodeRepositoryAction extends ActionType<ActionResponse.Empty>
         private final ClusterService clusterService;
         private final RepositoriesService repositoriesService;
 
+        @Inject
         public TransportAction(
             TransportService transportService,
             ActionFilters actionFilters,

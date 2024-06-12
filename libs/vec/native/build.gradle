@@ -6,14 +6,15 @@
  * Side Public License, v 1.
  */
 apply plugin: 'c'
+apply plugin: 'cpp'
 
 var os = org.gradle.internal.os.OperatingSystem.current()
 
 // To update this library run publish_vec_binaries.sh  ( or ./gradlew vecSharedLibrary )
 // Or
 // For local development, build the docker image with:
-//   docker build --platform linux/arm64 --progress=plain . (for aarch64)
-//   docker build --platform linux/amd64 --progress=plain . (for x64)
+//   docker build --platform linux/arm64 --progress=plain --file=Dockerfile.aarch64 . (for aarch64)
+//   docker build --platform linux/amd64 --progress=plain --file=Dockerfile.amd64 . (for x64)
 // Grab the image id from the console output, then, e.g.
 //   docker run 9c9f36564c148b275aeecc42749e7b4580ded79dcf51ff6ccc008c8861e7a979 > build/libs/vec/shared/$arch/libvec.so
 //
@@ -51,6 +52,8 @@ model {
       target("amd64") {
         cCompiler.executable = "/usr/bin/gcc"
         cCompiler.withArguments { args -> args.addAll(["-O3", "-std=c99", "-march=core-avx2", "-Wno-incompatible-pointer-types"]) }
+        cppCompiler.executable = "/usr/bin/g++"
+        cppCompiler.withArguments { args -> args.addAll(["-O3", "-march=core-avx2"]) }
       }
     }
     cl(VisualCpp) {
@@ -68,6 +71,7 @@ model {
 
       target("amd64") {
         cCompiler.withArguments { args -> args.addAll(["-O3", "-std=c99", "-march=core-avx2"]) }
+        cppCompiler.withArguments { args -> args.addAll(["-O3", "-march=core-avx2"]) }
       }
     }
   }
@@ -81,6 +85,15 @@ model {
           source {
             srcDir "src/vec/c/${platformName}/"
             include "*.c"
+          }
+          exportedHeaders {
+            srcDir "src/vec/headers/"
+          }
+        }
+        cpp {
+          source {
+            srcDir "src/vec/c/${platformName}/"
+            include "*.cpp"
           }
           exportedHeaders {
             srcDir "src/vec/headers/"

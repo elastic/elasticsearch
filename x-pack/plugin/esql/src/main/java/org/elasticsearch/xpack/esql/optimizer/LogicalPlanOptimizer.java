@@ -78,6 +78,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.RemoveStatsOverride;
 import org.elasticsearch.xpack.esql.optimizer.rules.ReplaceAliasingEvalWithProject;
 import org.elasticsearch.xpack.esql.optimizer.rules.ReplaceLimitAndSortAsTopN;
 import org.elasticsearch.xpack.esql.optimizer.rules.ReplaceLookupWithJoin;
+import org.elasticsearch.xpack.esql.optimizer.rules.ReplaceOrderByExpressionWithEval;
 import org.elasticsearch.xpack.esql.optimizer.rules.SetAsOptimized;
 import org.elasticsearch.xpack.esql.optimizer.rules.SimplifyComparisonsArithmetics;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
@@ -101,7 +102,6 @@ import static java.util.Arrays.asList;
 import static java.util.Collections.singleton;
 import static org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules.TransformDirection;
 import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputExpressions;
-import static org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer.SubstituteSurrogates.rawTemporaryName;
 
 public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan, LogicalOptimizerContext> {
 
@@ -199,7 +199,7 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
     }
 
     // TODO: currently this rule only works for aggregate functions (AVG)
-    static class SubstituteSurrogates extends OptimizerRules.OptimizerRule<Aggregate> {
+    public static class SubstituteSurrogates extends OptimizerRules.OptimizerRule<Aggregate> {
 
         SubstituteSurrogates() {
             super(TransformDirection.UP);
@@ -301,7 +301,7 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             return rawTemporaryName(in, out, String.valueOf(suffix));
         }
 
-        static String rawTemporaryName(String inner, String outer, String suffix) {
+        public static String rawTemporaryName(String inner, String outer, String suffix) {
             return "$$" + inner + "$" + outer + "$" + suffix;
         }
 
@@ -336,35 +336,6 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
         @Override
         protected SpatialRelatesFunction rule(SpatialRelatesFunction function) {
             return function.surrogate();
-        }
-    }
-
-    static class ReplaceOrderByExpressionWithEval extends OptimizerRules.OptimizerRule<OrderBy> {
-        private static int counter = 0;
-
-        @Override
-        protected LogicalPlan rule(OrderBy orderBy) {
-            int size = orderBy.order().size();
-            List<Alias> evals = new ArrayList<>(size);
-            List<Order> newOrders = new ArrayList<>(size);
-
-            for (int i = 0; i < size; i++) {
-                var order = orderBy.order().get(i);
-                if (order.child() instanceof Attribute == false) {
-                    var name = rawTemporaryName("order_by", String.valueOf(i), String.valueOf(counter++));
-                    var eval = new Alias(order.child().source(), name, order.child());
-                    newOrders.add(order.replaceChildren(List.of(eval.toAttribute())));
-                    evals.add(eval);
-                } else {
-                    newOrders.add(order);
-                }
-            }
-            if (evals.isEmpty()) {
-                return orderBy;
-            } else {
-                var newOrderBy = new OrderBy(orderBy.source(), new Eval(orderBy.source(), orderBy.child(), evals), newOrders);
-                return new Project(orderBy.source(), newOrderBy, orderBy.output());
-            }
         }
     }
 

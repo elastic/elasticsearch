@@ -70,6 +70,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.PropagateEquals;
 import org.elasticsearch.xpack.esql.optimizer.rules.PropagateEvalFoldables;
 import org.elasticsearch.xpack.esql.optimizer.rules.PropagateNullable;
 import org.elasticsearch.xpack.esql.optimizer.rules.PruneColumns;
+import org.elasticsearch.xpack.esql.optimizer.rules.PruneEmptyPlans;
 import org.elasticsearch.xpack.esql.optimizer.rules.PruneFilters;
 import org.elasticsearch.xpack.esql.optimizer.rules.PruneLiteralsInOrderBy;
 import org.elasticsearch.xpack.esql.optimizer.rules.SetAsOptimized;
@@ -465,14 +466,6 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
         @Override
         protected LogicalPlan skipPlan(Limit limit) {
             return LogicalPlanOptimizer.skipPlan(limit);
-        }
-    }
-
-    static class PruneEmptyPlans extends OptimizerRules.OptimizerRule<UnaryPlan> {
-
-        @Override
-        protected LogicalPlan rule(UnaryPlan plan) {
-            return plan.output().isEmpty() ? skipPlan(plan) : plan;
         }
     }
 

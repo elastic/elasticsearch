@@ -107,6 +107,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Les
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.esql.optimizer.rules.LiteralsOnTheRight;
 import org.elasticsearch.xpack.esql.optimizer.rules.PushDownAndCombineFilters;
+import org.elasticsearch.xpack.esql.optimizer.rules.PushDownAndCombineLimits;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
@@ -705,7 +706,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var anotherLimit = new Limit(EMPTY, L(limitValues[secondLimit]), oneLimit);
         assertEquals(
             new Limit(EMPTY, L(Math.min(limitValues[0], limitValues[1])), emptySource()),
-            new LogicalPlanOptimizer.PushDownAndCombineLimits().rule(anotherLimit)
+            new PushDownAndCombineLimits().rule(anotherLimit)
         );
     }
 

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.security.support;
 
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.ExistsQueryBuilder;
@@ -60,9 +61,10 @@ public final class FieldNameTranslators {
         List.of(
             new ExactFieldNameTranslator("username", "username"),
             new ExactFieldNameTranslator("roles", "roles"),
-            new ExactFieldNameTranslator("full_name", "full_name"),
-            new ExactFieldNameTranslator("email", "email"),
-            new ExactFieldNameTranslator("enabled", "enabled")
+            new ExactFieldNameTranslator("enabled", "enabled"),
+            // the mapping for these fields does not support sorting
+            new ExactFieldNameTranslator("full_name", "full_name", false),
+            new ExactFieldNameTranslator("email", "email", false)
         )
     );
 
@@ -252,7 +254,7 @@ public final class FieldNameTranslators {
             if (FieldSortBuilder.DOC_FIELD_NAME.equals(fieldSortBuilder.getFieldName())) {
                 searchSourceBuilder.sort(fieldSortBuilder);
             } else {
-                final String translatedFieldName = translate(fieldSortBuilder.getFieldName());
+                final String translatedFieldName = translate(fieldSortBuilder.getFieldName(), true);
                 fieldNameVisitor.accept(translatedFieldName);
                 if (translatedFieldName.equals(fieldSortBuilder.getFieldName())) {
                     searchSourceBuilder.sort(fieldSortBuilder);
@@ -284,12 +286,23 @@ public final class FieldNameTranslators {
      * It throws an exception if the field name is not explicitly allowed.
      */
     public String translate(String queryFieldName) {
+        return translate(queryFieldName, false);
+    }
+
+    /**
+     * Translate the query level field name to index level field names.
+     * It throws an exception if the field name is not explicitly allowed.
+     */
+    private String translate(String queryFieldName, boolean inSortContext) {
         // protected for testing
         if (Regex.isSimpleMatchPattern(queryFieldName)) {
             throw new IllegalArgumentException("Field name pattern [" + queryFieldName + "] is not allowed for querying or aggregation");
         }
         for (FieldNameTranslator translator : fieldNameTranslators) {
             if (translator.isQueryFieldSupported(queryFieldName)) {
+                if (inSortContext && translator.isSortSupported() == false) {
+                    throw new IllegalArgumentException(Strings.format("sorting is not supported for field [%s]", queryFieldName));
+                }
                 return translator.translate(queryFieldName);
             }
         }
@@ -327,15 +340,23 @@ public final class FieldNameTranslators {
         boolean isQueryFieldSupported(String fieldName);
 
         boolean isIndexFieldSupported(String fieldName);
+
+        boolean isSortSupported();
     }
 
     private static class ExactFieldNameTranslator implements FieldNameTranslator {
         private final String indexFieldName;
         private final String queryFieldName;
+        private final boolean isSortSupported;
 
-        ExactFieldNameTranslator(String indexFieldName, String queryFieldName) {
+        ExactFieldNameTranslator(String indexFieldName, String queryFieldName, boolean isSortSupported) {
             this.indexFieldName = indexFieldName;
             this.queryFieldName = queryFieldName;
+            this.isSortSupported = isSortSupported;
+        }
+
+        ExactFieldNameTranslator(String indexFieldName, String queryFieldName) {
+            this(indexFieldName, queryFieldName, true);
         }
 
         @Override
@@ -355,6 +376,11 @@ public final class FieldNameTranslators {
         @Override
         public String translate(String fieldNameOrPattern) {
             return indexFieldName;
+        }
+
+        @Override
+        public boolean isSortSupported() {
+            return isSortSupported;
         }
     }
 
@@ -393,6 +419,11 @@ public final class FieldNameTranslators {
                 assert fieldNameOrPattern.startsWith(queryFieldName + ".");
                 return indexFieldName + fieldNameOrPattern.substring(queryFieldName.length());
             }
+        }
+
+        @Override
+        public boolean isSortSupported() {
+            return true;
         }
     }
 }

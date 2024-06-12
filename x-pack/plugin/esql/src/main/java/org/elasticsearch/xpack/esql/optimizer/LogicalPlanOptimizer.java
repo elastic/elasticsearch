@@ -66,6 +66,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.CombineEvals;
 import org.elasticsearch.xpack.esql.optimizer.rules.CombineProjections;
 import org.elasticsearch.xpack.esql.optimizer.rules.ConstantFolding;
 import org.elasticsearch.xpack.esql.optimizer.rules.ConvertStringToByteRef;
+import org.elasticsearch.xpack.esql.optimizer.rules.DuplicateLimitAfterMvExpand;
 import org.elasticsearch.xpack.esql.optimizer.rules.LiteralsOnTheRight;
 import org.elasticsearch.xpack.esql.optimizer.rules.PropagateEquals;
 import org.elasticsearch.xpack.esql.optimizer.rules.PruneFilters;
@@ -470,92 +471,6 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
                 }
             }
             return null;
-        }
-    }
-
-    static class DuplicateLimitAfterMvExpand extends OptimizerRules.OptimizerRule<Limit> {
-
-        @Override
-        protected LogicalPlan rule(Limit limit) {
-            var child = limit.child();
-            var shouldSkip = child instanceof Eval
-                || child instanceof Project
-                || child instanceof RegexExtract
-                || child instanceof Enrich
-                || child instanceof Limit;
-
-            if (shouldSkip == false && child instanceof UnaryPlan unary) {
-                MvExpand mvExpand = descendantMvExpand(unary);
-                if (mvExpand != null) {
-                    Limit limitBeforeMvExpand = limitBeforeMvExpand(mvExpand);
-                    // if there is no "appropriate" limit before mv_expand, then push down a copy of the one after it so that:
-                    // - a possible TopN is properly built as low as possible in the tree (closed to Lucene)
-                    // - the input of mv_expand is as small as possible before it is expanded (less rows to inflate and occupy memory)
-                    if (limitBeforeMvExpand == null) {
-                        var duplicateLimit = new Limit(limit.source(), limit.limit(), mvExpand.child());
-                        return limit.replaceChild(propagateDuplicateLimitUntilMvExpand(duplicateLimit, mvExpand, unary));
-                    }
-                }
-            }
-            return limit;
-        }
-
-        private static MvExpand descendantMvExpand(UnaryPlan unary) {
-            UnaryPlan plan = unary;
-            AttributeSet filterReferences = new AttributeSet();
-            while (plan instanceof Aggregate == false) {
-                if (plan instanceof MvExpand mve) {
-                    // don't return the mv_expand that has a filter after it which uses the expanded values
-                    // since this will trigger the use of a potentially incorrect (too restrictive) limit further down in the tree
-                    if (filterReferences.isEmpty() == false) {
-                        if (filterReferences.contains(mve.target()) // the same field or reference attribute is used in mv_expand AND filter
-                            || mve.target() instanceof ReferenceAttribute // or the mv_expand attr hasn't yet been resolved to a field attr
-                            // or not all filter references have been resolved to field attributes
-                            || filterReferences.stream().anyMatch(ref -> ref instanceof ReferenceAttribute)) {
-                            return null;
-                        }
-                    }
-                    return mve;
-                } else if (plan instanceof Filter filter) {
-                    // gather all the filters' references to be checked later when a mv_expand is found
-                    filterReferences.addAll(filter.references());
-                } else if (plan instanceof OrderBy) {
-                    // ordering after mv_expand COULD break the order of the results, so the limit shouldn't be copied past mv_expand
-                    // something like from test | sort emp_no | mv_expand job_positions | sort first_name | limit 5
-                    // (the sort first_name likely changes the order of the docs after sort emp_no, so "limit 5" shouldn't be copied down
-                    return null;
-                }
-
-                if (plan.child() instanceof UnaryPlan unaryPlan) {
-                    plan = unaryPlan;
-                } else {
-                    break;
-                }
-            }
-            return null;
-        }
-
-        private static Limit limitBeforeMvExpand(MvExpand mvExpand) {
-            UnaryPlan plan = mvExpand;
-            while (plan instanceof Aggregate == false) {
-                if (plan instanceof Limit limit) {
-                    return limit;
-                }
-                if (plan.child() instanceof UnaryPlan unaryPlan) {
-                    plan = unaryPlan;
-                } else {
-                    break;
-                }
-            }
-            return null;
-        }
-
-        private LogicalPlan propagateDuplicateLimitUntilMvExpand(Limit duplicateLimit, MvExpand mvExpand, UnaryPlan child) {
-            if (child == mvExpand) {
-                return mvExpand.replaceChild(duplicateLimit);
-            } else {
-                return child.replaceChild(propagateDuplicateLimitUntilMvExpand(duplicateLimit, mvExpand, (UnaryPlan) child.child()));
-            }
         }
     }
 

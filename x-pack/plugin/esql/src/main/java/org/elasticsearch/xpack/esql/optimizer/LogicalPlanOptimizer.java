@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.optimizer;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.VerificationException;
@@ -49,7 +48,6 @@ import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
-import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.grouping.GroupingFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.AbstractConvertFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
@@ -68,6 +66,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.DuplicateLimitAfterMvExpand;
 import org.elasticsearch.xpack.esql.optimizer.rules.FoldNull;
 import org.elasticsearch.xpack.esql.optimizer.rules.LiteralsOnTheRight;
 import org.elasticsearch.xpack.esql.optimizer.rules.PartiallyFoldCase;
+import org.elasticsearch.xpack.esql.optimizer.rules.PropagateEmptyRelation;
 import org.elasticsearch.xpack.esql.optimizer.rules.PropagateEquals;
 import org.elasticsearch.xpack.esql.optimizer.rules.PruneFilters;
 import org.elasticsearch.xpack.esql.optimizer.rules.PruneLiteralsInOrderBy;
@@ -526,56 +525,11 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
         }
     }
 
-    @SuppressWarnings("removal")
-    static class PropagateEmptyRelation extends OptimizerRules.OptimizerRule<UnaryPlan> {
-
-        @Override
-        protected LogicalPlan rule(UnaryPlan plan) {
-            LogicalPlan p = plan;
-            if (plan.child() instanceof LocalRelation local && local.supplier() == LocalSupplier.EMPTY) {
-                // only care about non-grouped aggs might return something (count)
-                if (plan instanceof Aggregate agg && agg.groupings().isEmpty()) {
-                    List<Block> emptyBlocks = aggsFromEmpty(agg.aggregates());
-                    p = skipPlan(plan, LocalSupplier.of(emptyBlocks.toArray(Block[]::new)));
-                } else {
-                    p = skipPlan(plan);
-                }
-            }
-            return p;
-        }
-
-        private List<Block> aggsFromEmpty(List<? extends NamedExpression> aggs) {
-            List<Block> blocks = new ArrayList<>();
-            var blockFactory = PlannerUtils.NON_BREAKING_BLOCK_FACTORY;
-            int i = 0;
-            for (var agg : aggs) {
-                // there needs to be an alias
-                if (Alias.unwrap(agg) instanceof AggregateFunction aggFunc) {
-                    aggOutput(agg, aggFunc, blockFactory, blocks);
-                } else {
-                    throw new EsqlIllegalArgumentException("Did not expect a non-aliased aggregation {}", agg);
-                }
-            }
-            return blocks;
-        }
-
-        /**
-         * The folded aggregation output - this variant is for the coordinator/final.
-         */
-        protected void aggOutput(NamedExpression agg, AggregateFunction aggFunc, BlockFactory blockFactory, List<Block> blocks) {
-            // look for count(literal) with literal != null
-            Object value = aggFunc instanceof Count count && (count.foldable() == false || count.fold() != null) ? 0L : null;
-            var wrapper = BlockUtils.wrapperFor(blockFactory, PlannerUtils.toElementType(aggFunc.dataType()), 1);
-            wrapper.accept(value);
-            blocks.add(wrapper.builder().build());
-        }
-    }
-
     public static LogicalPlan skipPlan(UnaryPlan plan) {
         return new LocalRelation(plan.source(), plan.output(), LocalSupplier.EMPTY);
     }
 
-    private static LogicalPlan skipPlan(UnaryPlan plan, LocalSupplier supplier) {
+    public static LogicalPlan skipPlan(UnaryPlan plan, LocalSupplier supplier) {
         return new LocalRelation(plan.source(), plan.output(), supplier);
     }
 

@@ -19,16 +19,8 @@ dependencies {
   testImplementation project(':modules:data-streams')
   javaRestTestImplementation(testArtifact(project(xpackModule('core'))))
   javaRestTestImplementation project(path: ':x-pack:plugin:stack')
-  clusterModules project(xpackModule('wildcard'))
   clusterModules project(':modules:mapper-extras')
-  clusterModules project(':modules:data-streams')
-  clusterModules project(xpackModule('mapper-constant-keyword'))
-  clusterModules project(xpackModule('stack'))
-  clusterModules project(xpackModule('mapper-aggregate-metric'))
-}
-
-tasks.named('javaRestTest') {
-  usesDefaultDistribution()
+  clusterModules project(xpackModule('wildcard'))
 }
 
 // These tests are only invoked direclty as part of a dedicated build job

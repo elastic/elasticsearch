@@ -2,5 +2,5 @@ pr: 109506
 summary: Support synthetic source for `scaled_float` and `unsigned_long` when `ignore_malformed`
   is used
 area: Mapping
-type: feature
+type: enhancement
 issues: []

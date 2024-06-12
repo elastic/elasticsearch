@@ -56,6 +56,7 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.net.URISyntaxException;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -865,7 +866,15 @@ public class AzureAiStudioServiceTests extends ESTestCase {
                 0.0123,
                 -0.0123
                 ]
-                }
+                },
+                {
+                "object": "embedding",
+                "index": 1,
+                "embedding": [
+                0.0223,
+                -0.0223
+                ]
+                },
                 ],
                 "model": "text-embedding-ada-002-v2",
                 "usage": {
@@ -892,7 +901,7 @@ public class AzureAiStudioServiceTests extends ESTestCase {
             PlainActionFuture<List<ChunkedInferenceServiceResults>> listener = new PlainActionFuture<>();
             service.chunkedInfer(
                 model,
-                List.of("abc"),
+                List.of("abc", "def"),
                 new HashMap<>(),
                 InputType.INGEST,
                 new ChunkingOptions(null, null),
@@ -900,20 +909,21 @@ public class AzureAiStudioServiceTests extends ESTestCase {
                 listener
             );
 
-            var result = listener.actionGet(TIMEOUT).get(0);
-            assertThat(result, CoreMatchers.instanceOf(InferenceChunkedTextEmbeddingFloatResults.class));
+            var results = listener.actionGet(TIMEOUT);
+            assertThat(results, hasSize(2));
+            {
+                assertThat(results.get(0), CoreMatchers.instanceOf(InferenceChunkedTextEmbeddingFloatResults.class));
+                var floatResult = (InferenceChunkedTextEmbeddingFloatResults) results.get(0);
+                assertThat(floatResult.chunks(), hasSize(1));
+                assertArrayEquals(new float[]{0.123f, -0.123f}, floatResult.chunks().get(0).embedding(), 0.0f);
+            }
+            {
+                assertThat(results.get(1), CoreMatchers.instanceOf(InferenceChunkedTextEmbeddingFloatResults.class));
+                var floatResult = (InferenceChunkedTextEmbeddingFloatResults) results.get(1);
+                assertThat(floatResult.chunks(), hasSize(1));
+                assertArrayEquals(new float[]{0.223f, -0.223f}, floatResult.chunks().get(0).embedding(), 0.0f);
+            }
 
-            assertThat(
-                asMapWithListsInsteadOfArrays((InferenceChunkedTextEmbeddingFloatResults) result),
-                Matchers.is(
-                    Map.of(
-                        InferenceChunkedTextEmbeddingFloatResults.FIELD_NAME,
-                        List.of(
-                            Map.of(ChunkedNlpInferenceResults.TEXT, "abc", ChunkedNlpInferenceResults.INFERENCE, List.of(0.0123f, -0.0123f))
-                        )
-                    )
-                )
-            );
             assertThat(webServer.requests(), hasSize(1));
             assertNull(webServer.requests().get(0).getUri().getQuery());
             assertThat(webServer.requests().get(0).getHeader(HttpHeaders.CONTENT_TYPE), equalTo(XContentType.JSON.mediaType()));
@@ -921,7 +931,7 @@ public class AzureAiStudioServiceTests extends ESTestCase {
 
             var requestMap = entityAsMap(webServer.requests().get(0).getBody());
             assertThat(requestMap.size(), Matchers.is(2));
-            assertThat(requestMap.get("input"), Matchers.is(List.of("abc")));
+            assertThat(requestMap.get("input"), Matchers.is(List.of("abc", "def")));
             assertThat(requestMap.get("user"), Matchers.is("user"));
         }
     }

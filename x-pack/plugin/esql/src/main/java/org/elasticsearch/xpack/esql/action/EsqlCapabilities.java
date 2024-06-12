@@ -58,11 +58,14 @@ public class EsqlCapabilities {
     private static final String LOOKUP_COMMAND = "lookup_command";
 
     /**
+     * Support for the syntax {@code "tables": {"type": [<values>]}}.
+     */
+    private static final String TABLES_TYPES = "tables_types";
+
+    /**
      * Support for requesting the "REPEAT" command.
      */
     private static final String REPEAT = "repeat";
-
-    public static final Set<String> CAPABILITIES = capabilities();
 
     /**
      * Cast string literals to datetime in addition and subtraction when the other side is a date or time interval.
@@ -74,6 +77,13 @@ public class EsqlCapabilities {
      */
     public static final String UNION_TYPES = "union_types";
 
+    /**
+     * Support for named or positional parameters in EsqlQueryRequest.
+     */
+    private static final String NAMED_POSITIONAL_PARAMETER = "named_positional_parameter";
+
+    public static final Set<String> CAPABILITIES = capabilities();
+
     private static Set<String> capabilities() {
         List<String> caps = new ArrayList<>();
         caps.add(FN_CBRT);
@@ -84,6 +94,7 @@ public class EsqlCapabilities {
         caps.add(FN_MV_APPEND);
         caps.add(REPEAT);
         caps.add(UNION_TYPES);
+        caps.add(NAMED_POSITIONAL_PARAMETER);
 
         if (Build.current().isSnapshot()) {
             caps.add(LOOKUP_COMMAND);

@@ -21,7 +21,6 @@ import org.elasticsearch.xpack.esql.core.expression.AttributeMap;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.EmptyAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.ExpressionSet;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -74,6 +73,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.PruneEmptyPlans;
 import org.elasticsearch.xpack.esql.optimizer.rules.PruneFilters;
 import org.elasticsearch.xpack.esql.optimizer.rules.PruneLiteralsInOrderBy;
 import org.elasticsearch.xpack.esql.optimizer.rules.PruneOrderByBeforeStats;
+import org.elasticsearch.xpack.esql.optimizer.rules.PruneRedundantSortClauses;
 import org.elasticsearch.xpack.esql.optimizer.rules.SetAsOptimized;
 import org.elasticsearch.xpack.esql.optimizer.rules.SimplifyComparisonsArithmetics;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
@@ -674,22 +674,6 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             }
 
             return orderBy;
-        }
-    }
-
-    static class PruneRedundantSortClauses extends OptimizerRules.OptimizerRule<OrderBy> {
-
-        @Override
-        protected LogicalPlan rule(OrderBy plan) {
-            var referencedAttributes = new ExpressionSet<Order>();
-            var order = new ArrayList<Order>();
-            for (Order o : plan.order()) {
-                if (referencedAttributes.add(o)) {
-                    order.add(o);
-                }
-            }
-
-            return plan.order().size() == order.size() ? plan : new OrderBy(plan.source(), plan.child(), order);
         }
     }
 

@@ -1,0 +1,5 @@
+pr: 109629
+summary: "[Data streams] Fix the source of a lazy rollover task"
+area: Data streams
+type: bug
+issues: []

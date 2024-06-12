@@ -22,7 +22,6 @@ import co.elastic.elasticsearch.stateless.action.NewCommitNotificationRequest;
 import co.elastic.elasticsearch.stateless.action.NewCommitNotificationResponse;
 import co.elastic.elasticsearch.stateless.action.TransportGetVirtualBatchedCompoundCommitChunkAction;
 import co.elastic.elasticsearch.stateless.action.TransportNewCommitNotificationAction;
-import co.elastic.elasticsearch.stateless.cluster.coordination.StatelessClusterConsistencyService;
 import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
 import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
 import co.elastic.elasticsearch.stateless.commits.VirtualBatchedCompoundCommit;
@@ -34,14 +33,10 @@ import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreTestUtils;
 import co.elastic.elasticsearch.stateless.recovery.RegisterCommitRequest;
 import co.elastic.elasticsearch.stateless.recovery.TransportRegisterCommitForRecoveryAction;
 
-import org.apache.logging.log4j.Level;
 import org.apache.lucene.store.AlreadyClosedException;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRunnable;
-import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.refresh.TransportUnpromotableShardRefreshAction;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
@@ -49,33 +44,16 @@ import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.bulk.TransportShardBulkAction;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.ChannelActionListener;
-import org.elasticsearch.action.support.CountDownActionListener;
-import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.action.support.SubscribableListener;
-import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.cluster.ClusterChangedEvent;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateApplier;
-import org.elasticsearch.cluster.ClusterStateListener;
-import org.elasticsearch.cluster.ClusterStateUpdateTask;
-import org.elasticsearch.cluster.action.shard.ShardStateAction;
-import org.elasticsearch.cluster.coordination.ApplyCommitRequest;
 import org.elasticsearch.cluster.coordination.Coordinator;
-import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider;
-import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Priority;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.support.BlobMetadata;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.lucene.Lucene;
@@ -85,33 +63,17 @@ import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.MergePolicyConfig;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.seqno.SeqNoStats;
-import org.elasticsearch.index.shard.IllegalIndexShardStateException;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
-import org.elasticsearch.indices.cluster.IndicesClusterStateService;
-import org.elasticsearch.indices.recovery.RecoveryClusterStateDelayListeners;
 import org.elasticsearch.indices.recovery.RecoveryState;
-import org.elasticsearch.indices.recovery.StatelessPrimaryRelocationAction;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
-import org.elasticsearch.test.InternalSettingsPlugin;
-import org.elasticsearch.test.InternalTestCluster;
-import org.elasticsearch.test.MockLog;
-import org.elasticsearch.test.disruption.NetworkDisruption;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
-import org.elasticsearch.test.transport.StubbableTransport;
-import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.ConnectTransportException;
-import org.elasticsearch.transport.NodeNotConnectedException;
 import org.elasticsearch.transport.TestTransportChannel;
-import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.TransportSettings;
 import org.elasticsearch.xpack.shutdown.PutShutdownNodeAction;
@@ -119,26 +81,18 @@ import org.elasticsearch.xpack.shutdown.ShutdownPlugin;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.Collection;
-import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.concurrent.locks.LockSupport;
 import java.util.function.IntConsumer;
 import java.util.stream.IntStream;
 
 import static co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit.blobNameFromGeneration;
-import static co.elastic.elasticsearch.stateless.recovery.TransportStatelessPrimaryRelocationAction.PRIMARY_CONTEXT_HANDOFF_ACTION_NAME;
 import static co.elastic.elasticsearch.stateless.recovery.TransportStatelessPrimaryRelocationAction.START_RELOCATION_ACTION_NAME;
 import static java.util.stream.Collectors.toList;
 import static org.elasticsearch.cluster.coordination.FollowersChecker.FOLLOWER_CHECK_INTERVAL_SETTING;
@@ -147,14 +101,12 @@ import static org.elasticsearch.cluster.coordination.LeaderChecker.LEADER_CHECK_
 import static org.elasticsearch.cluster.coordination.LeaderChecker.LEADER_CHECK_RETRY_COUNT_SETTING;
 import static org.elasticsearch.cluster.coordination.stateless.StoreHeartbeatService.HEARTBEAT_FREQUENCY;
 import static org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata.Type.SIGTERM;
-import static org.elasticsearch.cluster.routing.UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING;
 import static org.elasticsearch.discovery.PeerFinder.DISCOVERY_FIND_PEERS_INTERVAL_SETTING;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
-import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -162,24 +114,18 @@ import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
-import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.oneOf;
-import static org.hamcrest.Matchers.sameInstance;
 
 public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return CollectionUtils.concatLists(
-            List.of(MockRepository.Plugin.class, InternalSettingsPlugin.class, ShutdownPlugin.class),
-            super.nodePlugins()
-        );
+        return CollectionUtils.concatLists(List.of(MockRepository.Plugin.class, ShutdownPlugin.class), super.nodePlugins());
     }
 
     @Override
     protected Settings.Builder nodeSettings() {
-        // TODO: remove heartbeat setting once ES-6481 is done. It is currently needed for testOngoingIndexShardRelocationAndMasterFailOver.
         return super.nodeSettings().put(ObjectStoreService.TYPE_SETTING.getKey(), ObjectStoreService.ObjectStoreType.MOCK)
             .put(HEARTBEAT_FREQUENCY.getKey(), TimeValue.timeValueSeconds(5))
             .put(FOLLOWER_CHECK_INTERVAL_SETTING.getKey(), "100ms")
@@ -244,106 +190,6 @@ public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
         testTranslogRecovery(false);
     }
 
-    public void testRelocatingIndexShards() throws Exception {
-        final var numShards = randomIntBetween(1, 3);
-        final var indexNodes = startIndexNodes(Math.max(2, numShards));
-
-        final String indexName = randomIdentifier();
-        createIndex(indexName, indexSettings(numShards, 0).build());
-        ensureGreen(indexName);
-
-        final ClusterStateListener verifyGreenListener = event -> {
-            // ensure that the master remains unchanged, and the index remains green, throughout the test
-            assertTrue(event.localNodeMaster());
-            final var indexRoutingTable = event.state().routingTable().index(indexName);
-            assertEquals(numShards, indexRoutingTable.size());
-            for (int i = 0; i < numShards; i++) {
-                final var indexShardRoutingTable = indexRoutingTable.shard(i);
-                assertEquals(1, indexShardRoutingTable.size());
-                assertThat(
-                    indexRoutingTable.prettyPrint(),
-                    indexShardRoutingTable.primaryShard().state(),
-                    oneOf(ShardRoutingState.STARTED, ShardRoutingState.RELOCATING)
-                );
-            }
-        };
-
-        final var masterNodeClusterService = internalCluster().getCurrentMasterNodeInstance(ClusterService.class);
-        masterNodeClusterService.addListener(verifyGreenListener);
-
-        try {
-            final AtomicInteger docIdGenerator = new AtomicInteger();
-            final IntConsumer docIndexer = numDocs -> {
-                var bulkRequest = client().prepareBulk();
-                for (int i = 0; i < numDocs; i++) {
-                    bulkRequest.add(
-                        new IndexRequest(indexName).id("doc-" + docIdGenerator.incrementAndGet())
-                            .source("field", randomUnicodeOfCodepointLengthBetween(1, 25))
-                    );
-                }
-                assertNoFailures(bulkRequest.get(TimeValue.timeValueSeconds(10)));
-            };
-
-            docIndexer.accept(between(1, 100));
-            if (randomBoolean()) {
-                flush(indexName);
-            }
-
-            final var initialPrimaryTerms = getPrimaryTerms(indexName);
-
-            final int iters = randomIntBetween(5, 10);
-            for (int i = 0; i < iters; i++) {
-
-                final var nodeToRemove = indexNodes.get(i % indexNodes.size());
-
-                final AtomicBoolean running = new AtomicBoolean(true);
-
-                final Thread[] threads = new Thread[scaledRandomIntBetween(1, 3)];
-                for (int j = 0; j < threads.length; j++) {
-                    threads[j] = new Thread(() -> {
-                        while (running.get()) {
-                            docIndexer.accept(between(1, 20));
-                        }
-                    });
-                    threads[j].start();
-                }
-
-                try {
-                    logger.info("--> excluding [{}]", nodeToRemove);
-                    updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", nodeToRemove), indexName);
-                    assertBusy(() -> assertThat(internalCluster().nodesInclude(indexName), not(hasItem(nodeToRemove))));
-                } finally {
-                    running.set(false);
-                    for (Thread thread : threads) {
-                        thread.join();
-                    }
-                }
-
-                assertArrayEquals(initialPrimaryTerms, getPrimaryTerms(indexName));
-
-                for (String indexNode : indexNodes) {
-                    assertNodeHasNoCurrentRecoveries(indexNode);
-                }
-
-                if (randomBoolean()) {
-                    docIndexer.accept(between(1, 10));
-                }
-
-                // verify all docs are present without needing input from a search node
-                var bulkRequest = client().prepareBulk();
-                for (int docId = 1; docId < docIdGenerator.get(); docId++) {
-                    bulkRequest.add(new IndexRequest(indexName).id("doc-" + docId).create(true).source(Map.of()));
-                }
-                var bulkResponse = bulkRequest.get(TimeValue.timeValueSeconds(10));
-                for (BulkItemResponse bulkResponseItem : bulkResponse.getItems()) {
-                    assertEquals(RestStatus.CONFLICT, bulkResponseItem.status());
-                }
-            }
-        } finally {
-            masterNodeClusterService.removeListener(verifyGreenListener);
-        }
-    }
-
     /**
      * Verify that if we index after a relocation, we remember the indexed ops even if the new node crashes.
      * This ensures that there is a flush with a new translog registration after relocation.
@@ -394,169 +240,8 @@ public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
         }
     }
 
-    public void testFailedRelocatingIndexShardHasNoCurrentRecoveries() {
-        final var indexNodeA = startIndexNode();
-
-        final String indexName = randomIdentifier();
-        createIndex(indexName, indexSettings(1, 0).build());
-        indexDocs(indexName, between(1, 100));
-        refresh(indexName);
-
-        final var indexNodeB = startIndexNode();
-        ensureStableCluster(3); // with master node
-
-        ObjectStoreService objectStoreService = internalCluster().getInstance(ObjectStoreService.class, indexNodeB);
-        MockRepository repository = ObjectStoreTestUtils.getObjectStoreMockRepository(objectStoreService);
-        repository.setRandomControlIOExceptionRate(1.0);
-        repository.setRandomDataFileIOExceptionRate(1.0);
-
-        logger.info("--> excluding [{}]", indexNodeA);
-        updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", indexNodeA), indexName);
-        // The shard fails to be relocated to indexNodeB and finally stays green on indexNodeA
-        ensureGreen(indexName);
-        assertNodeHasNoCurrentRecoveries(indexNodeA);
-        assertNodeHasNoCurrentRecoveries(indexNodeB);
-    }
-
     private long[] getPrimaryTerms(String indexName) {
         return getPrimaryTerms(client(), indexName);
-    }
-
-    private static long[] getPrimaryTerms(Client client, String indexName) {
-        var response = client.admin().cluster().prepareState().get();
-        var state = response.getState();
-
-        var indexMetadata = state.metadata().index(indexName);
-        long[] primaryTerms = new long[indexMetadata.getNumberOfShards()];
-        for (int i = 0; i < primaryTerms.length; i++) {
-            primaryTerms[i] = indexMetadata.primaryTerm(i);
-        }
-        return primaryTerms;
-    }
-
-    public void testRelocateNonexistentIndexShard() throws Exception {
-        final var numShards = 1;
-        final var indexNodes = startIndexNodes(2);
-
-        final String indexName = randomIdentifier();
-        createIndex(indexName, indexSettings(numShards, 0).put("index.routing.allocation.require._name", indexNodes.get(0)).build());
-        ensureGreen(indexName);
-
-        indexDocs(indexName, between(1, 100));
-        refresh(indexName);
-
-        final var transportService = MockTransportService.getInstance(indexNodes.get(0));
-        final var delayedRequestFuture = new PlainActionFuture<Runnable>();
-        final var delayedRequestFutureOnce = ActionListener.assertOnce(delayedRequestFuture);
-        transportService.addRequestHandlingBehavior(
-            START_RELOCATION_ACTION_NAME,
-            (handler, request, channel, task) -> delayedRequestFutureOnce.onResponse(
-                () -> ActionListener.run(new ChannelActionListener<>(channel), l -> handler.messageReceived(request, channel, task))
-            )
-        );
-
-        updateIndexSettings(Settings.builder().put("index.routing.allocation.require._name", indexNodes.get(1)), indexName);
-
-        assertNotNull(delayedRequestFuture.get(10, TimeUnit.SECONDS));
-        transportService.clearInboundRules();
-
-        final var masterClusterService = internalCluster().getCurrentMasterNodeInstance(ClusterService.class);
-        final var masterServiceBarrier = new CyclicBarrier(2);
-        masterClusterService.submitUnbatchedStateUpdateTask("blocking", new ClusterStateUpdateTask() {
-            @Override
-            public ClusterState execute(ClusterState currentState) {
-                safeAwait(masterServiceBarrier);
-                safeAwait(masterServiceBarrier);
-                return currentState;
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                throw new AssertionError(e);
-            }
-        });
-        safeAwait(masterServiceBarrier); // wait for master service to be blocked, so the shard cannot be reallocated after failure
-
-        final var index = masterClusterService.state().metadata().index(indexName).getIndex();
-        final var indicesService = internalCluster().getInstance(IndicesService.class, indexNodes.get(0));
-        final var indexShard = indicesService.indexService(index).getShard(0);
-        indexShard.failShard("test", new ElasticsearchException("test"));
-        assertBusy(() -> assertNull(indicesService.getShardOrNull(indexShard.shardId())));
-
-        delayedRequestFuture.get().run(); // release relocation request which will fail because the shard is no longer there
-        safeAwait(masterServiceBarrier); // release master service to restart allocation process
-
-        ensureGreen(indexName);
-    }
-
-    public void testRetryIndexShardRelocation() throws Exception {
-        final var numShards = 1;
-        final var indexNodes = startIndexNodes(2);
-
-        final String indexName = randomIdentifier();
-        createIndex(indexName, indexSettings(numShards, 0).put("index.routing.allocation.require._name", indexNodes.get(0)).build());
-        ensureGreen(indexName);
-
-        indexDocs(indexName, between(1, 100));
-        refresh(indexName);
-
-        final var transportService = MockTransportService.getInstance(indexNodes.get(0));
-        final var allAttemptsFuture = new PlainActionFuture<Void>();
-        final var attemptListener = new CountDownActionListener(
-            MaxRetryAllocationDecider.SETTING_ALLOCATION_MAX_RETRY.get(Settings.EMPTY),
-            allAttemptsFuture
-        );
-        transportService.addRequestHandlingBehavior(
-            START_RELOCATION_ACTION_NAME,
-            (handler, request, channel, task) -> ActionListener.completeWith(attemptListener, () -> {
-                channel.sendResponse(new ElasticsearchException("simulated"));
-                return null;
-            })
-        );
-
-        updateIndexSettings(Settings.builder().put("index.routing.allocation.require._name", indexNodes.get(1)), indexName);
-        allAttemptsFuture.get(10, TimeUnit.SECONDS);
-
-        ensureGreen(indexName);
-        assertEquals(Set.of(indexNodes.get(0)), internalCluster().nodesInclude(indexName));
-
-        internalCluster().stopNode(indexNodes.get(0));
-        ensureGreen(indexName);
-        assertEquals(Set.of(indexNodes.get(1)), internalCluster().nodesInclude(indexName));
-    }
-
-    public void testFailureAfterPrimaryContextHandoff() throws Exception {
-        final var numShards = 1;
-        final var indexNodes = startIndexNodes(2);
-
-        final String indexName = randomIdentifier();
-        createIndex(indexName, indexSettings(numShards, 0).put("index.routing.allocation.require._name", indexNodes.get(0)).build());
-        ensureGreen(indexName);
-
-        indexDocs(indexName, between(1, 100));
-        refresh(indexName);
-
-        final var transportService = MockTransportService.getInstance(indexNodes.get(0));
-        final var allAttemptsFuture = new PlainActionFuture<Void>();
-        final var attemptListener = new CountDownActionListener(1, allAttemptsFuture); // to assert that there's only one attempt
-        transportService.addRequestHandlingBehavior(
-            START_RELOCATION_ACTION_NAME,
-            (handler, request, channel, task) -> ActionListener.run(
-                new ChannelActionListener<>(channel).<TransportResponse>delegateFailure((l, r) -> {
-                    attemptListener.onResponse(null);
-                    l.onFailure(new ElasticsearchException("simulated"));
-                }),
-                l -> handler.messageReceived(request, new TestTransportChannel(l), task)
-            )
-        );
-
-        updateIndexSettings(Settings.builder().put("index.routing.allocation.require._name", indexNodes.get(1)), indexName);
-        allAttemptsFuture.get(10, TimeUnit.SECONDS);
-
-        // the failure happens after the primary context handoff, so it causes both copies to fail, and then the primary initializes from
-        // scratch on the correct node
-        ensureGreen(indexName);
-        assertEquals(Set.of(indexNodes.get(1)), internalCluster().nodesInclude(indexName));
     }
 
     public void testRecoverSearchShard() throws IOException {
@@ -762,287 +447,6 @@ public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
         assertHitCount(prepareSearch(indexName), numDocsRound1 + numDocsRound2);
     }
 
-    public void testRecoverIndexingShardWithStaleIndexingShard() throws Exception {
-        String indexNodeA = startIndexNode();
-        String searchNode = startSearchNode();
-        String masterName = internalCluster().getMasterName();
-
-        final String indexName = "index-name";
-        createIndex(indexName, indexSettings(1, 1).put("index.unassigned.node_left.delayed_timeout", "0ms").build());
-        ensureGreen(indexName);
-
-        final AtomicInteger docIdGenerator = new AtomicInteger();
-        final AtomicInteger docsAcknowledged = new AtomicInteger();
-        final AtomicInteger docsFailed = new AtomicInteger();
-
-        var bulkRequest = client(indexNodeA).prepareBulk();
-        for (int i = 0; i < 10; i++) {
-            bulkRequest.add(
-                new IndexRequest(indexName).id("doc-" + docIdGenerator.incrementAndGet())
-                    .source("field", randomUnicodeOfCodepointLengthBetween(1, 25))
-            );
-        }
-
-        // Index some operations
-        for (BulkItemResponse itemResponse : bulkRequest.get().getItems()) {
-            if (itemResponse.isFailed()) {
-                docsFailed.incrementAndGet();
-            } else {
-                docsAcknowledged.incrementAndGet();
-            }
-        }
-
-        final MockTransportService nodeATransportService = MockTransportService.getInstance(indexNodeA);
-        final MockTransportService masterTransportService = MockTransportService.getInstance(masterName);
-
-        String indexNodeB = startIndexNode();
-
-        ensureStableCluster(4);
-
-        long initialPrimaryTerm = getPrimaryTerms(indexName)[0];
-
-        final PlainActionFuture<Void> removedNode = new PlainActionFuture<>();
-        final PlainActionFuture<Void> staleRequestDone = new PlainActionFuture<>();
-        try {
-            final ClusterService masterClusterService = internalCluster().getCurrentMasterNodeInstance(ClusterService.class);
-            masterClusterService.addListener(clusterChangedEvent -> {
-                if (removedNode.isDone() == false
-                    && clusterChangedEvent.nodesDelta().removedNodes().stream().anyMatch(d -> d.getName().equals(indexNodeA))) {
-                    removedNode.onResponse(null);
-                }
-            });
-            masterTransportService.addUnresponsiveRule(nodeATransportService);
-
-            removedNode.actionGet();
-
-            logger.info("waiting for [{}] to be removed from cluster", indexNodeA);
-            ensureStableCluster(3, masterName);
-
-            assertBusy(() -> assertThat(getPrimaryTerms(client(masterName), indexName)[0], greaterThan(initialPrimaryTerm)));
-
-            ClusterHealthRequest healthRequest = new ClusterHealthRequest(indexName).timeout(TimeValue.timeValueSeconds(30))
-                .waitForStatus(ClusterHealthStatus.GREEN)
-                .waitForEvents(Priority.LANGUID)
-                .waitForNoRelocatingShards(true)
-                .waitForNoInitializingShards(true)
-                .waitForNodes(Integer.toString(3));
-
-            client(randomFrom(indexNodeB, searchNode)).admin().cluster().health(healthRequest).actionGet();
-
-            var staleBulkRequest = client(indexNodeA).prepareBulk();
-            for (int i = 0; i < 10; i++) {
-                staleBulkRequest.add(
-                    new IndexRequest(indexName).id("stale-doc-" + docIdGenerator.incrementAndGet())
-                        .source("field", randomUnicodeOfCodepointLengthBetween(1, 25))
-                );
-            }
-            staleBulkRequest.execute(new ActionListener<>() {
-                @Override
-                public void onResponse(BulkResponse bulkItemResponses) {
-                    for (BulkItemResponse itemResponse : bulkItemResponses.getItems()) {
-                        if (itemResponse.isFailed()) {
-                            docsFailed.incrementAndGet();
-                        } else {
-                            docsAcknowledged.incrementAndGet();
-                        }
-                    }
-                    staleRequestDone.onResponse(null);
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    staleRequestDone.onFailure(e);
-                }
-            });
-
-            // Slight delay to allow the stale node to potentially process requests before healing
-            LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(200));
-        } finally {
-            masterTransportService.clearAllRules();
-        }
-
-        logger.info("--> [{}] documents acknowledged, [{}] documents failed", docsAcknowledged, docsFailed);
-        ensureGreen(indexName);
-
-        staleRequestDone.actionGet();
-
-        refresh(indexName);
-        final long totalHits = SearchResponseUtils.getTotalHitsValue(prepareSearch(indexName));
-        assertThat(totalHits, equalTo((long) docsAcknowledged.get()));
-    }
-
-    public void testRecoverIndexingShardWithStaleCompoundCommit() throws Exception {
-        final var masterNode = internalCluster().getMasterName(); // started in {@link #init()}
-        final var extraSettings = Settings.builder()
-            .put(StatelessClusterConsistencyService.DELAYED_CLUSTER_CONSISTENCY_INTERVAL_SETTING.getKey(), "100ms")
-            .build();
-        final var indexNode = startIndexNode(extraSettings);
-        ensureStableCluster(2, masterNode);
-
-        final String indexName = randomIdentifier();
-        createIndex(
-            indexName,
-            indexSettings(1, 0)
-                // make sure nothing triggers flushes under the hood
-                .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.MINUS_ONE)
-                .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), ByteSizeValue.ofGb(1L))
-                .put(MergePolicyConfig.INDEX_MERGE_ENABLED, false)
-                // one node will be isolated in this test
-                .put(INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), TimeValue.ZERO)
-                .build()
-        );
-        ensureGreen(indexName);
-
-        logger.debug("--> index docs then flush multiple times to create multiple commits in the object store");
-        final int initialFlushes = randomIntBetween(2, 10);
-        for (int i = 0; i < initialFlushes; i++) {
-            indexDocs(indexName, 10);
-            flush(indexName);
-        }
-
-        var index = resolveIndex(indexName);
-        var indexShard = findIndexShard(index, 0);
-        var indexEngine = (IndexEngine) indexShard.getEngineOrNull();
-        assertThat(indexEngine, notNullValue());
-        final var primaryTermBeforeFailOver = indexShard.getOperationPrimaryTerm();
-        final var generationBeforeFailOver = indexEngine.getLastCommittedSegmentInfos().getGeneration();
-
-        logger.debug("--> start a new indexing node");
-        final var newIndexNode = startIndexNode(extraSettings);
-        ensureStableCluster(3, masterNode);
-
-        logger.debug("--> index more docs, without flushing");
-        indexDocs(indexName, scaledRandomIntBetween(10, 500));
-
-        // set up a cluster state listener to wait for the index node to be removed from the cluster
-        var masterClusterService = internalCluster().getCurrentMasterNodeInstance(ClusterService.class);
-        final var nodeRemovedFuture = new PlainActionFuture<Void>();
-        final var nodeRemovedClusterStateListener = new ClusterStateListener() {
-            @Override
-            public void clusterChanged(ClusterChangedEvent event) {
-                if (event.nodesRemoved()
-                    && event.nodesDelta().removedNodes().stream().anyMatch(discoveryNode -> discoveryNode.getName().equals(indexNode))) {
-                    logger.debug("--> index node {} is now removed", indexNode);
-                    nodeRemovedFuture.onResponse(null);
-                }
-            }
-
-            @Override
-            public String toString() {
-                return "ClusterStateListener for " + indexNode + " node removal";
-            }
-        };
-        masterClusterService.addListener(nodeRemovedClusterStateListener);
-
-        logger.debug("--> disrupting cluster to isolate index node {}", indexNode);
-        final NetworkDisruption networkDisruption = new NetworkDisruption(
-            new NetworkDisruption.TwoPartitions(Set.of(indexNode), Set.of(newIndexNode, masterNode)),
-            NetworkDisruption.DISCONNECT
-        );
-        internalCluster().setDisruptionScheme(networkDisruption);
-        networkDisruption.startDisrupting();
-
-        logger.debug("--> waiting for index node {} to be removed from the cluster", indexNode);
-        nodeRemovedFuture.actionGet();
-        masterClusterService.removeListener(nodeRemovedClusterStateListener);
-
-        logger.debug("--> waiting for index to recover on new index node {}", newIndexNode);
-        ClusterHealthRequest healthRequest = new ClusterHealthRequest(indexName).timeout(TimeValue.timeValueSeconds(30L))
-            .waitForStatus(ClusterHealthStatus.GREEN)
-            .waitForEvents(Priority.LANGUID)
-            .waitForNoRelocatingShards(true)
-            .waitForNoInitializingShards(true)
-            .waitForNodes(Integer.toString(2));
-        client(newIndexNode).admin().cluster().health(healthRequest).actionGet();
-
-        // once index node is removed and the new index shard started, flush the stale shard to create a commit with the same generation
-        logger.debug("--> now flushing stale index shard {}", indexNode);
-        client(indexNode).admin().indices().prepareFlush(indexName).setForce(true).get();
-
-        var staleCommitGeneration = indexEngine.getLastCommittedSegmentInfos().getGeneration();
-        logger.debug(
-            "--> stale index shard created commit [primary term={}, generation {}]",
-            primaryTermBeforeFailOver,
-            staleCommitGeneration
-        );
-        assertThat(getPrimaryTerms(client(masterNode), indexName)[0], greaterThan(primaryTermBeforeFailOver));
-        assertThat(staleCommitGeneration, equalTo(generationBeforeFailOver + 1L));
-
-        var newIndexShard = findIndexShard(index, 0, newIndexNode);
-        assertThat(newIndexShard, not(sameInstance(indexShard)));
-        var primaryTermAfterFailOver = newIndexShard.getOperationPrimaryTerm();
-        assertThat(primaryTermAfterFailOver, greaterThan(primaryTermBeforeFailOver));
-
-        // index shards are flushed at the end of the recovery: it creates a commit with a generation equal to the commit generation of the
-        // stale index shard when it was explicitly flushed when isolated
-        assertThat(newIndexShard.getEngineOrNull(), notNullValue());
-        var newIndexEngine = (IndexEngine) newIndexShard.getEngineOrNull();
-        final var generation = newIndexEngine.getLastCommittedSegmentInfos().getGeneration();
-        assertThat(generation, equalTo(staleCommitGeneration));
-
-        logger.debug("--> and also flush new index shard {} so that it is one generation ahead", indexNode);
-        client(newIndexNode).admin().indices().prepareFlush(indexName).setForce(true).get();
-
-        logger.debug("--> stop isolated node {}", indexNode);
-        internalCluster().stopNode(indexNode);
-        ensureStableCluster(2, masterNode);
-
-        logger.debug("--> stop disrupting cluster");
-        networkDisruption.stopDisrupting();
-
-        // list the blobs that exist in the object store and map the staless_commit_N files with their primary term prefixes
-        var objectStoreService = internalCluster().getCurrentMasterNodeInstance(ObjectStoreService.class);
-        var blobContainer = objectStoreService.getBlobContainer(newIndexShard.shardId());
-        var blobNamesAndPrimaryTerms = new HashMap<String, Set<Long>>();
-        for (var child : blobContainer.children(operationPurpose).entrySet()) {
-            var blobNames = child.getValue().listBlobs(operationPurpose).keySet();
-            blobNames.forEach(
-                blobName -> blobNamesAndPrimaryTerms.computeIfAbsent(blobName, s -> new HashSet<>()).add(Long.parseLong(child.getKey()))
-            );
-        }
-        // There should be at least the number of commits initially made + 1 stale commit / post recovery commit with same generation + 1
-        // forced commit on the new indexing shard.
-        // Is it possible there are more commits from the initial shard creation that may or may not have been deleted
-        assertThat(blobNamesAndPrimaryTerms.size(), greaterThanOrEqualTo(initialFlushes + 1 + 1));
-        assertThat(
-            "All commits uploaded under 1 primary term, except the stale generation",
-            blobNamesAndPrimaryTerms.entrySet()
-                .stream()
-                .filter(commit -> commit.getKey().equals(StatelessCompoundCommit.blobNameFromGeneration(generation)) == false)
-                .allMatch(commit -> commit.getValue().size() == 1),
-            is(true)
-        );
-        assertThat(
-            "Only 1 commit uploaded under more than 1 primary term",
-            blobNamesAndPrimaryTerms.entrySet().stream().filter(commit -> commit.getValue().size() != 1).count(),
-            equalTo(1L)
-        );
-        assertThat(
-            "The commit uploaded under more than 1 primary term correspond to the stale commit generation",
-            blobNamesAndPrimaryTerms.entrySet().stream().filter(commit -> commit.getValue().size() != 1).map(Map.Entry::getKey).toList(),
-            hasItem(equalTo(StatelessCompoundCommit.blobNameFromGeneration(staleCommitGeneration)))
-        );
-        assertThat(
-            "The duplicate commits have been uploaded under the expected primary terms",
-            blobNamesAndPrimaryTerms.entrySet()
-                .stream()
-                .filter(commit -> commit.getKey().equals(StatelessCompoundCommit.blobNameFromGeneration(staleCommitGeneration)))
-                .map(Map.Entry::getValue)
-                .findFirst()
-                .get(),
-            containsInAnyOrder(equalTo(primaryTermBeforeFailOver), equalTo(primaryTermAfterFailOver))
-        );
-
-        logger.debug("--> now we have duplicate commits with different primary terms, trigger a new recovery");
-        startIndexNode(extraSettings);
-        ensureStableCluster(3, masterNode);
-
-        internalCluster().stopNode(newIndexNode);
-
-        // before ES-6755 bugfix the shard would never reach the STARTED state here
-        ensureGreen(indexName);
-    }
-
     public void testRelocateIndexingShardDoesNotReadFromTranslog() throws Exception {
         final String indexNodeA = startIndexNode();
         ensureStableCluster(2);
@@ -1091,74 +495,6 @@ public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
         assertNodeHasNoCurrentRecoveries(indexNodeB);
         assertThat(findIndexShard(resolveIndex(indexName), 0).routingEntry().currentNodeId(), equalTo(getNodeId(indexNodeB)));
         assertThat(findIndexShard(resolveIndex(indexName), 0).docStats().getCount(), equalTo((long) numDocs));
-    }
-
-    public void testWaitForClusterStateToBeAppliedOnSourceNodeInPrimaryRelocation() throws Exception {
-        final var sourceNode = startIndexNode();
-        String indexName = "test-index";
-        createIndex(indexName, indexSettings(1, 0).build());
-        ensureGreen(indexName);
-        final List<IndexRequestBuilder> indexRequests = IntStream.range(0, between(10, 500))
-            .mapToObj(n -> client().prepareIndex(indexName).setSource("foo", "bar"))
-            .toList();
-        indexRandom(randomBoolean(), true, true, indexRequests);
-        assertThat(indicesAdmin().prepareFlush(indexName).get().getFailedShards(), equalTo(0));
-
-        final var targetNode = startIndexNode();
-
-        final long initialClusterStateVersion = clusterService().state().version();
-
-        try (var recoveryClusterStateDelayListeners = new RecoveryClusterStateDelayListeners(initialClusterStateVersion)) {
-            final var sourceNodeTransportService = MockTransportService.getInstance(sourceNode);
-            sourceNodeTransportService.addRequestHandlingBehavior(
-                Coordinator.COMMIT_STATE_ACTION_NAME,
-                (handler, request, channel, task) -> {
-                    assertThat(request, instanceOf(ApplyCommitRequest.class));
-                    recoveryClusterStateDelayListeners.getClusterStateDelayListener(((ApplyCommitRequest) request).getVersion())
-                        .addListener(ActionListener.wrap(ignored -> {
-                            handler.messageReceived(request, channel, task);
-                        }, e -> fail(e, "unexpected")));
-                }
-            );
-            sourceNodeTransportService.addRequestHandlingBehavior(START_RELOCATION_ACTION_NAME, (handler, request, channel, task) -> {
-                assertThat(request, instanceOf(StatelessPrimaryRelocationAction.Request.class));
-                assertThat(
-                    ((StatelessPrimaryRelocationAction.Request) request).clusterStateVersion(),
-                    greaterThan(initialClusterStateVersion)
-                );
-                handler.messageReceived(
-                    request,
-                    new TestTransportChannel(
-                        new ChannelActionListener<>(channel).delegateResponse((l, e) -> fail(e, "recovery should succeed on first attempt"))
-                    ),
-                    task
-                );
-                recoveryClusterStateDelayListeners.onStartRecovery();
-            });
-            recoveryClusterStateDelayListeners.addCleanup(sourceNodeTransportService::clearInboundRules);
-
-            final var targetClusterService = internalCluster().getInstance(ClusterService.class, targetNode);
-            final var startedRelocation = new AtomicBoolean();
-            final ClusterStateListener clusterStateListener = event -> {
-                final var sourceProceedListener = recoveryClusterStateDelayListeners.getClusterStateDelayListener(event.state().version());
-                final var indexRoutingTable = event.state().routingTable().index(indexName);
-                assertNotNull(indexRoutingTable);
-                final var indexShardRoutingTable = indexRoutingTable.shard(0);
-                if (indexShardRoutingTable.primaryShard().relocating() && startedRelocation.compareAndSet(false, true)) {
-                    // this is the cluster state update which starts the recovery, so delay the primary node application until recovery
-                    // has started
-                    recoveryClusterStateDelayListeners.delayUntilRecoveryStart(sourceProceedListener);
-                } else {
-                    // this is some other cluster state update, so we must let it proceed now
-                    sourceProceedListener.onResponse(null);
-                }
-            };
-            targetClusterService.addListener(clusterStateListener);
-            recoveryClusterStateDelayListeners.addCleanup(() -> targetClusterService.removeListener(clusterStateListener));
-
-            updateIndexSettings(Settings.builder().put(IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_PREFIX + "._name", sourceNode), indexName);
-            ensureGreen(indexName);
-        }
     }
 
     public void testIndexShardRecoveryDoesNotUseTranslogOperationsBeforeFlush() throws Exception {
@@ -1210,141 +546,6 @@ public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
             .findFirst()
             .get();
         assertThat((long) recoveryState.getTranslog().recoveredOperations(), lessThanOrEqualTo(maxSeqNoAfterFlush - maxSeqNoBeforeFlush));
-    }
-
-    public void testRelocateIndexingShardWithActionFailures() throws Exception {
-        final String indexNodeA = startIndexNode();
-        ensureStableCluster(2);
-        final String indexName = "test";
-        createIndex(indexName, indexSettings(1, 0).build());
-        int numDocs = scaledRandomIntBetween(1, 10);
-        indexDocs(indexName, numDocs);
-
-        final String indexNodeB = startIndexNode();
-        ensureStableCluster(3);
-
-        String actionToBreak = randomBoolean() ? START_RELOCATION_ACTION_NAME : PRIMARY_CONTEXT_HANDOFF_ACTION_NAME;
-        final CountDownLatch requestFailed = startBreakingActions(indexNodeA, indexNodeB, actionToBreak);
-
-        logger.info("--> move primary shard from: {} to: {}", indexNodeA, indexNodeB);
-        clusterAdmin().prepareReroute().add(new MoveAllocationCommand(indexName, 0, indexNodeA, indexNodeB)).execute().actionGet();
-
-        assertTrue(requestFailed.await(30, TimeUnit.SECONDS));
-        stopBreakingActions(indexNodeA, indexNodeB);
-
-        ensureGreen();
-        assertNodeHasNoCurrentRecoveries(indexNodeB);
-        assertThat(findIndexShard(resolveIndex(indexName), 0).docStats().getCount(), equalTo((long) numDocs));
-    }
-
-    private CountDownLatch startBreakingActions(String nodeA, String nodeB, String recoveryActionToBlock) {
-        logger.info("--> will break requests between node [{}] & node [{}] for actions [{}]", nodeA, nodeB, recoveryActionToBlock);
-
-        final MockTransportService nodeAMockTransportService = MockTransportService.getInstance(nodeA);
-        final MockTransportService nodeBMockTransportService = MockTransportService.getInstance(nodeB);
-        final CountDownLatch requestFailed = new CountDownLatch(1);
-
-        if (randomBoolean()) {
-            final StubbableTransport.SendRequestBehavior sendRequestBehavior = (connection, requestId, action, request, options) -> {
-                if (recoveryActionToBlock.equals(action)) {
-                    requestFailed.countDown();
-                    logger.info("--> preventing {} request by throwing ConnectTransportException", action);
-                    throw new ConnectTransportException(connection.getNode(), "DISCONNECT: prevented " + action + " request");
-                }
-                connection.sendRequest(requestId, action, request, options);
-            };
-            // Fail on the sending side
-            nodeAMockTransportService.addSendBehavior(nodeBMockTransportService, sendRequestBehavior);
-            nodeBMockTransportService.addSendBehavior(nodeAMockTransportService, sendRequestBehavior);
-        } else {
-            // Fail on the receiving side.
-            nodeAMockTransportService.addRequestHandlingBehavior(recoveryActionToBlock, (handler, request, channel, task) -> {
-                logger.info("--> preventing {} response by closing response channel", recoveryActionToBlock);
-                requestFailed.countDown();
-                nodeBMockTransportService.disconnectFromNode(nodeAMockTransportService.getLocalDiscoNode());
-                handler.messageReceived(request, channel, task);
-            });
-            nodeBMockTransportService.addRequestHandlingBehavior(recoveryActionToBlock, (handler, request, channel, task) -> {
-                logger.info("--> preventing {} response by closing response channel", recoveryActionToBlock);
-                requestFailed.countDown();
-                nodeAMockTransportService.disconnectFromNode(nodeBMockTransportService.getLocalDiscoNode());
-                handler.messageReceived(request, channel, task);
-            });
-        }
-
-        return requestFailed;
-    }
-
-    private void stopBreakingActions(String... nodes) {
-        for (String node : nodes) {
-            MockTransportService.getInstance(node).clearAllRules();
-        }
-        logger.info("--> stopped breaking requests on nodes [{}]", Strings.collectionToCommaDelimitedString(Arrays.stream(nodes).toList()));
-    }
-
-    public void testOngoingIndexShardRelocationAndMasterFailOver() throws Exception {
-        String indexName = "test";
-        startMasterOnlyNode(); // second master eligible node
-        final String indexNodeA = startIndexNode();
-        ensureStableCluster(3);
-        createIndex(indexName, indexSettings(1, 0).build());
-        int numDocs = scaledRandomIntBetween(1, 10);
-        indexDocs(indexName, numDocs);
-        final String indexNodeB = startIndexNode();
-        ensureStableCluster(4);
-        final boolean blockSourceNode = randomBoolean(); // else block target node
-
-        final String nodeToBlock = blockSourceNode ? indexNodeA : indexNodeB;
-        final MockTransportService transport = MockTransportService.getInstance(nodeToBlock);
-        final SubscribableListener<Void> blockedListeners = new SubscribableListener<>();
-        CountDownLatch relocationStartReadyBlocked = new CountDownLatch(1);
-        transport.addSendBehavior((connection, requestId, action, request, options) -> {
-            final String actionToBlock = blockSourceNode ? PRIMARY_CONTEXT_HANDOFF_ACTION_NAME : START_RELOCATION_ACTION_NAME;
-            if (actionToBlock.equals(action)) {
-                logger.info("--> Blocking the action [{}]", action);
-                blockedListeners.addListener(new ActionListener<>() {
-                    @Override
-                    public void onResponse(Void unused) {
-                        try {
-                            logger.info("--> unblocking request [{}][{}][{}]", requestId, action, request);
-                            connection.sendRequest(requestId, action, request, options);
-                        } catch (NodeNotConnectedException e) {
-                            logger.info("Ignoring network connectivity exception", e);
-                        } catch (Exception e) {
-                            throw new AssertionError("unexpected", e);
-                        }
-                    }
-
-                    @Override
-                    public void onFailure(Exception e) {
-                        throw new AssertionError("unexpected", e);
-                    }
-                });
-                relocationStartReadyBlocked.countDown();
-            } else {
-                connection.sendRequest(requestId, action, request, options);
-            }
-        });
-        try {
-            logger.info("--> move primary shard from: {} to: {}", indexNodeA, indexNodeB);
-            clusterAdmin().prepareReroute().add(new MoveAllocationCommand(indexName, 0, indexNodeA, indexNodeB)).execute().actionGet();
-
-            safeAwait(relocationStartReadyBlocked);
-            internalCluster().restartNode(
-                clusterService().state().nodes().getMasterNode().getName(),
-                new InternalTestCluster.RestartCallback()
-            );
-        } finally {
-            logger.info("--> Unblocking actions");
-            blockedListeners.onResponse(null);
-        }
-
-        // Assert number of documents
-        startSearchNode();
-        setReplicaCount(1, indexName);
-        assertFalse(clusterAdmin().prepareHealth(indexName).setWaitForActiveShards(2).get().isTimedOut());
-        ensureGreen(indexName);
-        assertHitCount(prepareSearch(indexName), numDocs);
     }
 
     public void testNewCommitNotificationOfRecoveringSearchShard() throws Exception {
@@ -1519,239 +720,6 @@ public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
         assertThat("Refresh should have failed", refreshResponse.getFailedShards(), equalTo(1));
         Throwable cause = ExceptionsHelper.unwrapCause(refreshResponse.getShardFailures()[0].getCause());
         assertThat("Cause should be engine closed", cause, instanceOf(AlreadyClosedException.class));
-    }
-
-    @TestLogging(reason = "testing WARN logging", value = "org.elasticsearch.indices.cluster.IndicesClusterStateService:WARN")
-    public void testPrimaryRelocationCancelledLogging() {
-        final var indexNodeA = startIndexNode();
-        startSearchNode();
-        final var indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
-        createIndex(indexName, indexSettings(1, 0).put(MaxRetryAllocationDecider.SETTING_ALLOCATION_MAX_RETRY.getKey(), 0).build());
-        ensureGreen(indexName);
-        indexDocs(indexName, randomIntBetween(10, 50));
-
-        final var indexNodeB = startIndexNode();
-        final var indexNodeATransportService = MockTransportService.getInstance(indexNodeA);
-
-        final var countDownLatch = new CountDownLatch(1);
-
-        indexNodeATransportService.addRequestHandlingBehavior(
-            START_RELOCATION_ACTION_NAME,
-            (handler, request, channel, task) -> internalCluster().getInstance(ShardStateAction.class, indexNodeB)
-                .localShardFailed(
-                    internalCluster().getInstance(IndicesService.class, indexNodeB)
-                        .indexService(asInstanceOf(StatelessPrimaryRelocationAction.Request.class, request).shardId().getIndex())
-                        .getShard(0)
-                        .routingEntry(),
-                    "simulated message",
-                    new ElasticsearchException("simulated exception"),
-                    new ChannelActionListener<>(channel).delegateFailureAndWrap(
-                        (l, ignored) -> internalCluster().getInstance(ThreadPool.class, indexNodeB)
-                            .generic()
-                            .execute(ActionRunnable.wrap(l, l2 -> handler.messageReceived(request, new TestTransportChannel(l2) {
-                                @Override
-                                public void sendResponse(Exception exception) {
-                                    assertThat(exception, instanceOf(IllegalIndexShardStateException.class));
-                                    super.sendResponse(exception);
-                                    countDownLatch.countDown();
-                                }
-                            }, task)))
-                    )
-                )
-        );
-
-        try (var mockLog = MockLog.capture(IndicesClusterStateService.class)) {
-            mockLog.addExpectation(
-                new MockLog.UnseenEventExpectation("warnings", IndicesClusterStateService.class.getCanonicalName(), Level.WARN, "*")
-            );
-
-            assertAcked(
-                admin().indices()
-                    .prepareUpdateSettings(indexName)
-                    .setSettings(Settings.builder().put(IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_PREFIX + "._name", indexNodeA))
-            );
-
-            safeAwait(countDownLatch);
-            ensureGreen(indexName);
-            mockLog.assertAllExpectationsMatched();
-        } finally {
-            indexNodeATransportService.clearAllRules();
-        }
-    }
-
-    @TestLogging(reason = "testing WARN logging", value = "org.elasticsearch.indices.cluster.IndicesClusterStateService:WARN")
-    public void testPrimaryRelocationWhileLocallyFailedLogging() {
-        final var indexNodeA = startIndexNode();
-        startSearchNode();
-        final var indexName = randomIdentifier();
-        createIndex(indexName, 1, 0);
-        ensureGreen(indexName);
-        indexDocs(indexName, randomIntBetween(10, 50));
-
-        startIndexNode();
-        final var indexNodeATransportService = MockTransportService.getInstance(indexNodeA);
-
-        final var countDownLatch = new CountDownLatch(1);
-
-        indexNodeATransportService.addRequestHandlingBehavior(START_RELOCATION_ACTION_NAME, (handler, request, channel, task) -> {
-            for (final var indexService : internalCluster().getInstance(IndicesService.class, indexNodeA)) {
-                if (indexService.index().getName().equals(indexName)) {
-                    for (final var indexShard : indexService) {
-                        indexShard.failShard("simulated", null);
-                    }
-                }
-            }
-            handler.messageReceived(
-                request,
-                new TestTransportChannel(ActionListener.runAfter(new ChannelActionListener<>(channel), countDownLatch::countDown)),
-                task
-            );
-        });
-
-        try (var mockLog = MockLog.capture(IndicesClusterStateService.class)) {
-            mockLog.addExpectation(
-                new MockLog.UnseenEventExpectation(
-                    "warnings",
-                    IndicesClusterStateService.class.getCanonicalName(),
-                    Level.WARN,
-                    "marking and sending shard failed due to [failed recovery]"
-                )
-            );
-
-            assertAcked(
-                admin().indices()
-                    .prepareUpdateSettings(indexName)
-                    .setSettings(Settings.builder().put(IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_PREFIX + "._name", indexNodeA))
-            );
-
-            safeAwait(countDownLatch);
-
-            assertAcked(
-                admin().indices()
-                    .prepareUpdateSettings(indexName)
-                    .setSettings(Settings.builder().putNull(IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_PREFIX + "._name"))
-            );
-
-            ensureGreen(indexName);
-            mockLog.assertAllExpectationsMatched();
-        } finally {
-            indexNodeATransportService.clearAllRules();
-        }
-    }
-
-    public void testCanCreateAnEmptyStoreWithMissingClusterStateUpdates() {
-        var indexNode = startIndexNode();
-        var searchNode = startSearchNode();
-        ensureStableCluster(3);
-
-        final long initialClusterStateVersion = clusterService().state().version();
-
-        var indexName = randomIdentifier();
-
-        try (var recoveryClusterStateDelayListeners = new RecoveryClusterStateDelayListeners(initialClusterStateVersion)) {
-            MockTransportService indexTransportService = MockTransportService.getInstance(indexNode);
-            indexTransportService.addRequestHandlingBehavior(Coordinator.COMMIT_STATE_ACTION_NAME, (handler, request, channel, task) -> {
-                assertThat(request, instanceOf(ApplyCommitRequest.class));
-                recoveryClusterStateDelayListeners.getClusterStateDelayListener(((ApplyCommitRequest) request).getVersion())
-                    .addListener(ActionListener.wrap(ignored -> handler.messageReceived(request, channel, task), channel::sendResponse));
-            });
-            recoveryClusterStateDelayListeners.addCleanup(indexTransportService::clearInboundRules);
-
-            final var searchNodeClusterService = internalCluster().getInstance(ClusterService.class, searchNode);
-            final var indexCreated = new AtomicBoolean();
-            final ClusterStateListener clusterStateListener = event -> {
-                final var indexNodeProceedListener = recoveryClusterStateDelayListeners.getClusterStateDelayListener(
-                    event.state().version()
-                );
-                final var indexRoutingTable = event.state().routingTable().index(indexName);
-                assertNotNull(indexRoutingTable);
-                final var indexShardRoutingTable = indexRoutingTable.shard(0);
-
-                if (indexShardRoutingTable.primaryShard().assignedToNode() == false && indexCreated.compareAndSet(false, true)) {
-                    // this is the cluster state update which creates the index, so fail the application in order to miss the index
-                    // in the cluster state when the shard is recovered from the empty store
-                    indexNodeProceedListener.onFailure(new RuntimeException("Unable to process cluster state update"));
-                } else {
-                    // this is some other cluster state update, so we must let it proceed now
-                    indexNodeProceedListener.onResponse(null);
-                }
-            };
-            searchNodeClusterService.addListener(clusterStateListener);
-            recoveryClusterStateDelayListeners.addCleanup(() -> searchNodeClusterService.removeListener(clusterStateListener));
-
-            final var indexNodeClusterService = internalCluster().getInstance(ClusterService.class, indexNode);
-            // Delay cluster state applications so when the recovery is running the index node doesn't know about the new index yet
-            ClusterStateApplier delayingApplier = event -> safeSleep(1000);
-            indexNodeClusterService.addLowPriorityApplier(delayingApplier);
-
-            prepareCreate(indexName).setSettings(indexSettings(1, 0)).get();
-            ensureGreen(indexName);
-            indexNodeClusterService.removeApplier(delayingApplier);
-        }
-    }
-
-    // test for ES-8431
-    public void testRelocationsWithUploadDelayed() throws Exception {
-        var maxNonUploadedCommits = randomIntBetween(4, 5);
-        var nodeSettings = Settings.builder()
-            .put(StatelessCommitService.STATELESS_UPLOAD_DELAYED.getKey(), true)
-            .put(StatelessCommitService.STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.getKey(), maxNonUploadedCommits)
-            .build();
-        startIndexNode(nodeSettings);
-        startSearchNode(nodeSettings);
-        ensureStableCluster(3);
-
-        var indexName = randomIdentifier();
-        createIndex(indexName, 1, 1);
-        ensureGreen(indexName);
-
-        var running = new AtomicBoolean(true);
-
-        CountDownLatch indexingStarted = new CountDownLatch(1);
-        CountDownLatch searchingStarted = new CountDownLatch(1);
-
-        var indexingThread = new Thread(() -> {
-            while (running.get()) {
-                try {
-                    // the refresh is important to provoke the original deadlock issue.
-                    indexDocsAndRefresh(indexName, randomIntBetween(10, 50));
-                } catch (Exception e) {
-                    throw new RuntimeException(e);
-                }
-                indexingStarted.countDown();
-            }
-        }, "indexing-thread");
-
-        var searchingThread = new Thread(() -> {
-            while (running.get()) {
-                assertResponse(prepareSearch(indexName).setQuery(matchAllQuery()), response -> {});
-                searchingStarted.countDown();
-            }
-        }, "search-thread");
-
-        indexingThread.start();
-        searchingThread.start();
-
-        try {
-            // not sure this is necessary, but original test had a sleep and this ensures we wait 10s or until we have activity.
-            indexingStarted.await(10, TimeUnit.SECONDS);
-            safeAwait(searchingStarted);
-
-            var newIndexNode = startIndexNode(nodeSettings);
-
-            logger.info("--> relocating index shard into {}", newIndexNode);
-            updateIndexSettings(Settings.builder().put("index.routing.allocation.require._name", newIndexNode), indexName);
-
-            // also waits for no relocating shards.
-            ensureGreen(indexName);
-        } finally {
-            running.set(false);
-
-            indexingThread.join(30000);
-            searchingThread.join(10000);
-        }
-        assertThat(indexingThread.isAlive(), is(false));
-        assertThat(searchingThread.isAlive(), is(false));
     }
 
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch-serverless/issues/2036")

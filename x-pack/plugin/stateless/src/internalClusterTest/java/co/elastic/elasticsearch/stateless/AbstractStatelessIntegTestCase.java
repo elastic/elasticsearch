@@ -44,6 +44,7 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.blobcache.BlobCachePlugin;
 import org.elasticsearch.blobcache.shared.SharedBytes;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
@@ -905,5 +906,17 @@ public abstract class AbstractStatelessIntegTestCase extends ESIntegTestCase {
         final RecoveryStats recoveryStats = nodeStats.getIndices().getRecoveryStats();
         assertThat(recoveryStats.currentAsSource(), equalTo(0));
         assertThat(recoveryStats.currentAsTarget(), equalTo(0));
+    }
+
+    protected static long[] getPrimaryTerms(Client client, String indexName) {
+        var response = client.admin().cluster().prepareState().get();
+        var state = response.getState();
+
+        var indexMetadata = state.metadata().index(indexName);
+        long[] primaryTerms = new long[indexMetadata.getNumberOfShards()];
+        for (int i = 0; i < primaryTerms.length; i++) {
+            primaryTerms[i] = indexMetadata.primaryTerm(i);
+        }
+        return primaryTerms;
     }
 }

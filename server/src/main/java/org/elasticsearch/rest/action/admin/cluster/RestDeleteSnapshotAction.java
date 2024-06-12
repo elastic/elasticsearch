@@ -11,14 +11,17 @@ package org.elasticsearch.rest.action.admin.cluster;
 import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotRequest;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
@@ -29,6 +32,9 @@ import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 @ServerlessScope(Scope.INTERNAL)
 public class RestDeleteSnapshotAction extends BaseRestHandler {
 
+    private static final Set<String> SUPPORTED_QUERY_PARAMETERS = Set.of(RestUtils.REST_MASTER_TIMEOUT_PARAM, "wait_for_completion");
+    private static final Set<String> ALL_SUPPORTED_PARAMETERS = Sets.union(SUPPORTED_QUERY_PARAMETERS, Set.of("repository", "snapshot"));
+
     @Override
     public List<Route> routes() {
         return List.of(new Route(DELETE, "/_snapshot/{repository}/{snapshot}"));
@@ -37,6 +43,16 @@ public class RestDeleteSnapshotAction extends BaseRestHandler {
     @Override
     public String getName() {
         return "delete_snapshot_action";
+    }
+
+    @Override
+    public Set<String> allSupportedParameters() {
+        return ALL_SUPPORTED_PARAMETERS;
+    }
+
+    @Override
+    public Set<String> supportedQueryParameters() {
+        return SUPPORTED_QUERY_PARAMETERS;
     }
 
     @Override

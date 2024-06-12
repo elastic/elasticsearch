@@ -36,7 +36,11 @@ setup:
 ---
 "Delete a snapshot synchronously (specified)":
   - requires:
-      cluster_features: [ "gte_v8.15.0" ]
+      test_runner_features: capabilities
+      capabilities:
+        - method: DELETE
+          path: /_snapshot/{repository}/{snapshot}
+          parameters: [ wait_for_completion ]
       reason: "wait_for_completion parameter was introduced in 8.15"
 
   - do:
@@ -50,7 +54,11 @@ setup:
 ---
 "Delete a snapshot asynchronously":
   - requires:
-      cluster_features: [ "gte_v8.15.0" ]
+      test_runner_features: capabilities
+      capabilities:
+        - method: DELETE
+          path: /_snapshot/{repository}/{snapshot}
+          parameters: [ wait_for_completion ]
       reason: "wait_for_completion parameter was introduced in 8.15"
 
   - do:

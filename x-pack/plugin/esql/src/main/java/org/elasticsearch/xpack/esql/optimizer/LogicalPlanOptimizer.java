@@ -23,7 +23,6 @@ import org.elasticsearch.xpack.esql.core.expression.Order;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules;
-import org.elasticsearch.xpack.esql.core.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.core.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.core.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.core.plan.logical.UnaryPlan;
@@ -73,6 +72,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.ReplaceTrivialTypeConversion
 import org.elasticsearch.xpack.esql.optimizer.rules.SetAsOptimized;
 import org.elasticsearch.xpack.esql.optimizer.rules.SimplifyComparisonsArithmetics;
 import org.elasticsearch.xpack.esql.optimizer.rules.SkipQueryOnEmptyMappings;
+import org.elasticsearch.xpack.esql.optimizer.rules.SkipQueryOnLimitZero;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
@@ -355,14 +355,6 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
                 }
             }
             return in;
-        }
-    }
-
-    static class SkipQueryOnLimitZero extends OptimizerRules.SkipQueryOnLimitZero {
-
-        @Override
-        protected LogicalPlan skipPlan(Limit limit) {
-            return LogicalPlanOptimizer.skipPlan(limit);
         }
     }
 

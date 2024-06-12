@@ -73,3 +73,16 @@ databases from MaxMind.
 
 {es-pull}108683[#108683]
 
+[discrete]
+[[update_elasticsearch_to_lucene_9_11]]
+=== Update Elasticsearch to Lucene 9.11
+Elasticsearch is now updated using the latest Lucene version 9.11.
+Here are the full release notes:
+But, here are some particular highlights:
+- Usage of MADVISE for better memory management: https://github.com/apache/lucene/pull/13196
+- Use RWLock to access LRUQueryCache to reduce contention: https://github.com/apache/lucene/pull/13306
+- Speedup multi-segment HNSW graph search for nested kNN queries: https://github.com/apache/lucene/pull/13121
+- Add a MemorySegment Vector scorer - for scoring without copying on-heap vectors: https://github.com/apache/lucene/pull/13339
+
+{es-pull}109219[#109219]
+

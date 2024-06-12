@@ -1,6 +1,5 @@
 pr: 109025
-summary: Introduce a feature flag and a setting controlling the activation of the
-  `logs` index mode
+summary: Introduce a setting controlling the activation of the `logs` index mode in logs@settings
 area: Logs
 type: feature
 issues:

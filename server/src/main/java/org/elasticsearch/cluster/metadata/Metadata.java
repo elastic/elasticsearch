@@ -223,7 +223,20 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
     );
 
     @SuppressWarnings({ "rawtypes", "unchecked" })
-    private static final NamedDiffableValueSerializer BWC_CUSTOM_VALUE_SERIALIZER = new NamedDiffableValueSerializer(_Custom.class);
+    private static final NamedDiffableValueSerializer BWC_CUSTOM_VALUE_SERIALIZER = new NamedDiffableValueSerializer(_Custom.class) {
+        @Override
+        public _Custom read(StreamInput in, String key) throws IOException {
+            final Set<String> clusterScopedNames = in.namedWriteableRegistry().getReaders(ClusterCustom.class).keySet();
+            final Set<String> projectScopedNames = in.namedWriteableRegistry().getReaders(ProjectCustom.class).keySet();
+            if (clusterScopedNames.contains(key)) {
+                return in.readNamedWriteable(ClusterCustom.class, key);
+            } else if (projectScopedNames.contains(key)) {
+                return in.readNamedWriteable(ProjectCustom.class, key);
+            } else {
+                throw new IllegalArgumentException("Unknown custom name [" + key + "]");
+            }
+        }
+    };
 
     private final String clusterUUID;
     private final boolean clusterUUIDCommitted;

@@ -21,7 +21,6 @@ import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.Order;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
-import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules;
 import org.elasticsearch.xpack.esql.core.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.core.plan.logical.OrderBy;
@@ -31,7 +30,6 @@ import org.elasticsearch.xpack.esql.core.rule.ParameterizedRuleExecutor;
 import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesFunction;
-import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.optimizer.rules.AddDefaultTopN;
 import org.elasticsearch.xpack.esql.optimizer.rules.BooleanFunctionEqualsElimination;
 import org.elasticsearch.xpack.esql.optimizer.rules.BooleanSimplification;
@@ -73,6 +71,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.SetAsOptimized;
 import org.elasticsearch.xpack.esql.optimizer.rules.SimplifyComparisonsArithmetics;
 import org.elasticsearch.xpack.esql.optimizer.rules.SkipQueryOnEmptyMappings;
 import org.elasticsearch.xpack.esql.optimizer.rules.SkipQueryOnLimitZero;
+import org.elasticsearch.xpack.esql.optimizer.rules.SplitInWithFoldableValue;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
@@ -326,35 +325,6 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
         @Override
         protected SpatialRelatesFunction rule(SpatialRelatesFunction function) {
             return function.surrogate();
-        }
-    }
-
-    // 3 in (field, 4, 5) --> 3 in (field) or 3 in (4, 5)
-    public static class SplitInWithFoldableValue extends OptimizerRules.OptimizerExpressionRule<In> {
-
-        SplitInWithFoldableValue() {
-            super(TransformDirection.UP);
-        }
-
-        @Override
-        protected Expression rule(In in) {
-            if (in.value().foldable()) {
-                List<Expression> foldables = new ArrayList<>(in.list().size());
-                List<Expression> nonFoldables = new ArrayList<>(in.list().size());
-                in.list().forEach(e -> {
-                    if (e.foldable() && Expressions.isNull(e) == false) { // keep `null`s, needed for the 3VL
-                        foldables.add(e);
-                    } else {
-                        nonFoldables.add(e);
-                    }
-                });
-                if (foldables.size() > 0 && nonFoldables.size() > 0) {
-                    In withFoldables = new In(in.source(), in.value(), foldables);
-                    In withoutFoldables = new In(in.source(), in.value(), nonFoldables);
-                    return new Or(in.source(), withFoldables, withoutFoldables);
-                }
-            }
-            return in;
         }
     }
 

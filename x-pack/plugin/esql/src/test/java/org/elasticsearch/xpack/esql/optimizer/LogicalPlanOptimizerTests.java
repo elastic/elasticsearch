@@ -108,6 +108,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Not
 import org.elasticsearch.xpack.esql.optimizer.rules.LiteralsOnTheRight;
 import org.elasticsearch.xpack.esql.optimizer.rules.PushDownAndCombineFilters;
 import org.elasticsearch.xpack.esql.optimizer.rules.PushDownAndCombineLimits;
+import org.elasticsearch.xpack.esql.optimizer.rules.SplitInWithFoldableValue;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
@@ -2216,7 +2217,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         FieldAttribute fa = getFieldAttribute("foo");
         In in = new In(EMPTY, ONE, List.of(TWO, THREE, fa, L(null)));
         Or expected = new Or(EMPTY, new In(EMPTY, ONE, List.of(TWO, THREE)), new In(EMPTY, ONE, List.of(fa, L(null))));
-        assertThat(new LogicalPlanOptimizer.SplitInWithFoldableValue().rule(in), equalTo(expected));
+        assertThat(new SplitInWithFoldableValue().rule(in), equalTo(expected));
     }
 
     public void testReplaceFilterWithExact() {

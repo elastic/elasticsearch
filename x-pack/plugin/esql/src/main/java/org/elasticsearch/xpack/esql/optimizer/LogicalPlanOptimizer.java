@@ -73,6 +73,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.PruneColumns;
 import org.elasticsearch.xpack.esql.optimizer.rules.PruneEmptyPlans;
 import org.elasticsearch.xpack.esql.optimizer.rules.PruneFilters;
 import org.elasticsearch.xpack.esql.optimizer.rules.PruneLiteralsInOrderBy;
+import org.elasticsearch.xpack.esql.optimizer.rules.PruneOrderByBeforeStats;
 import org.elasticsearch.xpack.esql.optimizer.rules.SetAsOptimized;
 import org.elasticsearch.xpack.esql.optimizer.rules.SimplifyComparisonsArithmetics;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
@@ -674,35 +675,6 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
 
             return orderBy;
         }
-    }
-
-    static class PruneOrderByBeforeStats extends OptimizerRules.OptimizerRule<Aggregate> {
-
-        @Override
-        protected LogicalPlan rule(Aggregate agg) {
-            OrderBy order = findPullableOrderBy(agg.child());
-
-            LogicalPlan p = agg;
-            if (order != null) {
-                p = agg.transformDown(OrderBy.class, o -> o == order ? order.child() : o);
-            }
-            return p;
-        }
-
-        private static OrderBy findPullableOrderBy(LogicalPlan plan) {
-            OrderBy pullable = null;
-            if (plan instanceof OrderBy o) {
-                pullable = o;
-            } else if (plan instanceof Eval
-                || plan instanceof Filter
-                || plan instanceof Project
-                || plan instanceof RegexExtract
-                || plan instanceof Enrich) {
-                    pullable = findPullableOrderBy(((UnaryPlan) plan).child());
-                }
-            return pullable;
-        }
-
     }
 
     static class PruneRedundantSortClauses extends OptimizerRules.OptimizerRule<OrderBy> {

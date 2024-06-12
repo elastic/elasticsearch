@@ -67,6 +67,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.LiteralsOnTheRight;
 import org.elasticsearch.xpack.esql.optimizer.rules.PartiallyFoldCase;
 import org.elasticsearch.xpack.esql.optimizer.rules.PropagateEmptyRelation;
 import org.elasticsearch.xpack.esql.optimizer.rules.PropagateEquals;
+import org.elasticsearch.xpack.esql.optimizer.rules.PropagateEvalFoldables;
 import org.elasticsearch.xpack.esql.optimizer.rules.PropagateNullable;
 import org.elasticsearch.xpack.esql.optimizer.rules.PruneFilters;
 import org.elasticsearch.xpack.esql.optimizer.rules.PruneLiteralsInOrderBy;
@@ -366,49 +367,6 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
                 var newOrderBy = new OrderBy(orderBy.source(), new Eval(orderBy.source(), orderBy.child(), evals), newOrders);
                 return new Project(orderBy.source(), newOrderBy, orderBy.output());
             }
-        }
-    }
-
-    /**
-     * Replace any reference attribute with its source, if it does not affect the result.
-     * This avoids ulterior look-ups between attributes and its source across nodes.
-     */
-    static class PropagateEvalFoldables extends Rule<LogicalPlan, LogicalPlan> {
-
-        @Override
-        public LogicalPlan apply(LogicalPlan plan) {
-            var collectRefs = new AttributeMap<Expression>();
-
-            java.util.function.Function<ReferenceAttribute, Expression> replaceReference = r -> collectRefs.resolve(r, r);
-
-            // collect aliases bottom-up
-            plan.forEachExpressionUp(Alias.class, a -> {
-                var c = a.child();
-                boolean shouldCollect = c.foldable();
-                // try to resolve the expression based on an existing foldables
-                if (shouldCollect == false) {
-                    c = c.transformUp(ReferenceAttribute.class, replaceReference);
-                    shouldCollect = c.foldable();
-                }
-                if (shouldCollect) {
-                    collectRefs.put(a.toAttribute(), Literal.of(c));
-                }
-            });
-            if (collectRefs.isEmpty()) {
-                return plan;
-            }
-
-            plan = plan.transformUp(p -> {
-                // Apply the replacement inside Filter and Eval (which shouldn't make a difference)
-                // TODO: also allow aggregates once aggs on constants are supported.
-                // C.f. https://github.com/elastic/elasticsearch/issues/100634
-                if (p instanceof Filter || p instanceof Eval) {
-                    p = p.transformExpressionsOnly(ReferenceAttribute.class, replaceReference);
-                }
-                return p;
-            });
-
-            return plan;
         }
     }
 

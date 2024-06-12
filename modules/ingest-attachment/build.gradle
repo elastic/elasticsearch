@@ -80,7 +80,6 @@ dependencies {
   api "org.apache.tika:tika-parser-xmp-commons:${versions.tika}"
   api "org.apache.tika:tika-parser-zip-commons:${versions.tika}"
   api "org.tukaani:xz:${versions.xz}"
-  api "commons-io:commons-io:${versions.commonsIo}"
 
   // character set detection
   api "com.googlecode.juniversalchardet:juniversalchardet:${versions.juniversalchardet}"

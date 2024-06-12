@@ -8,13 +8,26 @@
 
 package org.elasticsearch.common.util;
 
-import java.util.concurrent.atomic.AtomicBoolean;
+import java.lang.invoke.MethodHandles;
+import java.lang.invoke.VarHandle;
 
 abstract class AbstractArray implements BigArray {
 
+    protected static final VarHandle VH_RELEASED_FIELD;
+
+    static {
+        try {
+            VH_RELEASED_FIELD = MethodHandles.lookup().in(AbstractArray.class).findVarHandle(AbstractArray.class, "released", int.class);
+        } catch (NoSuchFieldException | IllegalAccessException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    @SuppressWarnings("FieldMayBeFinal") // updated via VH_RELEASED_FIELD (and _only_ via VH_RELEASED_FIELD)
+    private volatile int released = 0;
+
     private final BigArrays bigArrays;
     public final boolean clearOnResize;
-    private final AtomicBoolean closed = new AtomicBoolean(false);
 
     AbstractArray(BigArrays bigArrays, boolean clearOnResize) {
         this.bigArrays = bigArrays;
@@ -23,7 +36,7 @@ abstract class AbstractArray implements BigArray {
 
     @Override
     public final void close() {
-        if (closed.compareAndSet(false, true)) {
+        if (VH_RELEASED_FIELD.compareAndSet(this, 0, 1)) {
             try {
                 bigArrays.adjustBreaker(-ramBytesUsed(), true);
             } finally {

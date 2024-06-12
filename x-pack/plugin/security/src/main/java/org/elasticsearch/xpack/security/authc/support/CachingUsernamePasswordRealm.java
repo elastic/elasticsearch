@@ -131,12 +131,12 @@ public abstract class CachingUsernamePasswordRealm extends UsernamePasswordRealm
             });
             if (authenticationInCache.get()) {
                 // there is a cached or an inflight authenticate request
-                listenableCacheEntry.addListener(ActionListener.wrap(cachedResult -> {
+                listenableCacheEntry.addListener(listener.delegateFailureAndWrap((delegate, cachedResult) -> {
                     final boolean credsMatch = cachedResult.verify(token.credentials());
                     if (cachedResult.authenticationResult.isAuthenticated()) {
                         if (credsMatch) {
                             // cached credential hash matches the credential hash for this forestalled request
-                            handleCachedAuthentication(cachedResult.user, ActionListener.wrap(authResult -> {
+                            handleCachedAuthentication(cachedResult.user, delegate.delegateFailureAndWrap((delegate2, authResult) -> {
                                 if (authResult.isAuthenticated()) {
                                     logger.debug(
                                         "realm [{}] authenticated user [{}], with roles [{}] (cached)",
@@ -152,8 +152,8 @@ public abstract class CachingUsernamePasswordRealm extends UsernamePasswordRealm
                                         authResult.getMessage()
                                     );
                                 }
-                                listener.onResponse(authResult);
-                            }, listener::onFailure));
+                                delegate2.onResponse(authResult);
+                            }));
                         } else {
                             logger.trace(
                                 "realm [{}], provided credentials for user [{}] do not match (known good) cached credentials,"
@@ -166,7 +166,7 @@ public abstract class CachingUsernamePasswordRealm extends UsernamePasswordRealm
                             // clear cache and try to reach the authentication source again because password
                             // might have changed there and the local cached hash got stale
                             cache.invalidate(token.principal(), listenableCacheEntry);
-                            authenticateWithCache(token, listener);
+                            authenticateWithCache(token, delegate);
                         }
                     } else if (credsMatch) {
                         // not authenticated but instead of hammering reuse the result. a new
@@ -178,7 +178,7 @@ public abstract class CachingUsernamePasswordRealm extends UsernamePasswordRealm
                             cachedResult.authenticationResult.getStatus(),
                             cachedResult.authenticationResult.getMessage()
                         );
-                        listener.onResponse(cachedResult.authenticationResult);
+                        delegate.onResponse(cachedResult.authenticationResult);
                     } else {
                         logger.trace(
                             "realm [{}], provided credentials for user [{}] do not match (possibly invalid) cached credentials,"
@@ -187,9 +187,9 @@ public abstract class CachingUsernamePasswordRealm extends UsernamePasswordRealm
                             token.principal()
                         );
                         cache.invalidate(token.principal(), listenableCacheEntry);
-                        authenticateWithCache(token, listener);
+                        authenticateWithCache(token, delegate);
                     }
-                }, listener::onFailure), threadPool.executor(ThreadPool.Names.GENERIC), threadPool.getThreadContext());
+                }), threadPool.executor(ThreadPool.Names.GENERIC), threadPool.getThreadContext());
             } else {
                 logger.trace(
                     "realm [{}] does not have a cached result for user [{}]; attempting fresh authentication",

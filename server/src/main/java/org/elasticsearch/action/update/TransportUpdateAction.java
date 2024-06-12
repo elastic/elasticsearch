@@ -11,10 +11,12 @@ package org.elasticsearch.action.update;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
@@ -22,23 +24,32 @@ import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.AutoCreateIndex;
+import org.elasticsearch.action.support.ChannelActionListener;
+import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.TransportActions;
-import org.elasticsearch.action.support.single.instance.TransportInstanceSingleOperationAction;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateObserver;
+import org.elasticsearch.cluster.block.ClusterBlockException;
+import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardIterator;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.NotSerializableExceptionWrapper;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
@@ -49,10 +60,16 @@ import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPool.Names;
+import org.elasticsearch.transport.ConnectTransportException;
+import org.elasticsearch.transport.TransportChannel;
+import org.elasticsearch.transport.TransportException;
+import org.elasticsearch.transport.TransportRequestOptions;
+import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.XContentType;
 
@@ -63,11 +80,17 @@ import java.util.concurrent.Executor;
 import static org.elasticsearch.ExceptionsHelper.unwrapCause;
 import static org.elasticsearch.action.bulk.TransportBulkAction.unwrappingSingleItemBulkResponse;
 import static org.elasticsearch.action.bulk.TransportSingleItemBulkWriteAction.toSingleItemBulkRequest;
+import static org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.EXCLUDED_DATA_STREAMS_KEY;
 
-public class TransportUpdateAction extends TransportInstanceSingleOperationAction<UpdateRequest, UpdateResponse> {
+public class TransportUpdateAction extends HandledTransportAction<UpdateRequest, UpdateResponse> {
 
     public static final String NAME = "indices:data/write/update";
     public static final ActionType<UpdateResponse> TYPE = new ActionType<>(NAME);
+    protected final ThreadPool threadPool;
+    protected final ClusterService clusterService;
+    protected final TransportService transportService;
+    protected final IndexNameExpressionResolver indexNameExpressionResolver;
+    final String shardActionName;
     private final AutoCreateIndex autoCreateIndex;
     private final UpdateHelper updateHelper;
     private final IndicesService indicesService;
@@ -85,31 +108,38 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
         AutoCreateIndex autoCreateIndex,
         NodeClient client
     ) {
-        super(NAME, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver, UpdateRequest::new);
+        super(NAME, transportService, actionFilters, UpdateRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        this.threadPool = threadPool;
+        this.clusterService = clusterService;
+        this.transportService = transportService;
+        this.indexNameExpressionResolver = indexNameExpressionResolver;
+        this.shardActionName = actionName + "[s]";
+        transportService.registerRequestHandler(
+            shardActionName,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            UpdateRequest::new,
+            this::handleShardRequest
+        );
         this.updateHelper = updateHelper;
         this.indicesService = indicesService;
         this.autoCreateIndex = autoCreateIndex;
         this.client = client;
     }
 
-    @Override
-    protected Executor executor(ShardId shardId) {
+    private Executor executor(ShardId shardId) {
         final IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
         return threadPool.executor(indexService.getIndexSettings().getIndexMetadata().isSystem() ? Names.SYSTEM_WRITE : Names.WRITE);
     }
 
-    @Override
-    protected UpdateResponse newResponse(StreamInput in) throws IOException {
+    private UpdateResponse newResponse(StreamInput in) throws IOException {
         return new UpdateResponse(in);
     }
 
-    @Override
-    protected boolean retryOnFailure(Exception e) {
+    private boolean retryOnFailure(Exception e) {
         return TransportActions.isShardNotAvailableException(e);
     }
 
-    @Override
-    protected void resolveRequest(ClusterState state, UpdateRequest docWriteRequest) {
+    private void resolveRequest(ClusterState state, UpdateRequest docWriteRequest) {
         docWriteRequest.routing(state.metadata().resolveWriteIndexRouting(docWriteRequest.routing(), docWriteRequest.index()));
     }
 
@@ -155,11 +185,10 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
     }
 
     private void innerExecute(final Task task, final UpdateRequest request, final ActionListener<UpdateResponse> listener) {
-        super.doExecute(task, request, listener);
+        new AsyncSingleAction(request, listener).start();
     }
 
-    @Override
-    protected ShardIterator shards(ClusterState clusterState, UpdateRequest request) {
+    private ShardIterator shards(ClusterState clusterState, UpdateRequest request) {
         if (request.getShardId() != null) {
             return clusterState.routingTable().index(request.concreteIndex()).shard(request.getShardId().getId()).primaryShardIt();
         }
@@ -172,8 +201,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
         return RoutingTable.shardRoutingTable(clusterState.routingTable().index(request.concreteIndex()), shardId).primaryShardIt();
     }
 
-    @Override
-    protected void shardOperation(final UpdateRequest request, final ActionListener<UpdateResponse> listener) {
+    private void shardOperation(final UpdateRequest request, final ActionListener<UpdateResponse> listener) {
         try {
             shardOperation(request, listener, 0);
         } catch (IOException e) {
@@ -429,5 +457,164 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
         }
 
         return returnedResult;
+    }
+
+    private void handleShardRequest(UpdateRequest request, TransportChannel channel, Task task) {
+        executor(request.shardId).execute(
+            ActionRunnable.wrap(new ChannelActionListener<UpdateResponse>(channel), l -> shardOperation(request, l))
+        );
+    }
+
+    protected static ClusterBlockException checkGlobalBlock(ClusterState state) {
+        return state.blocks().globalBlockedException(ClusterBlockLevel.WRITE);
+    }
+
+    protected ClusterBlockException checkRequestBlock(ClusterState state, UpdateRequest request) {
+        return state.blocks().indexBlockedException(ClusterBlockLevel.WRITE, request.concreteIndex());
+    }
+
+    class AsyncSingleAction {
+
+        private final ActionListener<UpdateResponse> listener;
+        private final UpdateRequest request;
+        private volatile ClusterStateObserver observer;
+        private ShardIterator shardIt;
+
+        AsyncSingleAction(UpdateRequest request, ActionListener<UpdateResponse> listener) {
+            this.request = request;
+            this.listener = listener;
+        }
+
+        public void start() {
+            ClusterState state = clusterService.state();
+            this.observer = new ClusterStateObserver(state, clusterService, request.timeout(), logger, threadPool.getThreadContext());
+            doStart(state);
+        }
+
+        protected void doStart(ClusterState clusterState) {
+            try {
+                ClusterBlockException blockException = checkGlobalBlock(clusterState);
+                if (blockException != null) {
+                    if (blockException.retryable()) {
+                        retry(blockException);
+                        return;
+                    } else {
+                        throw blockException;
+                    }
+                }
+                try {
+                    request.concreteIndex(indexNameExpressionResolver.concreteWriteIndex(clusterState, request).getName());
+                } catch (IndexNotFoundException e) {
+                    if (request.includeDataStreams() == false && e.getMetadataKeys().contains(EXCLUDED_DATA_STREAMS_KEY)) {
+                        throw new IllegalArgumentException("only write ops with an op_type of create are allowed in data streams");
+                    } else {
+                        throw e;
+                    }
+                }
+                resolveRequest(clusterState, request);
+                blockException = checkRequestBlock(clusterState, request);
+                if (blockException != null) {
+                    if (blockException.retryable()) {
+                        retry(blockException);
+                        return;
+                    } else {
+                        throw blockException;
+                    }
+                }
+                shardIt = shards(clusterState, request);
+            } catch (Exception e) {
+                listener.onFailure(e);
+                return;
+            }
+
+            // no shardIt, might be in the case between index gateway recovery and shardIt initialization
+            if (shardIt.size() == 0) {
+                retry(null);
+                return;
+            }
+
+            // this transport only make sense with an iterator that returns a single shard routing (like primary)
+            assert shardIt.size() == 1;
+
+            ShardRouting shard = shardIt.nextOrNull();
+            assert shard != null;
+
+            if (shard.active() == false) {
+                retry(null);
+                return;
+            }
+
+            request.shardId = shardIt.shardId();
+            DiscoveryNode node = clusterState.nodes().get(shard.currentNodeId());
+            transportService.sendRequest(
+                node,
+                shardActionName,
+                request,
+                TransportRequestOptions.EMPTY,
+                new ActionListenerResponseHandler<>(
+                    listener,
+                    TransportUpdateAction.this::newResponse,
+                    TransportResponseHandler.TRANSPORT_WORKER
+                ) {
+                    @Override
+                    public void handleException(TransportException exp) {
+                        final Throwable cause = exp.unwrapCause();
+                        // if we got disconnected from the node, or the node / shard is not in the right state (being closed)
+                        if (cause instanceof ConnectTransportException || cause instanceof NodeClosedException || retryOnFailure(exp)) {
+                            retry((Exception) cause);
+                        } else {
+                            listener.onFailure(exp);
+                        }
+                    }
+                }
+            );
+        }
+
+        void retry(@Nullable final Exception failure) {
+            if (observer.isTimedOut()) {
+                // we running as a last attempt after a timeout has happened. don't retry
+                Exception listenFailure = failure;
+                if (listenFailure == null) {
+                    if (shardIt == null) {
+                        listenFailure = new UnavailableShardsException(
+                            request.concreteIndex(),
+                            -1,
+                            "Timeout waiting for [{}], request: {}",
+                            request.timeout(),
+                            actionName
+                        );
+                    } else {
+                        listenFailure = new UnavailableShardsException(
+                            shardIt.shardId(),
+                            "[{}] shardIt, [{}] active : Timeout waiting for [{}], request: {}",
+                            shardIt.size(),
+                            shardIt.sizeActive(),
+                            request.timeout(),
+                            actionName
+                        );
+                    }
+                }
+                listener.onFailure(listenFailure);
+                return;
+            }
+
+            observer.waitForNextChange(new ClusterStateObserver.Listener() {
+                @Override
+                public void onNewClusterState(ClusterState state) {
+                    doStart(state);
+                }
+
+                @Override
+                public void onClusterServiceClose() {
+                    listener.onFailure(new NodeClosedException(clusterService.localNode()));
+                }
+
+                @Override
+                public void onTimeout(TimeValue timeout) {
+                    // just to be on the safe side, see if we can start it now?
+                    doStart(observer.setAndGetObservedState());
+                }
+            }, request.timeout());
+        }
     }
 }

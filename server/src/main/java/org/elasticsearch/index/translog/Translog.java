@@ -14,6 +14,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.DiskIoBufferPool;
+import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -59,6 +60,8 @@ import java.util.function.LongSupplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
+import java.util.zip.CRC32;
+import java.util.zip.CheckedOutputStream;
 
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.index.translog.TranslogConfig.EMPTY_TRANSLOG_BUFFER_SIZE;
@@ -1586,8 +1589,15 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     public static void writeOperationWithSize(BytesStreamOutput out, Translog.Operation op) throws IOException {
         final long start = out.position();
         out.skip(Integer.BYTES);
-        writeOperationNoSize(new BufferedChecksumStreamOutput(out), op);
-        final long end = out.position();
+        final long checksumStart = start + Integer.BYTES;
+        op.writeTo(out);
+        final long checksumEnd = out.position();
+        final CRC32 cs = new CRC32();
+        out.bytes()
+            .slice(Math.toIntExact(checksumStart), Math.toIntExact(checksumEnd - checksumStart))
+            .writeTo(new CheckedOutputStream(Streams.NULL_OUTPUT_STREAM, cs));
+        out.writeInt((int) cs.getValue());
+        final long end = checksumEnd + Integer.BYTES;
         final int operationSize = (int) (end - Integer.BYTES - start);
         out.seek(start);
         out.writeInt(operationSize);

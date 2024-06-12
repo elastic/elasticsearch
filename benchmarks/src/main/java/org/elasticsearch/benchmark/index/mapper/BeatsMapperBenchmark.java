@@ -34,7 +34,7 @@ import java.util.zip.GZIPInputStream;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 
-@Fork(value = 1)
+@Fork(value = 3)
 @Warmup(iterations = 5)
 @Measurement(iterations = 5)
 @BenchmarkMode(Mode.AverageTime)

@@ -457,7 +457,11 @@ public class BulkRequest extends ActionRequest
 
     @Override
     public long ramBytesUsed() {
-        return SHALLOW_SIZE + requests.stream().mapToLong(Accountable::ramBytesUsed).sum();
+        long sum = SHALLOW_SIZE;
+        for (DocWriteRequest<?> request : requests) {
+            sum += request.ramBytesUsed();
+        }
+        return sum;
     }
 
     public Set<String> getIndices() {

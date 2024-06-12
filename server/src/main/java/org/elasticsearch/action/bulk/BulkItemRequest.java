@@ -23,6 +23,8 @@ import java.util.Objects;
 
 public class BulkItemRequest implements Writeable, Accountable {
 
+    public static final BulkItemRequest[] EMPTY_ARRAY = new BulkItemRequest[0];
+
     private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(BulkItemRequest.class);
 
     private final int id;

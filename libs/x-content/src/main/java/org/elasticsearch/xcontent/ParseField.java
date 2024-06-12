@@ -27,6 +27,8 @@ public class ParseField {
     private final String allReplacedWith;
     private final boolean fullyDeprecated;
 
+    private final boolean isCompatibleDeprecation;
+
     private final String[] allNames;
 
     private static final String[] EMPTY = new String[0];
@@ -46,14 +48,16 @@ public class ParseField {
         } else {
             final HashSet<String> set = new HashSet<>();
             Collections.addAll(set, deprecatedNames);
-            this.deprecatedNames = set.toArray(new String[set.size()]);
+            this.deprecatedNames = set.toArray(EMPTY);
         }
         this.forRestApiVersion = forRestApiVersion;
 
         Set<String> names = new HashSet<>();
         names.add(name);
         Collections.addAll(names, this.deprecatedNames);
-        this.allNames = names.toArray(new String[names.size()]);
+        this.allNames = names.toArray(EMPTY);
+        this.isCompatibleDeprecation = RestApiVersion.minimumSupported().matches(forRestApiVersion)
+            && RestApiVersion.current().matches(forRestApiVersion) == false;
     }
 
     /**
@@ -160,8 +164,6 @@ public class ParseField {
         if (fullyDeprecated == false && allReplacedWith == null && fieldName.equals(name)) {
             return true;
         }
-        boolean isCompatibleDeprecation = RestApiVersion.minimumSupported().matches(forRestApiVersion)
-            && RestApiVersion.current().matches(forRestApiVersion) == false;
 
         // Now try to match against one of the deprecated names. Note that if
         // the parse field is entirely deprecated (allReplacedWith != null) all

@@ -132,16 +132,10 @@ public class ElasticsearchInternalService implements InferenceService {
                 ).build();
                 throwIfNotEmptyMap(serviceSettingsMap, name());
 
-                var taskSettings = CustomElandModel.taskSettingsFromMap(TaskType.RERANK, taskSettingsMap);
+                var taskSettings = CustomElandModel.taskSettingsFromMap(taskType, taskSettingsMap);
                 throwIfNotEmptyMap(taskSettingsMap, name());
 
-                var model = CustomElandModel.build(
-                    inferenceEntityId,
-                    TaskType.RERANK,
-                    name(),
-                    customElandInternalServiceSettings,
-                    taskSettings
-                );
+                var model = CustomElandModel.build(inferenceEntityId, taskType, name(), customElandInternalServiceSettings, taskSettings);
                 delegate.onResponse(model);
             }
         });

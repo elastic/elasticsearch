@@ -10,12 +10,14 @@ package org.elasticsearch.http;
 
 import io.netty.handler.codec.http.HttpMethod;
 
+import org.elasticsearch.cat.CatPlugin;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.InternalTestCluster;
@@ -25,7 +27,9 @@ import org.elasticsearch.test.rest.ESRestTestCase;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
@@ -54,6 +58,13 @@ import static org.hamcrest.Matchers.is;
 public class DanglingIndicesRestIT extends HttpSmokeTestCase {
     private static final String INDEX_NAME = "test-idx-1";
     private static final String OTHER_INDEX_NAME = INDEX_NAME + "-other";
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        var plugins = new HashSet<>(super.nodePlugins());
+        plugins.add(CatPlugin.class);
+        return plugins;
+    }
 
     private Settings buildSettings(int maxTombstones) {
         return Settings.builder()

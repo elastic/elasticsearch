@@ -17,39 +17,32 @@ import org.elasticsearch.xpack.application.EnterpriseSearch;
 import org.elasticsearch.xpack.application.EnterpriseSearchBaseRestHandler;
 import org.elasticsearch.xpack.application.utils.LicenseUtils;
 
-import java.io.IOException;
 import java.util.List;
 
-import static org.elasticsearch.rest.RestRequest.Method.PUT;
+import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 
 @ServerlessScope(Scope.PUBLIC)
-public class RestPutQueryRuleAction extends EnterpriseSearchBaseRestHandler {
-    public RestPutQueryRuleAction(XPackLicenseState licenseState) {
+public class RestDeleteQueryRuleAction extends EnterpriseSearchBaseRestHandler {
+    public RestDeleteQueryRuleAction(XPackLicenseState licenseState) {
         super(licenseState, LicenseUtils.Product.QUERY_RULES);
     }
 
     @Override
     public String getName() {
-        return "query_rule_put_action";
+        return "query_rule_delete_action";
     }
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(PUT, "/" + EnterpriseSearch.QUERY_RULES_API_ENDPOINT + "/{ruleset_id}/_rule/{rule_id}"));
+        return List.of(new Route(DELETE, "/" + EnterpriseSearch.QUERY_RULES_API_ENDPOINT + "/{ruleset_id}/_rule/{rule_id}"));
     }
 
     @Override
-    protected RestChannelConsumer innerPrepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
-        PutQueryRuleAction.Request request = new PutQueryRuleAction.Request(
+    protected RestChannelConsumer innerPrepareRequest(RestRequest restRequest, NodeClient client) {
+        DeleteQueryRuleAction.Request request = new DeleteQueryRuleAction.Request(
             restRequest.param("ruleset_id"),
-            restRequest.param("rule_id"),
-            restRequest.content(),
-            restRequest.getXContentType()
+            restRequest.param("rule_id")
         );
-        return channel -> client.execute(
-            PutQueryRuleAction.INSTANCE,
-            request,
-            new RestToXContentListener<>(channel, PutQueryRuleAction.Response::status, r -> null)
-        );
+        return channel -> client.execute(DeleteQueryRuleAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }
 }

@@ -72,7 +72,6 @@ public abstract class LogsIndexModeRestTestIT extends ESRestTestCase {
         final Map<String, Object> settings = ((Map<String, Map<String, Object>>) entityAsMap(client.performRequest(request)).get(indexName))
             .get("settings");
 
-
         return settings.get(setting);
     }
 

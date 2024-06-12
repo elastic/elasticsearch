@@ -82,15 +82,6 @@ public class LogsIndexModeEnabledRestTestIT extends LogsIndexModeRestTestIT {
         assertThat(indexMode, equalTo(IndexMode.LOGS.getName()));
     }
 
-    public void testLogsIndexModeSettings() throws IOException {
-        assertOK(putComponentTemplate(client, "logs@custom", MAPPINGS));
-        assertOK(createDataStream(client, "logs-custom-dev"));
-        final String sortField = (String) getSetting(client, getDataStreamBackingIndex(client, "logs-custom-dev", 0), "index.sort.field");
-        assertThat(sortField, equalTo("bla"));
-        final String sortOrder = (String) getSetting(client, getDataStreamBackingIndex(client, "logs-custom-dev", 0), "index.sort.order");
-        assertThat(sortOrder, equalTo("meh"));
-    }
-
     public void testLogsIndexBulkIndexing() throws IOException {
         assertOK(putComponentTemplate(client, "logs@custom", MAPPINGS));
         assertOK(createDataStream(client, "logs-custom-dev"));

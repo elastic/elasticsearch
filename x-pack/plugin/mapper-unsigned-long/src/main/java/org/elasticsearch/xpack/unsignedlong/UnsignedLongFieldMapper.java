@@ -29,6 +29,7 @@ import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.BlockSourceReader;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.IgnoreMalformedStoredValues;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperParsingException;
@@ -209,7 +210,14 @@ public class UnsignedLongFieldMapper extends FieldMapper {
                 metric.getValue(),
                 indexMode
             );
-            return new UnsignedLongFieldMapper(name(), fieldType, multiFieldsBuilder.build(this, context), copyTo, this);
+            return new UnsignedLongFieldMapper(
+                name(),
+                fieldType,
+                multiFieldsBuilder.build(this, context),
+                copyTo,
+                context.isSourceSynthetic(),
+                this
+            );
         }
     }
 
@@ -554,6 +562,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
         }
     }
 
+    private final boolean isSourceSynthetic;
     private final boolean indexed;
     private final boolean hasDocValues;
     private final boolean stored;
@@ -570,9 +579,11 @@ public class UnsignedLongFieldMapper extends FieldMapper {
         MappedFieldType mappedFieldType,
         MultiFields multiFields,
         CopyTo copyTo,
+        boolean isSourceSynthetic,
         Builder builder
     ) {
         super(simpleName, mappedFieldType, multiFields, copyTo);
+        this.isSourceSynthetic = isSourceSynthetic;
         this.indexed = builder.indexed.getValue();
         this.hasDocValues = builder.hasDocValues.getValue();
         this.stored = builder.stored.getValue();
@@ -623,6 +634,10 @@ public class UnsignedLongFieldMapper extends FieldMapper {
             } catch (IllegalArgumentException e) {
                 if (ignoreMalformed.value() && parser.currentToken().isValue()) {
                     context.addIgnoredField(mappedFieldType.name());
+                    if (isSourceSynthetic) {
+                        // Save a copy of the field so synthetic source can load it
+                        context.doc().add(IgnoreMalformedStoredValues.storedField(name(), context.parser()));
+                    }
                     return;
                 } else {
                     throw e;
@@ -755,11 +770,6 @@ public class UnsignedLongFieldMapper extends FieldMapper {
         if (hasDocValues == false) {
             throw new IllegalArgumentException(
                 "field [" + name() + "] of type [" + typeName() + "] doesn't support synthetic source because it doesn't have doc values"
-            );
-        }
-        if (ignoreMalformed.value()) {
-            throw new IllegalArgumentException(
-                "field [" + name() + "] of type [" + typeName() + "] doesn't support synthetic source because it ignores malformed numbers"
             );
         }
         if (copyTo.copyToFields().isEmpty() != true) {

@@ -100,12 +100,10 @@ public class RestClusterRerouteAction extends BaseRestHandler {
     }
 
     public static ClusterRerouteRequest createRequest(RestRequest request) throws IOException {
-        ClusterRerouteRequest clusterRerouteRequest = new ClusterRerouteRequest();
+        final var clusterRerouteRequest = new ClusterRerouteRequest(getMasterNodeTimeout(request), getAckTimeout(request));
         clusterRerouteRequest.dryRun(request.paramAsBoolean("dry_run", clusterRerouteRequest.dryRun()));
         clusterRerouteRequest.explain(request.paramAsBoolean("explain", clusterRerouteRequest.explain()));
-        clusterRerouteRequest.ackTimeout(getAckTimeout(request));
         clusterRerouteRequest.setRetryFailed(request.paramAsBoolean("retry_failed", clusterRerouteRequest.isRetryFailed()));
-        clusterRerouteRequest.masterNodeTimeout(getMasterNodeTimeout(request));
         request.applyContentParser(parser -> PARSER.parse(parser, clusterRerouteRequest, null));
         return clusterRerouteRequest;
     }

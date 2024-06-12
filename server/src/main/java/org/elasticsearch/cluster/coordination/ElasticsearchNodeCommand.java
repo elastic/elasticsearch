@@ -32,6 +32,7 @@ import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
@@ -63,6 +64,13 @@ public abstract class ElasticsearchNodeCommand extends EnvironmentAwareCommand {
 
     // fake the registry here, as command-line tools are not loading plugins, and ensure that it preserves the parsed XContent
     public static final NamedXContentRegistry namedXContentRegistry = new NamedXContentRegistry(ClusterModule.getNamedXWriteables()) {
+
+        @Override
+        public boolean hasParser(Class<?> categoryClass, String name, RestApiVersion apiVersion) {
+            return Metadata.ClusterCustom.class.isAssignableFrom(categoryClass)
+                || Metadata.ProjectCustom.class.isAssignableFrom(categoryClass)
+                || Condition.class.isAssignableFrom(categoryClass);
+        }
 
         @SuppressWarnings("unchecked")
         @Override

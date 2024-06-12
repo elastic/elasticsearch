@@ -30,9 +30,9 @@ public final class NegDoublesEvaluator implements EvalOperator.ExpressionEvaluat
 
   public NegDoublesEvaluator(Source source, EvalOperator.ExpressionEvaluator v,
       DriverContext driverContext) {
-    this.warnings = new Warnings(source);
     this.v = v;
     this.driverContext = driverContext;
+    this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
   }
 
   @Override
@@ -67,9 +67,9 @@ public final class NegDoublesEvaluator implements EvalOperator.ExpressionEvaluat
   }
 
   public DoubleVector eval(int positionCount, DoubleVector vVector) {
-    try(DoubleVector.Builder result = driverContext.blockFactory().newDoubleVectorBuilder(positionCount)) {
+    try(DoubleVector.FixedBuilder result = driverContext.blockFactory().newDoubleVectorFixedBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendDouble(Neg.processDoubles(vVector.getDouble(p)));
+        result.appendDouble(p, Neg.processDoubles(vVector.getDouble(p)));
       }
       return result.build();
     }

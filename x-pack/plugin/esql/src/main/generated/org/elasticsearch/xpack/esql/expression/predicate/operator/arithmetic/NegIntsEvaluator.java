@@ -31,9 +31,9 @@ public final class NegIntsEvaluator implements EvalOperator.ExpressionEvaluator 
 
   public NegIntsEvaluator(Source source, EvalOperator.ExpressionEvaluator v,
       DriverContext driverContext) {
-    this.warnings = new Warnings(source);
     this.v = v;
     this.driverContext = driverContext;
+    this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
   }
 
   @Override

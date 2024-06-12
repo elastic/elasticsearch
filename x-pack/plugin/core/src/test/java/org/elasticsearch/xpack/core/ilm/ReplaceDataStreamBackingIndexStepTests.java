@@ -68,9 +68,16 @@ public class ReplaceDataStreamBackingIndexStepTests extends AbstractStepTestCase
 
     public void testPerformActionThrowsExceptionIfIndexIsTheDataStreamWriteIndex() {
         String dataStreamName = randomAlphaOfLength(10);
-        String indexName = DataStream.getDefaultBackingIndexName(dataStreamName, 1);
+        long ts = System.currentTimeMillis();
+        String indexName = DataStream.getDefaultBackingIndexName(dataStreamName, 1, ts);
+        String failureIndexName = DataStream.getDefaultFailureStoreName(dataStreamName, 1, ts);
         String policyName = "test-ilm-policy";
         IndexMetadata sourceIndexMetadata = IndexMetadata.builder(indexName)
+            .settings(settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
+            .numberOfShards(randomIntBetween(1, 5))
+            .numberOfReplicas(randomIntBetween(0, 5))
+            .build();
+        IndexMetadata failureSourceIndexMetadata = IndexMetadata.builder(failureIndexName)
             .settings(settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
             .numberOfShards(randomIntBetween(1, 5))
             .numberOfReplicas(randomIntBetween(0, 5))
@@ -80,43 +87,66 @@ public class ReplaceDataStreamBackingIndexStepTests extends AbstractStepTestCase
             .metadata(
                 Metadata.builder()
                     .put(sourceIndexMetadata, true)
-                    .put(newInstance(dataStreamName, List.of(sourceIndexMetadata.getIndex())))
+                    .put(failureSourceIndexMetadata, true)
+                    .put(
+                        newInstance(dataStreamName, List.of(sourceIndexMetadata.getIndex()), List.of(failureSourceIndexMetadata.getIndex()))
+                    )
                     .build()
             )
             .build();
 
-        expectThrows(IllegalStateException.class, () -> createRandomInstance().performAction(sourceIndexMetadata.getIndex(), clusterState));
+        boolean useFailureStore = randomBoolean();
+        IndexMetadata indexToOperateOn = useFailureStore ? failureSourceIndexMetadata : sourceIndexMetadata;
+        expectThrows(IllegalStateException.class, () -> createRandomInstance().performAction(indexToOperateOn.getIndex(), clusterState));
     }
 
     public void testPerformActionThrowsExceptionIfTargetIndexIsMissing() {
         String dataStreamName = randomAlphaOfLength(10);
-        String indexName = DataStream.getDefaultBackingIndexName(dataStreamName, 1);
+        long ts = System.currentTimeMillis();
+        String indexName = DataStream.getDefaultBackingIndexName(dataStreamName, 1, ts);
+        String failureIndexName = DataStream.getDefaultFailureStoreName(dataStreamName, 1, ts);
         String policyName = "test-ilm-policy";
         IndexMetadata sourceIndexMetadata = IndexMetadata.builder(indexName)
             .settings(settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
             .numberOfShards(randomIntBetween(1, 5))
             .numberOfReplicas(randomIntBetween(0, 5))
             .build();
+        IndexMetadata failureSourceIndexMetadata = IndexMetadata.builder(failureIndexName)
+            .settings(settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
+            .numberOfShards(randomIntBetween(1, 5))
+            .numberOfReplicas(randomIntBetween(0, 5))
+            .build();
 
-        String writeIndexName = DataStream.getDefaultBackingIndexName(dataStreamName, 2);
+        String writeIndexName = DataStream.getDefaultBackingIndexName(dataStreamName, 2, ts);
+        String failureWriteIndexName = DataStream.getDefaultFailureStoreName(dataStreamName, 2, ts);
         IndexMetadata writeIndexMetadata = IndexMetadata.builder(writeIndexName)
+            .settings(settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
+            .numberOfShards(randomIntBetween(1, 5))
+            .numberOfReplicas(randomIntBetween(0, 5))
+            .build();
+        IndexMetadata failureWriteIndexMetadata = IndexMetadata.builder(failureWriteIndexName)
             .settings(settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
             .numberOfShards(randomIntBetween(1, 5))
             .numberOfReplicas(randomIntBetween(0, 5))
             .build();
 
         List<Index> backingIndices = List.of(sourceIndexMetadata.getIndex(), writeIndexMetadata.getIndex());
+        List<Index> failureIndices = List.of(failureSourceIndexMetadata.getIndex(), failureWriteIndexMetadata.getIndex());
         ClusterState clusterState = ClusterState.builder(emptyClusterState())
             .metadata(
                 Metadata.builder()
                     .put(sourceIndexMetadata, true)
                     .put(writeIndexMetadata, true)
-                    .put(newInstance(dataStreamName, backingIndices))
+                    .put(failureSourceIndexMetadata, true)
+                    .put(failureWriteIndexMetadata, true)
+                    .put(newInstance(dataStreamName, backingIndices, failureIndices))
                     .build()
             )
             .build();
 
-        expectThrows(IllegalStateException.class, () -> createRandomInstance().performAction(sourceIndexMetadata.getIndex(), clusterState));
+        boolean useFailureStore = randomBoolean();
+        IndexMetadata indexToOperateOn = useFailureStore ? failureSourceIndexMetadata : sourceIndexMetadata;
+        expectThrows(IllegalStateException.class, () -> createRandomInstance().performAction(indexToOperateOn.getIndex(), clusterState));
     }
 
     public void testPerformActionIsNoOpIfIndexIsMissing() {
@@ -129,23 +159,39 @@ public class ReplaceDataStreamBackingIndexStepTests extends AbstractStepTestCase
 
     public void testPerformAction() {
         String dataStreamName = randomAlphaOfLength(10);
-        String indexName = DataStream.getDefaultBackingIndexName(dataStreamName, 1);
+        long ts = System.currentTimeMillis();
+        String indexName = DataStream.getDefaultBackingIndexName(dataStreamName, 1, ts);
+        String failureIndexName = DataStream.getDefaultFailureStoreName(dataStreamName, 1, ts);
         String policyName = "test-ilm-policy";
         IndexMetadata sourceIndexMetadata = IndexMetadata.builder(indexName)
             .settings(settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
             .numberOfShards(randomIntBetween(1, 5))
             .numberOfReplicas(randomIntBetween(0, 5))
             .build();
-
-        String writeIndexName = DataStream.getDefaultBackingIndexName(dataStreamName, 2);
-        IndexMetadata writeIndexMetadata = IndexMetadata.builder(writeIndexName)
+        IndexMetadata failureSourceIndexMetadata = IndexMetadata.builder(failureIndexName)
             .settings(settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
             .numberOfShards(randomIntBetween(1, 5))
             .numberOfReplicas(randomIntBetween(0, 5))
             .build();
 
+        String writeIndexName = DataStream.getDefaultBackingIndexName(dataStreamName, 2, ts);
+        String failureWriteIndexName = DataStream.getDefaultFailureStoreName(dataStreamName, 2, ts);
+        IndexMetadata writeIndexMetadata = IndexMetadata.builder(writeIndexName)
+            .settings(settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
+            .numberOfShards(randomIntBetween(1, 5))
+            .numberOfReplicas(randomIntBetween(0, 5))
+            .build();
+        IndexMetadata failureWriteIndexMetadata = IndexMetadata.builder(failureWriteIndexName)
+            .settings(settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
+            .numberOfShards(randomIntBetween(1, 5))
+            .numberOfReplicas(randomIntBetween(0, 5))
+            .build();
+
+        boolean useFailureStore = randomBoolean();
+        String indexNameToUse = useFailureStore ? failureIndexName : indexName;
+
         String indexPrefix = "test-prefix-";
-        String targetIndex = indexPrefix + indexName;
+        String targetIndex = indexPrefix + indexNameToUse;
 
         IndexMetadata targetIndexMetadata = IndexMetadata.builder(targetIndex)
             .settings(settings(IndexVersion.current()))
@@ -154,12 +200,15 @@ public class ReplaceDataStreamBackingIndexStepTests extends AbstractStepTestCase
             .build();
 
         List<Index> backingIndices = List.of(sourceIndexMetadata.getIndex(), writeIndexMetadata.getIndex());
+        List<Index> failureIndices = List.of(failureSourceIndexMetadata.getIndex(), failureWriteIndexMetadata.getIndex());
         ClusterState clusterState = ClusterState.builder(emptyClusterState())
             .metadata(
                 Metadata.builder()
                     .put(sourceIndexMetadata, true)
                     .put(writeIndexMetadata, true)
-                    .put(newInstance(dataStreamName, backingIndices))
+                    .put(failureSourceIndexMetadata, true)
+                    .put(failureWriteIndexMetadata, true)
+                    .put(newInstance(dataStreamName, backingIndices, failureIndices))
                     .put(targetIndexMetadata, true)
                     .build()
             )
@@ -168,12 +217,16 @@ public class ReplaceDataStreamBackingIndexStepTests extends AbstractStepTestCase
         ReplaceDataStreamBackingIndexStep replaceSourceIndexStep = new ReplaceDataStreamBackingIndexStep(
             randomStepKey(),
             randomStepKey(),
-            (index, state) -> indexPrefix + index
+            (index, state) -> indexPrefix + indexNameToUse
         );
-        ClusterState newState = replaceSourceIndexStep.performAction(sourceIndexMetadata.getIndex(), clusterState);
+        IndexMetadata indexToOperateOn = useFailureStore ? failureSourceIndexMetadata : sourceIndexMetadata;
+        ClusterState newState = replaceSourceIndexStep.performAction(indexToOperateOn.getIndex(), clusterState);
         DataStream updatedDataStream = newState.metadata().dataStreams().get(dataStreamName);
-        assertThat(updatedDataStream.getIndices().size(), is(2));
-        assertThat(updatedDataStream.getIndices().get(0), is(targetIndexMetadata.getIndex()));
+        DataStream.DataStreamIndices resultIndices = useFailureStore
+            ? updatedDataStream.getFailureIndices()
+            : updatedDataStream.getBackingIndices();
+        assertThat(resultIndices.getIndices().size(), is(2));
+        assertThat(resultIndices.getIndices().get(0), is(targetIndexMetadata.getIndex()));
     }
 
     /**
@@ -181,10 +234,18 @@ public class ReplaceDataStreamBackingIndexStepTests extends AbstractStepTestCase
      */
     public void testPerformActionSameOriginalTargetError() {
         String dataStreamName = randomAlphaOfLength(10);
-        String writeIndexName = DataStream.getDefaultBackingIndexName(dataStreamName, 2);
+        long ts = System.currentTimeMillis();
+        String writeIndexName = DataStream.getDefaultBackingIndexName(dataStreamName, 2, ts);
+        String failureWriteIndexName = DataStream.getDefaultFailureStoreName(dataStreamName, 2, ts);
         String indexName = writeIndexName;
+        String failureIndexName = failureWriteIndexName;
         String policyName = "test-ilm-policy";
         IndexMetadata sourceIndexMetadata = IndexMetadata.builder(indexName)
+            .settings(settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
+            .numberOfShards(randomIntBetween(1, 5))
+            .numberOfReplicas(randomIntBetween(0, 5))
+            .build();
+        IndexMetadata failureSourceIndexMetadata = IndexMetadata.builder(failureIndexName)
             .settings(settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
             .numberOfShards(randomIntBetween(1, 5))
             .numberOfReplicas(randomIntBetween(0, 5))
@@ -195,9 +256,16 @@ public class ReplaceDataStreamBackingIndexStepTests extends AbstractStepTestCase
             .numberOfShards(randomIntBetween(1, 5))
             .numberOfReplicas(randomIntBetween(0, 5))
             .build();
+        IndexMetadata failureWriteIndexMetadata = IndexMetadata.builder(failureWriteIndexName)
+            .settings(settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
+            .numberOfShards(randomIntBetween(1, 5))
+            .numberOfReplicas(randomIntBetween(0, 5))
+            .build();
 
         String indexPrefix = "test-prefix-";
-        String targetIndex = indexPrefix + indexName;
+        boolean useFailureStore = randomBoolean();
+        String indexNameToUse = useFailureStore ? failureIndexName : indexName;
+        String targetIndex = indexPrefix + indexNameToUse;
 
         IndexMetadata targetIndexMetadata = IndexMetadata.builder(targetIndex)
             .settings(settings(IndexVersion.current()))
@@ -206,12 +274,15 @@ public class ReplaceDataStreamBackingIndexStepTests extends AbstractStepTestCase
             .build();
 
         List<Index> backingIndices = List.of(writeIndexMetadata.getIndex());
+        List<Index> failureIndices = List.of(failureWriteIndexMetadata.getIndex());
         ClusterState clusterState = ClusterState.builder(emptyClusterState())
             .metadata(
                 Metadata.builder()
                     .put(sourceIndexMetadata, true)
                     .put(writeIndexMetadata, true)
-                    .put(newInstance(dataStreamName, backingIndices))
+                    .put(failureSourceIndexMetadata, true)
+                    .put(failureWriteIndexMetadata, true)
+                    .put(newInstance(dataStreamName, backingIndices, failureIndices))
                     .put(targetIndexMetadata, true)
                     .build()
             )
@@ -222,14 +293,17 @@ public class ReplaceDataStreamBackingIndexStepTests extends AbstractStepTestCase
             randomStepKey(),
             (index, state) -> indexPrefix + index
         );
+        IndexMetadata indexToOperateOn = useFailureStore ? failureSourceIndexMetadata : sourceIndexMetadata;
         IllegalStateException ex = expectThrows(
             IllegalStateException.class,
-            () -> replaceSourceIndexStep.performAction(sourceIndexMetadata.getIndex(), clusterState)
+            () -> replaceSourceIndexStep.performAction(indexToOperateOn.getIndex(), clusterState)
         );
         assertEquals(
             "index ["
-                + writeIndexName
-                + "] is the write index for data stream ["
+                + indexNameToUse
+                + "] is the "
+                + (useFailureStore ? "failure store " : "")
+                + "write index for data stream ["
                 + dataStreamName
                 + "], pausing ILM execution of lifecycle [test-ilm-policy] until this index is no longer the write index for the data "
                 + "stream via manual or automated rollover",

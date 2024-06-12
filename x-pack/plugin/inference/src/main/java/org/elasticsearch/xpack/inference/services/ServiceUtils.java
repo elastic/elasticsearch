@@ -21,8 +21,8 @@ import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
+import org.elasticsearch.xpack.core.inference.results.InferenceTextEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.inference.results.TextEmbedding;
-import org.elasticsearch.xpack.core.inference.results.TextEmbeddingResults;
 import org.elasticsearch.xpack.inference.services.settings.ApiKeySecrets;
 
 import java.net.URI;
@@ -39,7 +39,7 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.SIMILARITY;
 
-public class ServiceUtils {
+public final class ServiceUtils {
     /**
      * Remove the object from the map and cast to the expected type.
      * If the object cannot be cast to type an ElasticsearchStatusException
@@ -606,7 +606,7 @@ public class ServiceUtils {
                         new ElasticsearchStatusException(
                             "Could not determine embedding size. "
                                 + "Expected a result of type ["
-                                + TextEmbeddingResults.NAME
+                                + InferenceTextEmbeddingFloatResults.NAME
                                 + "] got ["
                                 + r.getWriteableName()
                                 + "]",
@@ -624,4 +624,6 @@ public class ServiceUtils {
         // To avoid a possible null pointer throughout the code we'll create a noop api key of an empty array
         return secrets == null ? new SecureString(new char[0]) : secrets.apiKey();
     }
+
+    private ServiceUtils() {}
 }

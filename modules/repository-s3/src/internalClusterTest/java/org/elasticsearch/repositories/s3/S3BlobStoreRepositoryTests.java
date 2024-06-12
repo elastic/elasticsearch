@@ -184,7 +184,7 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
     }
 
     public void testAbortRequestStats() throws Exception {
-        final String repository = createRepository(randomRepositoryName());
+        final String repository = createRepository(randomRepositoryName(), false);
 
         final String index = "index-no-merges";
         createIndex(index, 1, 0);
@@ -228,7 +228,7 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/101608")
     public void testMetrics() throws Exception {
         // Create the repository and perform some activities
-        final String repository = createRepository(randomRepositoryName());
+        final String repository = createRepository(randomRepositoryName(), false);
         final String index = "index-no-merges";
         createIndex(index, 1, 0);
 

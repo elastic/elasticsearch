@@ -17,6 +17,7 @@ setup:
                 similarity: l2_norm
                 index_options:
                   type: int8_hnsw
+                  confidence_interval: 0.9
               another_vector:
                 type: dense_vector
                 dims: 5
@@ -24,6 +25,7 @@ setup:
                 similarity: l2_norm
                 index_options:
                   type: int8_hnsw
+                  confidence_interval: 0.9
 
   - do:
       index:
@@ -276,7 +278,7 @@ setup:
           name: moose.jpg
           vector: [1, 1, 1, 1, 1]
 
-   # Flush in order to provoke a merge later
+  # Flush in order to provoke a merge later
   - do:
       indices.flush: { }
 

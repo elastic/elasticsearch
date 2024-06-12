@@ -215,11 +215,11 @@ public class AllocationService {
                         failedShard
                     );
                 }
-                int failedAllocations = failedShard.unassignedInfo() != null ? failedShard.unassignedInfo().getNumFailedAllocations() : 0;
+                int failedAllocations = failedShard.unassignedInfo() != null ? failedShard.unassignedInfo().failedAllocations() : 0;
                 final Set<String> failedNodeIds;
                 if (failedShard.unassignedInfo() != null) {
-                    failedNodeIds = Sets.newHashSetWithExpectedSize(failedShard.unassignedInfo().getFailedNodeIds().size() + 1);
-                    failedNodeIds.addAll(failedShard.unassignedInfo().getFailedNodeIds());
+                    failedNodeIds = Sets.newHashSetWithExpectedSize(failedShard.unassignedInfo().failedNodeIds().size() + 1);
+                    failedNodeIds.addAll(failedShard.unassignedInfo().failedNodeIds());
                     failedNodeIds.add(failedShard.currentNodeId());
                 } else {
                     failedNodeIds = Collections.emptySet();
@@ -425,8 +425,8 @@ public class AllocationService {
             while (unassignedIterator.hasNext()) {
                 ShardRouting shardRouting = unassignedIterator.next();
                 UnassignedInfo unassignedInfo = shardRouting.unassignedInfo();
-                if (unassignedInfo.isDelayed()) {
-                    final long newComputedLeftDelayNanos = unassignedInfo.getRemainingDelay(
+                if (unassignedInfo.delayed()) {
+                    final long newComputedLeftDelayNanos = unassignedInfo.remainingDelay(
                         allocation.getCurrentNanoTime(),
                         metadata.getIndexSafe(shardRouting.index()).getSettings(),
                         metadata.nodeShutdowns()
@@ -434,16 +434,16 @@ public class AllocationService {
                     if (newComputedLeftDelayNanos == 0) {
                         unassignedIterator.updateUnassigned(
                             new UnassignedInfo(
-                                unassignedInfo.getReason(),
-                                unassignedInfo.getMessage(),
-                                unassignedInfo.getFailure(),
-                                unassignedInfo.getNumFailedAllocations(),
-                                unassignedInfo.getUnassignedTimeInNanos(),
-                                unassignedInfo.getUnassignedTimeInMillis(),
+                                unassignedInfo.reason(),
+                                unassignedInfo.message(),
+                                unassignedInfo.failure(),
+                                unassignedInfo.failedAllocations(),
+                                unassignedInfo.unassignedTimeNanos(),
+                                unassignedInfo.unassignedTimeMillis(),
                                 false,
-                                unassignedInfo.getLastAllocationStatus(),
-                                unassignedInfo.getFailedNodeIds(),
-                                unassignedInfo.getLastAllocatedNodeId()
+                                unassignedInfo.lastAllocationStatus(),
+                                unassignedInfo.failedNodeIds(),
+                                unassignedInfo.lastAllocatedNodeId()
                             ),
                             shardRouting.recoverySource(),
                             allocation.changes()

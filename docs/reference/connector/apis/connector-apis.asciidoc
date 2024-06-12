@@ -40,6 +40,8 @@ beta:[]
 beta:[]
 * <<update-connector-configuration-api>>
 beta:[]
+* <<update-connector-features-api>>
+beta:[]
 * <<update-connector-filtering-api>>
 beta:[]
 * <<update-connector-index-name-api>>
@@ -120,6 +122,7 @@ include::list-connectors-api.asciidoc[]
 include::update-connector-api-key-id-api.asciidoc[]
 include::update-connector-configuration-api.asciidoc[]
 include::update-connector-index-name-api.asciidoc[]
+include::update-connector-features-api.asciidoc[]
 include::update-connector-filtering-api.asciidoc[]
 include::update-connector-name-description-api.asciidoc[]
 include::update-connector-pipeline-api.asciidoc[]

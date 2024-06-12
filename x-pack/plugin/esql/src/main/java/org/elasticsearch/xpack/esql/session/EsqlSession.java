@@ -35,7 +35,7 @@ import org.elasticsearch.xpack.esql.core.index.IndexResolver;
 import org.elasticsearch.xpack.esql.core.index.MappingException;
 import org.elasticsearch.xpack.esql.core.plan.TableIdentifier;
 import org.elasticsearch.xpack.esql.core.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.core.type.DataTypes;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
 import org.elasticsearch.xpack.esql.core.util.Holder;
@@ -46,7 +46,7 @@ import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
-import org.elasticsearch.xpack.esql.parser.TypedParamValue;
+import org.elasticsearch.xpack.esql.parser.QueryParams;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.Keep;
@@ -139,7 +139,7 @@ public class EsqlSession {
         );
     }
 
-    private LogicalPlan parse(String query, List<TypedParamValue> params) {
+    private LogicalPlan parse(String query, QueryParams params) {
         var parsed = new EsqlParser().createStatement(query, params);
         LOGGER.debug("Parsed logical plan:\n{}", parsed);
         return parsed;
@@ -291,7 +291,7 @@ public class EsqlSession {
                              * we don't actually use it in ESQL and the EsqlIndexResolver doesn't
                              * produce exactly the same result.
                              */
-                            if (qlField.getDataType().equals(DataTypes.UNSUPPORTED) == false
+                            if (qlField.getDataType().equals(DataType.UNSUPPORTED) == false
                                 && qlField.getName().equals(esqlField.getName()) == false
                             // QL uses full paths for unsupported fields. ESQL does not. This particular difference is fine.
                             ) {

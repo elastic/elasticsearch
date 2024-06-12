@@ -965,6 +965,19 @@ public final class DocumentParser {
         protected String contentType() {
             throw new UnsupportedOperationException();
         }
+
+        @Override
+        protected SyntheticSourceMode syntheticSourceMode() {
+            // Opt out of fallback synthetic source implementation
+            // since there is custom logic in #parseCreateField()
+            return SyntheticSourceMode.NATIVE;
+        }
+
+        @Override
+        public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
+            // Handled via IgnoredSourceFieldMapper infrastructure
+            return SourceLoader.SyntheticFieldLoader.NOTHING;
+        }
     };
 
     private static class NoOpObjectMapper extends ObjectMapper {

@@ -15,7 +15,7 @@ import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.DataTypes;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
@@ -35,19 +35,19 @@ public class IpPrefixTests extends AbstractFunctionTestCase {
         var suppliers = List.of(
             // V4
             new TestCaseSupplier(
-                List.of(DataTypes.IP, DataTypes.INTEGER, DataTypes.INTEGER),
+                List.of(DataType.IP, DataType.INTEGER, DataType.INTEGER),
                 () -> new TestCaseSupplier.TestCase(
                     List.of(
-                        new TestCaseSupplier.TypedData(EsqlDataTypeConverter.stringToIP("1.2.3.4"), DataTypes.IP, "ip"),
-                        new TestCaseSupplier.TypedData(24, DataTypes.INTEGER, "prefixLengthV4"),
-                        new TestCaseSupplier.TypedData(ESTestCase.randomIntBetween(0, 128), DataTypes.INTEGER, "prefixLengthV6")
+                        new TestCaseSupplier.TypedData(EsqlDataTypeConverter.stringToIP("1.2.3.4"), DataType.IP, "ip"),
+                        new TestCaseSupplier.TypedData(24, DataType.INTEGER, "prefixLengthV4"),
+                        new TestCaseSupplier.TypedData(ESTestCase.randomIntBetween(0, 128), DataType.INTEGER, "prefixLengthV6")
                     ),
                     "IpPrefixEvaluator[ip=Attribute[channel=0], prefixLengthV4=Attribute[channel=1], prefixLengthV6=Attribute[channel=2]]",
-                    DataTypes.IP,
+                    DataType.IP,
                     equalTo(EsqlDataTypeConverter.stringToIP("1.2.3.0"))
                 )
             ),
-            new TestCaseSupplier(List.of(DataTypes.IP, DataTypes.INTEGER, DataTypes.INTEGER), () -> {
+            new TestCaseSupplier(List.of(DataType.IP, DataType.INTEGER, DataType.INTEGER), () -> {
                 var randomIp = randomIp(true);
                 var randomPrefix = randomIntBetween(0, 32);
                 var cidrString = InetAddresses.toCidrString(randomIp, randomPrefix);
@@ -59,31 +59,31 @@ public class IpPrefixTests extends AbstractFunctionTestCase {
 
                 return new TestCaseSupplier.TestCase(
                     List.of(
-                        new TestCaseSupplier.TypedData(ipParameter, DataTypes.IP, "ip"),
-                        new TestCaseSupplier.TypedData(randomPrefix, DataTypes.INTEGER, "prefixLengthV4"),
-                        new TestCaseSupplier.TypedData(ESTestCase.randomIntBetween(0, 128), DataTypes.INTEGER, "prefixLengthV6")
+                        new TestCaseSupplier.TypedData(ipParameter, DataType.IP, "ip"),
+                        new TestCaseSupplier.TypedData(randomPrefix, DataType.INTEGER, "prefixLengthV4"),
+                        new TestCaseSupplier.TypedData(ESTestCase.randomIntBetween(0, 128), DataType.INTEGER, "prefixLengthV6")
                     ),
                     "IpPrefixEvaluator[ip=Attribute[channel=0], prefixLengthV4=Attribute[channel=1], prefixLengthV6=Attribute[channel=2]]",
-                    DataTypes.IP,
+                    DataType.IP,
                     equalTo(expectedPrefix)
                 );
             }),
 
             // V6
             new TestCaseSupplier(
-                List.of(DataTypes.IP, DataTypes.INTEGER, DataTypes.INTEGER),
+                List.of(DataType.IP, DataType.INTEGER, DataType.INTEGER),
                 () -> new TestCaseSupplier.TestCase(
                     List.of(
-                        new TestCaseSupplier.TypedData(EsqlDataTypeConverter.stringToIP("::ff"), DataTypes.IP, "ip"),
-                        new TestCaseSupplier.TypedData(ESTestCase.randomIntBetween(0, 32), DataTypes.INTEGER, "prefixLengthV4"),
-                        new TestCaseSupplier.TypedData(127, DataTypes.INTEGER, "prefixLengthV6")
+                        new TestCaseSupplier.TypedData(EsqlDataTypeConverter.stringToIP("::ff"), DataType.IP, "ip"),
+                        new TestCaseSupplier.TypedData(ESTestCase.randomIntBetween(0, 32), DataType.INTEGER, "prefixLengthV4"),
+                        new TestCaseSupplier.TypedData(127, DataType.INTEGER, "prefixLengthV6")
                     ),
                     "IpPrefixEvaluator[ip=Attribute[channel=0], prefixLengthV4=Attribute[channel=1], prefixLengthV6=Attribute[channel=2]]",
-                    DataTypes.IP,
+                    DataType.IP,
                     equalTo(EsqlDataTypeConverter.stringToIP("::fe"))
                 )
             ),
-            new TestCaseSupplier(List.of(DataTypes.IP, DataTypes.INTEGER, DataTypes.INTEGER), () -> {
+            new TestCaseSupplier(List.of(DataType.IP, DataType.INTEGER, DataType.INTEGER), () -> {
                 var randomIp = randomIp(false);
                 var randomPrefix = randomIntBetween(0, 128);
                 var cidrString = InetAddresses.toCidrString(randomIp, randomPrefix);
@@ -95,12 +95,12 @@ public class IpPrefixTests extends AbstractFunctionTestCase {
 
                 return new TestCaseSupplier.TestCase(
                     List.of(
-                        new TestCaseSupplier.TypedData(ipParameter, DataTypes.IP, "ip"),
-                        new TestCaseSupplier.TypedData(ESTestCase.randomIntBetween(0, 32), DataTypes.INTEGER, "prefixLengthV4"),
-                        new TestCaseSupplier.TypedData(randomPrefix, DataTypes.INTEGER, "prefixLengthV6")
+                        new TestCaseSupplier.TypedData(ipParameter, DataType.IP, "ip"),
+                        new TestCaseSupplier.TypedData(ESTestCase.randomIntBetween(0, 32), DataType.INTEGER, "prefixLengthV4"),
+                        new TestCaseSupplier.TypedData(randomPrefix, DataType.INTEGER, "prefixLengthV6")
                     ),
                     "IpPrefixEvaluator[ip=Attribute[channel=0], prefixLengthV4=Attribute[channel=1], prefixLengthV6=Attribute[channel=2]]",
-                    DataTypes.IP,
+                    DataType.IP,
                     equalTo(expectedPrefix)
                 );
             })

@@ -226,6 +226,11 @@ import org.elasticsearch.search.fetch.subphase.highlight.HighlightPhase;
 import org.elasticsearch.search.fetch.subphase.highlight.Highlighter;
 import org.elasticsearch.search.fetch.subphase.highlight.PlainHighlighter;
 import org.elasticsearch.search.internal.ShardSearchRequest;
+import org.elasticsearch.search.rank.RankDoc;
+import org.elasticsearch.search.rank.RankShardResult;
+import org.elasticsearch.search.rank.feature.RankFeatureDoc;
+import org.elasticsearch.search.rank.feature.RankFeatureShardPhase;
+import org.elasticsearch.search.rank.feature.RankFeatureShardResult;
 import org.elasticsearch.search.rescore.QueryRescorerBuilder;
 import org.elasticsearch.search.rescore.RescorerBuilder;
 import org.elasticsearch.search.retriever.KnnRetrieverBuilder;
@@ -290,6 +295,23 @@ public class SearchModule {
         Setting.Property.NodeScope
     );
 
+    public static final Setting<Boolean> SCRIPTED_METRICS_AGG_ONLY_ALLOWED_SCRIPTS = Setting.boolSetting(
+        "search.aggs.only_allowed_metric_scripts",
+        false,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+    public static final Setting<List<String>> SCRIPTED_METRICS_AGG_ALLOWED_INLINE_SCRIPTS = Setting.stringListSetting(
+        "search.aggs.allowed_inline_metric_scripts",
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+    public static final Setting<List<String>> SCRIPTED_METRICS_AGG_ALLOWED_STORED_SCRIPTS = Setting.stringListSetting(
+        "search.aggs.allowed_stored_metric_scripts",
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
     /**
      * Metric name for aggregation usage statistics
      */
@@ -331,6 +353,7 @@ public class SearchModule {
         registerRetrieverParsers(plugins);
         registerQueryParsers(plugins);
         registerRescorers(plugins);
+        registerRankers();
         registerSorts();
         registerValueFormats();
         registerSignificanceHeuristics(plugins);
@@ -827,6 +850,13 @@ public class SearchModule {
         namedWriteables.add(new NamedWriteableRegistry.Entry(RescorerBuilder.class, spec.getName().getPreferredName(), spec.getReader()));
     }
 
+    private void registerRankers() {
+        namedWriteables.add(new NamedWriteableRegistry.Entry(RankDoc.class, RankFeatureDoc.NAME, RankFeatureDoc::new));
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(RankShardResult.class, RankFeatureShardResult.NAME, RankFeatureShardResult::new)
+        );
+    }
+
     private void registerSorts() {
         namedWriteables.add(new NamedWriteableRegistry.Entry(SortBuilder.class, GeoDistanceSortBuilder.NAME, GeoDistanceSortBuilder::new));
         namedWriteables.add(new NamedWriteableRegistry.Entry(SortBuilder.class, ScoreSortBuilder.NAME, ScoreSortBuilder::new));
@@ -1250,6 +1280,10 @@ public class SearchModule {
                 spec.getName().getForRestApiVersion()
             )
         );
+    }
+
+    public RankFeatureShardPhase getRankFeatureShardPhase() {
+        return new RankFeatureShardPhase();
     }
 
     public FetchPhase getFetchPhase() {

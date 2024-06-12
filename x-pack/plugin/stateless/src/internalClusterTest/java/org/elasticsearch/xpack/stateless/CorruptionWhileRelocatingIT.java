@@ -23,6 +23,7 @@ import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
 import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
 
 import org.elasticsearch.action.ActionFuture;
+import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteUtils;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
@@ -163,7 +164,7 @@ public class CorruptionWhileRelocatingIT extends AbstractStatelessIntegTestCase 
             );
 
         logger.info("--> move index shard from: {} to: {}", indexNode, newIndexNode);
-        clusterAdmin().prepareReroute().add(new MoveAllocationCommand(indexName, 0, indexNode, newIndexNode)).execute().actionGet();
+        ClusterRerouteUtils.reroute(client(), new MoveAllocationCommand(indexName, 0, indexNode, newIndexNode));
 
         logger.info("--> waiting for relocation handoff to be initiated");
         safeAwait(pauseHandoff);
@@ -268,7 +269,7 @@ public class CorruptionWhileRelocatingIT extends AbstractStatelessIntegTestCase 
         }
 
         logger.info("--> move index shard from: {} to: {}", indexNode, newIndexNode);
-        clusterAdmin().prepareReroute().add(new MoveAllocationCommand(indexName, 0, indexNode, newIndexNode)).execute().actionGet();
+        ClusterRerouteUtils.reroute(client(), new MoveAllocationCommand(indexName, 0, indexNode, newIndexNode));
 
         logger.info("--> waiting for relocation handoff to be initiated");
         safeAwait(pauseHandoff);

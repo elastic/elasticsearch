@@ -37,6 +37,7 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteUtils;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.refresh.TransportUnpromotableShardRefreshAction;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
@@ -782,7 +783,7 @@ public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
         final var afterGeneration = beforeGeneration + 1L;
 
         logger.info("--> move index shard from: {} to: {}", indexNodeSource, indexNodeTarget);
-        assertAcked(clusterAdmin().prepareReroute().add(new MoveAllocationCommand(indexName, 0, indexNodeSource, indexNodeTarget)));
+        ClusterRerouteUtils.reroute(client(), new MoveAllocationCommand(indexName, 0, indexNodeSource, indexNodeTarget));
 
         logger.info("--> wait for relocation to start on source");
         safeAwait(pauseRelocation);

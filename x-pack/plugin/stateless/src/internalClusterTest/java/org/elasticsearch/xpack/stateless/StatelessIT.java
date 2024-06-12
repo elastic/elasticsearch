@@ -34,6 +34,8 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.UnavailableShardsException;
+import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteRequest;
+import org.elasticsearch.action.admin.cluster.reroute.TransportClusterRerouteAction;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
@@ -860,9 +862,12 @@ public class StatelessIT extends AbstractStatelessIntegTestCase {
             });
 
         logger.info("--> relocating shard 0 from {} to {}", indexNode1, indexNode2);
-        var relocationFuture = clusterAdmin().prepareReroute()
-            .add(new MoveAllocationCommand(indexName, 0, indexNode1, indexNode2))
-            .execute();
+        var relocationFuture = client().execute(
+            TransportClusterRerouteAction.TYPE,
+            new ClusterRerouteRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).add(
+                new MoveAllocationCommand(indexName, 0, indexNode1, indexNode2)
+            )
+        );
 
         safeAwait(primaryContextHandoffSent);
 
@@ -887,7 +892,7 @@ public class StatelessIT extends AbstractStatelessIntegTestCase {
 
         runPrimaryContextHandOff.get().run();
         forceMergeThread.join();
-        relocationFuture.get();
+        safeGet(relocationFuture);
         ensureGreen(indexName);
 
         // TODO run a concurrent search to exercise more code paths that could lead to transient corruption issues

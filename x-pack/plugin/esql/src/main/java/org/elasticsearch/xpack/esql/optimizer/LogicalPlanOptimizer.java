@@ -72,8 +72,8 @@ import org.elasticsearch.xpack.esql.optimizer.rules.ReplaceStatsNestedExpression
 import org.elasticsearch.xpack.esql.optimizer.rules.ReplaceTrivialTypeConversions;
 import org.elasticsearch.xpack.esql.optimizer.rules.SetAsOptimized;
 import org.elasticsearch.xpack.esql.optimizer.rules.SimplifyComparisonsArithmetics;
+import org.elasticsearch.xpack.esql.optimizer.rules.SkipQueryOnEmptyMappings;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
-import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
@@ -363,14 +363,6 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
         @Override
         protected LogicalPlan skipPlan(Limit limit) {
             return LogicalPlanOptimizer.skipPlan(limit);
-        }
-    }
-
-    static class SkipQueryOnEmptyMappings extends OptimizerRules.OptimizerRule<EsRelation> {
-
-        @Override
-        protected LogicalPlan rule(EsRelation plan) {
-            return plan.index().concreteIndices().isEmpty() ? new LocalRelation(plan.source(), plan.output(), LocalSupplier.EMPTY) : plan;
         }
     }
 

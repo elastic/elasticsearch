@@ -191,7 +191,7 @@ public class TransportVersions {
     public static final TransportVersion DROP_UNUSED_NODES_REQUESTS = def(8_682_00_0);
     public static final TransportVersion QUERY_RULE_CRUD_API_GET_DELETE = def(8_683_00_0);
     public static final TransportVersion INFERENCE_AUTOSCALING = def(8_684_00_0);
-    
+
     /*
      * STOP! READ THIS FIRST! No, really,
      *        ____ _____ ___  ____  _        ____  _____    _    ____    _____ _   _ ___ ____    _____ ___ ____  ____ _____ _

@@ -22,6 +22,8 @@ public class Autoscaler {
     private final KalmanFilter inferenceTimeEstimator;
 
     private int numberOfAllocations;
+    private Integer minNumberOfAllocations;
+    private Integer maxNumberOfAllocations;
     private boolean dynamicsChanged;
 
     Autoscaler(String deploymentId, int numberOfAllocations) {
@@ -29,7 +31,14 @@ public class Autoscaler {
         requestRateEstimator = new KalmanFilter(deploymentId + ":rate", 100, true);
         inferenceTimeEstimator = new KalmanFilter(deploymentId + ":time", 100, false);
         this.numberOfAllocations = numberOfAllocations;
+        this.minNumberOfAllocations = null;
+        this.maxNumberOfAllocations = null;
         this.dynamicsChanged = false;
+    }
+
+    void setMinMaxNumberOfAllocations(Integer minNumberOfAllocations, Integer maxNumberOfAllocations) {
+        this.minNumberOfAllocations = minNumberOfAllocations;
+        this.maxNumberOfAllocations = maxNumberOfAllocations;
     }
 
     void process(AutoscalerService.Stats stats, int timeIntervalSeconds, int numberOfAllocations) {
@@ -68,6 +77,13 @@ public class Autoscaler {
         double loadUpper = requestRateUpper * inferenceTimeUpper;
         while (numberOfAllocations > 1 && loadUpper / (numberOfAllocations - 1) < AUTOSCALE_DOWN_THRESHOLD) {
             numberOfAllocations--;
+        }
+
+        if (minNumberOfAllocations != null) {
+            numberOfAllocations = Math.max(numberOfAllocations, minNumberOfAllocations);
+        }
+        if (maxNumberOfAllocations != null) {
+            numberOfAllocations = Math.min(numberOfAllocations, maxNumberOfAllocations);
         }
 
         if (numberOfAllocations != oldNumberOfAllocations) {

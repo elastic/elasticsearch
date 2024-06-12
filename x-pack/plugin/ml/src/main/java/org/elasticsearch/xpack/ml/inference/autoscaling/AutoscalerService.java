@@ -11,6 +11,9 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.ClusterChangedEvent;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.TimeValue;
@@ -20,12 +23,13 @@ import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.action.GetDeploymentStatsAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AssignmentStats;
+import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignment;
 import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignmentMetadata;
 
 import java.util.HashMap;
 import java.util.Map;
 
-public class AutoscalerService {
+public class AutoscalerService implements ClusterStateListener {
 
     record Stats(long successCount, long pendingCount, long failedCount, double inferenceTime) {
 
@@ -83,21 +87,51 @@ public class AutoscalerService {
     }
 
     public void start() {
-        if (true) {
-            logger.error("NOT ENABLING AUTOSCALING FOR DEBUGGING!!");
-            return;
-        }
+        update(clusterService.state());
+        clusterService.addListener(this);
+    }
+
+    @Override
+    public void clusterChanged(ClusterChangedEvent event) {
+        update(event.state());
+    }
+
+    private synchronized void update(ClusterState state) {
         if (isNlpEnabled == false) {
             return;
         }
-        logger.debug("Starting ML inference autoscaler");
-        scheduleNextTrigger();
+
+        TrainedModelAssignmentMetadata assignments = TrainedModelAssignmentMetadata.fromState(state);
+        for (TrainedModelAssignment assignment : assignments.allAssignments().values()) {
+            if (assignment.getAutoscalingSettings() != null && assignment.getAutoscalingSettings().getEnabled()) {
+                Autoscaler autoscaler = autoscalers.computeIfAbsent(
+                    assignment.getDeploymentId(),
+                    key -> new Autoscaler(assignment.getDeploymentId(), assignment.totalTargetAllocations())
+                );
+                autoscaler.setMinMaxNumberOfAllocations(
+                    assignment.getAutoscalingSettings().getMinNumberOfAllocations(),
+                    assignment.getAutoscalingSettings().getMaxNumberOfAllocations()
+                );
+            } else {
+                autoscalers.remove(assignment.getDeploymentId());
+            }
+        }
+
+        if (autoscalers.isEmpty() == false) {
+            if (cancellable == null) {
+                logger.debug("Starting ML inference autoscaler");
+                scheduleNextTrigger();
+            }
+        } else {
+            stop();
+        }
     }
 
-    public void stop() {
-        logger.debug("Stopping ML inference autoscaler");
+    public synchronized void stop() {
         if (cancellable != null && cancellable.isCancelled() == false) {
+            logger.debug("Stopping ML inference autoscaler");
             cancellable.cancel();
+            cancellable = null;
         }
     }
 
@@ -117,8 +151,7 @@ public class AutoscalerService {
     }
 
     private void getDeploymentStats(ActionListener<GetDeploymentStatsAction.Response> processDeploymentStats) {
-        TrainedModelAssignmentMetadata assignmentMetadata = TrainedModelAssignmentMetadata.fromState(clusterService.state());
-        String deploymentIds = String.join(",", assignmentMetadata.allAssignments().keySet());
+        String deploymentIds = String.join(",", autoscalers.keySet());
         ClientHelper.executeAsyncWithOrigin(
             client,
             ClientHelper.ML_ORIGIN,
@@ -134,7 +167,6 @@ public class AutoscalerService {
 
         for (AssignmentStats assignmentStats : statsResponse.getStats().results()) {
             numberOfAllocations.put(assignmentStats.getDeploymentId(), assignmentStats.getNumberOfAllocations());
-
             for (AssignmentStats.NodeStats nodeStats : assignmentStats.getNodeStats()) {
                 String statsId = assignmentStats.getDeploymentId() + "@" + nodeStats.getNode().getId();
                 Stats lastStats = lastInferenceStatsByDeploymentNode.get(statsId);
@@ -157,11 +189,7 @@ public class AutoscalerService {
         for (Map.Entry<String, Stats> deploymentAndStats : recentStatsByDeployment.entrySet()) {
             String deploymentId = deploymentAndStats.getKey();
             Stats stats = deploymentAndStats.getValue();
-
-            Autoscaler autoscaler = autoscalers.computeIfAbsent(
-                deploymentId,
-                key -> new Autoscaler(deploymentId, numberOfAllocations.get(deploymentId))
-            );
+            Autoscaler autoscaler = autoscalers.get(deploymentId);
             autoscaler.process(stats, TIME_INTERVAL_SECONDS, numberOfAllocations.get(deploymentId));
             Integer newNumberOfAllocations = autoscaler.autoscale();
             if (newNumberOfAllocations != null) {

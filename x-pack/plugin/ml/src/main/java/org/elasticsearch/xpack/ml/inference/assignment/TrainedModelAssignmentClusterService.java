@@ -938,7 +938,8 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
         AutoscalingSettings autoscalingSettings,
         ActionListener<ClusterState> listener
     ) {
-        TrainedModelAssignment.Builder updatedAssignment = TrainedModelAssignment.Builder.fromAssignment(assignment).setAutoscalingSettings(autoscalingSettings);
+        TrainedModelAssignment.Builder updatedAssignment = TrainedModelAssignment.Builder.fromAssignment(assignment)
+            .setAutoscalingSettings(autoscalingSettings);
         TrainedModelAssignmentMetadata.Builder builder = TrainedModelAssignmentMetadata.builder(clusterState);
         builder.updateAssignment(assignment.getDeploymentId(), updatedAssignment);
         listener.onResponse(update(clusterState, builder));

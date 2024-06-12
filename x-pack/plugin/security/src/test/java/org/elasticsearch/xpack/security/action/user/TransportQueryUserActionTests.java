@@ -13,6 +13,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.rest.RestStatus;
@@ -64,10 +65,10 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class TransportQueryUserActionTests extends ESTestCase {
-    private static final String[] allowedQueryFieldNames = new String[] { "username", "roles", "enabled", "full_name", "email" };
+    private static final String[] allowedIndexFieldNames = new String[] { "username", "roles", "enabled" };
 
     public void testTranslateFieldSortBuilders() {
-        final List<String> fieldNames = List.of(allowedQueryFieldNames);
+        final List<String> fieldNames = List.of(allowedIndexFieldNames);
 
         final List<FieldSortBuilder> originals = fieldNames.stream().map(this::randomFieldSortBuilderWithName).toList();
 
@@ -100,6 +101,19 @@ public class TransportQueryUserActionTests extends ESTestCase {
             )
         );
         assertThat(e.getMessage(), equalTo("nested sorting is not currently supported in this context"));
+    }
+
+    public void testNestedSortingOnTextFieldsNotAllowed() {
+        String fieldName = randomFrom("full_name", "email");
+        final List<String> fieldNames = List.of(fieldName);
+        final List<FieldSortBuilder> originals = fieldNames.stream().map(this::randomFieldSortBuilderWithName).toList();
+        final SearchSourceBuilder searchSourceBuilder = SearchSourceBuilder.searchSource();
+
+        final IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> USER_FIELD_NAME_TRANSLATORS.translateFieldSortBuilders(originals, searchSourceBuilder, null)
+        );
+        assertThat(e.getMessage(), equalTo(Strings.format("sorting is not supported for field [%s]", fieldName)));
     }
 
     public void testQueryUsers() {

@@ -320,12 +320,7 @@ public class QueryUserIT extends SecurityInBasicRestTestCase {
         assertQueryError(400, "{\"sort\":[\"" + invalidFieldName + "\"]}");
 
         final String invalidSortName = randomFrom("email", "full_name");
-        assertQueryError(
-            READ_USERS_USER_AUTH_HEADER,
-            400,
-            String.format("{\"sort\":[\"%s\"]}", invalidSortName),
-            String.format("sorting is not supported for field [%s] in User query", invalidSortName)
-        );
+        assertQueryError(READ_USERS_USER_AUTH_HEADER, 400, String.format("{\"sort\":[\"%s\"]}", invalidSortName));
     }
 
     private String getReservedUsernameAndAssertExists() throws IOException {

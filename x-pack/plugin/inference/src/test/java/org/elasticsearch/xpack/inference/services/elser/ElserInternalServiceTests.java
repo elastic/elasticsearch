@@ -27,10 +27,16 @@ import org.elasticsearch.xpack.core.inference.results.ErrorChunkedInferenceResul
 import org.elasticsearch.xpack.core.inference.results.InferenceChunkedSparseEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.action.InferModelAction;
 import org.elasticsearch.xpack.core.ml.action.InferTrainedModelDeploymentAction;
+import org.elasticsearch.xpack.core.ml.action.PutTrainedModelAction;
+import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.results.ErrorInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.InferenceChunkedTextExpansionResults;
 import org.elasticsearch.xpack.core.ml.inference.results.InferenceChunkedTextExpansionResultsTests;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TokenizationConfigUpdate;
+import org.junit.After;
+import org.junit.Before;
+import org.mockito.ArgumentCaptor;
+import org.mockito.Mockito;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -38,6 +44,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -52,6 +59,18 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class ElserInternalServiceTests extends ESTestCase {
+
+    private static ThreadPool threadPool;
+
+    @Before
+    public void setUpThreadPool() {
+        threadPool = new TestThreadPool("test");
+    }
+
+    @After
+    public void shutdownThreadPool() {
+        TestThreadPool.terminate(threadPool, 30, TimeUnit.SECONDS);
+    }
 
     public static Model randomModelConfig(String inferenceEntityId, TaskType taskType) {
         return switch (taskType) {
@@ -449,6 +468,45 @@ public class ElserInternalServiceTests extends ESTestCase {
         } finally {
             terminate(threadpool);
         }
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testPutModel() {
+        var client = mock(Client.class);
+        ArgumentCaptor<PutTrainedModelAction.Request> argument = ArgumentCaptor.forClass(PutTrainedModelAction.Request.class);
+
+        doAnswer(invocation -> {
+            var listener = (ActionListener<PutTrainedModelAction.Response>) invocation.getArguments()[2];
+            listener.onResponse(new PutTrainedModelAction.Response(mock(TrainedModelConfig.class)));
+            return null;
+        }).when(client).execute(Mockito.same(PutTrainedModelAction.INSTANCE), argument.capture(), any());
+
+        when(client.threadPool()).thenReturn(threadPool);
+
+        var service = createService(client);
+
+        var model = new ElserInternalModel(
+            "my-elser",
+            TaskType.SPARSE_EMBEDDING,
+            "elser",
+            new ElserInternalServiceSettings(1, 1, ".elser_model_2"),
+            ElserMlNodeTaskSettings.DEFAULT
+        );
+
+        service.putModel(model, new ActionListener<>() {
+            @Override
+            public void onResponse(Boolean success) {
+                assertTrue(success);
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                fail(e);
+            }
+        });
+
+        var putConfig = argument.getValue().getTrainedModelConfig();
+        assertEquals("text_field", putConfig.getInput().getFieldNames().get(0));
     }
 
     private ElserInternalService createService(Client client) {

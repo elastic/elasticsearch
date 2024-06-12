@@ -13,7 +13,10 @@ import org.apache.lucene.tests.util.English;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
+import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteRequest;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteResponse;
+import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteUtils;
+import org.elasticsearch.action.admin.cluster.reroute.TransportClusterRerouteAction;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.WriteRequest;
@@ -144,7 +147,7 @@ public class RelocationIT extends ESIntegTestCase {
         assertThat(clusterHealthResponse.isTimedOut(), equalTo(false));
 
         logger.info("--> relocate the shard from node1 to node2");
-        clusterAdmin().prepareReroute().add(new MoveAllocationCommand("test", 0, node_1, node_2)).get();
+        ClusterRerouteUtils.reroute(client(), new MoveAllocationCommand("test", 0, node_1, node_2));
 
         clusterHealthResponse = clusterAdmin().prepareHealth()
             .setWaitForEvents(Priority.LANGUID)
@@ -207,7 +210,7 @@ public class RelocationIT extends ESIntegTestCase {
                 logger.debug("--> Allow indexer to index [{}] documents", numDocs);
                 indexer.continueIndexing(numDocs);
                 logger.info("--> START relocate the shard from {} to {}", nodes[fromNode], nodes[toNode]);
-                clusterAdmin().prepareReroute().add(new MoveAllocationCommand("test", 0, nodes[fromNode], nodes[toNode])).get();
+                ClusterRerouteUtils.reroute(client(), new MoveAllocationCommand("test", 0, nodes[fromNode], nodes[toNode]));
                 if (rarely()) {
                     logger.debug("--> flushing");
                     indicesAdmin().prepareFlush().get();
@@ -334,7 +337,7 @@ public class RelocationIT extends ESIntegTestCase {
 
             logger.info("--> START relocate the shard from {} to {}", nodes[fromNode], nodes[toNode]);
 
-            clusterAdmin().prepareReroute().add(new MoveAllocationCommand("test", 0, nodes[fromNode], nodes[toNode])).get();
+            ClusterRerouteUtils.reroute(client(), new MoveAllocationCommand("test", 0, nodes[fromNode], nodes[toNode]));
 
             logger.debug("--> index [{}] documents", builders1.size());
             indexRandom(false, true, builders1);
@@ -555,7 +558,7 @@ public class RelocationIT extends ESIntegTestCase {
         assertThat(clusterHealthResponse.isTimedOut(), equalTo(false));
 
         logger.info("--> relocate the shard from node1 to node2");
-        clusterAdmin().prepareReroute().add(new MoveAllocationCommand("test", 0, node1, node2)).get();
+        ClusterRerouteUtils.reroute(client(), new MoveAllocationCommand("test", 0, node1, node2));
 
         clusterHealthResponse = clusterAdmin().prepareHealth()
             .setWaitForEvents(Priority.LANGUID)
@@ -606,9 +609,10 @@ public class RelocationIT extends ESIntegTestCase {
         assertThat(clusterHealthResponse.isTimedOut(), equalTo(false));
 
         logger.info("--> relocate the shard from node1 to node2");
-        ActionFuture<ClusterRerouteResponse> relocationListener = clusterAdmin().prepareReroute()
-            .add(new MoveAllocationCommand("test", 0, node1, node2))
-            .execute();
+        ActionFuture<ClusterRerouteResponse> relocationListener = client().execute(
+            TransportClusterRerouteAction.TYPE,
+            new ClusterRerouteRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).add(new MoveAllocationCommand("test", 0, node1, node2))
+        );
         logger.info("--> index 100 docs while relocating");
         for (int i = 20; i < 120; i++) {
             pendingIndexResponses.add(
@@ -618,7 +622,7 @@ public class RelocationIT extends ESIntegTestCase {
                     .execute()
             );
         }
-        relocationListener.actionGet();
+        safeGet(relocationListener);
         clusterHealthResponse = clusterAdmin().prepareHealth()
             .setWaitForEvents(Priority.LANGUID)
             .setWaitForNoRelocatingShards(true)

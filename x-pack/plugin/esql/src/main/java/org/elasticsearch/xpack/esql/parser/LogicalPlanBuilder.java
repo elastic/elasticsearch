@@ -85,12 +85,25 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
      */
     public static final int MAX_QUERY_DEPTH = 500;
 
-    public LogicalPlanBuilder(Map<Token, TypedParamValue> params) {
+    public LogicalPlanBuilder(QueryParams params) {
         super(params);
     }
 
     protected LogicalPlan plan(ParseTree ctx) {
-        return ParserUtils.typedParsing(this, ctx, LogicalPlan.class);
+        LogicalPlan p = ParserUtils.typedParsing(this, ctx, LogicalPlan.class);
+        var errors = this.params.parsingErrors();
+        if (errors.isEmpty()) {
+            return p;
+        } else {
+            StringBuilder message = new StringBuilder();
+            for (int i = 0; i < errors.size(); i++) {
+                if (i > 0) {
+                    message.append("; ");
+                }
+                message.append(errors.get(i).getMessage());
+            }
+            throw new ParsingException(message.toString());
+        }
     }
 
     protected List<LogicalPlan> plans(List<? extends ParserRuleContext> ctxs) {

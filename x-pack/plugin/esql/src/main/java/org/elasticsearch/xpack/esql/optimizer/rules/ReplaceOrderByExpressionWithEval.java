@@ -19,7 +19,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Project;
 import java.util.ArrayList;
 import java.util.List;
 
-import static org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer.SubstituteSurrogates.rawTemporaryName;
+import static org.elasticsearch.xpack.esql.optimizer.rules.SubstituteSurrogates.rawTemporaryName;
 
 public class ReplaceOrderByExpressionWithEval extends OptimizerRules.OptimizerRule<OrderBy> {
     private static int counter = 0;

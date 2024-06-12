@@ -18,7 +18,6 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
-import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
@@ -151,6 +150,6 @@ public class ReplaceStatsAggExpressionWithEval extends OptimizerRules.OptimizerR
     }
 
     static String syntheticName(Expression expression, Expression af, int counter) {
-        return LogicalPlanOptimizer.SubstituteSurrogates.temporaryName(expression, af, counter);
+        return SubstituteSurrogates.temporaryName(expression, af, counter);
     }
 }

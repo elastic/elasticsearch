@@ -8,13 +8,13 @@
 
 package org.elasticsearch.index.codec.vectors;
 
-import org.apache.lucene.codecs.FlatVectorsFormat;
-import org.apache.lucene.codecs.FlatVectorsReader;
-import org.apache.lucene.codecs.FlatVectorsWriter;
 import org.apache.lucene.codecs.KnnFieldVectorsWriter;
 import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.codecs.KnnVectorsReader;
 import org.apache.lucene.codecs.KnnVectorsWriter;
+import org.apache.lucene.codecs.hnsw.FlatVectorsFormat;
+import org.apache.lucene.codecs.hnsw.FlatVectorsReader;
+import org.apache.lucene.codecs.hnsw.FlatVectorsWriter;
 import org.apache.lucene.codecs.lucene99.Lucene99ScalarQuantizedVectorsFormat;
 import org.apache.lucene.index.ByteVectorValues;
 import org.apache.lucene.index.FieldInfo;
@@ -45,7 +45,9 @@ public class ES813Int8FlatVectorFormat extends KnnVectorsFormat {
      */
     public ES813Int8FlatVectorFormat(Float confidenceInterval) {
         super(NAME);
-        this.format = new Lucene99ScalarQuantizedVectorsFormat(confidenceInterval);
+        int bits = 7;
+        boolean compress = false;
+        this.format = new Lucene99ScalarQuantizedVectorsFormat(confidenceInterval, bits, compress);
     }
 
     @Override

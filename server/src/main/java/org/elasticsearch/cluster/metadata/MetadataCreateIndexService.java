@@ -1268,7 +1268,7 @@ public class MetadataCreateIndexService {
         indexMetadataBuilder.system(isSystem);
         if (minClusterTransportVersion.before(TransportVersions.EVENT_INGESTED_RANGE_IN_CLUSTER_STATE)) {
             // promote to UNKNOWN for older versions since they don't know how to handle event.ingested in cluster state
-            indexMetadataBuilder.eventIngestedRange(IndexLongFieldRange.UNKNOWN);
+            indexMetadataBuilder.eventIngestedRange(IndexLongFieldRange.UNKNOWN, minClusterTransportVersion);
         }
         // now, update the mappings with the actual source
         Map<String, MappingMetadata> mappingsMetadata = new HashMap<>();

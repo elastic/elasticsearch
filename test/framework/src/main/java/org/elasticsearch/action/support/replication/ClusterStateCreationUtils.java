@@ -149,7 +149,7 @@ public class ClusterStateCreationUtils {
             .settings(indexSettings(IndexVersion.current(), 1, numberOfReplicas).put(SETTING_CREATION_DATE, System.currentTimeMillis()))
             .primaryTerm(0, primaryTerm)
             .timestampRange(timeFieldRange)
-            .eventIngestedRange(timeFieldRange)
+            .eventIngestedRange(timeFieldRange, null)
             .build();
 
         IndexShardRoutingTable.Builder indexShardRoutingBuilder = new IndexShardRoutingTable.Builder(shardId);
@@ -387,7 +387,7 @@ public class ClusterStateCreationUtils {
                     )
                 )
                 .timestampRange(IndexLongFieldRange.UNKNOWN)
-                .eventIngestedRange(IndexLongFieldRange.UNKNOWN)
+                .eventIngestedRange(IndexLongFieldRange.UNKNOWN, null)
                 .build();
             metadataBuilder.put(indexMetadata, false).generateClusterUuidIfNeeded();
             IndexRoutingTable.Builder indexRoutingTableBuilder = IndexRoutingTable.builder(indexMetadata.getIndex());

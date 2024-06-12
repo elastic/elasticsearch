@@ -123,7 +123,8 @@ public class IndexMetadataTests extends ESTestCase {
                     IndexLongFieldRange.EMPTY,
                     IndexLongFieldRange.NO_SHARDS,
                     IndexLongFieldRange.NO_SHARDS.extendWithShardRange(0, 1, ShardLongFieldRange.of(5000000, 5500000))
-                )
+                ),
+                null
             )
             .build();
         assertEquals(system, metadata.isSystem());
@@ -233,7 +234,8 @@ public class IndexMetadataTests extends ESTestCase {
                     IndexLongFieldRange.EMPTY,
                     IndexLongFieldRange.NO_SHARDS,
                     IndexLongFieldRange.NO_SHARDS.extendWithShardRange(0, 1, ShardLongFieldRange.of(5000000, 5500000))
-                )
+                ),
+                null
             )
             .build();
         assertEquals(system, metadata.isSystem());

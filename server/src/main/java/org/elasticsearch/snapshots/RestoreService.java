@@ -11,7 +11,6 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -1333,7 +1332,11 @@ public final class RestoreService implements ClusterStateApplier {
                     ensureValidIndexName(currentState, snapshotIndexMetadata, renamedIndexName);
                     shardLimitValidator.validateShardLimit(snapshotIndexMetadata.getSettings(), currentState);
 
-                    final IndexMetadata.Builder indexMdBuilder = restoreToCreateNewIndex(snapshotIndexMetadata, renamedIndexName);
+                    final IndexMetadata.Builder indexMdBuilder = restoreToCreateNewIndex(
+                        snapshotIndexMetadata,
+                        renamedIndexName,
+                        currentState.getMinTransportVersion()
+                    );
                     if (request.includeAliases() == false
                         && snapshotIndexMetadata.getAliases().isEmpty() == false
                         && isSystemIndex(snapshotIndexMetadata) == false) {
@@ -1341,9 +1344,6 @@ public final class RestoreService implements ClusterStateApplier {
                         indexMdBuilder.removeAllAliases();
                     } else {
                         ensureNoAliasNameConflicts(snapshotIndexMetadata);
-                    }
-                    if (currentState.getMinTransportVersion().before(TransportVersions.EVENT_INGESTED_RANGE_IN_CLUSTER_STATE)) {
-                        indexMdBuilder.eventIngestedRange(IndexLongFieldRange.UNKNOWN);
                     }
                     updatedIndexMetadata = indexMdBuilder.build();
                     if (partial) {
@@ -1733,7 +1733,11 @@ public final class RestoreService implements ClusterStateApplier {
         return convertedIndexMetadataBuilder.build();
     }
 
-    private static IndexMetadata.Builder restoreToCreateNewIndex(IndexMetadata snapshotIndexMetadata, String renamedIndexName) {
+    private static IndexMetadata.Builder restoreToCreateNewIndex(
+        IndexMetadata snapshotIndexMetadata,
+        String renamedIndexName,
+        TransportVersion minClusterTransportVersion
+    ) {
         return IndexMetadata.builder(snapshotIndexMetadata)
             .state(IndexMetadata.State.OPEN)
             .index(renamedIndexName)
@@ -1741,7 +1745,7 @@ public final class RestoreService implements ClusterStateApplier {
                 Settings.builder().put(snapshotIndexMetadata.getSettings()).put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
             )
             .timestampRange(IndexLongFieldRange.NO_SHARDS)
-            .eventIngestedRange(IndexLongFieldRange.NO_SHARDS);
+            .eventIngestedRange(IndexLongFieldRange.NO_SHARDS, minClusterTransportVersion);
     }
 
     private static IndexMetadata.Builder restoreOverClosedIndex(
@@ -1757,11 +1761,7 @@ public final class RestoreService implements ClusterStateApplier {
             .aliasesVersion(Math.max(snapshotIndexMetadata.getAliasesVersion(), 1 + currentIndexMetadata.getAliasesVersion()))
             .timestampRange(IndexLongFieldRange.NO_SHARDS)
             // older versions need IndexLongFieldRange.UNKNOWN for eventIngestedRange to ensure compatibility across cluster versions
-            .eventIngestedRange(
-                minTransportVersion.before(TransportVersions.EVENT_INGESTED_RANGE_IN_CLUSTER_STATE)
-                    ? IndexLongFieldRange.UNKNOWN
-                    : IndexLongFieldRange.NO_SHARDS
-            )
+            .eventIngestedRange(IndexLongFieldRange.NO_SHARDS, minTransportVersion)
             .index(currentIndexMetadata.getIndex().getName())
             .settings(
                 Settings.builder()

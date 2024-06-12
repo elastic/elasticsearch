@@ -1720,7 +1720,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             builder.rolloverInfos.putAllFromMap(rolloverInfos.apply(part.rolloverInfos));
             builder.system(isSystem);
             builder.timestampRange(timestampRange);
-            builder.eventIngestedRange(eventIngestedRange);
+            builder.eventIngestedRange(eventIngestedRange, null);
             builder.stats(stats);
             builder.indexWriteLoadForecast(indexWriteLoadForecast);
             builder.shardSizeInBytesForecast(shardSizeInBytesForecast);
@@ -1796,9 +1796,9 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             builder.shardSizeInBytesForecast(in.readOptionalLong());
         }
         if (in.getTransportVersion().onOrAfter(TransportVersions.EVENT_INGESTED_RANGE_IN_CLUSTER_STATE)) {
-            builder.eventIngestedRange(IndexLongFieldRange.readFrom(in));
+            builder.eventIngestedRange(IndexLongFieldRange.readFrom(in), in.getTransportVersion());
         } else {
-            builder.eventIngestedRange(IndexLongFieldRange.UNKNOWN);
+            builder.eventIngestedRange(IndexLongFieldRange.UNKNOWN, in.getTransportVersion());
         }
         return builder.build(true);
     }
@@ -2154,9 +2154,14 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             return this;
         }
 
-        public Builder eventIngestedRange(IndexLongFieldRange eventIngestedRange) {
+        public Builder eventIngestedRange(IndexLongFieldRange eventIngestedRange, TransportVersion minClusterTransportVersion) {
             assert eventIngestedRange != null : "eventIngestedRange cannot be null";
-            this.eventIngestedRange = eventIngestedRange;
+            if (minClusterTransportVersion != null
+                && minClusterTransportVersion.before(TransportVersions.EVENT_INGESTED_RANGE_IN_CLUSTER_STATE)) {
+                this.eventIngestedRange = IndexLongFieldRange.UNKNOWN;
+            } else {
+                this.eventIngestedRange = eventIngestedRange;
+            }
             return this;
         }
 
@@ -2538,7 +2543,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.currentToken(), parser);
             Builder builder = new Builder(parser.currentName());
             // default to UNKNOWN so that reading 'event.ingested' range content works in older versions
-            builder.eventIngestedRange(IndexLongFieldRange.UNKNOWN);
+            builder.eventIngestedRange(IndexLongFieldRange.UNKNOWN, null);
             String currentFieldName;
             XContentParser.Token token = parser.nextToken();
             XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser);
@@ -2597,7 +2602,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                             builder.timestampRange(IndexLongFieldRange.fromXContent(parser));
                             break;
                         case KEY_EVENT_INGESTED_RANGE:
-                            builder.eventIngestedRange(IndexLongFieldRange.fromXContent(parser));
+                            builder.eventIngestedRange(IndexLongFieldRange.fromXContent(parser), null);
                             break;
                         case KEY_STATS:
                             builder.stats(IndexMetadataStats.fromXContent(parser));

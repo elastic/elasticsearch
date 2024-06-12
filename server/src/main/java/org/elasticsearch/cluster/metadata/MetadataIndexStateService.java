@@ -11,8 +11,6 @@ package org.elasticsearch.cluster.metadata;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.admin.indices.close.CloseIndexClusterStateUpdateRequest;
@@ -888,7 +886,7 @@ public class MetadataIndexStateService {
                 final IndexMetadata.Builder updatedMetadata = IndexMetadata.builder(indexMetadata).state(IndexMetadata.State.CLOSE);
                 metadata.put(
                     updatedMetadata.timestampRange(IndexLongFieldRange.NO_SHARDS)
-                        .eventIngestedRange(getEventIngestedDefaultValue(currentState.getMinTransportVersion()))
+                        .eventIngestedRange(IndexLongFieldRange.NO_SHARDS, currentState.getMinTransportVersion())
                         .settingsVersion(indexMetadata.getSettingsVersion() + 1)
                         .settings(Settings.builder().put(indexMetadata.getSettings()).put(VERIFIED_BEFORE_CLOSE_SETTING.getKey(), true))
                 );
@@ -1135,7 +1133,7 @@ public class MetadataIndexStateService {
                         .settingsVersion(indexMetadata.getSettingsVersion() + 1)
                         .settings(updatedSettings)
                         .timestampRange(IndexLongFieldRange.NO_SHARDS)
-                        .eventIngestedRange(getEventIngestedDefaultValue(currentState.getMinTransportVersion()))
+                        .eventIngestedRange(IndexLongFieldRange.NO_SHARDS, currentState.getMinTransportVersion())
                         .build();
 
                     // The index might be closed because we couldn't import it due to an old incompatible
@@ -1166,16 +1164,6 @@ public class MetadataIndexStateService {
             }
             return ClusterState.builder(updatedState).routingTable(routingTable).build();
         }
-    }
-
-    private static IndexLongFieldRange getEventIngestedDefaultValue(TransportVersion currentMinTransportVersion) {
-        IndexLongFieldRange eventIngestedDefault = IndexLongFieldRange.NO_SHARDS;
-        if (currentMinTransportVersion.before(TransportVersions.EVENT_INGESTED_RANGE_IN_CLUSTER_STATE)) {
-            // for versions before we added event.ingested range to cluster state, default to UNKNOWN since it will
-            // not be handled properly in older clusters in a mixed-cluster env
-            eventIngestedDefault = IndexLongFieldRange.UNKNOWN;
-        }
-        return eventIngestedDefault;
     }
 
     private record OpenIndicesTask(OpenIndexClusterStateUpdateRequest request, ActionListener<AcknowledgedResponse> listener)

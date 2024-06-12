@@ -69,7 +69,7 @@ public class ClusterSerializationTests extends ESAllocationTestCase {
             .settings(settings(IndexVersion.current()))
             .numberOfShards(10)
             .numberOfReplicas(1)
-            .eventIngestedRange(eventIngestedRangeInput);
+            .eventIngestedRange(eventIngestedRangeInput, TransportVersions.EVENT_INGESTED_RANGE_IN_CLUSTER_STATE);
 
         ClusterStateTestRecord result = createAndSerializeClusterState(indexMetadataBuilder, TransportVersion.current());
 
@@ -89,14 +89,18 @@ public class ClusterSerializationTests extends ESAllocationTestCase {
         TransportVersion versionBeforeEventIngestedInClusterState = randomFrom(TransportVersions.V_7_0_0, TransportVersions.V_8_0_0);
 
         {
-            // UNKNOWN is the only allowed state for older versions
-            IndexLongFieldRange eventIngestedRangeInput = IndexLongFieldRange.UNKNOWN;
+            IndexLongFieldRange eventIngestedRangeInput = randomFrom(
+                IndexLongFieldRange.UNKNOWN,
+                IndexLongFieldRange.NO_SHARDS,
+                IndexLongFieldRange.EMPTY,
+                IndexLongFieldRange.NO_SHARDS.extendWithShardRange(0, 1, ShardLongFieldRange.of(100000, 200000))
+            );
 
             IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder("test")
                 .settings(settings(IndexVersion.current()))
                 .numberOfShards(10)
                 .numberOfReplicas(1)
-                .eventIngestedRange(eventIngestedRangeInput);
+                .eventIngestedRange(eventIngestedRangeInput, versionBeforeEventIngestedInClusterState);
 
             ClusterStateTestRecord result = createAndSerializeClusterState(indexMetadataBuilder, versionBeforeEventIngestedInClusterState);
 
@@ -107,7 +111,8 @@ public class ClusterSerializationTests extends ESAllocationTestCase {
                 .getMetadata()
                 .index("test")
                 .getEventIngestedRange();
-            assertSame(eventIngestedRangeInput, eventIngestedRangeOutput);
+            // should always come back as UNKNOWN when an older transport version is passed in
+            assertSame(IndexLongFieldRange.UNKNOWN, eventIngestedRangeOutput);
         }
         {
             // UNKNOWN is the only allowed state for event.ingested range in older versions, so this serialization test should fail
@@ -121,7 +126,7 @@ public class ClusterSerializationTests extends ESAllocationTestCase {
                 .settings(settings(IndexVersion.current()))
                 .numberOfShards(10)
                 .numberOfReplicas(1)
-                .eventIngestedRange(eventIngestedRangeInput);
+                .eventIngestedRange(eventIngestedRangeInput, null);
 
             AssertionError assertionError = expectThrows(
                 AssertionError.class,

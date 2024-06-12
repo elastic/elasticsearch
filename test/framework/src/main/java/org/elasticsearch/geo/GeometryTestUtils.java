@@ -205,7 +205,7 @@ public class GeometryTestUtils {
         return randomGeometry(0, hasAlt);
     }
 
-    public static Geometry randomGeometry(int level, boolean hasAlt) {
+    protected static Geometry randomGeometry(int level, boolean hasAlt) {
         @SuppressWarnings("unchecked")
         Function<Boolean, Geometry> geometry = ESTestCase.randomFrom(
             GeometryTestUtils::randomCircle,

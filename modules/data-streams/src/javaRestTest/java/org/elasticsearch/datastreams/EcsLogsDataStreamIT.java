@@ -66,7 +66,6 @@ public class EcsLogsDataStreamIT extends DisabledSecurityDataStreamTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/106483")
     public void testElasticAgentLogEcsMappings() throws Exception {
         {
             Path path = PathUtils.get(Thread.currentThread().getContextClassLoader().getResource("ecs-logs/es-agent-ecs-log.json").toURI());
@@ -127,7 +126,6 @@ public class EcsLogsDataStreamIT extends DisabledSecurityDataStreamTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/106483")
     public void testGeneralMockupEcsMappings() throws Exception {
         {
             indexDoc(client, DATA_STREAM_NAME, """

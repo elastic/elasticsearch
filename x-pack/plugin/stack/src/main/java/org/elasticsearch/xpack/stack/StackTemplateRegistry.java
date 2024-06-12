@@ -16,7 +16,6 @@ import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -58,14 +57,12 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
         Setting.Property.Dynamic
     );
 
-    private static final FeatureFlag LOGS_INDEX_MODE_ENABLED_FEATURE_FLAG = new FeatureFlag("logs_index_mode_enabled");
-
     /**
      * if index.mode "logs" is applied by default in logs@settings for 'logs-*-*'
      */
-    public static final Setting<Boolean> CLUSTER_LOGSDB_ENABLED_SETTING = Setting.boolSetting(
+    public static final Setting<Boolean> CLUSTER_LOGSDB_ENABLED = Setting.boolSetting(
         "cluster.logsdb.enabled",
-        LOGS_INDEX_MODE_ENABLED_FEATURE_FLAG.isEnabled(),
+        false,
         Setting.Property.NodeScope
     );
 
@@ -73,7 +70,7 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
     private final FeatureService featureService;
     private volatile boolean stackTemplateEnabled;
 
-    private final boolean logsIndexModeTemplateEnabled;
+    private volatile boolean logsIndexModeTemplateEnabled;
 
     public static final Map<String, String> ADDITIONAL_TEMPLATE_VARIABLES = Map.of("xpack.stack.template.deprecated", "false");
 
@@ -135,7 +132,7 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
         this.clusterService = clusterService;
         this.featureService = featureService;
         this.stackTemplateEnabled = STACK_TEMPLATES_ENABLED.get(nodeSettings);
-        this.logsIndexModeTemplateEnabled = CLUSTER_LOGSDB_ENABLED_SETTING.get(nodeSettings);
+        this.logsIndexModeTemplateEnabled = CLUSTER_LOGSDB_ENABLED.get(nodeSettings);
     }
 
     @Override

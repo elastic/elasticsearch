@@ -879,8 +879,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
         abstract boolean updatableTo(IndexOptions update);
 
-        void validateDimension(int dim  ) {
-           // no-op
+        void validateDimension(int dim) {
+            // no-op
         }
     }
 
@@ -1138,6 +1138,12 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         @Override
+        boolean updatableTo(IndexOptions update) {
+            // TODO: add support for updating from flat, hnsw, and int8_hnsw and updating params
+            return false;
+        }
+
+        @Override
         void validateDimension(int dim) {
             if (dim % 2 != 0) {
                 throw new IllegalArgumentException("int4_hnsw only supports even dimensions; provided=" + dim);
@@ -1190,6 +1196,12 @@ public class DenseVectorFieldMapper extends FieldMapper {
         @Override
         boolean supportsElementType(ElementType elementType) {
             return elementType != ElementType.BYTE;
+        }
+
+        @Override
+        boolean updatableTo(IndexOptions update) {
+            // TODO: add support for updating from flat, hnsw, and int8_hnsw and updating params
+            return false;
         }
 
         @Override

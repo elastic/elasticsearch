@@ -5,13 +5,14 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.optimizer;
+package org.elasticsearch.xpack.esql.optimizer.rules;
 
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules;
 
-public class FoldNull extends org.elasticsearch.xpack.esql.optimizer.rules.FoldNull {
+public class FoldNull extends OptimizerRules.FoldNull {
     @Override
-    public Expression rule(Expression e) {
-        return super.rule(e);
+    protected Expression tryReplaceIsNullIsNotNull(Expression e) {
+        return e;
     }
 }

@@ -67,6 +67,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.CombineProjections;
 import org.elasticsearch.xpack.esql.optimizer.rules.ConstantFolding;
 import org.elasticsearch.xpack.esql.optimizer.rules.ConvertStringToByteRef;
 import org.elasticsearch.xpack.esql.optimizer.rules.DuplicateLimitAfterMvExpand;
+import org.elasticsearch.xpack.esql.optimizer.rules.FoldNull;
 import org.elasticsearch.xpack.esql.optimizer.rules.LiteralsOnTheRight;
 import org.elasticsearch.xpack.esql.optimizer.rules.PropagateEquals;
 import org.elasticsearch.xpack.esql.optimizer.rules.PruneFilters;
@@ -1447,13 +1448,6 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
                 newAggs.add(newAgg);
             }
             return changed.get() ? new Aggregate(aggregate.source(), aggregate.child(), aggregate.groupings(), newAggs) : aggregate;
-        }
-    }
-
-    public static class FoldNull extends OptimizerRules.FoldNull {
-        @Override
-        protected Expression tryReplaceIsNullIsNotNull(Expression e) {
-            return e;
         }
     }
 

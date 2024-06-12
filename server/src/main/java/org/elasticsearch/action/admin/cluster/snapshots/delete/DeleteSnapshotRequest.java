@@ -28,12 +28,10 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  */
 public class DeleteSnapshotRequest extends MasterNodeRequest<DeleteSnapshotRequest> {
 
-    public static final boolean DEFAULT_WAIT_FOR_COMPLETION = true;
-
     private String repository;
 
     private String[] snapshots;
-    private boolean waitForCompletion = DEFAULT_WAIT_FOR_COMPLETION;
+    private boolean waitForCompletion = true;
 
     /**
      * Constructs a new delete snapshots request with repository and snapshot names

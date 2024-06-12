@@ -83,10 +83,11 @@ public class SynonymsManagementAPIService {
     // Identifies synonym set objects stored in the index
     private static final String SYNONYM_SET_OBJECT_TYPE = "synonym_set";
     private static final String SYNONYM_RULE_ID_SEPARATOR = "|";
-    public static final int MAX_SYNONYMS_SETS = 100_000;
+    private static final int MAX_SYNONYMS_SETS = 100_000;
     private static final String SYNONYM_RULE_ID_FIELD = SynonymRule.ID_FIELD.getPreferredName();
     private static final String SYNONYM_SETS_AGG_NAME = "synonym_sets_aggr";
     private static final int SYNONYMS_INDEX_MAPPINGS_VERSION = 1;
+    private final int maxSynonymsSets;
 
     private final Client client;
 
@@ -104,7 +105,13 @@ public class SynonymsManagementAPIService {
         .build();
 
     public SynonymsManagementAPIService(Client client) {
+        this(client, MAX_SYNONYMS_SETS);
+    }
+
+    // Used for testing, so we don't need to test for MAX_SYNONYMS_SETS and put unnecessary memory pressure on the test cluster
+    SynonymsManagementAPIService(Client client, int maxSynonymsSets) {
         this.client = new OriginSettingClient(client, SYNONYMS_ORIGIN);
+        this.maxSynonymsSets = maxSynonymsSets;
     }
 
     /* The synonym index stores two object types:
@@ -175,7 +182,7 @@ public class SynonymsManagementAPIService {
             .addAggregation(
                 new TermsAggregationBuilder(SYNONYM_SETS_AGG_NAME).field(SYNONYMS_SET_FIELD)
                     .order(BucketOrder.key(true))
-                    .size(MAX_SYNONYMS_SETS)
+                    .size(maxSynonymsSets)
             )
             .setPreference(Preference.LOCAL.type())
             .execute(new ActionListener<>() {
@@ -298,9 +305,9 @@ public class SynonymsManagementAPIService {
     }
 
     public void putSynonymsSet(String synonymSetId, SynonymRule[] synonymsSet, ActionListener<SynonymsReloadResult> listener) {
-        if (synonymsSet.length > MAX_SYNONYMS_SETS) {
+        if (synonymsSet.length > maxSynonymsSets) {
             listener.onFailure(
-                new IllegalArgumentException("The number of synonyms rules in a synonym set cannot exceed " + MAX_SYNONYMS_SETS)
+                new IllegalArgumentException("The number of synonyms rules in a synonym set cannot exceed " + maxSynonymsSets)
             );
             return;
         }
@@ -368,10 +375,10 @@ public class SynonymsManagementAPIService {
                 .setTrackTotalHits(true)
                 .execute(l1.delegateFailureAndWrap((searchListener, searchResponse) -> {
                     long synonymsSetSize = searchResponse.getHits().getTotalHits().value;
-                    if (synonymsSetSize >= MAX_SYNONYMS_SETS) {
+                    if (synonymsSetSize >= maxSynonymsSets) {
                         // We could potentially update a synonym rule when we're at max capacity, but we're keeping this simple
                         listener.onFailure(
-                            new IllegalArgumentException("The number of synonym rules in a synonyms set cannot exceed " + MAX_SYNONYMS_SETS)
+                            new IllegalArgumentException("The number of synonym rules in a synonyms set cannot exceed " + maxSynonymsSets)
                         );
                     } else {
                         indexSynonymRule(synonymsSetId, synonymRule, searchListener);

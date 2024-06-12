@@ -25,6 +25,7 @@ import static org.elasticsearch.action.synonyms.SynonymsTestUtils.randomSynonyms
 public class SynonymsManagementAPIServiceIT extends ESIntegTestCase {
 
     private SynonymsManagementAPIService synonymsManagementAPIService;
+    private int maxSynonymSets;
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -34,16 +35,14 @@ public class SynonymsManagementAPIServiceIT extends ESIntegTestCase {
     @Before
     public void setUp() throws Exception {
         super.setUp();
-        synonymsManagementAPIService = new SynonymsManagementAPIService(client());
+        maxSynonymSets = randomIntBetween(100, 1000);
+        synonymsManagementAPIService = new SynonymsManagementAPIService(client(), maxSynonymSets);
     }
 
     public void testCreateManySynonyms() throws Exception {
         CountDownLatch putLatch = new CountDownLatch(1);
         String synonymSetId = randomIdentifier();
-        int rulesNumber = randomIntBetween(
-            SynonymsManagementAPIService.MAX_SYNONYMS_SETS / 2,
-            SynonymsManagementAPIService.MAX_SYNONYMS_SETS
-        );
+        int rulesNumber = randomIntBetween(maxSynonymSets / 2, maxSynonymSets);
         synonymsManagementAPIService.putSynonymsSet(synonymSetId, randomSynonymsSet(rulesNumber, rulesNumber), new ActionListener<>() {
             @Override
             public void onResponse(SynonymsManagementAPIService.SynonymsReloadResult synonymsReloadResult) {
@@ -65,24 +64,19 @@ public class SynonymsManagementAPIServiceIT extends ESIntegTestCase {
         CountDownLatch getLatch = new CountDownLatch(1);
         // Also retrieve them
         assertBusy(() -> {
-            synonymsManagementAPIService.getSynonymSetRules(
-                synonymSetId,
-                0,
-                SynonymsManagementAPIService.MAX_SYNONYMS_SETS,
-                new ActionListener<>() {
-                    @Override
-                    public void onResponse(PagedResult<SynonymRule> synonymRulePagedResult) {
-                        assertEquals(rulesNumber, synonymRulePagedResult.totalResults());
-                        assertEquals(rulesNumber, synonymRulePagedResult.pageResults().length);
-                        getLatch.countDown();
-                    }
-
-                    @Override
-                    public void onFailure(Exception e) {
-                        fail(e);
-                    }
+            synonymsManagementAPIService.getSynonymSetRules(synonymSetId, 0, maxSynonymSets, new ActionListener<>() {
+                @Override
+                public void onResponse(PagedResult<SynonymRule> synonymRulePagedResult) {
+                    assertEquals(rulesNumber, synonymRulePagedResult.totalResults());
+                    assertEquals(rulesNumber, synonymRulePagedResult.pageResults().length);
+                    getLatch.countDown();
                 }
-            );
+
+                @Override
+                public void onFailure(Exception e) {
+                    fail(e);
+                }
+            });
         }, 5, TimeUnit.SECONDS);
 
         getLatch.await(10, TimeUnit.SECONDS);
@@ -92,7 +86,7 @@ public class SynonymsManagementAPIServiceIT extends ESIntegTestCase {
         CountDownLatch latch = new CountDownLatch(1);
         synonymsManagementAPIService.putSynonymsSet(
             randomIdentifier(),
-            randomSynonymsSet(SynonymsManagementAPIService.MAX_SYNONYMS_SETS + 1, SynonymsManagementAPIService.MAX_SYNONYMS_SETS * 2),
+            randomSynonymsSet(maxSynonymSets + 1, maxSynonymSets * 2),
             new ActionListener<>() {
                 @Override
                 public void onResponse(SynonymsManagementAPIService.SynonymsReloadResult synonymsReloadResult) {
@@ -116,7 +110,7 @@ public class SynonymsManagementAPIServiceIT extends ESIntegTestCase {
     public void testCreateTooManySynonymsUsingRuleUpdates() throws InterruptedException {
         CountDownLatch latch = new CountDownLatch(1);
         int rulesToUpdate = randomIntBetween(1, 10);
-        int synonymsToCreate = SynonymsManagementAPIService.MAX_SYNONYMS_SETS - rulesToUpdate;
+        int synonymsToCreate = maxSynonymSets - rulesToUpdate;
         String synonymSetId = randomIdentifier();
         synonymsManagementAPIService.putSynonymsSet(synonymSetId, randomSynonymsSet(synonymsToCreate), new ActionListener<>() {
             @Override
@@ -186,10 +180,7 @@ public class SynonymsManagementAPIServiceIT extends ESIntegTestCase {
     public void testUpdateRuleWithMaxSynonyms() throws InterruptedException {
         CountDownLatch latch = new CountDownLatch(1);
         String synonymSetId = randomIdentifier();
-        SynonymRule[] synonymsSet = randomSynonymsSet(
-            SynonymsManagementAPIService.MAX_SYNONYMS_SETS,
-            SynonymsManagementAPIService.MAX_SYNONYMS_SETS
-        );
+        SynonymRule[] synonymsSet = randomSynonymsSet(maxSynonymSets, maxSynonymSets);
         synonymsManagementAPIService.putSynonymsSet(synonymSetId, synonymsSet, new ActionListener<>() {
             @Override
             public void onResponse(SynonymsManagementAPIService.SynonymsReloadResult synonymsReloadResult) {

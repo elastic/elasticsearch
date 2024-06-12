@@ -10,7 +10,6 @@ package org.elasticsearch.action.synonyms;
 
 import org.elasticsearch.synonyms.SynonymRule;
 import org.elasticsearch.synonyms.SynonymSetSummary;
-import org.elasticsearch.synonyms.SynonymsManagementAPIService;
 
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLengthBetween;
 import static org.elasticsearch.test.ESTestCase.randomArray;
@@ -37,7 +36,7 @@ public class SynonymsTestUtils {
     }
 
     static SynonymRule[] randomSynonymsSet() {
-        return randomSynonymsSet(0, SynonymsManagementAPIService.MAX_SYNONYMS_SETS);
+        return randomSynonymsSet(0, 10);
     }
 
     static SynonymSetSummary[] randomSynonymsSetSummary() {

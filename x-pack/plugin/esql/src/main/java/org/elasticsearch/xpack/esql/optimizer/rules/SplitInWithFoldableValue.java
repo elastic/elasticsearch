@@ -26,7 +26,7 @@ public class SplitInWithFoldableValue extends OptimizerRules.OptimizerExpression
     }
 
     @Override
-    protected Expression rule(In in) {
+    public Expression rule(In in) {
         if (in.value().foldable()) {
             List<Expression> foldables = new ArrayList<>(in.list().size());
             List<Expression> nonFoldables = new ArrayList<>(in.list().size());

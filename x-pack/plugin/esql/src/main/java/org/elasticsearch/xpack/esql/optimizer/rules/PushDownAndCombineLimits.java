@@ -25,7 +25,7 @@ import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 public class PushDownAndCombineLimits extends OptimizerRules.OptimizerRule<Limit> {
 
     @Override
-    protected LogicalPlan rule(Limit limit) {
+    public LogicalPlan rule(Limit limit) {
         if (limit.child() instanceof Limit childLimit) {
             var limitSource = limit.limit();
             var l1 = (int) limitSource.fold();

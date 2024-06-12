@@ -9,6 +9,7 @@ package org.elasticsearch.compute.lucene;
 
 import org.apache.lucene.document.DoubleDocValuesField;
 import org.apache.lucene.document.FloatDocValuesField;
+import org.apache.lucene.document.LongField;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedDocValuesField;
@@ -18,6 +19,7 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
@@ -59,6 +61,7 @@ import java.util.Map;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -206,6 +209,57 @@ public class TimeSeriesSortedSourceOperatorTests extends AnyOperatorTestCase {
             }
         }
         assertThat(offset, equalTo(Math.min(limit, numDocs)));
+    }
+
+    public void testMatchNone() throws Exception {
+        long t0 = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2024-01-01T00:00:00Z");
+        Sort sort = new Sort(
+            new SortField(TimeSeriesIdFieldMapper.NAME, SortField.Type.STRING, false),
+            new SortedNumericSortField(DataStreamTimestampFieldMapper.DEFAULT_PATH, SortField.Type.LONG, true)
+        );
+        try (
+            var directory = newDirectory();
+            RandomIndexWriter writer = new RandomIndexWriter(
+                random(),
+                directory,
+                newIndexWriterConfig().setIndexSort(sort).setMergePolicy(NoMergePolicy.INSTANCE)
+            )
+        ) {
+            int numDocs = between(1, 100);
+            long timestamp = t0;
+            int metrics = randomIntBetween(1, 3);
+            for (int i = 0; i < numDocs; i++) {
+                timestamp += between(1, 1000);
+                for (int j = 0; j < metrics; j++) {
+                    String hostname = String.format(Locale.ROOT, "sensor-%02d", j);
+                    writeTS(writer, timestamp, new Object[] { "sensor", hostname }, new Object[] { "voltage", j + 5 });
+                }
+            }
+            try (var reader = writer.getReader()) {
+                var ctx = new LuceneSourceOperatorTests.MockShardContext(reader, 0);
+                Query query = randomFrom(LongField.newRangeQuery("@timestamp", 0, t0), new MatchNoDocsQuery());
+                var timeSeriesFactory = TimeSeriesSortedSourceOperatorFactory.create(
+                    Integer.MAX_VALUE,
+                    randomIntBetween(1, 1024),
+                    1,
+                    TimeValue.ZERO,
+                    List.of(ctx),
+                    unused -> query
+                );
+                var driverContext = driverContext();
+                List<Page> results = new ArrayList<>();
+                OperatorTestCase.runDriver(
+                    new Driver(
+                        driverContext,
+                        timeSeriesFactory.get(driverContext),
+                        List.of(),
+                        new TestResultPageSinkOperator(results::add),
+                        () -> {}
+                    )
+                );
+                assertThat(results, empty());
+            }
+        }
     }
 
     @Override

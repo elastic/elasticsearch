@@ -29,7 +29,6 @@ import org.elasticsearch.xpack.esql.core.rule.ParameterizedRule;
 import org.elasticsearch.xpack.esql.core.rule.ParameterizedRuleExecutor;
 import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
-import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesFunction;
 import org.elasticsearch.xpack.esql.optimizer.rules.AddDefaultTopN;
 import org.elasticsearch.xpack.esql.optimizer.rules.BooleanFunctionEqualsElimination;
 import org.elasticsearch.xpack.esql.optimizer.rules.BooleanSimplification;
@@ -72,6 +71,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.SimplifyComparisonsArithmeti
 import org.elasticsearch.xpack.esql.optimizer.rules.SkipQueryOnEmptyMappings;
 import org.elasticsearch.xpack.esql.optimizer.rules.SkipQueryOnLimitZero;
 import org.elasticsearch.xpack.esql.optimizer.rules.SplitInWithFoldableValue;
+import org.elasticsearch.xpack.esql.optimizer.rules.SubstituteSpatialSurrogates;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
@@ -306,25 +306,6 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
 
         static String limitToString(String string) {
             return string.length() > 16 ? string.substring(0, TO_STRING_LIMIT - 1) + ">" : string;
-        }
-    }
-
-    /**
-     * Currently this works similarly to SurrogateExpression, leaving the logic inside the expressions,
-     * so each can decide for itself whether or not to change to a surrogate expression.
-     * But what is actually being done is similar to LiteralsOnTheRight. We can consider in the future moving
-     * this in either direction, reducing the number of rules, but for now,
-     * it's a separate rule to reduce the risk of unintended interactions with other rules.
-     */
-    static class SubstituteSpatialSurrogates extends OptimizerRules.OptimizerExpressionRule<SpatialRelatesFunction> {
-
-        SubstituteSpatialSurrogates() {
-            super(TransformDirection.UP);
-        }
-
-        @Override
-        protected SpatialRelatesFunction rule(SpatialRelatesFunction function) {
-            return function.surrogate();
         }
     }
 

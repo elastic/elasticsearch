@@ -32,6 +32,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.TransportAction;
+import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Randomness;
@@ -69,6 +70,7 @@ import org.elasticsearch.transport.TransportService;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.indices.recovery.StatelessPrimaryRelocationAction.TYPE;
@@ -95,8 +97,14 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
         Setting.Property.NodeScope
     );
 
-    private volatile TimeValue slowSecondaryFlushThreshold;
-    private volatile TimeValue slowHandoffWarmingThreshold;
+    public static final Setting<TimeValue> SLOW_RELOCATION_THRESHOLD_SETTING = Setting.timeSetting(
+        "serverless.cluster.primary_relocation.slow_handoff_warning_threshold",
+        TimeValue.timeValueSeconds(10),
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
+    private volatile TimeValue slowRelocationWarningThreshold;
 
     private final TransportService transportService;
     private final ClusterService clusterService;
@@ -128,9 +136,7 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
         this.threadContext = threadPool.getThreadContext();
 
         clusterService.getClusterSettings()
-            .initializeAndWatch(SLOW_SECONDARY_FLUSH_THRESHOLD_SETTING, value -> this.slowSecondaryFlushThreshold = value);
-        clusterService.getClusterSettings()
-            .initializeAndWatch(SLOW_HANDOFF_WARMING_THRESHOLD_SETTING, value -> this.slowHandoffWarmingThreshold = value);
+            .initializeAndWatch(SLOW_RELOCATION_THRESHOLD_SETTING, value -> this.slowRelocationWarningThreshold = value);
 
         transportService.registerRequestHandler(
             START_RELOCATION_ACTION_NAME,
@@ -207,6 +213,7 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
             request.targetNode().descriptionWithoutAttributes(),
             request.targetAllocationId()
         );
+        final long beforeRelocation = threadPool.relativeTimeInMillis();
 
         final IndexShard indexShard;
         final IndexEngine engine;
@@ -226,26 +233,9 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
 
         logShardStats("flushing before acquiring all primary operation permits", indexShard, engine);
 
-        final var threadDumpListener = new SubscribableListener<Void>();
-        if (logger.isDebugEnabled()) {
-            final var threadPool = indexShard.getThreadPool();
-            threadDumpListener.addTimeout(TimeValue.timeValueSeconds(5), threadPool, threadPool.generic());
-            threadDumpListener.addListener(new ActionListener<>() {
-                @Override
-                public void onResponse(Void unused) {}
+        final var threadDumpListener = slowShardOperationListener(indexShard, TimeValue.timeValueSeconds(5), "flush and acquire permits");
 
-                @Override
-                public void onFailure(Exception e) {
-                    HotThreads.logLocalHotThreads(
-                        logger,
-                        Level.DEBUG,
-                        "hot threads during flush of " + indexShard.shardId(),
-                        ReferenceDocs.LOGGING
-                    );
-                }
-            });
-        }
-
+        final long beforeInitialFlush = threadPool.relativeTimeInMillis();
         ActionListener.run(preFlushStep, l -> engine.flush(false, false, l));
         logger.debug("[{}] completed the flush, waiting to upload", request.shardId());
 
@@ -253,6 +243,7 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
             indexShard.recoveryStats().decCurrentAsSource();
             l.onFailure(e);
         }).delegateFailureAndWrap((listener0, preFlushResult) -> {
+            final var initialFlushDuration = getTimeSince(beforeInitialFlush);
             logger.debug("[{}] acquiring all primary operation permits", request.shardId());
             final long beforeAcquiringPermits = threadPool.relativeTimeInMillis();
             indexShard.relocated(request.targetNode().getId(), request.targetAllocationId(), (primaryContext, handoffResultListener) -> {
@@ -261,7 +252,6 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
                 logger.debug("[{}] obtained primary context: [{}]", request.shardId(), primaryContext);
                 final var acquirePermitsDuration = getTimeSince(beforeAcquiringPermits);
 
-                final var markedShardAsRelocating = new SubscribableListener<Void>();
                 // Do not wait on flush durability as we will wait at the stateless commit service level for the upload
                 final long beforeFinalFlush = threadPool.relativeTimeInMillis();
                 engine.flush(false, true, ActionListener.noop());
@@ -288,6 +278,8 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
                     throw new RetentionLeaseNotFoundException(leaseId);
                 }
 
+                final var finalFlushDuration = new AtomicReference<TimeValue>();
+                final var markedShardAsRelocating = new SubscribableListener<Void>();
                 ActionListener<Void> handoffCompleteListener = statelessCommitService.markRelocating(
                     indexShard.shardId(),
                     lastFlushedGeneration,
@@ -299,16 +291,23 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
                 ActionListener<TransportResponse.Empty> compoundHandoffListener = new ActionListener<>() {
                     @Override
                     public void onResponse(TransportResponse.Empty unused) {
-                        logger.debug("[{}] primary context handoff succeeded", request.shardId());
                         final var handoffDuration = getTimeSince(beforeAcquiringPermits);
-                        if (handoffDuration.getMillis() >= slowHandoffWarmingThreshold.getMillis()) {
+                        final var relocationDuration = getTimeSince(beforeRelocation);
+
+                        logger.debug("[{}] primary context handoff succeeded", request.shardId());
+                        if (handoffDuration.getMillis() >= slowRelocationWarningThreshold.getMillis()) {
                             logger.warn(
-                                "[{}] primary context handoff took [{}] (including [{}] to acquire permit) "
+                                "[{}] primary shard relocation took [{}] (shutting down={})"
+                                    + "(including [{}] to flush, [{}] to acquire permits, [{}] to flush again and [{}] to handoff context) "
                                     + "which is above the warn threshold of [{}]",
                                 request.shardId(),
-                                handoffDuration,
+                                relocationDuration,
+                                isShuttingDown(),
+                                initialFlushDuration,
                                 acquirePermitsDuration,
-                                slowHandoffWarmingThreshold
+                                finalFlushDuration.get(),
+                                handoffDuration,
+                                slowRelocationWarningThreshold
                             );
                         }
 
@@ -332,15 +331,7 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
 
                 markedShardAsRelocating.addListener(compoundHandoffListener.delegateFailureAndWrap((finalHandoffListener, v) -> {
                     logger.debug("[{}] flush complete, handing off primary context", request.shardId());
-                    final var flushDuration = getTimeSince(beforeFinalFlush);
-                    if (flushDuration.getMillis() >= slowSecondaryFlushThreshold.getMillis()) {
-                        logger.warn(
-                            "[{}] final flush duration [{}] which is above the warn threshold of [{}]",
-                            request.shardId(),
-                            flushDuration,
-                            slowSecondaryFlushThreshold
-                        );
-                    }
+                    finalFlushDuration.set(getTimeSince(beforeFinalFlush));
 
                     assert assertLastCommitSequenceNumberConsistency(indexShard, sourceCheckpoints, false);
                     transportService.sendChildRequest(
@@ -404,6 +395,8 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
         final var indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
         final var indexShard = indexService.getShard(request.shardId().id());
 
+        final var threadDumpListener = slowShardOperationListener(indexShard, TimeValue.timeValueSeconds(10), "starting");
+
         final var recoveryRef = peerRecoveryTargetService.getRecoveryRef(request.recoveryId(), request.shardId());
         ActionListener.run(
             ActionListener.releaseAfter(listener, Releasables.wrap(recoveryRef.target().disableRecoveryMonitor(), recoveryRef)),
@@ -425,6 +418,8 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
                 recoveryState.getIndex().setFileDetailsComplete();
                 recoveryState.setStage(RecoveryState.Stage.FINALIZE);
                 indexShard.activateWithPrimaryContext(request.primaryContext());
+
+                threadDumpListener.onResponse(null);
                 return null;
             }))
         );
@@ -526,5 +521,30 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
 
     private TimeValue getTimeSince(long startTimeMillis) {
         return TimeValue.timeValueMillis(Math.max(0, threadPool.relativeTimeInMillis() - startTimeMillis));
+    }
+
+    private boolean isShuttingDown() {
+        return clusterService.state()
+            .metadata()
+            .nodeShutdowns()
+            .contains(clusterService.localNode().getId(), SingleNodeShutdownMetadata.Type.SIGTERM);
+    }
+
+    private ActionListener<Void> slowShardOperationListener(IndexShard indexShard, TimeValue timeout, String label) {
+        final var threadDumpListener = new SubscribableListener<Void>();
+        if (logger.isDebugEnabled()) {
+            final var threadPool = indexShard.getThreadPool();
+            threadDumpListener.addTimeout(timeout, threadPool, threadPool.generic());
+            threadDumpListener.addListener(new ActionListener<>() {
+                @Override
+                public void onResponse(Void unused) {}
+
+                @Override
+                public void onFailure(Exception e) {
+                    HotThreads.logLocalHotThreads(logger, Level.DEBUG, indexShard.shardId() + ": " + label, ReferenceDocs.LOGGING);
+                }
+            });
+        }
+        return threadDumpListener;
     }
 }

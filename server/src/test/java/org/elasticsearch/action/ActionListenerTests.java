@@ -10,6 +10,7 @@ package org.elasticsearch.action;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.CheckedConsumer;
@@ -33,8 +34,6 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verify;
 
 public class ActionListenerTests extends ESTestCase {
 
@@ -391,11 +390,14 @@ public class ActionListenerTests extends ESTestCase {
         ActionListener<Object> listenerRef = reachabilityChecker.register(ActionListener.assertAtLeastOnce(ActionListener.running(() -> {
             // Do nothing, but don't use ActionListener.noop() as it'll never be garbage collected
         })));
-        // Call onResponse or onFailure
-        if (randomBoolean()) {
-            listenerRef.onResponse("succeeded");
-        } else {
-            listenerRef.onFailure(new RuntimeException("Failed"));
+        // Call onResponse and/or onFailure at least once
+        int times = randomIntBetween(1, 3);
+        for (int i = 0; i < times; i++) {
+            if (randomBoolean()) {
+                listenerRef.onResponse("succeeded");
+            } else {
+                listenerRef.onFailure(new RuntimeException("Failed"));
+            }
         }
         // Nullify reference so it becomes unreachable
         listenerRef = null;
@@ -404,10 +406,7 @@ public class ActionListenerTests extends ESTestCase {
 
     public void testAssertAtLeastOnceWillDelegateResponses() {
         final var response = new Object();
-        assertSame(
-            response,
-            safeAwait(SubscribableListener.newForked(l -> ActionListener.assertAtLeastOnce(l).onResponse(response)))
-        );
+        assertSame(response, safeAwait(SubscribableListener.newForked(l -> ActionListener.assertAtLeastOnce(l).onResponse(response))));
     }
 
     public void testAssertAtLeastOnceWillDelegateFailures() {

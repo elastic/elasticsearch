@@ -6,6 +6,9 @@ setup:
       indices.create:
         index: int4_flat
         body:
+          settings:
+            index:
+              number_of_shards: 1
           mappings:
             properties:
               name:

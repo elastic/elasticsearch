@@ -6,6 +6,9 @@ setup:
       indices.create:
         index: hnsw_byte_quantized
         body:
+          settings:
+            index:
+              number_of_shards: 1
           mappings:
             properties:
               name:
@@ -248,6 +251,9 @@ setup:
       indices.create:
         index: mip
         body:
+          settings:
+            index:
+              number_of_shards: 1
           mappings:
             properties:
               name:
@@ -400,6 +406,9 @@ setup:
 "Test create, merge, and search cosine":
   - do:
       indices.create:
+        settings:
+          index:
+            number_of_shards: 1
         index: hnsw_byte_quantized_merge_cosine
   - do:
       indices.put_mapping:
@@ -469,6 +478,9 @@ setup:
 "Test create, merge, and search dot_product":
   - do:
       indices.create:
+        settings:
+          index:
+            number_of_shards: 1
         index: hnsw_byte_quantized_merge_dot_product
   - do:
       indices.put_mapping:

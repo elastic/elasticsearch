@@ -10,6 +10,7 @@ GROK : 'grok'                 -> pushMode(EXPRESSION_MODE);
 INLINESTATS : 'inlinestats'   -> pushMode(EXPRESSION_MODE);
 KEEP : 'keep'                 -> pushMode(PROJECT_MODE);
 LIMIT : 'limit'               -> pushMode(EXPRESSION_MODE);
+LOOKUP : 'lookup'             -> pushMode(LOOKUP_MODE);
 META : 'meta'                 -> pushMode(META_MODE);
 METRICS : 'metrics'           -> pushMode(METRICS_MODE);
 MV_EXPAND : 'mv_expand'       -> pushMode(MVEXPAND_MODE);
@@ -155,6 +156,11 @@ ASTERISK : '*';
 SLASH : '/';
 PERCENT : '%';
 
+NAMED_OR_POSITIONAL_PARAM
+    : PARAM LETTER UNQUOTED_ID_BODY*
+    | PARAM DIGIT+
+    ;
+
 // Brackets are funny. We can happen upon a CLOSING_BRACKET in two ways - one
 // way is to start in an explain command which then shifts us to expression
 // mode. Thus, the two popModes on CLOSING_BRACKET. The other way could as
@@ -200,7 +206,6 @@ FROM_COMMA : COMMA -> type(COMMA);
 FROM_ASSIGN : ASSIGN -> type(ASSIGN);
 FROM_QUOTED_STRING : QUOTED_STRING -> type(QUOTED_STRING);
 
-OPTIONS : 'options';
 METADATA : 'metadata';
 
 FROM_INDEX_UNQUOTED_IDENTIFIER
@@ -342,6 +347,50 @@ ENRICH_FIELD_MULTILINE_COMMENT
     ;
 
 ENRICH_FIELD_WS
+    : WS -> channel(HIDDEN)
+    ;
+
+// LOOKUP ON key
+mode LOOKUP_MODE;
+LOOKUP_PIPE : PIPE -> type(PIPE), popMode;
+LOOKUP_COMMA : COMMA -> type(COMMA);
+LOOKUP_DOT: DOT -> type(DOT);
+LOOKUP_ON : ON -> type(ON), pushMode(LOOKUP_FIELD_MODE);
+
+LOOKUP_INDEX_UNQUOTED_IDENTIFIER
+    : INDEX_UNQUOTED_IDENTIFIER -> type(INDEX_UNQUOTED_IDENTIFIER)
+    ;
+
+LOOKUP_LINE_COMMENT
+    : LINE_COMMENT -> channel(HIDDEN)
+    ;
+
+LOOKUP_MULTILINE_COMMENT
+    : MULTILINE_COMMENT -> channel(HIDDEN)
+    ;
+
+LOOKUP_WS
+    : WS -> channel(HIDDEN)
+    ;
+
+mode LOOKUP_FIELD_MODE;
+LOOKUP_FIELD_PIPE : PIPE -> type(PIPE), popMode, popMode;
+LOOKUP_FIELD_COMMA : COMMA -> type(COMMA);
+LOOKUP_FIELD_DOT: DOT -> type(DOT);
+
+LOOKUP_FIELD_ID_PATTERN
+    : ID_PATTERN -> type(ID_PATTERN)
+    ;
+
+LOOKUP_FIELD_LINE_COMMENT
+    : LINE_COMMENT -> channel(HIDDEN)
+    ;
+
+LOOKUP_FIELD_MULTILINE_COMMENT
+    : MULTILINE_COMMENT -> channel(HIDDEN)
+    ;
+
+LOOKUP_FIELD_WS
     : WS -> channel(HIDDEN)
     ;
 

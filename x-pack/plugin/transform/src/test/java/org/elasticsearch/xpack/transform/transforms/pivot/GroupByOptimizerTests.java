@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.transform.transforms.pivot;
 
-import org.apache.lucene.tests.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.transform.TransformConfigVersion;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.SingleGroupSource;
@@ -28,7 +27,6 @@ import static org.elasticsearch.xpack.core.transform.transforms.pivot.HistogramG
 import static org.elasticsearch.xpack.core.transform.transforms.pivot.TermsGroupSourceTests.randomTermsGroupSource;
 import static org.elasticsearch.xpack.core.transform.transforms.pivot.TermsGroupSourceTests.randomTermsGroupSourceNoScript;
 
-@AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/108530")
 public class GroupByOptimizerTests extends ESTestCase {
 
     public void testOneGroupBy() {

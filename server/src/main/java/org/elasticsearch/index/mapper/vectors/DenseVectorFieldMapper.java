@@ -154,7 +154,9 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }, m -> toType(m).fieldType().dims, XContentBuilder::field, Object::toString).setSerializerCheck((id, ic, v) -> v != null)
             .setMergeValidator((previous, current, c) -> previous == null || Objects.equals(previous, current));
         private final Parameter<VectorSimilarity> similarity;
+
         private final Parameter<IndexOptions> indexOptions;
+
         private final Parameter<Boolean> indexed;
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
@@ -179,7 +181,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             ).acceptsNull().setSerializerCheck((id, ic, v) -> v != null);
             this.indexOptions = new Parameter<>(
                 "index_options",
-                false,
+                true,
                 () -> defaultInt8Hnsw && elementType.getValue() != ElementType.BYTE && this.indexed.getValue()
                     ? new Int8HnswIndexOptions(
                         Lucene99HnswVectorsFormat.DEFAULT_MAX_CONN,
@@ -201,7 +203,9 @@ public class DenseVectorFieldMapper extends FieldMapper {
                         "[element_type] cannot be [" + elementType.getValue().toString() + "] when using index type [" + v.type + "]"
                     );
                 }
-            }).acceptsNull();
+            })
+                .acceptsNull()
+                .setMergeValidator((previous, current, c) -> previous == null || current == null || previous.updatableTo(current));
             if (defaultInt8Hnsw) {
                 this.indexOptions.alwaysSerialize();
             }
@@ -466,6 +470,28 @@ public class DenseVectorFieldMapper extends FieldMapper {
             @Override
             ByteBuffer createByteBuffer(IndexVersion indexVersion, int numBytes) {
                 return ByteBuffer.wrap(new byte[numBytes]);
+            }
+
+            @Override
+            int parseDimensionCount(DocumentParserContext context) throws IOException {
+                XContentParser.Token currentToken = context.parser().currentToken();
+                return switch (currentToken) {
+                    case START_ARRAY -> {
+                        int index = 0;
+                        for (Token token = context.parser().nextToken(); token != Token.END_ARRAY; token = context.parser().nextToken()) {
+                            index++;
+                        }
+                        yield index;
+                    }
+                    case VALUE_STRING -> {
+                        byte[] decodedVector = HexFormat.of().parseHex(context.parser().text());
+                        yield decodedVector.length;
+                    }
+                    default -> throw new ParsingException(
+                        context.parser().getTokenLocation(),
+                        format("Unsupported type [%s] for provided value [%s]", currentToken, context.parser().text())
+                    );
+                };
             }
         },
 
@@ -843,6 +869,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
         boolean supportsElementType(ElementType elementType) {
             return true;
         }
+
+        abstract boolean updatableTo(IndexOptions update);
     }
 
     private enum VectorIndexType {
@@ -959,6 +987,13 @@ public class DenseVectorFieldMapper extends FieldMapper {
         boolean supportsElementType(ElementType elementType) {
             return elementType != ElementType.BYTE;
         }
+
+        @Override
+        boolean updatableTo(IndexOptions update) {
+            return update.type.equals(this.type)
+                || update.type.equals(VectorIndexType.HNSW.name)
+                || update.type.equals(VectorIndexType.INT8_HNSW.name);
+        }
     }
 
     private static class FlatIndexOptions extends IndexOptions {
@@ -978,6 +1013,11 @@ public class DenseVectorFieldMapper extends FieldMapper {
         @Override
         KnnVectorsFormat getVectorsFormat() {
             return new ES813FlatVectorFormat();
+        }
+
+        @Override
+        boolean updatableTo(IndexOptions update) {
+            return true;
         }
 
         @Override
@@ -1006,6 +1046,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
         @Override
         public KnnVectorsFormat getVectorsFormat() {
+            // int bits = 7;
+            // boolean compress = false; // TODO we only support 7 and false, for now
             return new ES814HnswScalarQuantizedVectorsFormat(m, efConstruction, 1, confidenceInterval, null);
         }
 
@@ -1052,6 +1094,21 @@ public class DenseVectorFieldMapper extends FieldMapper {
         boolean supportsElementType(ElementType elementType) {
             return elementType != ElementType.BYTE;
         }
+
+        @Override
+        boolean updatableTo(IndexOptions update) {
+            boolean updatable = update.type.equals(this.type);
+            if (updatable) {
+                Int8HnswIndexOptions int8HnswIndexOptions = (Int8HnswIndexOptions) update;
+                // fewer connections would break assumptions on max number of connections (based on largest previous graph) during merge
+                // quantization could not behave as expected with different confidence intervals (and quantiles) to be created
+                updatable = int8HnswIndexOptions.m >= this.m;
+                updatable &= confidenceInterval == null
+                    || int8HnswIndexOptions.confidenceInterval != null
+                        && confidenceInterval.equals(int8HnswIndexOptions.confidenceInterval);
+            }
+            return updatable;
+        }
     }
 
     private static class HnswIndexOptions extends IndexOptions {
@@ -1067,6 +1124,17 @@ public class DenseVectorFieldMapper extends FieldMapper {
         @Override
         public KnnVectorsFormat getVectorsFormat() {
             return new Lucene99HnswVectorsFormat(m, efConstruction, 1, null);
+        }
+
+        @Override
+        boolean updatableTo(IndexOptions update) {
+            boolean updatable = update.type.equals(this.type);
+            if (updatable) {
+                // fewer connections would break assumptions on max number of connections (based on largest previous graph) during merge
+                HnswIndexOptions hnswIndexOptions = (HnswIndexOptions) update;
+                updatable = hnswIndexOptions.m >= this.m;
+            }
+            return updatable || (update.type.equals(VectorIndexType.INT8_HNSW.name) && ((Int8HnswIndexOptions) update).m >= m);
         }
 
         @Override
@@ -1585,6 +1653,11 @@ public class DenseVectorFieldMapper extends FieldMapper {
     }
 
     @Override
+    protected SyntheticSourceMode syntheticSourceMode() {
+        return SyntheticSourceMode.NATIVE;
+    }
+
+    @Override
     public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
         if (copyTo.copyToFields().isEmpty() != true) {
             throw new IllegalArgumentException(
@@ -1671,6 +1744,11 @@ public class DenseVectorFieldMapper extends FieldMapper {
             }
             b.endArray();
         }
+
+        @Override
+        public String fieldName() {
+            return name();
+        }
     }
 
     private class DocValuesSyntheticFieldLoader implements SourceLoader.SyntheticFieldLoader {
@@ -1720,6 +1798,11 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 fieldType().elementType.readAndWriteValue(byteBuffer, b);
             }
             b.endArray();
+        }
+
+        @Override
+        public String fieldName() {
+            return name();
         }
     }
 }

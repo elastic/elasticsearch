@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.core.ilm.action.GetLifecycleAction;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
+import static org.elasticsearch.rest.RestUtils.getAckTimeout;
 import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 
 public class RestGetLifecycleAction extends BaseRestHandler {
@@ -35,9 +36,11 @@ public class RestGetLifecycleAction extends BaseRestHandler {
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) {
         String[] lifecycleNames = Strings.splitStringByCommaToArray(restRequest.param("name"));
-        GetLifecycleAction.Request getLifecycleRequest = new GetLifecycleAction.Request(lifecycleNames);
-        getLifecycleRequest.ackTimeout(restRequest.paramAsTime("timeout", getLifecycleRequest.ackTimeout()));
-        getLifecycleRequest.masterNodeTimeout(getMasterNodeTimeout(restRequest));
+        GetLifecycleAction.Request getLifecycleRequest = new GetLifecycleAction.Request(
+            getMasterNodeTimeout(restRequest),
+            getAckTimeout(restRequest),
+            lifecycleNames
+        );
 
         return channel -> new RestCancellableNodeClient(client, restRequest.getHttpChannel()).execute(
             GetLifecycleAction.INSTANCE,

@@ -44,7 +44,7 @@ public class CohereServiceSettings extends FilteredXContentObject implements Ser
     public static final String OLD_MODEL_ID_FIELD = "model";
     public static final String MODEL_ID = "model_id";
     private static final Logger logger = LogManager.getLogger(CohereServiceSettings.class);
-    // The rate limit defined here is pulled for the blog: https://txt.cohere.com/free-developer-tier-announcement/ for the production tier
+    // Production key rate limits for all endpoints: https://docs.cohere.com/docs/going-live#production-key-specifications
     // 10K requests a minute
     private static final RateLimitSettings DEFAULT_RATE_LIMIT_SETTINGS = new RateLimitSettings(10_000);
 
@@ -58,7 +58,13 @@ public class CohereServiceSettings extends FilteredXContentObject implements Ser
         Integer maxInputTokens = removeAsType(map, MAX_INPUT_TOKENS, Integer.class);
         URI uri = convertToUri(url, URL, ModelConfigurations.SERVICE_SETTINGS, validationException);
         String oldModelId = extractOptionalString(map, OLD_MODEL_ID_FIELD, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        RateLimitSettings rateLimitSettings = RateLimitSettings.of(map, DEFAULT_RATE_LIMIT_SETTINGS, validationException);
+        RateLimitSettings rateLimitSettings = RateLimitSettings.of(
+            map,
+            DEFAULT_RATE_LIMIT_SETTINGS,
+            validationException,
+            CohereService.NAME,
+            context
+        );
 
         String modelId = extractOptionalString(map, MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
 
@@ -173,10 +179,7 @@ public class CohereServiceSettings extends FilteredXContentObject implements Ser
     }
 
     public XContentBuilder toXContentFragment(XContentBuilder builder, Params params) throws IOException {
-        toXContentFragmentOfExposedFields(builder, params);
-        rateLimitSettings.toXContent(builder, params);
-
-        return builder;
+        return toXContentFragmentOfExposedFields(builder, params);
     }
 
     @Override
@@ -196,13 +199,14 @@ public class CohereServiceSettings extends FilteredXContentObject implements Ser
         if (modelId != null) {
             builder.field(MODEL_ID, modelId);
         }
+        rateLimitSettings.toXContent(builder, params);
 
         return builder;
     }
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ML_INFERENCE_COHERE_EMBEDDINGS_ADDED;
+        return TransportVersions.V_8_13_0;
     }
 
     @Override

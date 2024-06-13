@@ -24,7 +24,7 @@ import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.plugins.Platforms;
 import org.elasticsearch.plugins.PluginTestUtil;
 import org.elasticsearch.test.GraalVMThreadsFilter;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.MockLog;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -66,10 +66,10 @@ public class SpawnerNoBootstrapTests extends LuceneTestCase {
     static {
         // normally done by ESTestCase, but need here because spawner depends on logging
         LogConfigurator.loadLog4jPlugins();
-        MockLogAppender.init();
+        MockLog.init();
     }
 
-    static class ExpectedStreamMessage implements MockLogAppender.LoggingExpectation {
+    static class ExpectedStreamMessage implements MockLog.LoggingExpectation {
         final String expectedLogger;
         final String expectedMessage;
         final CountDownLatch matched;
@@ -206,16 +206,16 @@ public class SpawnerNoBootstrapTests extends LuceneTestCase {
 
         String stdoutLoggerName = "test_plugin-controller-stdout";
         String stderrLoggerName = "test_plugin-controller-stderr";
-        MockLogAppender appender = new MockLogAppender();
         Loggers.setLevel(LogManager.getLogger(stdoutLoggerName), Level.TRACE);
         Loggers.setLevel(LogManager.getLogger(stderrLoggerName), Level.TRACE);
         CountDownLatch messagesLoggedLatch = new CountDownLatch(2);
-        if (expectSpawn) {
-            appender.addExpectation(new ExpectedStreamMessage(stdoutLoggerName, "I am alive", messagesLoggedLatch));
-            appender.addExpectation(new ExpectedStreamMessage(stderrLoggerName, "I am an error", messagesLoggedLatch));
-        }
 
-        try (var ignore = appender.capturing(stdoutLoggerName, stderrLoggerName)) {
+        try (var mockLog = MockLog.capture(stdoutLoggerName, stderrLoggerName)) {
+            if (expectSpawn) {
+                mockLog.addExpectation(new ExpectedStreamMessage(stdoutLoggerName, "I am alive", messagesLoggedLatch));
+                mockLog.addExpectation(new ExpectedStreamMessage(stderrLoggerName, "I am an error", messagesLoggedLatch));
+            }
+
             Spawner spawner = new Spawner();
             spawner.spawnNativeControllers(environment);
 
@@ -233,7 +233,7 @@ public class SpawnerNoBootstrapTests extends LuceneTestCase {
             } else {
                 assertThat(processes, is(empty()));
             }
-            appender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
         }
     }
 

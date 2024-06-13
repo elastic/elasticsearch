@@ -16,7 +16,6 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.IndexFormatTooOldException;
-import org.apache.lucene.index.Term;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.ByteArrayDataOutput;
 import org.apache.lucene.store.DataOutput;
@@ -25,6 +24,7 @@ import org.apache.lucene.tests.mockfile.FilterFileSystemProvider;
 import org.apache.lucene.tests.store.MockDirectoryWrapper;
 import org.apache.lucene.tests.util.LineFileDocs;
 import org.apache.lucene.tests.util.LuceneTestCase;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -63,6 +63,7 @@ import org.elasticsearch.index.seqno.LocalCheckpointTrackerTests;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog.Location;
+import org.elasticsearch.plugins.internal.DocumentSizeObserver;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.test.TransportVersionUtils;
@@ -960,8 +961,8 @@ public class TranslogTests extends ESTestCase {
         }
     }
 
-    private Term newUid(ParsedDocument doc) {
-        return new Term("_id", Uid.encodeId(doc.id()));
+    private static BytesRef newUid(ParsedDocument doc) {
+        return Uid.encodeId(doc.id());
     }
 
     public void testVerifyTranslogIsNotDeleted() throws IOException {
@@ -3385,7 +3386,17 @@ public class TranslogTests extends ESTestCase {
         document.add(idField);
         document.add(versionField);
         seqID.addFields(document);
-        ParsedDocument doc = new ParsedDocument(versionField, seqID, "1", null, Arrays.asList(document), B_1, XContentType.JSON, null);
+        ParsedDocument doc = new ParsedDocument(
+            versionField,
+            seqID,
+            "1",
+            null,
+            Arrays.asList(document),
+            B_1,
+            XContentType.JSON,
+            null,
+            DocumentSizeObserver.EMPTY_INSTANCE
+        );
 
         Engine.Index eIndex = new Engine.Index(
             newUid(doc),

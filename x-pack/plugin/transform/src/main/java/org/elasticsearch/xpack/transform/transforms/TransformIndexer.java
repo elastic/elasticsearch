@@ -45,6 +45,7 @@ import org.elasticsearch.xpack.core.transform.transforms.TransformProgress;
 import org.elasticsearch.xpack.core.transform.transforms.TransformState;
 import org.elasticsearch.xpack.core.transform.transforms.TransformTaskState;
 import org.elasticsearch.xpack.core.transform.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.transform.Transform;
 import org.elasticsearch.xpack.transform.TransformServices;
 import org.elasticsearch.xpack.transform.checkpoint.CheckpointProvider;
 import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
@@ -152,9 +153,9 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         // important: note that we pass the context object as lock object
         super(threadPool, initialState, initialPosition, jobStats, context);
         ExceptionsHelper.requireNonNull(transformServices, "transformServices");
-        this.transformsConfigManager = transformServices.getConfigManager();
+        this.transformsConfigManager = transformServices.configManager();
         this.checkpointProvider = ExceptionsHelper.requireNonNull(checkpointProvider, "checkpointProvider");
-        this.auditor = transformServices.getAuditor();
+        this.auditor = transformServices.auditor();
         this.transformConfig = ExceptionsHelper.requireNonNull(transformConfig, "transformConfig");
         this.progress = transformProgress != null ? transformProgress : new TransformProgress();
         this.lastCheckpoint = ExceptionsHelper.requireNonNull(lastCheckpoint, "lastCheckpoint");
@@ -570,9 +571,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
     private void finalizeCheckpoint(ActionListener<Void> listener) {
         try {
             // reset the page size, so we do not memorize a low page size forever
-            if (function != null) {
-                context.setPageSize(function.getInitialPageSize());
-            }
+            resetPageSize();
             // reset the changed bucket to free memory
             if (changeCollector != null) {
                 changeCollector.clear();
@@ -654,22 +653,6 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
             IndexerState indexerState = getState();
             if (IndexerState.INDEXING.equals(indexerState) || IndexerState.STOPPING.equals(indexerState)) {
                 logger.debug("[{}] indexer for transform has state [{}]. Ignoring trigger.", getJobId(), indexerState);
-                return false;
-            }
-
-            /*
-             * ignore if indexer thread is shutting down (after finishing a checkpoint)
-             * shutting down means:
-             *  - indexer has finished a checkpoint and called onFinish
-             *  - indexer state has changed from indexing to started
-             *  - state persistence has been called but has _not_ returned yet
-             *
-             *  If we trigger the indexer in this situation the 2nd indexer thread might
-             *  try to save state at the same time, causing a version conflict
-             *  see gh#67121
-             */
-            if (indexerThreadShuttingDown) {
-                logger.debug("[{}] indexer thread is shutting down. Ignoring trigger.", getJobId());
                 return false;
             }
 
@@ -1250,12 +1233,17 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
 
     private void configurePageSize(Integer newPageSize) {
         initialConfiguredPageSize = newPageSize;
+        resetPageSize();
+    }
 
-        // if the user explicitly set a page size, take it from the config, otherwise let the function decide
+    private void resetPageSize() {
         if (initialConfiguredPageSize != null && initialConfiguredPageSize > 0) {
             context.setPageSize(initialConfiguredPageSize);
-        } else {
+        } else if (function != null) {
             context.setPageSize(function.getInitialPageSize());
+        } else {
+            // we should never be in a state where both initialConfiguredPageSize and function are null, but just in case...
+            context.setPageSize(Transform.DEFAULT_INITIAL_MAX_PAGE_SEARCH_SIZE);
         }
     }
 

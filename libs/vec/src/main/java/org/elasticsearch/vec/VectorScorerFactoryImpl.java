@@ -8,21 +8,33 @@
 
 package org.elasticsearch.vec;
 
+import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.store.IndexInput;
+import org.apache.lucene.util.hnsw.RandomVectorScorer;
+import org.apache.lucene.util.hnsw.RandomVectorScorerSupplier;
+import org.apache.lucene.util.quantization.RandomAccessQuantizedByteVectorValues;
 
 import java.util.Optional;
 
-class VectorScorerFactoryImpl implements VectorScorerFactory {
+final class VectorScorerFactoryImpl implements VectorScorerFactory {
 
     static final VectorScorerFactoryImpl INSTANCE = null;
 
     @Override
-    public Optional<VectorScorer> getInt7ScalarQuantizedVectorScorer(
-        int dims,
-        int maxOrd,
-        float scoreCorrectionConstant,
+    public Optional<RandomVectorScorerSupplier> getInt7SQVectorScorerSupplier(
         VectorSimilarityType similarityType,
-        IndexInput input
+        IndexInput input,
+        RandomAccessQuantizedByteVectorValues values,
+        float scoreCorrectionConstant
+    ) {
+        throw new UnsupportedOperationException("should not reach here");
+    }
+
+    @Override
+    public Optional<RandomVectorScorer> getInt7SQVectorScorer(
+        VectorSimilarityFunction sim,
+        RandomAccessQuantizedByteVectorValues values,
+        float[] queryVector
     ) {
         throw new UnsupportedOperationException("should not reach here");
     }

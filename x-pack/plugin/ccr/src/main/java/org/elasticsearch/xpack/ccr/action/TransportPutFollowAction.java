@@ -294,10 +294,9 @@ public final class TransportPutFollowAction extends TransportMasterNodeAction<Pu
     ) {
         assert request.waitForActiveShards() != ActiveShardCount.DEFAULT : "PutFollowAction does not support DEFAULT.";
         FollowParameters parameters = request.getParameters();
-        ResumeFollowAction.Request resumeFollowRequest = new ResumeFollowAction.Request();
+        ResumeFollowAction.Request resumeFollowRequest = new ResumeFollowAction.Request(request.masterNodeTimeout());
         resumeFollowRequest.setFollowerIndex(request.getFollowerIndex());
         resumeFollowRequest.setParameters(new FollowParameters(parameters));
-        resumeFollowRequest.masterNodeTimeout(request.masterNodeTimeout());
         clientWithHeaders.execute(
             ResumeFollowAction.INSTANCE,
             resumeFollowRequest,
@@ -330,11 +329,12 @@ public final class TransportPutFollowAction extends TransportMasterNodeAction<Pu
             // just copying the data stream is in this case safe.
             return remoteDataStream.copy()
                 .setName(localDataStreamName)
-                .setIndices(List.of(backingIndexToFollow))
+                .setBackingIndices(
+                    // Replicated data streams can't be rolled over, so having the `rolloverOnWrite` flag set to `true` wouldn't make sense
+                    // (and potentially even break things).
+                    remoteDataStream.getBackingIndices().copy().setIndices(List.of(backingIndexToFollow)).setRolloverOnWrite(false).build()
+                )
                 .setReplicated(true)
-                // Replicated data streams can't be rolled over, so having the `rolloverOnWrite` flag set to `true` wouldn't make sense
-                // (and potentially even break things).
-                .setRolloverOnWrite(false)
                 .build();
         } else {
             if (localDataStream.isReplicated() == false) {
@@ -376,7 +376,7 @@ public final class TransportPutFollowAction extends TransportMasterNodeAction<Pu
             }
 
             return localDataStream.copy()
-                .setIndices(backingIndices)
+                .setBackingIndices(localDataStream.getBackingIndices().copy().setIndices(backingIndices).build())
                 .setGeneration(remoteDataStream.getGeneration())
                 .setMetadata(remoteDataStream.getMetadata())
                 .build();

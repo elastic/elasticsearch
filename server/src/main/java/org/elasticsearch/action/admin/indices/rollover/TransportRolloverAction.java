@@ -169,12 +169,13 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
         assert task instanceof CancellableTask;
         Metadata metadata = clusterState.metadata();
         // We evaluate the names of the index for which we should evaluate conditions, as well as what our newly created index *would* be.
+        boolean targetFailureStore = rolloverRequest.indicesOptions().failureStoreOptions().includeFailureIndices();
         final MetadataRolloverService.NameResolution trialRolloverNames = MetadataRolloverService.resolveRolloverNames(
             clusterState,
             rolloverRequest.getRolloverTarget(),
             rolloverRequest.getNewIndexName(),
             rolloverRequest.getCreateIndexRequest(),
-            rolloverRequest.indicesOptions().failureStoreOptions().includeFailureIndices()
+            targetFailureStore
         );
         final String trialSourceIndexName = trialRolloverNames.sourceName();
         final String trialRolloverIndexName = trialRolloverNames.rolloverName();
@@ -200,6 +201,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                 metadataDataStreamsService.setRolloverOnWrite(
                     rolloverRequest.getRolloverTarget(),
                     true,
+                    targetFailureStore,
                     rolloverRequest.ackTimeout(),
                     rolloverRequest.masterNodeTimeout(),
                     listener.map(
@@ -364,7 +366,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                 .flatMap(Arrays::stream)
                 .filter(shard -> shard.getShardRouting().primary())
                 .map(ShardStats::getStats)
-                .mapToLong(shard -> shard.docs.getTotalSizeInBytes())
+                .mapToLong(shard -> shard.docs == null ? 0L : shard.docs.getTotalSizeInBytes())
                 .max()
                 .orElse(0);
 
@@ -374,7 +376,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                 .flatMap(Arrays::stream)
                 .filter(shard -> shard.getShardRouting().primary())
                 .map(ShardStats::getStats)
-                .mapToLong(shard -> shard.docs.getCount())
+                .mapToLong(shard -> shard.docs == null ? 0L : shard.docs.getCount())
                 .max()
                 .orElse(0);
 

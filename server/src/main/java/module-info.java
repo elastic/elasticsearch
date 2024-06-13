@@ -362,6 +362,8 @@ module org.elasticsearch.server {
     exports org.elasticsearch.search.query;
     exports org.elasticsearch.search.rank;
     exports org.elasticsearch.search.rank.context;
+    exports org.elasticsearch.search.rank.feature;
+    exports org.elasticsearch.search.rank.rerank;
     exports org.elasticsearch.search.rescore;
     exports org.elasticsearch.search.retriever;
     exports org.elasticsearch.search.runtime;
@@ -392,6 +394,7 @@ module org.elasticsearch.server {
     exports org.elasticsearch.plugins.internal
         to
             org.elasticsearch.metering,
+            org.elasticsearch.stateless,
             org.elasticsearch.settings.secure,
             org.elasticsearch.serverless.constants,
             org.elasticsearch.serverless.apifiltering,
@@ -428,7 +431,8 @@ module org.elasticsearch.server {
             org.elasticsearch.indices.IndicesFeatures,
             org.elasticsearch.action.admin.cluster.allocation.AllocationStatsFeatures,
             org.elasticsearch.index.mapper.MapperFeatures,
-            org.elasticsearch.search.retriever.RetrieversFeatures;
+            org.elasticsearch.search.retriever.RetrieversFeatures,
+            org.elasticsearch.reservedstate.service.FileSettingsFeatures;
 
     uses org.elasticsearch.plugins.internal.SettingsExtension;
     uses RestExtension;

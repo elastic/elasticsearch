@@ -140,9 +140,12 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
         private int queueCapacity = 1024;
         private Priority priority = Priority.NORMAL;
 
-        private Request() {}
+        private Request() {
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
+        }
 
         public Request(String modelId, String deploymentId) {
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
             setModelId(modelId);
             setDeploymentId(deploymentId);
         }

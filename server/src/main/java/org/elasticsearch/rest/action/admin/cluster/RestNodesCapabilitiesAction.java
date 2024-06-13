@@ -24,6 +24,8 @@ import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Set;
 
+import static org.elasticsearch.rest.RestUtils.getTimeout;
+
 @ServerlessScope(Scope.INTERNAL)
 public class RestNodesCapabilitiesAction extends BaseRestHandler {
 
@@ -46,7 +48,7 @@ public class RestNodesCapabilitiesAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
-        NodesCapabilitiesRequest r = new NodesCapabilitiesRequest().timeout(request.paramAsTime("timeout", null))
+        NodesCapabilitiesRequest r = new NodesCapabilitiesRequest().timeout(getTimeout(request))
             .method(RestRequest.Method.valueOf(request.param("method", "GET")))
             .path(URLDecoder.decode(request.param("path"), StandardCharsets.UTF_8))
             .parameters(request.paramAsStringArray("parameters", Strings.EMPTY_ARRAY))

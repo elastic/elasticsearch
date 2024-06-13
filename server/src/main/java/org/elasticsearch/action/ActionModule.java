@@ -248,6 +248,8 @@ import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.ActionPlugin.ActionHandler;
 import org.elasticsearch.plugins.interceptor.RestServerActionPlugin;
 import org.elasticsearch.plugins.internal.RestExtension;
+import org.elasticsearch.repositories.VerifyNodeRepositoryAction;
+import org.elasticsearch.repositories.VerifyNodeRepositoryCoordinationAction;
 import org.elasticsearch.reservedstate.ReservedClusterStateHandler;
 import org.elasticsearch.reservedstate.service.ReservedClusterStateService;
 import org.elasticsearch.rest.RestController;
@@ -649,6 +651,8 @@ public class ActionModule extends AbstractModule {
         actions.register(GetRepositoriesAction.INSTANCE, TransportGetRepositoriesAction.class);
         actions.register(TransportDeleteRepositoryAction.TYPE, TransportDeleteRepositoryAction.class);
         actions.register(VerifyRepositoryAction.INSTANCE, TransportVerifyRepositoryAction.class);
+        actions.register(VerifyNodeRepositoryCoordinationAction.TYPE, VerifyNodeRepositoryCoordinationAction.LocalAction.class);
+        actions.register(VerifyNodeRepositoryAction.TYPE, VerifyNodeRepositoryAction.TransportAction.class);
         actions.register(TransportCleanupRepositoryAction.TYPE, TransportCleanupRepositoryAction.class);
         actions.register(TransportGetSnapshotsAction.TYPE, TransportGetSnapshotsAction.class);
         actions.register(TransportDeleteSnapshotAction.TYPE, TransportDeleteSnapshotAction.class);
@@ -800,13 +804,8 @@ public class ActionModule extends AbstractModule {
         List<ActionFilter> finalFilters = new ArrayList<>();
         List<MappedActionFilter> mappedFilters = new ArrayList<>();
         for (var plugin : actionPlugins) {
-            for (var filter : plugin.getActionFilters()) {
-                if (filter instanceof MappedActionFilter mappedFilter) {
-                    mappedFilters.add(mappedFilter);
-                } else {
-                    finalFilters.add(filter);
-                }
-            }
+            finalFilters.addAll(plugin.getActionFilters());
+            mappedFilters.addAll(plugin.getMappedActionFilters());
         }
         if (mappedFilters.isEmpty() == false) {
             finalFilters.add(new MappedActionFilters(mappedFilters));

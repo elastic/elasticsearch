@@ -36,11 +36,13 @@ public class CreateDataStreamAction extends ActionType<AcknowledgedResponse> {
         private final long startTime;
 
         public Request(String name) {
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
             this.name = name;
             this.startTime = System.currentTimeMillis();
         }
 
         public Request(String name, long startTime) {
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
             this.name = name;
             this.startTime = startTime;
         }

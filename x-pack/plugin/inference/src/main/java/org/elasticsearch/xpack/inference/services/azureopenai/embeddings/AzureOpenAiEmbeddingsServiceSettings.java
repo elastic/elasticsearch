@@ -21,6 +21,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiRateLimitServiceSettings;
+import org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiService;
 import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObject;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
@@ -90,14 +91,15 @@ public class AzureOpenAiEmbeddingsServiceSettings extends FilteredXContentObject
         Integer dims = removeAsType(map, DIMENSIONS, Integer.class);
         Integer maxTokens = removeAsType(map, MAX_INPUT_TOKENS, Integer.class);
         SimilarityMeasure similarity = extractSimilarity(map, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        RateLimitSettings rateLimitSettings = RateLimitSettings.of(map, DEFAULT_RATE_LIMIT_SETTINGS, validationException);
-
-        Boolean dimensionsSetByUser = extractOptionalBoolean(
+        RateLimitSettings rateLimitSettings = RateLimitSettings.of(
             map,
-            DIMENSIONS_SET_BY_USER,
-            ModelConfigurations.SERVICE_SETTINGS,
-            validationException
+            DEFAULT_RATE_LIMIT_SETTINGS,
+            validationException,
+            AzureOpenAiService.NAME,
+            context
         );
+
+        Boolean dimensionsSetByUser = extractOptionalBoolean(map, DIMENSIONS_SET_BY_USER, validationException);
 
         switch (context) {
             case REQUEST -> {
@@ -250,8 +252,6 @@ public class AzureOpenAiEmbeddingsServiceSettings extends FilteredXContentObject
         builder.startObject();
 
         toXContentFragmentOfExposedFields(builder, params);
-
-        rateLimitSettings.toXContent(builder, params);
         builder.field(DIMENSIONS_SET_BY_USER, dimensionsSetByUser);
 
         builder.endObject();
@@ -273,6 +273,7 @@ public class AzureOpenAiEmbeddingsServiceSettings extends FilteredXContentObject
         if (similarity != null) {
             builder.field(SIMILARITY, similarity);
         }
+        rateLimitSettings.toXContent(builder, params);
 
         return builder;
     }

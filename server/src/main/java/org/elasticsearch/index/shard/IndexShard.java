@@ -18,7 +18,6 @@ import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.SegmentInfos;
-import org.apache.lucene.index.Term;
 import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.search.Sort;
@@ -101,8 +100,8 @@ import org.elasticsearch.index.get.GetStats;
 import org.elasticsearch.index.get.ShardGetService;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.MappingLookup;
@@ -321,7 +320,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final CircuitBreakerService circuitBreakerService,
         final IndexStorePlugin.SnapshotCommitSupplier snapshotCommitSupplier,
         final LongSupplier relativeTimeInNanosSupplier,
-        final Engine.IndexCommitListener indexCommitListener
+        final Engine.IndexCommitListener indexCommitListener,
+        final MapperMetrics mapperMetrics
     ) throws IOException {
         super(shardRouting.shardId(), indexSettings);
         assert shardRouting.initializing();
@@ -351,7 +351,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             CollectionUtils.appendToCopyNoNullElements(searchOperationListener, searchStats),
             logger
         );
-        this.getService = new ShardGetService(indexSettings, this, mapperService);
+        this.getService = new ShardGetService(indexSettings, this, mapperService, mapperMetrics);
         this.shardWarmerService = new ShardIndexWarmerService(shardId, indexSettings);
         this.requestCacheStats = new ShardRequestCache();
         this.shardFieldData = new ShardFieldData();
@@ -1043,9 +1043,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             // whether mappings were provided or not.
             doc.addDynamicMappingsUpdate(mapping);
         }
-        Term uid = new Term(IdFieldMapper.NAME, Uid.encodeId(doc.id()));
         return new Engine.Index(
-            uid,
+            Uid.encodeId(doc.id()),
             doc,
             seqNo,
             primaryTerm,
@@ -1208,7 +1207,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             final Engine.DeleteResult result;
             try {
                 if (logger.isTraceEnabled()) {
-                    logger.trace("delete [{}] (seq no [{}])", delete.uid().text(), delete.seqNo());
+                    logger.trace("delete [{}] (seq no [{}])", delete.uid(), delete.seqNo());
                 }
                 result = engine.delete(delete);
             } catch (Exception e) {
@@ -1233,8 +1232,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         long ifPrimaryTerm
     ) {
         long startTime = System.nanoTime();
-        final Term uid = new Term(IdFieldMapper.NAME, Uid.encodeId(id));
-        return new Engine.Delete(id, uid, seqNo, primaryTerm, version, versionType, origin, startTime, ifSeqNo, ifPrimaryTerm);
+        return new Engine.Delete(id, Uid.encodeId(id), seqNo, primaryTerm, version, versionType, origin, startTime, ifSeqNo, ifPrimaryTerm);
     }
 
     public Engine.GetResult get(Engine.Get get) {
@@ -4231,12 +4229,13 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
                 @Override
                 public void close() throws IOException {
-                    assert Thread.holdsLock(engineMutex);
-
-                    Engine newEngine = newEngineReference.get();
-                    if (newEngine == currentEngineReference.get()) {
-                        // we successfully installed the new engine so do not close it.
-                        newEngine = null;
+                    Engine newEngine;
+                    synchronized (engineMutex) {
+                        newEngine = newEngineReference.get();
+                        if (newEngine == currentEngineReference.get()) {
+                            // we successfully installed the new engine so do not close it.
+                            newEngine = null;
+                        }
                     }
                     IOUtils.close(super::close, newEngine);
                 }

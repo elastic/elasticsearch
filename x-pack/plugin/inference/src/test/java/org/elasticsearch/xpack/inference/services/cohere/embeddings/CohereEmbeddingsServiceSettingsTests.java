@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.inference.services.cohere.embeddings;
 
-import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -247,7 +246,7 @@ public class CohereEmbeddingsServiceSettingsTests extends AbstractWireSerializin
 
     public void testFromMap_ReturnsFailure_WhenEmbeddingTypesAreNotValid() {
         var exception = expectThrows(
-            ElasticsearchStatusException.class,
+            ValidationException.class,
             () -> CohereEmbeddingsServiceSettings.fromMap(
                 new HashMap<>(Map.of(CohereEmbeddingsServiceSettings.EMBEDDING_TYPE, List.of("abc"))),
                 ConfigurationParseContext.PERSISTENT
@@ -256,7 +255,7 @@ public class CohereEmbeddingsServiceSettingsTests extends AbstractWireSerializin
 
         MatcherAssert.assertThat(
             exception.getMessage(),
-            is("field [embedding_type] is not of the expected type. The value [[abc]] cannot be converted to a [String]")
+            containsString("field [embedding_type] is not of the expected type. The value [[abc]] cannot be converted to a [String]")
         );
     }
 
@@ -332,21 +331,6 @@ public class CohereEmbeddingsServiceSettingsTests extends AbstractWireSerializin
             "rate_limit":{"requests_per_minute":3},"embedding_type":"byte"}"""));
     }
 
-    public void testToXContent_WritesAllValues_Except_RateLimit() throws IOException {
-        var serviceSettings = new CohereEmbeddingsServiceSettings(
-            new CohereServiceSettings("url", SimilarityMeasure.COSINE, 5, 10, "model_id", new RateLimitSettings(3)),
-            CohereEmbeddingType.INT8
-        );
-
-        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
-        var filteredXContent = serviceSettings.getFilteredXContentObject();
-        filteredXContent.toXContent(builder, null);
-        String xContentResult = Strings.toString(builder);
-        assertThat(xContentResult, is("""
-            {"url":"url","similarity":"cosine","dimensions":5,"max_input_tokens":10,"model_id":"model_id",""" + """
-            "embedding_type":"byte"}"""));
-    }
-
     @Override
     protected Writeable.Reader<CohereEmbeddingsServiceSettings> instanceReader() {
         return CohereEmbeddingsServiceSettings::new;
@@ -359,7 +343,7 @@ public class CohereEmbeddingsServiceSettingsTests extends AbstractWireSerializin
 
     @Override
     protected CohereEmbeddingsServiceSettings mutateInstance(CohereEmbeddingsServiceSettings instance) throws IOException {
-        return null;
+        return randomValueOtherThan(instance, CohereEmbeddingsServiceSettingsTests::createRandom);
     }
 
     @Override

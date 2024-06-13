@@ -32,7 +32,7 @@ median_duration:double | env:keyword
 ;
 
 simple
-required_feature: esql.enrich_load
+required_capability: enrich_load
 
 // tag::enrich[]
 ROW language_code = "1"  
@@ -47,7 +47,7 @@ language_code:keyword  | language_name:keyword
 ;
 
 enrichOnSimple
-required_feature: esql.enrich_load
+required_capability: enrich_load
 
 // tag::enrich_on[]
 ROW a = "1"  
@@ -63,7 +63,7 @@ a:keyword  | language_name:keyword
 
 
 enrichOn
-required_feature: esql.enrich_load
+required_capability: enrich_load
 
 from employees  | sort emp_no | limit 1 | eval x = to_string(languages) | enrich languages_policy on x  | keep emp_no, language_name;
 
@@ -73,7 +73,7 @@ emp_no:integer | language_name:keyword
 
 
 enrichOn2
-required_feature: esql.enrich_load
+required_capability: enrich_load
 
 from employees | eval x = to_string(languages) | enrich languages_policy on x  | keep emp_no, language_name | sort emp_no | limit 1 ;
 
@@ -83,7 +83,7 @@ emp_no:integer | language_name:keyword
 
 
 simpleSortLimit
-required_feature: esql.enrich_load
+required_capability: enrich_load
 
 from employees  | eval x = to_string(languages) | enrich languages_policy on x  | keep emp_no, language_name | sort emp_no | limit 1;
 
@@ -92,7 +92,7 @@ emp_no:integer | language_name:keyword
 ;
 
 with
-required_feature: esql.enrich_load
+required_capability: enrich_load
 
 from employees | eval x = to_string(languages) | keep emp_no, x | sort emp_no | limit 1 
 | enrich languages_policy on x with language_name;
@@ -103,7 +103,7 @@ emp_no:integer | x:keyword | language_name:keyword
 
 
 withSimple
-required_feature: esql.enrich_load
+required_capability: enrich_load
 
 // tag::enrich_with[]
 ROW a = "1"  
@@ -119,7 +119,7 @@ a:keyword  | language_name:keyword
 
 
 withAlias
-required_feature: esql.enrich_load
+required_capability: enrich_load
 
 from employees  | sort emp_no | limit 3 | eval x = to_string(languages) | keep emp_no, x 
 | enrich languages_policy on x with lang = language_name;
@@ -131,7 +131,7 @@ emp_no:integer | x:keyword | lang:keyword
 ;
 
 withAliasSimple
-required_feature: esql.enrich_load
+required_capability: enrich_load
 
 // tag::enrich_rename[]
 ROW a = "1"  
@@ -147,7 +147,7 @@ a:keyword  | name:keyword
 
 
 withAliasSort
-required_feature: esql.enrich_load
+required_capability: enrich_load
 
 from employees | eval x = to_string(languages) | keep emp_no, x  | sort emp_no | limit 3 
 | enrich languages_policy on x with lang = language_name;
@@ -160,7 +160,7 @@ emp_no:integer | x:keyword | lang:keyword
 
 
 withAliasOverwriteName#[skip:-8.13.0]
-required_feature: esql.enrich_load
+required_capability: enrich_load
 
 from employees | sort emp_no
 | eval x = to_string(languages) | enrich languages_policy on x with emp_no = language_name
@@ -172,7 +172,7 @@ French
 ;
 
 withAliasAndPlain
-required_feature: esql.enrich_load
+required_capability: enrich_load
 
 from employees  | sort emp_no desc | limit 3 | eval x = to_string(languages) | keep emp_no, x 
 | enrich languages_policy on x with lang = language_name, language_name;
@@ -185,7 +185,7 @@ emp_no:integer | x:keyword | lang:keyword | language_name:keyword
 
 
 withTwoAliasesSameProp
-required_feature: esql.enrich_load
+required_capability: enrich_load
 
 from employees  | sort emp_no | limit 1 | eval x = to_string(languages) | keep emp_no, x 
 | enrich languages_policy on x with lang = language_name, lang2 = language_name;
@@ -196,7 +196,7 @@ emp_no:integer | x:keyword | lang:keyword | lang2:keyword
 
 
 redundantWith
-required_feature: esql.enrich_load
+required_capability: enrich_load
 
 from employees  | sort emp_no | limit 1 | eval x = to_string(languages) | keep emp_no, x 
 | enrich languages_policy on x with language_name, language_name;
@@ -207,7 +207,7 @@ emp_no:integer | x:keyword | language_name:keyword
 
 
 nullInput
-required_feature: esql.enrich_load
+required_capability: enrich_load
 
 from employees  | where emp_no == 10017 | keep emp_no, gender
 | enrich languages_policy on gender with language_name, language_name;
@@ -218,7 +218,7 @@ emp_no:integer | gender:keyword | language_name:keyword
 
  
 constantNullInput
-required_feature: esql.enrich_load
+required_capability: enrich_load
 
 from employees  | where emp_no == 10020 | eval x = to_string(languages) | keep emp_no, x 
 | enrich languages_policy on x with language_name, language_name;
@@ -229,7 +229,7 @@ emp_no:integer | x:keyword | language_name:keyword
 
 
 multipleEnrich
-required_feature: esql.enrich_load
+required_capability: enrich_load
 
 row a = "1", b = "2", c = "10"  
 | enrich languages_policy on a with a_lang = language_name  
@@ -242,7 +242,7 @@ a:keyword | b:keyword | c:keyword | a_lang:keyword | b_lang:keyword | c_lang:key
 
 
 enrichEval
-required_feature: esql.enrich_load
+required_capability: enrich_load
 
 from employees | eval x = to_string(languages) 
 | enrich languages_policy on x with lang = language_name
@@ -258,8 +258,8 @@ emp_no:integer | x:keyword | lang:keyword | language:keyword
 
 
 multivalue
-required_feature: esql.enrich_load
-required_feature: esql.mv_sort
+required_capability: enrich_load
+required_capability: mv_sort
 
 row a = ["1", "2"] | enrich languages_policy on a with a_lang = language_name | eval a_lang = mv_sort(a_lang);  
 
@@ -269,7 +269,7 @@ a:keyword   | a_lang:keyword
 
 
 enrichCidr#[skip:-8.13.99, reason:enrich for cidr added in 8.14.0]
-required_feature: esql.enrich_load
+required_capability: enrich_load
 
 FROM sample_data
 | ENRICH client_cidr_policy ON client_ip WITH env
@@ -290,7 +290,7 @@ client_ip:ip | count_env:i | max_env:keyword
 
 
 enrichCidr2#[skip:-8.99.99, reason:ip_range support not added yet]
-required_feature: esql.enrich_load
+required_capability: enrich_load
 
 FROM sample_data
 | ENRICH client_cidr_policy ON client_ip WITH env, client_cidr
@@ -310,7 +310,7 @@ client_ip:ip | env:keyword               | client_cidr:ip_range
 
 
 enrichAgesStatsYear#[skip:-8.13.99, reason:ENRICH extended in 8.14.0]
-required_feature: esql.enrich_load
+required_capability: enrich_load
 
 FROM employees
 | WHERE birth_date > "1960-01-01"
@@ -333,7 +333,7 @@ birth_year:long | age_group:keyword | count:long
 
 
 enrichAgesStatsAgeGroup#[skip:-8.13.99, reason:ENRICH extended in 8.14.0]
-required_feature: esql.enrich_load
+required_capability: enrich_load
 
 FROM employees
 | WHERE birth_date IS NOT NULL
@@ -350,7 +350,7 @@ count:long | age_group:keyword
 
 
 enrichHeightsStats#[skip:-8.13.99, reason:ENRICH extended in 8.14.0]
-required_feature: esql.enrich_load
+required_capability: enrich_load
 
 FROM employees
 | ENRICH heights_policy ON height WITH height_group = description
@@ -369,7 +369,7 @@ Very Tall      | 2.0        | 2.1        | 20
 
 
 enrichDecadesStats#[skip:-8.13.99, reason:ENRICH extended in 8.14.0]
-required_feature: esql.enrich_load
+required_capability: enrich_load
 
 FROM employees
 | ENRICH decades_policy ON birth_date WITH birth_decade = decade, birth_description = description
@@ -390,7 +390,7 @@ null              | 1980          | null                | Radical Eighties   | 4
 
 
 spatialEnrichmentKeywordMatch#[skip:-8.13.99, reason:ENRICH extended in 8.14.0]
-required_feature: esql.enrich_load
+required_capability: enrich_load
 
 FROM airports
 | WHERE abbrev == "CPH"
@@ -405,7 +405,7 @@ CPH             |  Copenhagen    |  POINT(12.5683 55.6761)  |  Denmark          
 
 
 spatialEnrichmentGeoMatch#[skip:-8.13.99, reason:ENRICH extended in 8.14.0]
-required_feature: esql.enrich_load
+required_capability: enrich_load
 
 FROM airports
 | WHERE abbrev == "CPH"
@@ -420,8 +420,8 @@ CPH             |  Copenhagen    |  POINT(12.5683 55.6761)  |  Denmark          
 
 
 spatialEnrichmentGeoMatchStats#[skip:-8.13.99, reason:ENRICH extended in 8.14.0]
-required_feature: esql.enrich_load
-required_feature: esql.mv_warn
+required_capability: enrich_load
+required_capability: mv_warn
 
 FROM airports
 | ENRICH city_boundaries ON city_location WITH airport, region, city_boundary
@@ -437,7 +437,7 @@ POINT(1.396561 24.127649)  |  872         |  88               |  1044
 
 
 spatialEnrichmentKeywordMatchAndSpatialPredicate#[skip:-8.13.99, reason:st_intersects added in 8.14]
-required_feature: esql.enrich_load
+required_capability: enrich_load
 
 FROM airports
 | ENRICH city_names ON city WITH airport, region, city_boundary
@@ -455,7 +455,7 @@ count:long  |  airport_in_city:boolean
 
 
 spatialEnrichmentKeywordMatchAndSpatialAggregation#[skip:-8.13.99, reason:st_intersects added in 8.14]
-required_feature: esql.enrich_load
+required_capability: enrich_load
 
 FROM airports
 | ENRICH city_names ON city WITH airport, region, city_boundary
@@ -473,7 +473,7 @@ count:long  |  centroid:geo_point            |  airport_in_city:boolean
 
 
 spatialEnrichmentTextMatch#[skip:-8.13.99, reason:ENRICH extended in 8.14.0]
-required_feature: esql.enrich_load
+required_capability: enrich_load
 
 FROM airports
 | WHERE abbrev == "IDR"

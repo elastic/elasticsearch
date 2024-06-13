@@ -7,13 +7,25 @@
 
 package org.elasticsearch.xpack.esql.parser;
 
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Build;
-import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.common.Randomness;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.esql.VerificationException;
+import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.xpack.esql.core.capabilities.UnresolvedException;
+import org.elasticsearch.xpack.esql.core.expression.Alias;
+import org.elasticsearch.xpack.esql.core.expression.EmptyAttribute;
+import org.elasticsearch.xpack.esql.core.expression.Expressions;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
+import org.elasticsearch.xpack.esql.core.expression.Order;
+import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
+import org.elasticsearch.xpack.esql.core.expression.function.UnresolvedFunction;
+import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Not;
+import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparison;
+import org.elasticsearch.xpack.esql.core.plan.TableIdentifier;
+import org.elasticsearch.xpack.esql.core.plan.logical.Filter;
+import org.elasticsearch.xpack.esql.core.plan.logical.Limit;
+import org.elasticsearch.xpack.esql.core.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.core.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.RLike;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.WildcardLike;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
@@ -30,48 +42,23 @@ import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Explain;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
+import org.elasticsearch.xpack.esql.plan.logical.Lookup;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
-import org.elasticsearch.xpack.ql.capabilities.UnresolvedException;
-import org.elasticsearch.xpack.ql.expression.Alias;
-import org.elasticsearch.xpack.ql.expression.EmptyAttribute;
-import org.elasticsearch.xpack.ql.expression.Expressions;
-import org.elasticsearch.xpack.ql.expression.Literal;
-import org.elasticsearch.xpack.ql.expression.NamedExpression;
-import org.elasticsearch.xpack.ql.expression.Order;
-import org.elasticsearch.xpack.ql.expression.ReferenceAttribute;
-import org.elasticsearch.xpack.ql.expression.UnresolvedAttribute;
-import org.elasticsearch.xpack.ql.expression.function.UnresolvedFunction;
-import org.elasticsearch.xpack.ql.expression.predicate.logical.Not;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparison;
-import org.elasticsearch.xpack.ql.plan.TableIdentifier;
-import org.elasticsearch.xpack.ql.plan.logical.Filter;
-import org.elasticsearch.xpack.ql.plan.logical.Limit;
-import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.ql.plan.logical.OrderBy;
-import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypes;
-import org.elasticsearch.xpack.ql.util.StringUtils;
-import org.elasticsearch.xpack.versionfield.Version;
 
-import java.math.BigInteger;
-import java.time.Duration;
-import java.time.Period;
-import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
+import static org.elasticsearch.xpack.esql.core.expression.Literal.FALSE;
+import static org.elasticsearch.xpack.esql.core.expression.Literal.TRUE;
+import static org.elasticsearch.xpack.esql.core.expression.function.FunctionResolutionStrategy.DEFAULT;
+import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
+import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
+import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.parser.ExpressionBuilder.breakIntoFragments;
-import static org.elasticsearch.xpack.ql.expression.Literal.FALSE;
-import static org.elasticsearch.xpack.ql.expression.Literal.TRUE;
-import static org.elasticsearch.xpack.ql.expression.function.FunctionResolutionStrategy.DEFAULT;
-import static org.elasticsearch.xpack.ql.tree.Source.EMPTY;
-import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
-import static org.elasticsearch.xpack.ql.util.NumericUtils.asLongUnsigned;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
@@ -80,10 +67,10 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
-public class StatementParserTests extends ESTestCase {
+//@TestLogging(value = "org.elasticsearch.xpack.esql:TRACE", reason = "debug")
+public class StatementParserTests extends AbstractStatementParserTests {
 
     private static String FROM = "from test";
-    EsqlParser parser = new EsqlParser();
 
     public void testRowCommand() {
         assertEquals(
@@ -410,7 +397,7 @@ public class StatementParserTests extends ESTestCase {
     }
 
     public void testLimitConstraints() {
-        expectError("from text | limit -1", "extraneous input '-' expecting INTEGER_LITERAL");
+        expectError("from text | limit -1", "line 1:19: extraneous input '-' expecting INTEGER_LITERAL");
     }
 
     public void testBasicSortCommand() {
@@ -594,7 +581,7 @@ public class StatementParserTests extends ESTestCase {
         expectError("show info metadata _index", "line 1:11: token recognition error at: 'm'");
         expectError(
             "explain [from foo] metadata _index",
-            "line 1:20: mismatched input 'metadata' expecting {'|', ',', OPENING_BRACKET, ']', 'options', 'metadata'}"
+            "line 1:20: mismatched input 'metadata' expecting {'|', ',', OPENING_BRACKET, ']', 'metadata'}"
         );
     }
 
@@ -616,106 +603,6 @@ public class StatementParserTests extends ESTestCase {
 
     public void testMetadataFieldNotFoundNormalField() {
         expectError("from test metadata emp_no", "line 1:21: unsupported metadata field [emp_no]");
-    }
-
-    public void testFromOptionsUnknownName() {
-        expectError(FROM + " options \"foo\"=\"oof\",\"bar\"=\"rab\"", "line 1:20: invalid options provided: unknown option named [foo]");
-    }
-
-    public void testFromOptionsPartialInvalid() {
-        expectError(
-            FROM + " options \"allow_no_indices\"=\"true\",\"bar\"=\"rab\"",
-            "line 1:46: invalid options provided: unknown option named [bar]"
-        );
-    }
-
-    public void testFromOptionsInvalidIndicesOptionValue() {
-        expectError(
-            FROM + " options \"allow_no_indices\"=\"foo\"",
-            "line 1:20: invalid options provided: Could not convert [allow_no_indices] to boolean"
-        );
-    }
-
-    public void testFromOptionsEmptyIndicesOptionName() {
-        expectError(FROM + " options \"\"=\"true\"", "line 1:20: invalid options provided: unknown option named []");
-    }
-
-    public void testFromOptionsEmptyIndicesOptionValue() {
-        expectError(
-            FROM + " options \"allow_no_indices\"=\"\"",
-            "line 1:20: invalid options provided: Could not convert [allow_no_indices] to boolean. "
-                + "Failed to parse value [] as only [true] or [false] are allowed."
-        );
-        expectError(
-            FROM + " options \"ignore_unavailable\"=\"TRUE\"",
-            "line 1:20: invalid options provided: Could not convert [ignore_unavailable] to boolean. "
-                + "Failed to parse value [TRUE] as only [true] or [false] are allowed."
-        );
-        expectError(FROM + " options \"preference\"=\"\"", "line 1:20: invalid options provided: no Preference for []");
-    }
-
-    public void testFromOptionsSuggestedOptionName() {
-        expectError(
-            FROM + " options \"allow_indices\"=\"true\"",
-            "line 1:20: invalid options provided: unknown option named [allow_indices], did you mean [allow_no_indices]?"
-        );
-    }
-
-    public void testFromOptionsInvalidPreferValue() {
-        expectError(FROM + " options \"preference\"=\"_foo\"", "line 1:20: invalid options provided: no Preference for [_foo]");
-    }
-
-    public void testFromOptionsUnquotedName() {
-        expectError(FROM + " options allow_no_indices=\"oof\"", "line 1:19: mismatched input 'allow_no_indices' expecting QUOTED_STRING");
-    }
-
-    public void testFromOptionsUnquotedValue() {
-        expectError(FROM + " options \"allow_no_indices\"=oof", "line 1:38: mismatched input 'oof' expecting QUOTED_STRING");
-    }
-
-    public void testFromOptionsDuplicates() {
-        for (var name : List.of("allow_no_indices", "ignore_unavailable", "preference")) {
-            String options = '"' + name + "\"=\"false\"";
-            options += ',' + options;
-            expectError(FROM + " options " + options, "invalid options provided: option [" + name + "] has already been provided");
-        }
-    }
-
-    public void testFromOptionsValues() {
-        boolean allowNoIndices = randomBoolean();
-        boolean ignoreUnavailable = randomBoolean();
-        String idsList = String.join(",", randomList(1, 5, () -> randomAlphaOfLengthBetween(1, 25)));
-        String preference = randomFrom(
-            "_only_local",
-            "_local",
-            "_only_nodes:" + idsList,
-            "_prefer_nodes:" + idsList,
-            "_shards:" + idsList,
-            randomAlphaOfLengthBetween(1, 25)
-        );
-        List<String> options = new ArrayList<>(3);
-        options.add("\"allow_no_indices\"=\"" + allowNoIndices + "\"");
-        options.add("\"ignore_unavailable\"=\"" + ignoreUnavailable + "\"");
-        options.add("\"preference\"=\"" + preference + "\"");
-        Randomness.shuffle(options);
-        String optionsList = String.join(",", options);
-
-        var plan = statement(FROM + " OPTIONS " + optionsList);
-        var unresolved = as(plan, EsqlUnresolvedRelation.class);
-        assertNotNull(unresolved.esSourceOptions());
-        var indicesOptions = unresolved.esSourceOptions().indicesOptions(SearchRequest.DEFAULT_INDICES_OPTIONS);
-        assertThat(indicesOptions.allowNoIndices(), is(allowNoIndices));
-        assertThat(indicesOptions.ignoreUnavailable(), is(ignoreUnavailable));
-        assertThat(unresolved.esSourceOptions().preference(), is(preference));
-    }
-
-    public void testFromOptionsWithMetadata() {
-        var plan = statement(FROM + " METADATA _id OPTIONS \"preference\"=\"foo\"");
-        var unresolved = as(plan, EsqlUnresolvedRelation.class);
-        assertNotNull(unresolved.esSourceOptions());
-        assertThat(unresolved.esSourceOptions().preference(), is("foo"));
-        assertFalse(unresolved.metadataFields().isEmpty());
-        assertThat(unresolved.metadataFields().get(0).qualifiedName(), is("_id"));
     }
 
     public void testDissectPattern() {
@@ -829,15 +716,15 @@ public class StatementParserTests extends ESTestCase {
             processingCommand("enrich _" + mode.name() + ":countries ON country_code")
         );
 
-        expectError("from a | enrich countries on foo* ", "Using wildcards (*) in ENRICH WITH projections is not allowed [foo*]");
-        expectError("from a | enrich countries on foo with bar*", "Using wildcards (*) in ENRICH WITH projections is not allowed [bar*]");
+        expectError("from a | enrich countries on foo* ", "Using wildcards [*] in ENRICH WITH projections is not allowed [foo*]");
+        expectError("from a | enrich countries on foo with bar*", "Using wildcards [*] in ENRICH WITH projections is not allowed [bar*]");
         expectError(
             "from a | enrich countries on foo with x = bar* ",
-            "Using wildcards (*) in ENRICH WITH projections is not allowed [bar*]"
+            "Using wildcards [*] in ENRICH WITH projections is not allowed [bar*]"
         );
         expectError(
             "from a | enrich countries on foo with x* = bar ",
-            "Using wildcards (*) in ENRICH WITH projections is not allowed [x*]"
+            "Using wildcards [*] in ENRICH WITH projections is not allowed [x*]"
         );
         expectError(
             "from a | enrich typo:countries on foo",
@@ -871,19 +758,23 @@ public class StatementParserTests extends ESTestCase {
 
     public void testInputParams() {
         LogicalPlan stm = statement(
-            "row x = ?, y = ?, a = ?, b = ?, c = ?, d = ?",
-            List.of(
-                new TypedParamValue("integer", 1),
-                new TypedParamValue("keyword", "2"),
-                new TypedParamValue("date_period", "2 days"),
-                new TypedParamValue("time_duration", "4 hours"),
-                new TypedParamValue("version", "1.2.3"),
-                new TypedParamValue("ip", "127.0.0.1")
+            "row x = ?, y = ?, a = ?, b = ?, c = ?, d = ?, e = ?-1, f = ?+1",
+            new QueryParams(
+                List.of(
+                    new QueryParam(null, 1, INTEGER),
+                    new QueryParam(null, "2", KEYWORD),
+                    new QueryParam(null, "2 days", KEYWORD),
+                    new QueryParam(null, "4 hours", KEYWORD),
+                    new QueryParam(null, "1.2.3", KEYWORD),
+                    new QueryParam(null, "127.0.0.1", KEYWORD),
+                    new QueryParam(null, 10, INTEGER),
+                    new QueryParam(null, 10, INTEGER)
+                )
             )
         );
         assertThat(stm, instanceOf(Row.class));
         Row row = (Row) stm;
-        assertThat(row.fields().size(), is(6));
+        assertThat(row.fields().size(), is(8));
 
         NamedExpression field = row.fields().get(0);
         assertThat(field.name(), is("x"));
@@ -901,65 +792,346 @@ public class StatementParserTests extends ESTestCase {
         assertThat(field.name(), is("a"));
         assertThat(field, instanceOf(Alias.class));
         alias = (Alias) field;
-        assertThat(alias.child().fold(), is(Period.ofDays(2)));
+        assertThat(alias.child().fold(), is("2 days"));
 
         field = row.fields().get(3);
         assertThat(field.name(), is("b"));
         assertThat(field, instanceOf(Alias.class));
         alias = (Alias) field;
-        assertThat(alias.child().fold(), is(Duration.ofHours(4)));
+        assertThat(alias.child().fold(), is("4 hours"));
 
         field = row.fields().get(4);
         assertThat(field.name(), is("c"));
         assertThat(field, instanceOf(Alias.class));
         alias = (Alias) field;
-        assertThat(alias.child().fold().getClass(), is(BytesRef.class));
-        assertThat(alias.child().fold().toString(), is(new Version("1.2.3").toBytesRef().toString()));
+        assertThat(alias.child().fold().getClass(), is(String.class));
+        assertThat(alias.child().fold().toString(), is("1.2.3"));
 
         field = row.fields().get(5);
         assertThat(field.name(), is("d"));
         assertThat(field, instanceOf(Alias.class));
         alias = (Alias) field;
-        assertThat(alias.child().fold().getClass(), is(BytesRef.class));
-        assertThat(alias.child().fold().toString(), is(StringUtils.parseIP("127.0.0.1").toString()));
-    }
+        assertThat(alias.child().fold().getClass(), is(String.class));
+        assertThat(alias.child().fold().toString(), is("127.0.0.1"));
 
-    public void testWrongIntervalParams() {
-        expectError("row x = ?", List.of(new TypedParamValue("date_period", "12")), "Cannot parse [12] to DATE_PERIOD");
-        expectError("row x = ?", List.of(new TypedParamValue("time_duration", "12")), "Cannot parse [12] to TIME_DURATION");
-        expectError(
-            "row x = ?",
-            List.of(new TypedParamValue("date_period", "12 months foo")),
-            "Cannot parse [12 months foo] to DATE_PERIOD"
-        );
-        expectError(
-            "row x = ?",
-            List.of(new TypedParamValue("time_duration", "12 minutes bar")),
-            "Cannot parse [12 minutes bar] to TIME_DURATION"
-        );
-        expectError("row x = ?", List.of(new TypedParamValue("date_period", "12 foo")), "Unexpected time interval qualifier: 'foo'");
-        expectError("row x = ?", List.of(new TypedParamValue("time_duration", "12 bar")), "Unexpected time interval qualifier: 'bar'");
-        expectError("row x = ?", List.of(new TypedParamValue("date_period", "foo days")), "Cannot parse [foo days] to DATE_PERIOD");
-        expectError(
-            "row x = ?",
-            List.of(new TypedParamValue("time_duration", "bar seconds")),
-            "Cannot parse [bar seconds] to TIME_DURATION"
-        );
+        field = row.fields().get(6);
+        assertThat(field.name(), is("e"));
+        assertThat(field, instanceOf(Alias.class));
+        alias = (Alias) field;
+        assertThat(alias.child().fold(), is(9));
 
-        expectError(
-            "row x = ?",
-            List.of(new TypedParamValue("date_period", "2 minutes")),
-            "Cannot parse [2 minutes] to DATE_PERIOD, did you mean TIME_DURATION?"
-        );
-        expectError(
-            "row x = ?",
-            List.of(new TypedParamValue("time_duration", "11 months")),
-            "Cannot parse [11 months] to TIME_DURATION, did you mean DATE_PERIOD?"
-        );
+        field = row.fields().get(7);
+        assertThat(field.name(), is("f"));
+        assertThat(field, instanceOf(Alias.class));
+        alias = (Alias) field;
+        assertThat(alias.child().fold(), is(11));
     }
 
     public void testMissingInputParams() {
-        expectError("row x = ?, y = ?", List.of(new TypedParamValue("integer", 1)), "Not enough actual parameters 1");
+        expectError("row x = ?, y = ?", List.of(new QueryParam(null, 1, INTEGER)), "Not enough actual parameters 1");
+    }
+
+    public void testNamedParams() {
+        LogicalPlan stm = statement("row x=?name1, y = ?name1", new QueryParams(List.of(new QueryParam("name1", 1, INTEGER))));
+        assertThat(stm, instanceOf(Row.class));
+        Row row = (Row) stm;
+        assertThat(row.fields().size(), is(2));
+
+        NamedExpression field = row.fields().get(0);
+        assertThat(field.name(), is("x"));
+        assertThat(field, instanceOf(Alias.class));
+        Alias alias = (Alias) field;
+        assertThat(alias.child().fold(), is(1));
+
+        field = row.fields().get(1);
+        assertThat(field.name(), is("y"));
+        assertThat(field, instanceOf(Alias.class));
+        alias = (Alias) field;
+        assertThat(alias.child().fold(), is(1));
+    }
+
+    public void testInvalidNamedParams() {
+        expectError(
+            "from test | where x < ?n1 | eval y = ?n2",
+            List.of(new QueryParam("n1", 5, INTEGER)),
+            "Unknown query parameter [n2], did you mean [n1]?"
+        );
+
+        expectError(
+            "from test | where x < ?n1 | eval y = ?n2",
+            List.of(new QueryParam("n1", 5, INTEGER), new QueryParam("n3", 5, INTEGER)),
+            "Unknown query parameter [n2], did you mean any of [n1, n3]?"
+        );
+
+        expectError("from test | where x < ?_1", List.of(new QueryParam("_1", 5, INTEGER)), "extraneous input '_1' expecting <EOF>");
+
+        expectError("from test | where x < ?#1", List.of(new QueryParam("#1", 5, INTEGER)), "token recognition error at: '#'");
+
+        expectError(
+            "from test | where x < ??",
+            List.of(new QueryParam("n_1", 5, INTEGER), new QueryParam("n_2", 5, INTEGER)),
+            "extraneous input '?' expecting <EOF>"
+        );
+    }
+
+    public void testPositionalParams() {
+        LogicalPlan stm = statement("row x=?1, y=?1", new QueryParams(List.of(new QueryParam(null, 1, INTEGER))));
+        assertThat(stm, instanceOf(Row.class));
+        Row row = (Row) stm;
+        assertThat(row.fields().size(), is(2));
+
+        NamedExpression field = row.fields().get(0);
+        assertThat(field.name(), is("x"));
+        assertThat(field, instanceOf(Alias.class));
+        Alias alias = (Alias) field;
+        assertThat(alias.child().fold(), is(1));
+
+        field = row.fields().get(1);
+        assertThat(field.name(), is("y"));
+        assertThat(field, instanceOf(Alias.class));
+        alias = (Alias) field;
+        assertThat(alias.child().fold(), is(1));
+    }
+
+    public void testInvalidPositionalParams() {
+        expectError(
+            "from test | where x < ?0",
+            List.of(new QueryParam(null, 5, INTEGER)),
+            "No parameter is defined for position 0, did you mean position 1"
+        );
+
+        expectError(
+            "from test | where x < ?2",
+            List.of(new QueryParam(null, 5, INTEGER)),
+            "No parameter is defined for position 2, did you mean position 1"
+        );
+
+        expectError(
+            "from test | where x < ?0 and y < ?2",
+            List.of(new QueryParam(null, 5, INTEGER)),
+            "line 1:24: No parameter is defined for position 0, did you mean position 1?; "
+                + "line 1:35: No parameter is defined for position 2, did you mean position 1?"
+        );
+
+        expectError(
+            "from test | where x < ?0 and y < ?2",
+            List.of(new QueryParam(null, 5, INTEGER)),
+            "No parameter is defined for position 2, did you mean position 1"
+        );
+
+        expectError(
+            "from test | where x < ?0",
+            List.of(new QueryParam(null, 5, INTEGER), new QueryParam(null, 10, INTEGER)),
+            "No parameter is defined for position 0, did you mean any position between 1 and 2?"
+        );
+    }
+
+    public void testParamInWhere() {
+        LogicalPlan plan = statement("from test | where x < ? |  limit 10", new QueryParams(List.of(new QueryParam(null, 5, INTEGER))));
+        assertThat(plan, instanceOf(Limit.class));
+        Limit limit = (Limit) plan;
+        assertThat(limit.limit(), instanceOf(Literal.class));
+        assertThat(((Literal) limit.limit()).value(), equalTo(10));
+        assertThat(limit.children().size(), equalTo(1));
+        assertThat(limit.children().get(0), instanceOf(Filter.class));
+        Filter w = (Filter) limit.children().get(0);
+        assertThat(((Literal) w.condition().children().get(1)).value(), equalTo(5));
+        assertThat(limit.children().get(0).children().size(), equalTo(1));
+        assertThat(limit.children().get(0).children().get(0), instanceOf(EsqlUnresolvedRelation.class));
+
+        plan = statement("from test | where x < ?n1 |  limit 10", new QueryParams(List.of(new QueryParam("n1", 5, INTEGER))));
+        assertThat(plan, instanceOf(Limit.class));
+        limit = (Limit) plan;
+        assertThat(limit.limit(), instanceOf(Literal.class));
+        assertThat(((Literal) limit.limit()).value(), equalTo(10));
+        assertThat(limit.children().size(), equalTo(1));
+        assertThat(limit.children().get(0), instanceOf(Filter.class));
+        w = (Filter) limit.children().get(0);
+        assertThat(((Literal) w.condition().children().get(1)).value(), equalTo(5));
+        assertThat(limit.children().get(0).children().size(), equalTo(1));
+        assertThat(limit.children().get(0).children().get(0), instanceOf(EsqlUnresolvedRelation.class));
+
+        plan = statement("from test | where x < ?1 |  limit 10", new QueryParams(List.of(new QueryParam(null, 5, INTEGER))));
+        assertThat(plan, instanceOf(Limit.class));
+        limit = (Limit) plan;
+        assertThat(limit.limit(), instanceOf(Literal.class));
+        assertThat(((Literal) limit.limit()).value(), equalTo(10));
+        assertThat(limit.children().size(), equalTo(1));
+        assertThat(limit.children().get(0), instanceOf(Filter.class));
+        w = (Filter) limit.children().get(0);
+        assertThat(((Literal) w.condition().children().get(1)).value(), equalTo(5));
+        assertThat(limit.children().get(0).children().size(), equalTo(1));
+        assertThat(limit.children().get(0).children().get(0), instanceOf(EsqlUnresolvedRelation.class));
+    }
+
+    public void testParamInEval() {
+        LogicalPlan plan = statement(
+            "from test | where x < ? | eval y = ? + ? |  limit 10",
+            new QueryParams(
+                List.of(new QueryParam(null, 5, INTEGER), new QueryParam(null, -1, INTEGER), new QueryParam(null, 100, INTEGER))
+            )
+        );
+        assertThat(plan, instanceOf(Limit.class));
+        Limit limit = (Limit) plan;
+        assertThat(limit.limit(), instanceOf(Literal.class));
+        assertThat(((Literal) limit.limit()).value(), equalTo(10));
+        assertThat(limit.children().size(), equalTo(1));
+        assertThat(limit.children().get(0), instanceOf(Eval.class));
+        Eval eval = (Eval) limit.children().get(0);
+        assertThat(((Literal) ((Add) eval.fields().get(0).child()).left()).value(), equalTo(-1));
+        assertThat(((Literal) ((Add) eval.fields().get(0).child()).right()).value(), equalTo(100));
+        Filter f = (Filter) eval.children().get(0);
+        assertThat(((Literal) f.condition().children().get(1)).value(), equalTo(5));
+        assertThat(f.children().size(), equalTo(1));
+        assertThat(f.children().get(0), instanceOf(EsqlUnresolvedRelation.class));
+
+        plan = statement(
+            "from test | where x < ?n1 | eval y = ?n2 + ?n3 |  limit 10",
+            new QueryParams(
+                List.of(new QueryParam("n1", 5, INTEGER), new QueryParam("n2", -1, INTEGER), new QueryParam("n3", 100, INTEGER))
+            )
+        );
+        assertThat(plan, instanceOf(Limit.class));
+        limit = (Limit) plan;
+        assertThat(limit.limit(), instanceOf(Literal.class));
+        assertThat(((Literal) limit.limit()).value(), equalTo(10));
+        assertThat(limit.children().size(), equalTo(1));
+        assertThat(limit.children().get(0), instanceOf(Eval.class));
+        eval = (Eval) limit.children().get(0);
+        assertThat(((Literal) ((Add) eval.fields().get(0).child()).left()).value(), equalTo(-1));
+        assertThat(((Literal) ((Add) eval.fields().get(0).child()).right()).value(), equalTo(100));
+        f = (Filter) eval.children().get(0);
+        assertThat(((Literal) f.condition().children().get(1)).value(), equalTo(5));
+        assertThat(f.children().size(), equalTo(1));
+        assertThat(f.children().get(0), instanceOf(EsqlUnresolvedRelation.class));
+
+        plan = statement(
+            "from test | where x < ?1 | eval y = ?2 + ?1 |  limit 10",
+            new QueryParams(List.of(new QueryParam(null, 5, INTEGER), new QueryParam(null, -1, INTEGER)))
+        );
+        assertThat(plan, instanceOf(Limit.class));
+        limit = (Limit) plan;
+        assertThat(limit.limit(), instanceOf(Literal.class));
+        assertThat(((Literal) limit.limit()).value(), equalTo(10));
+        assertThat(limit.children().size(), equalTo(1));
+        assertThat(limit.children().get(0), instanceOf(Eval.class));
+        eval = (Eval) limit.children().get(0);
+        assertThat(((Literal) ((Add) eval.fields().get(0).child()).left()).value(), equalTo(-1));
+        assertThat(((Literal) ((Add) eval.fields().get(0).child()).right()).value(), equalTo(5));
+        f = (Filter) eval.children().get(0);
+        assertThat(((Literal) f.condition().children().get(1)).value(), equalTo(5));
+        assertThat(f.children().size(), equalTo(1));
+        assertThat(f.children().get(0), instanceOf(EsqlUnresolvedRelation.class));
+    }
+
+    public void testParamInAggFunction() {
+        LogicalPlan plan = statement(
+            "from test | where x < ? | eval y = ? + ? |  stats count(?) by z",
+            new QueryParams(
+                List.of(
+                    new QueryParam(null, 5, INTEGER),
+                    new QueryParam(null, -1, INTEGER),
+                    new QueryParam(null, 100, INTEGER),
+                    new QueryParam(null, "*", KEYWORD)
+                )
+            )
+        );
+        assertThat(plan, instanceOf(EsqlAggregate.class));
+        EsqlAggregate agg = (EsqlAggregate) plan;
+        assertThat(((Literal) agg.aggregates().get(0).children().get(0).children().get(0)).value(), equalTo("*"));
+        assertThat(agg.child(), instanceOf(Eval.class));
+        assertThat(agg.children().size(), equalTo(1));
+        assertThat(agg.children().get(0), instanceOf(Eval.class));
+        Eval eval = (Eval) agg.children().get(0);
+        assertThat(((Literal) ((Add) eval.fields().get(0).child()).left()).value(), equalTo(-1));
+        assertThat(((Literal) ((Add) eval.fields().get(0).child()).right()).value(), equalTo(100));
+        Filter f = (Filter) eval.children().get(0);
+        assertThat(((Literal) f.condition().children().get(1)).value(), equalTo(5));
+        assertThat(f.children().size(), equalTo(1));
+        assertThat(f.children().get(0), instanceOf(EsqlUnresolvedRelation.class));
+
+        plan = statement(
+            "from test | where x < ?n1 | eval y = ?n2 + ?n3 |  stats count(?n4) by z",
+            new QueryParams(
+                List.of(
+                    new QueryParam("n1", 5, INTEGER),
+                    new QueryParam("n2", -1, INTEGER),
+                    new QueryParam("n3", 100, INTEGER),
+                    new QueryParam("n4", "*", KEYWORD)
+                )
+            )
+        );
+        assertThat(plan, instanceOf(EsqlAggregate.class));
+        agg = (EsqlAggregate) plan;
+        assertThat(((Literal) agg.aggregates().get(0).children().get(0).children().get(0)).value(), equalTo("*"));
+        assertThat(agg.child(), instanceOf(Eval.class));
+        assertThat(agg.children().size(), equalTo(1));
+        assertThat(agg.children().get(0), instanceOf(Eval.class));
+        eval = (Eval) agg.children().get(0);
+        assertThat(((Literal) ((Add) eval.fields().get(0).child()).left()).value(), equalTo(-1));
+        assertThat(((Literal) ((Add) eval.fields().get(0).child()).right()).value(), equalTo(100));
+        f = (Filter) eval.children().get(0);
+        assertThat(((Literal) f.condition().children().get(1)).value(), equalTo(5));
+        assertThat(f.children().size(), equalTo(1));
+        assertThat(f.children().get(0), instanceOf(EsqlUnresolvedRelation.class));
+
+        plan = statement(
+            "from test | where x < ?1 | eval y = ?2 + ?1 |  stats count(?3) by z",
+            new QueryParams(
+                List.of(new QueryParam(null, 5, INTEGER), new QueryParam(null, -1, INTEGER), new QueryParam(null, "*", KEYWORD))
+            )
+        );
+        assertThat(plan, instanceOf(EsqlAggregate.class));
+        agg = (EsqlAggregate) plan;
+        assertThat(((Literal) agg.aggregates().get(0).children().get(0).children().get(0)).value(), equalTo("*"));
+        assertThat(agg.child(), instanceOf(Eval.class));
+        assertThat(agg.children().size(), equalTo(1));
+        assertThat(agg.children().get(0), instanceOf(Eval.class));
+        eval = (Eval) agg.children().get(0);
+        assertThat(((Literal) ((Add) eval.fields().get(0).child()).left()).value(), equalTo(-1));
+        assertThat(((Literal) ((Add) eval.fields().get(0).child()).right()).value(), equalTo(5));
+        f = (Filter) eval.children().get(0);
+        assertThat(((Literal) f.condition().children().get(1)).value(), equalTo(5));
+        assertThat(f.children().size(), equalTo(1));
+        assertThat(f.children().get(0), instanceOf(EsqlUnresolvedRelation.class));
+    }
+
+    public void testParamMixed() {
+        expectError(
+            "from test | where x < ? | eval y = ?n2 + ?n3 |  limit ?n4",
+            List.of(
+                new QueryParam("n1", 5, INTEGER),
+                new QueryParam("n2", -1, INTEGER),
+                new QueryParam("n3", 100, INTEGER),
+                new QueryParam("n4", 10, INTEGER)
+            ),
+            "Inconsistent parameter declaration, "
+                + "use one of positional, named or anonymous params but not a combination of named and anonymous"
+        );
+
+        expectError(
+            "from test | where x < ?1 | eval y = ?n2 + ?n3 |  limit ?n4",
+            List.of(
+                new QueryParam("n1", 5, INTEGER),
+                new QueryParam("n2", -1, INTEGER),
+                new QueryParam("n3", 100, INTEGER),
+                new QueryParam("n4", 10, INTEGER)
+            ),
+            "Inconsistent parameter declaration, "
+                + "use one of positional, named or anonymous params but not a combination of named and positional"
+        );
+
+        expectError(
+            "from test | where x < ? | eval y = ?2 + ?n3 |  limit ?n4",
+            List.of(
+                new QueryParam("n1", 5, INTEGER),
+                new QueryParam("n2", -1, INTEGER),
+                new QueryParam("n3", 100, INTEGER),
+                new QueryParam("n4", 10, INTEGER)
+            ),
+            "Inconsistent parameter declaration, "
+                + "use one of positional, named or anonymous params but not a combination of positional and anonymous"
+        );
     }
 
     public void testFieldContainingDotsAndNumbers() {
@@ -1047,6 +1219,16 @@ public class StatementParserTests extends ESTestCase {
         expectError("ROW (1+2)::doesnotexist", "line 1:13: Unknown data type named [doesnotexist]");
     }
 
+    public void testLookup() {
+        var plan = statement("ROW a = 1 | LOOKUP t ON j");
+        var lookup = as(plan, Lookup.class);
+        var tableName = as(lookup.tableName(), Literal.class);
+        assertThat(tableName.fold(), equalTo("t"));
+        assertThat(lookup.matchFields(), hasSize(1));
+        var matchField = as(lookup.matchFields().get(0), UnresolvedAttribute.class);
+        assertThat(matchField.name(), equalTo("j"));
+    }
+
     public void testInlineConvertUnsupportedType() {
         expectError("ROW 3::BYTE", "line 1:6: Unsupported conversion to type [BYTE]");
     }
@@ -1054,13 +1236,25 @@ public class StatementParserTests extends ESTestCase {
     public void testMetricsWithoutStats() {
         assumeTrue("requires snapshot build", Build.current().isSnapshot());
 
-        assertStatement("METRICS foo", new EsqlUnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, "foo"), List.of()));
-        assertStatement("METRICS foo,bar", new EsqlUnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, "foo,bar"), List.of()));
-        assertStatement("METRICS foo*,bar", new EsqlUnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, "foo*,bar"), List.of()));
-        assertStatement("METRICS foo-*,bar", new EsqlUnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, "foo-*,bar"), List.of()));
+        assertStatement(
+            "METRICS foo",
+            new EsqlUnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, "foo"), List.of(), IndexMode.TIME_SERIES)
+        );
+        assertStatement(
+            "METRICS foo,bar",
+            new EsqlUnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, "foo,bar"), List.of(), IndexMode.TIME_SERIES)
+        );
+        assertStatement(
+            "METRICS foo*,bar",
+            new EsqlUnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, "foo*,bar"), List.of(), IndexMode.TIME_SERIES)
+        );
+        assertStatement(
+            "METRICS foo-*,bar",
+            new EsqlUnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, "foo-*,bar"), List.of(), IndexMode.TIME_SERIES)
+        );
         assertStatement(
             "METRICS foo-*,bar+*",
-            new EsqlUnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, "foo-*,bar+*"), List.of())
+            new EsqlUnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, "foo-*,bar+*"), List.of(), IndexMode.TIME_SERIES)
         );
     }
 
@@ -1077,7 +1271,10 @@ public class StatementParserTests extends ESTestCase {
             "<logstash-{now/M{yyyy.MM}}>>"
         );
         for (Map.Entry<String, String> e : patterns.entrySet()) {
-            assertStatement(e.getKey(), new EsqlUnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, e.getValue()), List.of()));
+            assertStatement(
+                e.getKey(),
+                new EsqlUnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, e.getValue()), List.of(), IndexMode.TIME_SERIES)
+            );
         }
     }
 
@@ -1087,7 +1284,7 @@ public class StatementParserTests extends ESTestCase {
             "METRICS foo load=avg(cpu) BY ts",
             new EsqlAggregate(
                 EMPTY,
-                new EsqlUnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, "foo"), List.of()),
+                new EsqlUnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, "foo"), List.of(), IndexMode.TIME_SERIES),
                 List.of(attribute("ts")),
                 List.of(new Alias(EMPTY, "load", new UnresolvedFunction(EMPTY, "avg", DEFAULT, List.of(attribute("cpu")))), attribute("ts"))
             )
@@ -1096,7 +1293,7 @@ public class StatementParserTests extends ESTestCase {
             "METRICS foo,bar load=avg(cpu) BY ts",
             new EsqlAggregate(
                 EMPTY,
-                new EsqlUnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, "foo,bar"), List.of()),
+                new EsqlUnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, "foo,bar"), List.of(), IndexMode.TIME_SERIES),
                 List.of(attribute("ts")),
                 List.of(new Alias(EMPTY, "load", new UnresolvedFunction(EMPTY, "avg", DEFAULT, List.of(attribute("cpu")))), attribute("ts"))
             )
@@ -1105,7 +1302,7 @@ public class StatementParserTests extends ESTestCase {
             "METRICS foo,bar load=avg(cpu),max(rate(requests)) BY ts",
             new EsqlAggregate(
                 EMPTY,
-                new EsqlUnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, "foo,bar"), List.of()),
+                new EsqlUnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, "foo,bar"), List.of(), IndexMode.TIME_SERIES),
                 List.of(attribute("ts")),
                 List.of(
                     new Alias(EMPTY, "load", new UnresolvedFunction(EMPTY, "avg", DEFAULT, List.of(attribute("cpu")))),
@@ -1127,7 +1324,7 @@ public class StatementParserTests extends ESTestCase {
             "METRICS foo* count(errors)",
             new EsqlAggregate(
                 EMPTY,
-                new EsqlUnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, "foo*"), List.of()),
+                new EsqlUnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, "foo*"), List.of(), IndexMode.TIME_SERIES),
                 List.of(),
                 List.of(new Alias(EMPTY, "count(errors)", new UnresolvedFunction(EMPTY, "count", DEFAULT, List.of(attribute("errors")))))
             )
@@ -1136,7 +1333,7 @@ public class StatementParserTests extends ESTestCase {
             "METRICS foo* a(b)",
             new EsqlAggregate(
                 EMPTY,
-                new EsqlUnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, "foo*"), List.of()),
+                new EsqlUnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, "foo*"), List.of(), IndexMode.TIME_SERIES),
                 List.of(),
                 List.of(new Alias(EMPTY, "a(b)", new UnresolvedFunction(EMPTY, "a", DEFAULT, List.of(attribute("b")))))
             )
@@ -1145,7 +1342,7 @@ public class StatementParserTests extends ESTestCase {
             "METRICS foo* a(b)",
             new EsqlAggregate(
                 EMPTY,
-                new EsqlUnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, "foo*"), List.of()),
+                new EsqlUnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, "foo*"), List.of(), IndexMode.TIME_SERIES),
                 List.of(),
                 List.of(new Alias(EMPTY, "a(b)", new UnresolvedFunction(EMPTY, "a", DEFAULT, List.of(attribute("b")))))
             )
@@ -1154,7 +1351,7 @@ public class StatementParserTests extends ESTestCase {
             "METRICS foo* a1(b2)",
             new EsqlAggregate(
                 EMPTY,
-                new EsqlUnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, "foo*"), List.of()),
+                new EsqlUnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, "foo*"), List.of(), IndexMode.TIME_SERIES),
                 List.of(),
                 List.of(new Alias(EMPTY, "a1(b2)", new UnresolvedFunction(EMPTY, "a1", DEFAULT, List.of(attribute("b2")))))
             )
@@ -1163,7 +1360,7 @@ public class StatementParserTests extends ESTestCase {
             "METRICS foo*,bar* b = min(a) by c, d.e",
             new EsqlAggregate(
                 EMPTY,
-                new EsqlUnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, "foo*,bar*"), List.of()),
+                new EsqlUnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, "foo*,bar*"), List.of(), IndexMode.TIME_SERIES),
                 List.of(attribute("c"), attribute("d.e")),
                 List.of(
                     new Alias(EMPTY, "b", new UnresolvedFunction(EMPTY, "min", DEFAULT, List.of(attribute("a")))),
@@ -1182,102 +1379,6 @@ public class StatementParserTests extends ESTestCase {
         }
     }
 
-    private void assertStatement(String statement, LogicalPlan expected) {
-        final LogicalPlan actual;
-        try {
-            actual = statement(statement);
-        } catch (Exception e) {
-            throw new AssertionError("parsing error for [" + statement + "]", e);
-        }
-        assertThat(statement, actual, equalTo(expected));
-    }
-
-    private LogicalPlan statement(String e) {
-        return statement(e, List.of());
-    }
-
-    private LogicalPlan statement(String e, List<TypedParamValue> params) {
-        return parser.createStatement(e, params);
-    }
-
-    private LogicalPlan processingCommand(String e) {
-        return parser.createStatement("row a = 1 | " + e);
-    }
-
     private static final LogicalPlan PROCESSING_CMD_INPUT = new Row(EMPTY, List.of(new Alias(EMPTY, "a", integer(1))));
 
-    private static UnresolvedAttribute attribute(String name) {
-        return new UnresolvedAttribute(EMPTY, name);
-    }
-
-    private static ReferenceAttribute referenceAttribute(String name, DataType type) {
-        return new ReferenceAttribute(EMPTY, name, type);
-    }
-
-    private static Literal integer(int i) {
-        return new Literal(EMPTY, i, DataTypes.INTEGER);
-    }
-
-    private static Literal integers(int... ints) {
-        return new Literal(EMPTY, Arrays.stream(ints).boxed().toList(), DataTypes.INTEGER);
-    }
-
-    private static Literal literalLong(long i) {
-        return new Literal(EMPTY, i, DataTypes.LONG);
-    }
-
-    private static Literal literalLongs(long... longs) {
-        return new Literal(EMPTY, Arrays.stream(longs).boxed().toList(), DataTypes.LONG);
-    }
-
-    private static Literal literalDouble(double d) {
-        return new Literal(EMPTY, d, DataTypes.DOUBLE);
-    }
-
-    private static Literal literalDoubles(double... doubles) {
-        return new Literal(EMPTY, Arrays.stream(doubles).boxed().toList(), DataTypes.DOUBLE);
-    }
-
-    private static Literal literalUnsignedLong(String ulong) {
-        return new Literal(EMPTY, asLongUnsigned(new BigInteger(ulong)), DataTypes.UNSIGNED_LONG);
-    }
-
-    private static Literal literalUnsignedLongs(String... ulongs) {
-        return new Literal(EMPTY, Arrays.stream(ulongs).map(s -> asLongUnsigned(new BigInteger(s))).toList(), DataTypes.UNSIGNED_LONG);
-    }
-
-    private static Literal literalBoolean(boolean b) {
-        return new Literal(EMPTY, b, DataTypes.BOOLEAN);
-    }
-
-    private static Literal literalBooleans(boolean... booleans) {
-        List<Boolean> v = new ArrayList<>(booleans.length);
-        for (boolean b : booleans) {
-            v.add(b);
-        }
-        return new Literal(EMPTY, v, DataTypes.BOOLEAN);
-    }
-
-    private static Literal literalString(String s) {
-        return new Literal(EMPTY, s, DataTypes.KEYWORD);
-    }
-
-    private static Literal literalStrings(String... strings) {
-        return new Literal(EMPTY, Arrays.asList(strings), DataTypes.KEYWORD);
-    }
-
-    private void expectError(String query, String errorMessage) {
-        ParsingException e = expectThrows(ParsingException.class, "Expected syntax error for " + query, () -> statement(query));
-        assertThat(e.getMessage(), containsString(errorMessage));
-    }
-
-    private void expectVerificationError(String query, String errorMessage) {
-        VerificationException e = expectThrows(VerificationException.class, "Expected syntax error for " + query, () -> statement(query));
-        assertThat(e.getMessage(), containsString(errorMessage));
-    }
-
-    private void expectError(String query, List<TypedParamValue> params, String errorMessage) {
-        ParsingException e = expectThrows(ParsingException.class, "Expected syntax error for " + query, () -> statement(query, params));
-        assertThat(e.getMessage(), containsString(errorMessage));
-    }
 }

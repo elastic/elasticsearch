@@ -8,7 +8,11 @@
 
 package org.elasticsearch.vec;
 
+import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.store.IndexInput;
+import org.apache.lucene.util.hnsw.RandomVectorScorer;
+import org.apache.lucene.util.hnsw.RandomVectorScorerSupplier;
+import org.apache.lucene.util.quantization.RandomAccessQuantizedByteVectorValues;
 
 import java.util.Optional;
 
@@ -20,23 +24,36 @@ public interface VectorScorerFactory {
     }
 
     /**
+     * Returns an optional containing an int7 scalar quantized vector score supplier
+     * for the given parameters, or an empty optional if a scorer is not supported.
+     *
+     * @param similarityType the similarity type
+     * @param input the index input containing the vector data;
+     *    offset of the first vector is 0,
+     *    the length must be (maxOrd + Float#BYTES) * dims
+     * @param values the random access vector values
+     * @param scoreCorrectionConstant the score correction constant
+     * @return an optional containing the vector scorer supplier, or empty
+     */
+    Optional<RandomVectorScorerSupplier> getInt7SQVectorScorerSupplier(
+        VectorSimilarityType similarityType,
+        IndexInput input,
+        RandomAccessQuantizedByteVectorValues values,
+        float scoreCorrectionConstant
+    );
+
+    /**
      * Returns an optional containing an int7 scalar quantized vector scorer for
      * the given parameters, or an empty optional if a scorer is not supported.
      *
-     * @param dims the vector dimensions
-     * @param maxOrd the ordinal of the largest vector accessible
-     * @param scoreCorrectionConstant the score correction constant
-     * @param similarityType the similarity type
-     * @param indexInput the index input containing the vector data;
-     *    offset of the first vector is 0,
-     *    the length must be (maxOrd + Float#BYTES) * dims
+     * @param sim the similarity type
+     * @param values the random access vector values
+     * @param queryVector the query vector
      * @return an optional containing the vector scorer, or empty
      */
-    Optional<VectorScorer> getInt7ScalarQuantizedVectorScorer(
-        int dims,
-        int maxOrd,
-        float scoreCorrectionConstant,
-        VectorSimilarityType similarityType,
-        IndexInput indexInput
+    Optional<RandomVectorScorer> getInt7SQVectorScorer(
+        VectorSimilarityFunction sim,
+        RandomAccessQuantizedByteVectorValues values,
+        float[] queryVector
     );
 }

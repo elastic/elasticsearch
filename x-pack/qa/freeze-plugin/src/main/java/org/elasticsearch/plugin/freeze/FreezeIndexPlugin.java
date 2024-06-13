@@ -29,12 +29,12 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.frozen.action.FreezeIndexAction;
 
-import java.io.IOException;
 import java.util.List;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
+import static org.elasticsearch.rest.RestUtils.getAckTimeout;
 import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 
 /**
@@ -73,11 +73,13 @@ public class FreezeIndexPlugin extends Plugin implements ActionPlugin {
         }
 
         @Override
-        protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
+        protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) {
             boolean freeze = request.path().endsWith("/_freeze");
-            FreezeRequest freezeRequest = new FreezeRequest(Strings.splitStringByCommaToArray(request.param("index")));
-            freezeRequest.ackTimeout(request.paramAsTime("timeout", freezeRequest.ackTimeout()));
-            freezeRequest.masterNodeTimeout(getMasterNodeTimeout(request));
+            FreezeRequest freezeRequest = new FreezeRequest(
+                getMasterNodeTimeout(request),
+                getAckTimeout(request),
+                Strings.splitStringByCommaToArray(request.param("index"))
+            );
             freezeRequest.indicesOptions(IndicesOptions.fromRequest(request, freezeRequest.indicesOptions()));
             String waitForActiveShards = request.param("wait_for_active_shards");
             if (waitForActiveShards != null) {

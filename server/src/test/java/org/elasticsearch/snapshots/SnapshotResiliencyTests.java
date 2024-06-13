@@ -139,6 +139,7 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSettingProviders;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
+import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.MapperRegistry;
 import org.elasticsearch.index.seqno.GlobalCheckpointSyncAction;
 import org.elasticsearch.index.seqno.RetentionLeaseSyncer;
@@ -167,6 +168,8 @@ import org.elasticsearch.plugins.scanners.StablePluginsRegistry;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryData;
+import org.elasticsearch.repositories.VerifyNodeRepositoryAction;
+import org.elasticsearch.repositories.VerifyNodeRepositoryCoordinationAction;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.repositories.blobstore.BlobStoreTestUtil;
 import org.elasticsearch.repositories.fs.FsRepository;
@@ -177,11 +180,12 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.FetchPhase;
+import org.elasticsearch.search.rank.feature.RankFeatureShardPhase;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.BytesRefRecycler;
@@ -1034,7 +1038,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                             .routingTable()
                             .shardRoutingTable(shardToRelocate.shardId())
                             .primaryShard();
-                        if (shardRouting.unassigned() && shardRouting.unassignedInfo().getReason() == UnassignedInfo.Reason.NODE_LEFT) {
+                        if (shardRouting.unassigned() && shardRouting.unassignedInfo().reason() == UnassignedInfo.Reason.NODE_LEFT) {
                             if (masterNodeCount > 1) {
                                 scheduleNow(() -> testClusterNodes.stopNode(masterNode));
                             }
@@ -1048,19 +1052,18 @@ public class SnapshotResiliencyTests extends ESTestCase {
                                         .deleteSnapshot(new DeleteSnapshotRequest(repoName, snapshotName), ActionListener.noop());
                                 }));
                             scheduleNow(
-                                () -> testClusterNodes.randomMasterNodeSafe().client.admin()
-                                    .cluster()
-                                    .reroute(
-                                        new ClusterRerouteRequest().add(
-                                            new AllocateEmptyPrimaryAllocationCommand(
-                                                index,
-                                                shardRouting.shardId().id(),
-                                                otherNode.node.getName(),
-                                                true
-                                            )
-                                        ),
-                                        ActionListener.noop()
-                                    )
+                                () -> testClusterNodes.randomMasterNodeSafe().client.execute(
+                                    TransportClusterRerouteAction.TYPE,
+                                    new ClusterRerouteRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).add(
+                                        new AllocateEmptyPrimaryAllocationCommand(
+                                            index,
+                                            shardRouting.shardId().id(),
+                                            otherNode.node.getName(),
+                                            true
+                                        )
+                                    ),
+                                    ActionListener.noop()
+                                )
                             );
                         } else {
                             scheduleSoon(this);
@@ -1450,13 +1453,13 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     })
             );
 
-        MockLogAppender.assertThatLogger(() -> {
+        MockLog.assertThatLogger(() -> {
             deterministicTaskQueue.runAllRunnableTasks();
             assertTrue("executed all runnable tasks but test steps are still incomplete", testListener.isDone());
             safeAwait(testListener); // shouldn't throw
         },
             SnapshotsService.class,
-            new MockLogAppender.SeenEventExpectation(
+            new MockLog.SeenEventExpectation(
                 "INFO log",
                 SnapshotsService.class.getCanonicalName(),
                 Level.INFO,
@@ -1499,19 +1502,45 @@ public class SnapshotResiliencyTests extends ESTestCase {
                             l.onResponse(null);
                         }
                     })
+            )
+            // attempt to clone snapshot
+            .<AcknowledgedResponse>andThen(
+                (l, ignored) -> client().admin()
+                    .cluster()
+                    .prepareCloneSnapshot(repoName, snapshotName, snapshotName)
+                    .setIndices("*")
+                    .execute(new ActionListener<>() {
+                        @Override
+                        public void onResponse(AcknowledgedResponse acknowledgedResponse) {
+                            fail("snapshot should not have started");
+                        }
+
+                        @Override
+                        public void onFailure(Exception e) {
+                            assertThat(ExceptionsHelper.unwrapCause(e), instanceOf(SnapshotNameAlreadyInUseException.class));
+                            l.onResponse(null);
+                        }
+                    })
             );
 
-        MockLogAppender.assertThatLogger(() -> {
+        final var expectedMessage = Strings.format("Invalid snapshot name [%s], snapshot with the same name already exists", snapshotName);
+        MockLog.assertThatLogger(() -> {
             deterministicTaskQueue.runAllRunnableTasks();
             assertTrue("executed all runnable tasks but test steps are still incomplete", testListener.isDone());
             safeAwait(testListener); // shouldn't throw
         },
             SnapshotsService.class,
-            new MockLogAppender.SeenEventExpectation(
+            new MockLog.SeenEventExpectation(
                 "INFO log",
                 SnapshotsService.class.getCanonicalName(),
                 Level.INFO,
-                Strings.format("*failed to create snapshot*Invalid snapshot name [%s]*", snapshotName)
+                Strings.format("*failed to create snapshot*%s", expectedMessage)
+            ),
+            new MockLog.SeenEventExpectation(
+                "INFO log",
+                SnapshotsService.class.getCanonicalName(),
+                Level.INFO,
+                Strings.format("*failed to clone snapshot*%s", expectedMessage)
             )
         );
     }
@@ -1554,13 +1583,13 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     })
             );
 
-        MockLogAppender.assertThatLogger(() -> {
+        MockLog.assertThatLogger(() -> {
             deterministicTaskQueue.runAllRunnableTasks();
             assertTrue("executed all runnable tasks but test steps are still incomplete", testListener.isDone());
             safeAwait(testListener); // shouldn't throw
         },
             SnapshotsService.class,
-            new MockLogAppender.SeenEventExpectation(
+            new MockLog.SeenEventExpectation(
                 "INFO log",
                 SnapshotsService.class.getCanonicalName(),
                 Level.INFO,
@@ -1606,13 +1635,13 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     })
             );
 
-        MockLogAppender.assertThatLogger(() -> {
+        MockLog.assertThatLogger(() -> {
             deterministicTaskQueue.runAllRunnableTasks();
             assertTrue("executed all runnable tasks but test steps are still incomplete", testListener.isDone());
             safeAwait(testListener); // shouldn't throw
         },
             SnapshotsService.class,
-            new MockLogAppender.SeenEventExpectation(
+            new MockLog.SeenEventExpectation(
                 "INFO log",
                 SnapshotsService.class.getCanonicalName(),
                 Level.INFO,
@@ -2024,6 +2053,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                 threadPool = deterministicTaskQueue.getThreadPool(runnable -> DeterministicTaskQueue.onNodeLog(node, runnable));
                 masterService = new FakeThreadPoolMasterService(node.getName(), threadPool, deterministicTaskQueue::scheduleNow);
                 final Settings settings = environment.settings();
+                client = new NodeClient(settings, threadPool);
                 final ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
                 clusterService = new ClusterService(
                     settings,
@@ -2115,13 +2145,13 @@ public class SnapshotResiliencyTests extends ESTestCase {
                 repositoriesService = new RepositoriesService(
                     settings,
                     clusterService,
-                    transportService,
                     Collections.singletonMap(
                         FsRepository.TYPE,
                         metadata -> new FsRepository(metadata, environment, xContentRegistry(), clusterService, bigArrays, recoverySettings)
                     ),
                     emptyMap(),
                     threadPool,
+                    client,
                     List.of()
                 );
                 final ActionFilters actionFilters = new ActionFilters(emptySet());
@@ -2138,7 +2168,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                 nodeEnv = new NodeEnvironment(settings, environment);
                 final NamedXContentRegistry namedXContentRegistry = new NamedXContentRegistry(Collections.emptyList());
                 final ScriptService scriptService = new ScriptService(settings, emptyMap(), emptyMap(), () -> 1L);
-                client = new NodeClient(settings, threadPool);
+
                 final SetOnce<RerouteService> rerouteServiceSetOnce = new SetOnce<>();
                 final SnapshotsInfoService snapshotsInfoService = new InternalSnapshotsInfoService(
                     settings,
@@ -2194,6 +2224,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     .client(client)
                     .featureService(new FeatureService(List.of(new IndicesFeatures())))
                     .metaStateService(new MetaStateService(nodeEnv, namedXContentRegistry))
+                    .mapperMetrics(MapperMetrics.NOOP)
                     .build();
                 final RecoverySettings recoverySettings = new RecoverySettings(settings, clusterSettings);
                 snapshotShardsService = new SnapshotShardsService(
@@ -2225,6 +2256,20 @@ public class SnapshotResiliencyTests extends ESTestCase {
                         actionFilters
                     )
                 );
+                actions.put(
+                    VerifyNodeRepositoryAction.TYPE,
+                    new VerifyNodeRepositoryAction.TransportAction(
+                        transportService,
+                        actionFilters,
+                        threadPool,
+                        clusterService,
+                        repositoriesService
+                    )
+                );
+                actions.put(
+                    VerifyNodeRepositoryCoordinationAction.TYPE,
+                    new VerifyNodeRepositoryCoordinationAction.LocalAction(actionFilters, transportService, clusterService, client)
+                );
                 final MetadataMappingService metadataMappingService = new MetadataMappingService(clusterService, indicesService);
 
                 peerRecoverySourceService = new PeerRecoverySourceService(
@@ -2247,6 +2292,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     threadPool,
                     scriptService,
                     bigArrays,
+                    new RankFeatureShardPhase(),
                     new FetchPhase(Collections.emptyList()),
                     responseCollectorService,
                     new NoneCircuitBreakerService(),
@@ -2371,7 +2417,8 @@ public class SnapshotResiliencyTests extends ESTestCase {
                         namedXContentRegistry,
                         mapperRegistry,
                         indexScopedSettings,
-                        ScriptCompiler.NONE
+                        ScriptCompiler.NONE,
+                        MapperMetrics.NOOP
                     ),
                     shardLimitValidator,
                     EmptySystemIndices.INSTANCE,
@@ -2421,7 +2468,8 @@ public class SnapshotResiliencyTests extends ESTestCase {
                         namedWriteableRegistry,
                         EmptySystemIndices.INSTANCE.getExecutorSelector(),
                         new SearchTransportAPMMetrics(TelemetryProvider.NOOP.getMeterRegistry()),
-                        new SearchResponseMetrics(TelemetryProvider.NOOP.getMeterRegistry())
+                        new SearchResponseMetrics(TelemetryProvider.NOOP.getMeterRegistry()),
+                        client
                     )
                 );
                 actions.put(

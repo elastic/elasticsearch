@@ -9,12 +9,7 @@
 package org.elasticsearch.datastreams;
 
 import org.elasticsearch.client.Request;
-import org.elasticsearch.client.ResponseException;
-import org.elasticsearch.client.RestClient;
-import org.junit.After;
-import org.junit.Before;
 
-import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
@@ -27,20 +22,7 @@ import static org.hamcrest.Matchers.matchesRegex;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
-public class LogsDataStreamIT extends DisabledSecurityDataStreamTestCase {
-
-    private RestClient client;
-
-    @Before
-    public void setup() throws Exception {
-        client = client();
-        waitForLogs(client);
-    }
-
-    @After
-    public void cleanUp() throws IOException {
-        adminClient().performRequest(new Request("DELETE", "_data_stream/*"));
-    }
+public class LogsDataStreamIT extends AbstractDataStreamIT {
 
     @SuppressWarnings("unchecked")
     public void testDefaultLogsSettingAndMapping() throws Exception {
@@ -757,97 +739,8 @@ public class LogsDataStreamIT extends DisabledSecurityDataStreamTestCase {
         assertThat(ignored.stream().filter(i -> i.startsWith("field") == false).toList(), empty());
     }
 
-    static void waitForLogs(RestClient client) throws Exception {
-        assertBusy(() -> {
-            try {
-                Request request = new Request("GET", "_index_template/logs");
-                assertOK(client.performRequest(request));
-            } catch (ResponseException e) {
-                fail(e.getMessage());
-            }
-        });
-    }
-
-    static void createDataStream(RestClient client, String name) throws IOException {
-        Request request = new Request("PUT", "_data_stream/" + name);
-        assertOK(client.performRequest(request));
-    }
-
-    @SuppressWarnings("unchecked")
-    static String getWriteBackingIndex(RestClient client, String name) throws IOException {
-        Request request = new Request("GET", "_data_stream/" + name);
-        List<Object> dataStreams = (List<Object>) entityAsMap(client.performRequest(request)).get("data_streams");
-        Map<String, Object> dataStream = (Map<String, Object>) dataStreams.get(0);
-        List<Map<String, String>> indices = (List<Map<String, String>>) dataStream.get("indices");
-        return indices.get(0).get("index_name");
-    }
-
-    @SuppressWarnings("unchecked")
-    static Map<String, Object> getSettings(RestClient client, String indexName) throws IOException {
-        Request request = new Request("GET", "/" + indexName + "/_settings?flat_settings");
-        return ((Map<String, Map<String, Object>>) entityAsMap(client.performRequest(request)).get(indexName)).get("settings");
-    }
-
-    static void putMapping(RestClient client, String indexName) throws IOException {
-        Request request = new Request("PUT", "/" + indexName + "/_mapping");
-        request.setJsonEntity("""
-            {
-              "properties": {
-                "numeric_field": {
-                  "type": "integer"
-                }
-              }
-            }
-            """);
-        assertOK(client.performRequest(request));
-    }
-
-    @SuppressWarnings("unchecked")
-    static Map<String, Object> getMappingProperties(RestClient client, String indexName) throws IOException {
-        Request request = new Request("GET", "/" + indexName + "/_mapping");
-        Map<String, Object> map = (Map<String, Object>) entityAsMap(client.performRequest(request)).get(indexName);
-        Map<String, Object> mappings = (Map<String, Object>) map.get("mappings");
-        return (Map<String, Object>) mappings.get("properties");
-    }
-
-    static void indexDoc(RestClient client, String dataStreamName, String doc) throws IOException {
-        Request request = new Request("POST", "/" + dataStreamName + "/_doc?refresh=true");
-        request.setJsonEntity(doc);
-        assertOK(client.performRequest(request));
-    }
-
-    @SuppressWarnings("unchecked")
-    static List<Object> searchDocs(RestClient client, String dataStreamName, String query) throws IOException {
-        Request request = new Request("GET", "/" + dataStreamName + "/_search");
-        request.setJsonEntity(query);
-        Map<String, Object> hits = (Map<String, Object>) entityAsMap(client.performRequest(request)).get("hits");
-        return (List<Object>) hits.get("hits");
-    }
-
-    @SuppressWarnings("unchecked")
-    static Object getValueFromPath(Map<String, Object> map, List<String> path) {
-        Map<String, Object> current = map;
-        for (int i = 0; i < path.size(); i++) {
-            Object value = current.get(path.get(i));
-            if (i == path.size() - 1) {
-                return value;
-            }
-            if (value == null) {
-                throw new IllegalStateException("Path " + String.join(".", path) + " was not found in " + map);
-            }
-            if (value instanceof Map<?, ?> next) {
-                current = (Map<String, Object>) next;
-            } else {
-                throw new IllegalStateException(
-                    "Failed to reach the end of the path "
-                        + String.join(".", path)
-                        + " last reachable field was "
-                        + path.get(i)
-                        + " in "
-                        + map
-                );
-            }
-        }
-        return current;
+    @Override
+    protected String indexTemplateName() {
+        return "logs";
     }
 }

@@ -58,4 +58,4 @@ include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=component-template]
 [[delete-component-template-api-query-params]]
 ==== {api-query-parms-title}
 
-include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]

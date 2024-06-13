@@ -344,6 +344,11 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
     }
 
     @Override
+    protected SyntheticSourceMode syntheticSourceMode() {
+        return SyntheticSourceMode.NATIVE;
+    }
+
+    @Override
     public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
         String value = fieldType().value();
         ;
@@ -371,6 +376,11 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
                 if (fieldType().value != null) {
                     b.field(simpleName(), fieldType().value);
                 }
+            }
+
+            @Override
+            public String fieldName() {
+                return name();
             }
         };
     }

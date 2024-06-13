@@ -11,6 +11,33 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.xpack.esql.VerificationException;
+import org.elasticsearch.xpack.esql.core.common.Failure;
+import org.elasticsearch.xpack.esql.core.expression.Alias;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.AttributeMap;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Expressions;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
+import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
+import org.elasticsearch.xpack.esql.core.expression.Order;
+import org.elasticsearch.xpack.esql.core.expression.TypedAttribute;
+import org.elasticsearch.xpack.esql.core.expression.function.scalar.UnaryScalarFunction;
+import org.elasticsearch.xpack.esql.core.expression.predicate.Predicates;
+import org.elasticsearch.xpack.esql.core.expression.predicate.logical.BinaryLogic;
+import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Not;
+import org.elasticsearch.xpack.esql.core.expression.predicate.nulls.IsNotNull;
+import org.elasticsearch.xpack.esql.core.expression.predicate.nulls.IsNull;
+import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparison;
+import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RegexMatch;
+import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardLike;
+import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
+import org.elasticsearch.xpack.esql.core.rule.ParameterizedRuleExecutor;
+import org.elasticsearch.xpack.esql.core.rule.Rule;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.util.Queries;
+import org.elasticsearch.xpack.esql.core.util.Queries.Clause;
+import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialAggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.ip.CIDRMatch;
@@ -25,7 +52,6 @@ import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsStatsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsStatsQueryExec.Stat;
-import org.elasticsearch.xpack.esql.plan.physical.EsTimeseriesQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
@@ -37,33 +63,6 @@ import org.elasticsearch.xpack.esql.plan.physical.UnaryExec;
 import org.elasticsearch.xpack.esql.planner.AbstractPhysicalOperationProviders;
 import org.elasticsearch.xpack.esql.planner.EsqlTranslatorHandler;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
-import org.elasticsearch.xpack.ql.common.Failure;
-import org.elasticsearch.xpack.ql.expression.Alias;
-import org.elasticsearch.xpack.ql.expression.Attribute;
-import org.elasticsearch.xpack.ql.expression.AttributeMap;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.Expressions;
-import org.elasticsearch.xpack.ql.expression.FieldAttribute;
-import org.elasticsearch.xpack.ql.expression.MetadataAttribute;
-import org.elasticsearch.xpack.ql.expression.NamedExpression;
-import org.elasticsearch.xpack.ql.expression.Order;
-import org.elasticsearch.xpack.ql.expression.TypedAttribute;
-import org.elasticsearch.xpack.ql.expression.function.scalar.UnaryScalarFunction;
-import org.elasticsearch.xpack.ql.expression.predicate.Predicates;
-import org.elasticsearch.xpack.ql.expression.predicate.logical.BinaryLogic;
-import org.elasticsearch.xpack.ql.expression.predicate.logical.Not;
-import org.elasticsearch.xpack.ql.expression.predicate.nulls.IsNotNull;
-import org.elasticsearch.xpack.ql.expression.predicate.nulls.IsNull;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparison;
-import org.elasticsearch.xpack.ql.expression.predicate.regex.RegexMatch;
-import org.elasticsearch.xpack.ql.expression.predicate.regex.WildcardLike;
-import org.elasticsearch.xpack.ql.querydsl.query.Query;
-import org.elasticsearch.xpack.ql.rule.ParameterizedRuleExecutor;
-import org.elasticsearch.xpack.ql.rule.Rule;
-import org.elasticsearch.xpack.ql.type.DataTypes;
-import org.elasticsearch.xpack.ql.util.Queries;
-import org.elasticsearch.xpack.ql.util.Queries.Clause;
-import org.elasticsearch.xpack.ql.util.StringUtils;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -77,19 +76,17 @@ import java.util.function.Predicate;
 import static java.util.Arrays.asList;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
+import static org.elasticsearch.xpack.esql.core.expression.predicate.Predicates.splitAnd;
+import static org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules.TransformDirection.UP;
 import static org.elasticsearch.xpack.esql.plan.physical.EsStatsQueryExec.StatsType.COUNT;
-import static org.elasticsearch.xpack.ql.expression.predicate.Predicates.splitAnd;
-import static org.elasticsearch.xpack.ql.optimizer.OptimizerRules.TransformDirection.UP;
 
 public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<PhysicalPlan, LocalPhysicalOptimizerContext> {
     public static final EsqlTranslatorHandler TRANSLATOR_HANDLER = new EsqlTranslatorHandler();
 
     private final PhysicalVerifier verifier = PhysicalVerifier.INSTANCE;
-    private final boolean timeSeriesMode;
 
     public LocalPhysicalPlanOptimizer(LocalPhysicalOptimizerContext context) {
         super(context);
-        this.timeSeriesMode = context.configuration().pragmas().timeSeriesMode();
     }
 
     public PhysicalPlan localOptimize(PhysicalPlan plan) {
@@ -106,7 +103,7 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
 
     protected List<Batch<PhysicalPlan>> rules(boolean optimizeForEsSource) {
         List<Rule<?, PhysicalPlan>> esSourceRules = new ArrayList<>(4);
-        esSourceRules.add(new ReplaceAttributeSourceWithDocId(timeSeriesMode));
+        esSourceRules.add(new ReplaceAttributeSourceWithDocId());
 
         if (optimizeForEsSource) {
             esSourceRules.add(new PushTopNToSource());
@@ -131,20 +128,13 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
 
     private static class ReplaceAttributeSourceWithDocId extends OptimizerRule<EsSourceExec> {
 
-        private final boolean timeSeriesMode;
-
-        ReplaceAttributeSourceWithDocId(boolean timeSeriesMode) {
+        ReplaceAttributeSourceWithDocId() {
             super(UP);
-            this.timeSeriesMode = timeSeriesMode;
         }
 
         @Override
         protected PhysicalPlan rule(EsSourceExec plan) {
-            if (timeSeriesMode) {
-                return new EsTimeseriesQueryExec(plan.source(), plan.index(), plan.query());
-            } else {
-                return new EsQueryExec(plan.source(), plan.index(), plan.query());
-            }
+            return new EsQueryExec(plan.source(), plan.index(), plan.indexMode(), plan.query());
         }
     }
 
@@ -230,6 +220,7 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
                     queryExec = new EsQueryExec(
                         queryExec.source(),
                         queryExec.index(),
+                        queryExec.indexMode(),
                         queryExec.output(),
                         query,
                         queryExec.limit(),
@@ -261,7 +252,7 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
             } else if (exp instanceof UnaryScalarFunction usf) {
                 if (usf instanceof RegexMatch<?> || usf instanceof IsNull || usf instanceof IsNotNull) {
                     if (usf instanceof IsNull || usf instanceof IsNotNull) {
-                        if (usf.field() instanceof FieldAttribute fa && fa.dataType().equals(DataTypes.TEXT)) {
+                        if (usf.field() instanceof FieldAttribute fa && fa.dataType().equals(DataType.TEXT)) {
                             return true;
                         }
                     }
@@ -325,10 +316,7 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
         protected PhysicalPlan rule(TopNExec topNExec, LocalPhysicalOptimizerContext ctx) {
             PhysicalPlan plan = topNExec;
             PhysicalPlan child = topNExec.child();
-
-            boolean canPushDownTopN = child instanceof EsQueryExec
-                || (child instanceof ExchangeExec exchangeExec && exchangeExec.child() instanceof EsQueryExec);
-            if (canPushDownTopN && canPushDownOrders(topNExec.order(), x -> hasIdenticalDelegate(x, ctx.searchStats()))) {
+            if (canPushSorts(child) && canPushDownOrders(topNExec.order(), x -> hasIdenticalDelegate(x, ctx.searchStats()))) {
                 var sorts = buildFieldSorts(topNExec.order());
                 var limit = topNExec.limit();
 
@@ -353,6 +341,16 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
             }
             return sorts;
         }
+    }
+
+    private static boolean canPushSorts(PhysicalPlan plan) {
+        if (plan instanceof EsQueryExec queryExec) {
+            return queryExec.canPushSorts();
+        }
+        if (plan instanceof ExchangeExec exchangeExec && exchangeExec.child() instanceof EsQueryExec queryExec) {
+            return queryExec.canPushSorts();
+        }
+        return false;
     }
 
     /**
@@ -446,7 +444,7 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
 
     public static boolean isPushableFieldAttribute(Expression exp, Predicate<FieldAttribute> hasIdenticalDelegate) {
         if (exp instanceof FieldAttribute fa && fa.getExactInfo().hasExact() && isAggregatable(fa)) {
-            return fa.dataType() != DataTypes.TEXT || hasIdenticalDelegate.test(fa);
+            return fa.dataType() != DataType.TEXT || hasIdenticalDelegate.test(fa);
         }
         return false;
     }

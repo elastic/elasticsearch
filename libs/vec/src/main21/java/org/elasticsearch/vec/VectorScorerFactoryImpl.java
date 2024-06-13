@@ -8,16 +8,22 @@
 
 package org.elasticsearch.vec;
 
+import org.apache.lucene.index.VectorSimilarityFunction;
+import org.apache.lucene.store.FilterIndexInput;
 import org.apache.lucene.store.IndexInput;
+import org.apache.lucene.store.MemorySegmentAccessInput;
+import org.apache.lucene.util.hnsw.RandomVectorScorer;
+import org.apache.lucene.util.hnsw.RandomVectorScorerSupplier;
+import org.apache.lucene.util.quantization.RandomAccessQuantizedByteVectorValues;
 import org.elasticsearch.nativeaccess.NativeAccess;
-import org.elasticsearch.vec.internal.IndexInputUtils;
-import org.elasticsearch.vec.internal.Int7DotProduct;
-import org.elasticsearch.vec.internal.Int7Euclidean;
-import org.elasticsearch.vec.internal.Int7MaximumInnerProduct;
+import org.elasticsearch.vec.internal.Int7SQVectorScorer;
+import org.elasticsearch.vec.internal.Int7SQVectorScorerSupplier.DotProductSupplier;
+import org.elasticsearch.vec.internal.Int7SQVectorScorerSupplier.EuclideanSupplier;
+import org.elasticsearch.vec.internal.Int7SQVectorScorerSupplier.MaxInnerProductSupplier;
 
 import java.util.Optional;
 
-class VectorScorerFactoryImpl implements VectorScorerFactory {
+final class VectorScorerFactoryImpl implements VectorScorerFactory {
 
     static final VectorScorerFactoryImpl INSTANCE;
 
@@ -28,21 +34,37 @@ class VectorScorerFactoryImpl implements VectorScorerFactory {
     }
 
     @Override
-    public Optional<VectorScorer> getInt7ScalarQuantizedVectorScorer(
-        int dims,
-        int maxOrd,
-        float scoreCorrectionConstant,
+    public Optional<RandomVectorScorerSupplier> getInt7SQVectorScorerSupplier(
         VectorSimilarityType similarityType,
-        IndexInput input
+        IndexInput input,
+        RandomAccessQuantizedByteVectorValues values,
+        float scoreCorrectionConstant
     ) {
-        input = IndexInputUtils.unwrapAndCheckInputOrNull(input);
-        if (input == null) {
-            return Optional.empty(); // the input type is not MemorySegment based
+        input = FilterIndexInput.unwrapOnlyTest(input);
+        if (input instanceof MemorySegmentAccessInput == false) {
+            return Optional.empty();
         }
-        return Optional.of(switch (similarityType) {
-            case COSINE, DOT_PRODUCT -> new Int7DotProduct(dims, maxOrd, scoreCorrectionConstant, input);
-            case EUCLIDEAN -> new Int7Euclidean(dims, maxOrd, scoreCorrectionConstant, input);
-            case MAXIMUM_INNER_PRODUCT -> new Int7MaximumInnerProduct(dims, maxOrd, scoreCorrectionConstant, input);
-        });
+        MemorySegmentAccessInput msInput = (MemorySegmentAccessInput) input;
+        checkInvariants(values.size(), values.dimension(), input);
+        return switch (similarityType) {
+            case COSINE, DOT_PRODUCT -> Optional.of(new DotProductSupplier(msInput, values, scoreCorrectionConstant));
+            case EUCLIDEAN -> Optional.of(new EuclideanSupplier(msInput, values, scoreCorrectionConstant));
+            case MAXIMUM_INNER_PRODUCT -> Optional.of(new MaxInnerProductSupplier(msInput, values, scoreCorrectionConstant));
+        };
+    }
+
+    @Override
+    public Optional<RandomVectorScorer> getInt7SQVectorScorer(
+        VectorSimilarityFunction sim,
+        RandomAccessQuantizedByteVectorValues values,
+        float[] queryVector
+    ) {
+        return Int7SQVectorScorer.create(sim, values, queryVector);
+    }
+
+    static void checkInvariants(int maxOrd, int vectorByteLength, IndexInput input) {
+        if (input.length() < (long) vectorByteLength * maxOrd) {
+            throw new IllegalArgumentException("input length is less than expected vector data");
+        }
     }
 }

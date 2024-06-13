@@ -31,24 +31,24 @@ public final class MoveDecision extends AbstractAllocationDecision {
     public static final MoveDecision NOT_TAKEN = new MoveDecision(null, null, AllocationDecision.NO_ATTEMPT, null, null, 0);
     /** cached decisions so we don't have to recreate objects for common decisions when not in explain mode. */
     private static final MoveDecision CACHED_STAY_DECISION = new MoveDecision(
-        Decision.YES,
+        null,
         null,
         AllocationDecision.NO_ATTEMPT,
-        null,
+        Decision.YES,
         null,
         0
     );
     private static final MoveDecision CACHED_CANNOT_MOVE_DECISION = new MoveDecision(
-        Decision.NO,
+        null,
         null,
         AllocationDecision.NO,
-        null,
+        Decision.NO,
         null,
         0
     );
 
     @Nullable
-    AllocationDecision allocationDecision;
+    private final AllocationDecision allocationDecision;
     @Nullable
     private final Decision canRemainDecision;
     @Nullable
@@ -56,11 +56,11 @@ public final class MoveDecision extends AbstractAllocationDecision {
     private final int currentNodeRanking;
 
     private MoveDecision(
-        Decision canRemainDecision,
-        Decision clusterRebalanceDecision,
-        AllocationDecision allocationDecision,
         DiscoveryNode assignedNode,
         List<NodeAllocationResult> nodeDecisions,
+        AllocationDecision allocationDecision,
+        Decision canRemainDecision,
+        Decision clusterRebalanceDecision,
         int currentNodeRanking
     ) {
         super(assignedNode, nodeDecisions);
@@ -96,7 +96,7 @@ public final class MoveDecision extends AbstractAllocationDecision {
             return CACHED_STAY_DECISION;
         }
         assert canRemainDecision.type() != Type.NO;
-        return new MoveDecision(canRemainDecision, null, AllocationDecision.NO_ATTEMPT, null, null, 0);
+        return new MoveDecision(null, null, AllocationDecision.NO_ATTEMPT, canRemainDecision, null, 0);
     }
 
     /**
@@ -121,7 +121,7 @@ public final class MoveDecision extends AbstractAllocationDecision {
             return CACHED_CANNOT_MOVE_DECISION;
         } else {
             assert ((assignedNode == null) == (allocationDecision != AllocationDecision.YES));
-            return new MoveDecision(canRemainDecision, null, allocationDecision, assignedNode, nodeDecisions, 0);
+            return new MoveDecision(assignedNode, nodeDecisions, allocationDecision, canRemainDecision, null, 0);
         }
     }
 
@@ -134,7 +134,7 @@ public final class MoveDecision extends AbstractAllocationDecision {
         int currentNodeRanking,
         List<NodeAllocationResult> nodeDecisions
     ) {
-        return new MoveDecision(null, canRebalanceDecision, allocationDecision, null, nodeDecisions, currentNodeRanking);
+        return new MoveDecision(null, nodeDecisions, allocationDecision, null, canRebalanceDecision, currentNodeRanking);
     }
 
     /**
@@ -147,7 +147,7 @@ public final class MoveDecision extends AbstractAllocationDecision {
         int currentNodeRanking,
         List<NodeAllocationResult> nodeDecisions
     ) {
-        return new MoveDecision(null, canRebalanceDecision, allocationDecision, assignedNode, nodeDecisions, currentNodeRanking);
+        return new MoveDecision(assignedNode, nodeDecisions, allocationDecision, null, canRebalanceDecision, currentNodeRanking);
     }
 
     @Override
@@ -160,11 +160,11 @@ public final class MoveDecision extends AbstractAllocationDecision {
      */
     public MoveDecision withRemainDecision(Decision canRemainDecision) {
         return new MoveDecision(
-            canRemainDecision,
-            clusterRebalanceDecision,
-            allocationDecision,
             targetNode,
             nodeDecisions,
+            allocationDecision,
+            canRemainDecision,
+            clusterRebalanceDecision,
             currentNodeRanking
         );
     }

@@ -25,12 +25,17 @@ public class NodesHotThreadsRequestTests extends ESTestCase {
     public void testBWCSerialization() throws IOException {
         TimeValue sampleInterval = new TimeValue(50, TimeUnit.MINUTES);
 
-        NodesHotThreadsRequest request = new NodesHotThreadsRequest("123");
-        request.threads(4);
-        request.ignoreIdleThreads(false);
-        request.type(HotThreads.ReportType.BLOCK);
-        request.interval(sampleInterval);
-        request.snapshots(3);
+        NodesHotThreadsRequest request = new NodesHotThreadsRequest(
+            new String[] { "123" },
+            new HotThreads.RequestOptions(
+                4,
+                HotThreads.ReportType.BLOCK,
+                HotThreads.RequestOptions.DEFAULT.sortOrder(),
+                sampleInterval,
+                3,
+                false
+            )
+        );
 
         TransportVersion latest = TransportVersion.current();
         TransportVersion previous = TransportVersionUtils.randomVersionBetween(

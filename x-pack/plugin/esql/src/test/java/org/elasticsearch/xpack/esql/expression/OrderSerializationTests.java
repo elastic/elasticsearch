@@ -7,12 +7,8 @@
 
 package org.elasticsearch.xpack.esql.expression;
 
-import com.carrotsearch.randomizedtesting.annotations.Seed;
-
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.Literal;
-import org.elasticsearch.xpack.esql.core.expression.LiteralTests;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 import java.io.IOException;

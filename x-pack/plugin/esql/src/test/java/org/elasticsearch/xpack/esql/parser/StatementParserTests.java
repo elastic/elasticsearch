@@ -10,8 +10,6 @@ package org.elasticsearch.xpack.esql.parser;
 import org.elasticsearch.Build;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexMode;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.core.capabilities.UnresolvedException;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.EmptyAttribute;
@@ -19,7 +17,6 @@ import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.Order;
-import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Not;
@@ -29,7 +26,6 @@ import org.elasticsearch.xpack.esql.core.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.core.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.core.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.core.plan.logical.OrderBy;
-import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.RLike;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.WildcardLike;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
@@ -51,9 +47,6 @@ import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 
-import java.math.BigInteger;
-import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
@@ -65,7 +58,6 @@ import static org.elasticsearch.xpack.esql.core.expression.function.FunctionReso
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
-import static org.elasticsearch.xpack.esql.core.util.NumericUtils.asLongUnsigned;
 import static org.elasticsearch.xpack.esql.parser.ExpressionBuilder.breakIntoFragments;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.contains;
@@ -76,10 +68,9 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
 //@TestLogging(value = "org.elasticsearch.xpack.esql:TRACE", reason = "debug")
-public class StatementParserTests extends ESTestCase {
+public class StatementParserTests extends AbstractStatementParserTests {
 
     private static String FROM = "from test";
-    EsqlParser parser = new EsqlParser();
 
     public void testRowCommand() {
         assertEquals(
@@ -1388,106 +1379,6 @@ public class StatementParserTests extends ESTestCase {
         }
     }
 
-    private void assertStatement(String statement, LogicalPlan expected) {
-        final LogicalPlan actual;
-        try {
-            actual = statement(statement);
-        } catch (Exception e) {
-            throw new AssertionError("parsing error for [" + statement + "]", e);
-        }
-        assertThat(statement, actual, equalTo(expected));
-    }
-
-    private LogicalPlan statement(String e) {
-        return statement(e, QueryParams.EMPTY);
-    }
-
-    private LogicalPlan statement(String e, QueryParams params) {
-        return parser.createStatement(e, params);
-    }
-
-    private LogicalPlan processingCommand(String e) {
-        return parser.createStatement("row a = 1 | " + e);
-    }
-
     private static final LogicalPlan PROCESSING_CMD_INPUT = new Row(EMPTY, List.of(new Alias(EMPTY, "a", integer(1))));
 
-    private static UnresolvedAttribute attribute(String name) {
-        return new UnresolvedAttribute(EMPTY, name);
-    }
-
-    private static ReferenceAttribute referenceAttribute(String name, DataType type) {
-        return new ReferenceAttribute(EMPTY, name, type);
-    }
-
-    private static Literal integer(int i) {
-        return new Literal(EMPTY, i, DataType.INTEGER);
-    }
-
-    private static Literal integers(int... ints) {
-        return new Literal(EMPTY, Arrays.stream(ints).boxed().toList(), DataType.INTEGER);
-    }
-
-    private static Literal literalLong(long i) {
-        return new Literal(EMPTY, i, DataType.LONG);
-    }
-
-    private static Literal literalLongs(long... longs) {
-        return new Literal(EMPTY, Arrays.stream(longs).boxed().toList(), DataType.LONG);
-    }
-
-    private static Literal literalDouble(double d) {
-        return new Literal(EMPTY, d, DataType.DOUBLE);
-    }
-
-    private static Literal literalDoubles(double... doubles) {
-        return new Literal(EMPTY, Arrays.stream(doubles).boxed().toList(), DataType.DOUBLE);
-    }
-
-    private static Literal literalUnsignedLong(String ulong) {
-        return new Literal(EMPTY, asLongUnsigned(new BigInteger(ulong)), DataType.UNSIGNED_LONG);
-    }
-
-    private static Literal literalUnsignedLongs(String... ulongs) {
-        return new Literal(EMPTY, Arrays.stream(ulongs).map(s -> asLongUnsigned(new BigInteger(s))).toList(), DataType.UNSIGNED_LONG);
-    }
-
-    private static Literal literalBoolean(boolean b) {
-        return new Literal(EMPTY, b, DataType.BOOLEAN);
-    }
-
-    private static Literal literalBooleans(boolean... booleans) {
-        List<Boolean> v = new ArrayList<>(booleans.length);
-        for (boolean b : booleans) {
-            v.add(b);
-        }
-        return new Literal(EMPTY, v, DataType.BOOLEAN);
-    }
-
-    private static Literal literalString(String s) {
-        return new Literal(EMPTY, s, DataType.KEYWORD);
-    }
-
-    private static Literal literalStrings(String... strings) {
-        return new Literal(EMPTY, Arrays.asList(strings), DataType.KEYWORD);
-    }
-
-    private void expectError(String query, String errorMessage) {
-        ParsingException e = expectThrows(ParsingException.class, "Expected syntax error for " + query, () -> statement(query));
-        assertThat(e.getMessage(), containsString(errorMessage));
-    }
-
-    private void expectVerificationError(String query, String errorMessage) {
-        VerificationException e = expectThrows(VerificationException.class, "Expected syntax error for " + query, () -> statement(query));
-        assertThat(e.getMessage(), containsString(errorMessage));
-    }
-
-    private void expectError(String query, List<QueryParam> params, String errorMessage) {
-        ParsingException e = expectThrows(
-            ParsingException.class,
-            "Expected syntax error for " + query,
-            () -> statement(query, new QueryParams(params))
-        );
-        assertThat(e.getMessage(), containsString(errorMessage));
-    }
 }

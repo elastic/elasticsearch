@@ -48,7 +48,7 @@ public final class MoveDecision extends AbstractAllocationDecision {
     );
 
     @Nullable
-    private final AllocationDecision allocationDecision;
+    private final AllocationDecision canMoveDecision;
     @Nullable
     private final Decision canRemainDecision;
     @Nullable
@@ -56,15 +56,15 @@ public final class MoveDecision extends AbstractAllocationDecision {
     private final int currentNodeRanking;
 
     private MoveDecision(
-        DiscoveryNode assignedNode,
+        DiscoveryNode targetNode,
         List<NodeAllocationResult> nodeDecisions,
-        AllocationDecision allocationDecision,
+        AllocationDecision canMoveDecision,
         Decision canRemainDecision,
         Decision clusterRebalanceDecision,
         int currentNodeRanking
     ) {
-        super(assignedNode, nodeDecisions);
-        this.allocationDecision = allocationDecision;
+        super(targetNode, nodeDecisions);
+        this.canMoveDecision = canMoveDecision;
         this.canRemainDecision = canRemainDecision;
         this.clusterRebalanceDecision = clusterRebalanceDecision;
         this.currentNodeRanking = currentNodeRanking;
@@ -72,7 +72,7 @@ public final class MoveDecision extends AbstractAllocationDecision {
 
     public MoveDecision(StreamInput in) throws IOException {
         super(in);
-        allocationDecision = in.readOptionalWriteable(AllocationDecision::readFrom);
+        canMoveDecision = in.readOptionalWriteable(AllocationDecision::readFrom);
         canRemainDecision = in.readOptionalWriteable(Decision::readFrom);
         clusterRebalanceDecision = in.readOptionalWriteable(Decision::readFrom);
         currentNodeRanking = in.readVInt();
@@ -81,7 +81,7 @@ public final class MoveDecision extends AbstractAllocationDecision {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeOptionalWriteable(allocationDecision);
+        out.writeOptionalWriteable(canMoveDecision);
         out.writeOptionalWriteable(canRemainDecision);
         out.writeOptionalWriteable(clusterRebalanceDecision);
         out.writeVInt(currentNodeRanking);
@@ -91,7 +91,7 @@ public final class MoveDecision extends AbstractAllocationDecision {
      * Creates a move decision for the shard being able to remain on its current node, so the shard won't
      * be forced to move to another node.
      */
-    public static MoveDecision stay(Decision canRemainDecision) {
+    public static MoveDecision canRemain(Decision canRemainDecision) {
         if (canRemainDecision == Decision.YES) {
             return CACHED_STAY_DECISION;
         }
@@ -100,28 +100,28 @@ public final class MoveDecision extends AbstractAllocationDecision {
     }
 
     /**
-     * Creates a move decision for the shard not being allowed to remain on its current node.
+     * Creates a move decision for the shard.
      *
      * @param canRemainDecision the decision for whether the shard is allowed to remain on its current node
-     * @param allocationDecision the {@link AllocationDecision} for moving the shard to another node
-     * @param assignedNode the node where the shard should move to
+     * @param moveDecision the {@link AllocationDecision} for moving the shard to another node
+     * @param targetNode the node where the shard should move to
      * @param nodeDecisions the node-level decisions that comprised the final decision, non-null iff explain is true
      * @return the {@link MoveDecision} for moving the shard to another node
      */
-    public static MoveDecision cannotRemain(
+    public static MoveDecision move(
         Decision canRemainDecision,
-        AllocationDecision allocationDecision,
-        DiscoveryNode assignedNode,
+        AllocationDecision moveDecision,
+        DiscoveryNode targetNode,
         List<NodeAllocationResult> nodeDecisions
     ) {
         assert canRemainDecision != null;
         assert canRemainDecision.type() != Type.YES : "create decision with MoveDecision#stay instead";
-        if (nodeDecisions == null && allocationDecision == AllocationDecision.NO) {
+        if (nodeDecisions == null && moveDecision == AllocationDecision.NO) {
             // the final decision is NO (no node to move the shard to) and we are not in explain mode, return a cached version
             return CACHED_CANNOT_MOVE_DECISION;
         } else {
-            assert ((assignedNode == null) == (allocationDecision != AllocationDecision.YES));
-            return new MoveDecision(assignedNode, nodeDecisions, allocationDecision, canRemainDecision, null, 0);
+            assert ((targetNode == null) == (moveDecision != AllocationDecision.YES));
+            return new MoveDecision(targetNode, nodeDecisions, moveDecision, canRemainDecision, null, 0);
         }
     }
 
@@ -143,11 +143,11 @@ public final class MoveDecision extends AbstractAllocationDecision {
     public static MoveDecision rebalance(
         Decision canRebalanceDecision,
         AllocationDecision allocationDecision,
-        @Nullable DiscoveryNode assignedNode,
+        @Nullable DiscoveryNode targetNode,
         int currentNodeRanking,
         List<NodeAllocationResult> nodeDecisions
     ) {
-        return new MoveDecision(assignedNode, nodeDecisions, allocationDecision, null, canRebalanceDecision, currentNodeRanking);
+        return new MoveDecision(targetNode, nodeDecisions, allocationDecision, null, canRebalanceDecision, currentNodeRanking);
     }
 
     @Override
@@ -162,7 +162,7 @@ public final class MoveDecision extends AbstractAllocationDecision {
         return new MoveDecision(
             targetNode,
             nodeDecisions,
-            allocationDecision,
+            canMoveDecision,
             canRemainDecision,
             clusterRebalanceDecision,
             currentNodeRanking
@@ -176,7 +176,7 @@ public final class MoveDecision extends AbstractAllocationDecision {
      */
     public boolean forceMove() {
         checkDecisionState();
-        return canRemain() == false && allocationDecision == AllocationDecision.YES;
+        return canRemain() == false && canMoveDecision == AllocationDecision.YES;
     }
 
     /**
@@ -228,7 +228,7 @@ public final class MoveDecision extends AbstractAllocationDecision {
      */
     @Nullable
     public AllocationDecision getAllocationDecision() {
-        return allocationDecision;
+        return canMoveDecision;
     }
 
     /**
@@ -248,7 +248,7 @@ public final class MoveDecision extends AbstractAllocationDecision {
         checkDecisionState();
         if (clusterRebalanceDecision != null) {
             // it was a decision to rebalance the shard, because the shard was allowed to remain on its current node
-            if (allocationDecision == AllocationDecision.AWAITING_INFO) {
+            if (canMoveDecision == AllocationDecision.AWAITING_INFO) {
                 return Explanations.Rebalance.AWAITING_INFO;
             }
             return switch (clusterRebalanceDecision.type()) {
@@ -258,11 +258,9 @@ public final class MoveDecision extends AbstractAllocationDecision {
                 case THROTTLE -> Explanations.Rebalance.CLUSTER_THROTTLE;
                 case YES -> {
                     if (getTargetNode() != null) {
-                        if (allocationDecision == AllocationDecision.THROTTLED) {
-                            yield Explanations.Rebalance.NODE_THROTTLE;
-                        } else {
-                            yield Explanations.Rebalance.YES;
-                        }
+                        yield canMoveDecision == AllocationDecision.THROTTLED
+                            ? Explanations.Rebalance.NODE_THROTTLE
+                            : Explanations.Rebalance.YES;
                     } else {
                         yield Explanations.Rebalance.ALREADY_BALANCED;
                     }
@@ -271,13 +269,13 @@ public final class MoveDecision extends AbstractAllocationDecision {
         } else {
             // it was a decision to force move the shard
             assert canRemain() == false;
-            return switch (allocationDecision) {
+            return switch (canMoveDecision) {
                 case YES -> Explanations.Move.YES;
                 case THROTTLED -> Explanations.Move.THROTTLED;
                 case NO -> Explanations.Move.NO;
                 case WORSE_BALANCE, AWAITING_INFO, ALLOCATION_DELAYED, NO_VALID_SHARD_COPY, NO_ATTEMPT -> {
-                    assert false : allocationDecision;
-                    yield allocationDecision.toString();
+                    assert false : canMoveDecision;
+                    yield canMoveDecision.toString();
                 }
             };
         }
@@ -308,7 +306,7 @@ public final class MoveDecision extends AbstractAllocationDecision {
                 }
             }
             if (clusterRebalanceDecision != null) {
-                builder.field("can_rebalance_to_other_node", allocationDecision);
+                builder.field("can_rebalance_to_other_node", canMoveDecision);
                 builder.field("rebalance_explanation", getExplanation());
             } else {
                 builder.field("can_move_to_other_node", forceMove() ? "yes" : "no");
@@ -327,7 +325,7 @@ public final class MoveDecision extends AbstractAllocationDecision {
             return false;
         }
         MoveDecision that = (MoveDecision) other;
-        return Objects.equals(allocationDecision, that.allocationDecision)
+        return Objects.equals(canMoveDecision, that.canMoveDecision)
             && Objects.equals(canRemainDecision, that.canRemainDecision)
             && Objects.equals(clusterRebalanceDecision, that.clusterRebalanceDecision)
             && currentNodeRanking == that.currentNodeRanking;
@@ -335,7 +333,7 @@ public final class MoveDecision extends AbstractAllocationDecision {
 
     @Override
     public int hashCode() {
-        return 31 * super.hashCode() + Objects.hash(allocationDecision, canRemainDecision, clusterRebalanceDecision, currentNodeRanking);
+        return 31 * super.hashCode() + Objects.hash(canMoveDecision, canRemainDecision, clusterRebalanceDecision, currentNodeRanking);
     }
 
 }

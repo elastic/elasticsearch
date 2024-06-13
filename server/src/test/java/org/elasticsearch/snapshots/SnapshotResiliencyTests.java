@@ -2258,7 +2258,13 @@ public class SnapshotResiliencyTests extends ESTestCase {
                 );
                 actions.put(
                     VerifyNodeRepositoryAction.TYPE,
-                    new VerifyNodeRepositoryAction.TransportAction(transportService, actionFilters, threadPool, clusterService, repositoriesService)
+                    new VerifyNodeRepositoryAction.TransportAction(
+                        transportService,
+                        actionFilters,
+                        threadPool,
+                        clusterService,
+                        repositoriesService
+                    )
                 );
                 actions.put(
                     VerifyNodeRepositoryCoordinationAction.TYPE,

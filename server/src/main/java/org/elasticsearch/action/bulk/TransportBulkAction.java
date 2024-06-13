@@ -518,12 +518,13 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
 
                 @Override
                 public void onResponse(RolloverResponse result) {
-                    // A successful response has rolled_over false when in the following cases:
-                    // - A request had the parameter lazy or dry_run enabled
-                    // - A request had conditions that were not met
-                    // Since none of the above apply, getting a response with rolled_over false is considered a bug
-                    // that should be caught here and inform the developer.
-                    assert result.isRolledOver() : "An successful lazy rollover should always result in a rolled over data stream";
+                    logger.debug(
+                        "Data stream{} {} has {} over,  the latest index is {}",
+                        rolloverRequest.targetsFailureStore() ? " failure store" : "",
+                        dataStream,
+                        result.isRolledOver() ? "been successfully rolled" : "skipped rolling ",
+                        result.getNewIndex()
+                    );
                 }
 
                 @Override

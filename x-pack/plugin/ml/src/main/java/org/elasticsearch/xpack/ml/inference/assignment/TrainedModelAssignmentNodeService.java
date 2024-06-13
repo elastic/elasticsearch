@@ -248,7 +248,7 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
             return;
         }
         SubscribableListener.<TrainedModelDeploymentTask>newForked(l -> deploymentManager.startDeployment(loadingTask, l))
-            .andThen(threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME), null, this::handleLoadSuccess)
+            .andThen(threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME), threadPool.getThreadContext(), this::handleLoadSuccess)
             .addListener(retryListener.delegateResponse((retryL, ex) -> {
                 var deploymentId = loadingTask.getDeploymentId();
                 logger.warn(() -> "[" + deploymentId + "] Start deployment failed", ex);
@@ -271,7 +271,7 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
                 } else {
                     handleLoadFailure(loadingTask, ex, retryL);
                 }
-            }), threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME), null);
+            }), threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME), threadPool.getThreadContext());
     }
 
     public void gracefullyStopDeploymentAndNotify(

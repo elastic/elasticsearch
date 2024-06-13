@@ -80,6 +80,6 @@ public abstract class LogsIndexModeRestTestIT extends ESRestTestCase {
         var bulkRequest = new Request("POST", "/" + dataStreamName + "/_bulk");
         bulkRequest.setJsonEntity(bulkSupplier.get());
         bulkRequest.addParameter("refresh", "true");
-        return client().performRequest(bulkRequest);
+        return client.performRequest(bulkRequest);
     }
 }

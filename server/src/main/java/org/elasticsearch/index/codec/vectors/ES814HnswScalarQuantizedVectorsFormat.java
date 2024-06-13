@@ -11,6 +11,7 @@ package org.elasticsearch.index.codec.vectors;
 import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.codecs.KnnVectorsReader;
 import org.apache.lucene.codecs.KnnVectorsWriter;
+import org.apache.lucene.codecs.hnsw.FlatVectorsFormat;
 import org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsReader;
 import org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsWriter;
 import org.apache.lucene.index.SegmentReadState;
@@ -36,7 +37,7 @@ public final class ES814HnswScalarQuantizedVectorsFormat extends KnnVectorsForma
     private final int beamWidth;
 
     /** The format for storing, reading, merging vectors on disk */
-    private final ES814ScalarQuantizedVectorsFormat flatVectorsFormat;
+    private final FlatVectorsFormat flatVectorsFormat;
 
     private final int numMergeWorkers;
     private final TaskExecutor mergeExec;

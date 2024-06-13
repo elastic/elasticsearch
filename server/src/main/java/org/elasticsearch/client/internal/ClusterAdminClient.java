@@ -60,10 +60,6 @@ import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyReposito
 import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyRepositoryRequestBuilder;
 import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyRepositoryResponse;
-import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteRequest;
-import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteRequestBuilder;
-import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteResponse;
-import org.elasticsearch.action.admin.cluster.reroute.TransportClusterRerouteAction;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsAction;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequestBuilder;
@@ -201,30 +197,6 @@ public class ClusterAdminClient implements ElasticsearchClient {
 
     public ClusterUpdateSettingsRequestBuilder prepareUpdateSettings() {
         return new ClusterUpdateSettingsRequestBuilder(this);
-    }
-
-    /**
-     * @deprecated use {@code ClusterRerouteUtils} in tests, or just run the action directly
-     */
-    @Deprecated(forRemoval = true) // temporary compatibility shim
-    public ActionFuture<ClusterRerouteResponse> reroute(final ClusterRerouteRequest request) {
-        return execute(TransportClusterRerouteAction.TYPE, request);
-    }
-
-    /**
-     * @deprecated use {@code ClusterRerouteUtils} in tests, or just run the action directly
-     */
-    @Deprecated(forRemoval = true) // temporary compatibility shim
-    public void reroute(final ClusterRerouteRequest request, final ActionListener<ClusterRerouteResponse> listener) {
-        execute(TransportClusterRerouteAction.TYPE, request, listener);
-    }
-
-    /**
-     * @deprecated use {@code ClusterRerouteUtils} in tests, or just run the action directly
-     */
-    @Deprecated(forRemoval = true) // temporary compatibility shim
-    public ClusterRerouteRequestBuilder prepareReroute() {
-        return new ClusterRerouteRequestBuilder(this);
     }
 
     public ActionFuture<NodesInfoResponse> nodesInfo(final NodesInfoRequest request) {

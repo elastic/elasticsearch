@@ -589,9 +589,9 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
                 if (parser.currentToken() == XContentParser.Token.START_OBJECT
                     || parser.currentToken() == XContentParser.Token.START_ARRAY) {
                     // We have a complex structure so we'll memorize it while parsing.
-                    var memorizingParser = new CopyingXContentParser(parser);
-                    malformedDataForSyntheticSource = memorizingParser.getBuilder();
-                    parserWithCustomization = memorizingParser;
+                    var copyingParser = new CopyingXContentParser(parser);
+                    malformedDataForSyntheticSource = copyingParser.getBuilder();
+                    parserWithCustomization = copyingParser;
                 } else {
                     // We have a single value (e.g. a string) that is potentially malformed, let's simply remember it.
                     malformedDataForSyntheticSource = XContentBuilder.builder(parser.contentType().xContent()).copyCurrentStructure(parser);

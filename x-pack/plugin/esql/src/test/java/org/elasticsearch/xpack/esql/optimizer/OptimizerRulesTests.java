@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.optimizer;
 
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.esql.core.TestUtils;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
@@ -49,20 +48,31 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
-import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer.ReplaceRegexMatch;
 import org.elasticsearch.xpack.esql.optimizer.rules.BooleanFunctionEqualsElimination;
 import org.elasticsearch.xpack.esql.optimizer.rules.CombineDisjunctionsToIn;
 import org.elasticsearch.xpack.esql.optimizer.rules.ConstantFolding;
 import org.elasticsearch.xpack.esql.optimizer.rules.LiteralsOnTheRight;
 import org.elasticsearch.xpack.esql.optimizer.rules.PropagateEquals;
+import org.elasticsearch.xpack.esql.optimizer.rules.ReplaceRegexMatch;
 
 import java.util.List;
 
 import static java.util.Arrays.asList;
-import static org.elasticsearch.xpack.esql.core.TestUtils.nullEqualsOf;
-import static org.elasticsearch.xpack.esql.core.TestUtils.of;
-import static org.elasticsearch.xpack.esql.core.TestUtils.rangeOf;
-import static org.elasticsearch.xpack.esql.core.TestUtils.relation;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.FIVE;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.FOUR;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.ONE;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.THREE;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TWO;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.equalsOf;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.getFieldAttribute;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.greaterThanOf;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.greaterThanOrEqualOf;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.lessThanOf;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.lessThanOrEqualOf;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.notEqualsOf;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.of;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.rangeOf;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.relation;
 import static org.elasticsearch.xpack.esql.core.expression.Literal.FALSE;
 import static org.elasticsearch.xpack.esql.core.expression.Literal.NULL;
 import static org.elasticsearch.xpack.esql.core.expression.Literal.TRUE;
@@ -72,42 +82,8 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.hamcrest.Matchers.contains;
 
 public class OptimizerRulesTests extends ESTestCase {
-    private static final Literal ONE = new Literal(Source.EMPTY, 1, DataType.INTEGER);
-    private static final Literal TWO = new Literal(Source.EMPTY, 2, DataType.INTEGER);
-    private static final Literal THREE = new Literal(Source.EMPTY, 3, DataType.INTEGER);
-    private static final Literal FOUR = new Literal(Source.EMPTY, 4, DataType.INTEGER);
-    private static final Literal FIVE = new Literal(Source.EMPTY, 5, DataType.INTEGER);
-    private static final Literal SIX = new Literal(Source.EMPTY, 6, DataType.INTEGER);
     private static final Expression DUMMY_EXPRESSION =
         new org.elasticsearch.xpack.esql.core.optimizer.OptimizerRulesTests.DummyBooleanExpression(EMPTY, 0);
-
-    private static Equals equalsOf(Expression left, Expression right) {
-        return new Equals(EMPTY, left, right, null);
-    }
-
-    private static LessThan lessThanOf(Expression left, Expression right) {
-        return new LessThan(EMPTY, left, right, null);
-    }
-
-    public static GreaterThan greaterThanOf(Expression left, Expression right) {
-        return new GreaterThan(EMPTY, left, right, randomZone());
-    }
-
-    public static NotEquals notEqualsOf(Expression left, Expression right) {
-        return new NotEquals(EMPTY, left, right, randomZone());
-    }
-
-    public static LessThanOrEqual lessThanOrEqualOf(Expression left, Expression right) {
-        return new LessThanOrEqual(EMPTY, left, right, randomZone());
-    }
-
-    public static GreaterThanOrEqual greaterThanOrEqualOf(Expression left, Expression right) {
-        return new GreaterThanOrEqual(EMPTY, left, right, randomZone());
-    }
-
-    private static FieldAttribute getFieldAttribute() {
-        return TestUtils.getFieldAttribute("a");
-    }
 
     //
     // Constant folding
@@ -131,8 +107,6 @@ public class OptimizerRulesTests extends ESTestCase {
         assertEquals(FALSE, new ConstantFolding().rule(greaterThanOf(TWO, THREE)).canonical());
         assertEquals(FALSE, new ConstantFolding().rule(greaterThanOrEqualOf(TWO, THREE)).canonical());
         assertEquals(FALSE, new ConstantFolding().rule(equalsOf(TWO, THREE)).canonical());
-        assertEquals(FALSE, new ConstantFolding().rule(nullEqualsOf(TWO, THREE)).canonical());
-        assertEquals(FALSE, new ConstantFolding().rule(nullEqualsOf(TWO, NULL)).canonical());
         assertEquals(TRUE, new ConstantFolding().rule(notEqualsOf(TWO, THREE)).canonical());
         assertEquals(TRUE, new ConstantFolding().rule(lessThanOrEqualOf(TWO, THREE)).canonical());
         assertEquals(TRUE, new ConstantFolding().rule(lessThanOf(TWO, THREE)).canonical());
@@ -252,8 +226,8 @@ public class OptimizerRulesTests extends ESTestCase {
     }
 
     public void testTwoEqualsDifferentFields() {
-        FieldAttribute fieldOne = TestUtils.getFieldAttribute("ONE");
-        FieldAttribute fieldTwo = TestUtils.getFieldAttribute("TWO");
+        FieldAttribute fieldOne = getFieldAttribute("ONE");
+        FieldAttribute fieldTwo = getFieldAttribute("TWO");
 
         Or or = new Or(EMPTY, equalsOf(fieldOne, ONE), equalsOf(fieldTwo, TWO));
         Expression e = new CombineDisjunctionsToIn().rule(or);
@@ -589,7 +563,7 @@ public class OptimizerRulesTests extends ESTestCase {
 
     // a == 1 AND a == 2 -> nop for date/time fields
     public void testPropagateEquals_ignoreDateTimeFields() {
-        FieldAttribute fa = TestUtils.getFieldAttribute("a", DataType.DATETIME);
+        FieldAttribute fa = getFieldAttribute("a", DataType.DATETIME);
         Equals eq1 = equalsOf(fa, ONE);
         Equals eq2 = equalsOf(fa, TWO);
         And and = new And(EMPTY, eq1, eq2);
@@ -682,11 +656,7 @@ public class OptimizerRulesTests extends ESTestCase {
         FieldAttribute fa = getFieldAttribute();
         IsNull isNull = new IsNull(EMPTY, fa);
 
-        And nestedAnd = new And(
-            EMPTY,
-            lessThanOf(TestUtils.getFieldAttribute("b"), ONE),
-            lessThanOf(TestUtils.getFieldAttribute("c"), ONE)
-        );
+        And nestedAnd = new And(EMPTY, lessThanOf(getFieldAttribute("b"), ONE), lessThanOf(getFieldAttribute("c"), ONE));
         And and = new And(EMPTY, isNull, nestedAnd);
         And top = new And(EMPTY, and, lessThanOf(fa, ONE));
 
@@ -705,7 +675,7 @@ public class OptimizerRulesTests extends ESTestCase {
             greaterThanOf(new Div(EMPTY, new Add(EMPTY, fa, ONE), TWO), ONE),
             greaterThanOf(new Add(EMPTY, fa, TWO), ONE)
         );
-        Expression kept = new And(EMPTY, isNull, lessThanOf(TestUtils.getFieldAttribute("b"), THREE));
+        Expression kept = new And(EMPTY, isNull, lessThanOf(getFieldAttribute("b"), THREE));
         And and = new And(EMPTY, nullified, kept);
 
         Expression optimized = new PropagateNullable().rule(and);

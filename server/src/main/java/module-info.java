@@ -363,6 +363,7 @@ module org.elasticsearch.server {
     exports org.elasticsearch.search.rank;
     exports org.elasticsearch.search.rank.context;
     exports org.elasticsearch.search.rank.feature;
+    exports org.elasticsearch.search.rank.rerank;
     exports org.elasticsearch.search.rescore;
     exports org.elasticsearch.search.retriever;
     exports org.elasticsearch.search.runtime;

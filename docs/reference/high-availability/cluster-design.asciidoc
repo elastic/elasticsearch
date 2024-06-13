@@ -7,14 +7,14 @@ nodes to take over their responsibilities, an {es} cluster can continue
 operating normally if some of its nodes are unavailable or disconnected.
 
 There is a limit to how small a resilient cluster can be. All {es} clusters
-require:
+require the following components to function:
 
-- One <<modules-discovery-quorums,elected master node>> node
-- At least one node for each <<modules-node,role>>.
-- At least one copy of every <<scalability,shard>>.
+- One <<modules-discovery-quorums,elected master node>>
+- At least one node for each <<modules-node,role>>
+- At least one copy of every <<scalability,shard>>
 
 A resilient cluster requires redundancy for every required cluster component.
-This means a resilient cluster must have:
+This means a resilient cluster must have the following components:
 
 - At least three master-eligible nodes
 - At least two nodes of each role
@@ -375,11 +375,11 @@ The cluster will be resilient to the loss of any zone as long as:
 - There are at least two zones containing data nodes.
 - Every index that is not a <<searchable-snapshots,searchable snapshot index>>
   has at least one replica of each shard, in addition to the primary.
-- Shard allocation awareness is configured to avoid concentrating all copies of
-  a shard within a single zone.
+- <<shard-allocation-awareness,Shard allocation awareness>> is configured to 
+  avoid concentrating all copies of a shard within a single zone.
 - The cluster has at least three master-eligible nodes. At least two of these 
-  nodes are not voting-only master-eligible nodes, and they are spread evenly
-  across at least three zones.
+  nodes are not <<voting-only-node,voting-only master-eligible nodes>>, 
+  and they are spread evenly across at least three zones.
 - Clients are configured to send their requests to nodes in more than one zone
   or are configured to use a load balancer that balances the requests across an
   appropriate set of nodes. The {ess-trial}[Elastic Cloud] service provides such

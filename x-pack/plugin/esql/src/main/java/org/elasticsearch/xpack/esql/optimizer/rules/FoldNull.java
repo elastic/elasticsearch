@@ -5,14 +5,14 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.optimizer;
+package org.elasticsearch.xpack.esql.optimizer.rules;
 
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.predicate.logical.And;
+import org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules;
 
-public class PropagateNullable extends org.elasticsearch.xpack.esql.optimizer.rules.PropagateNullable {
+public class FoldNull extends OptimizerRules.FoldNull {
     @Override
-    public Expression rule(And and) {
-        return super.rule(and);
+    protected Expression tryReplaceIsNullIsNotNull(Expression e) {
+        return e;
     }
 }

@@ -62,10 +62,9 @@ public class UpdateEventIngestedRangeTransportActionTaskExecutorTests extends ES
 
         clusterState2 = executeTasks(clusterState1, List.of(eventIngestedRangeTask));
         assertNotSame(clusterState1, clusterState2);
+        // TODO: change this to blogsIndex
         IndexLongFieldRange eventIngestedRange = clusterState2.getMetadata().index(blogsIndex.getName()).getEventIngestedRange();
 
-        // TODO: why does the index(Index) return null?
-        // IndexLongFieldRange eventIngestedRange = clusterState2.getMetadata().index(blogsIndex).getEventIngestedRange();
         assertEquals(1000L, eventIngestedRange.getMin());
         assertEquals(2000L, eventIngestedRange.getMax());
     }
@@ -79,13 +78,15 @@ public class UpdateEventIngestedRangeTransportActionTaskExecutorTests extends ES
         ClusterState clusterState4;  // cluster state after third task batch runs (building on clusterState3)
         ClusterState clusterState5;  // cluster state after fourth task batch runs (building on clusterState4)
 
-        Index blogsIndex = new Index("blogs", UUID.randomUUID().toString());
+        String indexName = "blogs";
+        Index blogsIndex;
 
         // first task with eventIngestedRange of NO_SHARDS in IndexMetadata for "blogs" index
         {
             // TODO: do I need to try other ShardRoutingStates here, like RELOCATING, UNASSIGNED or INITIALIZING?
             // ClusterState clusterState = state(blogsIndex, true, ShardRoutingState.STARTED);
-            clusterState1 = state(1, new String[] { blogsIndex.getName() }, 6);
+            clusterState1 = state(1, new String[] { indexName }, 6);
+            blogsIndex = clusterState1.metadata().index(indexName).getIndex();
 
             Map<Index, List<EventIngestedRangeClusterStateService.ShardRangeInfo>> eventIngestedRangeMap = new HashMap<>();
             EventIngestedRangeClusterStateService.ShardRangeInfo shardRangeInfo = new EventIngestedRangeClusterStateService.ShardRangeInfo(
@@ -184,14 +185,18 @@ public class UpdateEventIngestedRangeTransportActionTaskExecutorTests extends ES
         ClusterState clusterState1;  // initial cluster state
         ClusterState clusterState2;  // cluster state after first task batch runs (building on clusterState1)
 
-        Index blogsIndex = new Index("blogs", UUID.randomUUID().toString());
-        Index webTrafficIndex = new Index("web_traffic", UUID.randomUUID().toString());
+        String blogsIndexName = "blogs";
+        String webTrafficIndexName = "web_traffic";
+        Index blogsIndex;
+        Index webTrafficIndex;
 
         // first task with eventIngestedRange of NO_SHARDS in IndexMetadata for "blogs" index
         {
             // TODO: do I need to try other ShardRoutingStates here, like RELOCATING, UNASSIGNED or INITIALIZING?
             // ClusterState clusterState = state(blogsIndex, true, ShardRoutingState.STARTED);
-            clusterState1 = state(1, new String[] { blogsIndex.getName(), webTrafficIndex.getName() }, 3);
+            clusterState1 = state(1, new String[] { blogsIndexName, webTrafficIndexName }, 3);
+            blogsIndex = clusterState1.metadata().index(blogsIndexName).getIndex();
+            webTrafficIndex = clusterState1.metadata().index(webTrafficIndexName).getIndex();
 
             Map<Index, List<EventIngestedRangeClusterStateService.ShardRangeInfo>> eventIngestedRangeMap1 = new HashMap<>();
             var shardRangeInfoBlogs1A = new EventIngestedRangeClusterStateService.ShardRangeInfo(

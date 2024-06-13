@@ -16,14 +16,12 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateAckListener;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
@@ -96,6 +94,7 @@ public class UpdateEventIngestedRangeTransportAction extends TransportMasterNode
             new EventIngestedRangeTask(request),
             TimeValue.MAX_VALUE
         );
+        listener.onResponse(ActionResponse.Empty.INSTANCE); // TODO: defer this response until the tasks have finished
     }
 
     @Override
@@ -121,7 +120,7 @@ public class UpdateEventIngestedRangeTransportAction extends TransportMasterNode
                     // TODO: why does state.getMetadata().index(index) return null in my tests but
                     // state.getMetadata().index(index.getName()) does not?
                     // TODO: is it realistic to assume that IndexMetadata would never be null here?
-                    IndexMetadata indexMetadata = state.getMetadata().index(index.getName());
+                    IndexMetadata indexMetadata = state.getMetadata().index(index);
 
                     // get the latest EventIngestedRange either from the map outside this loop (first choice) or from cluster state
                     IndexLongFieldRange currentEventIngestedRange = updatedEventIngestedRangesMap.get(index);
@@ -187,11 +186,8 @@ public class UpdateEventIngestedRangeTransportAction extends TransportMasterNode
         }
     }
 
-    // TODO: other things to override? ClusterStateAckListener?
-    record EventIngestedRangeTask(UpdateEventIngestedRangeRequest rangeUpdateRequest)
-        implements
-            ClusterStateTaskListener,
-            ClusterStateAckListener {
+    // TODO: other things to override?
+    record EventIngestedRangeTask(UpdateEventIngestedRangeRequest rangeUpdateRequest) implements ClusterStateTaskListener {
 
         @Override
         public void onFailure(Exception e) {
@@ -202,34 +198,6 @@ public class UpdateEventIngestedRangeTransportAction extends TransportMasterNode
                     e
                 );
             }
-        }
-
-        // TODO: do I want to override ClusterStateAckListener? If yes, what do I do with this information?
-        // TODO: I don't see that I can do anything useful here - the data nodes with shards are the ones that need to know
-        @Override
-        public boolean mustAck(DiscoveryNode discoveryNode) {
-            // TODO: huh? What node is being passed here? All of them sequentially?
-            return false;
-        }
-
-        @Override
-        public void onAllNodesAcked() {
-
-        }
-
-        @Override
-        public void onAckFailure(Exception e) {
-
-        }
-
-        @Override
-        public void onAckTimeout() {
-
-        }
-
-        @Override
-        public TimeValue ackTimeout() {
-            return null;
         }
     }
 }

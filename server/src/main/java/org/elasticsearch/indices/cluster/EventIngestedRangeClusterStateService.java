@@ -238,7 +238,7 @@ public class EventIngestedRangeClusterStateService extends AbstractLifecycleComp
                     // TODO: is it useful if all I'm getting is an ack that doesn't guarantee that cluster state was updated?
                     new ActionListenerResponseHandler<>(
                         execListener.safeMap(r -> null),
-                        in -> ActionResponse.Empty.INSTANCE,
+                        in -> ActionResponse.Empty.INSTANCE,  // TODO: there is a way to wait for the TaskExecutor to finish
                         TransportResponseHandler.TRANSPORT_WORKER
                     )
                 );

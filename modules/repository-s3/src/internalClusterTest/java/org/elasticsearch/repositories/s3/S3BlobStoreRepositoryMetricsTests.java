@@ -14,7 +14,6 @@ import com.sun.net.httpserver.HttpHandler;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
-import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.collect.Iterators;
@@ -29,7 +28,6 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -63,26 +61,6 @@ public class S3BlobStoreRepositoryMetricsTests extends S3BlobStoreRepositoryTest
 
     private final Queue<RestStatus> errorStatusQueue = new LinkedBlockingQueue<>();
 
-    private BlobContainer blobContainer;
-    private TestTelemetryPlugin plugin;
-
-    @Before
-    public void init() {
-        final String repository = createRepository(randomRepositoryName());
-
-        final String dataNodeName = internalCluster().getNodeNameThat(DiscoveryNode::canContainData);
-        final var blobStoreRepository = (BlobStoreRepository) internalCluster().getInstance(RepositoriesService.class, dataNodeName)
-            .repository(repository);
-        final BlobStore blobStore = blobStoreRepository.blobStore();
-        plugin = internalCluster().getInstance(PluginsService.class, dataNodeName)
-            .filterPlugins(TestTelemetryPlugin.class)
-            .findFirst()
-            .orElseThrow();
-        plugin.resetMeter();
-
-        blobContainer = blobStore.blobContainer(BlobPath.EMPTY.add(randomIdentifier()));
-    }
-
     // Always create erroneous handler
     @Override
     protected Map<String, HttpHandler> createHttpHandlers() {
@@ -106,8 +84,29 @@ public class S3BlobStoreRepositoryMetricsTests extends S3BlobStoreRepositoryTest
             .build();
     }
 
+    private static TestTelemetryPlugin getPlugin(String dataNodeName) {
+        var plugin = internalCluster().getInstance(PluginsService.class, dataNodeName)
+            .filterPlugins(TestTelemetryPlugin.class)
+            .findFirst()
+            .orElseThrow();
+        plugin.resetMeter();
+        return plugin;
+    }
+
+    private static BlobContainer getBlobContainer(String dataNodeName, String repository) {
+        final var blobStoreRepository = (BlobStoreRepository) internalCluster().getInstance(RepositoriesService.class, dataNodeName)
+            .repository(repository);
+        return blobStoreRepository.blobStore().blobContainer(BlobPath.EMPTY.add(randomIdentifier()));
+    }
+
     public void testMetricsWithErrors() throws IOException {
+        final String repository = createRepository(randomRepositoryName());
+
+        final String dataNodeName = internalCluster().getNodeNameThat(DiscoveryNode::canContainData);
+        final TestTelemetryPlugin plugin = getPlugin(dataNodeName);
+
         final OperationPurpose purpose = randomFrom(OperationPurpose.values());
+        final BlobContainer blobContainer = getBlobContainer(dataNodeName, repository);
         final String blobName = randomIdentifier();
 
         // Put a blob
@@ -186,6 +185,11 @@ public class S3BlobStoreRepositoryMetricsTests extends S3BlobStoreRepositoryTest
     }
 
     public void testMetricsForRequestRangeNotSatisfied() throws IOException {
+        final String repository = createRepository(randomRepositoryName());
+        final String dataNodeName = internalCluster().getNodeNameThat(DiscoveryNode::canContainData);
+        final BlobContainer blobContainer = getBlobContainer(dataNodeName, repository);
+        final TestTelemetryPlugin plugin = getPlugin(dataNodeName);
+
         final OperationPurpose purpose = randomFrom(OperationPurpose.values());
         final String blobName = randomIdentifier();
 

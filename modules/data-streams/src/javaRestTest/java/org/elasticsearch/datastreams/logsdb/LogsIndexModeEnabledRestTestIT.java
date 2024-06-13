@@ -160,17 +160,20 @@ public class LogsIndexModeEnabledRestTestIT extends LogsIndexModeRestTestIT {
         { "@timestamp": "2023-01-01T05:13:00Z", "host.name": "baz", "method" : "PUT", "message": "baz put message" }
         """;
 
-    private static String BULK_INDEX_REQUEST_WITH_HOST =
-        """
-            { "create": {}}
-            { "@timestamp": "2023-01-01T05:11:00Z", "method" : "PUT", "message": "foo put message", "host": { "cloud_region" : "us-west", "availability_zone" : "us-west-4a", "name" : "ahdta-876584" } }
-            { "create": {}}
-            { "@timestamp": "2023-01-01T05:12:00Z", "method" : "POST", "message": "bar post message", "host": { "cloud_region" : "us-west", "availability_zone" : "us-west-4b", "name" : "tyrou-447898" } }
-            { "create": {}}
-            { "@timestamp": "2023-01-01T05:12:00Z", "method" : "PUT", "message": "baz put message", "host": { "cloud_region" : "us-west", "availability_zone" : "us-west-4a", "name" : "uuopl-162899" } }
-            { "create": {}}
-            { "@timestamp": "2023-01-01T05:13:00Z", "method" : "PUT", "message": "baz put message", "host": { "cloud_region" : "us-west", "availability_zone" : "us-west-4b", "name" : "fdfgf-881197" } }
-            """;
+    private static String BULK_INDEX_REQUEST_WITH_HOST = """
+        { "create": {}}
+        { "@timestamp": "2023-01-01T05:11:00Z", "method" : "PUT", "message": "foo put message", \
+        "host": { "cloud_region" : "us-west", "availability_zone" : "us-west-4a", "name" : "ahdta-876584" } }
+        { "create": {}}
+        { "@timestamp": "2023-01-01T05:12:00Z", "method" : "POST", "message": "bar post message", \
+        "host": { "cloud_region" : "us-west", "availability_zone" : "us-west-4b", "name" : "tyrou-447898" } }
+        { "create": {}}
+        { "@timestamp": "2023-01-01T05:12:00Z", "method" : "PUT", "message": "baz put message", \
+        "host": { "cloud_region" : "us-west", "availability_zone" : "us-west-4a", "name" : "uuopl-162899" } }
+        { "create": {}}
+        { "@timestamp": "2023-01-01T05:13:00Z", "method" : "PUT", "message": "baz put message", \
+        "host": { "cloud_region" : "us-west", "availability_zone" : "us-west-4b", "name" : "fdfgf-881197" } }
+        """;
 
     public void testCreateDataStream() throws IOException {
         assertOK(putComponentTemplate(client, "logs@custom", MAPPINGS));

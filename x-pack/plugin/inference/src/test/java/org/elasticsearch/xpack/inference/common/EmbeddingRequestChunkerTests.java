@@ -332,8 +332,8 @@ public class EmbeddingRequestChunkerTests extends ESTestCase {
             }
         };
 
-        var embeddingType = randomFrom(EmbeddingRequestChunker.EmbeddingType.values());
-        var batches = new EmbeddingRequestChunker(inputs, 10, 100, 0, embeddingType).batchRequestsWithListeners(listener);
+        var batches = new EmbeddingRequestChunker(inputs, 10, 100, 0, EmbeddingRequestChunker.EmbeddingType.FLOAT)
+            .batchRequestsWithListeners(listener);
         assertThat(batches, hasSize(1));
 
         var embeddings = new ArrayList<InferenceTextEmbeddingFloatResults.InferenceFloatEmbedding>();

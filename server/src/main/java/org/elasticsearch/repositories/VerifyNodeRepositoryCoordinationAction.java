@@ -9,7 +9,6 @@
 package org.elasticsearch.repositories;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
@@ -24,7 +23,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.repositories.VerifyNodeRepositoryAction.Request;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportException;
-import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
@@ -93,33 +91,38 @@ public class VerifyNodeRepositoryCoordinationAction extends ActionType<VerifyNod
             final CopyOnWriteArrayList<VerificationFailure> errors = new CopyOnWriteArrayList<>();
             final AtomicInteger counter = new AtomicInteger(nodes.size());
             for (final DiscoveryNode node : nodes) {
-                transportService.sendRequest(node, VerifyNodeRepositoryAction.ACTION_NAME, request, new TransportResponseHandler<ActionResponse.Empty>() {
+                transportService.sendRequest(
+                    node,
+                    VerifyNodeRepositoryAction.ACTION_NAME,
+                    request,
+                    new TransportResponseHandler<ActionResponse.Empty>() {
 
-                    @Override
-                    public ActionResponse.Empty read(StreamInput in) throws IOException {
-                        return ActionResponse.Empty.INSTANCE;
-                    }
+                        @Override
+                        public ActionResponse.Empty read(StreamInput in) throws IOException {
+                            return ActionResponse.Empty.INSTANCE;
+                        }
 
-                    @Override
-                    public Executor executor() {
-                        return TransportResponseHandler.TRANSPORT_WORKER;
-                    }
+                        @Override
+                        public Executor executor() {
+                            return TransportResponseHandler.TRANSPORT_WORKER;
+                        }
 
-                    @Override
-                    public void handleResponse(ActionResponse.Empty _ignore) {
-                        if (counter.decrementAndGet() == 0) {
-                            finishVerification(request.repository, listener, nodes, errors);
+                        @Override
+                        public void handleResponse(ActionResponse.Empty _ignore) {
+                            if (counter.decrementAndGet() == 0) {
+                                finishVerification(request.repository, listener, nodes, errors);
+                            }
+                        }
+
+                        @Override
+                        public void handleException(TransportException exp) {
+                            errors.add(new VerificationFailure(node.getId(), exp));
+                            if (counter.decrementAndGet() == 0) {
+                                finishVerification(request.repository, listener, nodes, errors);
+                            }
                         }
                     }
-
-                    @Override
-                    public void handleException(TransportException exp) {
-                        errors.add(new VerificationFailure(node.getId(), exp));
-                        if (counter.decrementAndGet() == 0) {
-                            finishVerification(request.repository, listener, nodes, errors);
-                        }
-                    }
-                });
+                );
             }
         }
 

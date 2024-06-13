@@ -412,6 +412,8 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
             return;
         }
 
+        logger.info(Strings.format("Registering repository [%s] with repository UUID [%s]", repositoryName, repositoryData.getUuid()));
+
         submitUnbatchedTask(
             clusterService,
             "update repository UUID [" + repositoryName + "] to [" + repositoryUuid + "]",

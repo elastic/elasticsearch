@@ -28,6 +28,7 @@ import co.elastic.elasticsearch.stateless.lucene.SearchDirectory;
 import co.elastic.elasticsearch.stateless.recovery.metering.RecoveryMetricsCollector;
 import co.elastic.elasticsearch.stateless.utils.IndexingShardRecoveryComparator;
 
+import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.codecs.CodecUtil;
@@ -292,29 +293,25 @@ public class SharedBlobCacheWarmingService {
         }
 
         private ActionListener<Void> logging(ActionListener<Void> target) {
-            if (logger.isDebugEnabled()) {
-                final long started = threadPool.rawRelativeTimeInMillis();
-                logger.debug("{} warming", indexShard.shardId());
-                return ActionListener.runBefore(target, () -> {
-                    final long finished = threadPool.rawRelativeTimeInMillis();
-                    logger.debug(
-                        "{} warming completed in {} ms ({} segments, {} files, {} tasks, {} bytes): {}",
-                        indexShard.shardId(),
-                        finished - started,
-                        commit.commitFiles()
-                            .keySet()
-                            .stream()
-                            .filter(file -> LuceneFilesExtensions.fromFile(file) == LuceneFilesExtensions.SI)
-                            .count(),
-                        commit.commitFiles().size(),
-                        tasksCount.get(),
-                        totalBytesCopied.get(),
-                        tasks.values()
-                    );
-                });
-            } else {
-                return target;
-            }
+            final long started = threadPool.rawRelativeTimeInMillis();
+            logger.debug("{} warming", indexShard.shardId());
+            return ActionListener.runBefore(target, () -> {
+                final long duration = threadPool.rawRelativeTimeInMillis() - started;
+                logger.log(
+                    duration >= 5000 ? Level.WARN : Level.DEBUG,
+                    "{} warming completed in {} ms ({} segments, {} files, {} tasks, {} bytes)",
+                    indexShard.shardId(),
+                    duration,
+                    commit.commitFiles()
+                        .keySet()
+                        .stream()
+                        .filter(file -> LuceneFilesExtensions.fromFile(file) == LuceneFilesExtensions.SI)
+                        .count(),
+                    commit.commitFiles().size(),
+                    tasksCount.get(),
+                    totalBytesCopied.get()
+                );
+            });
         }
 
         private ActionListener<Void> metering(ActionListener<Void> target) {

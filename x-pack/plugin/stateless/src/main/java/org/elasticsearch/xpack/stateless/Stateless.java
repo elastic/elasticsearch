@@ -809,7 +809,8 @@ public class Stateless extends Plugin
             ObjectStoreGCTask.GC_INTERVAL_SETTING,
             StatelessIndexSettingProvider.DEFAULT_NUMBER_OF_SHARDS_FOR_REGULAR_INDICES_SETTING,
             TransportStatelessPrimaryRelocationAction.SLOW_SECONDARY_FLUSH_THRESHOLD_SETTING,
-            TransportStatelessPrimaryRelocationAction.SLOW_HANDOFF_WARMING_THRESHOLD_SETTING
+            TransportStatelessPrimaryRelocationAction.SLOW_HANDOFF_WARMING_THRESHOLD_SETTING,
+            TransportStatelessPrimaryRelocationAction.SLOW_RELOCATION_THRESHOLD_SETTING
         );
     }
 

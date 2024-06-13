@@ -7,13 +7,16 @@
 
 package org.elasticsearch.xpack.rank.rrf;
 
+import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.search.rank.RankBuilder;
+import org.elasticsearch.search.rank.RankDoc;
 import org.elasticsearch.search.rank.context.QueryPhaseRankCoordinatorContext;
 import org.elasticsearch.search.rank.context.QueryPhaseRankShardContext;
 import org.elasticsearch.search.rank.context.RankFeaturePhaseRankCoordinatorContext;
@@ -25,6 +28,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.XPackPlugin;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 
@@ -101,6 +105,62 @@ public class RRFRankBuilder extends RankBuilder {
         return true;
     }
 
+    @Override
+    public Explanation explainHit(Explanation baseExplanation, RankDoc rankDoc, List<String> queryNames) {
+        if (rankDoc == null) {
+            return baseExplanation;
+        }
+        if (false == baseExplanation.isMatch()) {
+            return baseExplanation;
+        }
+        final Explanation hitExplanation = baseExplanation.getDetails().length == 0
+            ? Explanation.match(baseExplanation.getValue(), baseExplanation.getDescription(), baseExplanation)
+            : baseExplanation;
+
+        assert rankDoc instanceof RRFRankDoc : "ScoreDoc is not an instance of RRFRankDoc";
+        RRFRankDoc rrfRankDoc = (RRFRankDoc) rankDoc;
+        int queries = rrfRankDoc.positions.length;
+        assert queryNames.size() == queries;
+        Explanation[] details = new Explanation[queries];
+        int queryExplainIndex = 0;
+        for (int i = 0; i < queries; i++) {
+            final String queryName = queryNames.get(i) != null ? "[" + queryNames.get(i) + "]" : "at index [" + i + "]";
+            if (rrfRankDoc.positions[i] == RRFRankDoc.NO_RANK) {
+                final String description = "rrf score: [0], result not found in query " + queryName;
+                details[i] = Explanation.noMatch(description);
+            } else {
+                final int rank = rrfRankDoc.positions[i] + 1;
+                details[i] = Explanation.match(
+                    rank,
+                    "rrf score: ["
+                        + (1f / (rank + rankConstant))
+                        + "], "
+                        + "for rank ["
+                        + (rank)
+                        + "] in query "
+                        + queryName
+                        + " computed as [1 / ("
+                        + (rank)
+                        + " + "
+                        + rankConstant
+                        + "]), for matching query with score: ",
+                    hitExplanation.getDetails()[queryExplainIndex++]
+                );
+            }
+        }
+        return Explanation.match(
+            rrfRankDoc.score,
+            "rrf score: ["
+                + rrfRankDoc.score
+                + "] computed for initial ranks "
+                + Arrays.toString(Arrays.stream(rrfRankDoc.positions).map(x -> x + 1).toArray())
+                + " with rankConstant: ["
+                + rankConstant
+                + "] as sum of [1 / (rank + rankConstant)] for each query",
+            details
+        );
+    }
+
     public QueryPhaseRankShardContext buildQueryPhaseShardContext(List<Query> queries, int from) {
         return new RRFQueryPhaseRankShardContext(queries, rankWindowSize(), rankConstant);
     }
@@ -116,7 +176,7 @@ public class RRFRankBuilder extends RankBuilder {
     }
 
     @Override
-    public RankFeaturePhaseRankCoordinatorContext buildRankFeaturePhaseCoordinatorContext(int size, int from) {
+    public RankFeaturePhaseRankCoordinatorContext buildRankFeaturePhaseCoordinatorContext(int size, int from, Client client) {
         return null;
     }
 

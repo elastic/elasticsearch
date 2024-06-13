@@ -84,14 +84,14 @@ public final class LeastLongEvaluator implements EvalOperator.ExpressionEvaluato
   }
 
   public LongVector eval(int positionCount, LongVector[] valuesVectors) {
-    try(LongVector.Builder result = driverContext.blockFactory().newLongVectorBuilder(positionCount)) {
+    try(LongVector.FixedBuilder result = driverContext.blockFactory().newLongVectorFixedBuilder(positionCount)) {
       long[] valuesValues = new long[values.length];
       position: for (int p = 0; p < positionCount; p++) {
         // unpack valuesVectors into valuesValues
         for (int i = 0; i < valuesVectors.length; i++) {
           valuesValues[i] = valuesVectors[i].getLong(p);
         }
-        result.appendLong(Least.process(valuesValues));
+        result.appendLong(p, Least.process(valuesValues));
       }
       return result.build();
     }

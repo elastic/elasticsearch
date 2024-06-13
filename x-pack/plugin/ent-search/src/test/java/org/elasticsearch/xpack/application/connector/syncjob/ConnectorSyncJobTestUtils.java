@@ -11,6 +11,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.application.EnterpriseSearchModuleTestUtils;
 import org.elasticsearch.xpack.application.connector.ConnectorTestUtils;
 import org.elasticsearch.xpack.application.connector.syncjob.action.CancelConnectorSyncJobAction;
 import org.elasticsearch.xpack.application.connector.syncjob.action.CheckInConnectorSyncJobAction;
@@ -20,7 +21,6 @@ import org.elasticsearch.xpack.application.connector.syncjob.action.ListConnecto
 import org.elasticsearch.xpack.application.connector.syncjob.action.PostConnectorSyncJobAction;
 import org.elasticsearch.xpack.application.connector.syncjob.action.UpdateConnectorSyncJobErrorAction;
 import org.elasticsearch.xpack.application.connector.syncjob.action.UpdateConnectorSyncJobIngestionStatsAction;
-import org.elasticsearch.xpack.application.search.SearchApplicationTestUtils;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -188,7 +188,7 @@ public class ConnectorSyncJobTestUtils {
 
     public static ListConnectorSyncJobsAction.Request getRandomListConnectorSyncJobsActionRequest() {
         return new ListConnectorSyncJobsAction.Request(
-            SearchApplicationTestUtils.randomPageParams(),
+            EnterpriseSearchModuleTestUtils.randomPageParams(),
             randomAlphaOfLength(10),
             ConnectorTestUtils.getRandomSyncStatus(),
             Collections.singletonList(ConnectorTestUtils.getRandomSyncJobType())

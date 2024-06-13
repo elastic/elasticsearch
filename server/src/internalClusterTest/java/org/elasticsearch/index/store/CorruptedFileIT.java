@@ -19,6 +19,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
+import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteUtils;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.indices.shards.IndicesShardStoresRequest;
@@ -284,7 +285,7 @@ public class CorruptedFileIT extends ESIntegTestCase {
          * we corrupted the primary shard - now lets make sure we never recover from it successfully
          */
         setReplicaCount(1, "test");
-        clusterAdmin().prepareReroute().get();
+        ClusterRerouteUtils.reroute(client());
 
         boolean didClusterTurnRed = waitUntil(() -> {
             ClusterHealthStatus test = clusterAdmin().health(new ClusterHealthRequest("test")).actionGet().getStatus();
@@ -368,7 +369,7 @@ public class CorruptedFileIT extends ESIntegTestCase {
                 .put("index.routing.allocation.include._name", primariesNode.getName() + "," + unluckyNode.getName()),
             "test"
         );
-        clusterAdmin().prepareReroute().get();
+        ClusterRerouteUtils.reroute(client());
         hasCorrupted.await();
         corrupt.set(false);
         ensureGreen();
@@ -493,7 +494,7 @@ public class CorruptedFileIT extends ESIntegTestCase {
                 .put("index.routing.allocation.exclude._name", unluckyNode.getName()),
             "test"
         );
-        clusterAdmin().prepareReroute().setRetryFailed(true).get();
+        ClusterRerouteUtils.rerouteRetryFailed(client());
         ensureGreen("test");
         assertThatAllShards("test", shard -> {
             assertThat(shard.primaryShard().currentNodeId(), not(equalTo(unluckyNode.getId())));

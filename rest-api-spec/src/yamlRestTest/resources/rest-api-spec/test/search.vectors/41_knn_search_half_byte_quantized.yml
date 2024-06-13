@@ -406,10 +406,11 @@ setup:
 "Test create, merge, and search cosine":
   - do:
       indices.create:
-        settings:
-          index:
-            number_of_shards: 1
         index: hnsw_byte_quantized_merge_cosine
+        body:
+          settings:
+            index:
+              number_of_shards: 1
   - do:
       indices.put_mapping:
         index: hnsw_byte_quantized_merge_cosine
@@ -478,10 +479,11 @@ setup:
 "Test create, merge, and search dot_product":
   - do:
       indices.create:
-        settings:
-          index:
-            number_of_shards: 1
         index: hnsw_byte_quantized_merge_dot_product
+        body:
+          settings:
+            index:
+              number_of_shards: 1
   - do:
       indices.put_mapping:
         index: hnsw_byte_quantized_merge_dot_product

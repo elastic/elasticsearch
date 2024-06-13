@@ -175,7 +175,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
             rolloverRequest.getRolloverTarget(),
             rolloverRequest.getNewIndexName(),
             rolloverRequest.getCreateIndexRequest(),
-            rolloverRequest.targetsFailureStore()
+            targetFailureStore
         );
         final String trialSourceIndexName = trialRolloverNames.sourceName();
         final String trialRolloverIndexName = trialRolloverNames.rolloverName();

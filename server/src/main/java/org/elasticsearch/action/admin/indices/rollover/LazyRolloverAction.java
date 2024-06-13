@@ -191,15 +191,6 @@ public final class LazyRolloverAction extends ActionType<RolloverResponse> {
 
     private static RolloverResponse noopLazyRolloverResponse(DataStream.DataStreamIndices indices) {
         String latestWriteIndex = indices.getWriteIndex().getName();
-        return new RolloverResponse(
-            latestWriteIndex,
-            latestWriteIndex,
-            Map.of(),
-            false,
-            false,
-            true,
-            true,
-            false
-        );
+        return new RolloverResponse(latestWriteIndex, latestWriteIndex, Map.of(), false, false, true, true, false);
     }
 }

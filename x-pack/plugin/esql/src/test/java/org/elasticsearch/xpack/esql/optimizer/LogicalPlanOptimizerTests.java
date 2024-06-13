@@ -41,7 +41,6 @@ import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RLikePattern
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPattern;
 import org.elasticsearch.xpack.esql.core.index.EsIndex;
 import org.elasticsearch.xpack.esql.core.index.IndexResolution;
-import org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules;
 import org.elasticsearch.xpack.esql.core.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.core.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.core.plan.logical.LogicalPlan;
@@ -106,6 +105,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
+import org.elasticsearch.xpack.esql.optimizer.rules.LiteralsOnTheRight;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
@@ -117,6 +117,8 @@ import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
+import org.elasticsearch.xpack.esql.plan.logical.join.Join;
+import org.elasticsearch.xpack.esql.plan.logical.join.JoinType;
 import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
@@ -135,16 +137,18 @@ import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static java.util.Collections.singletonList;
+import static org.elasticsearch.test.ListMatcher.matchesList;
+import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.L;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.configuration;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.emptySource;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.getFieldAttribute;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.localSource;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.analysis.Analyzer.NO_FIELDS;
-import static org.elasticsearch.xpack.esql.core.TestUtils.getFieldAttribute;
 import static org.elasticsearch.xpack.esql.core.expression.Literal.FALSE;
 import static org.elasticsearch.xpack.esql.core.expression.Literal.NULL;
 import static org.elasticsearch.xpack.esql.core.expression.Literal.TRUE;
@@ -196,7 +200,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
     private static Map<String, EsField> mappingExtra;
     private static Analyzer analyzerExtra;
     private static EnrichResolution enrichResolution;
-    private static final OptimizerRules.LiteralsOnTheRight LITERALS_ON_THE_RIGHT = new OptimizerRules.LiteralsOnTheRight();
+    private static final LiteralsOnTheRight LITERALS_ON_THE_RIGHT = new LiteralsOnTheRight();
 
     private static class SubstitutionOnlyOptimizer extends LogicalPlanOptimizer {
         static SubstitutionOnlyOptimizer INSTANCE = new SubstitutionOnlyOptimizer(new LogicalOptimizerContext(EsqlTestUtils.TEST_CFG));
@@ -4966,6 +4970,158 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         And and = new And(EMPTY, new Add(EMPTY, fa, ONE), or);
 
         assertEquals(and, new PropagateNullable().rule(and));
+    }
+
+    //
+    // Lookup
+    //
+
+    /**
+     * Expects
+     * {@code
+     * Join[JoinConfig[type=LEFT OUTER, matchFields=[int{r}#4], conditions=[LOOKUP int_number_names ON int]]]
+     * |_EsqlProject[[_meta_field{f}#12, emp_no{f}#6, first_name{f}#7, gender{f}#8, job{f}#13, job.raw{f}#14, languages{f}#9 AS int
+     * , last_name{f}#10, long_noidx{f}#15, salary{f}#11]]
+     * | \_Limit[1000[INTEGER]]
+     * |   \_EsRelation[test][_meta_field{f}#12, emp_no{f}#6, first_name{f}#7, ge..]
+     * \_LocalRelation[[int{f}#16, name{f}#17],[IntVectorBlock[vector=IntArrayVector[positions=10, values=[0, 1, 2, 3, 4, 5, 6, 7, 8,
+     * 9]]], BytesRefVectorBlock[vector=BytesRefArrayVector[positions=10]]]]
+     * }
+     */
+    public void testLookupSimple() {
+        var plan = optimizedPlan("""
+              FROM test
+            | RENAME languages AS int
+            | LOOKUP int_number_names ON int
+            """);
+        var join = as(plan, Join.class);
+
+        // Right is the lookup table
+        var right = as(join.right(), LocalRelation.class);
+        assertMap(
+            right.output().stream().map(Object::toString).sorted().toList(),
+            matchesList().item(containsString("int{f}")).item(containsString("name{f}"))
+        );
+
+        // Left is the rest of the query
+        var left = as(join.left(), EsqlProject.class);
+        assertThat(left.output().toString(), containsString("int{r}"));
+        var limit = as(left.child(), Limit.class);
+        assertThat(limit.limit().fold(), equalTo(1000));
+
+        assertThat(join.config().type(), equalTo(JoinType.LEFT));
+        assertThat(join.config().matchFields().stream().map(Object::toString).toList(), matchesList().item(startsWith("int{r}")));
+        assertThat(join.config().conditions().size(), equalTo(1));
+        Equals eq = as(join.config().conditions().get(0), Equals.class);
+        assertThat(eq.left().toString(), startsWith("int{r}"));
+        assertThat(eq.right().toString(), startsWith("int{r}"));
+        assertTrue(join.children().get(0).outputSet() + " contains " + eq.left(), join.children().get(0).outputSet().contains(eq.left()));
+        assertTrue(join.children().get(1).outputSet() + " contains " + eq.right(), join.children().get(1).outputSet().contains(eq.right()));
+
+        // Join's output looks sensible too
+        assertMap(
+            join.output().stream().map(Object::toString).toList(),
+            matchesList().item(startsWith("_meta_field{f}"))
+                // TODO prune unused columns down through the join
+                .item(startsWith("emp_no{f}"))
+                .item(startsWith("first_name{f}"))
+                .item(startsWith("gender{f}"))
+                .item(startsWith("job{f}"))
+                .item(startsWith("job.raw{f}"))
+                /*
+                 * Int is a reference here because we renamed it in project.
+                 * If we hadn't it'd be a field and that'd be fine.
+                 */
+                .item(containsString("int{r}"))
+                .item(startsWith("last_name{f}"))
+                .item(startsWith("long_noidx{f}"))
+                .item(startsWith("salary{f}"))
+                /*
+                 * It's important that name is returned as a *reference* here
+                 * instead of a field. If it were a field we'd use SearchStats
+                 * on it and discover that it doesn't exist in the index. It doesn't!
+                 * We don't expect it to. It exists only in the lookup table.
+                 */
+                .item(containsString("name{r}"))
+        );
+    }
+
+    /**
+     * Expects
+     * {@code
+     * Limit[1000[INTEGER]]
+     * \_Aggregate[[name{r}#20],[MIN(emp_no{f}#9) AS MIN(emp_no), name{r}#20]]
+     *   \_Join[JoinConfig[type=LEFT OUTER, matchFields=[int{r}#4], conditions=[LOOKUP int_number_names ON int]]]
+     *     |_EsqlProject[[_meta_field{f}#15, emp_no{f}#9, first_name{f}#10, gender{f}#11, job{f}#16, job.raw{f}#17, languages{f}#12 AS
+     * int, last_name{f}#13, long_noidx{f}#18, salary{f}#14]]
+     *     | \_EsRelation[test][_meta_field{f}#15, emp_no{f}#9, first_name{f}#10, g..]
+     *     \_LocalRelation[[int{f}#19, name{f}#20],[IntVectorBlock[vector=IntArrayVector[positions=10, values=[0, 1, 2, 3, 4, 5, 6, 7, 8,
+     * 9]]], BytesRefVectorBlock[vector=BytesRefArrayVector[positions=10]]]]
+     * }
+     */
+    public void testLookupStats() {
+        var plan = optimizedPlan("""
+              FROM test
+            | RENAME languages AS int
+            | LOOKUP int_number_names ON int
+            | STATS MIN(emp_no) BY name
+            """);
+        var limit = as(plan, Limit.class);
+        assertThat(limit.limit().fold(), equalTo(1000));
+
+        var agg = as(limit.child(), Aggregate.class);
+        assertMap(
+            agg.aggregates().stream().map(Object::toString).sorted().toList(),
+            matchesList().item(startsWith("MIN(emp_no)")).item(startsWith("name{r}"))
+        );
+        assertMap(agg.groupings().stream().map(Object::toString).toList(), matchesList().item(startsWith("name{r}")));
+
+        var join = as(agg.child(), Join.class);
+        // Right is the lookup table
+        var right = as(join.right(), LocalRelation.class);
+        assertMap(
+            right.output().stream().map(Object::toString).toList(),
+            matchesList().item(containsString("int{f}")).item(containsString("name{f}"))
+        );
+
+        // Left is the rest of the query
+        var left = as(join.left(), EsqlProject.class);
+        assertThat(left.output().toString(), containsString("int{r}"));
+        as(left.child(), EsRelation.class);
+
+        assertThat(join.config().type(), equalTo(JoinType.LEFT));
+        assertThat(join.config().matchFields().stream().map(Object::toString).toList(), matchesList().item(startsWith("int{r}")));
+        assertThat(join.config().conditions().size(), equalTo(1));
+        Equals eq = as(join.config().conditions().get(0), Equals.class);
+        assertThat(eq.left().toString(), startsWith("int{r}"));
+        assertThat(eq.right().toString(), startsWith("int{r}"));
+
+        // Join's output looks sensible too
+        assertMap(
+            join.output().stream().map(Object::toString).toList(),
+            matchesList().item(startsWith("_meta_field{f}"))
+                // TODO prune unused columns down through the join
+                .item(startsWith("emp_no{f}"))
+                .item(startsWith("first_name{f}"))
+                .item(startsWith("gender{f}"))
+                .item(startsWith("job{f}"))
+                .item(startsWith("job.raw{f}"))
+                /*
+                 * Int is a reference here because we renamed it in project.
+                 * If we hadn't it'd be a field and that'd be fine.
+                 */
+                .item(containsString("int{r}"))
+                .item(startsWith("last_name{f}"))
+                .item(startsWith("long_noidx{f}"))
+                .item(startsWith("salary{f}"))
+                /*
+                 * It's important that name is returned as a *reference* here
+                 * instead of a field. If it were a field we'd use SearchStats
+                 * on it and discover that it doesn't exist in the index. It doesn't!
+                 * We don't expect it to. It exists only in the lookup table.
+                 */
+                .item(containsString("name{r}"))
+        );
     }
 
     private Literal nullOf(DataType dataType) {

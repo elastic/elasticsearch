@@ -17,21 +17,29 @@ esplugin {
 }
 
 versions << [
-  'azure': '12.20.1',
-  'azureCommon': '12.19.1',
-  'azureCore': '1.34.0',
-  'azureCoreHttpNetty': '1.12.7',
-  'azureJackson': '2.13.4',
-  'azureJacksonDatabind': '2.13.4.2',
-  'azureAvro': '12.5.3',
+  //see https://repo1.maven.org/maven2/com/azure/azure-storage-blob/ for transitive dependencies
+  'azure': '12.26.1', // <-- when upgrading versions start start here and manually upgrade the transitive dependencies
+  'azureCommon': '12.25.1',
+  'azureCore': '1.49.1',
+  'azureCoreHttpNetty': '1.15.1',
+  'azureJackson': '2.15.4', // keep this roughly in sync with the jackson version in the rest of the codebase
+  'azureAvro': '12.11.1',
 
-  'jakartaActivation': '1.2.1',
-  'jakartaXMLBind': '2.3.2',
+  //see https://repo1.maven.org/maven2/com/fasterxml/jackson/module/jackson-module-jaxb-annotations/
+  'jakartaActivation': '1.2.2',
+  'jakartaXMLBind': '2.3.3',
+
+  //see https://repo1.maven.org/maven2/com/fasterxml/jackson/dataformat/jackson-dataformat-xml/
   'stax2API': '4.2.1',
-  'woodstox': '6.4.0',
+  'woodstox': '6.5.1',
 
-  'reactorNetty': '1.0.39',
-  'reactorCore': '3.4.34',
+  // see https://repo1.maven.org/maven2/com/azure/azure-core-http-netty
+  'reactorNetty': '1.0.45',
+
+  // see https://repo1.maven.org/maven2/io/projectreactor/netty/reactor-netty-http
+  'reactorCore': '3.4.38',
+
+  // see https://repo1.maven.org/maven2/io/projectreactor/reactor-core/
   'reactiveStreams': '1.0.4',
 ]
 
@@ -42,7 +50,7 @@ dependencies {
   api "com.azure:azure-core:${versions.azureCore}"
   // jackson
   api "com.fasterxml.jackson.core:jackson-core:${versions.azureJackson}"
-  api "com.fasterxml.jackson.core:jackson-databind:${versions.azureJacksonDatabind}"
+  api "com.fasterxml.jackson.core:jackson-databind:${versions.azureJackson}"
   api "com.fasterxml.jackson.core:jackson-annotations:${versions.azureJackson}"
 
   // jackson xml

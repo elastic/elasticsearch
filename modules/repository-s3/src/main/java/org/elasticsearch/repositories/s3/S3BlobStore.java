@@ -52,6 +52,7 @@ import java.util.concurrent.atomic.LongAdder;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.rest.RestStatus.REQUESTED_RANGE_NOT_SATISFIED;
 
 class S3BlobStore implements BlobStore {
 
@@ -160,7 +161,7 @@ class S3BlobStore implements BlobStore {
             final AWSRequestMetrics awsRequestMetrics = request.getAWSRequestMetrics();
             final TimingInfo timingInfo = awsRequestMetrics.getTimingInfo();
             final long requestCount = getCountForMetric(timingInfo, AWSRequestMetrics.Field.RequestCount);
-            final long exceptionCount = getCountForMetric(timingInfo, AWSRequestMetrics.Field.Exception);
+            long exceptionCount = getCountForMetric(timingInfo, AWSRequestMetrics.Field.Exception);
             final long throttleCount = getCountForMetric(timingInfo, AWSRequestMetrics.Field.ThrottleException);
 
             // For stats reported by API, do not collect stats for null response for BWC.
@@ -176,6 +177,25 @@ class S3BlobStore implements BlobStore {
             final int numberOfAwsErrors = Optional.ofNullable(awsRequestMetrics.getProperty(AWSRequestMetrics.Field.AWSErrorCode))
                 .map(List::size)
                 .orElse(0);
+
+            if (exceptionCount > 0) {
+                final List<Object> statusCodes = awsRequestMetrics.getProperty(AWSRequestMetrics.Field.StatusCode);
+                final long requestRangeNotSatisfiedErrors = Objects.requireNonNullElse(statusCodes, List.of())
+                    .stream()
+                    .filter(e -> (Integer) e == REQUESTED_RANGE_NOT_SATISFIED.getStatus())
+                    .count();
+                if (requestRangeNotSatisfiedErrors > 0) {
+                    // REQUESTED_RANGE_NOT_SATISFIED are expected errors due to RCO,
+                    // so we would like no to count them along with other S3 exceptions
+                    exceptionCount -= requestRangeNotSatisfiedErrors;
+                    s3RepositoriesMetrics.common()
+                        .requestRangeNotSatisfiedExceptionCounter()
+                        .incrementBy(requestRangeNotSatisfiedErrors, attributes);
+                    s3RepositoriesMetrics.common()
+                        .requestRangeNotSatisfiedExceptionHistogram()
+                        .record(requestRangeNotSatisfiedErrors, attributes);
+                }
+            }
 
             s3RepositoriesMetrics.common().operationCounter().incrementBy(1, attributes);
             if (numberOfAwsErrors == requestCount) {

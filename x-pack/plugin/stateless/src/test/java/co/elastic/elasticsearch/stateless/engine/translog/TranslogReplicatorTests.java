@@ -1004,6 +1004,67 @@ public class TranslogReplicatorTests extends ESTestCase {
         expectThrows(AlreadyClosedException.class, () -> translogReplicator.add(shardId, operationsBytes[0], 0, location));
     }
 
+    public void testReplicatorReaderHandlesConcurrentDeleteIfNotInDirectory() throws IOException {
+        ShardId shardId = new ShardId(new Index("name", "uuid"), 0);
+        ShardId shardId2 = new ShardId(new Index("name", "uuid2"), 0);
+        long primaryTerm = randomLongBetween(0, 10);
+
+        ArrayList<BytesReference> compoundFiles = new ArrayList<>();
+        ObjectStoreService objectStoreService = mockObjectStoreService(compoundFiles);
+        StatelessClusterConsistencyService consistencyService = mockConsistencyService();
+
+        TranslogReplicator translogReplicator = new TranslogReplicator(
+            threadPool,
+            getSettings(),
+            objectStoreService,
+            consistencyService,
+            (sId) -> primaryTerm
+        );
+        translogReplicator.doStart();
+        translogReplicator.register(shardId, primaryTerm, seqNo -> {});
+        translogReplicator.register(shardId2, primaryTerm, seqNo -> {});
+
+        Translog.Operation[] operations = generateRandomOperations(3);
+        BytesReference[] operationsBytes = convertOperationsToBytes(operations);
+        long currentLocation = 0;
+        translogReplicator.add(shardId, operationsBytes[0], 0, new Translog.Location(0, currentLocation, operationsBytes[0].length()));
+        currentLocation += operationsBytes[0].length();
+
+        PlainActionFuture<Void> future = new PlainActionFuture<>();
+        translogReplicator.syncAll(shardId, future);
+        future.actionGet();
+
+        assertThat(compoundFiles.size(), equalTo(1));
+
+        translogReplicator.add(shardId, operationsBytes[1], 1, new Translog.Location(0, currentLocation, operationsBytes[1].length()));
+
+        PlainActionFuture<Void> future2 = new PlainActionFuture<>();
+        translogReplicator.syncAll(shardId, future2);
+        future2.actionGet();
+
+        assertThat(compoundFiles.size(), equalTo(2));
+
+        // Unregister so that the last translog file will not contain a directory
+        translogReplicator.unregister(shardId);
+
+        translogReplicator.add(shardId2, operationsBytes[2], 2, new Translog.Location(0, 0, operationsBytes[2].length()));
+
+        PlainActionFuture<Void> future3 = new PlainActionFuture<>();
+        translogReplicator.syncAll(shardId2, future3);
+        future3.actionGet();
+
+        assertThat(compoundFiles.size(), equalTo(3));
+
+        // List call happens in ctor
+        TranslogReplicatorReader reader = new TranslogReplicatorReader(objectStoreService.getTranslogBlobContainer(), shardId);
+
+        // Delete file with shard 2 operations
+        compoundFiles.set(2, null);
+
+        // If the translog recovery start file has advanced past the missing hole, then we get all the operations
+        assertTranslogContains(reader, operations[0], operations[1]);
+    }
+
     public void testReplicatorReaderStopsRecoveringWhenMissingExpectedDirectoryFilesWhenAtTheBeginning() throws IOException {
         ShardId shardId = new ShardId(new Index("name", "uuid"), 0);
         long primaryTerm = randomLongBetween(0, 10);

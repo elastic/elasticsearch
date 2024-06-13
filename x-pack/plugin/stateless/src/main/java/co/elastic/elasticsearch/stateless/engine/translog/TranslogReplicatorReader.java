@@ -37,6 +37,7 @@ import org.elasticsearch.index.translog.TranslogCorruptedException;
 import org.elasticsearch.indices.recovery.RecoveryState;
 
 import java.io.IOException;
+import java.nio.file.NoSuchFileException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;
@@ -113,75 +114,38 @@ public class TranslogReplicatorReader implements Translog.Snapshot {
             .map(e -> Map.entry(Long.parseLong(e.getKey()), e.getValue()))
             .filter(e -> e.getKey() >= translogRecoveryStartFile)
             .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
-        final List<Long> referencedTranslogFiles;
-        if (unFilteredBlobs.isEmpty()) {
-            estimatedOperations = 0;
-            referencedTranslogFiles = Collections.emptyList();
-        } else {
-            BlobMetadata blobMetadata = unFilteredBlobs.get(unFilteredBlobs.keySet().stream().mapToLong(l -> l).max().getAsLong());
-            long translogGeneration = Long.parseLong(blobMetadata.name());
-            try (
-                StreamInput streamInput = new InputStreamStreamInput(
-                    translogBlobContainer.readBlob(OperationPurpose.TRANSLOG, blobMetadata.name())
-                )
-            ) {
-                CompoundTranslogHeader translogHeader = CompoundTranslogHeader.readFromStore(blobMetadata.name(), streamInput);
-                TranslogMetadata metadata = translogHeader.metadata().get(shardId);
-                if (metadata == null) {
-                    referencedTranslogFiles = null;
-                    estimatedOperations = RecoveryState.Translog.UNKNOWN;
-                } else {
-                    ArrayList<Long> referenced = new ArrayList<>();
-                    for (int offset : metadata.directory().referencedTranslogFileOffsets()) {
-                        referenced.add(translogGeneration - offset);
-                    }
-                    if (metadata.totalOps() > 0) {
-                        referenced.add(translogGeneration);
-                    }
-                    referencedTranslogFiles = referenced;
-                    estimatedOperations = Math.toIntExact(metadata.directory().estimatedOperationsToRecover());
-                }
-            }
-        }
-        if (referencedTranslogFiles == null) {
-            this.blobsToRead = unFilteredBlobs.entrySet().stream().sorted(Map.Entry.comparingByKey()).map(Map.Entry::getValue).toList();
-        } else {
-            var toRead = new ArrayList<BlobMetadata>();
+        RecoveryPlan recoveryPlan = createPlan(unFilteredBlobs, translogRecoveryStartFile);
+        estimatedOperations = recoveryPlan.estimatedOps();
 
-            // We only recover as long as we have a contiguous set of expected files. If we hit a hole, we stop recovering and log a
-            // warning. This is still valid, but rare. It is possible for a translog file to be flushed before an earlier file is flushed
-            // and then the node shuts down. We would not have ACKed the operations from the later files.
-            //
-            // Additionally, we filter out expected files before the translog recovery start file.
-            int j = 0;
-            for (Long referenced : referencedTranslogFiles.stream()
-                .dropWhile((referenced) -> referenced < translogRecoveryStartFile)
-                .toList()) {
-                BlobMetadata blobMetadata = unFilteredBlobs.get(referenced);
-                if (blobMetadata == null) {
-                    logger.info(
-                        format(
-                            "translog recovery for shard [%s] hit hole. blob store listed "
-                                + "files: %s. directory files: %s. will skip recovering files: %s",
-                            shardId,
-                            unFilteredBlobs.keySet().stream().mapToLong(l -> l).sorted().boxed().toList(),
-                            referencedTranslogFiles,
-                            referencedTranslogFiles.subList(j, referencedTranslogFiles.size())
-                        )
-                    );
-                    break;
-                } else {
-                    toRead.add(blobMetadata);
-                }
-                j++;
+        var toRead = new ArrayList<BlobMetadata>();
+
+        // We only recover as long as we have a contiguous set of expected files. If we hit a hole, we stop recovering and log a
+        // warning. This is still valid, but rare. It is possible for a translog file to be flushed before an earlier file is flushed
+        // and then the node shuts down. We would not have ACKed the operations from the later files.
+        int j = 0;
+        for (Long referenced : recoveryPlan.referencedTranslogFiles()) {
+            BlobMetadata blobMetadata = unFilteredBlobs.get(referenced);
+            if (blobMetadata == null) {
+                logger.info(
+                    "[{}] translog recovery hit hole [listedFiles={}, translogStartFile={}, directoryFiles={}, skippedFiles={}]",
+                    shardId,
+                    unFilteredBlobs.keySet().stream().mapToLong(l -> l).sorted().boxed().toList(),
+                    translogRecoveryStartFile,
+                    recoveryPlan.referencedTranslogFiles(),
+                    recoveryPlan.referencedTranslogFiles().subList(j, recoveryPlan.referencedTranslogFiles().size())
+                );
+                break;
+            } else {
+                toRead.add(blobMetadata);
             }
-            this.blobsToRead = toRead;
+            j++;
         }
+        this.blobsToRead = toRead;
+
         logger.debug(
             () -> format("translog replicator reader opened for recovery %s", blobsToRead.stream().map(BlobMetadata::name).toList())
         );
         this.operations = Iterators.flatMap(blobsToRead.iterator(), this::readBlobTranslogOperations);
-
     }
 
     /**
@@ -199,6 +163,51 @@ public class TranslogReplicatorReader implements Translog.Snapshot {
     @Override
     public int totalOperations() {
         return blobsToRead.isEmpty() ? 0 : estimatedOperations;
+    }
+
+    private record RecoveryPlan(int estimatedOps, List<Long> referencedTranslogFiles) {}
+
+    private RecoveryPlan createPlan(Map<Long, BlobMetadata> listedBlobsAboveStartFile, long translogRecoveryStartFile) throws IOException {
+        List<Long> sorted = listedBlobsAboveStartFile.keySet().stream().sorted().toList();
+        for (int i = sorted.size() - 1; i >= 0; i--) {
+            Long translogGeneration = sorted.get(i);
+            BlobMetadata blobMetadata = listedBlobsAboveStartFile.get(translogGeneration);
+            try (
+                StreamInput streamInput = new InputStreamStreamInput(
+                    translogBlobContainer.readBlob(OperationPurpose.TRANSLOG, blobMetadata.name())
+                )
+            ) {
+                CompoundTranslogHeader translogHeader = CompoundTranslogHeader.readFromStore(blobMetadata.name(), streamInput);
+                TranslogMetadata metadata = translogHeader.metadata().get(shardId);
+                if (metadata != null) {
+                    // If the directory is null then we are hit translog file from a version before the directory was added
+                    if (metadata.directory() == null) {
+                        return new RecoveryPlan(RecoveryState.Translog.UNKNOWN, sorted);
+                    } else {
+                        ArrayList<Long> referenced = new ArrayList<>();
+                        for (int offset : metadata.directory().referencedTranslogFileOffsets()) {
+                            long absolute = translogGeneration - offset;
+                            if (absolute >= translogRecoveryStartFile) {
+                                referenced.add(absolute);
+                            }
+                        }
+                        if (metadata.totalOps() > 0) {
+                            referenced.add(translogGeneration);
+                        }
+                        return new RecoveryPlan(Math.toIntExact(metadata.directory().estimatedOperationsToRecover()), referenced);
+                    }
+                }
+            } catch (NoSuchFileException e) {
+                // It is possible for an indexing shard to delete a file since we listed files. This is valid as it is possible this file
+                // was not related to the shard we are recovering. Just proceed to read the next file.
+                logger.debug(
+                    format("listed translog [%s] not found while searching for shard directory, moving to next file", translogGeneration),
+                    e
+                );
+            }
+        }
+
+        return new RecoveryPlan(0, Collections.emptyList());
     }
 
     private Iterator<Translog.Operation> readBlobTranslogOperations(BlobMetadata blobMetadata) {
@@ -289,7 +298,7 @@ public class TranslogReplicatorReader implements Translog.Snapshot {
         if (recoveryTime.compareTo(SIXTY_SECONDS_SLOW_RECOVERY_THRESHOLD) >= 0) {
             int blobCount = blobsToRead.size();
             logger.warn(
-                "slow [{}] stateless translog recovery [translogRecoveryStartFile={}, blobsToRead_count={}, blobsToRead_first={}, "
+                "[{}] slow stateless translog recovery [translogRecoveryStartFile={}, blobsToRead_count={}, blobsToRead_first={}, "
                     + "blobsToRead_last={}, operationsReadNanos={}, blobsToRead_bytes={}, filesWithShardOperations={}, operationsRead={}, "
                     + "operationBytesRead={}, indexOperationsProcessed={}, indexOperationsWithIdProcessed={}, "
                     + "deleteOperationsProcessed={}, noOpOperationsProcessed={}]",

@@ -402,21 +402,20 @@ public class ActionListenerTests extends ESTestCase {
         reachabilityChecker.ensureUnreachable();
     }
 
-    @SuppressWarnings("unchecked")
     public void testAssertAtLeastOnceWillDelegateResponses() {
-        ActionListener<Object> delegate = mock(ActionListener.class);
-        ActionListener<Object> listener = ActionListener.assertAtLeastOnce(delegate);
-        listener.onResponse("succeeded");
-        verify(delegate).onResponse("succeeded");
+        final var response = new Object();
+        assertSame(
+            response,
+            safeAwait(SubscribableListener.newForked(l -> ActionListener.assertAtLeastOnce(l).onResponse(response)))
+        );
     }
 
-    @SuppressWarnings("unchecked")
     public void testAssertAtLeastOnceWillDelegateFailures() {
-        ActionListener<Object> delegate = mock(ActionListener.class);
-        ActionListener<Object> listener = ActionListener.assertAtLeastOnce(delegate);
-        RuntimeException exception = new RuntimeException();
-        listener.onFailure(exception);
-        verify(delegate).onFailure(exception);
+        final var exception = new RuntimeException();
+        assertSame(
+            exception,
+            safeAwaitFailure(SubscribableListener.newForked(l -> ActionListener.assertAtLeastOnce(l).onFailure(exception)))
+        );
     }
 
     /**

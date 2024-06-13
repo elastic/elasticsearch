@@ -11,8 +11,6 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.Scope;
-import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.security.action.role.BulkPutRoleRequestBuilder;
 import org.elasticsearch.xpack.core.security.action.role.BulkPutRoleRequestBuilderFactory;
@@ -25,8 +23,6 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 /**
  * Rest endpoint to bulk add a Roles to the security index
  */
-// Keep scope internal until serverless custom roles validation for bulk exists
-@ServerlessScope(Scope.INTERNAL)
 public class RestBulkPutRolesAction extends NativeRoleBaseRestHandler {
 
     private final BulkPutRoleRequestBuilderFactory builderFactory;

@@ -15,7 +15,7 @@ import org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules;
 import java.util.ArrayList;
 import java.util.List;
 
-public class ConvertStringToByteRef extends OptimizerRules.OptimizerExpressionRule<Literal> {
+public final class ConvertStringToByteRef extends OptimizerRules.OptimizerExpressionRule<Literal> {
 
     public ConvertStringToByteRef() {
         super(OptimizerRules.TransformDirection.UP);

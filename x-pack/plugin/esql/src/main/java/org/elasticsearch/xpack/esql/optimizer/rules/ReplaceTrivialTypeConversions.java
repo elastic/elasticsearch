@@ -19,7 +19,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Eval;
  * A following {@link ReplaceAliasingEvalWithProject} will effectively convert {@link ReferenceAttribute} into {@link FieldAttribute},
  * something very useful in local physical planning.
  */
-public class ReplaceTrivialTypeConversions extends OptimizerRules.OptimizerRule<Eval> {
+public final class ReplaceTrivialTypeConversions extends OptimizerRules.OptimizerRule<Eval> {
     @Override
     protected LogicalPlan rule(Eval eval) {
         return eval.transformExpressionsOnly(AbstractConvertFunction.class, convert -> {

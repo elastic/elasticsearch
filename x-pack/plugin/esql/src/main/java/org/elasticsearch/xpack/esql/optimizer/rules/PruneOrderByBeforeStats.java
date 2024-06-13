@@ -18,7 +18,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.RegexExtract;
 
-public class PruneOrderByBeforeStats extends OptimizerRules.OptimizerRule<Aggregate> {
+public final class PruneOrderByBeforeStats extends OptimizerRules.OptimizerRule<Aggregate> {
 
     @Override
     protected LogicalPlan rule(Aggregate agg) {

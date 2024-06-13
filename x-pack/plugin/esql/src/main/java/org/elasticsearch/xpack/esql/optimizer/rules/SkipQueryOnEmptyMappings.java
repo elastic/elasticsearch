@@ -13,7 +13,7 @@ import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 
-public class SkipQueryOnEmptyMappings extends OptimizerRules.OptimizerRule<EsRelation> {
+public final class SkipQueryOnEmptyMappings extends OptimizerRules.OptimizerRule<EsRelation> {
 
     @Override
     protected LogicalPlan rule(EsRelation plan) {

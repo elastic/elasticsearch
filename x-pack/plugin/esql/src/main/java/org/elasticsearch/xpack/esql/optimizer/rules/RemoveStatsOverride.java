@@ -30,7 +30,7 @@ import java.util.List;
  * becomes
  * STATS max($x + 1) BY $x = a + b
  */
-public class RemoveStatsOverride extends AnalyzerRules.AnalyzerRule<Aggregate> {
+public final class RemoveStatsOverride extends AnalyzerRules.AnalyzerRule<Aggregate> {
 
     @Override
     protected boolean skipResolved() {

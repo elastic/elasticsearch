@@ -21,7 +21,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Eval;
  * Replace any reference attribute with its source, if it does not affect the result.
  * This avoids ulterior look-ups between attributes and its source across nodes.
  */
-public class PropagateEvalFoldables extends Rule<LogicalPlan, LogicalPlan> {
+public final class PropagateEvalFoldables extends Rule<LogicalPlan, LogicalPlan> {
 
     @Override
     public LogicalPlan apply(LogicalPlan plan) {

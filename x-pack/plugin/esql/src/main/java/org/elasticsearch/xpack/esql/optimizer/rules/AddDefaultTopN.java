@@ -39,7 +39,7 @@ import org.elasticsearch.xpack.esql.plan.logical.TopN;
  * OR if there is no sort between "limit" and "mv_expand".
  * But, since this type of query has such a filter, the "sort emp_no" will have no limit when it reaches the current rule.
  */
-public class AddDefaultTopN extends LogicalPlanOptimizer.ParameterizedOptimizerRule<LogicalPlan, LogicalOptimizerContext> {
+public final class AddDefaultTopN extends LogicalPlanOptimizer.ParameterizedOptimizerRule<LogicalPlan, LogicalOptimizerContext> {
 
     @Override
     protected LogicalPlan rule(LogicalPlan plan, LogicalOptimizerContext context) {

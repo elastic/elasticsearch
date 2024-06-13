@@ -32,7 +32,7 @@ import java.util.List;
  * eval x = a + 1, z = a + 1 + 1, w = a + 1 + 1
  * project x, z, z as y, w
  */
-public class ReplaceAliasingEvalWithProject extends Rule<LogicalPlan, LogicalPlan> {
+public final class ReplaceAliasingEvalWithProject extends Rule<LogicalPlan, LogicalPlan> {
 
     @Override
     public LogicalPlan apply(LogicalPlan logicalPlan) {

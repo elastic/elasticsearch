@@ -12,7 +12,7 @@ import org.elasticsearch.xpack.esql.core.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.plan.logical.RegexExtract;
 
-public class PushDownRegexExtract extends OptimizerRules.OptimizerRule<RegexExtract> {
+public final class PushDownRegexExtract extends OptimizerRules.OptimizerRule<RegexExtract> {
     @Override
     protected LogicalPlan rule(RegexExtract re) {
         return LogicalPlanOptimizer.pushGeneratingPlanPastProjectAndOrderBy(re, re.extractedFields());

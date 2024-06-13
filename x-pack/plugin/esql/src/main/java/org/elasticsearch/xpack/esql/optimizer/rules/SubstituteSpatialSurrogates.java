@@ -17,7 +17,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRe
  * this in either direction, reducing the number of rules, but for now,
  * it's a separate rule to reduce the risk of unintended interactions with other rules.
  */
-public class SubstituteSpatialSurrogates extends OptimizerRules.OptimizerExpressionRule<SpatialRelatesFunction> {
+public final class SubstituteSpatialSurrogates extends OptimizerRules.OptimizerExpressionRule<SpatialRelatesFunction> {
 
     public SubstituteSpatialSurrogates() {
         super(OptimizerRules.TransformDirection.UP);

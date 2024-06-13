@@ -44,7 +44,7 @@ import static java.util.Collections.singleton;
  * becomes
  * stats a = min(x), c = count(*) by g | eval b = a, d = c | keep a, b, c, d, g
  */
-public class ReplaceStatsAggExpressionWithEval extends OptimizerRules.OptimizerRule<Aggregate> {
+public final class ReplaceStatsAggExpressionWithEval extends OptimizerRules.OptimizerRule<Aggregate> {
     public ReplaceStatsAggExpressionWithEval() {
         super(OptimizerRules.TransformDirection.UP);
     }

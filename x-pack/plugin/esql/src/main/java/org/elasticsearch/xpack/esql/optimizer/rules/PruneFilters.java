@@ -12,7 +12,7 @@ import org.elasticsearch.xpack.esql.core.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.core.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer;
 
-public class PruneFilters extends OptimizerRules.PruneFilters {
+public final class PruneFilters extends OptimizerRules.PruneFilters {
 
     @Override
     protected LogicalPlan skipPlan(Filter filter) {

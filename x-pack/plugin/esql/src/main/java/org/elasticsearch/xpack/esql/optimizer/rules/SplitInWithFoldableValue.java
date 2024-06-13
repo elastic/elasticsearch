@@ -19,7 +19,7 @@ import java.util.List;
 /**
  * 3 in (field, 4, 5) --> 3 in (field) or 3 in (4, 5)
  */
-public class SplitInWithFoldableValue extends OptimizerRules.OptimizerExpressionRule<In> {
+public final class SplitInWithFoldableValue extends OptimizerRules.OptimizerExpressionRule<In> {
 
     public SplitInWithFoldableValue() {
         super(OptimizerRules.TransformDirection.UP);

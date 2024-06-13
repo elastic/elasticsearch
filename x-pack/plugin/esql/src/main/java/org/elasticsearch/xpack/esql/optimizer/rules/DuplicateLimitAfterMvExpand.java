@@ -22,7 +22,7 @@ import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.RegexExtract;
 
-public class DuplicateLimitAfterMvExpand extends OptimizerRules.OptimizerRule<Limit> {
+public final class DuplicateLimitAfterMvExpand extends OptimizerRules.OptimizerRule<Limit> {
 
     @Override
     protected LogicalPlan rule(Limit limit) {

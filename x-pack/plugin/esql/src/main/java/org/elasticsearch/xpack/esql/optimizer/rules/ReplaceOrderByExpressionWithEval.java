@@ -21,7 +21,7 @@ import java.util.List;
 
 import static org.elasticsearch.xpack.esql.optimizer.rules.SubstituteSurrogates.rawTemporaryName;
 
-public class ReplaceOrderByExpressionWithEval extends OptimizerRules.OptimizerRule<OrderBy> {
+public final class ReplaceOrderByExpressionWithEval extends OptimizerRules.OptimizerRule<OrderBy> {
     private static int counter = 0;
 
     @Override

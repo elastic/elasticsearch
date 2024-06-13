@@ -12,7 +12,7 @@ import org.elasticsearch.xpack.esql.core.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.core.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer;
 
-public class SkipQueryOnLimitZero extends OptimizerRules.SkipQueryOnLimitZero {
+public final class SkipQueryOnLimitZero extends OptimizerRules.SkipQueryOnLimitZero {
 
     @Override
     protected LogicalPlan skipPlan(Limit limit) {

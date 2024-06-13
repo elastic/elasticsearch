@@ -30,7 +30,7 @@ import java.util.List;
 /**
  * Remove unused columns created in the plan, in fields inside eval or aggregations inside stats.
  */
-public class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
+public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
 
     @Override
     public LogicalPlan apply(LogicalPlan plan) {

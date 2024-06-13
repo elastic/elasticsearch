@@ -30,7 +30,7 @@ import java.util.Map;
  * becomes
  * eval `a + 1` = a + 1, `x % 2` = x % 2 | stats sum(`a+1`_ref) by `x % 2`_ref
  */
-public class ReplaceStatsNestedExpressionWithEval extends OptimizerRules.OptimizerRule<Aggregate> {
+public final class ReplaceStatsNestedExpressionWithEval extends OptimizerRules.OptimizerRule<Aggregate> {
 
     @Override
     protected LogicalPlan rule(Aggregate aggregate) {

@@ -12,7 +12,7 @@ import org.elasticsearch.xpack.esql.core.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Lookup;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 
-public class ReplaceLookupWithJoin extends OptimizerRules.OptimizerRule<Lookup> {
+public final class ReplaceLookupWithJoin extends OptimizerRules.OptimizerRule<Lookup> {
 
     public ReplaceLookupWithJoin() {
         super(OptimizerRules.TransformDirection.UP);

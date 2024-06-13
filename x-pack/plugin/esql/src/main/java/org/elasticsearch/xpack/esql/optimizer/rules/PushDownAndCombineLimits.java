@@ -22,7 +22,7 @@ import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinType;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 
-public class PushDownAndCombineLimits extends OptimizerRules.OptimizerRule<Limit> {
+public final class PushDownAndCombineLimits extends OptimizerRules.OptimizerRule<Limit> {
 
     @Override
     public LogicalPlan rule(Limit limit) {

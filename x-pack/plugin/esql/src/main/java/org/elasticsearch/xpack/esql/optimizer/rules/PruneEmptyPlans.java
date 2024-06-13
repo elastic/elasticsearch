@@ -12,7 +12,7 @@ import org.elasticsearch.xpack.esql.core.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.core.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer;
 
-public class PruneEmptyPlans extends OptimizerRules.OptimizerRule<UnaryPlan> {
+public final class PruneEmptyPlans extends OptimizerRules.OptimizerRule<UnaryPlan> {
 
     @Override
     protected LogicalPlan rule(UnaryPlan plan) {

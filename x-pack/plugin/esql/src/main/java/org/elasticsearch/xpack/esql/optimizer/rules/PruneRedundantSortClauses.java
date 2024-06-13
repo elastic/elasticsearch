@@ -15,7 +15,7 @@ import org.elasticsearch.xpack.esql.core.plan.logical.OrderBy;
 
 import java.util.ArrayList;
 
-public class PruneRedundantSortClauses extends OptimizerRules.OptimizerRule<OrderBy> {
+public final class PruneRedundantSortClauses extends OptimizerRules.OptimizerRule<OrderBy> {
 
     @Override
     protected LogicalPlan rule(OrderBy plan) {

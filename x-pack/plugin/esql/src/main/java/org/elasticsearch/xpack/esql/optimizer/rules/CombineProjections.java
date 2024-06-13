@@ -24,7 +24,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Project;
 import java.util.ArrayList;
 import java.util.List;
 
-public class CombineProjections extends OptimizerRules.OptimizerRule<UnaryPlan> {
+public final class CombineProjections extends OptimizerRules.OptimizerRule<UnaryPlan> {
 
     public CombineProjections() {
         super(OptimizerRules.TransformDirection.UP);

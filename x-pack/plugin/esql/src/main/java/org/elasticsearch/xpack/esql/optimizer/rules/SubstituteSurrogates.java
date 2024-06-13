@@ -32,7 +32,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-public class SubstituteSurrogates extends OptimizerRules.OptimizerRule<Aggregate> {
+public final class SubstituteSurrogates extends OptimizerRules.OptimizerRule<Aggregate> {
     // TODO: currently this rule only works for aggregate functions (AVG)
 
     public SubstituteSurrogates() {

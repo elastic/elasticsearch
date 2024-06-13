@@ -13,7 +13,7 @@ import org.elasticsearch.xpack.esql.core.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.core.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
 
-public class ReplaceLimitAndSortAsTopN extends OptimizerRules.OptimizerRule<Limit> {
+public final class ReplaceLimitAndSortAsTopN extends OptimizerRules.OptimizerRule<Limit> {
 
     @Override
     protected LogicalPlan rule(Limit plan) {

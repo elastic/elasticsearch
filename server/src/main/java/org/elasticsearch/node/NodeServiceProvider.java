@@ -21,6 +21,7 @@ import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.indices.ExecutorSelector;
 import org.elasticsearch.indices.IndicesService;
@@ -140,7 +141,12 @@ class NodeServiceProvider {
         // Noop in production, overridden by tests
     }
 
-    ReadinessService newReadinessService(PluginsService pluginsService, ClusterService clusterService, Environment environment) {
-        return new ReadinessService(clusterService, environment);
+    ReadinessService newReadinessService(
+        PluginsService pluginsService,
+        ClusterService clusterService,
+        Environment environment,
+        FeatureService featureService
+    ) {
+        return new ReadinessService(clusterService, environment, featureService);
     }
 }

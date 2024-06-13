@@ -9,6 +9,7 @@
 package org.elasticsearch.readiness;
 
 import org.apache.logging.log4j.Level;
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -28,6 +29,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.http.HttpInfo;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.http.HttpStats;
@@ -47,7 +49,6 @@ import java.net.UnknownHostException;
 import java.nio.channels.ServerSocketChannel;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.cluster.metadata.ReservedStateErrorMetadata.ErrorKind.TRANSIENT;
@@ -58,7 +59,7 @@ public class ReadinessServiceTests extends ESTestCase implements ReadinessClient
     private ThreadPool threadpool;
     private Environment env;
     private FakeHttpTransport httpTransport;
-    private static final Set<String> nodeFeatures = Set.of(FileSettingsFeatures.FILE_SETTINGS_SUPPORTED.id());
+    private FeatureService featureService;
 
     private static Metadata emptyReservedStateMetadata;
     static {
@@ -109,9 +110,10 @@ public class ReadinessServiceTests extends ESTestCase implements ReadinessClient
             null
         );
         env = newEnvironment(Settings.builder().put(ReadinessService.PORT.getKey(), 0).build());
+        featureService = new FeatureService(List.of(new FileSettingsFeatures()));
 
         httpTransport = new FakeHttpTransport();
-        readinessService = new ReadinessService(clusterService, env);
+        readinessService = new ReadinessService(clusterService, env, featureService);
     }
 
     @After
@@ -122,7 +124,7 @@ public class ReadinessServiceTests extends ESTestCase implements ReadinessClient
 
     public void testEphemeralSocket() throws Exception {
         Environment tempEnv = newEnvironment(Settings.builder().put(ReadinessService.PORT.getKey(), 0).build());
-        ReadinessService tempService = new ReadinessService(clusterService, tempEnv);
+        ReadinessService tempService = new ReadinessService(clusterService, tempEnv, featureService);
         try (ServerSocketChannel channel = tempService.setupSocket()) {
             assertTrue(channel.isOpen());
             assertTrue(tempService.boundAddress().publishAddress().getPort() > 0);
@@ -314,11 +316,15 @@ public class ReadinessServiceTests extends ESTestCase implements ReadinessClient
         // initially the service isn't ready because initial cluster state has not been applied yet
         assertFalse(readinessService.ready());
 
-        ClusterState noFileSettingsState = ClusterState.builder(noFileSettingsState())
-            // the master node is upgraded to support file settings, but existing node2 is not
-            .nodeFeatures(Map.of(httpTransport.node.getId(), nodeFeatures))
+        ClusterState cleanState = noFileSettingsState();
+        ClusterState mixedState = ClusterState.builder(cleanState)
+            // adds one old node so that the cluster will not have the file settings feature
+            .nodes(
+                DiscoveryNodes.builder(cleanState.nodes())
+                    .add(DiscoveryNodeUtils.create("node3", new TransportAddress(TransportAddress.META_ADDRESS, 9202), Version.V_7_17_0))
+            )
             .build();
-        ClusterChangedEvent event = new ClusterChangedEvent("test", noFileSettingsState, emptyState());
+        ClusterChangedEvent event = new ClusterChangedEvent("test", mixedState, emptyState());
         readinessService.clusterChanged(event);
 
         // when upgrading from nodes before file settings exist, readiness should return true once a master is elected
@@ -345,7 +351,6 @@ public class ReadinessServiceTests extends ESTestCase implements ReadinessClient
                     .masterNodeId(httpTransport.node.getId())
                     .localNodeId(httpTransport.node.getId())
             )
-            .nodeFeatures(Map.of(httpTransport.node.getId(), nodeFeatures, "node2", nodeFeatures))
             .build();
     }
 }

@@ -8,10 +8,11 @@
 
 package org.elasticsearch.reservedstate.service;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.features.FeatureSpecification;
 import org.elasticsearch.features.NodeFeature;
 
-import java.util.Set;
+import java.util.Map;
 
 public class FileSettingsFeatures implements FeatureSpecification {
 
@@ -20,7 +21,7 @@ public class FileSettingsFeatures implements FeatureSpecification {
     public static final NodeFeature FILE_SETTINGS_SUPPORTED = new NodeFeature("file_settings");
 
     @Override
-    public Set<NodeFeature> getFeatures() {
-        return Set.of(FILE_SETTINGS_SUPPORTED);
+    public Map<NodeFeature, Version> getHistoricalFeatures() {
+        return Map.of(FILE_SETTINGS_SUPPORTED, Version.V_8_4_0);
     }
 }

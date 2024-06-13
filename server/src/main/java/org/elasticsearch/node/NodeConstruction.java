@@ -1114,7 +1114,7 @@ class NodeConstruction {
         if (ReadinessService.enabled(environment)) {
             modules.bindToInstance(
                 ReadinessService.class,
-                serviceProvider.newReadinessService(pluginsService, clusterService, environment)
+                serviceProvider.newReadinessService(pluginsService, clusterService, environment, featureService)
             );
         }
 

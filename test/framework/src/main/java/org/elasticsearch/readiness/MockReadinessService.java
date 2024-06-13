@@ -10,6 +10,7 @@ package org.elasticsearch.readiness;
 
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.node.MockNode;
 import org.elasticsearch.plugins.Plugin;
 
@@ -90,8 +91,8 @@ public class MockReadinessService extends ReadinessService {
         }
     }
 
-    public MockReadinessService(ClusterService clusterService, Environment environment) {
-        super(clusterService, environment, MockServerSocketChannel::openMock);
+    public MockReadinessService(ClusterService clusterService, Environment environment, FeatureService featureService) {
+        super(clusterService, environment, featureService, MockServerSocketChannel::openMock);
     }
 
     private static boolean socketIsOpen(ReadinessService readinessService) {

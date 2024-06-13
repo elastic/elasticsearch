@@ -108,7 +108,7 @@ public class EsExecutors {
     ) {
         ExecutorScalingQueue<Runnable> queue = new ExecutorScalingQueue<>();
         EsThreadPoolExecutor executor;
-        if (config.trackOngoingTasks()) {
+        if (config.trackExecutionTime()) {
             executor = new TaskExecutionTimeTrackingEsThreadPoolExecutor(
                 name,
                 min,

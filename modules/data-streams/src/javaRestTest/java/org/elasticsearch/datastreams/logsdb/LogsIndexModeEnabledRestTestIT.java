@@ -121,6 +121,7 @@ public class LogsIndexModeEnabledRestTestIT extends LogsIndexModeRestTestIT {
         {
           "template": {
             "mappings": {
+              "dynamic": "strict",
               "properties": {
                 "method": {
                   "type": "keyword"

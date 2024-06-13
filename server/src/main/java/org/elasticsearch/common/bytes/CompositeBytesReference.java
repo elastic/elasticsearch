@@ -9,7 +9,6 @@
 package org.elasticsearch.common.bytes;
 
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.BytesRefIterator;
 import org.apache.lucene.util.RamUsageEstimator;
 
@@ -172,18 +171,33 @@ public final class CompositeBytesReference extends AbstractBytesReference {
 
     @Override
     public BytesRef toBytesRef() {
-        BytesRefBuilder builder = new BytesRefBuilder();
-        builder.grow(length());
+        final byte[] result = new byte[length];
+        int offset = 0;
+        for (BytesReference reference : references) {
+            if (reference.hasArray()) {
+                int len = reference.length();
+                System.arraycopy(reference.array(), reference.arrayOffset(), result, offset, len);
+                offset += len;
+            } else {
+                offset = copyViaIterator(reference, result, offset);
+            }
+        }
+        assert offset == result.length;
+        return new BytesRef(result);
+    }
+
+    private static int copyViaIterator(BytesReference reference, byte[] result, int offset) {
         BytesRef spare;
-        BytesRefIterator iterator = iterator();
+        BytesRefIterator iterator = reference.iterator();
         try {
             while ((spare = iterator.next()) != null) {
-                builder.append(spare);
+                System.arraycopy(spare.bytes, spare.offset, result, offset, spare.length);
+                offset += spare.length;
             }
         } catch (IOException ex) {
             throw new AssertionError("won't happen", ex); // this is really an error since we don't do IO in our bytesreferences
         }
-        return builder.toBytesRef();
+        return offset;
     }
 
     @Override

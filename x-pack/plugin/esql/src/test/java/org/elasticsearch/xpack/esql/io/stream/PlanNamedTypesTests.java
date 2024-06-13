@@ -194,7 +194,7 @@ public class PlanNamedTypesTests extends ESTestCase {
     public void testFunctionEntries() {
         var serializableFunctions = PlanNamedTypes.namedTypeEntries()
             .stream()
-            .filter(e -> Function.class.isAssignableFrom(e.concreteClass()))
+            .filter(e -> Function.class.isAssignableFrom(e.categoryClass()))
             .map(PlanNameRegistry.Entry::name)
             .sorted()
             .toList();

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.ml.inference.autoscaling;
 
+import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
@@ -206,7 +207,9 @@ public class AutoscalerService implements ClusterStateListener {
                             deploymentId,
                             newNumberOfAllocations
                         ),
-                        e -> logger.warn("Autoscaling deployment [{}] to [{}] allocations failed.", deploymentId, newNumberOfAllocations, e)
+                        e -> logger.atLevel(Level.WARN)
+                            .withThrowable(e)
+                            .log("Autoscaling deployment [{}] to [{}] allocations failed.", deploymentId, newNumberOfAllocations)
                     )
                 );
             }

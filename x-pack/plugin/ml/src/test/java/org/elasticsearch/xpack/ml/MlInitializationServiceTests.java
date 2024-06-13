@@ -13,6 +13,7 @@ import org.elasticsearch.client.internal.AdminClient;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.IndicesAdminClient;
 import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
@@ -48,6 +49,7 @@ public class MlInitializationServiceTests extends ESTestCase {
         mlAssignmentNotifier = mock(MlAssignmentNotifier.class);
 
         when(clusterService.getClusterName()).thenReturn(CLUSTER_NAME);
+        when(clusterService.state()).thenReturn(ClusterState.EMPTY_STATE);
 
         @SuppressWarnings("unchecked")
         ActionFuture<GetSettingsResponse> getSettingsResponseActionFuture = mock(ActionFuture.class);

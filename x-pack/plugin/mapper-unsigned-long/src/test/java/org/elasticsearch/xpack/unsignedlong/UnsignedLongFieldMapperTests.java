@@ -31,7 +31,6 @@ import java.math.BigInteger;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
@@ -459,9 +458,7 @@ public class UnsignedLongFieldMapperTests extends WholeNumberFieldMapperTests {
                 return new Value(null, nullValue, null);
             }
             if (ignoreMalformedEnabled && randomBoolean()) {
-                List<Supplier<Object>> choices = List.of(
-                    () -> randomAlphaOfLengthBetween(1, 10)
-                );
+                List<Supplier<Object>> choices = List.of(() -> randomAlphaOfLengthBetween(1, 10));
                 var malformedInput = randomFrom(choices).get();
                 return new Value(malformedInput, null, malformedInput);
             }

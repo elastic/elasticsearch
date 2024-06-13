@@ -126,9 +126,7 @@ public abstract class Plugin implements Closeable {
         IndexNameExpressionResolver indexNameExpressionResolver();
 
         /**
-         * A supplier for the service that manages snapshot repositories.
-         * This will return null when {@link #createComponents(PluginServices)} is called,
-         * but will return the repositories service once the node is initialized.
+         * A service that manages snapshot repositories.
          */
         RepositoriesService repositoriesService();
 

@@ -248,7 +248,7 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
     public static final String DATA_TIERS_CACHE_INDEX_PREFERENCE = String.join(",", DataTier.DATA_CONTENT, DataTier.DATA_HOT);
     private static final int SEARCHABLE_SNAPSHOTS_INDEX_MAPPINGS_VERSION = 1;
 
-    private volatile SetOnce<RepositoriesService> repositoriesService = new SetOnce<>();
+    private final SetOnce<RepositoriesService> repositoriesService = new SetOnce<>();
     private final SetOnce<BlobStoreCacheService> blobStoreCacheService = new SetOnce<>();
     private final SetOnce<CacheService> cacheService = new SetOnce<>();
     private final SetOnce<SharedBlobCacheService<CacheKey>> frozenCacheService = new SetOnce<>();

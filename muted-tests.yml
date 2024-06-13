@@ -1,7 +1,4 @@
 tests:
-- class: "org.elasticsearch.xpack.security.authc.saml.SamlAuthenticatorTests"
-  issue: "https://github.com/elastic/elasticsearch/issues/109299"
-  method: "testSuccessfullyParseContentFromEncryptedAssertion"
 - class: "org.elasticsearch.upgrades.MappingIT"
   issue: "https://github.com/elastic/elasticsearch/issues/109455"
   method: "testMapperDynamicIndexSetting"

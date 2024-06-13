@@ -107,6 +107,7 @@ public class IndexVersions {
     public static final IndexVersion DOC_VALUES_FOR_IGNORED_META_FIELD = def(8_505_00_1, Version.LUCENE_9_10_0);
     public static final IndexVersion SOURCE_MAPPER_LOSSY_PARAMS_CHECK = def(8_506_00_0, Version.LUCENE_9_10_0);
     public static final IndexVersion SEMANTIC_TEXT_FIELD_TYPE = def(8_507_00_0, Version.LUCENE_9_10_0);
+    public static final IndexVersion UPGRADE_TO_LUCENE_9_11 = def(8_508_00_0, Version.LUCENE_9_11_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,

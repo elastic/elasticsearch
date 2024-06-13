@@ -29,12 +29,32 @@
         "ecs.version": {
           "type": "keyword"
         },
-        "host.id": {
-          "type": "keyword"
-        },
         "@timestamp": {
           "type": "date",
           "format": "epoch_second"
+        },
+        "host": {
+          "properties": {
+            "arch": {
+              "type": "keyword"
+            },
+            "id": {
+              "type": "keyword"
+            },
+            "type": {
+              "type": "keyword"
+            }
+          }
+        },
+        "cloud": {
+          "properties": {
+            "provider": {
+              "type": "keyword"
+            },
+            "region": {
+              "type": "keyword"
+            }
+          }
         },
         "profiling": {
           "properties": {

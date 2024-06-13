@@ -10,8 +10,10 @@ GROK : 'grok'                 -> pushMode(EXPRESSION_MODE);
 INLINESTATS : 'inlinestats'   -> pushMode(EXPRESSION_MODE);
 KEEP : 'keep'                 -> pushMode(PROJECT_MODE);
 LIMIT : 'limit'               -> pushMode(EXPRESSION_MODE);
+LOOKUP : 'lookup'             -> pushMode(LOOKUP_MODE);
+META : 'meta'                 -> pushMode(META_MODE);
+METRICS : 'metrics'           -> pushMode(METRICS_MODE);
 MV_EXPAND : 'mv_expand'       -> pushMode(MVEXPAND_MODE);
-PROJECT : 'project'           -> pushMode(PROJECT_MODE);
 RENAME : 'rename'             -> pushMode(RENAME_MODE);
 ROW : 'row'                   -> pushMode(EXPRESSION_MODE);
 SHOW : 'show'                 -> pushMode(SHOW_MODE);
@@ -31,6 +33,16 @@ MULTILINE_COMMENT
 WS
     : [ \r\n\t]+ -> channel(HIDDEN)
     ;
+
+fragment INDEX_UNQUOTED_IDENTIFIER_PART
+    : ~[=`|,[\]/ \t\r\n]
+    | '/' ~[*/] // allow single / but not followed by another / or * which would start a comment
+    ;
+
+INDEX_UNQUOTED_IDENTIFIER
+    : INDEX_UNQUOTED_IDENTIFIER_PART+
+    ;
+
 //
 // Explain
 //
@@ -89,7 +101,7 @@ fragment UNQUOTED_ID_BODY
     : (LETTER | DIGIT | UNDERSCORE)
     ;
 
-STRING
+QUOTED_STRING
     : '"' (ESCAPE_SEQUENCE | UNESCAPED_CHARS)* '"'
     | '"""' (~[\r\n])*? '"""' '"'? '"'?
     ;
@@ -110,6 +122,7 @@ BY : 'by';
 AND : 'and';
 ASC : 'asc';
 ASSIGN : '=';
+CAST_OP : '::';
 COMMA : ',';
 DESC : 'desc';
 DOT : '.';
@@ -130,6 +143,7 @@ RP : ')';
 TRUE : 'true';
 
 EQ  : '==';
+CIEQ  : '=~';
 NEQ : '!=';
 LT  : '<';
 LTE : '<=';
@@ -141,6 +155,11 @@ MINUS : '-';
 ASTERISK : '*';
 SLASH : '/';
 PERCENT : '%';
+
+NAMED_OR_POSITIONAL_PARAM
+    : PARAM LETTER UNQUOTED_ID_BODY*
+    | PARAM DIGIT+
+    ;
 
 // Brackets are funny. We can happen upon a CLOSING_BRACKET in two ways - one
 // way is to start in an explain command which then shifts us to expression
@@ -157,8 +176,12 @@ UNQUOTED_IDENTIFIER
     | (UNDERSCORE | ASPERAND) UNQUOTED_ID_BODY+
     ;
 
-QUOTED_IDENTIFIER
+fragment QUOTED_ID
     : BACKQUOTE BACKQUOTE_BLOCK+ BACKQUOTE
+    ;
+
+QUOTED_IDENTIFIER
+    : QUOTED_ID
     ;
 
 EXPR_LINE_COMMENT
@@ -181,20 +204,12 @@ FROM_OPENING_BRACKET : OPENING_BRACKET -> type(OPENING_BRACKET);
 FROM_CLOSING_BRACKET : CLOSING_BRACKET -> type(CLOSING_BRACKET);
 FROM_COMMA : COMMA -> type(COMMA);
 FROM_ASSIGN : ASSIGN -> type(ASSIGN);
+FROM_QUOTED_STRING : QUOTED_STRING -> type(QUOTED_STRING);
 
-METADATA: 'metadata';
+METADATA : 'metadata';
 
-fragment FROM_UNQUOTED_IDENTIFIER_PART
-    : ~[=`|,[\]/ \t\r\n]
-    | '/' ~[*/] // allow single / but not followed by another / or * which would start a comment
-    ;
-
-FROM_UNQUOTED_IDENTIFIER
-    : FROM_UNQUOTED_IDENTIFIER_PART+
-    ;
-
-FROM_QUOTED_IDENTIFIER
-    : QUOTED_IDENTIFIER -> type(QUOTED_IDENTIFIER)
+FROM_INDEX_UNQUOTED_IDENTIFIER
+    : INDEX_UNQUOTED_IDENTIFIER -> type(INDEX_UNQUOTED_IDENTIFIER)
     ;
 
 FROM_LINE_COMMENT
@@ -209,7 +224,7 @@ FROM_WS
     : WS -> channel(HIDDEN)
     ;
 //
-// DROP, KEEP, PROJECT
+// DROP, KEEP
 //
 mode PROJECT_MODE;
 PROJECT_PIPE : PIPE -> type(PIPE), popMode;
@@ -220,17 +235,13 @@ fragment UNQUOTED_ID_BODY_WITH_PATTERN
     : (LETTER | DIGIT | UNDERSCORE | ASTERISK)
     ;
 
-UNQUOTED_ID_PATTERN
+fragment UNQUOTED_ID_PATTERN
     : (LETTER | ASTERISK) UNQUOTED_ID_BODY_WITH_PATTERN*
     | (UNDERSCORE | ASPERAND) UNQUOTED_ID_BODY_WITH_PATTERN+
     ;
 
-PROJECT_UNQUOTED_IDENTIFIER
-    : UNQUOTED_ID_PATTERN -> type(UNQUOTED_ID_PATTERN)
-    ;
-
-PROJECT_QUOTED_IDENTIFIER
-    : QUOTED_IDENTIFIER -> type(QUOTED_IDENTIFIER)
+ID_PATTERN
+    : (UNQUOTED_ID_PATTERN | QUOTED_ID)+
     ;
 
 PROJECT_LINE_COMMENT
@@ -255,13 +266,8 @@ RENAME_DOT: DOT -> type(DOT);
 
 AS : 'as';
 
-RENAME_QUOTED_IDENTIFIER
-    : QUOTED_IDENTIFIER -> type(QUOTED_IDENTIFIER)
-    ;
-
-// use the unquoted pattern to let the parser invalidate fields with *
-RENAME_UNQUOTED_IDENTIFIER
-    : UNQUOTED_ID_PATTERN -> type(UNQUOTED_ID_PATTERN)
+RENAME_ID_PATTERN
+    : ID_PATTERN -> type(ID_PATTERN)
     ;
 
 RENAME_LINE_COMMENT
@@ -291,7 +297,8 @@ fragment ENRICH_POLICY_NAME_BODY
     ;
 
 ENRICH_POLICY_NAME
-    : (LETTER | DIGIT) ENRICH_POLICY_NAME_BODY*
+    // allow prefix for the policy to specify its resolution
+    : (ENRICH_POLICY_NAME_BODY+ COLON)? ENRICH_POLICY_NAME_BODY+
     ;
 
 ENRICH_QUOTED_IDENTIFIER
@@ -323,8 +330,8 @@ ENRICH_FIELD_DOT: DOT -> type(DOT);
 
 ENRICH_FIELD_WITH : WITH -> type(WITH) ;
 
-ENRICH_FIELD_UNQUOTED_IDENTIFIER
-    : UNQUOTED_ID_PATTERN -> type(UNQUOTED_ID_PATTERN)
+ENRICH_FIELD_ID_PATTERN
+    : ID_PATTERN -> type(ID_PATTERN)
     ;
 
 ENRICH_FIELD_QUOTED_IDENTIFIER
@@ -340,6 +347,50 @@ ENRICH_FIELD_MULTILINE_COMMENT
     ;
 
 ENRICH_FIELD_WS
+    : WS -> channel(HIDDEN)
+    ;
+
+// LOOKUP ON key
+mode LOOKUP_MODE;
+LOOKUP_PIPE : PIPE -> type(PIPE), popMode;
+LOOKUP_COMMA : COMMA -> type(COMMA);
+LOOKUP_DOT: DOT -> type(DOT);
+LOOKUP_ON : ON -> type(ON), pushMode(LOOKUP_FIELD_MODE);
+
+LOOKUP_INDEX_UNQUOTED_IDENTIFIER
+    : INDEX_UNQUOTED_IDENTIFIER -> type(INDEX_UNQUOTED_IDENTIFIER)
+    ;
+
+LOOKUP_LINE_COMMENT
+    : LINE_COMMENT -> channel(HIDDEN)
+    ;
+
+LOOKUP_MULTILINE_COMMENT
+    : MULTILINE_COMMENT -> channel(HIDDEN)
+    ;
+
+LOOKUP_WS
+    : WS -> channel(HIDDEN)
+    ;
+
+mode LOOKUP_FIELD_MODE;
+LOOKUP_FIELD_PIPE : PIPE -> type(PIPE), popMode, popMode;
+LOOKUP_FIELD_COMMA : COMMA -> type(COMMA);
+LOOKUP_FIELD_DOT: DOT -> type(DOT);
+
+LOOKUP_FIELD_ID_PATTERN
+    : ID_PATTERN -> type(ID_PATTERN)
+    ;
+
+LOOKUP_FIELD_LINE_COMMENT
+    : LINE_COMMENT -> channel(HIDDEN)
+    ;
+
+LOOKUP_FIELD_MULTILINE_COMMENT
+    : MULTILINE_COMMENT -> channel(HIDDEN)
+    ;
+
+LOOKUP_FIELD_WS
     : WS -> channel(HIDDEN)
     ;
 
@@ -368,13 +419,12 @@ MVEXPAND_WS
     ;
 
 //
-// SHOW INFO
+// SHOW commands
 //
 mode SHOW_MODE;
 SHOW_PIPE : PIPE -> type(PIPE), popMode;
 
 INFO : 'info';
-FUNCTIONS : 'functions';
 
 SHOW_LINE_COMMENT
     : LINE_COMMENT -> channel(HIDDEN)
@@ -385,6 +435,26 @@ SHOW_MULTILINE_COMMENT
     ;
 
 SHOW_WS
+    : WS -> channel(HIDDEN)
+    ;
+
+//
+// META commands
+//
+mode META_MODE;
+META_PIPE : PIPE -> type(PIPE), popMode;
+
+FUNCTIONS : 'functions';
+
+META_LINE_COMMENT
+    : LINE_COMMENT -> channel(HIDDEN)
+    ;
+
+META_MULTILINE_COMMENT
+    : MULTILINE_COMMENT -> channel(HIDDEN)
+    ;
+
+META_WS
     : WS -> channel(HIDDEN)
     ;
 
@@ -409,3 +479,60 @@ SETTING_WS
     : WS -> channel(HIDDEN)
     ;
 
+
+//
+// METRICS command
+//
+mode METRICS_MODE;
+METRICS_PIPE : PIPE -> type(PIPE), popMode;
+
+METRICS_INDEX_UNQUOTED_IDENTIFIER
+    : INDEX_UNQUOTED_IDENTIFIER -> type(INDEX_UNQUOTED_IDENTIFIER), popMode, pushMode(CLOSING_METRICS_MODE)
+    ;
+
+METRICS_LINE_COMMENT
+    : LINE_COMMENT -> channel(HIDDEN)
+    ;
+
+METRICS_MULTILINE_COMMENT
+    : MULTILINE_COMMENT -> channel(HIDDEN)
+    ;
+
+METRICS_WS
+    : WS -> channel(HIDDEN)
+    ;
+
+// TODO: remove this workaround mode - see https://github.com/elastic/elasticsearch/issues/108528
+mode CLOSING_METRICS_MODE;
+
+CLOSING_METRICS_COMMA
+    : COMMA -> type(COMMA), popMode, pushMode(METRICS_MODE)
+    ;
+
+CLOSING_METRICS_LINE_COMMENT
+    : LINE_COMMENT -> channel(HIDDEN)
+    ;
+
+CLOSING_METRICS_MULTILINE_COMMENT
+    : MULTILINE_COMMENT -> channel(HIDDEN)
+    ;
+
+CLOSING_METRICS_WS
+    : WS -> channel(HIDDEN)
+    ;
+
+CLOSING_METRICS_QUOTED_IDENTIFIER
+    : QUOTED_IDENTIFIER -> popMode, pushMode(EXPRESSION_MODE), type(QUOTED_IDENTIFIER)
+    ;
+
+CLOSING_METRICS_UNQUOTED_IDENTIFIER
+    :UNQUOTED_IDENTIFIER -> popMode, pushMode(EXPRESSION_MODE), type(UNQUOTED_IDENTIFIER)
+    ;
+
+CLOSING_METRICS_BY
+    :BY -> popMode, pushMode(EXPRESSION_MODE), type(BY)
+    ;
+
+CLOSING_METRICS_PIPE
+    : PIPE -> type(PIPE), popMode
+    ;

@@ -197,6 +197,11 @@ class ActionListenerImplementations {
         }
     }
 
+    /**
+     * Replaces the onResponse handling of a given ActionListener with a lambda that receives both the original listener and a response.
+     * This is useful when a listener is needed to do some additional work with a response before passing a response on to the original
+     * listener.
+     */
     static final class DelegatingFailureActionListener<T, R> extends DelegatingActionListener<T, R> {
 
         private final BiConsumer<ActionListener<R>, T> bc;
@@ -221,6 +226,10 @@ class ActionListenerImplementations {
         }
     }
 
+    /**
+     * The same as {@link DelegatingFailureActionListener} with the addition of exception handling in {@link #onResponse(Object)} to forward
+     * any exceptions to {@link #onFailure(Exception)}.
+     */
     static final class ResponseWrappingActionListener<T, R> extends DelegatingActionListener<T, R> {
 
         private final CheckedBiConsumer<ActionListener<R>, T, ? extends Exception> bc;

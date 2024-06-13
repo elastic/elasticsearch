@@ -29,7 +29,7 @@ import org.elasticsearch.transport.TransportService;
  * Transport action for delete snapshot operation
  */
 public class TransportDeleteSnapshotAction extends AcknowledgedTransportMasterNodeAction<DeleteSnapshotRequest> {
-    public static final ActionType<AcknowledgedResponse> TYPE = ActionType.localOnly("cluster:admin/snapshot/delete");
+    public static final ActionType<AcknowledgedResponse> TYPE = new ActionType<>("cluster:admin/snapshot/delete");
     private final SnapshotsService snapshotsService;
 
     @Inject

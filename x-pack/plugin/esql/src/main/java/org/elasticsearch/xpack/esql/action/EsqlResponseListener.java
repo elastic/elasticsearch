@@ -12,7 +12,7 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.rest.ChunkedRestResponseBody;
+import org.elasticsearch.rest.ChunkedRestResponseBodyPart;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
@@ -26,9 +26,9 @@ import java.io.IOException;
 import java.util.Locale;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.xpack.esql.core.util.LoggingUtils.logOnFailure;
 import static org.elasticsearch.xpack.esql.formatter.TextFormat.CSV;
 import static org.elasticsearch.xpack.esql.formatter.TextFormat.URL_PARAM_DELIMITER;
-import static org.elasticsearch.xpack.ql.util.LoggingUtils.logOnFailure;
 
 /**
  * Listens for a single {@link EsqlQueryResponse}, builds a corresponding {@link RestResponse} and sends it.
@@ -132,16 +132,14 @@ public final class EsqlResponseListener extends RestRefCountedChunkedToXContentL
             if (mediaType instanceof TextFormat format) {
                 restResponse = RestResponse.chunked(
                     RestStatus.OK,
-                    ChunkedRestResponseBody.fromTextChunks(
-                        format.contentType(restRequest),
-                        format.format(restRequest, esqlResponse),
-                        releasable
-                    )
+                    ChunkedRestResponseBodyPart.fromTextChunks(format.contentType(restRequest), format.format(restRequest, esqlResponse)),
+                    releasable
                 );
             } else {
                 restResponse = RestResponse.chunked(
                     RestStatus.OK,
-                    ChunkedRestResponseBody.fromXContent(esqlResponse, channel.request(), channel, releasable)
+                    ChunkedRestResponseBodyPart.fromXContent(esqlResponse, channel.request(), channel),
+                    releasable
                 );
             }
             long tookNanos = stopWatch.stop().getNanos();
@@ -156,13 +154,20 @@ public final class EsqlResponseListener extends RestRefCountedChunkedToXContentL
     }
 
     /**
-     * Log the execution time and query when handling an ES|QL response.
+     * Log internal server errors all the time and log queries if debug is enabled.
      */
     public ActionListener<EsqlQueryResponse> wrapWithLogging() {
+        ActionListener<EsqlQueryResponse> listener = ActionListener.wrap(this::onResponse, ex -> {
+            logOnFailure(LOGGER, ex);
+            onFailure(ex);
+        });
+        if (LOGGER.isDebugEnabled() == false) {
+            return listener;
+        }
         return ActionListener.wrap(r -> {
-            onResponse(r);
+            listener.onResponse(r);
             // At this point, the StopWatch should already have been stopped, so we log a consistent time.
-            LOGGER.info(
+            LOGGER.debug(
                 "Finished execution of ESQL query.\nQuery string: [{}]\nExecution time: [{}]ms",
                 esqlQuery,
                 stopWatch.stop().getMillis()
@@ -170,9 +175,8 @@ public final class EsqlResponseListener extends RestRefCountedChunkedToXContentL
         }, ex -> {
             // In case of failure, stop the time manually before sending out the response.
             long timeMillis = stopWatch.stop().getMillis();
-            LOGGER.info("Failed execution of ESQL query.\nQuery string: [{}]\nExecution time: [{}]ms", esqlQuery, timeMillis);
-            logOnFailure(LOGGER, ex);
-            onFailure(ex);
+            LOGGER.debug("Failed execution of ESQL query.\nQuery string: [{}]\nExecution time: [{}]ms", esqlQuery, timeMillis);
+            listener.onFailure(ex);
         });
     }
 }

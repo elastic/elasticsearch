@@ -220,19 +220,19 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         while (unassignedIterator.hasNext()) {
             final ShardRouting shardRouting = unassignedIterator.next();
             final UnassignedInfo unassignedInfo = shardRouting.unassignedInfo();
-            if (shardRouting.primary() && unassignedInfo.getLastAllocationStatus() == AllocationStatus.NO_ATTEMPT) {
+            if (shardRouting.primary() && unassignedInfo.lastAllocationStatus() == AllocationStatus.NO_ATTEMPT) {
                 unassignedIterator.updateUnassigned(
                     new UnassignedInfo(
-                        unassignedInfo.getReason(),
-                        unassignedInfo.getMessage(),
-                        unassignedInfo.getFailure(),
-                        unassignedInfo.getNumFailedAllocations(),
-                        unassignedInfo.getUnassignedTimeInNanos(),
-                        unassignedInfo.getUnassignedTimeInMillis(),
-                        unassignedInfo.isDelayed(),
+                        unassignedInfo.reason(),
+                        unassignedInfo.message(),
+                        unassignedInfo.failure(),
+                        unassignedInfo.failedAllocations(),
+                        unassignedInfo.unassignedTimeNanos(),
+                        unassignedInfo.unassignedTimeMillis(),
+                        unassignedInfo.delayed(),
                         AllocationStatus.DECIDERS_NO,
-                        unassignedInfo.getFailedNodeIds(),
-                        unassignedInfo.getLastAllocatedNodeId()
+                        unassignedInfo.failedNodeIds(),
+                        unassignedInfo.lastAllocatedNodeId()
                     ),
                     shardRouting.recoverySource(),
                     allocation.changes()
@@ -852,6 +852,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                         shardRouting,
                         targetNode.getNodeId(),
                         allocation.clusterInfo().getShardSize(shardRouting, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE),
+                        "move",
                         allocation.changes()
                     );
                     targetNode.addShard(relocatingShards.v2());
@@ -1237,7 +1238,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                     minNode.addShard(
                         decision.type() == Type.YES
                             /* only allocate on the cluster if we are not throttled */
-                            ? routingNodes.relocateShard(shard, minNode.getNodeId(), shardSize, allocation.changes()).v1()
+                            ? routingNodes.relocateShard(shard, minNode.getNodeId(), shardSize, "rebalance", allocation.changes()).v1()
                             : shard.relocate(minNode.getNodeId(), shardSize)
                     );
                     return true;

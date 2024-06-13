@@ -9,7 +9,6 @@ dependencies {
   javaRestTestImplementation project(':test:framework')
   javaRestTestImplementation(testArtifact(project(xpackModule('core'))))
   javaRestTestImplementation project(xpackModule('ql:test-fixtures'))
-  javaRestTestImplementation project(":client:rest-high-level")
   javaRestTestImplementation 'io.ous:jtoml:2.0.0'
 }
 

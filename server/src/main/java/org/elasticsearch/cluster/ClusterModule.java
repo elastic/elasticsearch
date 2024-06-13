@@ -8,6 +8,7 @@
 
 package org.elasticsearch.cluster;
 
+import org.elasticsearch.action.admin.indices.rollover.MetadataRolloverService;
 import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.metadata.ComponentTemplateMetadata;
@@ -29,6 +30,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingRoleStrategy;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.AllocationService.RerouteStrategy;
+import org.elasticsearch.cluster.routing.allocation.AllocationStatsService;
 import org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadForecaster;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
@@ -118,6 +120,8 @@ public class ClusterModule extends AbstractModule {
     final Collection<AllocationDecider> deciderList;
     final ShardsAllocator shardsAllocator;
     private final ShardRoutingRoleStrategy shardRoutingRoleStrategy;
+    private final AllocationStatsService allocationStatsService;
+    private final TelemetryProvider telemetryProvider;
 
     public ClusterModule(
         Settings settings,
@@ -154,6 +158,8 @@ public class ClusterModule extends AbstractModule {
             shardRoutingRoleStrategy
         );
         this.metadataDeleteIndexService = new MetadataDeleteIndexService(settings, clusterService, allocationService);
+        this.allocationStatsService = new AllocationStatsService(clusterService, clusterInfoService, shardsAllocator, writeLoadForecaster);
+        this.telemetryProvider = telemetryProvider;
     }
 
     static ShardRoutingRoleStrategy getShardRoutingRoleStrategy(List<ClusterPlugin> clusterPlugins) {
@@ -440,6 +446,9 @@ public class ClusterModule extends AbstractModule {
         bind(AllocationDeciders.class).toInstance(allocationDeciders);
         bind(ShardsAllocator.class).toInstance(shardsAllocator);
         bind(ShardRoutingRoleStrategy.class).toInstance(shardRoutingRoleStrategy);
+        bind(AllocationStatsService.class).toInstance(allocationStatsService);
+        bind(TelemetryProvider.class).toInstance(telemetryProvider);
+        bind(MetadataRolloverService.class).asEagerSingleton();
     }
 
     public void setExistingShardsAllocators(GatewayAllocator gatewayAllocator) {

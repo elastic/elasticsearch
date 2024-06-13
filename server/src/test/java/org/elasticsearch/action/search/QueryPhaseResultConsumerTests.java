@@ -103,20 +103,21 @@ public class QueryPhaseResultConsumerTests extends ESTestCase {
         SearchRequest searchRequest = new SearchRequest("index");
         searchRequest.setBatchedReduceSize(2);
         AtomicReference<Exception> onPartialMergeFailure = new AtomicReference<>();
-        QueryPhaseResultConsumer queryPhaseResultConsumer = new QueryPhaseResultConsumer(
-            searchRequest,
-            executor,
-            new NoopCircuitBreaker(CircuitBreaker.REQUEST),
-            searchPhaseController,
-            () -> false,
-            searchProgressListener,
-            10,
-            e -> onPartialMergeFailure.accumulateAndGet(e, (prev, curr) -> {
-                curr.addSuppressed(prev);
-                return curr;
-            })
-        );
-        try {
+        try (
+            QueryPhaseResultConsumer queryPhaseResultConsumer = new QueryPhaseResultConsumer(
+                searchRequest,
+                executor,
+                new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+                searchPhaseController,
+                () -> false,
+                searchProgressListener,
+                10,
+                e -> onPartialMergeFailure.accumulateAndGet(e, (prev, curr) -> {
+                    curr.addSuppressed(prev);
+                    return curr;
+                })
+            )
+        ) {
 
             CountDownLatch partialReduceLatch = new CountDownLatch(10);
 
@@ -137,8 +138,6 @@ public class QueryPhaseResultConsumerTests extends ESTestCase {
 
             queryPhaseResultConsumer.reduce();
             assertEquals(1, searchProgressListener.onFinalReduce.get());
-        } finally {
-            queryPhaseResultConsumer.decRef();
         }
     }
 

@@ -33,7 +33,7 @@ public class GetTrainedModelsAction extends ActionType<GetTrainedModelsAction.Re
     public static final String NAME = "cluster:monitor/xpack/ml/inference/get";
 
     private GetTrainedModelsAction() {
-        super(NAME, Response::new);
+        super(NAME);
     }
 
     public static class Includes implements Writeable {

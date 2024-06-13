@@ -23,7 +23,7 @@ public final class ByteRange implements Comparable<ByteRange> {
         this.start = start;
         this.end = end;
         assert start >= 0L : "Start must be >= 0 but saw [" + start + "]";
-        assert end >= start : "End must be greater or equal to start but saw [" + start + "][" + start + "]";
+        assert end >= start : "End must be greater or equal to start but saw [" + end + "][" + start + "]";
     }
 
     public long start() {

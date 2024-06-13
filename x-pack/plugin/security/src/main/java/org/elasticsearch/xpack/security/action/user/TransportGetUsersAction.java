@@ -25,7 +25,6 @@ import org.elasticsearch.xpack.core.security.action.user.GetUsersResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Subject;
 import org.elasticsearch.xpack.core.security.authc.esnative.ClientReservedRealm;
-import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authc.Realms;
@@ -63,12 +62,7 @@ public class TransportGetUsersAction extends HandledTransportAction<GetUsersRequ
         this.settings = settings;
         this.usersStore = usersStore;
         this.reservedRealm = reservedRealm;
-        this.nativeRealmRef = realms.getRealmRefs()
-            .values()
-            .stream()
-            .filter(realmRef -> NativeRealmSettings.TYPE.equals(realmRef.getType()))
-            .findFirst()
-            .orElseThrow(() -> new IllegalStateException("native realm realm ref not found"));
+        this.nativeRealmRef = realms.getNativeRealmRef();
         this.profileService = profileService;
     }
 

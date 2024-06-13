@@ -18,3 +18,8 @@ grant {
      permission org.bouncycastle.crypto.CryptoServicesPermission "exportPrivateKey";
      permission java.io.FilePermission "${javax.net.ssl.trustStore}", "read";
 };
+
+// rely on the caller's socket permissions, the JSSE TLS implementation here is always allowed to connect
+grant codeBase "file:${jdk.module.path}/bctls-fips-1.0.17.jar" {
+  permission java.net.SocketPermission "*", "connect";
+};

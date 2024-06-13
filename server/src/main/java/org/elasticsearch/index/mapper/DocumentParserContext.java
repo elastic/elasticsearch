@@ -12,8 +12,10 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
+import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.xcontent.FilterXContentParserWrapper;
 import org.elasticsearch.xcontent.FlatteningXContentParser;
 import org.elasticsearch.xcontent.XContentParser;
@@ -22,11 +24,13 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeSet;
 
 /**
  * Context used when parsing incoming documents. Holds everything that is needed to parse a document as well as
@@ -80,32 +84,54 @@ public abstract class DocumentParserContext {
         }
     }
 
+    /**
+     * Tracks the number of dynamically added mappers.
+     * All {@link DocumentParserContext}s that are created via {@link DocumentParserContext#createChildContext(ObjectMapper)}
+     * share the same mutable instance so that we can track the total size of dynamic mappers
+     * that are added on any level of the object graph.
+     */
+    private static final class DynamicMapperSize {
+        private int dynamicMapperSize = 0;
+
+        public void add(int mapperSize) {
+            dynamicMapperSize += mapperSize;
+        }
+
+        public int get() {
+            return dynamicMapperSize;
+        }
+    }
+
     private final MappingLookup mappingLookup;
     private final MappingParserContext mappingParserContext;
     private final SourceToParse sourceToParse;
     private final Set<String> ignoredFields;
+    private final Set<IgnoredSourceFieldMapper.NameValue> ignoredFieldValues;
     private final Map<String, List<Mapper>> dynamicMappers;
-    private final Set<String> newFieldsSeen;
+    private final DynamicMapperSize dynamicMappersSize;
     private final Map<String, ObjectMapper> dynamicObjectMappers;
-    private final List<RuntimeField> dynamicRuntimeFields;
+    private final Map<String, List<RuntimeField>> dynamicRuntimeFields;
     private final DocumentDimensions dimensions;
     private final ObjectMapper parent;
     private final ObjectMapper.Dynamic dynamic;
     private String id;
     private Field version;
-    private SeqNoFieldMapper.SequenceIDFields seqID;
+    private final SeqNoFieldMapper.SequenceIDFields seqID;
     private final Set<String> fieldsAppliedFromTemplates;
     private final Set<String> copyToFields;
+
+    // Indicates if the source for this context has been cloned and gets parsed multiple times.
+    private boolean clonedSource;
 
     private DocumentParserContext(
         MappingLookup mappingLookup,
         MappingParserContext mappingParserContext,
         SourceToParse sourceToParse,
         Set<String> ignoreFields,
+        Set<IgnoredSourceFieldMapper.NameValue> ignoredFieldValues,
         Map<String, List<Mapper>> dynamicMappers,
-        Set<String> newFieldsSeen,
         Map<String, ObjectMapper> dynamicObjectMappers,
-        List<RuntimeField> dynamicRuntimeFields,
+        Map<String, List<RuntimeField>> dynamicRuntimeFields,
         String id,
         Field version,
         SeqNoFieldMapper.SequenceIDFields seqID,
@@ -113,14 +139,16 @@ public abstract class DocumentParserContext {
         ObjectMapper parent,
         ObjectMapper.Dynamic dynamic,
         Set<String> fieldsAppliedFromTemplates,
-        Set<String> copyToFields
+        Set<String> copyToFields,
+        DynamicMapperSize dynamicMapperSize,
+        boolean clonedSource
     ) {
         this.mappingLookup = mappingLookup;
         this.mappingParserContext = mappingParserContext;
         this.sourceToParse = sourceToParse;
         this.ignoredFields = ignoreFields;
+        this.ignoredFieldValues = ignoredFieldValues;
         this.dynamicMappers = dynamicMappers;
-        this.newFieldsSeen = newFieldsSeen;
         this.dynamicObjectMappers = dynamicObjectMappers;
         this.dynamicRuntimeFields = dynamicRuntimeFields;
         this.id = id;
@@ -131,6 +159,8 @@ public abstract class DocumentParserContext {
         this.dynamic = dynamic;
         this.fieldsAppliedFromTemplates = fieldsAppliedFromTemplates;
         this.copyToFields = copyToFields;
+        this.dynamicMappersSize = dynamicMapperSize;
+        this.clonedSource = clonedSource;
     }
 
     private DocumentParserContext(ObjectMapper parent, ObjectMapper.Dynamic dynamic, DocumentParserContext in) {
@@ -139,8 +169,8 @@ public abstract class DocumentParserContext {
             in.mappingParserContext,
             in.sourceToParse,
             in.ignoredFields,
+            in.ignoredFieldValues,
             in.dynamicMappers,
-            in.newFieldsSeen,
             in.dynamicObjectMappers,
             in.dynamicRuntimeFields,
             in.id,
@@ -150,7 +180,9 @@ public abstract class DocumentParserContext {
             parent,
             dynamic,
             in.fieldsAppliedFromTemplates,
-            in.copyToFields
+            in.copyToFields,
+            in.dynamicMappersSize,
+            in.clonedSource
         );
     }
 
@@ -166,18 +198,20 @@ public abstract class DocumentParserContext {
             mappingParserContext,
             source,
             new HashSet<>(),
+            new TreeSet<>(Comparator.comparing(IgnoredSourceFieldMapper.NameValue::name)),
             new HashMap<>(),
-            new HashSet<>(),
             new HashMap<>(),
-            new ArrayList<>(),
+            new HashMap<>(),
             null,
             null,
-            null,
+            SeqNoFieldMapper.SequenceIDFields.emptySeqID(),
             DocumentDimensions.fromIndexSettings(mappingParserContext.getIndexSettings()),
             parent,
             dynamic,
             new HashSet<>(),
-            new HashSet<>()
+            new HashSet<>(),
+            new DynamicMapperSize(),
+            false
         );
     }
 
@@ -213,6 +247,10 @@ public abstract class DocumentParserContext {
         return this.sourceToParse;
     }
 
+    public final String routing() {
+        return mappingParserContext.getIndexSettings().getMode() == IndexMode.TIME_SERIES ? null : sourceToParse.routing();
+    }
+
     /**
      * Add the given {@code field} to the set of ignored fields.
      */
@@ -225,6 +263,23 @@ public abstract class DocumentParserContext {
      */
     public final Collection<String> getIgnoredFields() {
         return Collections.unmodifiableCollection(ignoredFields);
+    }
+
+    /**
+     * Add the given ignored values to the corresponding list.
+     */
+    public final void addIgnoredField(IgnoredSourceFieldMapper.NameValue values) {
+        if (canAddIgnoredField()) {
+            // Skip tracking the source for this field twice, it's already tracked for the entire parsing subcontext.
+            ignoredFieldValues.add(values);
+        }
+    }
+
+    /**
+     * Return the collection of values for fields that have been ignored so far.
+     */
+    public final Collection<IgnoredSourceFieldMapper.NameValue> getIgnoredFieldValues() {
+        return Collections.unmodifiableCollection(ignoredFieldValues);
     }
 
     /**
@@ -264,8 +319,16 @@ public abstract class DocumentParserContext {
         return this.seqID;
     }
 
-    public final void seqID(SeqNoFieldMapper.SequenceIDFields seqID) {
-        this.seqID = seqID;
+    final void setClonedSource() {
+        this.clonedSource = true;
+    }
+
+    final boolean getClonedSource() {
+        return clonedSource;
+    }
+
+    final boolean canAddIgnoredField() {
+        return mappingLookup.isSourceSynthetic() && clonedSource == false;
     }
 
     /**
@@ -303,8 +366,13 @@ public abstract class DocumentParserContext {
 
     /**
      * Add a new mapper dynamically created while parsing.
+     *
+     * @return returns <code>true</code> if the mapper could be created, <code>false</code> if the dynamic mapper has been ignored due to
+     * the field limit
+     * @throws IllegalArgumentException if the field limit has been exceeded.
+     * This can happen when dynamic is set to {@link ObjectMapper.Dynamic#TRUE} or {@link ObjectMapper.Dynamic#RUNTIME}.
      */
-    public final void addDynamicMapper(Mapper mapper) {
+    public final boolean addDynamicMapper(Mapper mapper) {
         // eagerly check object depth limit here to avoid stack overflow errors
         if (mapper instanceof ObjectMapper) {
             MappingLookup.checkObjectDepthLimit(indexSettings().getMappingDepthLimit(), mapper.name());
@@ -315,8 +383,31 @@ public abstract class DocumentParserContext {
         // note that existing fields can also receive dynamic mapping updates (e.g. constant_keyword to fix the value)
         if (mappingLookup.getMapper(mapper.name()) == null
             && mappingLookup.objectMappers().containsKey(mapper.name()) == false
-            && newFieldsSeen.add(mapper.name())) {
-            mappingLookup.checkFieldLimit(indexSettings().getMappingTotalFieldsLimit(), newFieldsSeen.size());
+            && dynamicMappers.containsKey(mapper.name()) == false) {
+            int mapperSize = mapper.getTotalFieldsCount();
+            int additionalFieldsToAdd = getNewFieldsSize() + mapperSize;
+            if (indexSettings().isIgnoreDynamicFieldsBeyondLimit()) {
+                if (mappingLookup.exceedsLimit(indexSettings().getMappingTotalFieldsLimit(), additionalFieldsToAdd)) {
+                    if (canAddIgnoredField()) {
+                        try {
+                            addIgnoredField(
+                                IgnoredSourceFieldMapper.NameValue.fromContext(
+                                    this,
+                                    mapper.name(),
+                                    XContentDataHelper.encodeToken(parser())
+                                )
+                            );
+                        } catch (IOException e) {
+                            throw new IllegalArgumentException("failed to parse field [" + mapper.name() + " ]", e);
+                        }
+                    }
+                    addIgnoredField(mapper.name());
+                    return false;
+                }
+            } else {
+                mappingLookup.checkFieldLimit(indexSettings().getMappingTotalFieldsLimit(), additionalFieldsToAdd);
+            }
+            dynamicMappersSize.add(mapperSize);
         }
         if (mapper instanceof ObjectMapper objectMapper) {
             dynamicObjectMappers.put(objectMapper.name(), objectMapper);
@@ -337,6 +428,39 @@ public abstract class DocumentParserContext {
         // 1) by default, they would be empty containers in the mappings, is it then important to map them?
         // 2) they can be the result of applying a dynamic template which may define sub-fields or set dynamic, enabled or subobjects.
         dynamicMappers.computeIfAbsent(mapper.name(), k -> new ArrayList<>()).add(mapper);
+        return true;
+    }
+
+    /*
+     * Returns an approximation of the number of dynamically mapped fields and runtime fields that will be added to the mapping.
+     * This is to validate early and to fail fast during document parsing.
+     * There will be another authoritative (but more expensive) validation step when making the actual update mapping request.
+     * During the mapping update, the actual number fields is determined by counting the total number of fields of the merged mapping.
+     * Therefore, both over-counting and under-counting here is not critical.
+     * However, in order for users to get to the field limit, we should try to be as close as possible to the actual field count.
+     * If we under-count fields here, we may only know that we exceed the field limit during the mapping update.
+     * This can happen when merging the mappers for the same field results in a mapper with a larger size than the individual mappers.
+     * This leads to document rejection instead of ignoring fields above the limit
+     * if ignore_dynamic_beyond_limit is configured for the index.
+     * If we over-count the fields (for example by counting all mappers with the same name),
+     * we may reject fields earlier than necessary and before actually hitting the field limit.
+     */
+    int getNewFieldsSize() {
+        return dynamicMappersSize.get() + dynamicRuntimeFields.size();
+    }
+
+    /**
+     * @return true if either {@link #getDynamicMappers} or {@link #getDynamicRuntimeFields()} will return a non-empty result
+     */
+    public final boolean hasDynamicMappersOrRuntimeFields() {
+        return hasDynamicMappers() || dynamicRuntimeFields.isEmpty() == false;
+    }
+
+    /**
+     * @return true if either {@link #getDynamicMappers} will return a non-empty mapper list
+     */
+    public final boolean hasDynamicMappers() {
+        return dynamicMappers.isEmpty() == false;
     }
 
     /**
@@ -381,11 +505,19 @@ public abstract class DocumentParserContext {
      * because for dynamic mappings, a new field can be either mapped
      * as runtime or indexed, but never both.
      */
-    final void addDynamicRuntimeField(RuntimeField runtimeField) {
-        if (newFieldsSeen.add(runtimeField.name())) {
-            mappingLookup.checkFieldLimit(indexSettings().getMappingTotalFieldsLimit(), newFieldsSeen.size());
+    final boolean addDynamicRuntimeField(RuntimeField runtimeField) {
+        if (dynamicRuntimeFields.containsKey(runtimeField.name()) == false) {
+            if (indexSettings().isIgnoreDynamicFieldsBeyondLimit()) {
+                if (mappingLookup.exceedsLimit(indexSettings().getMappingTotalFieldsLimit(), getNewFieldsSize() + 1)) {
+                    addIgnoredField(runtimeField.name());
+                    return false;
+                }
+            } else {
+                mappingLookup.checkFieldLimit(indexSettings().getMappingTotalFieldsLimit(), getNewFieldsSize() + 1);
+            }
         }
-        dynamicRuntimeFields.add(runtimeField);
+        dynamicRuntimeFields.computeIfAbsent(runtimeField.name(), k -> new ArrayList<>(1)).add(runtimeField);
+        return true;
     }
 
     /**
@@ -394,7 +526,7 @@ public abstract class DocumentParserContext {
      * or when dynamic templates specify a <code>runtime</code> section.
      */
     public final List<RuntimeField> getDynamicRuntimeFields() {
-        return Collections.unmodifiableList(dynamicRuntimeFields);
+        return dynamicRuntimeFields.values().stream().flatMap(List::stream).toList();
     }
 
     /**
@@ -505,13 +637,10 @@ public abstract class DocumentParserContext {
     }
 
     /**
-     *  @deprecated we are actively deprecating and removing the ability to pass
-     *              complex objects to multifields, so try and avoid using this method
-     * Replace the XContentParser used by this context
+     * Clone this context, replacing the XContentParser with the passed one
      * @param parser    the replacement parser
      * @return  a new context with a replaced parser
      */
-    @Deprecated
     public final DocumentParserContext switchParser(XContentParser parser) {
         return new Wrapper(this.parent, this) {
             @Override
@@ -538,7 +667,19 @@ public abstract class DocumentParserContext {
         if (p.endsWith(".")) {
             p = p.substring(0, p.length() - 1);
         }
-        return new MapperBuilderContext(p, mappingLookup().isSourceSynthetic(), false);
+        boolean containsDimensions = false;
+        ObjectMapper objectMapper = mappingLookup.objectMappers().get(p);
+        if (objectMapper instanceof PassThroughObjectMapper passThroughObjectMapper) {
+            containsDimensions = passThroughObjectMapper.containsDimensions();
+        }
+        return new MapperBuilderContext(
+            p,
+            mappingLookup.isSourceSynthetic(),
+            false,
+            containsDimensions,
+            dynamic,
+            MergeReason.MAPPING_UPDATE
+        );
     }
 
     public abstract XContentParser parser();

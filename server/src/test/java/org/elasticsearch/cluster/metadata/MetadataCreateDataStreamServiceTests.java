@@ -18,6 +18,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.indices.ExecutorNames;
 import org.elasticsearch.indices.SystemDataStreamDescriptor;
@@ -25,6 +26,7 @@ import org.elasticsearch.indices.SystemDataStreamDescriptor.Type;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.indices.SystemIndices.Feature;
 import org.elasticsearch.test.ESTestCase;
+import org.mockito.stubbing.Answer;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -59,6 +61,7 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
         CreateDataStreamClusterStateUpdateRequest req = new CreateDataStreamClusterStateUpdateRequest(dataStreamName);
         ClusterState newState = MetadataCreateDataStreamService.createDataStream(
             metadataCreateIndexService,
+            Settings.EMPTY,
             cs,
             true,
             req,
@@ -98,6 +101,7 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
         CreateDataStreamClusterStateUpdateRequest req = new CreateDataStreamClusterStateUpdateRequest(dataStreamName);
         ClusterState newState = MetadataCreateDataStreamService.createDataStream(
             metadataCreateIndexService,
+            Settings.EMPTY,
             cs,
             randomBoolean(),
             req,
@@ -174,6 +178,7 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
         CreateDataStreamClusterStateUpdateRequest req = new CreateDataStreamClusterStateUpdateRequest(dataStreamName);
         ClusterState newState = MetadataCreateDataStreamService.createDataStream(
             metadataCreateIndexService,
+            Settings.EMPTY,
             cs,
             randomBoolean(),
             req,
@@ -226,6 +231,7 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
         CreateDataStreamClusterStateUpdateRequest req = new CreateDataStreamClusterStateUpdateRequest(dataStreamName);
         ClusterState newState = MetadataCreateDataStreamService.createDataStream(
             metadataCreateIndexService,
+            Settings.EMPTY,
             cs,
             randomBoolean(),
             req,
@@ -246,6 +252,40 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
         assertThat(newState.metadata().index(failureStoreIndexName).isSystem(), is(false));
     }
 
+    public void testCreateDataStreamWithFailureStoreWithRefreshRate() throws Exception {
+        final MetadataCreateIndexService metadataCreateIndexService = getMetadataCreateIndexService();
+        var timeValue = randomTimeValue();
+        var settings = Settings.builder()
+            .put(MetadataCreateDataStreamService.FAILURE_STORE_REFRESH_INTERVAL_SETTING_NAME, timeValue)
+            .build();
+        final String dataStreamName = "my-data-stream";
+        ComposableIndexTemplate template = new ComposableIndexTemplate.Builder().indexPatterns(List.of(dataStreamName + "*"))
+            .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(false, false, true))
+            .build();
+        ClusterState cs = ClusterState.builder(new ClusterName("_name"))
+            .metadata(Metadata.builder().put("template", template).build())
+            .build();
+        CreateDataStreamClusterStateUpdateRequest req = new CreateDataStreamClusterStateUpdateRequest(dataStreamName);
+        ClusterState newState = MetadataCreateDataStreamService.createDataStream(
+            metadataCreateIndexService,
+            settings,
+            cs,
+            randomBoolean(),
+            req,
+            ActionListener.noop()
+        );
+        var backingIndexName = DataStream.getDefaultBackingIndexName(dataStreamName, 1, req.getStartTime());
+        var failureStoreIndexName = DataStream.getDefaultFailureStoreName(dataStreamName, 1, req.getStartTime());
+        assertThat(newState.metadata().dataStreams().size(), equalTo(1));
+        assertThat(newState.metadata().dataStreams().get(dataStreamName).getName(), equalTo(dataStreamName));
+        assertThat(newState.metadata().index(backingIndexName), notNullValue());
+        assertThat(newState.metadata().index(failureStoreIndexName), notNullValue());
+        assertThat(
+            IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.get(newState.metadata().index(failureStoreIndexName).getSettings()),
+            equalTo(timeValue)
+        );
+    }
+
     public void testCreateSystemDataStream() throws Exception {
         final MetadataCreateIndexService metadataCreateIndexService = getMetadataCreateIndexService();
         final String dataStreamName = ".system-data-stream";
@@ -259,6 +299,7 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
         );
         ClusterState newState = MetadataCreateDataStreamService.createDataStream(
             metadataCreateIndexService,
+            Settings.EMPTY,
             cs,
             randomBoolean(),
             req,
@@ -291,6 +332,7 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
             ResourceAlreadyExistsException.class,
             () -> MetadataCreateDataStreamService.createDataStream(
                 metadataCreateIndexService,
+                Settings.EMPTY,
                 cs,
                 randomBoolean(),
                 req,
@@ -309,6 +351,7 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
             IllegalArgumentException.class,
             () -> MetadataCreateDataStreamService.createDataStream(
                 metadataCreateIndexService,
+                Settings.EMPTY,
                 cs,
                 randomBoolean(),
                 req,
@@ -327,6 +370,7 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
             IllegalArgumentException.class,
             () -> MetadataCreateDataStreamService.createDataStream(
                 metadataCreateIndexService,
+                Settings.EMPTY,
                 cs,
                 randomBoolean(),
                 req,
@@ -345,6 +389,7 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
             IllegalArgumentException.class,
             () -> MetadataCreateDataStreamService.createDataStream(
                 metadataCreateIndexService,
+                Settings.EMPTY,
                 cs,
                 randomBoolean(),
                 req,
@@ -363,6 +408,7 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
             IllegalArgumentException.class,
             () -> MetadataCreateDataStreamService.createDataStream(
                 metadataCreateIndexService,
+                Settings.EMPTY,
                 cs,
                 randomBoolean(),
                 req,
@@ -384,6 +430,7 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
             IllegalArgumentException.class,
             () -> MetadataCreateDataStreamService.createDataStream(
                 metadataCreateIndexService,
+                Settings.EMPTY,
                 cs,
                 randomBoolean(),
                 req,
@@ -408,6 +455,7 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
         CreateDataStreamClusterStateUpdateRequest req = new CreateDataStreamClusterStateUpdateRequest(dataStreamName);
         return MetadataCreateDataStreamService.createDataStream(
             metadataCreateIndexService,
+            Settings.EMPTY,
             cs,
             randomBoolean(),
             req,
@@ -418,29 +466,33 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
     private static MetadataCreateIndexService getMetadataCreateIndexService() throws Exception {
         MetadataCreateIndexService s = mock(MetadataCreateIndexService.class);
         when(s.getSystemIndices()).thenReturn(getSystemIndices());
-        when(s.applyCreateIndexRequest(any(ClusterState.class), any(CreateIndexClusterStateUpdateRequest.class), anyBoolean(), any()))
-            .thenAnswer(mockInvocation -> {
-                ClusterState currentState = (ClusterState) mockInvocation.getArguments()[0];
-                CreateIndexClusterStateUpdateRequest request = (CreateIndexClusterStateUpdateRequest) mockInvocation.getArguments()[1];
+        Answer<Object> objectAnswer = mockInvocation -> {
+            ClusterState currentState = (ClusterState) mockInvocation.getArguments()[0];
+            CreateIndexClusterStateUpdateRequest request = (CreateIndexClusterStateUpdateRequest) mockInvocation.getArguments()[1];
 
-                Metadata.Builder b = Metadata.builder(currentState.metadata())
-                    .put(
-                        IndexMetadata.builder(request.index())
-                            .settings(
-                                Settings.builder()
-                                    .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
-                                    .put(request.settings())
-                                    .build()
-                            )
-                            .putMapping(generateMapping("@timestamp"))
-                            .system(getSystemIndices().isSystemName(request.index()))
-                            .numberOfShards(1)
-                            .numberOfReplicas(1)
-                            .build(),
-                        false
-                    );
-                return ClusterState.builder(currentState).metadata(b.build()).build();
-            });
+            Metadata.Builder b = Metadata.builder(currentState.metadata())
+                .put(
+                    IndexMetadata.builder(request.index())
+                        .settings(
+                            Settings.builder()
+                                .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+                                .put(request.settings())
+                                .build()
+                        )
+                        .putMapping(generateMapping("@timestamp"))
+                        .system(getSystemIndices().isSystemName(request.index()))
+                        .numberOfShards(1)
+                        .numberOfReplicas(1)
+                        .build(),
+                    false
+                );
+            return ClusterState.builder(currentState).metadata(b.build()).build();
+        };
+        when(s.applyCreateIndexRequest(any(ClusterState.class), any(CreateIndexClusterStateUpdateRequest.class), anyBoolean(), any()))
+            .thenAnswer(objectAnswer);
+        when(
+            s.applyCreateIndexRequest(any(ClusterState.class), any(CreateIndexClusterStateUpdateRequest.class), anyBoolean(), any(), any())
+        ).thenAnswer(objectAnswer);
 
         return s;
     }

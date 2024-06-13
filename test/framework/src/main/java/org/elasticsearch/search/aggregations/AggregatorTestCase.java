@@ -26,6 +26,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.LogDocMergePolicy;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.OrdinalMap;
+import org.apache.lucene.index.PointValues;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.index.TermsEnum;
@@ -94,6 +95,7 @@ import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
+import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.MappingParserContext;
@@ -101,6 +103,7 @@ import org.elasticsearch.index.mapper.MockFieldMapper;
 import org.elasticsearch.index.mapper.NestedObjectMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.ObjectMapper;
+import org.elasticsearch.index.mapper.PassThroughObjectMapper;
 import org.elasticsearch.index.mapper.RangeFieldMapper;
 import org.elasticsearch.index.mapper.RangeType;
 import org.elasticsearch.index.mapper.TextFieldMapper;
@@ -200,6 +203,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
         SparseVectorFieldMapper.CONTENT_TYPE, // Sparse vectors are no longer supported
 
         NestedObjectMapper.CONTENT_TYPE, // TODO support for nested
+        PassThroughObjectMapper.CONTENT_TYPE, // TODO support for passthrough
         CompletionFieldMapper.CONTENT_TYPE, // TODO support completion
         FieldAliasMapper.CONTENT_TYPE // TODO support alias
     );
@@ -345,7 +349,8 @@ public abstract class AggregatorTestCase extends ESTestCase {
             // Alias all fields to <name>-alias to test aliases
             Arrays.stream(fieldTypes)
                 .map(ft -> new FieldAliasMapper(ft.name() + "-alias", ft.name() + "-alias", ft.name()))
-                .collect(toList())
+                .collect(toList()),
+            List.of()
         );
         BiFunction<MappedFieldType, FieldDataContext, IndexFieldData<?>> fieldDataBuilder = (fieldType, context) -> fieldType
             .fielddataBuilder(
@@ -382,8 +387,14 @@ public abstract class AggregatorTestCase extends ESTestCase {
             null,
             () -> true,
             valuesSourceRegistry,
-            emptyMap()
-        );
+            emptyMap(),
+            MapperMetrics.NOOP
+        ) {
+            @Override
+            public Iterable<MappedFieldType> dimensionFields() {
+                return Arrays.stream(fieldTypes).filter(MappedFieldType::isDimension).toList();
+            }
+        };
 
         AggregationContext context = new ProductionAggregationContext(
             Optional.ofNullable(analysisModule).map(AnalysisModule::getAnalysisRegistry).orElse(null),
@@ -452,7 +463,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
          * of stuff.
          */
         SearchExecutionContext subContext = spy(searchExecutionContext);
-        MappingLookup disableNestedLookup = MappingLookup.fromMappers(Mapping.EMPTY, Set.of(), Set.of(), Set.of());
+        MappingLookup disableNestedLookup = MappingLookup.fromMappers(Mapping.EMPTY, Set.of(), Set.of());
         doReturn(new NestedDocuments(disableNestedLookup, bitsetFilterCache::getBitSetProducer, indexSettings.getIndexVersionCreated()))
             .when(subContext)
             .getNestedDocuments();
@@ -1107,7 +1118,11 @@ public abstract class AggregatorTestCase extends ESTestCase {
                         // We should make sure if the builder says it supports sampling, that the internal aggregations returned override
                         // finalizeSampling
                         if (aggregationBuilder.supportsSampling()) {
-                            SamplingContext randomSamplingContext = new SamplingContext(randomDoubleBetween(1e-8, 0.1, false), randomInt());
+                            SamplingContext randomSamplingContext = new SamplingContext(
+                                randomDoubleBetween(1e-8, 0.1, false),
+                                randomInt(),
+                                randomBoolean() ? null : randomInt()
+                            );
                             InternalAggregation sampledResult = internalAggregation.finalizeSampling(randomSamplingContext);
                             assertThat(sampledResult.getClass(), equalTo(internalAggregation.getClass()));
                         }
@@ -1269,7 +1284,10 @@ public abstract class AggregatorTestCase extends ESTestCase {
                 ScriptCompiler.NONE,
                 null,
                 indexSettings,
-                null
+                null,
+                query -> {
+                    throw new UnsupportedOperationException();
+                }
             );
         }
 
@@ -1383,6 +1401,18 @@ public abstract class AggregatorTestCase extends ESTestCase {
                         subs[i] = sortedDocValues.termsEnum();
                         weights[i] = sortedDocValues.getValueCount();
                     }
+                    case NUMERIC, SORTED_NUMERIC -> {
+                        final byte[] min = PointValues.getMinPackedValue(reader, field);
+                        final byte[] max = PointValues.getMaxPackedValue(reader, field);
+                        if (min != null && max != null) {
+                            if (min.length == 4) {
+                                return NumericUtils.sortableBytesToInt(max, 0) - NumericUtils.sortableBytesToInt(min, 0);
+                            } else if (min.length == 8) {
+                                return NumericUtils.sortableBytesToLong(max, 0) - NumericUtils.sortableBytesToLong(min, 0);
+                            }
+                        }
+                        return -1;
+                    }
                     default -> {
                         return -1;
                     }
@@ -1494,9 +1524,18 @@ public abstract class AggregatorTestCase extends ESTestCase {
         }
 
         @Override
-        public InternalAggregation reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
-            aggregations.forEach(ia -> { assertThat(((InternalAggCardinalityUpperBound) ia).cardinality, equalTo(cardinality)); });
-            return new InternalAggCardinalityUpperBound(name, cardinality, metadata);
+        protected AggregatorReducer getLeaderReducer(AggregationReduceContext reduceContext, int size) {
+            return new AggregatorReducer() {
+                @Override
+                public void accept(InternalAggregation aggregation) {
+                    assertThat(((InternalAggCardinalityUpperBound) aggregation).cardinality, equalTo(cardinality));
+                }
+
+                @Override
+                public InternalAggregation get() {
+                    return new InternalAggCardinalityUpperBound(name, cardinality, metadata);
+                }
+            };
         }
 
         @Override

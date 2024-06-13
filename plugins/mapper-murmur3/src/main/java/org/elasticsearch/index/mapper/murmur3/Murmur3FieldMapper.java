@@ -55,8 +55,8 @@ public class Murmur3FieldMapper extends FieldMapper {
         @Override
         public Murmur3FieldMapper build(MapperBuilderContext context) {
             return new Murmur3FieldMapper(
-                name,
-                new Murmur3FieldType(context.buildFullName(name), stored.getValue(), meta.getValue()),
+                name(),
+                new Murmur3FieldType(context.buildFullName(name()), stored.getValue(), meta.getValue()),
                 multiFieldsBuilder.build(this, context),
                 copyTo
             );
@@ -80,7 +80,7 @@ public class Murmur3FieldMapper extends FieldMapper {
         @Override
         public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
             failIfNoDocValues();
-            return new SortedNumericIndexFieldData.Builder(name(), NumericType.LONG, Murmur3DocValueField::new);
+            return new SortedNumericIndexFieldData.Builder(name(), NumericType.LONG, Murmur3DocValueField::new, isIndexed());
         }
 
         @Override

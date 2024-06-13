@@ -172,7 +172,8 @@ public class BatchedDocumentsIteratorTests extends ESTestCase {
             SearchHits searchHits = createHits(hits);
             SearchResponse searchResponse = mock(SearchResponse.class);
             when(searchResponse.getScrollId()).thenReturn(SCROLL_ID);
-            when(searchResponse.getHits()).thenReturn(searchHits);
+            when(searchResponse.getHits()).thenReturn(searchHits.asUnpooled());
+            searchHits.decRef();
             return searchResponse;
         }
 

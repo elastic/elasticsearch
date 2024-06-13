@@ -9,15 +9,16 @@
 package org.elasticsearch.action.admin.indices.cache.clear;
 
 import org.elasticsearch.action.support.broadcast.BroadcastOperationRequestBuilder;
+import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.client.internal.ElasticsearchClient;
 
 public class ClearIndicesCacheRequestBuilder extends BroadcastOperationRequestBuilder<
     ClearIndicesCacheRequest,
-    ClearIndicesCacheResponse,
+    BroadcastResponse,
     ClearIndicesCacheRequestBuilder> {
 
     public ClearIndicesCacheRequestBuilder(ElasticsearchClient client) {
-        super(client, ClearIndicesCacheAction.INSTANCE, new ClearIndicesCacheRequest());
+        super(client, TransportClearIndicesCacheAction.TYPE, new ClearIndicesCacheRequest());
     }
 
     public ClearIndicesCacheRequestBuilder setQueryCache(boolean queryCache) {

@@ -16,11 +16,10 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
-import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
-import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.action.bulk.TransportBulkAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.TransportIndexAction;
 import org.elasticsearch.action.search.MultiSearchRequest;
@@ -30,6 +29,8 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.action.support.broadcast.BroadcastResponse;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.Numbers;
@@ -52,6 +53,7 @@ import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.metrics.Max;
 import org.elasticsearch.search.aggregations.metrics.Sum;
@@ -126,9 +128,15 @@ public class TrainedModelProvider {
     private static final Logger logger = LogManager.getLogger(TrainedModelProvider.class);
     private final Client client;
     private final NamedXContentRegistry xContentRegistry;
+    private final TrainedModelCacheMetadataService modelCacheMetadataService;
 
-    public TrainedModelProvider(Client client, NamedXContentRegistry xContentRegistry) {
+    public TrainedModelProvider(
+        Client client,
+        TrainedModelCacheMetadataService modelCacheMetadataService,
+        NamedXContentRegistry xContentRegistry
+    ) {
         this.client = client;
+        this.modelCacheMetadataService = modelCacheMetadataService;
         this.xContentRegistry = xContentRegistry;
     }
 
@@ -207,7 +215,7 @@ public class TrainedModelProvider {
             ML_ORIGIN,
             TransportIndexAction.TYPE,
             request,
-            ActionListener.wrap(indexResponse -> listener.onResponse(true), e -> {
+            ActionListener.wrap(indexResponse -> refreshCacheVersion(listener), e -> {
                 if (ExceptionsHelper.unwrapCause(e) instanceof VersionConflictEngineException) {
                     listener.onFailure(
                         new ResourceAlreadyExistsException(
@@ -419,7 +427,7 @@ public class TrainedModelProvider {
         }));
     }
 
-    public void refreshInferenceIndex(ActionListener<RefreshResponse> listener) {
+    public void refreshInferenceIndex(ActionListener<BroadcastResponse> listener) {
         executeAsyncWithOrigin(
             client,
             ML_ORIGIN,
@@ -520,10 +528,11 @@ public class TrainedModelProvider {
                 wrappedListener.onFailure(firstFailure);
                 return;
             }
-            wrappedListener.onResponse(true);
+
+            refreshCacheVersion(wrappedListener);
         }, wrappedListener::onFailure);
 
-        executeAsyncWithOrigin(client, ML_ORIGIN, BulkAction.INSTANCE, bulkRequest.request(), bulkResponseActionListener);
+        executeAsyncWithOrigin(client, ML_ORIGIN, TransportBulkAction.TYPE, bulkRequest.request(), bulkResponseActionListener);
     }
 
     /**
@@ -663,7 +672,7 @@ public class TrainedModelProvider {
         ActionListener<SearchResponse> trainedModelSearchHandler = ActionListener.wrap(modelSearchResponse -> {
             TrainedModelConfig.Builder builder;
             try {
-                builder = handleHits(modelSearchResponse.getHits().getHits(), modelId, this::parseModelConfigLenientlyFromSource).get(0);
+                builder = handleHits(modelSearchResponse.getHits(), modelId, this::parseModelConfigLenientlyFromSource).get(0);
             } catch (ResourceNotFoundException ex) {
                 getTrainedModelListener.onFailure(
                     new ResourceNotFoundException(Messages.getMessage(Messages.INFERENCE_NOT_FOUND, modelId))
@@ -701,7 +710,7 @@ public class TrainedModelProvider {
                 ActionListener.wrap(definitionSearchResponse -> {
                     try {
                         List<TrainedModelDefinitionDoc> docs = handleHits(
-                            definitionSearchResponse.getHits().getHits(),
+                            definitionSearchResponse.getHits(),
                             modelId,
                             (bytes, resourceId) -> ChunkedTrainedModelRestorer.parseModelDefinitionDocLenientlyFromSource(
                                 bytes,
@@ -893,7 +902,8 @@ public class TrainedModelProvider {
                 listener.onFailure(new ResourceNotFoundException(Messages.getMessage(Messages.INFERENCE_NOT_FOUND, modelId)));
                 return;
             }
-            listener.onResponse(true);
+
+            refreshCacheVersion(listener);
         }, e -> {
             if (e.getClass() == IndexNotFoundException.class) {
                 listener.onFailure(new ResourceNotFoundException(Messages.getMessage(Messages.INFERENCE_NOT_FOUND, modelId)));
@@ -1268,15 +1278,15 @@ public class TrainedModelProvider {
     }
 
     private static <T> List<T> handleHits(
-        SearchHit[] hits,
+        SearchHits hits,
         String resourceId,
         CheckedBiFunction<BytesReference, String, T, Exception> parseLeniently
     ) throws Exception {
-        if (hits.length == 0) {
+        if (hits.getHits().length == 0) {
             throw new ResourceNotFoundException(resourceId);
         }
-        List<T> results = new ArrayList<>(hits.length);
-        String initialIndex = hits[0].getIndex();
+        List<T> results = new ArrayList<>(hits.getHits().length);
+        String initialIndex = hits.getAt(0).getIndex();
         for (SearchHit hit : hits) {
             // We don't want to spread across multiple backing indices
             if (hit.getIndex().equals(initialIndex)) {
@@ -1374,5 +1384,14 @@ public class TrainedModelProvider {
             // that is not the users fault. We did something wrong and should throw.
             throw ExceptionsHelper.serverError("Unexpected serialization exception for [" + docId + "]", ex);
         }
+    }
+
+    private void refreshCacheVersion(ActionListener<Boolean> listener) {
+        modelCacheMetadataService.updateCacheVersion(ActionListener.wrap(resp -> {
+            // Checking the response is always AcknowledgedResponse.TRUE because AcknowledgedResponse.FALSE does not make sense.
+            // Errors should be reported through the onFailure method of the listener.
+            assert resp.equals(AcknowledgedResponse.TRUE);
+            listener.onResponse(true);
+        }, listener::onFailure));
     }
 }

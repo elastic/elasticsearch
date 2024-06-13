@@ -264,10 +264,13 @@ public class AsyncStatusResponseTests extends AbstractWireSerializingTestCase<As
     public void testGetStatusFromStoredSearchRandomizedInputs() {
         boolean ccs = randomBoolean();
         String searchId = randomSearchId();
-        AsyncSearchResponse asyncSearchResponse = AsyncSearchResponseTests.randomAsyncSearchResponse(
-            searchId,
-            AsyncSearchResponseTests.randomSearchResponse(ccs)
-        );
+        SearchResponse searchResponse = AsyncSearchResponseTests.randomSearchResponse(ccs);
+        AsyncSearchResponse asyncSearchResponse;
+        try {
+            asyncSearchResponse = AsyncSearchResponseTests.randomAsyncSearchResponse(searchId, searchResponse);
+        } finally {
+            searchResponse.decRef();
+        }
         try {
             if (asyncSearchResponse.getSearchResponse() == null
                 && asyncSearchResponse.getFailure() == null
@@ -337,8 +340,12 @@ public class AsyncStatusResponseTests extends AbstractWireSerializingTestCase<As
             new ShardSearchFailure[] { new ShardSearchFailure(new RuntimeException("foo")) },
             clusters
         );
-
-        AsyncSearchResponse asyncSearchResponse = new AsyncSearchResponse(searchId, searchResponse, null, false, false, 100, 200);
+        AsyncSearchResponse asyncSearchResponse;
+        try {
+            asyncSearchResponse = new AsyncSearchResponse(searchId, searchResponse, null, false, false, 100, 200);
+        } finally {
+            searchResponse.decRef();
+        }
         try {
             AsyncStatusResponse statusFromStoredSearch = AsyncStatusResponse.getStatusFromStoredSearch(asyncSearchResponse, 100, searchId);
             assertNotNull(statusFromStoredSearch);
@@ -366,8 +373,12 @@ public class AsyncStatusResponseTests extends AbstractWireSerializingTestCase<As
             ShardSearchFailure.EMPTY_ARRAY,
             SearchResponse.Clusters.EMPTY
         );
-
-        AsyncSearchResponse asyncSearchResponse = new AsyncSearchResponse(searchId, searchResponse, null, false, false, 100, 200);
+        AsyncSearchResponse asyncSearchResponse;
+        try {
+            asyncSearchResponse = new AsyncSearchResponse(searchId, searchResponse, null, false, false, 100, 200);
+        } finally {
+            searchResponse.decRef();
+        }
         try {
             AsyncStatusResponse statusFromStoredSearch = AsyncStatusResponse.getStatusFromStoredSearch(asyncSearchResponse, 100, searchId);
             assertNotNull(statusFromStoredSearch);
@@ -413,8 +424,12 @@ public class AsyncStatusResponseTests extends AbstractWireSerializingTestCase<As
             ShardSearchFailure.EMPTY_ARRAY,
             clusters
         );
-
-        AsyncSearchResponse asyncSearchResponse = new AsyncSearchResponse(searchId, searchResponse, null, false, false, 100, 200);
+        AsyncSearchResponse asyncSearchResponse;
+        try {
+            asyncSearchResponse = new AsyncSearchResponse(searchId, searchResponse, null, false, false, 100, 200);
+        } finally {
+            searchResponse.decRef();
+        }
         try {
             AsyncStatusResponse statusFromStoredSearch = AsyncStatusResponse.getStatusFromStoredSearch(asyncSearchResponse, 100, searchId);
             assertNotNull(statusFromStoredSearch);
@@ -462,9 +477,13 @@ public class AsyncStatusResponseTests extends AbstractWireSerializingTestCase<As
             ShardSearchFailure.EMPTY_ARRAY,
             clusters
         );
-
         boolean isRunning = true;
-        AsyncSearchResponse asyncSearchResponse = new AsyncSearchResponse(searchId, searchResponse, null, false, isRunning, 100, 200);
+        AsyncSearchResponse asyncSearchResponse;
+        try {
+            asyncSearchResponse = new AsyncSearchResponse(searchId, searchResponse, null, false, isRunning, 100, 200);
+        } finally {
+            searchResponse.decRef();
+        }
         try {
             AsyncStatusResponse statusFromStoredSearch = AsyncStatusResponse.getStatusFromStoredSearch(asyncSearchResponse, 100, searchId);
             assertNotNull(statusFromStoredSearch);

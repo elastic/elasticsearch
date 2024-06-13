@@ -16,8 +16,10 @@ import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.SecretSettings;
 import org.elasticsearch.inference.ServiceSettings;
+import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 
@@ -25,30 +27,40 @@ import java.io.IOException;
 import java.util.Map;
 
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLength;
+import static org.elasticsearch.test.ESTestCase.randomFrom;
 import static org.elasticsearch.test.ESTestCase.randomInt;
 
 public class TestModel extends Model {
 
     public static TestModel createRandomInstance() {
+        return createRandomInstance(randomFrom(TaskType.TEXT_EMBEDDING, TaskType.SPARSE_EMBEDDING));
+    }
+
+    public static TestModel createRandomInstance(TaskType taskType) {
+        var dimensions = taskType == TaskType.TEXT_EMBEDDING ? randomInt(1024) : null;
+        var similarity = taskType == TaskType.TEXT_EMBEDDING ? randomFrom(SimilarityMeasure.values()) : null;
         return new TestModel(
             randomAlphaOfLength(4),
-            TaskType.TEXT_EMBEDDING,
+            taskType,
             randomAlphaOfLength(10),
-            new TestModel.TestServiceSettings(randomAlphaOfLength(4)),
+            new TestModel.TestServiceSettings(randomAlphaOfLength(4), dimensions, similarity),
             new TestModel.TestTaskSettings(randomInt(3)),
             new TestModel.TestSecretSettings(randomAlphaOfLength(4))
         );
     }
 
     public TestModel(
-        String modelId,
+        String inferenceEntityId,
         TaskType taskType,
         String service,
         TestServiceSettings serviceSettings,
         TestTaskSettings taskSettings,
         TestSecretSettings secretSettings
     ) {
-        super(new ModelConfigurations(modelId, taskType, service, serviceSettings, taskSettings), new ModelSecrets(secretSettings));
+        super(
+            new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings),
+            new ModelSecrets(secretSettings)
+        );
     }
 
     @Override
@@ -66,7 +78,7 @@ public class TestModel extends Model {
         return (TestSecretSettings) super.getSecretSettings();
     }
 
-    public record TestServiceSettings(String model) implements ServiceSettings {
+    public record TestServiceSettings(String model, Integer dimensions, SimilarityMeasure similarity) implements ServiceSettings {
 
         private static final String NAME = "test_service_settings";
 
@@ -83,17 +95,23 @@ public class TestModel extends Model {
                 throw validationException;
             }
 
-            return new TestServiceSettings(model);
+            return new TestServiceSettings(model, null, null);
         }
 
         public TestServiceSettings(StreamInput in) throws IOException {
-            this(in.readString());
+            this(in.readString(), in.readOptionalVInt(), in.readOptionalEnum(SimilarityMeasure.class));
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             builder.field("model", model);
+            if (dimensions != null) {
+                builder.field("dimensions", dimensions());
+            }
+            if (similarity != null) {
+                builder.field("similarity", similarity);
+            }
             builder.endObject();
             return builder;
         }
@@ -111,6 +129,23 @@ public class TestModel extends Model {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(model);
+            out.writeOptionalVInt(dimensions);
+            out.writeOptionalEnum(similarity);
+        }
+
+        @Override
+        public ToXContentObject getFilteredXContentObject() {
+            return this;
+        }
+
+        @Override
+        public SimilarityMeasure similarity() {
+            return similarity;
+        }
+
+        @Override
+        public Integer dimensions() {
+            return dimensions;
         }
     }
 

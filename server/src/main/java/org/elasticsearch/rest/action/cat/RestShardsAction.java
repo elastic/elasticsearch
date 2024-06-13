@@ -53,6 +53,7 @@ import java.util.Locale;
 import java.util.function.Function;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
+import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 
 @ServerlessScope(Scope.INTERNAL)
 public class RestShardsAction extends AbstractCatAction {
@@ -83,7 +84,7 @@ public class RestShardsAction extends AbstractCatAction {
         final String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
 
         final var clusterStateRequest = new ClusterStateRequest();
-        clusterStateRequest.masterNodeTimeout(request.paramAsTime("master_timeout", clusterStateRequest.masterNodeTimeout()));
+        clusterStateRequest.masterNodeTimeout(getMasterNodeTimeout(request));
         clusterStateRequest.clear().nodes(true).routingTable(true).indices(indices).indicesOptions(IndicesOptions.strictExpandHidden());
 
         return channel -> {
@@ -323,11 +324,13 @@ public class RestShardsAction extends AbstractCatAction {
             table.addCell(commitStats == null ? null : commitStats.getUserData().get(Engine.SYNC_COMMIT_ID));
 
             if (shard.unassignedInfo() != null) {
-                table.addCell(shard.unassignedInfo().getReason());
-                Instant unassignedTime = Instant.ofEpochMilli(shard.unassignedInfo().getUnassignedTimeInMillis());
+                table.addCell(shard.unassignedInfo().reason());
+                Instant unassignedTime = Instant.ofEpochMilli(shard.unassignedInfo().unassignedTimeMillis());
                 table.addCell(UnassignedInfo.DATE_TIME_FORMATTER.format(unassignedTime));
-                table.addCell(TimeValue.timeValueMillis(System.currentTimeMillis() - shard.unassignedInfo().getUnassignedTimeInMillis()));
-                table.addCell(shard.unassignedInfo().getDetails());
+                table.addCell(
+                    TimeValue.timeValueMillis(Math.max(0, System.currentTimeMillis() - shard.unassignedInfo().unassignedTimeMillis()))
+                );
+                table.addCell(shard.unassignedInfo().details());
             } else {
                 table.addCell(null);
                 table.addCell(null);

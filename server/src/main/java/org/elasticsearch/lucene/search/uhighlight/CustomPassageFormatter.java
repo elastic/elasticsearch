@@ -23,11 +23,13 @@ public class CustomPassageFormatter extends PassageFormatter {
     private final String preTag;
     private final String postTag;
     private final Encoder encoder;
+    private final int numberOfFragments;
 
-    public CustomPassageFormatter(String preTag, String postTag, Encoder encoder) {
+    public CustomPassageFormatter(String preTag, String postTag, Encoder encoder, int numberOfFragments) {
         this.preTag = preTag;
         this.postTag = postTag;
         this.encoder = encoder;
+        this.numberOfFragments = numberOfFragments;
     }
 
     @Override
@@ -66,8 +68,12 @@ public class CustomPassageFormatter extends PassageFormatter {
             } else if (sb.charAt(sb.length() - 1) == HighlightUtils.NULL_SEPARATOR) {
                 sb.deleteCharAt(sb.length() - 1);
             }
-            // and we trim the snippets too
-            snippets[j] = new Snippet(sb.toString().trim(), passage.getScore(), passage.getNumMatches() > 0);
+            // and we trim the snippets too, if the number of fragments > 0
+            if (numberOfFragments == 0) {
+                snippets[j] = new Snippet(sb.toString(), passage.getScore(), passage.getNumMatches() > 0);
+            } else {
+                snippets[j] = new Snippet(sb.toString().trim(), passage.getScore(), passage.getNumMatches() > 0);
+            }
         }
         return snippets;
     }

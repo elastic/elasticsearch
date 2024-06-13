@@ -15,6 +15,10 @@ ENRICH policy [ON match_field] [WITH [new_name1 = ]field1, [new_name2 = ]field2,
 The name of the enrich policy. You need to <<esql-set-up-enrich-policy,create>>
 and <<esql-execute-enrich-policy,execute>> the enrich policy first.
 
+`mode`::
+The mode of the enrich command in cross cluster {esql}.
+See <<ccq-enrich, enrich across clusters>>.
+
 `match_field`::
 The match field. `ENRICH` uses its value to look for records in the enrich
 index. If not specified, the match will be performed on the column with the same
@@ -53,11 +57,11 @@ in this example). `ENRICH` will look for records in the
 
 [source.merge.styled,esql]
 ----
-include::{esql-specs}/docs-IT_tests_only.csv-spec[tag=enrich]
+include::{esql-specs}/enrich.csv-spec[tag=enrich]
 ----
 [%header.monospaced.styled,format=dsv,separator=|]
 |===
-include::{esql-specs}/docs-IT_tests_only.csv-spec[tag=enrich-result]
+include::{esql-specs}/enrich.csv-spec[tag=enrich-result]
 |===
 
 To use a column with a different name than the `match_field` defined in the
@@ -65,11 +69,11 @@ policy as the match field, use `ON <column-name>`:
 
 [source.merge.styled,esql]
 ----
-include::{esql-specs}/docs-IT_tests_only.csv-spec[tag=enrich_on]
+include::{esql-specs}/enrich.csv-spec[tag=enrich_on]
 ----
 [%header.monospaced.styled,format=dsv,separator=|]
 |===
-include::{esql-specs}/docs-IT_tests_only.csv-spec[tag=enrich_on-result]
+include::{esql-specs}/enrich.csv-spec[tag=enrich_on-result]
 |===
 
 By default, each of the enrich fields defined in the policy is added as a
@@ -78,22 +82,22 @@ column. To explicitly select the enrich fields that are added, use
 
 [source.merge.styled,esql]
 ----
-include::{esql-specs}/docs-IT_tests_only.csv-spec[tag=enrich_with]
+include::{esql-specs}/enrich.csv-spec[tag=enrich_with]
 ----
 [%header.monospaced.styled,format=dsv,separator=|]
 |===
-include::{esql-specs}/docs-IT_tests_only.csv-spec[tag=enrich_with-result]
+include::{esql-specs}/enrich.csv-spec[tag=enrich_with-result]
 |===
 
 You can rename the columns that are added using `WITH new_name=<field1>`:
 
 [source.merge.styled,esql]
 ----
-include::{esql-specs}/docs-IT_tests_only.csv-spec[tag=enrich_rename]
+include::{esql-specs}/enrich.csv-spec[tag=enrich_rename]
 ----
 [%header.monospaced.styled,format=dsv,separator=|]
 |===
-include::{esql-specs}/docs-IT_tests_only.csv-spec[tag=enrich_rename-result]
+include::{esql-specs}/enrich.csv-spec[tag=enrich_rename-result]
 |===
 
 In case of name collisions, the newly created columns will override existing

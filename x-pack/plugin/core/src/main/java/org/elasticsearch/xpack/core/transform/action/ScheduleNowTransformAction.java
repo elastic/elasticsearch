@@ -35,7 +35,7 @@ public class ScheduleNowTransformAction extends ActionType<ScheduleNowTransformA
     public static final String NAME = "cluster:admin/transform/schedule_now";
 
     private ScheduleNowTransformAction() {
-        super(NAME, ScheduleNowTransformAction.Response::new);
+        super(NAME);
     }
 
     public static final class Request extends BaseTasksRequest<Request> {

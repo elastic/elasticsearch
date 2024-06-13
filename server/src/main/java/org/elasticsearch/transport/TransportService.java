@@ -26,16 +26,19 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Predicates;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.UpdateForV9;
@@ -88,6 +91,17 @@ public class TransportService extends AbstractLifecycleComponent
     public static final String DIRECT_RESPONSE_PROFILE = ".direct";
     public static final String HANDSHAKE_ACTION_NAME = "internal:transport/handshake";
 
+    /**
+     * Undocumented on purpose, may be removed at any time. Only use this if instructed to do so, can have other unintended consequences
+     * including deadlocks.
+     */
+    public static final Setting<Boolean> ENABLE_STACK_OVERFLOW_AVOIDANCE = Setting.boolSetting(
+        "transport.enable_stack_protection",
+        false,
+        Setting.Property.NodeScope,
+        Setting.Property.Deprecated
+    );
+
     private final AtomicBoolean handleIncomingRequests = new AtomicBoolean();
     private final DelegatingTransportMessageListener messageListener = new DelegatingTransportMessageListener();
     protected final Transport transport;
@@ -102,6 +116,8 @@ public class TransportService extends AbstractLifecycleComponent
     private final TransportInterceptor interceptor;
 
     private final PendingDirectHandlers pendingDirectHandlers = new PendingDirectHandlers();
+
+    private final boolean enableStackOverflowAvoidance;
 
     // An LRU (don't really care about concurrency here) that holds the latest timed out requests so if they
     // do show up, we can print more descriptive information about them
@@ -279,6 +295,7 @@ public class TransportService extends AbstractLifecycleComponent
         this.interceptor = transportInterceptor;
         this.asyncSender = interceptor.interceptSender(this::sendRequestInternal);
         this.remoteClusterClient = DiscoveryNode.isRemoteClusterClient(settings);
+        this.enableStackOverflowAvoidance = ENABLE_STACK_OVERFLOW_AVOIDANCE.get(settings);
         remoteClusterService = new RemoteClusterService(settings, this);
         responseHandlers = transport.getResponseHandlers();
         if (clusterSettings != null) {
@@ -355,7 +372,7 @@ public class TransportService extends AbstractLifecycleComponent
             // but there may still be pending handlers for node-local requests since this connection is not closed, and we may also
             // (briefly) track handlers for requests which are sent concurrently with stopping even though the underlying connection is
             // now closed. We complete all these outstanding handlers here:
-            for (final Transport.ResponseContext<?> holderToNotify : responseHandlers.prune(h -> true)) {
+            for (final Transport.ResponseContext<?> holderToNotify : responseHandlers.prune(Predicates.always())) {
                 try {
                     final TransportResponseHandler<?> handler = holderToNotify.handler();
                     final var targetNode = holderToNotify.connection().getNode();
@@ -382,11 +399,11 @@ public class TransportService extends AbstractLifecycleComponent
                         holderToNotify.action(),
                         new NodeClosedException(localNode)
                     );
-                    final var executor = handler.executor(threadPool);
+                    final var executor = handler.executor();
                     if (executor == EsExecutors.DIRECT_EXECUTOR_SERVICE) {
                         handler.handleException(exception);
                     } else {
-                        executor.execute(new ForkingResponseHandlerRunnable(handler, exception, threadPool) {
+                        executor.execute(new ForkingResponseHandlerRunnable(handler, exception) {
                             @Override
                             protected void doRun() {
                                 handler.handleException(exception);
@@ -498,7 +515,7 @@ public class TransportService extends AbstractLifecycleComponent
     public ConnectionManager.ConnectionValidator connectionValidator(DiscoveryNode node) {
         return (newConnection, actualProfile, listener) -> {
             // We don't validate cluster names to allow for CCS connections.
-            handshake(newConnection, actualProfile.getHandshakeTimeout(), cn -> true, listener.map(resp -> {
+            handshake(newConnection, actualProfile.getHandshakeTimeout(), Predicates.always(), listener.map(resp -> {
                 final DiscoveryNode remote = resp.discoveryNode;
                 if (node.equals(remote) == false) {
                     throw new ConnectTransportException(node, "handshake failed. unexpected remote node " + remote);
@@ -963,43 +980,82 @@ public class TransportService extends AbstractLifecycleComponent
         Exception failure
     ) {
         final Transport.ResponseContext<? extends TransportResponse> contextToNotify = responseHandlers.remove(requestId);
-        // If holderToNotify == null then handler has already been taken care of.
         if (contextToNotify == null) {
+            // handler has already been completed somehow, nothing to do here
             logger.debug("Exception while sending request, handler likely already notified due to timeout", failure);
             return;
         }
         if (timeoutHandler != null) {
             timeoutHandler.cancel();
         }
-        // callback that an exception happened, but on a different thread since we don't
-        // want handlers to worry about stack overflows. In the special case of running into a closing node we run on the current
-        // thread on a best effort basis though.
-        final SendRequestTransportException sendRequestException = new SendRequestTransportException(node, action, failure);
-        final String executor = lifecycle.stoppedOrClosed() ? ThreadPool.Names.SAME : ThreadPool.Names.GENERIC;
-        threadPool.executor(executor).execute(new AbstractRunnable() {
-            @Override
-            public void onRejection(Exception e) {
-                // if we get rejected during node shutdown we don't wanna bubble it up
-                logger.debug(() -> format("failed to notify response handler on rejection, action: %s", contextToNotify.action()), e);
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                logger.warn(() -> format("failed to notify response handler on exception, action: %s", contextToNotify.action()), e);
-            }
-
+        final var sendRequestException = new SendRequestTransportException(node, action, failure);
+        final var handler = contextToNotify.handler();
+        final var executor = getInternalSendExceptionExecutor(handler.executor());
+        executor.execute(new AbstractRunnable() {
             @Override
             protected void doRun() {
                 if (tracerLog.isTraceEnabled() && shouldTraceAction(action)) {
                     tracerLog.trace("[{}][{}] failed to send request to node [{}]", requestId, action, node);
                 }
-                contextToNotify.handler().handleException(sendRequestException);
+                try {
+                    handler.handleException(sendRequestException);
+                } catch (Exception e) {
+                    assert false : e;
+                    if (e != sendRequestException) {
+                        e.addSuppressed(sendRequestException);
+                    }
+                    logger.error(
+                        Strings.format(
+                            "[%d][%s] failed to notify handler [%s] of failure to send request to node [%s]",
+                            requestId,
+                            action,
+                            handler,
+                            node
+                        ),
+                        e
+                    );
+                    // indicates a bug in the handler but there's not much else we can do about it now, just carry on
+                }
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                assert false : e;
+                logger.error(() -> format("failed to notify response handler on exception, action: %s", contextToNotify.action()), e);
+            }
+
+            @Override
+            public boolean isForceExecution() {
+                return true; // must complete every waiting listener
+            }
+
+            @Override
+            public void onRejection(Exception e) {
+                if (e != sendRequestException) {
+                    sendRequestException.addSuppressed(e);
+                }
+                // force-execution means we won't be rejected unless we're shutting down
+                assert e instanceof EsRejectedExecutionException esre && esre.isExecutorShutdown() : e;
+                // in this case it's better to complete the handler on the calling thread rather than leaking it
+                doRun();
             }
         });
     }
 
+    private Executor getInternalSendExceptionExecutor(Executor handlerExecutor) {
+        if (lifecycle.stoppedOrClosed()) {
+            // too late to try and dispatch anywhere else, let's just use the calling thread
+            return EsExecutors.DIRECT_EXECUTOR_SERVICE;
+        } else if (handlerExecutor == EsExecutors.DIRECT_EXECUTOR_SERVICE) {
+            // if the handler is non-forking then dispatch to GENERIC to avoid a possible stack overflow
+            return threadPool.generic();
+        } else {
+            return handlerExecutor;
+        }
+    }
+
     private void sendLocalRequest(long requestId, final String action, final TransportRequest request, TransportRequestOptions options) {
-        final DirectResponseChannel channel = new DirectResponseChannel(localNode, action, requestId, this, threadPool);
+        final DirectResponseChannel channel = new DirectResponseChannel(localNode, action, requestId, this);
         try {
             onRequestSent(localNode, requestId, action, request, options);
             onRequestReceived(requestId, action);
@@ -1301,36 +1357,35 @@ public class TransportService extends AbstractLifecycleComponent
             return;
         }
 
-        // Callback that an exception happened, but on a different thread since we don't want handlers to worry about stack overflows.
-        final var executor = threadPool.generic();
-        assert executor.isShutdown() == false : "connections should all be closed before threadpool shuts down";
-        executor.execute(new AbstractRunnable() {
-            @Override
-            public void doRun() {
-                for (Transport.ResponseContext<?> holderToNotify : pruned) {
-                    if (tracerLog.isTraceEnabled() && shouldTraceAction(holderToNotify.action())) {
-                        tracerLog.trace(
-                            "[{}][{}] pruning request because connection to node [{}] closed",
-                            holderToNotify.requestId(),
-                            holderToNotify.action(),
-                            connection.getNode()
-                        );
+        for (Transport.ResponseContext<?> holderToNotify : pruned) {
+            if (tracerLog.isTraceEnabled() && shouldTraceAction(holderToNotify.action())) {
+                tracerLog.trace(
+                    "[{}][{}] pruning request because connection to node [{}] closed",
+                    holderToNotify.requestId(),
+                    holderToNotify.action(),
+                    connection.getNode()
+                );
+            }
+            NodeDisconnectedException exception = new NodeDisconnectedException(connection.getNode(), holderToNotify.action());
+
+            TransportResponseHandler<?> handler = holderToNotify.handler();
+            // we used to fork to a different thread always to avoid stack overflows, but we avoid doing that now, expecting handlers
+            // to handle that themselves instead.
+            var executor = handler.executor();
+            if (executor == EsExecutors.DIRECT_EXECUTOR_SERVICE && enableStackOverflowAvoidance) {
+                executor = threadPool.generic();
+            }
+            if (executor == EsExecutors.DIRECT_EXECUTOR_SERVICE) {
+                handler.handleException(exception);
+            } else {
+                executor.execute(new ForkingResponseHandlerRunnable(handler, exception, executor) {
+                    @Override
+                    protected void doRun() {
+                        handler.handleException(exception);
                     }
-                    holderToNotify.handler().handleException(new NodeDisconnectedException(connection.getNode(), holderToNotify.action()));
-                }
+                });
             }
-
-            @Override
-            public void onFailure(Exception e) {
-                assert false : e;
-                logger.warn(() -> "failed to notify response handler on connection close [" + connection + "]", e);
-            }
-
-            @Override
-            public String toString() {
-                return "onConnectionClosed(" + connection.getNode() + ")";
-            }
-        });
+        }
     }
 
     final class TimeoutHandler implements Runnable {
@@ -1437,8 +1492,8 @@ public class TransportService extends AbstractLifecycleComponent
         }
 
         @Override
-        public Executor executor(ThreadPool threadPool) {
-            return delegate.executor(threadPool);
+        public Executor executor() {
+            return delegate.executor();
         }
 
         @Override
@@ -1465,14 +1520,12 @@ public class TransportService extends AbstractLifecycleComponent
         private final String action;
         private final long requestId;
         final TransportService service;
-        final ThreadPool threadPool;
 
-        DirectResponseChannel(DiscoveryNode localNode, String action, long requestId, TransportService service, ThreadPool threadPool) {
+        DirectResponseChannel(DiscoveryNode localNode, String action, long requestId, TransportService service) {
             this.localNode = localNode;
             this.action = action;
             this.requestId = requestId;
             this.service = service;
-            this.threadPool = threadPool;
         }
 
         @Override
@@ -1481,44 +1534,40 @@ public class TransportService extends AbstractLifecycleComponent
         }
 
         @Override
-        public void sendResponse(TransportResponse response) throws IOException {
-            try {
-                service.onResponseSent(requestId, action, response);
-                try (var shutdownBlock = service.pendingDirectHandlers.withRef()) {
-                    if (shutdownBlock == null) {
-                        // already shutting down, the handler will be completed by sendRequestInternal or doStop
-                        return;
-                    }
-                    final TransportResponseHandler<?> handler = service.responseHandlers.onResponseReceived(requestId, service);
-                    if (handler == null) {
-                        // handler already completed, likely by a timeout which is logged elsewhere
-                        return;
-                    }
-                    final var executor = handler.executor(threadPool);
-                    if (executor == EsExecutors.DIRECT_EXECUTOR_SERVICE) {
-                        processResponse(handler, response);
-                    } else {
-                        response.mustIncRef();
-                        executor.execute(new ForkingResponseHandlerRunnable(handler, null, threadPool) {
-                            @Override
-                            protected void doRun() {
-                                processResponse(handler, response);
-                            }
-
-                            @Override
-                            public void onAfter() {
-                                response.decRef();
-                            }
-
-                            @Override
-                            public String toString() {
-                                return "delivery of response to [" + requestId + "][" + action + "]: " + response;
-                            }
-                        });
-                    }
+        public void sendResponse(TransportResponse response) {
+            service.onResponseSent(requestId, action, response);
+            try (var shutdownBlock = service.pendingDirectHandlers.withRef()) {
+                if (shutdownBlock == null) {
+                    // already shutting down, the handler will be completed by sendRequestInternal or doStop
+                    return;
                 }
-            } finally {
-                response.decRef();
+                final TransportResponseHandler<?> handler = service.responseHandlers.onResponseReceived(requestId, service);
+                if (handler == null) {
+                    // handler already completed, likely by a timeout which is logged elsewhere
+                    return;
+                }
+                final var executor = handler.executor();
+                if (executor == EsExecutors.DIRECT_EXECUTOR_SERVICE) {
+                    processResponse(handler, response);
+                } else {
+                    response.mustIncRef();
+                    executor.execute(new ForkingResponseHandlerRunnable(handler, null) {
+                        @Override
+                        protected void doRun() {
+                            processResponse(handler, response);
+                        }
+
+                        @Override
+                        public void onAfter() {
+                            response.decRef();
+                        }
+
+                        @Override
+                        public String toString() {
+                            return "delivery of response to [" + requestId + "][" + action + "]: " + response;
+                        }
+                    });
+                }
             }
         }
 
@@ -1532,7 +1581,7 @@ public class TransportService extends AbstractLifecycleComponent
         }
 
         @Override
-        public void sendResponse(Exception exception) throws IOException {
+        public void sendResponse(Exception exception) {
             service.onResponseSent(requestId, action, exception);
             try (var shutdownBlock = service.pendingDirectHandlers.withRef()) {
                 if (shutdownBlock == null) {
@@ -1545,11 +1594,11 @@ public class TransportService extends AbstractLifecycleComponent
                     return;
                 }
                 final RemoteTransportException rtx = wrapInRemote(exception);
-                final var executor = handler.executor(threadPool);
+                final var executor = handler.executor();
                 if (executor == EsExecutors.DIRECT_EXECUTOR_SERVICE) {
                     processException(handler, rtx);
                 } else {
-                    executor.execute(new ForkingResponseHandlerRunnable(handler, rtx, threadPool) {
+                    executor.execute(new ForkingResponseHandlerRunnable(handler, rtx) {
                         @Override
                         protected void doRun() {
                             processException(handler, rtx);
@@ -1718,8 +1767,8 @@ public class TransportService extends AbstractLifecycleComponent
         }
 
         @Override
-        public Executor executor(ThreadPool threadPool) {
-            return handler.executor(threadPool);
+        public Executor executor() {
+            return handler.executor();
         }
 
         @Override

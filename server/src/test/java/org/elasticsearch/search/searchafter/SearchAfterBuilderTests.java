@@ -29,6 +29,7 @@ import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.XContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
@@ -36,8 +37,10 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.math.BigDecimal;
 import java.util.Collections;
+import java.util.function.BiFunction;
 
 import static org.elasticsearch.search.searchafter.SearchAfterBuilder.extractSortType;
 import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
@@ -47,7 +50,10 @@ import static org.hamcrest.Matchers.equalTo;
 public class SearchAfterBuilderTests extends ESTestCase {
     private static final int NUMBER_OF_TESTBUILDERS = 20;
 
-    private static SearchAfterBuilder randomSearchAfterBuilder() throws IOException {
+    /**
+     * Generates a random {@link SearchAfterBuilder}.
+     */
+    public static SearchAfterBuilder randomSearchAfterBuilder() throws IOException {
         int numSearchFrom = randomIntBetween(1, 10);
         SearchAfterBuilder searchAfterBuilder = new SearchAfterBuilder();
         Object[] values = new Object[numSearchFrom];
@@ -71,11 +77,14 @@ public class SearchAfterBuilderTests extends ESTestCase {
         return searchAfterBuilder;
     }
 
-    // We build a json version of the search_after first in order to
-    // ensure that every number type remain the same before/after xcontent (de)serialization.
-    // This is not a problem because the final type of each field value is extracted from associated sort field.
-    // This little trick ensure that equals and hashcode are the same when using the xcontent serialization.
-    private SearchAfterBuilder randomJsonSearchFromBuilder() throws IOException {
+    /**
+     * We build a json version of the search_after first in order to
+     * ensure that every number type remain the same before/after xcontent (de)serialization.
+     * This is not a problem because the final type of each field value is extracted from associated sort field.
+     * This little trick ensure that equals and hashcode are the same when using the xcontent serialization.
+     */
+    public static SearchAfterBuilder randomJsonSearchFromBuilder(BiFunction<XContent, BytesReference, XContentParser> createParser)
+        throws IOException {
         int numSearchAfter = randomIntBetween(1, 10);
         XContentBuilder jsonBuilder = XContentFactory.jsonBuilder();
         jsonBuilder.startObject();
@@ -97,7 +106,7 @@ public class SearchAfterBuilderTests extends ESTestCase {
         }
         jsonBuilder.endArray();
         jsonBuilder.endObject();
-        try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(jsonBuilder))) {
+        try (XContentParser parser = createParser.apply(JsonXContent.jsonXContent, BytesReference.bytes(jsonBuilder))) {
             parser.nextToken();
             parser.nextToken();
             parser.nextToken();
@@ -128,7 +137,13 @@ public class SearchAfterBuilderTests extends ESTestCase {
 
     public void testFromXContent() throws Exception {
         for (int runs = 0; runs < 20; runs++) {
-            SearchAfterBuilder searchAfterBuilder = randomJsonSearchFromBuilder();
+            SearchAfterBuilder searchAfterBuilder = randomJsonSearchFromBuilder((xContent, data) -> {
+                try {
+                    return createParser(xContent, data);
+                } catch (IOException ioe) {
+                    throw new UncheckedIOException(ioe);
+                }
+            });
             XContentBuilder builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
             if (randomBoolean()) {
                 builder.prettyPrint();

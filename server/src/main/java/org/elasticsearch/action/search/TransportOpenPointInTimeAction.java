@@ -19,6 +19,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.common.inject.Inject;
@@ -55,16 +56,14 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
     private static final Logger logger = LogManager.getLogger(TransportOpenPointInTimeAction.class);
 
     public static final String OPEN_SHARD_READER_CONTEXT_NAME = "indices:data/read/open_reader_context";
-    public static final ActionType<OpenPointInTimeResponse> TYPE = new ActionType<>(
-        "indices:data/read/open_point_in_time",
-        OpenPointInTimeResponse::new
-    );
+    public static final ActionType<OpenPointInTimeResponse> TYPE = new ActionType<>("indices:data/read/open_point_in_time");
 
     private final TransportSearchAction transportSearchAction;
     private final SearchTransportService searchTransportService;
     private final NamedWriteableRegistry namedWriteableRegistry;
     private final TransportService transportService;
     private final SearchService searchService;
+    private final Client client;
 
     @Inject
     public TransportOpenPointInTimeAction(
@@ -73,7 +72,8 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
         ActionFilters actionFilters,
         TransportSearchAction transportSearchAction,
         SearchTransportService searchTransportService,
-        NamedWriteableRegistry namedWriteableRegistry
+        NamedWriteableRegistry namedWriteableRegistry,
+        Client client
     ) {
         super(TYPE.name(), transportService, actionFilters, OpenPointInTimeRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.transportService = transportService;
@@ -81,6 +81,7 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
         this.searchService = searchService;
         this.searchTransportService = searchTransportService;
         this.namedWriteableRegistry = namedWriteableRegistry;
+        this.client = client;
         transportService.registerRequestHandler(
             OPEN_SHARD_READER_CONTEXT_NAME,
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
@@ -135,6 +136,9 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
             ThreadPool threadPool,
             SearchResponse.Clusters clusters
         ) {
+            // Note: remote shards are prefiltered via can match as part of search shards. They don't need additional pre-filtering and
+            // that is signaled to the local can match through the SearchShardIterator#prefiltered flag. Local shards do need to go
+            // through the local can match phase.
             if (SearchService.canRewriteToMatchNone(searchRequest.source())) {
                 return new CanMatchPreFilterSearchPhase(
                     logger,

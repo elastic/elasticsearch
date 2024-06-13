@@ -64,14 +64,8 @@ public abstract class AbstractShapeGeometryFieldMapper<T> extends AbstractGeomet
         }
 
         @Override
-        public BlockLoader blockLoader(BlockLoaderContext blContext) {
-            // TODO: Support shapes in ESQL
-            return null;
-        }
-
-        @Override
-        protected Object nullValueAsSource(Object nullValue) {
-            // TODO: When we support shapes in ESQL; we need to return a shape in source format here
+        protected Object nullValueAsSource(T nullValue) {
+            // we don't support null value fors shapes
             return nullValue;
         }
     }

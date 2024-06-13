@@ -21,6 +21,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.persistent.PersistentTasksExecutor;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.PersistentTaskPlugin;
@@ -41,6 +42,8 @@ import org.elasticsearch.xpack.core.rollup.action.PutRollupJobAction;
 import org.elasticsearch.xpack.core.rollup.action.RollupSearchAction;
 import org.elasticsearch.xpack.core.rollup.action.StartRollupJobAction;
 import org.elasticsearch.xpack.core.rollup.action.StopRollupJobAction;
+import org.elasticsearch.xpack.rollup.action.RollupInfoTransportAction;
+import org.elasticsearch.xpack.rollup.action.RollupUsageTransportAction;
 import org.elasticsearch.xpack.rollup.action.TransportDeleteRollupJobAction;
 import org.elasticsearch.xpack.rollup.action.TransportGetRollupCapsAction;
 import org.elasticsearch.xpack.rollup.action.TransportGetRollupIndexCapsAction;
@@ -62,6 +65,7 @@ import org.elasticsearch.xpack.rollup.rest.RestStopRollupJobAction;
 import java.time.Clock;
 import java.util.Arrays;
 import java.util.List;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 public class Rollup extends Plugin implements ActionPlugin, PersistentTaskPlugin {
@@ -74,8 +78,6 @@ public class Rollup extends Plugin implements ActionPlugin, PersistentTaskPlugin
     public static final int CURRENT_ROLLUP_VERSION = ROLLUP_VERSION_V2;
 
     public static final String TASK_THREAD_POOL_NAME = RollupField.NAME + "_indexing";
-
-    public static final String ROLLUP_TEMPLATE_VERSION_FIELD = "rollup-version";
 
     private final SetOnce<SchedulerEngine> schedulerEngine = new SetOnce<>();
     private final Settings settings;
@@ -93,10 +95,11 @@ public class Rollup extends Plugin implements ActionPlugin, PersistentTaskPlugin
         IndexScopedSettings indexScopedSettings,
         SettingsFilter settingsFilter,
         IndexNameExpressionResolver indexNameExpressionResolver,
-        Supplier<DiscoveryNodes> nodesInCluster
+        Supplier<DiscoveryNodes> nodesInCluster,
+        Predicate<NodeFeature> clusterSupportsFeature
     ) {
         return Arrays.asList(
-            new RestRollupSearchAction(namedWriteableRegistry),
+            new RestRollupSearchAction(clusterSupportsFeature),
             new RestPutRollupJobAction(),
             new RestStartRollupJobAction(),
             new RestStopRollupJobAction(),

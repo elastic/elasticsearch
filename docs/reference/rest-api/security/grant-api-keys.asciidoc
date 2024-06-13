@@ -89,29 +89,13 @@ It supports nested data structure.
 Within the `metadata` object, keys beginning with `_` are reserved for
 system usage.
 
-`client_authentication`::
-(Optional, object) When using the `access_token` grant type, and when supplying a
-JWT, this specifies the client authentication for <<jwt-auth-realm, JWTs>> that
-need it (i.e. what's normally specified by the `ES-Client-Authentication` request header).
-
-`scheme`:::
-(Required, string) The scheme (case-sensitive) as it's supplied in the
-`ES-Client-Authentication` request header. Currently, the only supported
-value is <<jwt-auth-shared-secret-scheme-example, `SharedSecret`>>.
-
-`value`:::
-(Required, string) The value that follows the scheme for the client credentials
-as it's supplied in the `ES-Client-Authentication` request header. For example,
-if the request header would be `ES-Client-Authentication: SharedSecret myShar3dS3cret`
-if the client were to authenticate directly with a JWT, then `value` here should
-be `myShar3dS3cret`.
+include::client-authentication.asciidoc[]
 
 `grant_type`::
 (Required, string)
 The type of grant. Supported grant types are: `access_token`,`password`.
 
 `access_token`:::
-(Required*, string)
 In this type of grant, you must supply either an access token, that was created by the
 {es} token service (see <<security-api-get-token>> and <<encrypt-http-communication>>),
 or a <<jwt-auth-realm, JWT>> (either a JWT `access_token` or a JWT `id_token`).
@@ -121,18 +105,20 @@ In this type of grant, you must supply the user ID and password for which you
 want to create the API key.
 
 `password`::
-(Optional*, string)
+(Required*, string)
 The user's password. If you specify the `password` grant type, this parameter is
 required. It is not valid with other grant types.
 
 `username`::
-(Optional*, string)
+(Required*, string)
 The user name that identifies the user. If you specify the `password` grant type,
 this parameter is required. It is not valid with other grant types.
 
 `run_as`::
 (Optional, string)
 The name of the user to be <<run-as-privilege,impersonated>>.
+
+*Indicates that the setting is required in some, but not all situations.
 
 [[security-api-grant-api-key-example]]
 ==== {api-examples-title}

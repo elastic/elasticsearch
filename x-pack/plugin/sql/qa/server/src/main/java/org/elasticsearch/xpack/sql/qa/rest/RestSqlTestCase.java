@@ -1511,18 +1511,19 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
     public void testAsyncTextWait() throws IOException {
         RequestObjectBuilder builder = query("SELECT 1").waitForCompletionTimeout("1d").keepOnCompletion(false);
 
-        Map<String, String> contentMap = new HashMap<>() {
-            {
-                put("txt", "       1       \n---------------\n1              \n");
-                put("csv", "1\r\n1\r\n");
-                put("tsv", "1\n1\n");
-            }
-        };
+        Map<String, String> contentMap = Map.of(
+            "txt",
+            "       1       \n---------------\n1              \n",
+            "csv",
+            "1\r\n1\r\n",
+            "tsv",
+            "1\n1\n"
+        );
 
-        for (String format : contentMap.keySet()) {
-            Response response = runSqlAsTextWithFormat(builder, format);
+        for (var format : contentMap.entrySet()) {
+            Response response = runSqlAsTextWithFormat(builder, format.getKey());
 
-            assertEquals(contentMap.get(format), responseBody(response));
+            assertEquals(format.getValue(), responseBody(response));
 
             assertTrue(hasText(response.getHeader(HEADER_NAME_ASYNC_ID)));
             assertEquals("false", response.getHeader(HEADER_NAME_ASYNC_PARTIAL));
@@ -1532,13 +1533,7 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
 
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/80089")
     public void testAsyncTextPaginated() throws IOException, InterruptedException {
-        final Map<String, String> acceptMap = new HashMap<>() {
-            {
-                put("txt", "text/plain");
-                put("csv", "text/csv");
-                put("tsv", "text/tab-separated-values");
-            }
-        };
+        final Map<String, String> acceptMap = Map.of("txt", "text/plain", "csv", "text/csv", "tsv", "text/tab-separated-values");
         final int fetchSize = randomIntBetween(1, 10);
         final int fetchCount = randomIntBetween(1, 9);
         bulkLoadTestData(fetchSize * fetchCount); // NB: product needs to stay below 100, for txt format tests

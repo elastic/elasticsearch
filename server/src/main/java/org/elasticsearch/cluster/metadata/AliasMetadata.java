@@ -32,7 +32,7 @@ import java.util.Set;
 
 import static java.util.Collections.emptySet;
 
-public class AliasMetadata implements SimpleDiffable<AliasMetadata>, ToXContentFragment {
+public class AliasMetadata implements SimpleDiffable<AliasMetadata>, ToXContentFragment, AliasInfo {
 
     private final String alias;
 

@@ -8,11 +8,18 @@
 
 package org.elasticsearch.ingest;
 
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.ThreadPool;
+
+import java.util.Objects;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.ingest.TestIngestDocument.emptyIngestDocument;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 
 public class LogstashInternalBridgeTests extends ESTestCase {
     public void testIngestDocumentRerouteBridge() {
@@ -28,5 +35,18 @@ public class LogstashInternalBridgeTests extends ESTestCase {
         LogstashInternalBridge.resetReroute(ingestDocument);
         assertThat(ingestDocument.getFieldValue("_index", String.class), is(equalTo("somewhere")));
         assertThat(LogstashInternalBridge.isReroute(ingestDocument), is(false));
+    }
+
+    public void testCreateThreadPool() {
+        final Settings settings = Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), "TEST").build();
+        ThreadPool threadPool = null;
+        try {
+            threadPool = LogstashInternalBridge.createThreadPool(settings);
+            assertThat(threadPool, is(notNullValue()));
+        } finally {
+            if (Objects.nonNull(threadPool)) {
+                ThreadPool.terminate(threadPool, 10L, TimeUnit.SECONDS);
+            }
+        }
     }
 }

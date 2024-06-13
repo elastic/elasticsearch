@@ -21,7 +21,6 @@ import org.elasticsearch.common.inject.internal.ErrorsException;
 import org.elasticsearch.common.inject.internal.FailableCache;
 import org.elasticsearch.common.inject.spi.InjectionPoint;
 
-import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -62,12 +61,12 @@ class MembersInjectorStore {
 
         Set<InjectionPoint> injectionPoints;
         try {
-            injectionPoints = InjectionPoint.forInstanceMethodsAndFields(type);
+            injectionPoints = InjectionPoint.forInstanceMethods(type);
         } catch (ConfigurationException e) {
             errors.merge(e.getErrorMessages());
             injectionPoints = e.getPartialValue();
         }
-        List<SingleMemberInjector> injectors = getInjectors(injectionPoints, errors);
+        List<SingleMethodInjector> injectors = getInjectors(injectionPoints, errors);
         errors.throwIfNewErrors(numErrorsBefore);
 
         return new MembersInjectorImpl<>(injector, type, injectors);
@@ -76,14 +75,12 @@ class MembersInjectorStore {
     /**
      * Returns the injectors for the specified injection points.
      */
-    List<SingleMemberInjector> getInjectors(Set<InjectionPoint> injectionPoints, Errors errors) {
-        List<SingleMemberInjector> injectors = new ArrayList<>();
+    List<SingleMethodInjector> getInjectors(Set<InjectionPoint> injectionPoints, Errors errors) {
+        List<SingleMethodInjector> injectors = new ArrayList<>();
         for (InjectionPoint injectionPoint : injectionPoints) {
             try {
                 Errors errorsForMember = injectionPoint.isOptional() ? new Errors(injectionPoint) : errors.withSource(injectionPoint);
-                SingleMemberInjector injector = injectionPoint.getMember() instanceof Field
-                    ? new SingleFieldInjector(this.injector, injectionPoint, errorsForMember)
-                    : new SingleMethodInjector(this.injector, injectionPoint, errorsForMember);
+                SingleMethodInjector injector = new SingleMethodInjector(this.injector, injectionPoint, errorsForMember);
                 injectors.add(injector);
             } catch (ErrorsException ignoredForNow) {
                 // ignored for now

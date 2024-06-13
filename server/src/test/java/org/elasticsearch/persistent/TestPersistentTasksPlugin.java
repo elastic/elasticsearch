@@ -76,10 +76,7 @@ import static org.junit.Assert.fail;
  */
 public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin, PersistentTaskPlugin {
 
-    public static final ActionType<TestTasksResponse> TEST_ACTION = new ActionType<>(
-        "cluster:admin/persistent/task_test",
-        TestTasksResponse::new
-    );
+    public static final ActionType<TestTasksResponse> TEST_ACTION = new ActionType<>("cluster:admin/persistent/task_test");
 
     @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
@@ -301,7 +298,7 @@ public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin, P
         private static volatile boolean nonClusterStateCondition = true;
 
         public TestPersistentTasksExecutor(ClusterService clusterService) {
-            super(NAME, ThreadPool.Names.GENERIC);
+            super(NAME, clusterService.threadPool().generic());
             this.clusterService = clusterService;
         }
 
@@ -534,7 +531,6 @@ public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin, P
                 transportService,
                 actionFilters,
                 TestTasksRequest::new,
-                TestTasksResponse::new,
                 TestTaskResponse::new,
                 transportService.getThreadPool().executor(ThreadPool.Names.MANAGEMENT)
             );

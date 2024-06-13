@@ -79,6 +79,7 @@ public class CcsCommonYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
 
     private static LocalClusterConfigProvider commonClusterConfig = cluster -> cluster.module("x-pack-async-search")
         .module("aggregations")
+        .module("analysis-common")
         .module("mapper-extras")
         .module("vector-tile")
         .module("x-pack-analytics")
@@ -101,6 +102,7 @@ public class CcsCommonYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
         .setting("node.roles", "[data,ingest,master,remote_cluster_client]")
         .setting("cluster.remote.remote_cluster.seeds", () -> "\"" + remoteCluster.getTransportEndpoint(0) + "\"")
         .setting("cluster.remote.connections_per_cluster", "1")
+        .setting("cluster.remote.remote_cluster.skip_unavailable", "false")
         .apply(commonClusterConfig)
         .build();
 
@@ -259,7 +261,7 @@ public class CcsCommonYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
             new ClientYamlTestSection(
                 testSection.getLocation(),
                 testSection.getName(),
-                testSection.getSkipSection(),
+                testSection.getPrerequisiteSection(),
                 modifiedExecutableSections
             )
         );
@@ -308,12 +310,8 @@ public class CcsCommonYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
                 getClusterStateFeatures(adminSearchClient),
                 semanticNodeVersions
             );
-            final TestFeatureService combinedTestFeatureService = new TestFeatureService() {
-                @Override
-                public boolean clusterHasFeature(String featureId) {
-                    return testFeatureService.clusterHasFeature(featureId) && searchTestFeatureService.clusterHasFeature(featureId);
-                }
-            };
+            final TestFeatureService combinedTestFeatureService = featureId -> testFeatureService.clusterHasFeature(featureId)
+                && searchTestFeatureService.clusterHasFeature(featureId);
             final Set<String> combinedOsSet = Stream.concat(osSet.stream(), Stream.of(searchOs)).collect(Collectors.toSet());
             final Set<String> combinedNodeVersions = Stream.concat(nodesVersions.stream(), searchNodeVersions.stream())
                 .collect(Collectors.toSet());

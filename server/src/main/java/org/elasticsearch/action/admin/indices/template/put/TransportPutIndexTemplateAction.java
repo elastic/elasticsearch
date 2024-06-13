@@ -37,7 +37,7 @@ import java.io.IOException;
  */
 public class TransportPutIndexTemplateAction extends AcknowledgedTransportMasterNodeAction<PutIndexTemplateRequest> {
 
-    public static final ActionType<AcknowledgedResponse> TYPE = ActionType.localOnly("indices:admin/template/put");
+    public static final ActionType<AcknowledgedResponse> TYPE = new ActionType<>("indices:admin/template/put");
     private static final Logger logger = LogManager.getLogger(TransportPutIndexTemplateAction.class);
 
     private final MetadataIndexTemplateService indexTemplateService;
@@ -93,9 +93,8 @@ public class TransportPutIndexTemplateAction extends AcknowledgedTransportMaster
                 .mappings(request.mappings() == null ? null : new CompressedXContent(request.mappings()))
                 .aliases(request.aliases())
                 .create(request.create())
-                .masterTimeout(request.masterNodeTimeout())
                 .version(request.version()),
-
+            request.masterNodeTimeout(),
             new ActionListener<>() {
                 @Override
                 public void onResponse(AcknowledgedResponse response) {

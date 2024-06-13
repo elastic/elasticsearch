@@ -15,7 +15,7 @@ public final class QueryApiKeyAction extends ActionType<QueryApiKeyResponse> {
     public static final QueryApiKeyAction INSTANCE = new QueryApiKeyAction();
 
     private QueryApiKeyAction() {
-        super(NAME, QueryApiKeyResponse::new);
+        super(NAME);
     }
 
 }

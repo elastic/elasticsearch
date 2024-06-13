@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.ml.dataframe.process;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
+import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.license.License;
 import org.elasticsearch.test.ESTestCase;
@@ -102,7 +102,7 @@ public class ChunkedTrainedModelPersisterTests extends ESTestCase {
         }).when(trainedModelProvider).storeTrainedModelMetadata(any(TrainedModelMetadata.class), any(ActionListener.class));
 
         doAnswer(invocationOnMock -> {
-            ActionListener<RefreshResponse> storeListener = (ActionListener<RefreshResponse>) invocationOnMock.getArguments()[0];
+            ActionListener<BroadcastResponse> storeListener = (ActionListener<BroadcastResponse>) invocationOnMock.getArguments()[0];
             storeListener.onResponse(null);
             return null;
         }).when(trainedModelProvider).refreshInferenceIndex(any(ActionListener.class));

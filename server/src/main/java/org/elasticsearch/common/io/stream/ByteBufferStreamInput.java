@@ -7,6 +7,9 @@
  */
 package org.elasticsearch.common.io.stream;
 
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
+
 import java.io.EOFException;
 import java.io.IOException;
 import java.nio.BufferUnderflowException;
@@ -115,6 +118,24 @@ public class ByteBufferStreamInput extends StreamInput {
         }
         i |= ((long) b) << 63;
         return i;
+    }
+
+    @Override
+    public String readString() throws IOException {
+        final int chars = readArraySize();
+        if (buffer.hasArray()) {
+            // attempt reading bytes directly into a string to minimize copying
+            final String string = tryReadStringFromBytes(
+                buffer.array(),
+                buffer.position() + buffer.arrayOffset(),
+                buffer.limit() + buffer.arrayOffset(),
+                chars
+            );
+            if (string != null) {
+                return string;
+            }
+        }
+        return doReadString(chars);
     }
 
     @Override
@@ -232,6 +253,17 @@ public class ByteBufferStreamInput extends StreamInput {
         if (length > available) {
             throwEOF(length, available);
         }
+    }
+
+    @Override
+    public BytesReference readSlicedBytesReference() throws IOException {
+        if (buffer.hasArray()) {
+            int len = readVInt();
+            var res = new BytesArray(buffer.array(), buffer.arrayOffset() + buffer.position(), len);
+            skip(len);
+            return res;
+        }
+        return super.readSlicedBytesReference();
     }
 
     @Override

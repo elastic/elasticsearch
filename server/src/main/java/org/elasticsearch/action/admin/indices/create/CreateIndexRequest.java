@@ -62,6 +62,8 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
 
     private String index;
 
+    private boolean requireDataStream;
+
     private Settings settings = Settings.EMPTY;
 
     private String mappings = "{}";
@@ -102,9 +104,16 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_12_0)) {
             origin = in.readString();
         }
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
+            requireDataStream = in.readBoolean();
+        } else {
+            requireDataStream = false;
+        }
     }
 
-    public CreateIndexRequest() {}
+    public CreateIndexRequest() {
+        super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
+    }
 
     /**
      * Constructs a request to create an index.
@@ -122,6 +131,7 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
      * @param settings the settings to apply to the index
      */
     public CreateIndexRequest(String index, Settings settings) {
+        super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
         this.index = index;
         this.settings = settings;
     }
@@ -446,6 +456,18 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
         return waitForActiveShards(ActiveShardCount.from(waitForActiveShards));
     }
 
+    public boolean isRequireDataStream() {
+        return requireDataStream;
+    }
+
+    /**
+     * Set whether this CreateIndexRequest requires a data stream. The data stream may be pre-existing or to-be-created.
+     */
+    public CreateIndexRequest requireDataStream(boolean requireDataStream) {
+        this.requireDataStream = requireDataStream;
+        return this;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
@@ -467,6 +489,9 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
         waitForActiveShards.writeTo(out);
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_12_0)) {
             out.writeString(origin);
+        }
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
+            out.writeOptionalBoolean(this.requireDataStream);
         }
     }
 

@@ -152,6 +152,7 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseFroz
             .build();
 
         final MountSearchableSnapshotRequest mountRequest = new MountSearchableSnapshotRequest(
+            TEST_REQUEST_TIMEOUT,
             searchableSnapshotIndexOutsideSearchRange,
             repositoryName,
             snapshotId.getName(),
@@ -422,6 +423,7 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseFroz
             .build();
 
         final MountSearchableSnapshotRequest mountRequest = new MountSearchableSnapshotRequest(
+            TEST_REQUEST_TIMEOUT,
             searchableSnapshotIndexOutsideSearchRange,
             repositoryName,
             snapshotId.getName(),
@@ -567,6 +569,7 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseFroz
         issueUrl = "https://github.com/elastic/elasticsearch/issues/97878",
         value = "org.elasticsearch.snapshots:DEBUG,org.elasticsearch.indices.recovery:DEBUG,org.elasticsearch.action.search:DEBUG"
     )
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/105339")
     public void testSearchableSnapshotShardsThatHaveMatchingDataAreNotSkippedOnTheCoordinatingNode() throws Exception {
         internalCluster().startMasterOnlyNode();
         internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
@@ -604,6 +607,7 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseFroz
             .build();
 
         final MountSearchableSnapshotRequest mountRequest = new MountSearchableSnapshotRequest(
+            TEST_REQUEST_TIMEOUT,
             searchableSnapshotIndexWithinSearchRange,
             repositoryName,
             snapshotId.getName(),

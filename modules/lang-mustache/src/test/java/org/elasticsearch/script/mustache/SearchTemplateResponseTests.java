@@ -12,6 +12,7 @@ import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchResponseUtils;
@@ -20,9 +21,11 @@ import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
+import java.util.Map;
 import java.util.function.Predicate;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
@@ -42,7 +45,28 @@ public class SearchTemplateResponseTests extends AbstractXContentTestCase<Search
 
     @Override
     protected SearchTemplateResponse doParseInstance(XContentParser parser) throws IOException {
-        return SearchTemplateResponse.fromXContent(parser);
+        SearchTemplateResponse searchTemplateResponse = new SearchTemplateResponse();
+        Map<String, Object> contentAsMap = parser.map();
+
+        if (contentAsMap.containsKey(SearchTemplateResponse.TEMPLATE_OUTPUT_FIELD.getPreferredName())) {
+            Object source = contentAsMap.get(SearchTemplateResponse.TEMPLATE_OUTPUT_FIELD.getPreferredName());
+            XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON).value(source);
+            searchTemplateResponse.setSource(BytesReference.bytes(builder));
+        } else {
+            XContentType contentType = parser.contentType();
+            XContentBuilder builder = XContentFactory.contentBuilder(contentType).map(contentAsMap);
+            try (
+                XContentParser searchResponseParser = XContentHelper.createParserNotCompressed(
+                    XContentParserConfiguration.EMPTY.withRegistry(parser.getXContentRegistry())
+                        .withDeprecationHandler(parser.getDeprecationHandler()),
+                    BytesReference.bytes(builder),
+                    contentType
+                )
+            ) {
+                searchTemplateResponse.setResponse(SearchResponseUtils.parseSearchResponse(searchResponseParser));
+            }
+        }
+        return searchTemplateResponse;
     }
 
     /**
@@ -158,12 +182,12 @@ public class SearchTemplateResponseTests extends AbstractXContentTestCase<Search
     }
 
     public void testSearchResponseToXContent() throws IOException {
-        SearchHit hit = new SearchHit(1, "id");
+        SearchHit hit = SearchHit.unpooled(1, "id");
         hit.score(2.0f);
         SearchHit[] hits = new SearchHit[] { hit };
 
         SearchResponse searchResponse = new SearchResponse(
-            new SearchHits(hits, new TotalHits(100, TotalHits.Relation.EQUAL_TO), 1.5f),
+            SearchHits.unpooled(hits, new TotalHits(100, TotalHits.Relation.EQUAL_TO), 1.5f),
             null,
             null,
             false,

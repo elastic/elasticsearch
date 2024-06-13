@@ -10,8 +10,9 @@ apply plugin: 'elasticsearch.internal-yaml-rest-test'
 
 restResources {
   restApi {
-    include '_common', 'bulk', 'count', 'cluster', 'field_caps', 'knn_search', 'index', 'indices', 'msearch',
-      'search', 'async_search', 'graph', '*_point_in_time', 'info', 'scroll', 'clear_scroll', 'search_mvt', 'eql', 'sql'
+    include '_common', 'bulk', 'count', 'cluster', 'field_caps', 'get', 'knn_search', 'index', 'indices', 'msearch',
+      'search', 'async_search', 'graph', '*_point_in_time', 'info', 'scroll', 'clear_scroll', 'search_mvt', 'eql', 'sql',
+      'put_script'
   }
   restTests {
     includeCore 'field_caps', 'msearch', 'search', 'suggest', 'scroll', "indices.resolve_index"
@@ -40,8 +41,7 @@ tasks.named("yamlRestTest") {
       'search.aggregation/220_filters_bucket/cache hits', // node_selector?
       'search.aggregation/50_filter/Standard queries get cached',
       'search.aggregation/50_filter/Terms lookup gets cached', // terms lookup by "index" doesn't seem to work correctly
-      'search.aggregation/70_adjacency_matrix/Terms lookup', // terms lookup by "index" doesn't seem to work correctly
-      'search/350_point_in_time/point-in-time with index filter'
+      'search.aggregation/70_adjacency_matrix/Terms lookup' // terms lookup by "index" doesn't seem to work correctly
     ].join(',')
 }
 

@@ -89,7 +89,7 @@ public class FetchHealthInfoCacheAction extends ActionType<FetchHealthInfoCacheA
     public static final String NAME = "cluster:monitor/fetch/health/info";
 
     private FetchHealthInfoCacheAction() {
-        super(NAME, FetchHealthInfoCacheAction.Response::new);
+        super(NAME);
     }
 
     public static class TransportAction extends TransportHealthNodeAction<

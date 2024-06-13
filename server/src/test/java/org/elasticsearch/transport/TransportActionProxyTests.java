@@ -118,6 +118,7 @@ public class TransportActionProxyTests extends ESTestCase {
                 assertEquals(request.sourceNode, "TS_A");
                 final SimpleTestResponse response = new SimpleTestResponse("TS_A");
                 channel.sendResponse(response);
+                response.decRef();
                 assertThat(response.hasReferences(), equalTo(false));
             }
         );
@@ -134,6 +135,7 @@ public class TransportActionProxyTests extends ESTestCase {
                 assertEquals(request.sourceNode, "TS_A");
                 final SimpleTestResponse response = new SimpleTestResponse("TS_B");
                 channel.sendResponse(response);
+                response.decRef();
                 assertThat(response.hasReferences(), equalTo(false));
             }
         );
@@ -148,6 +150,7 @@ public class TransportActionProxyTests extends ESTestCase {
                 assertEquals(request.sourceNode, "TS_A");
                 final SimpleTestResponse response = new SimpleTestResponse("TS_C");
                 channel.sendResponse(response);
+                response.decRef();
                 assertThat(response.hasReferences(), equalTo(false));
             }
         );
@@ -176,7 +179,7 @@ public class TransportActionProxyTests extends ESTestCase {
                     }
 
                     @Override
-                    public Executor executor(ThreadPool threadPool) {
+                    public Executor executor() {
                         return TransportResponseHandler.TRANSPORT_WORKER;
                     }
 
@@ -228,7 +231,7 @@ public class TransportActionProxyTests extends ESTestCase {
                     }
 
                     @Override
-                    public Executor executor(ThreadPool threadPool) {
+                    public Executor executor() {
                         return TransportResponseHandler.TRANSPORT_WORKER;
                     }
 
@@ -263,22 +266,17 @@ public class TransportActionProxyTests extends ESTestCase {
         final CountDownLatch latch = new CountDownLatch(2);
 
         final boolean cancellable = randomBoolean();
-        serviceB.registerRequestHandler(
-            "internal:test",
-            threadPool.executor(randomFrom(ThreadPool.Names.SAME, ThreadPool.Names.GENERIC)),
-            SimpleTestRequest::new,
-            (request, channel, task) -> {
-                try {
-                    assertThat(task instanceof CancellableTask, equalTo(cancellable));
-                    assertEquals(request.sourceNode, "TS_A");
-                    final SimpleTestResponse responseB = new SimpleTestResponse("TS_B");
-                    channel.sendResponse(responseB);
-                    response.set(responseB);
-                } finally {
-                    latch.countDown();
-                }
+        serviceB.registerRequestHandler("internal:test", randomExecutor(threadPool), SimpleTestRequest::new, (request, channel, task) -> {
+            try {
+                assertThat(task instanceof CancellableTask, equalTo(cancellable));
+                assertEquals(request.sourceNode, "TS_A");
+                final SimpleTestResponse responseB = new SimpleTestResponse("TS_B");
+                channel.sendResponse(responseB);
+                response.set(responseB);
+            } finally {
+                latch.countDown();
             }
-        );
+        });
         TransportActionProxy.registerProxyAction(serviceB, "internal:test", cancellable, SimpleTestResponse::new);
         AbstractSimpleTransportTestCase.connectToNode(serviceA, nodeB);
 
@@ -294,7 +292,7 @@ public class TransportActionProxyTests extends ESTestCase {
                 }
 
                 @Override
-                public Executor executor(ThreadPool threadPool) {
+                public Executor executor() {
                     return TransportResponseHandler.TRANSPORT_WORKER;
                 }
 
@@ -319,8 +317,10 @@ public class TransportActionProxyTests extends ESTestCase {
         );
         latch.await();
 
-        assertThat(response.get(), notNullValue());
-        assertBusy(() -> assertThat(response.get().hasReferences(), equalTo(false)));
+        final var responseInstance = response.get();
+        assertThat(responseInstance, notNullValue());
+        responseInstance.decRef();
+        assertBusy(() -> assertThat(responseInstance.hasReferences(), equalTo(false)));
     }
 
     public void testException() throws InterruptedException {
@@ -372,7 +372,7 @@ public class TransportActionProxyTests extends ESTestCase {
                 }
 
                 @Override
-                public Executor executor(ThreadPool threadPool) {
+                public Executor executor() {
                     return TransportResponseHandler.TRANSPORT_WORKER;
                 }
 
@@ -439,10 +439,10 @@ public class TransportActionProxyTests extends ESTestCase {
     public static class SimpleTestResponse extends TransportResponse {
 
         final String targetNode;
-        final RefCounted refCounted = new AbstractRefCounted() {
+        final RefCounted refCounted = LeakTracker.wrap(new AbstractRefCounted() {
             @Override
             protected void closeInternal() {}
-        };
+        });
 
         SimpleTestResponse(String targetNode) {
             this.targetNode = targetNode;
@@ -519,13 +519,13 @@ public class TransportActionProxyTests extends ESTestCase {
         }
 
         @Override
-        public void sendResponse(TransportResponse response) throws IOException {
+        public void sendResponse(TransportResponse response) {
             onResponse.accept(response);
             in.sendResponse(response);
         }
 
         @Override
-        public void sendResponse(Exception exception) throws IOException {
+        public void sendResponse(Exception exception) {
             in.sendResponse(exception);
         }
 

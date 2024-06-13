@@ -1,6 +1,0 @@
-pr: 102906
-summary: Introduce a `StreamOutput` that counts how many bytes are written to the
-  stream
-area: Distributed
-type: enhancement
-issues: []

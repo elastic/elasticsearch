@@ -13,7 +13,6 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.util.EntityUtils;
-import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -24,6 +23,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.test.rest.RestTestLegacyFeatures;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -42,20 +42,17 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.notNullValue;
 
-public class SnapshotBasedRecoveryIT extends ParameterizedRollingUpgradeTestCase {
+public class SnapshotBasedRecoveryIT extends AbstractRollingUpgradeTestCase {
 
     public SnapshotBasedRecoveryIT(@Name("upgradedNodes") int upgradedNodes) {
         super(upgradedNodes);
     }
 
     public void testSnapshotBasedRecovery() throws Exception {
-
-        assumeFalse(
-            "Cancel shard allocation command is broken for initial desired balance versions and might allocate shard "
-                + "on the node where it is not supposed to be. Fixed by https://github.com/elastic/elasticsearch/pull/93635",
-            getOldClusterVersion() == Version.V_8_6_0
-                || getOldClusterVersion() == Version.V_8_6_1
-                || getOldClusterVersion() == Version.V_8_7_0
+        assumeTrue(
+            "Cancel shard allocation command is broken for initial versions of the desired_balance allocator",
+            oldClusterHasFeature(RestTestLegacyFeatures.DESIRED_BALANCED_ALLOCATOR_SUPPORTED) == false
+                || oldClusterHasFeature(RestTestLegacyFeatures.DESIRED_BALANCED_ALLOCATOR_FIXED)
         );
 
         final String indexName = "snapshot_based_recovery";

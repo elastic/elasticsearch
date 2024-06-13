@@ -18,6 +18,28 @@ automate the management of these backing indices. For example, you can use
 hardware and delete unneeded indices. {ilm-init} can help you reduce costs and
 overhead as your data grows.
 
+
+[discrete]
+[[should-you-use-a-data-stream]]
+== Should you use a data stream?
+
+To determine whether you should use a data stream for your data, you should consider the format of
+the data, and your expected interaction. A good candidate for using a data stream will match the
+following criteria:
+
+* Your data contains a timestamp field, or one could be automatically generated.
+* You mostly perform indexing requests, with occasional updates and deletes.
+* You index documents without an `_id`, or when indexing documents with an explicit `_id` you expect first-write-wins behavior.
+
+For most time series data use-cases, a data stream will be a good fit. However, if you find that
+your data doesn't fit into these categories (for example, if you frequently send multiple documents
+using the same `_id` expecting last-write-wins), you may want to use an index alias with a write
+index instead. See documentation for <<manage-time-series-data-without-data-streams,managing time
+series data without a data stream>> for more information.
+
+Keep in mind that some features such as <<tsds,Time Series Data Streams (TSDS)>> and
+<<data-stream-lifecycle,data stream lifecycles>> require a data stream.
+
 [discrete]
 [[backing-indices]]
 == Backing indices
@@ -116,19 +138,19 @@ You should not derive any intelligence from the backing indices names.
 
 [discrete]
 [[data-streams-append-only]]
-== Append-only
+== Append-only (mostly)
 
-Data streams are designed for use cases where existing data is rarely,
-if ever, updated. You cannot send update or deletion requests for existing
-documents directly to a data stream. Instead, use the
+Data streams are designed for use cases where existing data is rarely updated. You cannot send
+update or deletion requests for existing documents directly to a data stream. However, you can still
+<<update-delete-docs-in-a-backing-index,update or delete documents>> in a data stream by submitting
+requests directly to the document's backing index.
+
+If you need to update a larger number of documents in a data stream, you can use the
 <<update-docs-in-a-data-stream-by-query,update by query>> and
 <<delete-docs-in-a-data-stream-by-query,delete by query>> APIs.
 
-If needed, you can <<update-delete-docs-in-a-backing-index,update or delete
-documents>> by submitting requests directly to the document's backing index.
-
-TIP: If you frequently update or delete existing time series data, use an index
-alias with a write index instead of a data stream. See
+TIP: If you frequently send multiple documents using the same `_id` expecting last-write-wins, you
+may want to use an index alias with a write index instead. See
 <<manage-time-series-data-without-data-streams>>.
 
 include::set-up-a-data-stream.asciidoc[]

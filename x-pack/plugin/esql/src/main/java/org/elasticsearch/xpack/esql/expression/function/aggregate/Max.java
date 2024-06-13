@@ -11,23 +11,21 @@ import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.MaxDoubleAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.MaxIntAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.MaxLongAggregatorFunctionSupplier;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.tree.NodeInfo;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMax;
 
 import java.util.List;
 
-public class Max extends NumericAggregate {
+public class Max extends NumericAggregate implements SurrogateExpression {
 
-    @FunctionInfo(
-        returnType = { "double", "integer", "long", "unsigned_long" },
-        description = "The maximum value of a numeric field.",
-        isAggregation = true
-    )
-    public Max(Source source, @Param(name = "field", type = { "double", "integer", "long", "unsigned_long" }) Expression field) {
+    @FunctionInfo(returnType = { "double", "integer", "long" }, description = "The maximum value of a numeric field.", isAggregation = true)
+    public Max(Source source, @Param(name = "number", type = { "double", "integer", "long" }) Expression field) {
         super(source, field);
     }
 
@@ -64,5 +62,10 @@ public class Max extends NumericAggregate {
     @Override
     protected AggregatorFunctionSupplier doubleSupplier(List<Integer> inputChannels) {
         return new MaxDoubleAggregatorFunctionSupplier(inputChannels);
+    }
+
+    @Override
+    public Expression surrogate() {
+        return field().foldable() ? new MvMax(source(), field()) : null;
     }
 }

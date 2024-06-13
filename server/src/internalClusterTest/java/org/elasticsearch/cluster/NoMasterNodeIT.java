@@ -8,7 +8,7 @@
 
 package org.elasticsearch.cluster;
 
-import org.elasticsearch.action.ActionRequestBuilder;
+import org.elasticsearch.action.RequestBuilder;
 import org.elasticsearch.action.admin.cluster.configuration.AddVotingConfigExclusionsRequest;
 import org.elasticsearch.action.admin.cluster.configuration.TransportAddVotingConfigExclusionsAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
@@ -189,7 +189,7 @@ public class NoMasterNodeIT extends ESIntegTestCase {
         internalCluster().clearDisruptionScheme(true);
     }
 
-    void checkUpdateAction(boolean autoCreateIndex, TimeValue timeout, ActionRequestBuilder<?, ?> builder) {
+    void checkUpdateAction(boolean autoCreateIndex, TimeValue timeout, RequestBuilder<?, ?> builder) {
         // we clean the metadata when loosing a master, therefore all operations on indices will auto create it, if allowed
         try {
             builder.get();
@@ -204,7 +204,7 @@ public class NoMasterNodeIT extends ESIntegTestCase {
         }
     }
 
-    void checkWriteAction(ActionRequestBuilder<?, ?> builder) {
+    void checkWriteAction(RequestBuilder<?, ?> builder) {
         try {
             builder.get();
             fail("Expected ClusterBlockException");

@@ -13,6 +13,7 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.admin.indices.stats.IndexShardStats;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
@@ -26,6 +27,7 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.ShardLockObtainFailedException;
@@ -38,6 +40,7 @@ import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.SlowLogFieldProvider;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineFactory;
@@ -61,7 +64,6 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
-import org.elasticsearch.test.hamcrest.RegexMatcher;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -89,6 +91,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.matchesRegex;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
@@ -192,6 +195,50 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         }
     }
 
+    public static class TestSlowLogFieldProvider implements SlowLogFieldProvider {
+
+        private static Map<String, String> fields = Map.of();
+
+        static void setFields(Map<String, String> fields) {
+            TestSlowLogFieldProvider.fields = fields;
+        }
+
+        @Override
+        public void init(IndexSettings indexSettings) {}
+
+        @Override
+        public Map<String, String> indexSlowLogFields() {
+            return fields;
+        }
+
+        @Override
+        public Map<String, String> searchSlowLogFields() {
+            return fields;
+        }
+    }
+
+    public static class TestAnotherSlowLogFieldProvider implements SlowLogFieldProvider {
+
+        private static Map<String, String> fields = Map.of();
+
+        static void setFields(Map<String, String> fields) {
+            TestAnotherSlowLogFieldProvider.fields = fields;
+        }
+
+        @Override
+        public void init(IndexSettings indexSettings) {}
+
+        @Override
+        public Map<String, String> indexSlowLogFields() {
+            return fields;
+        }
+
+        @Override
+        public Map<String, String> searchSlowLogFields() {
+            return fields;
+        }
+    }
+
     @Override
     protected boolean resetNodeAfterTest() {
         return true;
@@ -225,7 +272,7 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
             indicesService.canDeleteShardContent(shardId, test.getIndexSettings()),
             ShardDeletionCheckResult.STILL_ALLOCATED
         );
-        test.removeShard(0, "boom");
+        test.removeShard(0, "boom", EsExecutors.DIRECT_EXECUTOR_SERVICE, ActionTestUtils.assertNoFailureListener(v -> {}));
         assertEquals(
             "shard is removed",
             indicesService.canDeleteShardContent(shardId, test.getIndexSettings()),
@@ -260,6 +307,7 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         assertNotNull(meta);
         assertNotNull(meta.index("test"));
         assertAcked(client().admin().indices().prepareDelete("test"));
+        awaitIndexShardCloseAsyncTasks();
 
         assertFalse(firstPath.exists());
 
@@ -606,7 +654,7 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         );
         final String pattern =
             ".*multiple engine factories provided for \\[foobar/.*\\]: \\[.*FooEngineFactory\\],\\[.*BarEngineFactory\\].*";
-        assertThat(e, hasToString(new RegexMatcher(pattern)));
+        assertThat(e, hasToString(matchesRegex(pattern)));
     }
 
     public void testBuildAliasFilter() {
@@ -745,5 +793,39 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
             AliasFilter result = indicesService.buildAliasFilter(state, index, Set.of("logs", dataStreamName1));
             assertThat(result, is(AliasFilter.EMPTY));
         }
+    }
+
+    public void testLoadSlowLogFieldProvider() {
+        TestSlowLogFieldProvider.setFields(Map.of("key1", "value1"));
+        TestAnotherSlowLogFieldProvider.setFields(Map.of("key2", "value2"));
+
+        var indicesService = getIndicesService();
+        SlowLogFieldProvider fieldProvider = indicesService.loadSlowLogFieldProvider();
+
+        // The map of fields from the two providers are merged to a single map of fields
+        assertEquals(Map.of("key1", "value1", "key2", "value2"), fieldProvider.searchSlowLogFields());
+        assertEquals(Map.of("key1", "value1", "key2", "value2"), fieldProvider.indexSlowLogFields());
+
+        TestSlowLogFieldProvider.setFields(Map.of("key1", "value1"));
+        TestAnotherSlowLogFieldProvider.setFields(Map.of("key1", "value2"));
+
+        // There is an overlap of field names, since this isn't deterministic and probably a
+        // programming error (two providers provide the same field) throw an exception
+        assertThrows(IllegalStateException.class, fieldProvider::searchSlowLogFields);
+        assertThrows(IllegalStateException.class, fieldProvider::indexSlowLogFields);
+
+        TestSlowLogFieldProvider.setFields(Map.of("key1", "value1"));
+        TestAnotherSlowLogFieldProvider.setFields(Map.of());
+
+        // One provider has no fields
+        assertEquals(Map.of("key1", "value1"), fieldProvider.searchSlowLogFields());
+        assertEquals(Map.of("key1", "value1"), fieldProvider.indexSlowLogFields());
+
+        TestSlowLogFieldProvider.setFields(Map.of());
+        TestAnotherSlowLogFieldProvider.setFields(Map.of());
+
+        // Both providers have no fields
+        assertEquals(Map.of(), fieldProvider.searchSlowLogFields());
+        assertEquals(Map.of(), fieldProvider.indexSlowLogFields());
     }
 }

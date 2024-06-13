@@ -9,9 +9,9 @@
 package org.elasticsearch.inference;
 
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
@@ -20,7 +20,7 @@ import java.util.Optional;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-public class InferenceServiceRegistry extends AbstractLifecycleComponent {
+public class InferenceServiceRegistry implements Closeable {
 
     private final Map<String, InferenceService> services;
     private final List<NamedWriteableRegistry.Entry> namedWriteables = new ArrayList<>();
@@ -53,17 +53,9 @@ public class InferenceServiceRegistry extends AbstractLifecycleComponent {
     }
 
     @Override
-    protected void doStart() {
-
-    }
-
-    @Override
-    protected void doStop() {
-
-    }
-
-    @Override
-    protected void doClose() throws IOException {
-
+    public void close() throws IOException {
+        for (var service : services.values()) {
+            service.close();
+        }
     }
 }

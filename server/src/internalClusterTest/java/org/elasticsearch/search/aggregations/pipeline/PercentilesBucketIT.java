@@ -32,7 +32,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.core.IsNull.notNullValue;
 
-public class PercentilesBucketIT extends BucketMetricsPipeLineAggregationTestCase<PercentilesBucket> {
+public class PercentilesBucketIT extends BucketMetricsPipeLineAggregationTestCase<InternalPercentilesBucket> {
 
     private static final double[] PERCENTS = { 0.0, 1.0, 25.0, 50.0, 75.0, 99.0, 100.0 };
 
@@ -46,7 +46,7 @@ public class PercentilesBucketIT extends BucketMetricsPipeLineAggregationTestCas
         IntToDoubleFunction bucketValues,
         Function<Integer, String> bucketKeys,
         int numBuckets,
-        PercentilesBucket pipelineBucket
+        InternalPercentilesBucket pipelineBucket
     ) {
         double[] values = new double[numBuckets];
         for (int i = 0; i < numBuckets; ++i) {
@@ -62,7 +62,7 @@ public class PercentilesBucketIT extends BucketMetricsPipeLineAggregationTestCas
     }
 
     @Override
-    protected double getNestedMetric(PercentilesBucket bucket) {
+    protected double getNestedMetric(InternalPercentilesBucket bucket) {
         return bucket.percentile(50);
     }
 

@@ -1,3 +1,23 @@
+height
+// tag::height[]
+FROM employees
+| DROP height
+// end::height[]
+| LIMIT 0;
+
+avg_worked_seconds:long | birth_date:date | emp_no:integer | first_name:keyword | gender:keyword | height.float:double | height.half_float:double | height.scaled_float:double | hire_date:date | is_rehired:boolean | job_positions:keyword | languages:integer | languages.byte:integer | languages.long:long | languages.short:integer | last_name:keyword | salary:integer | salary_change:double | salary_change.int:integer |salary_change.keyword:keyword |salary_change.long:long | still_hired:boolean
+;
+
+heightWithWildcard
+// tag::heightWithWildcard[]
+FROM employees 
+| DROP height*
+// end::heightWithWildcard[]
+| LIMIT 0;
+
+avg_worked_seconds:long | birth_date:date | emp_no:integer | first_name:keyword | gender:keyword | hire_date:date | is_rehired:boolean | job_positions:keyword | languages:integer | languages.byte:integer | languages.long:long | languages.short:integer | last_name:keyword | salary:integer | salary_change:double | salary_change.int:integer |salary_change.keyword:keyword |salary_change.long:long | still_hired:boolean
+;
+
 sortWithLimitOne_DropHeight
 from employees | sort languages, emp_no | limit 1 | drop height*;
 
@@ -87,3 +107,18 @@ bar:long
 57
 ;
 
+dropColumnWithQuotedWildcard#[skip:-8.12.99]
+FROM employees | STATS ROUND(AVG(height * 1.5)), COUNT(*), MIN(salary  * 10) | DROP `MIN(salary  * 10)`
+;
+
+ROUND(AVG(height * 1.5)):d | COUNT(*):l
+3.0                        | 100
+;
+
+dropColumnWithQuotedWildcardBasic#[skip:-8.12.99]
+FROM employees | STATS COUNT(*), MIN(salary  * 10), MAX(languages)| DROP `COUNT(*)`
+;
+
+MIN(salary  * 10):i | MAX(languages):i
+253240              | 5
+;

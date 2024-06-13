@@ -23,8 +23,7 @@ import java.util.concurrent.Executor;
 
 public class CountedCollectorTests extends ESTestCase {
     public void testCollect() throws InterruptedException {
-        ArraySearchPhaseResults<SearchPhaseResult> consumer = new ArraySearchPhaseResults<>(randomIntBetween(1, 100));
-        try {
+        try (ArraySearchPhaseResults<SearchPhaseResult> consumer = new ArraySearchPhaseResults<>(randomIntBetween(1, 100))) {
             List<Integer> state = new ArrayList<>();
             int numResultsExpected = randomIntBetween(1, consumer.getAtomicArray().length());
             MockSearchPhaseContext context = new MockSearchPhaseContext(consumer.getAtomicArray().length());
@@ -93,8 +92,6 @@ public class CountedCollectorTests extends ESTestCase {
             for (int i = numResultsExpected; i < results.length(); i++) {
                 assertNull("index: " + i, results.get(i));
             }
-        } finally {
-            consumer.decRef();
         }
     }
 }

@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.security;
 
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.client.internal.node.NodeClient;
@@ -26,7 +27,9 @@ import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.core.action.TransportXPackInfoAction;
 import org.elasticsearch.xpack.core.action.TransportXPackUsageAction;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
+import org.elasticsearch.xpack.core.action.XPackInfoFeatureResponse;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
+import org.elasticsearch.xpack.core.action.XPackUsageFeatureResponse;
 import org.elasticsearch.xpack.core.action.XPackUsageResponse;
 import org.elasticsearch.xpack.core.security.SecurityExtension;
 import org.elasticsearch.xpack.core.ssl.SSLService;
@@ -53,7 +56,7 @@ public class LocalStateSecurity extends LocalStateCompositeXPackPlugin implement
         }
 
         @Override
-        protected List<XPackUsageFeatureAction> usageActions() {
+        protected List<ActionType<XPackUsageFeatureResponse>> usageActions() {
             return Collections.singletonList(XPackUsageFeatureAction.SECURITY);
         }
     }
@@ -70,7 +73,7 @@ public class LocalStateSecurity extends LocalStateCompositeXPackPlugin implement
         }
 
         @Override
-        protected List<XPackInfoFeatureAction> infoActions() {
+        protected List<ActionType<XPackInfoFeatureResponse>> infoActions() {
             return Collections.singletonList(XPackInfoFeatureAction.SECURITY);
         }
     }

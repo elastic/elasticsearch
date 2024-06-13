@@ -34,6 +34,7 @@ import org.apache.lucene.search.SimpleCollector;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopScoreDocCollector;
+import org.apache.lucene.search.TopScoreDocCollectorManager;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.search.similarities.BM25Similarity;
 import org.apache.lucene.store.Directory;
@@ -108,7 +109,7 @@ public class QueryPhaseCollectorTests extends ESTestCase {
 
     public void testTopDocsOnly() throws IOException {
         {
-            CollectorManager<TopScoreDocCollector, TopDocs> topScoreDocManager = TopScoreDocCollector.createSharedManager(1, null, 1000);
+            CollectorManager<TopScoreDocCollector, TopDocs> topScoreDocManager = new TopScoreDocCollectorManager(1, null, 1000);
             CollectorManager<QueryPhaseCollector, Result<TopDocs, Void>> manager = createCollectorManager(
                 topScoreDocManager,
                 null,
@@ -121,7 +122,7 @@ public class QueryPhaseCollectorTests extends ESTestCase {
             assertEquals(numDocs, result.topDocs.totalHits.value);
         }
         {
-            CollectorManager<TopScoreDocCollector, TopDocs> topScoreDocManager = TopScoreDocCollector.createSharedManager(1, null, 1000);
+            CollectorManager<TopScoreDocCollector, TopDocs> topScoreDocManager = new TopScoreDocCollectorManager(1, null, 1000);
             CollectorManager<QueryPhaseCollector, Result<TopDocs, Void>> manager = createCollectorManager(
                 topScoreDocManager,
                 null,
@@ -137,7 +138,7 @@ public class QueryPhaseCollectorTests extends ESTestCase {
 
     public void testWithAggs() throws IOException {
         {
-            CollectorManager<TopScoreDocCollector, TopDocs> topDocsManager = TopScoreDocCollector.createSharedManager(1, null, 1000);
+            CollectorManager<TopScoreDocCollector, TopDocs> topDocsManager = new TopScoreDocCollectorManager(1, null, 1000);
             CollectorManager<DummyTotalHitCountCollector, Integer> aggsManager = DummyTotalHitCountCollector.createManager();
             CollectorManager<QueryPhaseCollector, Result<TopDocs, Integer>> manager = createCollectorManager(
                 topDocsManager,
@@ -152,7 +153,7 @@ public class QueryPhaseCollectorTests extends ESTestCase {
             assertEquals(numDocs, result.aggs.intValue());
         }
         {
-            CollectorManager<TopScoreDocCollector, TopDocs> topDocsManager = TopScoreDocCollector.createSharedManager(1, null, 1000);
+            CollectorManager<TopScoreDocCollector, TopDocs> topDocsManager = new TopScoreDocCollectorManager(1, null, 1000);
             CollectorManager<DummyTotalHitCountCollector, Integer> aggsManager = DummyTotalHitCountCollector.createManager();
             CollectorManager<QueryPhaseCollector, Result<TopDocs, Integer>> manager = createCollectorManager(
                 topDocsManager,
@@ -170,7 +171,7 @@ public class QueryPhaseCollectorTests extends ESTestCase {
 
     public void testPostFilterTopDocsOnly() throws IOException {
         {
-            CollectorManager<TopScoreDocCollector, TopDocs> topDocsManager = TopScoreDocCollector.createSharedManager(1, null, 1000);
+            CollectorManager<TopScoreDocCollector, TopDocs> topDocsManager = new TopScoreDocCollectorManager(1, null, 1000);
             TermQuery termQuery = new TermQuery(new Term("field2", "value"));
             Weight filterWeight = termQuery.createWeight(searcher, ScoreMode.TOP_DOCS, 1f);
             CollectorManager<QueryPhaseCollector, Result<TopDocs, Void>> manager = createCollectorManager(
@@ -185,7 +186,7 @@ public class QueryPhaseCollectorTests extends ESTestCase {
             assertEquals(numField2Docs, result.topDocs.totalHits.value);
         }
         {
-            CollectorManager<TopScoreDocCollector, TopDocs> topDocsManager = TopScoreDocCollector.createSharedManager(1, null, 1000);
+            CollectorManager<TopScoreDocCollector, TopDocs> topDocsManager = new TopScoreDocCollectorManager(1, null, 1000);
             TermQuery termQuery = new TermQuery(new Term("field1", "value"));
             Weight filterWeight = termQuery.createWeight(searcher, ScoreMode.TOP_DOCS, 1f);
             CollectorManager<QueryPhaseCollector, Result<TopDocs, Void>> manager = createCollectorManager(
@@ -203,7 +204,7 @@ public class QueryPhaseCollectorTests extends ESTestCase {
 
     public void testPostFilterWithAggs() throws IOException {
         {
-            CollectorManager<TopScoreDocCollector, TopDocs> topDocsManager = TopScoreDocCollector.createSharedManager(1, null, 1000);
+            CollectorManager<TopScoreDocCollector, TopDocs> topDocsManager = new TopScoreDocCollectorManager(1, null, 1000);
             CollectorManager<DummyTotalHitCountCollector, Integer> aggsManager = DummyTotalHitCountCollector.createManager();
             TermQuery termQuery = new TermQuery(new Term("field1", "value"));
             Weight filterWeight = termQuery.createWeight(searcher, ScoreMode.TOP_DOCS, 1f);
@@ -220,7 +221,7 @@ public class QueryPhaseCollectorTests extends ESTestCase {
             assertEquals(numDocs, result.aggs.intValue());
         }
         {
-            CollectorManager<TopScoreDocCollector, TopDocs> topDocsManager = TopScoreDocCollector.createSharedManager(1, null, 1000);
+            CollectorManager<TopScoreDocCollector, TopDocs> topDocsManager = new TopScoreDocCollectorManager(1, null, 1000);
             CollectorManager<DummyTotalHitCountCollector, Integer> aggsManager = DummyTotalHitCountCollector.createManager();
             TermQuery termQuery = new TermQuery(new Term("field2", "value"));
             Weight filterWeight = termQuery.createWeight(searcher, ScoreMode.TOP_DOCS, 1f);
@@ -247,18 +248,14 @@ public class QueryPhaseCollectorTests extends ESTestCase {
             .add(new BoostQuery(new TermQuery(new Term("field2", "value")), 200f), BooleanClause.Occur.SHOULD)
             .build();
         {
-            CollectorManager<TopScoreDocCollector, TopDocs> topDocsManager = TopScoreDocCollector.createSharedManager(
-                numField2Docs + 1,
-                null,
-                1000
-            );
+            CollectorManager<TopScoreDocCollector, TopDocs> topDocsManager = new TopScoreDocCollectorManager(numField2Docs + 1, null, 1000);
             TopDocs topDocs = searcher.search(booleanQuery, topDocsManager);
             assertEquals(numDocs, topDocs.totalHits.value);
             maxScore = topDocs.scoreDocs[0].score;
             thresholdScore = topDocs.scoreDocs[numField2Docs].score;
         }
         {
-            CollectorManager<TopScoreDocCollector, TopDocs> topDocsManager = TopScoreDocCollector.createSharedManager(1, null, 1000);
+            CollectorManager<TopScoreDocCollector, TopDocs> topDocsManager = new TopScoreDocCollectorManager(1, null, 1000);
             CollectorManager<QueryPhaseCollector, Result<TopDocs, Void>> manager = createCollectorManager(
                 topDocsManager,
                 null,
@@ -271,7 +268,7 @@ public class QueryPhaseCollectorTests extends ESTestCase {
             assertEquals(numField2Docs, result.topDocs.totalHits.value);
         }
         {
-            CollectorManager<TopScoreDocCollector, TopDocs> topDocsManager = TopScoreDocCollector.createSharedManager(1, null, 1000);
+            CollectorManager<TopScoreDocCollector, TopDocs> topDocsManager = new TopScoreDocCollectorManager(1, null, 1000);
             CollectorManager<QueryPhaseCollector, Result<TopDocs, Void>> manager = createCollectorManager(
                 topDocsManager,
                 null,
@@ -284,7 +281,7 @@ public class QueryPhaseCollectorTests extends ESTestCase {
             assertEquals(numDocs, result.topDocs.totalHits.value);
         }
         {
-            CollectorManager<TopScoreDocCollector, TopDocs> topDocsManager = TopScoreDocCollector.createSharedManager(1, null, 1000);
+            CollectorManager<TopScoreDocCollector, TopDocs> topDocsManager = new TopScoreDocCollectorManager(1, null, 1000);
             CollectorManager<QueryPhaseCollector, Result<TopDocs, Void>> manager = createCollectorManager(
                 topDocsManager,
                 null,
@@ -306,18 +303,14 @@ public class QueryPhaseCollectorTests extends ESTestCase {
             .add(new BoostQuery(new TermQuery(new Term("field2", "value")), 200f), BooleanClause.Occur.SHOULD)
             .build();
         {
-            CollectorManager<TopScoreDocCollector, TopDocs> topDocsManager = TopScoreDocCollector.createSharedManager(
-                numField2Docs + 1,
-                null,
-                1000
-            );
+            CollectorManager<TopScoreDocCollector, TopDocs> topDocsManager = new TopScoreDocCollectorManager(numField2Docs + 1, null, 1000);
             TopDocs topDocs = searcher.search(booleanQuery, topDocsManager);
             assertEquals(numDocs, topDocs.totalHits.value);
             maxScore = topDocs.scoreDocs[0].score;
             thresholdScore = topDocs.scoreDocs[numField2Docs].score;
         }
         {
-            CollectorManager<TopScoreDocCollector, TopDocs> topDocsManager = TopScoreDocCollector.createSharedManager(1, null, 1000);
+            CollectorManager<TopScoreDocCollector, TopDocs> topDocsManager = new TopScoreDocCollectorManager(1, null, 1000);
             CollectorManager<DummyTotalHitCountCollector, Integer> aggsManager = DummyTotalHitCountCollector.createManager();
             CollectorManager<QueryPhaseCollector, Result<TopDocs, Integer>> manager = createCollectorManager(
                 topDocsManager,
@@ -333,7 +326,7 @@ public class QueryPhaseCollectorTests extends ESTestCase {
             assertEquals(numField2Docs, result.aggs.intValue());
         }
         {
-            CollectorManager<TopScoreDocCollector, TopDocs> topDocsManager = TopScoreDocCollector.createSharedManager(1, null, 1000);
+            CollectorManager<TopScoreDocCollector, TopDocs> topDocsManager = new TopScoreDocCollectorManager(1, null, 1000);
             CollectorManager<DummyTotalHitCountCollector, Integer> aggsManager = DummyTotalHitCountCollector.createManager();
             CollectorManager<QueryPhaseCollector, Result<TopDocs, Integer>> manager = createCollectorManager(
                 topDocsManager,
@@ -348,7 +341,7 @@ public class QueryPhaseCollectorTests extends ESTestCase {
             assertEquals(numDocs, result.aggs.intValue());
         }
         {
-            CollectorManager<TopScoreDocCollector, TopDocs> topDocsManager = TopScoreDocCollector.createSharedManager(1, null, 1000);
+            CollectorManager<TopScoreDocCollector, TopDocs> topDocsManager = new TopScoreDocCollectorManager(1, null, 1000);
             CollectorManager<DummyTotalHitCountCollector, Integer> aggsManager = DummyTotalHitCountCollector.createManager();
             CollectorManager<QueryPhaseCollector, Result<TopDocs, Integer>> manager = createCollectorManager(
                 topDocsManager,
@@ -374,18 +367,14 @@ public class QueryPhaseCollectorTests extends ESTestCase {
         TermQuery termQuery = new TermQuery(new Term("field2", "value"));
         Weight filterWeight = termQuery.createWeight(searcher, ScoreMode.TOP_DOCS, 1f);
         {
-            CollectorManager<TopScoreDocCollector, TopDocs> topDocsManager = TopScoreDocCollector.createSharedManager(
-                numField3Docs + 1,
-                null,
-                1000
-            );
+            CollectorManager<TopScoreDocCollector, TopDocs> topDocsManager = new TopScoreDocCollectorManager(numField3Docs + 1, null, 1000);
             TopDocs topDocs = searcher.search(booleanQuery, topDocsManager);
             assertEquals(numDocs, topDocs.totalHits.value);
             maxScore = topDocs.scoreDocs[0].score;
             thresholdScore = topDocs.scoreDocs[numField3Docs].score;
         }
         {
-            CollectorManager<TopScoreDocCollector, TopDocs> topDocsManager = TopScoreDocCollector.createSharedManager(1, null, 1000);
+            CollectorManager<TopScoreDocCollector, TopDocs> topDocsManager = new TopScoreDocCollectorManager(1, null, 1000);
             CollectorManager<QueryPhaseCollector, Result<TopDocs, Void>> manager = createCollectorManager(
                 topDocsManager,
                 filterWeight,
@@ -398,7 +387,7 @@ public class QueryPhaseCollectorTests extends ESTestCase {
             assertEquals(numField2AndField3Docs, result.topDocs.totalHits.value);
         }
         {
-            CollectorManager<TopScoreDocCollector, TopDocs> topDocsManager = TopScoreDocCollector.createSharedManager(1, null, 1000);
+            CollectorManager<TopScoreDocCollector, TopDocs> topDocsManager = new TopScoreDocCollectorManager(1, null, 1000);
             CollectorManager<QueryPhaseCollector, Result<TopDocs, Void>> manager = createCollectorManager(
                 topDocsManager,
                 filterWeight,
@@ -411,7 +400,7 @@ public class QueryPhaseCollectorTests extends ESTestCase {
             assertEquals(numField2Docs, result.topDocs.totalHits.value);
         }
         {
-            CollectorManager<TopScoreDocCollector, TopDocs> topDocsManager = TopScoreDocCollector.createSharedManager(1, null, 1000);
+            CollectorManager<TopScoreDocCollector, TopDocs> topDocsManager = new TopScoreDocCollectorManager(1, null, 1000);
             CollectorManager<QueryPhaseCollector, Result<TopDocs, Void>> manager = createCollectorManager(
                 topDocsManager,
                 filterWeight,
@@ -435,18 +424,14 @@ public class QueryPhaseCollectorTests extends ESTestCase {
         TermQuery termQuery = new TermQuery(new Term("field2", "value"));
         Weight filterWeight = termQuery.createWeight(searcher, ScoreMode.TOP_DOCS, 1f);
         {
-            CollectorManager<TopScoreDocCollector, TopDocs> topDocsManager = TopScoreDocCollector.createSharedManager(
-                numField3Docs + 1,
-                null,
-                1000
-            );
+            CollectorManager<TopScoreDocCollector, TopDocs> topDocsManager = new TopScoreDocCollectorManager(numField3Docs + 1, null, 1000);
             TopDocs topDocs = searcher.search(booleanQuery, topDocsManager);
             assertEquals(numDocs, topDocs.totalHits.value);
             maxScore = topDocs.scoreDocs[0].score;
             thresholdScore = topDocs.scoreDocs[numField3Docs].score;
         }
         {
-            CollectorManager<TopScoreDocCollector, TopDocs> topDocsManager = TopScoreDocCollector.createSharedManager(1, null, 1000);
+            CollectorManager<TopScoreDocCollector, TopDocs> topDocsManager = new TopScoreDocCollectorManager(1, null, 1000);
             CollectorManager<DummyTotalHitCountCollector, Integer> aggsManager = DummyTotalHitCountCollector.createManager();
             CollectorManager<QueryPhaseCollector, Result<TopDocs, Integer>> manager = createCollectorManager(
                 topDocsManager,
@@ -461,7 +446,7 @@ public class QueryPhaseCollectorTests extends ESTestCase {
             assertEquals(numField3Docs, result.aggs.intValue());
         }
         {
-            CollectorManager<TopScoreDocCollector, TopDocs> topDocsManager = TopScoreDocCollector.createSharedManager(1, null, 1000);
+            CollectorManager<TopScoreDocCollector, TopDocs> topDocsManager = new TopScoreDocCollectorManager(1, null, 1000);
             CollectorManager<DummyTotalHitCountCollector, Integer> aggsManager = DummyTotalHitCountCollector.createManager();
             CollectorManager<QueryPhaseCollector, Result<TopDocs, Integer>> manager = createCollectorManager(
                 topDocsManager,
@@ -476,7 +461,7 @@ public class QueryPhaseCollectorTests extends ESTestCase {
             assertEquals(numDocs, result.aggs.intValue());
         }
         {
-            CollectorManager<TopScoreDocCollector, TopDocs> topDocsManager = TopScoreDocCollector.createSharedManager(1, null, 1000);
+            CollectorManager<TopScoreDocCollector, TopDocs> topDocsManager = new TopScoreDocCollectorManager(1, null, 1000);
             CollectorManager<DummyTotalHitCountCollector, Integer> aggsManager = DummyTotalHitCountCollector.createManager();
             CollectorManager<QueryPhaseCollector, Result<TopDocs, Integer>> manager = createCollectorManager(
                 topDocsManager,
@@ -635,18 +620,14 @@ public class QueryPhaseCollectorTests extends ESTestCase {
             .add(new BoostQuery(new TermQuery(new Term("field2", "value")), 200f), BooleanClause.Occur.SHOULD)
             .build();
         {
-            CollectorManager<TopScoreDocCollector, TopDocs> topDocsManager = TopScoreDocCollector.createSharedManager(
-                numField2Docs + 1,
-                null,
-                1000
-            );
+            CollectorManager<TopScoreDocCollector, TopDocs> topDocsManager = new TopScoreDocCollectorManager(numField2Docs + 1, null, 1000);
             TopDocs topDocs = searcher.search(booleanQuery, topDocsManager);
             assertEquals(numDocs, topDocs.totalHits.value);
             maxScore = topDocs.scoreDocs[0].score;
         }
         {
             int terminateAfter = randomIntBetween(1, numField2Docs - 1);
-            CollectorManager<TopScoreDocCollector, TopDocs> topDocsManager = TopScoreDocCollector.createSharedManager(1, null, 1000);
+            CollectorManager<TopScoreDocCollector, TopDocs> topDocsManager = new TopScoreDocCollectorManager(1, null, 1000);
             CollectorManager<QueryPhaseCollector, Result<TopDocs, Void>> manager = createCollectorManager(
                 topDocsManager,
                 null,
@@ -667,18 +648,14 @@ public class QueryPhaseCollectorTests extends ESTestCase {
             .add(new BoostQuery(new TermQuery(new Term("field2", "value")), 200f), BooleanClause.Occur.SHOULD)
             .build();
         {
-            CollectorManager<TopScoreDocCollector, TopDocs> topDocsManager = TopScoreDocCollector.createSharedManager(
-                numField2Docs + 1,
-                null,
-                1000
-            );
+            CollectorManager<TopScoreDocCollector, TopDocs> topDocsManager = new TopScoreDocCollectorManager(numField2Docs + 1, null, 1000);
             TopDocs topDocs = searcher.search(booleanQuery, topDocsManager);
             assertEquals(numDocs, topDocs.totalHits.value);
             maxScore = topDocs.scoreDocs[0].score;
         }
         {
             int terminateAfter = randomIntBetween(1, numField2Docs - 1);
-            CollectorManager<TopScoreDocCollector, TopDocs> topDocsManager = TopScoreDocCollector.createSharedManager(1, null, 1000);
+            CollectorManager<TopScoreDocCollector, TopDocs> topDocsManager = new TopScoreDocCollectorManager(1, null, 1000);
             CollectorManager<DummyTotalHitCountCollector, Integer> aggsManager = DummyTotalHitCountCollector.createManager();
             CollectorManager<QueryPhaseCollector, Result<TopDocs, Integer>> manager = createCollectorManager(
                 topDocsManager,
@@ -703,18 +680,14 @@ public class QueryPhaseCollectorTests extends ESTestCase {
         TermQuery termQuery = new TermQuery(new Term("field2", "value"));
         Weight filterWeight = termQuery.createWeight(searcher, ScoreMode.TOP_DOCS, 1f);
         {
-            CollectorManager<TopScoreDocCollector, TopDocs> topDocsManager = TopScoreDocCollector.createSharedManager(
-                numField3Docs + 1,
-                null,
-                1000
-            );
+            CollectorManager<TopScoreDocCollector, TopDocs> topDocsManager = new TopScoreDocCollectorManager(numField3Docs + 1, null, 1000);
             TopDocs topDocs = searcher.search(booleanQuery, topDocsManager);
             assertEquals(numDocs, topDocs.totalHits.value);
             maxScore = topDocs.scoreDocs[0].score;
         }
         {
             int terminateAfter = randomIntBetween(1, numField2AndField3Docs - 1);
-            CollectorManager<TopScoreDocCollector, TopDocs> topDocsManager = TopScoreDocCollector.createSharedManager(1, null, 1000);
+            CollectorManager<TopScoreDocCollector, TopDocs> topDocsManager = new TopScoreDocCollectorManager(1, null, 1000);
             CollectorManager<QueryPhaseCollector, Result<TopDocs, Void>> manager = createCollectorManager(
                 topDocsManager,
                 filterWeight,
@@ -737,18 +710,14 @@ public class QueryPhaseCollectorTests extends ESTestCase {
         TermQuery termQuery = new TermQuery(new Term("field2", "value"));
         Weight filterWeight = termQuery.createWeight(searcher, ScoreMode.TOP_DOCS, 1f);
         {
-            CollectorManager<TopScoreDocCollector, TopDocs> topDocsManager = TopScoreDocCollector.createSharedManager(
-                numField3Docs + 1,
-                null,
-                1000
-            );
+            CollectorManager<TopScoreDocCollector, TopDocs> topDocsManager = new TopScoreDocCollectorManager(numField3Docs + 1, null, 1000);
             TopDocs topDocs = searcher.search(booleanQuery, topDocsManager);
             assertEquals(numDocs, topDocs.totalHits.value);
             maxScore = topDocs.scoreDocs[0].score;
         }
         {
             int terminateAfter = randomIntBetween(1, numField2AndField3Docs - 1);
-            CollectorManager<TopScoreDocCollector, TopDocs> topDocsManager = TopScoreDocCollector.createSharedManager(1, null, 1000);
+            CollectorManager<TopScoreDocCollector, TopDocs> topDocsManager = new TopScoreDocCollectorManager(1, null, 1000);
             CollectorManager<DummyTotalHitCountCollector, Integer> aggsManager = DummyTotalHitCountCollector.createManager();
             CollectorManager<QueryPhaseCollector, Result<TopDocs, Integer>> manager = createCollectorManager(
                 topDocsManager,

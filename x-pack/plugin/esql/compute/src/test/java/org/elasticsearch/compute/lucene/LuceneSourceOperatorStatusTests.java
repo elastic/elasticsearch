@@ -7,7 +7,6 @@
 
 package org.elasticsearch.compute.lucene;
 
-import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
@@ -19,10 +18,9 @@ import java.util.TreeSet;
 
 import static org.hamcrest.Matchers.equalTo;
 
-@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/103774")
 public class LuceneSourceOperatorStatusTests extends AbstractWireSerializingTestCase<LuceneSourceOperator.Status> {
     public static LuceneSourceOperator.Status simple() {
-        return new LuceneSourceOperator.Status(2, Set.of("*:*"), new TreeSet<>(List.of("a:0", "a:1")), 0, 1, 5, 123, 99990, 8000);
+        return new LuceneSourceOperator.Status(2, Set.of("*:*"), new TreeSet<>(List.of("a:0", "a:1")), 1002, 0, 1, 5, 123, 99990, 8000);
     }
 
     public static String simpleToJson() {
@@ -36,6 +34,8 @@ public class LuceneSourceOperatorStatusTests extends AbstractWireSerializingTest
                 "a:0",
                 "a:1"
               ],
+              "processing_nanos" : 1002,
+              "processing_time" : "1micros",
               "slice_index" : 0,
               "total_slices" : 1,
               "pages_emitted" : 5,
@@ -60,6 +60,7 @@ public class LuceneSourceOperatorStatusTests extends AbstractWireSerializingTest
             randomNonNegativeInt(),
             randomProcessedQueries(),
             randomProcessedShards(),
+            randomNonNegativeLong(),
             randomNonNegativeInt(),
             randomNonNegativeInt(),
             randomNonNegativeInt(),
@@ -92,29 +93,31 @@ public class LuceneSourceOperatorStatusTests extends AbstractWireSerializingTest
         int processedSlices = instance.processedSlices();
         Set<String> processedQueries = instance.processedQueries();
         Set<String> processedShards = instance.processedShards();
+        long processNanos = instance.processNanos();
         int sliceIndex = instance.sliceIndex();
         int totalSlices = instance.totalSlices();
         int pagesEmitted = instance.pagesEmitted();
         int sliceMin = instance.sliceMin();
         int sliceMax = instance.sliceMax();
         int current = instance.current();
-        switch (between(0, 8)) {
+        switch (between(0, 9)) {
             case 0 -> processedSlices = randomValueOtherThan(processedSlices, ESTestCase::randomNonNegativeInt);
             case 1 -> processedQueries = randomValueOtherThan(processedQueries, LuceneSourceOperatorStatusTests::randomProcessedQueries);
-            case 2 -> processedQueries = randomValueOtherThan(processedShards, LuceneSourceOperatorStatusTests::randomProcessedShards);
-            case 3 -> sliceIndex = randomValueOtherThan(sliceIndex, ESTestCase::randomNonNegativeInt);
-            case 4 -> totalSlices = randomValueOtherThan(totalSlices, ESTestCase::randomNonNegativeInt);
-            case 5 -> pagesEmitted = randomValueOtherThan(pagesEmitted, ESTestCase::randomNonNegativeInt);
-            case 6 -> sliceMin = randomValueOtherThan(sliceMin, ESTestCase::randomNonNegativeInt);
-            case 7 -> sliceMax = randomValueOtherThan(sliceMax, ESTestCase::randomNonNegativeInt);
-            case 8 -> current = randomValueOtherThan(current, ESTestCase::randomNonNegativeInt);
+            case 2 -> processedShards = randomValueOtherThan(processedShards, LuceneSourceOperatorStatusTests::randomProcessedShards);
+            case 3 -> processNanos = randomValueOtherThan(processNanos, ESTestCase::randomNonNegativeLong);
+            case 4 -> sliceIndex = randomValueOtherThan(sliceIndex, ESTestCase::randomNonNegativeInt);
+            case 5 -> totalSlices = randomValueOtherThan(totalSlices, ESTestCase::randomNonNegativeInt);
+            case 6 -> pagesEmitted = randomValueOtherThan(pagesEmitted, ESTestCase::randomNonNegativeInt);
+            case 7 -> sliceMin = randomValueOtherThan(sliceMin, ESTestCase::randomNonNegativeInt);
+            case 8 -> sliceMax = randomValueOtherThan(sliceMax, ESTestCase::randomNonNegativeInt);
+            case 9 -> current = randomValueOtherThan(current, ESTestCase::randomNonNegativeInt);
             default -> throw new UnsupportedOperationException();
         }
-        ;
         return new LuceneSourceOperator.Status(
             processedSlices,
             processedQueries,
             processedShards,
+            processNanos,
             sliceIndex,
             totalSlices,
             pagesEmitted,

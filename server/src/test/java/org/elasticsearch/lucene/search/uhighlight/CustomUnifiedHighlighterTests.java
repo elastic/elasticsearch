@@ -145,7 +145,7 @@ public class CustomUnifiedHighlighterTests extends ESTestCase {
                 UnifiedHighlighter.Builder builder = UnifiedHighlighter.builder(searcher, analyzer);
                 builder.withBreakIterator(() -> breakIterator);
                 builder.withFieldMatcher(name -> "text".equals(name));
-                builder.withFormatter(new CustomPassageFormatter("<b>", "</b>", new DefaultEncoder()));
+                builder.withFormatter(new CustomPassageFormatter("<b>", "</b>", new DefaultEncoder(), 3));
                 CustomUnifiedHighlighter highlighter = new CustomUnifiedHighlighter(
                     builder,
                     offsetSource,

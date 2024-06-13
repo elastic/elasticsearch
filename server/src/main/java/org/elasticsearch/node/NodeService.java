@@ -20,6 +20,7 @@ import org.elasticsearch.cluster.coordination.Coordinator;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
@@ -138,7 +139,7 @@ public class NodeService implements Closeable {
             plugin ? (pluginService == null ? null : pluginService.info()) : null,
             ingest ? (ingestService == null ? null : ingestService.info()) : null,
             aggs ? (aggregationUsageService == null ? null : aggregationUsageService.info()) : null,
-            indices ? indicesService.getTotalIndexingBufferBytes() : null
+            indices ? ByteSizeValue.ofBytes(indicesService.getTotalIndexingBufferBytes()) : null
         );
     }
 
@@ -195,7 +196,8 @@ public class NodeService implements Closeable {
             adaptiveSelection ? responseCollectorService.getAdaptiveStats(searchTransportService.getPendingSearchRequests()) : null,
             scriptCache ? scriptService.cacheStats() : null,
             indexingPressure ? this.indexingPressure.stats() : null,
-            repositoriesStats ? this.repositoriesService.getRepositoriesThrottlingStats() : null
+            repositoriesStats ? this.repositoriesService.getRepositoriesThrottlingStats() : null,
+            null
         );
     }
 

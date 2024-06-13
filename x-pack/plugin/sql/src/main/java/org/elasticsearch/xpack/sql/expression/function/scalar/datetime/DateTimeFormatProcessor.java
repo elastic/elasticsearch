@@ -192,7 +192,7 @@ public class DateTimeFormatProcessor extends BinaryDateTimeProcessor {
 
         private static void quoteAndAppend(StringBuilder mainBuffer, StringBuilder fragmentToQuote) {
             mainBuffer.append("'");
-            mainBuffer.append(fragmentToQuote.toString().replaceAll("'", "''"));
+            mainBuffer.append(fragmentToQuote.toString().replace("'", "''"));
             mainBuffer.append("'");
         }
 

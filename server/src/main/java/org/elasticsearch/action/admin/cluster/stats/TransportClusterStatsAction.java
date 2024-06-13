@@ -9,7 +9,9 @@
 package org.elasticsearch.action.admin.cluster.stats;
 
 import org.apache.lucene.store.AlreadyClosedException;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
@@ -31,6 +33,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.CancellableSingleObjectCache;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.CommitStats;
 import org.elasticsearch.index.seqno.RetentionLeaseStats;
@@ -61,6 +64,7 @@ public class TransportClusterStatsAction extends TransportNodesAction<
     TransportClusterStatsAction.ClusterStatsNodeRequest,
     ClusterStatsNodeResponse> {
 
+    public static final ActionType<ClusterStatsResponse> TYPE = new ActionType<>("cluster:monitor/stats");
     private static final CommonStatsFlags SHARD_STATS_FLAGS = new CommonStatsFlags(
         CommonStatsFlags.Flag.Docs,
         CommonStatsFlags.Flag.Store,
@@ -89,7 +93,7 @@ public class TransportClusterStatsAction extends TransportNodesAction<
         ActionFilters actionFilters
     ) {
         super(
-            ClusterStatsAction.NAME,
+            TYPE.name(),
             clusterService,
             transportService,
             actionFilters,
@@ -165,7 +169,7 @@ public class TransportClusterStatsAction extends TransportNodesAction<
 
     @Override
     protected ClusterStatsNodeRequest newNodeRequest(ClusterStatsRequest request) {
-        return new ClusterStatsNodeRequest(request);
+        return new ClusterStatsNodeRequest();
     }
 
     @Override
@@ -249,18 +253,16 @@ public class TransportClusterStatsAction extends TransportNodesAction<
         );
     }
 
+    @UpdateForV9 // this can be replaced with TransportRequest.Empty in v9
     public static class ClusterStatsNodeRequest extends TransportRequest {
 
-        // TODO don't wrap the whole top-level request, it contains heavy and irrelevant DiscoveryNode things; see #100878
-        ClusterStatsRequest request;
+        ClusterStatsNodeRequest() {}
 
         public ClusterStatsNodeRequest(StreamInput in) throws IOException {
             super(in);
-            request = new ClusterStatsRequest(in);
-        }
-
-        ClusterStatsNodeRequest(ClusterStatsRequest request) {
-            this.request = request;
+            if (in.getTransportVersion().before(TransportVersions.DROP_UNUSED_NODES_REQUESTS)) {
+                new ClusterStatsRequest(in);
+            }
         }
 
         @Override
@@ -271,7 +273,9 @@ public class TransportClusterStatsAction extends TransportNodesAction<
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            request.writeTo(out);
+            if (out.getTransportVersion().before(TransportVersions.DROP_UNUSED_NODES_REQUESTS)) {
+                new ClusterStatsRequest().writeTo(out);
+            }
         }
     }
 

@@ -9,7 +9,6 @@ package org.elasticsearch.persistent;
 
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.threadpool.ThreadPool;
 
 /**
  * This component is responsible for execution of persistent tasks.
@@ -17,20 +16,13 @@ import org.elasticsearch.threadpool.ThreadPool;
  * It abstracts away the execution of tasks and greatly simplifies testing of PersistentTasksNodeService
  */
 public class NodePersistentTasksExecutor {
-
-    private final ThreadPool threadPool;
-
-    NodePersistentTasksExecutor(ThreadPool threadPool) {
-        this.threadPool = threadPool;
-    }
-
     public <Params extends PersistentTaskParams> void executeTask(
         final Params params,
         final @Nullable PersistentTaskState state,
         final AllocatedPersistentTask task,
         final PersistentTasksExecutor<Params> executor
     ) {
-        threadPool.executor(executor.getExecutor()).execute(new AbstractRunnable() {
+        executor.getExecutor().execute(new AbstractRunnable() {
             @Override
             public void onFailure(Exception e) {
                 task.markAsFailed(e);

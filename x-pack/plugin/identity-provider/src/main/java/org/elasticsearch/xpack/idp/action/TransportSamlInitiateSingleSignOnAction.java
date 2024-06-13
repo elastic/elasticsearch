@@ -91,6 +91,7 @@ public class TransportSamlInitiateSingleSignOnAction extends HandledTransportAct
                             StatusCode.RESPONDER,
                             RestStatus.BAD_REQUEST,
                             "Service Provider with Entity ID [{}] and ACS [{}] is not known to this Identity Provider",
+                            null,
                             request.getSpEntityId(),
                             request.getAssertionConsumerService()
                         )
@@ -108,7 +109,8 @@ public class TransportSamlInitiateSingleSignOnAction extends HandledTransportAct
                             request.getAssertionConsumerService(),
                             StatusCode.REQUESTER,
                             RestStatus.FORBIDDEN,
-                            "Request is missing secondary authentication"
+                            "Request is missing secondary authentication",
+                            null
                         )
                     );
                     return;
@@ -124,6 +126,7 @@ public class TransportSamlInitiateSingleSignOnAction extends HandledTransportAct
                                 StatusCode.REQUESTER,
                                 RestStatus.FORBIDDEN,
                                 "User [{}] is not permitted to access service [{}]",
+                                null,
                                 secondaryAuthentication.getUser().principal(),
                                 sp.getEntityId()
                             )
@@ -217,6 +220,7 @@ public class TransportSamlInitiateSingleSignOnAction extends HandledTransportAct
         final String statusCode,
         final RestStatus restStatus,
         final String messageFormatStr,
+        final Exception cause,
         final Object... args
     ) {
         final SamlInitiateSingleSignOnException ex;
@@ -231,10 +235,11 @@ public class TransportSamlInitiateSingleSignOnAction extends HandledTransportAct
             ex = new SamlInitiateSingleSignOnException(
                 exceptionMessage,
                 restStatus,
+                cause,
                 new SamlInitiateSingleSignOnResponse(spEntityId, acsUrl, samlFactory.getXmlContent(response), statusCode, exceptionMessage)
             );
         } else {
-            ex = new SamlInitiateSingleSignOnException(exceptionMessage, restStatus);
+            ex = new SamlInitiateSingleSignOnException(exceptionMessage, restStatus, cause);
         }
         return ex;
     }
@@ -247,15 +252,14 @@ public class TransportSamlInitiateSingleSignOnAction extends HandledTransportAct
     ) {
         final String exceptionMessage = cause.getMessage();
         final RestStatus restStatus = ExceptionsHelper.status(cause);
-        final SamlInitiateSingleSignOnException ex = buildSamlInitiateSingleSignOnException(
+        return buildSamlInitiateSingleSignOnException(
             authenticationState,
             spEntityId,
             acsUrl,
             StatusCode.RESPONDER,
             restStatus,
-            exceptionMessage
+            exceptionMessage,
+            cause
         );
-        ex.initCause(cause);
-        return ex;
     }
 }

@@ -168,7 +168,7 @@ public final class VersionStats implements ToXContentFragment, Writeable {
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            builder.field("version", version.toString());
+            builder.field("version", version.toReleaseVersion());
             builder.field("index_count", indexCount);
             builder.field("primary_shard_count", primaryShardCount);
             builder.humanReadableField("total_primary_bytes", "total_primary_size", ByteSizeValue.ofBytes(totalPrimaryByteCount));

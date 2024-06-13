@@ -8,7 +8,7 @@
 
 package org.elasticsearch.indices.settings;
 
-import org.elasticsearch.action.ActionRequestBuilder;
+import org.elasticsearch.action.RequestBuilder;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.cluster.ClusterState;
@@ -328,7 +328,7 @@ public class UpdateSettingsIT extends ESIntegTestCase {
 
         // Wait for the index to turn green before attempting to close it
         ClusterHealthResponse health = clusterAdmin().prepareHealth()
-            .setTimeout("30s")
+            .setTimeout(TimeValue.timeValueSeconds(30))
             .setWaitForEvents(Priority.LANGUID)
             .setWaitForGreenStatus()
             .get();
@@ -378,10 +378,7 @@ public class UpdateSettingsIT extends ESIntegTestCase {
         prepareIndex("test").setId("1").setSource("f", 1).setVersionType(VersionType.EXTERNAL).setVersion(1).get();
         client().prepareDelete("test", "1").setVersionType(VersionType.EXTERNAL).setVersion(2).get();
         // delete is still in cache this should fail
-        ActionRequestBuilder<?, ?> builder = prepareIndex("test").setId("1")
-            .setSource("f", 3)
-            .setVersionType(VersionType.EXTERNAL)
-            .setVersion(1);
+        RequestBuilder<?, ?> builder = prepareIndex("test").setId("1").setSource("f", 3).setVersionType(VersionType.EXTERNAL).setVersion(1);
         expectThrows(VersionConflictEngineException.class, builder);
 
         assertAcked(indicesAdmin().prepareUpdateSettings("test").setSettings(Settings.builder().put("index.gc_deletes", 0)));

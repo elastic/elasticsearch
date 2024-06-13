@@ -21,7 +21,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.TransportVersions.CLUSTER_STATS_RESCORER_USAGE_ADDED;
+import static org.elasticsearch.TransportVersions.V_8_12_0;
 
 /**
  * Holds a snapshot of the search usage statistics.
@@ -59,9 +59,7 @@ public final class SearchUsageStats implements Writeable, ToXContentFragment {
         this.queries = in.readMap(StreamInput::readLong);
         this.sections = in.readMap(StreamInput::readLong);
         this.totalSearchCount = in.readVLong();
-        this.rescorers = in.getTransportVersion().onOrAfter(CLUSTER_STATS_RESCORER_USAGE_ADDED)
-            ? in.readMap(StreamInput::readLong)
-            : Map.of();
+        this.rescorers = in.getTransportVersion().onOrAfter(V_8_12_0) ? in.readMap(StreamInput::readLong) : Map.of();
     }
 
     @Override
@@ -70,7 +68,7 @@ public final class SearchUsageStats implements Writeable, ToXContentFragment {
         out.writeMap(sections, StreamOutput::writeLong);
         out.writeVLong(totalSearchCount);
 
-        if (out.getTransportVersion().onOrAfter(CLUSTER_STATS_RESCORER_USAGE_ADDED)) {
+        if (out.getTransportVersion().onOrAfter(V_8_12_0)) {
             out.writeMap(rescorers, StreamOutput::writeLong);
         }
     }

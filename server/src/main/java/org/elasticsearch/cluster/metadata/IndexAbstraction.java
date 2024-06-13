@@ -256,6 +256,15 @@ public interface IndexAbstraction {
         }
 
         @Override
+        public Index getWriteIndex(IndexRequest request, Metadata metadata) {
+            if (dataStreamAlias == false) {
+                return getWriteIndex();
+            }
+
+            return metadata.getIndicesLookup().get(getWriteIndex().getName()).getParentDataStream().getWriteIndex(request, metadata);
+        }
+
+        @Override
         public DataStream getParentDataStream() {
             // aliases may not be part of a data stream
             return null;

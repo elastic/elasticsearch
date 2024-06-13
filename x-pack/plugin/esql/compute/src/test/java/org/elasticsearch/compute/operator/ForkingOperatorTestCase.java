@@ -13,6 +13,7 @@ import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockTestUtils;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.TestBlockFactory;
@@ -201,8 +202,8 @@ public abstract class ForkingOperatorTestCase extends OperatorTestCase {
     // fail by throwing an exception in one of the operators.
     List<Driver> createDriversForInput(List<Page> input, List<Page> results, boolean throwingOp) {
         Collection<List<Page>> splitInput = randomSplits(input, randomIntBetween(2, 4));
-
-        ExchangeSinkHandler sinkExchanger = new ExchangeSinkHandler(randomIntBetween(2, 10), threadPool::relativeTimeInMillis);
+        BlockFactory factory = blockFactory();
+        ExchangeSinkHandler sinkExchanger = new ExchangeSinkHandler(factory, randomIntBetween(2, 10), threadPool::relativeTimeInMillis);
         ExchangeSourceHandler sourceExchanger = new ExchangeSourceHandler(randomIntBetween(1, 4), threadPool.executor(ESQL_TEST_EXECUTOR));
         sourceExchanger.addRemoteSink(sinkExchanger::fetchPageAsync, 1);
 

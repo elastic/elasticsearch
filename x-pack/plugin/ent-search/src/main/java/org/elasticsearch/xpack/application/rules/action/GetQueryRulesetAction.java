@@ -29,14 +29,12 @@ import java.util.Objects;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
-public class GetQueryRulesetAction extends ActionType<GetQueryRulesetAction.Response> {
+public class GetQueryRulesetAction {
 
-    public static final GetQueryRulesetAction INSTANCE = new GetQueryRulesetAction();
     public static final String NAME = "cluster:admin/xpack/query_rules/get";
+    public static final ActionType<GetQueryRulesetAction.Response> INSTANCE = new ActionType<>(NAME);
 
-    private GetQueryRulesetAction() {
-        super(NAME, GetQueryRulesetAction.Response::new);
-    }
+    private GetQueryRulesetAction() {/* no instances */}
 
     public static class Request extends ActionRequest implements ToXContentObject {
         private final String rulesetId;
@@ -114,7 +112,6 @@ public class GetQueryRulesetAction extends ActionType<GetQueryRulesetAction.Resp
     public static class Response extends ActionResponse implements ToXContentObject {
 
         private final QueryRuleset queryRuleset;
-        private static final ParseField QUERY_RULESET_FIELD = new ParseField("queryRuleset");
 
         public Response(StreamInput in) throws IOException {
             super(in);
@@ -154,14 +151,6 @@ public class GetQueryRulesetAction extends ActionType<GetQueryRulesetAction.Resp
         @Override
         public int hashCode() {
             return Objects.hash(queryRuleset);
-        }
-
-        private static final ConstructingObjectParser<Response, String> PARSER = new ConstructingObjectParser<>(
-            "get_query_ruleset_response",
-            p -> new Response((QueryRuleset) p[0])
-        );
-        static {
-            PARSER.declareObject(constructorArg(), (p, c) -> QueryRuleset.fromXContent(c, p), QUERY_RULESET_FIELD);
         }
 
         public static Response fromXContent(String resourceName, XContentParser parser) throws IOException {

@@ -19,9 +19,9 @@ import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
-import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
-import org.elasticsearch.search.aggregations.Aggregations;
+import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.bucket.filter.InternalFilter;
 import org.elasticsearch.search.aggregations.bucket.terms.SignificantTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.SignificantTermsAggregatorFactory;
@@ -136,7 +136,7 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
             StringTerms classes = response.getAggregations().get("class");
             assertThat(classes.getBuckets().size(), equalTo(2));
             for (Terms.Bucket classBucket : classes.getBuckets()) {
-                Map<String, Aggregation> aggs = classBucket.getAggregations().asMap();
+                Map<String, InternalAggregation> aggs = classBucket.getAggregations().asMap();
                 assertTrue(aggs.containsKey("sig_terms"));
                 SignificantTerms agg = (SignificantTerms) aggs.get("sig_terms");
                 assertThat(agg.getBuckets().size(), equalTo(1));
@@ -331,7 +331,7 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
             double score10Background = sigTerms1.getBucketByKey("0").getSignificanceScore();
             double score11Background = sigTerms1.getBucketByKey("1").getSignificanceScore();
 
-            Aggregations aggs = response2.getAggregations();
+            InternalAggregations aggs = response2.getAggregations();
 
             sigTerms0 = (SignificantTerms) ((InternalFilter) aggs.get("0")).getAggregations().getAsMap().get("sig_terms");
             double score00SeparateSets = sigTerms0.getBucketByKey("0").getSignificanceScore();
@@ -386,7 +386,7 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
             assertThat(classes.getBuckets().size(), equalTo(2));
             Iterator<? extends Terms.Bucket> classBuckets = classes.getBuckets().iterator();
 
-            Aggregations aggregations = classBuckets.next().getAggregations();
+            InternalAggregations aggregations = classBuckets.next().getAggregations();
             SignificantTerms sigTerms = aggregations.get("mySignificantTerms");
 
             List<? extends SignificantTerms.Bucket> classA = sigTerms.getBuckets();

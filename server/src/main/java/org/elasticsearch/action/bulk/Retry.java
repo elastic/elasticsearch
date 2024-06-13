@@ -16,6 +16,7 @@ import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.Predicates;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.Scheduler;
@@ -104,14 +105,14 @@ public class Retry {
         public void onResponse(BulkResponse bulkItemResponses) {
             if (bulkItemResponses.hasFailures() == false) {
                 // we're done here, include all responses
-                addResponses(bulkItemResponses, (r -> true));
+                addResponses(bulkItemResponses, Predicates.always());
                 finishHim();
             } else {
                 if (canRetry(bulkItemResponses)) {
                     addResponses(bulkItemResponses, (r -> r.isFailed() == false));
                     retry(createBulkRequestForRetry(bulkItemResponses));
                 } else {
-                    addResponses(bulkItemResponses, (r -> true));
+                    addResponses(bulkItemResponses, Predicates.always());
                     finishHim();
                 }
             }

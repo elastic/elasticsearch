@@ -17,6 +17,6 @@ public class EsqlAsyncGetResultAction extends ActionType<EsqlQueryResponse> {
     public static final String NAME = EsqlAsyncActionNames.ESQL_ASYNC_GET_RESULT_ACTION_NAME;
 
     private EsqlAsyncGetResultAction() {
-        super(NAME, in -> { throw new IllegalArgumentException("can't transport EsqlAsyncGetResultAction"); });
+        super(NAME);
     }
 }

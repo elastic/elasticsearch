@@ -22,7 +22,7 @@ abstract class AbstractGeoShapeScriptFieldQuery extends AbstractScriptFieldQuery
     }
 
     @Override
-    protected boolean matches(GeometryFieldScript scriptContext, int docId) {
+    protected final boolean matches(GeometryFieldScript scriptContext, int docId) {
         scriptContext.runForDoc(docId);
         return matches(scriptContext.geometry());
     }

@@ -25,11 +25,11 @@ import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestResponseListener;
 
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
+import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 
 @ServerlessScope(Scope.INTERNAL)
 public class RestTemplatesAction extends AbstractCatAction {
@@ -57,15 +57,13 @@ public class RestTemplatesAction extends AbstractCatAction {
             ? new GetIndexTemplatesRequest()
             : new GetIndexTemplatesRequest(matchPattern);
         getIndexTemplatesRequest.local(request.paramAsBoolean("local", getIndexTemplatesRequest.local()));
-        getIndexTemplatesRequest.masterNodeTimeout(request.paramAsTime("master_timeout", getIndexTemplatesRequest.masterNodeTimeout()));
+        getIndexTemplatesRequest.masterNodeTimeout(getMasterNodeTimeout(request));
 
         final GetComposableIndexTemplateAction.Request getComposableTemplatesRequest = new GetComposableIndexTemplateAction.Request(
             matchPattern
         );
         getComposableTemplatesRequest.local(request.paramAsBoolean("local", getComposableTemplatesRequest.local()));
-        getComposableTemplatesRequest.masterNodeTimeout(
-            request.paramAsTime("master_timeout", getComposableTemplatesRequest.masterNodeTimeout())
-        );
+        getComposableTemplatesRequest.masterNodeTimeout(getMasterNodeTimeout(request));
 
         return channel -> {
 
@@ -78,7 +76,7 @@ public class RestTemplatesAction extends AbstractCatAction {
                 getComposableTemplatesRequest,
                 getComposableTemplatesStep.delegateResponse((l, e) -> {
                     if (ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException) {
-                        l.onResponse(new GetComposableIndexTemplateAction.Response(Collections.emptyMap()));
+                        l.onResponse(new GetComposableIndexTemplateAction.Response(Map.of(), null));
                     } else {
                         l.onFailure(e);
                     }

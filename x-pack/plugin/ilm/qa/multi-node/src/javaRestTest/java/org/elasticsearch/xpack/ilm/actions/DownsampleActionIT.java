@@ -23,6 +23,7 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.rest.action.admin.indices.RestPutIndexTemplateAction;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -190,6 +191,7 @@ public class DownsampleActionIT extends ESRestTestCase {
         createIndexWithSettings(client(), index, alias, settings, mapping);
     }
 
+    @TestLogging(value = "org.elasticsearch.xpack.ilm:TRACE", reason = "https://github.com/elastic/elasticsearch/issues/105437")
     public void testRollupIndex() throws Exception {
         createIndex(index, alias, true);
         index(client(), index, true, null, "@timestamp", "2020-01-01T05:10:00Z", "volume", 11.0, "metricset", randomAlphaOfLength(5));
@@ -213,6 +215,7 @@ public class DownsampleActionIT extends ESRestTestCase {
             assertEquals(index, settings.get(IndexMetadata.INDEX_DOWNSAMPLE_SOURCE_NAME.getKey()));
             assertEquals(policy, settings.get(LifecycleSettings.LIFECYCLE_NAME_SETTING.getKey()));
             assertEquals(DownsampleTaskStatus.SUCCESS.toString(), settings.get(IndexMetadata.INDEX_DOWNSAMPLE_STATUS.getKey()));
+            assertEquals(fixedInterval.toString(), settings.get(IndexMetadata.INDEX_DOWNSAMPLE_INTERVAL.getKey()));
         });
         assertBusy(
             () -> assertTrue("Alias [" + alias + "] does not point to index [" + rollupIndex + "]", aliasExists(rollupIndex, alias))
@@ -299,6 +302,7 @@ public class DownsampleActionIT extends ESRestTestCase {
             assertEquals(originalIndex, settings.get(IndexMetadata.INDEX_DOWNSAMPLE_SOURCE_NAME.getKey()));
             assertEquals(policy, settings.get(LifecycleSettings.LIFECYCLE_NAME_SETTING.getKey()));
             assertEquals(DownsampleTaskStatus.SUCCESS.toString(), settings.get(IndexMetadata.INDEX_DOWNSAMPLE_STATUS.getKey()));
+            assertEquals(fixedInterval.toString(), settings.get(IndexMetadata.INDEX_DOWNSAMPLE_INTERVAL.getKey()));
         });
     }
 
@@ -323,7 +327,7 @@ public class DownsampleActionIT extends ESRestTestCase {
                 explainIndex(client(), backingIndexName).get("step"),
                 is(CheckNotDataStreamWriteIndexStep.NAME)
             ),
-            30,
+            120,  // look_ahead_time is 1m, need to wait for longer than that.
             TimeUnit.SECONDS
         );
 
@@ -345,6 +349,7 @@ public class DownsampleActionIT extends ESRestTestCase {
             assertEquals(backingIndexName, settings.get(IndexMetadata.INDEX_DOWNSAMPLE_SOURCE_NAME.getKey()));
             assertEquals(policy, settings.get(LifecycleSettings.LIFECYCLE_NAME_SETTING.getKey()));
             assertEquals(DownsampleTaskStatus.SUCCESS.toString(), settings.get(IndexMetadata.INDEX_DOWNSAMPLE_STATUS.getKey()));
+            assertEquals(fixedInterval.toString(), settings.get(IndexMetadata.INDEX_DOWNSAMPLE_INTERVAL.getKey()));
         });
     }
 
@@ -369,7 +374,7 @@ public class DownsampleActionIT extends ESRestTestCase {
                 explainIndex(client(), backingIndexName).get("step"),
                 is(CheckNotDataStreamWriteIndexStep.NAME)
             ),
-            30,
+            120,  // look_ahead_time is 1m, need to wait for longer than that.
             TimeUnit.SECONDS
         );
 
@@ -391,7 +396,7 @@ public class DownsampleActionIT extends ESRestTestCase {
         }, 30, TimeUnit.SECONDS);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/103981")
+    @TestLogging(value = "org.elasticsearch.xpack.ilm:TRACE", reason = "https://github.com/elastic/elasticsearch/issues/103981")
     public void testRollupNonTSIndex() throws Exception {
         createIndex(index, alias, false);
         index(client(), index, true, null, "@timestamp", "2020-01-01T05:10:00Z", "volume", 11.0, "metricset", randomAlphaOfLength(5));
@@ -401,13 +406,25 @@ public class DownsampleActionIT extends ESRestTestCase {
         createNewSingletonPolicy(client(), policy, phaseName, new DownsampleAction(fixedInterval, DownsampleAction.DEFAULT_WAIT_TIMEOUT));
         updatePolicy(client(), index, policy);
 
-        assertBusy(() -> assertThat(getStepKeyForIndex(client(), index), equalTo(PhaseCompleteStep.finalStep(phaseName).getKey())));
-        String rollupIndex = getRollupIndexName(client(), index, fixedInterval);
-        assertNull("Rollup index should not have been created", rollupIndex);
-        assertTrue("Source index should not have been deleted", indexExists(index));
+        try {
+            assertBusy(
+                () -> assertThat(getStepKeyForIndex(client(), index), equalTo(PhaseCompleteStep.finalStep(phaseName).getKey())),
+                120,
+                TimeUnit.SECONDS
+            );
+            String rollupIndex = getRollupIndexName(client(), index, fixedInterval);
+            assertNull("Rollup index should not have been created", rollupIndex);
+            assertTrue("Source index should not have been deleted", indexExists(index));
+        } catch (AssertionError ea) {
+            logger.warn(
+                "--> original index name is [{}], rollup index name is NULL, possible explanation: {}",
+                index,
+                explainIndex(client(), index)
+            );
+            throw ea;
+        }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/101428")
     public void testDownsampleTwice() throws Exception {
         // Create the ILM policy
         Request request = new Request("PUT", "_ilm/policy/" + policy);
@@ -452,7 +469,7 @@ public class DownsampleActionIT extends ESRestTestCase {
                 explainIndex(client(), firstBackingIndex).get("step"),
                 is(CheckNotDataStreamWriteIndexStep.NAME)
             ),
-            30,
+            120,  // look_ahead_time is 1m, need to wait for longer than that.
             TimeUnit.SECONDS
         );
 
@@ -478,7 +495,8 @@ public class DownsampleActionIT extends ESRestTestCase {
                 assertEquals(downsampleIndexName, settings.get(IndexMetadata.INDEX_DOWNSAMPLE_SOURCE_NAME.getKey()));
                 assertEquals(DownsampleTaskStatus.SUCCESS.toString(), settings.get(IndexMetadata.INDEX_DOWNSAMPLE_STATUS.getKey()));
                 assertEquals(policy, settings.get(LifecycleSettings.LIFECYCLE_NAME_SETTING.getKey()));
-            }, 60, TimeUnit.SECONDS);
+                assertEquals("1h", settings.get(IndexMetadata.INDEX_DOWNSAMPLE_INTERVAL.getKey()));
+            }, 120, TimeUnit.SECONDS);
         } catch (AssertionError ae) {
             if (indexExists(firstBackingIndex)) {
                 logger.error("Index [{}] ilm explain {}", firstBackingIndex, explainIndex(client(), firstBackingIndex));
@@ -491,7 +509,6 @@ public class DownsampleActionIT extends ESRestTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/101428")
     public void testDownsampleTwiceSameInterval() throws Exception {
         // Create the ILM policy
         Request request = new Request("PUT", "_ilm/policy/" + policy);
@@ -533,7 +550,7 @@ public class DownsampleActionIT extends ESRestTestCase {
                 explainIndex(client(), firstBackingIndex).get("step"),
                 is(CheckNotDataStreamWriteIndexStep.NAME)
             ),
-            30,
+            120,  // look_ahead_time is 1m, need to wait for longer than that.
             TimeUnit.SECONDS
         );
 
@@ -559,8 +576,9 @@ public class DownsampleActionIT extends ESRestTestCase {
             assertEquals(firstBackingIndex, settings.get(IndexMetadata.INDEX_DOWNSAMPLE_ORIGIN_NAME.getKey()));
             assertEquals(firstBackingIndex, settings.get(IndexMetadata.INDEX_DOWNSAMPLE_SOURCE_NAME.getKey()));
             assertEquals(DownsampleTaskStatus.SUCCESS.toString(), settings.get(IndexMetadata.INDEX_DOWNSAMPLE_STATUS.getKey()));
+            assertEquals("5m", settings.get(IndexMetadata.INDEX_DOWNSAMPLE_INTERVAL.getKey()));
             assertEquals(policy, settings.get(LifecycleSettings.LIFECYCLE_NAME_SETTING.getKey()));
-        }, 60, TimeUnit.SECONDS);
+        }, 120, TimeUnit.SECONDS);
 
         // update the policy to now contain the downsample action in cold, whilst not existing in warm anymore (this will have our already
         // downsampled index attempt to go through the downsample action again when in cold)

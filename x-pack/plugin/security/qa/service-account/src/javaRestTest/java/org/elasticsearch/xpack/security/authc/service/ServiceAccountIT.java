@@ -280,7 +280,9 @@ public class ServiceAccountIT extends ESRestTestCase {
         {
             "cluster": [
                 "manage",
-                "manage_security"
+                "manage_security",
+                "read_connector_secrets",
+                "write_connector_secrets"
             ],
             "indices": [
                 {

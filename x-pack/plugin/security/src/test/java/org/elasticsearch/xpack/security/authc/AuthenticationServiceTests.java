@@ -7,8 +7,6 @@
 package org.elasticsearch.xpack.security.authc;
 
 import org.apache.logging.log4j.Level;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
@@ -33,7 +31,6 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
@@ -56,7 +53,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -265,6 +262,7 @@ public class AuthenticationServiceTests extends ESTestCase {
         client = mock(Client.class);
         threadPool = new ThreadPool(
             settings,
+            MeterRegistry.NOOP,
             new FixedExecutorBuilder(
                 settings,
                 THREAD_POOL_NAME,
@@ -334,7 +332,8 @@ public class AuthenticationServiceTests extends ESTestCase {
             securityIndex,
             clusterService,
             mock(CacheInvalidatorRegistry.class),
-            threadPool
+            threadPool,
+            MeterRegistry.NOOP
         );
         tokenService = new TokenService(
             settings,
@@ -419,13 +418,9 @@ public class AuthenticationServiceTests extends ESTestCase {
     }
 
     public void testTokenMissing() throws Exception {
-        final Logger unlicensedRealmsLogger = LogManager.getLogger(RealmsAuthenticator.class);
-        final MockLogAppender mockAppender = new MockLogAppender();
-        mockAppender.start();
-        try {
-            Loggers.addAppender(unlicensedRealmsLogger, mockAppender);
-            mockAppender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+        try (var mockLog = MockLog.capture(RealmsAuthenticator.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
                     "unlicensed realms",
                     RealmsAuthenticator.class.getName(),
                     Level.WARN,
@@ -460,7 +455,7 @@ public class AuthenticationServiceTests extends ESTestCase {
                     verify(auditTrail).anonymousAccessDenied(reqId.get(), "_action", transportRequest);
                 }
                 verifyNoMoreInteractions(auditTrail);
-                mockAppender.assertAllExpectationsMatched();
+                mockLog.assertAllExpectationsMatched();
                 setCompletedToTrue(completed);
             });
 
@@ -470,9 +465,6 @@ public class AuthenticationServiceTests extends ESTestCase {
                 service.authenticate("_action", transportRequest, true, listener);
             }
             assertThat(completed.get(), is(true));
-        } finally {
-            Loggers.removeAppender(unlicensedRealmsLogger, mockAppender);
-            mockAppender.stop();
         }
     }
 
@@ -575,7 +567,8 @@ public class AuthenticationServiceTests extends ESTestCase {
         }, this::logAndFail));
 
         verify(auditTrail).authenticationFailed(reqId.get(), firstRealm.name(), token, "_action", transportRequest);
-        verify(firstRealm, times(2)).name(); // used above one time
+        verify(firstRealm, times(4)).name(); // used above one time plus two times for authc result and time metrics
+        verify(firstRealm, times(2)).type(); // used two times to collect authc result and time metrics
         verify(secondRealm, times(2)).realmRef(); // also used in license tracking
         verify(firstRealm, times(2)).token(threadContext);
         verify(secondRealm, times(2)).token(threadContext);
@@ -583,6 +576,8 @@ public class AuthenticationServiceTests extends ESTestCase {
         verify(secondRealm, times(2)).supports(token);
         verify(firstRealm).authenticate(eq(token), anyActionListener());
         verify(secondRealm, times(2)).authenticate(eq(token), anyActionListener());
+        verify(secondRealm, times(4)).name(); // called two times for every authenticate call to collect authc result and time metrics
+        verify(secondRealm, times(4)).type(); // called two times for every authenticate call to collect authc result and time metrics
         verifyNoMoreInteractions(auditTrail, firstRealm, secondRealm);
 
         // Now assume some change in the backend system so that 2nd realm no longer has the user, but the 1st realm does.
@@ -711,7 +706,8 @@ public class AuthenticationServiceTests extends ESTestCase {
             verify(operatorPrivilegesService).maybeMarkOperatorUser(eq(result), eq(threadContext));
         }, this::logAndFail));
         verify(auditTrail, times(2)).authenticationFailed(reqId.get(), firstRealm.name(), token, "_action", transportRequest);
-        verify(firstRealm, times(3)).name(); // used above one time
+        verify(firstRealm, times(7)).name(); // used above one time plus two times for every call to collect success and time metrics
+        verify(firstRealm, times(4)).type(); // used two times for every call to collect authc result and time metrics
         verify(secondRealm, times(2)).realmRef();
         verify(firstRealm, times(2)).token(threadContext);
         verify(secondRealm, times(2)).token(threadContext);
@@ -719,6 +715,8 @@ public class AuthenticationServiceTests extends ESTestCase {
         verify(secondRealm, times(2)).supports(token);
         verify(firstRealm, times(2)).authenticate(eq(token), anyActionListener());
         verify(secondRealm, times(2)).authenticate(eq(token), anyActionListener());
+        verify(secondRealm, times(4)).name(); // called two times for every authenticate call to collect authc result and time metrics
+        verify(secondRealm, times(4)).type(); // called two times for every authenticate call to collect authc result and time metrics
         verifyNoMoreInteractions(auditTrail, firstRealm, secondRealm);
     }
 
@@ -2515,11 +2513,13 @@ public class AuthenticationServiceTests extends ESTestCase {
             true,
             true,
             null,
+            null,
+            null,
             concreteSecurityIndexName,
             indexStatus,
             IndexMetadata.State.OPEN,
-            null,
-            "my_uuid"
+            "my_uuid",
+            Set.of()
         );
     }
 

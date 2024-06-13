@@ -36,7 +36,7 @@ public class UpdatePersistentTaskStatusAction extends ActionType<PersistentTaskR
     public static final String NAME = "cluster:admin/persistent/update_status";
 
     private UpdatePersistentTaskStatusAction() {
-        super(NAME, PersistentTaskResponse::new);
+        super(NAME);
     }
 
     public static class Request extends MasterNodeRequest<Request> {
@@ -45,7 +45,9 @@ public class UpdatePersistentTaskStatusAction extends ActionType<PersistentTaskR
         private long allocationId = -1L;
         private PersistentTaskState state;
 
-        public Request() {}
+        public Request() {
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
+        }
 
         public Request(StreamInput in) throws IOException {
             super(in);
@@ -55,6 +57,7 @@ public class UpdatePersistentTaskStatusAction extends ActionType<PersistentTaskR
         }
 
         public Request(String taskId, long allocationId, PersistentTaskState state) {
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
             this.taskId = taskId;
             this.allocationId = allocationId;
             this.state = state;

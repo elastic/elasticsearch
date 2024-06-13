@@ -41,6 +41,7 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportChannel;
@@ -82,6 +83,7 @@ public final class IndicesStore implements ClusterStateListener, Closeable {
     private final ClusterService clusterService;
     private final TransportService transportService;
     private final ThreadPool threadPool;
+    private final IndicesClusterStateService indicesClusterStateService;
 
     // Cache successful shard deletion checks to prevent unnecessary file system lookups
     private final Set<ShardId> folderNotFoundCache = new HashSet<>();
@@ -94,13 +96,15 @@ public final class IndicesStore implements ClusterStateListener, Closeable {
         IndicesService indicesService,
         ClusterService clusterService,
         TransportService transportService,
-        ThreadPool threadPool
+        ThreadPool threadPool,
+        IndicesClusterStateService indicesClusterStateService
     ) {
         this.settings = settings;
         this.indicesService = indicesService;
         this.clusterService = clusterService;
         this.transportService = transportService;
         this.threadPool = threadPool;
+        this.indicesClusterStateService = indicesClusterStateService;
         transportService.registerRequestHandler(
             ACTION_SHARD_EXISTS,
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
@@ -169,7 +173,9 @@ public final class IndicesStore implements ClusterStateListener, Closeable {
                     );
                     switch (shardDeletionCheckResult) {
                         case FOLDER_FOUND_CAN_DELETE:
-                            deleteShardIfExistElseWhere(event.state(), indexShardRoutingTable);
+                            indicesClusterStateService.onClusterStateShardsClosed(
+                                () -> deleteShardIfExistElseWhere(event.state(), indexShardRoutingTable)
+                            );
                             break;
                         case NO_FOLDER_FOUND:
                             folderNotFoundCache.add(shardId);
@@ -257,7 +263,7 @@ public final class IndicesStore implements ClusterStateListener, Closeable {
         }
 
         @Override
-        public Executor executor(ThreadPool threadPool) {
+        public Executor executor() {
             return TransportResponseHandler.TRANSPORT_WORKER;
         }
 
@@ -337,7 +343,7 @@ public final class IndicesStore implements ClusterStateListener, Closeable {
     private class ShardActiveRequestHandler implements TransportRequestHandler<ShardActiveRequest> {
 
         @Override
-        public void messageReceived(final ShardActiveRequest request, final TransportChannel channel, Task task) throws Exception {
+        public void messageReceived(final ShardActiveRequest request, final TransportChannel channel, Task task) {
             IndexShard indexShard = getShard(request);
 
             // make sure shard is really there before register cluster state observer
@@ -381,7 +387,7 @@ public final class IndicesStore implements ClusterStateListener, Closeable {
                         public void sendResult(boolean shardActive) {
                             try {
                                 channel.sendResponse(new ShardActiveResponse(shardActive, clusterService.localNode()));
-                            } catch (IOException | EsRejectedExecutionException e) {
+                            } catch (EsRejectedExecutionException e) {
                                 logger.error(
                                     () -> format(
                                         "failed send response for shard active while trying to "

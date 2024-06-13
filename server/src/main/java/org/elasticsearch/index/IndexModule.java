@@ -44,6 +44,7 @@ import org.elasticsearch.index.cache.query.QueryCache;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.mapper.IdFieldMapper;
+import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.MapperRegistry;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.shard.IndexEventListener;
@@ -57,7 +58,6 @@ import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.plugins.IndexStorePlugin;
-import org.elasticsearch.plugins.internal.DocumentParsingObserver;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -77,7 +77,6 @@ import java.util.function.BiFunction;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.Function;
-import java.util.function.Supplier;
 
 /**
  * IndexModule represents the central extension point for index level custom implementations like:
@@ -165,7 +164,6 @@ public final class IndexModule {
     private final IndexSettings indexSettings;
     private final AnalysisRegistry analysisRegistry;
     private final EngineFactory engineFactory;
-    private final Supplier<DocumentParsingObserver> documentParsingObserverSupplier;
     private final SetOnce<DirectoryWrapper> indexDirectoryWrapper = new SetOnce<>();
     private final SetOnce<Function<IndexService, CheckedFunction<DirectoryReader, DirectoryReader, IOException>>> indexReaderWrapper =
         new SetOnce<>();
@@ -180,6 +178,7 @@ public final class IndexModule {
     private final BooleanSupplier allowExpensiveQueries;
     private final Map<String, IndexStorePlugin.RecoveryStateFactory> recoveryStateFactories;
     private final SetOnce<Engine.IndexCommitListener> indexCommitListener = new SetOnce<>();
+    private final MapperMetrics mapperMetrics;
 
     /**
      * Construct the index module for the index with the specified index settings. The index module contains extension points for plugins
@@ -189,7 +188,6 @@ public final class IndexModule {
      * @param analysisRegistry   the analysis registry
      * @param engineFactory      the engine factory
      * @param directoryFactories the available store types
-     * @param documentParsingObserverSupplier the document reporter factory
      */
     public IndexModule(
         final IndexSettings indexSettings,
@@ -199,18 +197,19 @@ public final class IndexModule {
         final BooleanSupplier allowExpensiveQueries,
         final IndexNameExpressionResolver expressionResolver,
         final Map<String, IndexStorePlugin.RecoveryStateFactory> recoveryStateFactories,
-        final Supplier<DocumentParsingObserver> documentParsingObserverSupplier
+        final SlowLogFieldProvider slowLogFieldProvider,
+        final MapperMetrics mapperMetrics
     ) {
         this.indexSettings = indexSettings;
         this.analysisRegistry = analysisRegistry;
         this.engineFactory = Objects.requireNonNull(engineFactory);
-        this.documentParsingObserverSupplier = documentParsingObserverSupplier;
-        this.searchOperationListeners.add(new SearchSlowLog(indexSettings));
-        this.indexOperationListeners.add(new IndexingSlowLog(indexSettings));
+        this.searchOperationListeners.add(new SearchSlowLog(indexSettings, slowLogFieldProvider));
+        this.indexOperationListeners.add(new IndexingSlowLog(indexSettings, slowLogFieldProvider));
         this.directoryFactories = Collections.unmodifiableMap(directoryFactories);
         this.allowExpensiveQueries = allowExpensiveQueries;
         this.expressionResolver = expressionResolver;
         this.recoveryStateFactories = recoveryStateFactories;
+        this.mapperMetrics = mapperMetrics;
     }
 
     /**
@@ -542,7 +541,7 @@ public final class IndexModule {
                 indexFoldersDeletionListener,
                 snapshotCommitSupplier,
                 indexCommitListener.get(),
-                documentParsingObserverSupplier
+                mapperMetrics
             );
             success = true;
             return indexService;
@@ -653,7 +652,10 @@ public final class IndexModule {
             },
             indexSettings.getMode().idFieldMapperWithoutFieldData(),
             scriptService,
-            documentParsingObserverSupplier
+            query -> {
+                throw new UnsupportedOperationException("no index query shard context available");
+            },
+            mapperMetrics
         );
     }
 

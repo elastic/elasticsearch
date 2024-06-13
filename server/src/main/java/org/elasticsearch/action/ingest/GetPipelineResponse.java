@@ -10,15 +10,12 @@ package org.elasticsearch.action.ingest;
 
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.ingest.PipelineConfiguration;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xcontent.XContentParser.Token;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -26,8 +23,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-
-import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 
 public class GetPipelineResponse extends ActionResponse implements ToXContentObject {
 
@@ -88,32 +83,6 @@ public class GetPipelineResponse extends ActionResponse implements ToXContentObj
         }
         builder.endObject();
         return builder;
-    }
-
-    /**
-     *
-     * @param parser the parser for the XContent that contains the serialized GetPipelineResponse.
-     * @return an instance of GetPipelineResponse read from the parser
-     * @throws IOException If the parsing fails
-     */
-    public static GetPipelineResponse fromXContent(XContentParser parser) throws IOException {
-        ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
-        List<PipelineConfiguration> pipelines = new ArrayList<>();
-        while (parser.nextToken().equals(Token.FIELD_NAME)) {
-            String pipelineId = parser.currentName();
-            parser.nextToken();
-            try (XContentBuilder contentBuilder = XContentBuilder.builder(parser.contentType().xContent())) {
-                contentBuilder.generator().copyCurrentStructure(parser);
-                PipelineConfiguration pipeline = new PipelineConfiguration(
-                    pipelineId,
-                    BytesReference.bytes(contentBuilder),
-                    contentBuilder.contentType()
-                );
-                pipelines.add(pipeline);
-            }
-        }
-        ensureExpectedToken(XContentParser.Token.END_OBJECT, parser.currentToken(), parser);
-        return new GetPipelineResponse(pipelines);
     }
 
     @Override

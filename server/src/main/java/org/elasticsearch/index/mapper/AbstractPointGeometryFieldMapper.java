@@ -10,7 +10,6 @@ package org.elasticsearch.index.mapper;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.TriFunction;
-import org.elasticsearch.common.geo.GeometryFormatterFactory;
 import org.elasticsearch.common.geo.SpatialPoint;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.CheckedFunction;
@@ -22,6 +21,8 @@ import java.util.Objects;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
+
+import static org.elasticsearch.index.mapper.MappedFieldType.FieldExtractPreference.DOC_VALUES;
 
 /** Base class for spatial fields that only support indexing points */
 public abstract class AbstractPointGeometryFieldMapper<T> extends AbstractGeometryFieldMapper<T> {
@@ -174,20 +175,16 @@ public abstract class AbstractPointGeometryFieldMapper<T> extends AbstractGeomet
         }
 
         @Override
-        protected Object nullValueAsSource(Object nullValue) {
-            if (nullValue == null) {
-                return null;
-            }
-            SpatialPoint point = (SpatialPoint) nullValue;
-            return point.toWKT();
+        protected Object nullValueAsSource(T nullValue) {
+            return nullValue == null ? null : nullValue.toWKT();
         }
 
         @Override
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
-            // Currently we can only load from source in ESQL
-            ValueFetcher fetcher = valueFetcher(blContext.sourcePaths(name()), nullValue, GeometryFormatterFactory.WKB);
-            // TODO consider optimization using BlockSourceReader.lookupFromFieldNames(blContext.fieldNames(), name())
-            return new BlockSourceReader.GeometriesBlockLoader(fetcher, BlockSourceReader.lookupMatchingAll());
+            if (blContext.fieldExtractPreference() == DOC_VALUES && hasDocValues()) {
+                return new BlockDocValuesReader.LongsBlockLoader(name());
+            }
+            return blockLoaderFromSource(blContext);
         }
     }
 }

@@ -27,7 +27,7 @@ public class CreateDataStreamAction extends ActionType<AcknowledgedResponse> {
     public static final String NAME = "indices:admin/data_stream/create";
 
     private CreateDataStreamAction() {
-        super(NAME, AcknowledgedResponse::readFrom);
+        super(NAME);
     }
 
     public static class Request extends AcknowledgedRequest<Request> implements IndicesRequest {
@@ -36,11 +36,13 @@ public class CreateDataStreamAction extends ActionType<AcknowledgedResponse> {
         private final long startTime;
 
         public Request(String name) {
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
             this.name = name;
             this.startTime = System.currentTimeMillis();
         }
 
         public Request(String name, long startTime) {
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
             this.name = name;
             this.startTime = startTime;
         }

@@ -13,7 +13,6 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
@@ -24,7 +23,7 @@ public class DeleteInternalCcrRepositoryAction extends ActionType<ActionResponse
     public static final String NAME = "internal:admin/ccr/internal_repository/delete";
 
     private DeleteInternalCcrRepositoryAction() {
-        super(NAME, Writeable.Reader.localOnly());
+        super(NAME);
     }
 
     public static class TransportDeleteInternalRepositoryAction extends TransportAction<

@@ -296,6 +296,10 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
         if (queryRewriteContext == null) {
             return this;
         }
+        final InnerHitsRewriteContext ihrc = queryRewriteContext.convertToInnerHitsRewriteContext();
+        if (ihrc != null) {
+            return doInnerHitsRewrite(ihrc);
+        }
         final CoordinatorRewriteContext crc = queryRewriteContext.convertToCoordinatorRewriteContext();
         if (crc != null) {
             return doCoordinatorRewrite(crc);
@@ -339,6 +343,16 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
      * @return A {@link QueryBuilder} representing the rewritten query, that could be used to determine whether this query yields result.
      */
     protected QueryBuilder doIndexMetadataRewrite(final QueryRewriteContext context) throws IOException {
+        return this;
+    }
+
+    /**
+     * Optional rewrite logic that allows for optimization for extracting inner hits
+     * @param context an {@link InnerHitsRewriteContext} instance
+     * @return A {@link QueryBuilder} representing the rewritten query optimized for inner hit extraction
+     * @throws IOException if an error occurs while rewriting the query
+     */
+    protected QueryBuilder doInnerHitsRewrite(final InnerHitsRewriteContext context) throws IOException {
         return this;
     }
 

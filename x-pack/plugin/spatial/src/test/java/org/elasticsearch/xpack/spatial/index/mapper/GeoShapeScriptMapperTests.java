@@ -16,13 +16,13 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.index.mapper.MapperScriptTestCase;
 import org.elasticsearch.index.mapper.OnScriptError;
+import org.elasticsearch.lucene.spatial.CentroidCalculator;
+import org.elasticsearch.lucene.spatial.CoordinateEncoder;
+import org.elasticsearch.lucene.spatial.GeometryDocValueWriter;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.GeometryFieldScript;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.xpack.spatial.LocalStateSpatialPlugin;
-import org.elasticsearch.xpack.spatial.index.fielddata.CentroidCalculator;
-import org.elasticsearch.xpack.spatial.index.fielddata.CoordinateEncoder;
-import org.elasticsearch.xpack.spatial.index.fielddata.GeometryDocValueWriter;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;

@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.cluster.routing.allocation;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplanationUtils;
 import org.elasticsearch.action.admin.cluster.desirednodes.UpdateDesiredNodesAction;
 import org.elasticsearch.action.admin.cluster.desirednodes.UpdateDesiredNodesRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
@@ -25,8 +25,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.protocol.xpack.XPackUsageRequest;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.xpack.core.action.XPackUsageRequestBuilder;
+import org.elasticsearch.xpack.core.action.XPackUsageAction;
 import org.elasticsearch.xpack.core.action.XPackUsageResponse;
 import org.elasticsearch.xpack.core.datatiers.DataTiersFeatureSetUsage;
 import org.junit.Before;
@@ -417,7 +418,7 @@ public class DataTierAllocationDeciderIT extends ESIntegTestCase {
     }
 
     private DataTiersFeatureSetUsage getUsage() {
-        XPackUsageResponse usages = new XPackUsageRequestBuilder(client()).get();
+        XPackUsageResponse usages = safeGet(client().execute(XPackUsageAction.INSTANCE, new XPackUsageRequest(SAFE_AWAIT_TIMEOUT)));
         return usages.getUsages()
             .stream()
             .filter(u -> u instanceof DataTiersFeatureSetUsage)
@@ -506,7 +507,7 @@ public class DataTierAllocationDeciderIT extends ESIntegTestCase {
             .put(NODE_EXTERNAL_ID_SETTING.getKey(), externalId)
             .put(NODE_NAME_SETTING.getKey(), externalId)
             .build();
-        return new DesiredNode(settings, 1, ByteSizeValue.ONE, ByteSizeValue.ONE, Version.CURRENT);
+        return new DesiredNode(settings, 1, ByteSizeValue.ONE, ByteSizeValue.ONE);
     }
 
     private void updateDesiredNodes(DesiredNode... desiredNodes) {
@@ -542,7 +543,7 @@ public class DataTierAllocationDeciderIT extends ESIntegTestCase {
 
     private String explainAllocation(int shard) {
         return Strings.toString(
-            clusterAdmin().prepareAllocationExplain().setIndex(index).setShard(shard).setPrimary(true).get().getExplanation(),
+            ClusterAllocationExplanationUtils.getClusterAllocationExplanation(client(), index, shard, true),
             true,
             true
         );

@@ -9,49 +9,31 @@ package org.elasticsearch.xpack.security.rest.action.apikey;
 
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
-import org.elasticsearch.xcontent.ConstructingObjectParser;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xpack.core.security.action.apikey.UpdateApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.UpdateApiKeyRequest;
-import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
+import org.elasticsearch.xpack.core.security.action.apikey.UpdateApiKeyRequestTranslator;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.Map;
 
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
-import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 @ServerlessScope(Scope.PUBLIC)
 public final class RestUpdateApiKeyAction extends ApiKeyBaseRestHandler {
+    private final UpdateApiKeyRequestTranslator requestTranslator;
 
-    @SuppressWarnings("unchecked")
-    static final ConstructingObjectParser<Payload, Void> PARSER = new ConstructingObjectParser<>(
-        "update_api_key_request_payload",
-        a -> new Payload(
-            (List<RoleDescriptor>) a[0],
-            (Map<String, Object>) a[1],
-            TimeValue.parseTimeValue((String) a[2], null, "expiration")
-        )
-    );
-
-    static {
-        PARSER.declareNamedObjects(optionalConstructorArg(), (p, c, n) -> {
-            p.nextToken();
-            return RoleDescriptor.parse(n, p, false);
-        }, new ParseField("role_descriptors"));
-        PARSER.declareObject(optionalConstructorArg(), (p, c) -> p.map(), new ParseField("metadata"));
-        PARSER.declareString(optionalConstructorArg(), new ParseField("expiration"));
-    }
-
-    public RestUpdateApiKeyAction(final Settings settings, final XPackLicenseState licenseState) {
+    public RestUpdateApiKeyAction(
+        final Settings settings,
+        final XPackLicenseState licenseState,
+        final UpdateApiKeyRequestTranslator requestTranslator
+    ) {
         super(settings, licenseState);
+        this.requestTranslator = requestTranslator;
     }
 
     @Override
@@ -66,17 +48,8 @@ public final class RestUpdateApiKeyAction extends ApiKeyBaseRestHandler {
 
     @Override
     protected RestChannelConsumer innerPrepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        // Note that we use `ids` here even though we only support a single id. This is because this route shares a path prefix with
-        // `RestClearApiKeyCacheAction` and our current REST implementation requires that path params have the same wildcard if their paths
-        // share a prefix
-        final var apiKeyId = request.param("ids");
-        final var payload = request.hasContent() == false ? new Payload(null, null, null) : PARSER.parse(request.contentParser(), null);
-        return channel -> client.execute(
-            UpdateApiKeyAction.INSTANCE,
-            new UpdateApiKeyRequest(apiKeyId, payload.roleDescriptors, payload.metadata, payload.expiration),
-            new RestToXContentListener<>(channel)
-        );
+        final UpdateApiKeyRequest updateApiKeyRequest = requestTranslator.translate(request);
+        return channel -> client.execute(UpdateApiKeyAction.INSTANCE, updateApiKeyRequest, new RestToXContentListener<>(channel));
     }
 
-    record Payload(List<RoleDescriptor> roleDescriptors, Map<String, Object> metadata, TimeValue expiration) {}
 }

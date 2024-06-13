@@ -11,6 +11,10 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.DoubleBlock;
 
+/**
+ * Builds the resulting {@link DoubleBlock} for some column in a top-n.
+ * This class is generated. Edit {@code X-ResultBuilder.java.st} instead.
+ */
 class ResultBuilderForDouble implements ResultBuilder {
     private final DoubleBlock.Builder builder;
 

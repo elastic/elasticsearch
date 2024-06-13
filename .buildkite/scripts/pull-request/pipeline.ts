@@ -148,7 +148,9 @@ export const generatePipelines = (
   // However, if we're using the overall CI trigger "[buildkite] test this [please]", we should use the regular filters above
   if (
     process.env["GITHUB_PR_TRIGGER_COMMENT"] &&
-    !process.env["GITHUB_PR_TRIGGER_COMMENT"].match(/^\s*(buildkite\s*)?test\s+this(\s+please)?/i)
+    !process.env["GITHUB_PR_TRIGGER_COMMENT"].match(
+      /^\s*((@elastic(search)?machine|buildkite)\s*)?test\s+this(\s+please)?/i
+    )
   ) {
     filters = [triggerCommentCheck];
   }

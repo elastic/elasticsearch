@@ -10,6 +10,8 @@ package org.elasticsearch.action.search;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.OriginalIndices;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
@@ -17,7 +19,6 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.ShardSearchContextId;
-import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.transport.Transport;
 import org.junit.Assert;
 
@@ -84,7 +85,9 @@ public final class MockSearchPhaseContext implements SearchPhaseContext {
     @Override
     public void sendSearchResponse(SearchResponseSections internalSearchResponse, AtomicArray<SearchPhaseResult> queryResults) {
         String scrollId = getRequest().scroll() != null ? TransportSearchHelper.buildScrollId(queryResults) : null;
-        String searchContextId = getRequest().pointInTimeBuilder() != null ? TransportSearchHelper.buildScrollId(queryResults) : null;
+        BytesReference searchContextId = getRequest().pointInTimeBuilder() != null
+            ? new BytesArray(TransportSearchHelper.buildScrollId(queryResults))
+            : null;
         var existing = searchResponse.getAndSet(
             new SearchResponse(
                 internalSearchResponse,
@@ -98,6 +101,8 @@ public final class MockSearchPhaseContext implements SearchPhaseContext {
                 searchContextId
             )
         );
+        Releasables.close(releasables);
+        releasables.clear();
         if (existing != null) {
             existing.decRef();
         }
@@ -126,12 +131,6 @@ public final class MockSearchPhaseContext implements SearchPhaseContext {
     }
 
     @Override
-    public ShardSearchRequest buildShardSearchRequest(SearchShardIterator shardIt, int shardIndex) {
-        Assert.fail("should not be called");
-        return null;
-    }
-
-    @Override
     public void executeNextPhase(SearchPhase currentPhase, SearchPhase nextPhase) {
         try {
             nextPhase.run();
@@ -147,12 +146,7 @@ public final class MockSearchPhaseContext implements SearchPhaseContext {
 
     @Override
     public void execute(Runnable command) {
-        try {
-            command.run();
-        } finally {
-            Releasables.close(releasables);
-            releasables.clear();
-        }
+        command.run();
     }
 
     @Override

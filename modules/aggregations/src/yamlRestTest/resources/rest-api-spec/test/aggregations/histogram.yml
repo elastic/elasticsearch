@@ -255,8 +255,8 @@ setup:
 
 ---
 "histogram with hard bounds":
-  - skip:
-      version: " - 7.9.99"
+  - requires:
+      cluster_features: ["gte_v7.10.0"]
       reason:  hard_bounds were introduced in 7.10.0
 
   - do:
@@ -432,8 +432,8 @@ setup:
 
 ---
 "date_histogram":
-  - skip:
-      version: " - 7.1.99"
+  - requires:
+      cluster_features: ["gte_v7.2.0"]
       reason:  calendar_interval introduced in 7.2.0
 
   - do:
@@ -504,8 +504,8 @@ setup:
 
 ---
 "date_histogram with offset":
-  - skip:
-      version: " - 7.1.99"
+  - requires:
+      cluster_features: ["gte_v7.2.0"]
       reason:  calendar_interval introduced in 7.2.0
 
   - do:
@@ -557,8 +557,8 @@ setup:
 
 ---
 "date_histogram on range":
-  - skip:
-      version: " - 7.1.99"
+  - requires:
+      cluster_features: ["gte_v7.2.0"]
       reason:  calendar_interval introduced in 7.2.0
 
   - do:
@@ -609,8 +609,8 @@ setup:
 
 ---
 "date_histogram on range with offset":
-  - skip:
-      version: " - 7.1.99"
+  - requires:
+      cluster_features: ["gte_v7.2.0"]
       reason:  calendar_interval introduced in 7.2.0
 
   - do:
@@ -662,8 +662,8 @@ setup:
 
 ---
 "date_histogram with pre-epoch daylight savings time transition":
-  - skip:
-      version: " - 7.6.1"
+  - requires:
+      cluster_features: ["gte_v7.6.2"]
       reason:  bug fixed in 7.6.1.
 
   - do:
@@ -708,8 +708,8 @@ setup:
 
 ---
 "histogram profiler":
-  - skip:
-      version: " - 7.8.99"
+  - requires:
+      cluster_features: ["gte_v7.9.0"]
       reason:  debug info added in 7.9.0
 
   - do:
@@ -765,8 +765,8 @@ setup:
 
 ---
 "date_histogram profiler":
-  - skip:
-      version: " - 7.8.99"
+  - requires:
+      cluster_features: ["gte_v7.9.0"]
       reason:  debug info added in 7.9.0
 
   - do:
@@ -816,8 +816,8 @@ setup:
 
 ---
 "date_histogram with extended_bounds and offset and unmapped":
-  - skip:
-      version: " - 7.10.99"
+  - requires:
+      cluster_features: ["gte_v7.11.0"]
       reason:  fixed in 7.11
 
   - do:
@@ -874,8 +874,8 @@ setup:
 
 ---
 "Tiny tiny tiny range":
-  - skip:
-      version: " - 7.12.99"
+  - requires:
+      cluster_features: ["gte_v7.13.0"]
       reason:  fixed in 7.13.0
 
   - do:
@@ -902,8 +902,8 @@ setup:
 
 ---
 "Tiny tiny tiny date_range":
-  - skip:
-      version: " - 7.13.99"
+  - requires:
+      cluster_features: ["gte_v7.14.0"]
       reason:  fixed in 7.14.0
 
   - do:

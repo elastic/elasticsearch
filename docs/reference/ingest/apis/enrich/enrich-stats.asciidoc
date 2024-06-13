@@ -105,7 +105,7 @@ Number of cached entries.
 (Integer)
 The number of enrich lookups served from cache.
 
-`missed`::
+`misses`::
 (Integer)
 The number of time enrich lookups couldn't be
 served from cache.
@@ -113,6 +113,14 @@ served from cache.
 `evictions`::
 (Integer)
 The number cache entries evicted from the cache.
+
+`hits_time_in_millis`::
+(Long)
+The amount of time in milliseconds spent fetching data from the cache on successful cache hits only.
+
+`misses_time_in_millis`::
+(Long)
+The amount of time in milliseconds spent fetching data from the enrich index and updating the cache, on cache misses only.
 --
 
 [[enrich-stats-api-example]]
@@ -162,7 +170,9 @@ The API returns the following response:
       "count": 0,
       "hits": 0,
       "misses": 0,
-      "evictions": 0
+      "evictions": 0,
+      "hits_time_in_millis": 0,
+      "misses_time_in_millis": 0
     }
   ]
 }
@@ -175,3 +185,5 @@ The API returns the following response:
 // TESTRESPONSE[s/"count": 0/"count" : $body.cache_stats.0.count/]
 // TESTRESPONSE[s/"misses": 0/"misses" : $body.cache_stats.0.misses/]
 // TESTRESPONSE[s/"evictions": 0/"evictions" : $body.cache_stats.0.evictions/]
+// TESTRESPONSE[s/"hits_time_in_millis": 0/"hits_time_in_millis" : $body.cache_stats.0.hits_time_in_millis/]
+// TESTRESPONSE[s/"misses_time_in_millis": 0/"misses_time_in_millis" : $body.cache_stats.0.misses_time_in_millis/]

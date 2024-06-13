@@ -64,7 +64,7 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
     implements
         LocalClusterFactory<S, H> {
     private static final Logger LOGGER = LogManager.getLogger(AbstractLocalClusterFactory.class);
-    private static final Duration NODE_UP_TIMEOUT = Duration.ofMinutes(2);
+    private static final Duration NODE_UP_TIMEOUT = Duration.ofMinutes(3);
     private static final Map<Pair<Version, DistributionType>, DistributionDescriptor> TEST_DISTRIBUTIONS = new ConcurrentHashMap<>();
     private static final String TESTS_CLUSTER_MODULES_PATH_SYSPROP = "tests.cluster.modules.path";
     private static final String TESTS_CLUSTER_PLUGINS_PATH_SYSPROP = "tests.cluster.plugins.path";
@@ -152,10 +152,10 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
                 createConfigDirectory();
                 copyExtraConfigFiles(); // extra config files might be needed for running cli tools like plugin install
                 copyExtraJarFiles();
-                installPlugins();
                 if (distributionDescriptor.getType() == DistributionType.INTEG_TEST) {
                     installModules();
                 }
+                installPlugins();
                 currentVersion = spec.getVersion();
             } else {
                 createConfigDirectory();
@@ -591,7 +591,7 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
 
         private void installPlugins() {
             if (spec.getPlugins().isEmpty() == false) {
-                Pattern pattern = Pattern.compile("(.+)(?:-\\d\\.\\d\\.\\d-SNAPSHOT\\.zip)?");
+                Pattern pattern = Pattern.compile("(.+)(?:-\\d+\\.\\d+\\.\\d+(-SNAPSHOT)?\\.zip)");
 
                 LOGGER.info("Installing plugins {} into node '{}", spec.getPlugins(), name);
                 List<Path> pluginPaths = Arrays.stream(System.getProperty(TESTS_CLUSTER_PLUGINS_PATH_SYSPROP).split(File.pathSeparator))
@@ -603,8 +603,8 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
                     .map(
                         pluginName -> pluginPaths.stream()
                             .map(path -> Pair.of(pattern.matcher(path.getFileName().toString()), path))
-                            .filter(pair -> pair.left.matches())
-                            .map(p -> p.right.getParent().resolve(p.left.group(1)))
+                            .filter(pair -> pair.left.matches() && pair.left.group(1).equals(pluginName))
+                            .map(p -> p.right.getParent().resolve(p.left.group(0)))
                             .findFirst()
                             .orElseThrow(() -> {
                                 String taskPath = System.getProperty("tests.task");

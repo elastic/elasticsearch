@@ -9,7 +9,6 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
-import org.elasticsearch.index.mapper.NumberFieldTypeTests.OutOfRangeSpec;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.junit.AssumptionViolatedException;
 
@@ -23,12 +22,12 @@ public class ByteFieldMapperTests extends WholeNumberFieldMapperTests {
     }
 
     @Override
-    protected List<OutOfRangeSpec> outOfRangeSpecs() {
+    protected List<NumberTypeOutOfRangeSpec> outOfRangeSpecs() {
         return List.of(
-            OutOfRangeSpec.of(NumberType.BYTE, "128", "is out of range for a byte"),
-            OutOfRangeSpec.of(NumberType.BYTE, "-129", "is out of range for a byte"),
-            OutOfRangeSpec.of(NumberType.BYTE, 128, "is out of range for a byte"),
-            OutOfRangeSpec.of(NumberType.BYTE, -129, "is out of range for a byte")
+            NumberTypeOutOfRangeSpec.of(NumberType.BYTE, "128", "is out of range for a byte"),
+            NumberTypeOutOfRangeSpec.of(NumberType.BYTE, "-129", "is out of range for a byte"),
+            NumberTypeOutOfRangeSpec.of(NumberType.BYTE, 128, "is out of range for a byte"),
+            NumberTypeOutOfRangeSpec.of(NumberType.BYTE, -129, "is out of range for a byte")
         );
     }
 

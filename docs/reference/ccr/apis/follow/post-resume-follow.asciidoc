@@ -66,6 +66,11 @@ returns, the follower index will resume fetching operations from the leader inde
 `<follower_index>`::
   (Required, string) The name of the follower index.
 
+[[ccr-post-resume-follow-query-params]]
+==== {api-query-parms-title}
+
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
+
 [[ccr-post-resume-follow-request-body]]
 ==== {api-request-body-title}
 include::../follow-request-body.asciidoc[tag=ccr-resume-follow-request-body]

@@ -10,11 +10,10 @@
         "sort": {
           "field": [
             "profiling.project.id",
-            "@timestamp",
             "orchestrator.resource.name",
+            "host.name",
             "container.name",
-            "process.thread.name",
-            "host.id"
+            "process.thread.name"
           ]
         }
       },
@@ -22,7 +21,7 @@
     },
     "mappings": {
       "_source": {
-        "enabled": false
+        "mode": "synthetic"
       },
       "_meta": {
         "index-template-version": ${xpack.profiling.template.version},
@@ -39,8 +38,8 @@
           "type": "keyword"
         },
         "@timestamp": {
-          "type": "date",
-          "format": "epoch_second"
+          "type": "date_nanos",
+          "format": "strict_date_optional_time_nanos||epoch_second"
         },
         "host.id": {
           "type": "keyword"
@@ -75,6 +74,9 @@
           "type": "keyword"
         },
         "tags": {
+          "type": "keyword"
+        },
+        "service.name": {
           "type": "keyword"
         }
       }

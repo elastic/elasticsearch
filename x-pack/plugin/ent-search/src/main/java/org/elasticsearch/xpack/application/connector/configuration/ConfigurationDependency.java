@@ -19,6 +19,8 @@ import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
@@ -82,6 +84,13 @@ public class ConfigurationDependency implements Writeable, ToXContentObject {
         }
         builder.endObject();
         return builder;
+    }
+
+    public Map<String, Object> toMap() {
+        Map<String, Object> map = new HashMap<>();
+        map.put(FIELD_FIELD.getPreferredName(), field);
+        map.put(VALUE_FIELD.getPreferredName(), value);
+        return map;
     }
 
     public static ConfigurationDependency fromXContent(XContentParser parser) throws IOException {

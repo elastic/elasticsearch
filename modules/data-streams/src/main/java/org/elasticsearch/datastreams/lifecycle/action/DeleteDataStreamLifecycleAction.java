@@ -8,7 +8,6 @@
 
 package org.elasticsearch.datastreams.lifecycle.action;
 
-import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -16,6 +15,7 @@ import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.TimeValue;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -26,7 +26,7 @@ import java.util.Objects;
  */
 public class DeleteDataStreamLifecycleAction {
 
-    public static final ActionType<AcknowledgedResponse> INSTANCE = ActionType.localOnly("indices:admin/data_stream/lifecycle/delete");
+    public static final ActionType<AcknowledgedResponse> INSTANCE = new ActionType<>("indices:admin/data_stream/lifecycle/delete");
 
     private DeleteDataStreamLifecycleAction() {/* no instances */}
 
@@ -48,17 +48,13 @@ public class DeleteDataStreamLifecycleAction {
             indicesOptions.writeIndicesOptions(out);
         }
 
-        public Request(String[] names) {
+        public Request(TimeValue masterNodeTimeout, TimeValue ackTimeout, String[] names) {
+            super(masterNodeTimeout, ackTimeout);
             this.names = names;
         }
 
         public String[] getNames() {
             return names;
-        }
-
-        @Override
-        public ActionRequestValidationException validate() {
-            return null;
         }
 
         @Override

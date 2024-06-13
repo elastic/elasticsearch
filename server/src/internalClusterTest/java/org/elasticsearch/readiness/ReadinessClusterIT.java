@@ -14,20 +14,21 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.ReservedStateErrorMetadata;
-import org.elasticsearch.cluster.metadata.ReservedStateHandlerMetadata;
 import org.elasticsearch.cluster.metadata.ReservedStateMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.reservedstate.action.ReservedClusterSettingsAction;
 import org.elasticsearch.reservedstate.service.FileSettingsService;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.InternalTestCluster;
+import org.junit.Before;
 
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -83,12 +84,24 @@ public class ReadinessClusterIT extends ESIntegTestCase {
              }
         }""";
 
+    Path configDir;
+
+    @Before
+    public void setupMasterConfigDir() throws IOException {
+        configDir = createTempDir();
+    }
+
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         Settings.Builder settings = Settings.builder()
             .put(super.nodeSettings(nodeOrdinal, otherSettings))
             .put(Settings.builder().put(ReadinessService.PORT.getKey(), 0).build());
         return settings.build();
+    }
+
+    @Override
+    protected Path nodeConfigPath(int nodeOrdinal) {
+        return configDir;
     }
 
     @Override
@@ -103,11 +116,15 @@ public class ReadinessClusterIT extends ESIntegTestCase {
     }
 
     private void expectMasterNotFound() {
-        expectThrows(MasterNotDiscoveredException.class, clusterAdmin().prepareState().setMasterNodeTimeout("100ms"));
+        expectThrows(
+            MasterNotDiscoveredException.class,
+            clusterAdmin().prepareState().setMasterNodeTimeout(TimeValue.timeValueMillis(100))
+        );
     }
 
     public void testReadinessDuringRestarts() throws Exception {
         internalCluster().setBootstrapMasterNodeIndex(0);
+        writeFileSettings(testJSON);
         logger.info("--> start data node / non master node");
         String dataNode = internalCluster().startNode(Settings.builder().put(dataOnlyNode()).put("discovery.initial_state_timeout", "1s"));
 
@@ -143,6 +160,7 @@ public class ReadinessClusterIT extends ESIntegTestCase {
 
     public void testReadinessDuringRestartsNormalOrder() throws Exception {
         internalCluster().setBootstrapMasterNodeIndex(0);
+        writeFileSettings(testJSON);
         logger.info("--> start master node");
         String masterNode = internalCluster().startMasterOnlyNode();
         internalCluster().validateClusterFormed();
@@ -197,10 +215,9 @@ public class ReadinessClusterIT extends ESIntegTestCase {
         }
     }
 
-    private Tuple<CountDownLatch, AtomicLong> setupClusterStateListenerForError(String node) {
+    private CountDownLatch setupClusterStateListenerForError(String node) {
         ClusterService clusterService = internalCluster().clusterService(node);
         CountDownLatch savedClusterState = new CountDownLatch(1);
-        AtomicLong metadataVersion = new AtomicLong(-1);
         clusterService.addListener(new ClusterStateListener() {
             @Override
             public void clusterChanged(ClusterChangedEvent event) {
@@ -213,25 +230,26 @@ public class ReadinessClusterIT extends ESIntegTestCase {
                         containsString("Missing handler definition for content key [not_cluster_settings]")
                     );
                     clusterService.removeListener(this);
-                    metadataVersion.set(event.state().metadata().version());
                     savedClusterState.countDown();
                 }
             }
         });
 
-        return new Tuple<>(savedClusterState, metadataVersion);
+        // we need this after we setup the listener above, in case the node started and processed
+        // settings before we set our listener to cluster state changes.
+        causeClusterStateUpdate();
+
+        return savedClusterState;
     }
 
-    private void writeJSONFile(String node, String json) throws Exception {
+    private void writeFileSettings(String json) throws Exception {
         long version = versionCounter.incrementAndGet();
-
-        FileSettingsService fileSettingsService = internalCluster().getInstance(FileSettingsService.class, node);
-
-        Files.createDirectories(fileSettingsService.watchedFileDir());
         Path tempFilePath = createTempFile();
+        Path fileSettings = configDir.resolve("operator").resolve("settings.json");
+        Files.createDirectories(fileSettings.getParent());
 
         Files.write(tempFilePath, Strings.format(json, version).getBytes(StandardCharsets.UTF_8));
-        Files.move(tempFilePath, fileSettingsService.watchedFile(), StandardCopyOption.ATOMIC_MOVE);
+        Files.move(tempFilePath, fileSettings, StandardCopyOption.ATOMIC_MOVE);
         logger.info("--> New file settings: [{}]", Strings.format(json, version));
     }
 
@@ -244,7 +262,7 @@ public class ReadinessClusterIT extends ESIntegTestCase {
         assertFalse(dataFileSettingsService.watching());
 
         logger.info("--> write bad file settings before we boot master node");
-        writeJSONFile(dataNode, testErrorJSON);
+        writeFileSettings(testErrorJSON);
 
         logger.info("--> start master node");
         final String masterNode = internalCluster().startMasterOnlyNode(
@@ -253,6 +271,59 @@ public class ReadinessClusterIT extends ESIntegTestCase {
         assertMasterNode(internalCluster().nonMasterClient(), masterNode);
         var savedClusterState = setupClusterStateListenerForError(masterNode);
 
+        FileSettingsService masterFileSettingsService = internalCluster().getInstance(FileSettingsService.class, masterNode);
+
+        assertTrue(masterFileSettingsService.watching());
+        assertFalse(dataFileSettingsService.watching());
+
+        boolean awaitSuccessful = savedClusterState.await(20, TimeUnit.SECONDS);
+        assertTrue(awaitSuccessful);
+
+        ReadinessService s = internalCluster().getInstance(ReadinessService.class, internalCluster().getMasterName());
+        assertNull(s.boundAddress());
+    }
+
+    public void testReadyAfterRestartWithBadFileSettings() throws Exception {
+        internalCluster().setBootstrapMasterNodeIndex(0);
+        writeFileSettings(testJSON);
+
+        logger.info("--> start data node / non master node");
+        String dataNode = internalCluster().startNode(Settings.builder().put(dataOnlyNode()).put("discovery.initial_state_timeout", "1s"));
+        String masterNode = internalCluster().startMasterOnlyNode();
+
+        assertMasterNode(internalCluster().nonMasterClient(), masterNode);
+        assertBusy(() -> assertTrue("master node ready", internalCluster().getInstance(ReadinessService.class, masterNode).ready()));
+        assertBusy(() -> assertTrue("data node ready", internalCluster().getInstance(ReadinessService.class, dataNode).ready()));
+
+        logger.info("--> stop master node");
+        Settings masterDataPathSettings = internalCluster().dataPathSettings(internalCluster().getMasterName());
+        internalCluster().stopCurrentMasterNode();
+        expectMasterNotFound();
+
+        logger.info("--> write bad file settings before restarting master node");
+        writeFileSettings(testErrorJSON);
+
+        logger.info("--> restart master node");
+        String nextMasterNode = internalCluster().startNode(Settings.builder().put(nonDataNode(masterNode())).put(masterDataPathSettings));
+
+        assertMasterNode(internalCluster().nonMasterClient(), nextMasterNode);
+
+        var savedClusterState = setupClusterStateListenerForError(nextMasterNode);
+        assertTrue(savedClusterState.await(20, TimeUnit.SECONDS));
+
+        assertTrue("master node ready on restart", internalCluster().getInstance(ReadinessService.class, nextMasterNode).ready());
+    }
+
+    public void testReadyWhenMissingFileSettings() throws Exception {
+        internalCluster().setBootstrapMasterNodeIndex(0);
+        internalCluster().startNode(Settings.builder().put(dataOnlyNode()).put("discovery.initial_state_timeout", "1s"));
+
+        final String masterNode = internalCluster().startMasterOnlyNode(
+            Settings.builder().put(INITIAL_STATE_TIMEOUT_SETTING.getKey(), "0s").build()
+        );
+        assertMasterNode(internalCluster().nonMasterClient(), masterNode);
+        var savedClusterState = setupClusterStateListener(masterNode);
+
         // we need this after we setup the listener above, in case the node started and processed
         // settings before we set our listener to cluster state changes.
         causeClusterStateUpdate();
@@ -260,13 +331,12 @@ public class ReadinessClusterIT extends ESIntegTestCase {
         FileSettingsService masterFileSettingsService = internalCluster().getInstance(FileSettingsService.class, masterNode);
 
         assertTrue(masterFileSettingsService.watching());
-        assertFalse(dataFileSettingsService.watching());
 
         boolean awaitSuccessful = savedClusterState.v1().await(20, TimeUnit.SECONDS);
         assertTrue(awaitSuccessful);
 
-        ReadinessService s = internalCluster().getInstance(ReadinessService.class, internalCluster().getMasterName());
-        assertNull(s.boundAddress());
+        ReadinessService s = internalCluster().getInstance(ReadinessService.class, masterNode);
+        assertNotNull(s.boundAddress());
     }
 
     private Tuple<CountDownLatch, AtomicLong> setupClusterStateListener(String node) {
@@ -278,12 +348,9 @@ public class ReadinessClusterIT extends ESIntegTestCase {
             public void clusterChanged(ClusterChangedEvent event) {
                 ReservedStateMetadata reservedState = event.state().metadata().reservedStateMetadata().get(FileSettingsService.NAMESPACE);
                 if (reservedState != null) {
-                    ReservedStateHandlerMetadata handlerMetadata = reservedState.handlers().get(ReservedClusterSettingsAction.NAME);
-                    if (handlerMetadata != null && handlerMetadata.keys().contains("indices.recovery.max_bytes_per_sec")) {
-                        clusterService.removeListener(this);
-                        metadataVersion.set(event.state().metadata().version());
-                        savedClusterState.countDown();
-                    }
+                    clusterService.removeListener(this);
+                    metadataVersion.set(event.state().metadata().version());
+                    savedClusterState.countDown();
                 }
             }
         });
@@ -308,7 +375,7 @@ public class ReadinessClusterIT extends ESIntegTestCase {
         var savedClusterState = setupClusterStateListener(dataNode);
 
         logger.info("--> write correct file settings before we boot master node");
-        writeJSONFile(dataNode, testJSON);
+        writeFileSettings(testJSON);
 
         logger.info("--> start master node");
         final String masterNode = internalCluster().startMasterOnlyNode();

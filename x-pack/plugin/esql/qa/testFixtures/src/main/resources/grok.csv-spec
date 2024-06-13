@@ -122,6 +122,15 @@ Bezalel Simmel    | Bezalel        | Simmel
 ;
 
 
+overwriteNameAfterSort#[skip:-8.13.0]
+from employees | sort emp_no ASC | grok first_name "Ge(?<emp_no>[a-z]{2})gi" | limit 1 | rename emp_no as first_name_fragment | keep first_name_fragment
+;
+
+first_name_fragment:keyword
+or
+;
+
+
 multivalueOutput
 row a = "foo bar" | grok a "%{WORD:b} %{WORD:b}";
 

@@ -256,8 +256,12 @@ public class ClusterServiceUtils {
         final ClusterStateListener clusterStateListener = new ClusterStateListener() {
             @Override
             public void clusterChanged(ClusterChangedEvent event) {
-                if (predicate.test(event.state())) {
-                    listener.onResponse(null);
+                try {
+                    if (predicate.test(event.state())) {
+                        listener.onResponse(null);
+                    }
+                } catch (Exception e) {
+                    listener.onFailure(e);
                 }
             }
 

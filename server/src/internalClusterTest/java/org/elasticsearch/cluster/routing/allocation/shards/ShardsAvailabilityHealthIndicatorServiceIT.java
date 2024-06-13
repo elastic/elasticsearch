@@ -135,7 +135,7 @@ public class ShardsAvailabilityHealthIndicatorServiceIT extends ESIntegTestCase 
                 states.add(
                     new RoutingNodesAndHealth(
                         event.state().getRoutingNodes(),
-                        service.calculate(false, 1, new HealthInfo(Map.of(), DataStreamLifecycleHealthInfo.NO_DSL_ERRORS))
+                        service.calculate(false, 1, new HealthInfo(Map.of(), DataStreamLifecycleHealthInfo.NO_DSL_ERRORS, Map.of()))
                     )
                 );
             }

@@ -187,17 +187,18 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
         searchRequest.allowPartialSearchResults(false);
         SearchPhaseController controller = new SearchPhaseController((t, r) -> InternalAggregationTestCase.emptyReduceContextBuilder());
         SearchTask task = new SearchTask(0, "n/a", "n/a", () -> "test", null, Collections.emptyMap());
-        QueryPhaseResultConsumer resultConsumer = new QueryPhaseResultConsumer(
-            searchRequest,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE,
-            new NoopCircuitBreaker(CircuitBreaker.REQUEST),
-            controller,
-            task::isCancelled,
-            task.getProgressListener(),
-            shardsIter.size(),
-            exc -> {}
-        );
-        try {
+        try (
+            QueryPhaseResultConsumer resultConsumer = new QueryPhaseResultConsumer(
+                searchRequest,
+                EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+                controller,
+                task::isCancelled,
+                task.getProgressListener(),
+                shardsIter.size(),
+                exc -> {}
+            )
+        ) {
             SearchQueryThenFetchAsyncAction action = new SearchQueryThenFetchAsyncAction(
                 logger,
                 null,
@@ -213,7 +214,8 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
                 timeProvider,
                 new ClusterState.Builder(new ClusterName("test")).build(),
                 task,
-                SearchResponse.Clusters.EMPTY
+                SearchResponse.Clusters.EMPTY,
+                null
             ) {
                 @Override
                 protected SearchPhase getNextPhase(SearchPhaseResults<SearchPhaseResult> results, SearchPhaseContext context) {
@@ -252,8 +254,6 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
             assertThat(phase.sortedTopDocs().scoreDocs()[0], instanceOf(FieldDoc.class));
             assertThat(((FieldDoc) phase.sortedTopDocs().scoreDocs()[0]).fields.length, equalTo(1));
             assertThat(((FieldDoc) phase.sortedTopDocs().scoreDocs()[0]).fields[0], equalTo(0));
-        } finally {
-            resultConsumer.decRef();
         }
     }
 
@@ -374,7 +374,8 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
             timeProvider,
             new ClusterState.Builder(new ClusterName("test")).build(),
             task,
-            SearchResponse.Clusters.EMPTY
+            SearchResponse.Clusters.EMPTY,
+            null
         );
 
         newSearchAsyncAction.start();
@@ -514,7 +515,8 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
             timeProvider,
             new ClusterState.Builder(new ClusterName("test")).build(),
             task,
-            SearchResponse.Clusters.EMPTY
+            SearchResponse.Clusters.EMPTY,
+            null
         ) {
             @Override
             protected SearchPhase getNextPhase(SearchPhaseResults<SearchPhaseResult> results, SearchPhaseContext context) {
@@ -664,7 +666,8 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
             timeProvider,
             new ClusterState.Builder(new ClusterName("test")).build(),
             task,
-            SearchResponse.Clusters.EMPTY
+            SearchResponse.Clusters.EMPTY,
+            null
         ) {
             @Override
             protected SearchPhase getNextPhase(SearchPhaseResults<SearchPhaseResult> results, SearchPhaseContext context) {

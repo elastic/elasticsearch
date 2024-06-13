@@ -37,7 +37,6 @@ import static org.hamcrest.Matchers.not;
  * This test ensures that EQL can process CCS requests correctly when the local and remote clusters
  * have different but compatible versions.
  */
-@SuppressWarnings("removal")
 public class EqlCcsRollingUpgradeIT extends ESRestTestCase {
 
     private static final Logger LOGGER = LogManager.getLogger(EqlCcsRollingUpgradeIT.class);

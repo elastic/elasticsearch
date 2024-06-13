@@ -123,7 +123,7 @@ public class Template implements SimpleDiffable<Template>, ToXContentObject {
         }
         if (in.getTransportVersion().onOrAfter(DataStreamLifecycle.ADDED_ENABLED_FLAG_VERSION)) {
             this.lifecycle = in.readOptionalWriteable(DataStreamLifecycle::new);
-        } else if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_500_020)) {
+        } else if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
             boolean isExplicitNull = in.readBoolean();
             if (isExplicitNull) {
                 this.lifecycle = DataStreamLifecycle.newBuilder().enabled(false).build();
@@ -177,7 +177,7 @@ public class Template implements SimpleDiffable<Template>, ToXContentObject {
         }
         if (out.getTransportVersion().onOrAfter(DataStreamLifecycle.ADDED_ENABLED_FLAG_VERSION)) {
             out.writeOptionalWriteable(lifecycle);
-        } else if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_500_020)) {
+        } else if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
             boolean isExplicitNull = lifecycle != null && lifecycle.isEnabled() == false;
             out.writeBoolean(isExplicitNull);
             if (isExplicitNull == false) {
@@ -250,7 +250,7 @@ public class Template implements SimpleDiffable<Template>, ToXContentObject {
         }
         if (this.lifecycle != null) {
             builder.field(LIFECYCLE.getPreferredName());
-            lifecycle.toXContent(builder, params, rolloverConfiguration);
+            lifecycle.toXContent(builder, params, rolloverConfiguration, null);
         }
         builder.endObject();
         return builder;

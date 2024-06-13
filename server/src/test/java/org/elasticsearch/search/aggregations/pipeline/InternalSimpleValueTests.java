@@ -10,7 +10,6 @@ package org.elasticsearch.search.aggregations.pipeline;
 
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.ParsedAggregation;
 import org.elasticsearch.test.InternalAggregationTestCase;
 
 import java.util.HashMap;
@@ -30,25 +29,12 @@ public class InternalSimpleValueTests extends InternalAggregationTestCase<Intern
 
     @Override
     public void testReduceRandom() {
-        expectThrows(UnsupportedOperationException.class, () -> createTestInstance("name", null).reduce(null, null));
+        expectThrows(UnsupportedOperationException.class, () -> createTestInstance("name", null).getReducer(null, 0));
     }
 
     @Override
     protected void assertReduced(InternalSimpleValue reduced, List<InternalSimpleValue> inputs) {
         // no test since reduce operation is unsupported
-    }
-
-    @Override
-    protected void assertFromXContent(InternalSimpleValue simpleValue, ParsedAggregation parsedAggregation) {
-        ParsedSimpleValue parsed = ((ParsedSimpleValue) parsedAggregation);
-        if (Double.isInfinite(simpleValue.getValue()) == false && Double.isNaN(simpleValue.getValue()) == false) {
-            assertEquals(simpleValue.getValue(), parsed.value(), 0);
-            assertEquals(simpleValue.getValueAsString(), parsed.getValueAsString());
-        } else {
-            // we write Double.NEGATIVE_INFINITY, Double.POSITIVE amd Double.NAN to xContent as 'null', so we
-            // cannot differentiate between them. Also we cannot recreate the exact String representation
-            assertEquals(parsed.value(), Double.NaN, 0);
-        }
     }
 
     @Override

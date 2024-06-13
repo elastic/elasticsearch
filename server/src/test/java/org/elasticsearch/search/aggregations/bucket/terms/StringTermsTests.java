@@ -46,11 +46,6 @@ public class StringTermsTests extends InternalTermsTestCase {
     }
 
     @Override
-    protected Class<ParsedStringTerms> implementationClass() {
-        return ParsedStringTerms.class;
-    }
-
-    @Override
     protected InternalTerms<?, ?> mutateInstance(InternalTerms<?, ?> instance) {
         if (instance instanceof StringTerms stringTerms) {
             String name = stringTerms.getName();

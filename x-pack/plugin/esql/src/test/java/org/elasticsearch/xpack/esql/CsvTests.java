@@ -9,12 +9,14 @@ package org.elasticsearch.xpack.esql;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -22,44 +24,51 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.esql.CsvTestUtils.ActualResults;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
-import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolution;
+import org.elasticsearch.xpack.esql.analysis.PreAnalyzer;
+import org.elasticsearch.xpack.esql.core.CsvSpecReader;
+import org.elasticsearch.xpack.esql.core.SpecReader;
+import org.elasticsearch.xpack.esql.core.index.EsIndex;
+import org.elasticsearch.xpack.esql.core.index.IndexResolution;
+import org.elasticsearch.xpack.esql.core.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.enrich.ResolvedEnrichPolicy;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
+import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.planner.TestPhysicalOperationProviders;
-import org.elasticsearch.xpack.ql.CsvSpecReader;
-import org.elasticsearch.xpack.ql.SpecReader;
-import org.elasticsearch.xpack.ql.analyzer.PreAnalyzer;
-import org.elasticsearch.xpack.ql.index.EsIndex;
-import org.elasticsearch.xpack.ql.index.IndexResolution;
-import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plugin.EsqlFeatures;
 import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.net.URL;
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.test.ListMatcher.matchesList;
-import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.ExpectedResults;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.isEnabled;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.loadCsvSpecValues;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.loadPageFromCsv;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.CSV_DATASET_MAP;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.classpathResources;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
-import static org.elasticsearch.xpack.esql.plugin.EsqlPlugin.ESQL_THREAD_POOL_NAME;
-import static org.elasticsearch.xpack.ql.CsvSpecReader.specParser;
-import static org.elasticsearch.xpack.ql.TestUtils.classpathResources;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.cap;
+import static org.elasticsearch.xpack.esql.core.CsvSpecReader.specParser;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.everyItem;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -89,7 +98,6 @@ import static org.hamcrest.Matchers.notNullValue;
 // @TestLogging(value = "org.elasticsearch.xpack.esql:TRACE,org.elasticsearch.compute:TRACE", reason = "debug")
 public class CsvTests extends ESTestCase {
     private static final Logger LOGGER = LogManager.getLogger(CsvTests.class);
-    private static final String IGNORED_CSV_FILE_NAMES_PATTERN = "-IT_tests_only";
 
     private final String fileName;
     private final String groupName;
@@ -98,34 +106,32 @@ public class CsvTests extends ESTestCase {
     private final CsvSpecReader.CsvTestCase testCase;
     private final EsqlParser parser = new EsqlParser();
     private ThreadPool threadPool;
-    private TestQueryExecutor executor;
+    private TestQueryRunner queryRunner;
 
     @ParametersFactory(argumentFormatting = "%2$s.%3$s")
     public static List<Object[]> readScriptSpec() throws Exception {
-        List<URL> urls = classpathResources("/*.csv-spec").stream()
-            .filter(x -> x.toString().contains(IGNORED_CSV_FILE_NAMES_PATTERN) == false)
-            .toList();
-        assertTrue("Not enough specs found " + urls, urls.size() > 0);
+        List<URL> urls = classpathResources("/*.csv-spec");
+        assertThat("Not enough specs found " + urls, urls, hasSize(greaterThan(0)));
         return SpecReader.readScriptSpec(urls, specParser());
     }
 
     @Before
     public void setUp() throws Exception {
         super.setUp();
-        int numThreads = randomBoolean() ? 1 : between(2, 16);
-        threadPool = new TestThreadPool(
-            "CsvTests",
-            new FixedExecutorBuilder(
-                Settings.EMPTY,
-                ESQL_THREAD_POOL_NAME,
-                numThreads,
-                1024,
-                "esql",
-                EsExecutors.TaskTrackingConfig.DEFAULT
-            )
-        );
+        Executor executor;
+        if (randomBoolean()) {
+            int numThreads = randomBoolean() ? 1 : between(2, 16);
+            threadPool = new TestThreadPool(
+                "CsvTests",
+                new FixedExecutorBuilder(Settings.EMPTY, "esql_test", numThreads, 1024, "esql", EsExecutors.TaskTrackingConfig.DEFAULT)
+            );
+            executor = threadPool.executor("esql_test");
+        } else {
+            threadPool = new TestThreadPool(getTestName());
+            executor = threadPool.executor(ThreadPool.Names.SEARCH);
+        }
         HeaderWarning.setThreadContext(threadPool.getThreadContext());
-        executor = new TestQueryExecutor(threadPool);
+        queryRunner = new TestQueryRunner(threadPool, executor);
     }
 
     @After
@@ -150,6 +156,23 @@ public class CsvTests extends ESTestCase {
     public final void test() throws Throwable {
         try {
             assumeTrue("Test " + testName + " is not enabled", isEnabled(testName, Version.CURRENT));
+
+            if (Build.current().isSnapshot()) {
+                assertThat(
+                    "nonexistent capabilities declared as required",
+                    testCase.requiredCapabilities,
+                    everyItem(in(EsqlCapabilities.CAPABILITIES))
+                );
+            }
+
+            /*
+             * The csv tests support all but a few features. The unsupported features
+             * are tested in integration tests.
+             */
+            assumeFalse("metadata fields aren't supported", testCase.requiredCapabilities.contains(cap(EsqlFeatures.METADATA_FIELDS)));
+            assumeFalse("enrich can't load fields in csv tests", testCase.requiredCapabilities.contains(cap(EsqlFeatures.ENRICH_LOAD)));
+            assumeFalse("can't load metrics in csv tests", testCase.requiredCapabilities.contains(cap(EsqlFeatures.METRICS_SYNTAX)));
+
             doTest();
         } catch (Throwable th) {
             throw reworkException(th);
@@ -171,7 +194,7 @@ public class CsvTests extends ESTestCase {
         var indexResolution = loadIndexResolution(testDataset.mappingFileName(), testDataset.indexName());
         var enrichPolicies = loadEnrichPolicies();
 
-        var actualResults = executor.executePlan(parsed, testOperationProviders(testDataset), indexResolution, enrichPolicies);
+        var actualResults = queryRunner.executePlan(parsed, testOperationProviders(testDataset), indexResolution, enrichPolicies);
         try {
             var expected = loadCsvSpecValues(testCase.expectedResults);
 
@@ -180,7 +203,7 @@ public class CsvTests extends ESTestCase {
             assertWarnings(actualResults.responseHeaders().getOrDefault("Warning", List.of()));
         } finally {
             Releasables.close(() -> Iterators.map(actualResults.pages().iterator(), p -> p::releaseBlocks));
-            assertThat(executor.breakerService().getBreaker(CircuitBreaker.REQUEST).getUsed(), equalTo(0L));
+            assertThat(queryRunner.breakerService().getBreaker(CircuitBreaker.REQUEST).getUsed(), equalTo(0L));
         }
     }
 
@@ -200,18 +223,27 @@ public class CsvTests extends ESTestCase {
     }
 
     private static EnrichResolution loadEnrichPolicies() {
-        Set<String> names = new HashSet<>();
-        Set<EnrichPolicyResolution> resolutions = new HashSet<>();
+        EnrichResolution enrichResolution = new EnrichResolution();
         for (CsvTestsDataLoader.EnrichConfig policyConfig : CsvTestsDataLoader.ENRICH_POLICIES) {
             EnrichPolicy policy = loadEnrichPolicyMapping(policyConfig.policyFileName());
             CsvTestsDataLoader.TestsDataset sourceIndex = CSV_DATASET_MAP.get(policy.getIndices().get(0));
             // this could practically work, but it's wrong:
             // EnrichPolicyResolution should contain the policy (system) index, not the source index
-            IndexResolution idxRes = loadIndexResolution(sourceIndex.mappingFileName(), sourceIndex.indexName());
-            names.add(policyConfig.policyName());
-            resolutions.add(new EnrichPolicyResolution(policyConfig.policyName(), policy, idxRes));
+            EsIndex esIndex = loadIndexResolution(sourceIndex.mappingFileName(), sourceIndex.indexName()).get();
+            var concreteIndices = Map.of(RemoteClusterService.LOCAL_CLUSTER_GROUP_KEY, Iterables.get(esIndex.concreteIndices(), 0));
+            enrichResolution.addResolvedPolicy(
+                policyConfig.policyName(),
+                Enrich.Mode.ANY,
+                new ResolvedEnrichPolicy(
+                    policy.getMatchField(),
+                    policy.getType(),
+                    policy.getEnrichFields(),
+                    concreteIndices,
+                    esIndex.mapping()
+                )
+            );
         }
-        return new EnrichResolution(resolutions, names);
+        return enrichResolution;
     }
 
     private static EnrichPolicy loadEnrichPolicyMapping(String policyFileName) {
@@ -229,7 +261,11 @@ public class CsvTests extends ESTestCase {
         var preAnalysis = new PreAnalyzer().preAnalyze(parsed);
         var indices = preAnalysis.indices;
         if (indices.size() == 0) {
-            return CSV_DATASET_MAP.values().iterator().next(); // default dataset for `row` source command
+            /*
+             * If the data set doesn't matter we'll just grab one we know works.
+             * Employees is fine.
+             */
+            return CSV_DATASET_MAP.get("employees");
         } else if (preAnalysis.indices.size() > 1) {
             throw new IllegalArgumentException("unexpected index resolution to multiple entries [" + preAnalysis.indices.size() + "]");
         }
@@ -266,6 +302,6 @@ public class CsvTests extends ESTestCase {
                 normalized.add(normW);
             }
         }
-        assertMap(normalized, matchesList(testCase.expectedWarnings(true)));
+        EsqlTestUtils.assertWarnings(normalized, testCase.expectedWarnings(true), testCase.expectedWarningsRegex());
     }
 }

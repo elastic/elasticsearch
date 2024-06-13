@@ -12,6 +12,7 @@ import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -255,6 +256,11 @@ public class SignificantTermsAggregationBuilder extends ValuesSourceAggregationB
         }
         this.backgroundFilter = backgroundFilter;
         return this;
+    }
+
+    @Override
+    public QueryBuilder getQuery() {
+        return backgroundFilter != null ? backgroundFilter : QueryBuilders.matchAllQuery();
     }
 
     /**

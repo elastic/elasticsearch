@@ -200,7 +200,7 @@ public class RestTableTests extends ESTestCase {
         table.addCell("compare");
         table.endHeaders();
         restRequest.params().put("s", "notaheader");
-        Exception e = expectThrows(UnsupportedOperationException.class, () -> RestTable.getRowOrder(table, restRequest));
+        Exception e = expectThrows(IllegalArgumentException.class, () -> RestTable.getRowOrder(table, restRequest));
         assertEquals("Unable to sort by unknown sort key `notaheader`", e.getMessage());
     }
 
@@ -257,6 +257,26 @@ public class RestTableTests extends ESTestCase {
         restRequest.params().put("s", "compare:desc,second.compare");
         rowOrder = RestTable.getRowOrder(table, restRequest);
         assertEquals(Arrays.asList(1, 0, 2), rowOrder);
+    }
+
+    public void testFormattedDouble() {
+        Table table = new Table();
+        table.startHeaders();
+        table.addCell("number");
+        table.endHeaders();
+        List<Integer> comparisonList = Arrays.asList(10, 9, 11);
+        for (int i = 0; i < comparisonList.size(); i++) {
+            table.startRow();
+            table.addCell(RestTable.FormattedDouble.format2DecimalPlaces(comparisonList.get(i)));
+            table.endRow();
+        }
+        restRequest.params().put("s", "number");
+        List<Integer> rowOrder = RestTable.getRowOrder(table, restRequest);
+        assertEquals(Arrays.asList(1, 0, 2), rowOrder);
+
+        restRequest.params().put("s", "number:desc");
+        rowOrder = RestTable.getRowOrder(table, restRequest);
+        assertEquals(Arrays.asList(2, 0, 1), rowOrder);
     }
 
     public void testPlainTextChunking() throws Exception {
@@ -404,17 +424,23 @@ public class RestTableTests extends ESTestCase {
                     }
                 };
             }
+
+            @Override
+            public int pageSize() {
+                return pageSize;
+            }
         };
 
         final var bodyChunks = new ArrayList<String>();
-        final var chunkedRestResponseBody = response.chunkedContent();
+        final var firstBodyPart = response.chunkedContent();
 
-        while (chunkedRestResponseBody.isDone() == false) {
-            try (var chunk = chunkedRestResponseBody.encodeChunk(pageSize, recycler)) {
+        while (firstBodyPart.isPartComplete() == false) {
+            try (var chunk = firstBodyPart.encodeChunk(pageSize, recycler)) {
                 assertThat(chunk.length(), greaterThan(0));
                 bodyChunks.add(chunk.utf8ToString());
             }
         }
+        assertTrue(firstBodyPart.isLastPart());
         assertEquals(0, openPages.get());
         return bodyChunks;
     }

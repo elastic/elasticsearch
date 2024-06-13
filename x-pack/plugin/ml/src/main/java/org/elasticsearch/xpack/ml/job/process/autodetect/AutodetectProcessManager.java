@@ -1073,7 +1073,7 @@ public class AutodetectProcessManager implements ClusterStateListener {
                 ModelSizeStats modelSizeStats = processContext.getAutodetectCommunicator().getModelSizeStats();
                 ModelSizeStats.AssignmentMemoryBasis basis = modelSizeStats.getAssignmentMemoryBasis();
                 memoryUsedBytes += switch (basis != null ? basis : ModelSizeStats.AssignmentMemoryBasis.MODEL_MEMORY_LIMIT) {
-                    case MODEL_MEMORY_LIMIT -> modelSizeStats.getModelBytesMemoryLimit();
+                    case MODEL_MEMORY_LIMIT -> Optional.ofNullable(modelSizeStats.getModelBytesMemoryLimit()).orElse(0L);
                     case CURRENT_MODEL_BYTES -> modelSizeStats.getModelBytes();
                     case PEAK_MODEL_BYTES -> Optional.ofNullable(modelSizeStats.getPeakModelBytes()).orElse(modelSizeStats.getModelBytes());
                 };

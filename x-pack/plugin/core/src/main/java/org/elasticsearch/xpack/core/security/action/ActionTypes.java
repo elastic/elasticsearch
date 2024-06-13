@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.core.security.action;
 
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.xpack.core.security.action.user.QueryUserResponse;
 
 /**
  * A collection of actions types for the Security plugin that need to be available in xpack.core.security and thus cannot be stored
@@ -17,7 +18,9 @@ import org.elasticsearch.action.ActionType;
 public final class ActionTypes {
     private ActionTypes() {};
 
-    public static final ActionType<ActionResponse.Empty> RELOAD_REMOTE_CLUSTER_CREDENTIALS_ACTION = ActionType.localOnly(
+    public static final ActionType<ActionResponse.Empty> RELOAD_REMOTE_CLUSTER_CREDENTIALS_ACTION = new ActionType<>(
         "cluster:admin/xpack/security/remote_cluster_credentials/reload"
     );
+
+    public static final ActionType<QueryUserResponse> QUERY_USER_ACTION = new ActionType<>("cluster:admin/xpack/security/user/query");
 }

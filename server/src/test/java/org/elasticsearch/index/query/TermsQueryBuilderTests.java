@@ -106,6 +106,7 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
                     .or(instanceOf(ConstantScoreQuery.class))
                     .or(instanceOf(MatchNoDocsQuery.class))
             );
+            // if (true) throw new IllegalArgumentException(randomTerms.toString());
             if (query instanceof ConstantScoreQuery) {
                 assertThat(((ConstantScoreQuery) query).getQuery(), instanceOf(BooleanQuery.class));
             }
@@ -164,8 +165,6 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
         e = expectThrows(IllegalArgumentException.class, () -> new TermsQueryBuilder("field", (double[]) null));
         assertThat(e.getMessage(), containsString("No value specified for terms query"));
         e = expectThrows(IllegalArgumentException.class, () -> new TermsQueryBuilder("field", (Object[]) null));
-        assertThat(e.getMessage(), containsString("No value specified for terms query"));
-        e = expectThrows(IllegalArgumentException.class, () -> new TermsQueryBuilder("field", (Iterable<?>) null));
         assertThat(e.getMessage(), containsString("No value specified for terms query"));
     }
 

@@ -10,14 +10,14 @@ package org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid;
 import org.apache.lucene.geo.Component2D;
 import org.apache.lucene.geo.GeoUtils;
 import org.apache.lucene.util.ArrayUtil;
+import org.elasticsearch.lucene.spatial.CoordinateEncoder;
 import org.elasticsearch.xpack.spatial.common.H3CartesianUtil;
-import org.elasticsearch.xpack.spatial.index.fielddata.CoordinateEncoder;
 import org.elasticsearch.xpack.spatial.index.fielddata.GeoRelation;
 
-import static org.elasticsearch.xpack.spatial.index.fielddata.TriangleTreeVisitor.TriangleTreeDecodedVisitor;
-import static org.elasticsearch.xpack.spatial.index.fielddata.TriangleTreeVisitor.abFromTriangle;
-import static org.elasticsearch.xpack.spatial.index.fielddata.TriangleTreeVisitor.bcFromTriangle;
-import static org.elasticsearch.xpack.spatial.index.fielddata.TriangleTreeVisitor.caFromTriangle;
+import static org.elasticsearch.lucene.spatial.TriangleTreeVisitor.TriangleTreeDecodedVisitor;
+import static org.elasticsearch.lucene.spatial.TriangleTreeVisitor.abFromTriangle;
+import static org.elasticsearch.lucene.spatial.TriangleTreeVisitor.bcFromTriangle;
+import static org.elasticsearch.lucene.spatial.TriangleTreeVisitor.caFromTriangle;
 
 /**
  * A reusable tree reader visitor for a previous serialized {@link org.elasticsearch.geometry.Geometry}.

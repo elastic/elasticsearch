@@ -43,15 +43,15 @@ and indices, omit this parameter or use `*` or `_all`.
 [[cat-count-api-query-params]]
 ==== {api-query-parms-title}
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=http-format]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=http-format]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=cat-h]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=cat-h]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=help]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=help]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=cat-s]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=cat-s]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=cat-v]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=cat-v]
 
 
 [[cat-count-api-example]]

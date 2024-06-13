@@ -8,6 +8,9 @@
 
 package org.elasticsearch.jdk;
 
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
+
 import java.lang.module.ModuleDescriptor.Exports;
 import java.lang.module.ModuleDescriptor.Opens;
 import java.util.ArrayList;
@@ -15,6 +18,7 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.ServiceLoader;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -24,13 +28,67 @@ import java.util.stream.Stream;
 /**
  * An object that provides a callback for qualified exports and opens.
  *
- * Because Elasticsearch constructs plugin module layers dynamically, qualified
- * exports are silently dropped in the boot layer. Modules that have qualified
- * exports should implement this service so that when a qualified export
- * module is loaded, the exporting or opening module can be informed and
- * export or open dynamically to the newly loaded module.
+ * Because Elasticsearch sometimes constructs module layers dynamically
+ * (eg for plugins), qualified exports are silently dropped if a target
+ * module does not yet exist. Modules that have qualified exports to
+ * other dynamically created modules should implement this service so
+ * that when a qualified export module is loaded, the exporting or
+ * opening module can be informed and export or open dynamically to
+ * the newly loaded module.
  */
 public abstract class ModuleQualifiedExportsService {
+
+    private static final Logger logger = LogManager.getLogger(ModuleQualifiedExportsService.class);
+
+    // holds instances of ModuleQualfiedExportsService that exist in the boot layer
+    private static class Holder {
+        private static final Map<String, List<ModuleQualifiedExportsService>> exportsServices;
+
+        static {
+            Map<String, List<ModuleQualifiedExportsService>> qualifiedExports = new HashMap<>();
+            var loader = ServiceLoader.load(ModuleQualifiedExportsService.class, ModuleQualifiedExportsService.class.getClassLoader());
+            for (var exportsService : loader) {
+                addExportsService(qualifiedExports, exportsService, exportsService.getClass().getModule().getName());
+            }
+            exportsServices = Map.copyOf(qualifiedExports);
+        }
+    }
+
+    /**
+     * A utility method to add an export service to the given map of exports services.
+     *
+     * The map is inverted, keyed by the target module name to which an exports/opens applies.
+     *
+     * @param qualifiedExports A map of modules to which qualfied exports need to be applied
+     * @param exportsService The exports service to add to the map
+     * @param moduleName The name of the module that is doing the exporting
+     */
+    public static void addExportsService(
+        Map<String, List<ModuleQualifiedExportsService>> qualifiedExports,
+        ModuleQualifiedExportsService exportsService,
+        String moduleName
+    ) {
+        for (String targetName : exportsService.getTargets()) {
+            logger.debug("Registered qualified export from module " + moduleName + " to " + targetName);
+            qualifiedExports.computeIfAbsent(targetName, k -> new ArrayList<>()).add(exportsService);
+        }
+    }
+
+    /**
+     * Adds qualified exports and opens declared in other upstream modules to the target module.
+     * This is required since qualified statements targeting yet-to-be-created modules, i.e. plugins,
+     * are silently dropped when the boot layer is created.
+     */
+    public static void exposeQualifiedExportsAndOpens(Module target, Map<String, List<ModuleQualifiedExportsService>> qualifiedExports) {
+        qualifiedExports.getOrDefault(target.getName(), List.of()).forEach(exportService -> exportService.addExportsAndOpens(target));
+    }
+
+    /**
+     * Returns a mapping of ModuleQualifiedExportsServices that exist in the boot layer.
+     */
+    public static Map<String, List<ModuleQualifiedExportsService>> getBootServices() {
+        return Holder.exportsServices;
+    }
 
     protected final Module module;
     private final Map<String, List<String>> qualifiedExports;

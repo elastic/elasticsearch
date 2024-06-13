@@ -13,6 +13,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.Predicates;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.InstantiatingObjectParser;
@@ -567,7 +568,7 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
         }
 
         FieldCapabilities build(boolean withIndices) {
-            final String[] indices = withIndices ? filterIndices(totalIndices, ic -> true) : null;
+            final String[] indices = withIndices ? filterIndices(totalIndices, Predicates.always()) : null;
 
             // Iff this field is searchable in some indices AND non-searchable in others
             // we record the list of non-searchable indices
@@ -603,7 +604,7 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
                 // Collect all indices that have this field. If it is marked differently in different indices, we cannot really
                 // make a decisions which index is "right" and which index is "wrong" so collecting all indices where this field
                 // is present is probably the only sensible thing to do here
-                metricConflictsIndices = Objects.requireNonNullElseGet(indices, () -> filterIndices(totalIndices, ic -> true));
+                metricConflictsIndices = Objects.requireNonNullElseGet(indices, () -> filterIndices(totalIndices, Predicates.always()));
             } else {
                 metricConflictsIndices = null;
             }

@@ -28,8 +28,10 @@ import com.amazonaws.services.securitytoken.AWSSecurityTokenServiceClientBuilder
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.coordination.stateless.StoreHeartbeatService;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -37,6 +39,9 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.watcher.FileChangesListener;
+import org.elasticsearch.watcher.FileWatcher;
+import org.elasticsearch.watcher.ResourceWatcherService;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -68,7 +73,6 @@ class S3Service implements Closeable {
         TimeValue.timeValueHours(24),
         Setting.Property.NodeScope
     );
-
     private volatile Map<S3ClientSettings, AmazonS3Reference> clientsCache = emptyMap();
 
     /**
@@ -89,16 +93,19 @@ class S3Service implements Closeable {
 
     final TimeValue compareAndExchangeTimeToLive;
     final TimeValue compareAndExchangeAntiContentionDelay;
+    final boolean isStateless;
 
-    S3Service(Environment environment, Settings nodeSettings) {
+    S3Service(Environment environment, Settings nodeSettings, ResourceWatcherService resourceWatcherService) {
         webIdentityTokenCredentialsProvider = new CustomWebIdentityTokenCredentialsProvider(
             environment,
             System::getenv,
             System::getProperty,
-            Clock.systemUTC()
+            Clock.systemUTC(),
+            resourceWatcherService
         );
         compareAndExchangeTimeToLive = REPOSITORY_S3_CAS_TTL_SETTING.get(nodeSettings);
         compareAndExchangeAntiContentionDelay = REPOSITORY_S3_CAS_ANTI_CONTENTION_DELAY_SETTING.get(nodeSettings);
+        isStateless = DiscoveryNode.isStateless(nodeSettings);
     }
 
     /**
@@ -178,6 +185,11 @@ class S3Service implements Closeable {
 
     // proxy for testing
     AmazonS3 buildClient(final S3ClientSettings clientSettings) {
+        final AmazonS3ClientBuilder builder = buildClientBuilder(clientSettings);
+        return SocketAccess.doPrivileged(builder::build);
+    }
+
+    protected AmazonS3ClientBuilder buildClientBuilder(S3ClientSettings clientSettings) {
         final AmazonS3ClientBuilder builder = AmazonS3ClientBuilder.standard();
         builder.withCredentials(buildCredentials(LOGGER, clientSettings, webIdentityTokenCredentialsProvider));
         builder.withClientConfiguration(buildConfiguration(clientSettings));
@@ -206,7 +218,7 @@ class S3Service implements Closeable {
         if (clientSettings.disableChunkedEncoding) {
             builder.disableChunkedEncoding();
         }
-        return SocketAccess.doPrivileged(builder::build);
+        return builder;
     }
 
     // pkg private for tests
@@ -230,6 +242,7 @@ class S3Service implements Closeable {
             clientConfiguration.setSignerOverride(clientSettings.signerOverride);
         }
 
+        clientConfiguration.setMaxConnections(clientSettings.maxConnections);
         clientConfiguration.setMaxErrorRetry(clientSettings.maxRetries);
         clientConfiguration.setUseThrottleRetries(clientSettings.throttleRetries);
         clientConfiguration.setSocketTimeout(clientSettings.readTimeoutMillis);
@@ -328,7 +341,8 @@ class S3Service implements Closeable {
             Environment environment,
             SystemEnvironment systemEnvironment,
             JvmEnvironment jvmEnvironment,
-            Clock clock
+            Clock clock,
+            ResourceWatcherService resourceWatcherService
         ) {
             // Check whether the original environment variable exists. If it doesn't,
             // the system doesn't support AWS web identity tokens
@@ -390,6 +404,31 @@ class S3Service implements Closeable {
                     roleSessionName,
                     webIdentityTokenFileSymlink.toString()
                 ).withStsClient(stsClient).build();
+                var watcher = new FileWatcher(webIdentityTokenFileSymlink);
+                watcher.addListener(new FileChangesListener() {
+
+                    @Override
+                    public void onFileCreated(Path file) {
+                        onFileChanged(file);
+                    }
+
+                    @Override
+                    public void onFileChanged(Path file) {
+                        if (file.equals(webIdentityTokenFileSymlink)) {
+                            LOGGER.debug("WS web identity token file [{}] changed, updating credentials", file);
+                            credentialsProvider.refresh();
+                        }
+                    }
+                });
+                try {
+                    resourceWatcherService.add(watcher, ResourceWatcherService.Frequency.LOW);
+                } catch (IOException e) {
+                    throw new ElasticsearchException(
+                        "failed to start watching AWS web identity token file [{}]",
+                        e,
+                        webIdentityTokenFileSymlink
+                    );
+                }
             } catch (Exception e) {
                 stsClient.shutdown();
                 throw e;

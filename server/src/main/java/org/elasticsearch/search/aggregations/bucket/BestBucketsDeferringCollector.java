@@ -40,7 +40,11 @@ import java.util.function.LongUnaryOperator;
  * this collector.
  */
 public class BestBucketsDeferringCollector extends DeferringBucketCollector {
-    record Entry(AggregationExecutionContext aggCtx, PackedLongValues docDeltas, PackedLongValues buckets) {
+    private static class Entry {
+        AggregationExecutionContext aggCtx;
+        PackedLongValues docDeltas;
+        PackedLongValues buckets;
+
         Entry(AggregationExecutionContext aggCtx, PackedLongValues docDeltas, PackedLongValues buckets) {
             this.aggCtx = Objects.requireNonNull(aggCtx);
             this.docDeltas = Objects.requireNonNull(docDeltas);
@@ -200,6 +204,9 @@ public class BestBucketsDeferringCollector extends DeferringBucketCollector {
                 // collection was terminated prematurely
                 // continue with the following leaf
             }
+            // release resources
+            entry.buckets = null;
+            entry.docDeltas = null;
         }
         collector.postCollection();
     }

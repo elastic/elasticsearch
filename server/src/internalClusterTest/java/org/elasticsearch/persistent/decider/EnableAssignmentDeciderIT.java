@@ -51,6 +51,7 @@ public class EnableAssignmentDeciderIT extends ESIntegTestCase {
                 "task_" + i,
                 TestPersistentTasksExecutor.NAME,
                 new TestParams(randomAlphaOfLength(10)),
+                null,
                 ActionListener.running(latch::countDown)
             );
         }

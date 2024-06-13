@@ -13,6 +13,7 @@ import org.elasticsearch.action.support.nodes.BaseNodesRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -29,16 +30,16 @@ import java.util.TreeSet;
  */
 public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
 
-    private NodesStatsRequestParameters nodesStatsRequestParameters;
+    private final NodesStatsRequestParameters nodesStatsRequestParameters;
 
     public NodesStatsRequest() {
         super((String[]) null);
         nodesStatsRequestParameters = new NodesStatsRequestParameters();
     }
 
+    @UpdateForV9 // this constructor is unused in v9
     public NodesStatsRequest(StreamInput in) throws IOException {
         super(in);
-
         nodesStatsRequestParameters = new NodesStatsRequestParameters(in);
     }
 
@@ -178,6 +179,7 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
         nodesStatsRequestParameters.setIncludeShardsStats(includeShardsStats);
     }
 
+    @UpdateForV9 // this method can just call localOnly() in v9
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);

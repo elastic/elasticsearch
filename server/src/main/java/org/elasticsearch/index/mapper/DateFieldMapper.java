@@ -306,7 +306,7 @@ public final class DateFieldMapper extends FieldMapper {
             return factory == null
                 ? null
                 : (lookup, ctx, doc, consumer) -> factory.newFactory(
-                    name,
+                    name(),
                     script.get().getParams(),
                     lookup,
                     buildFormatter(),
@@ -364,7 +364,16 @@ public final class DateFieldMapper extends FieldMapper {
                 && ignoreMalformed.isConfigured() == false) {
                 ignoreMalformed.setValue(false);
             }
-            return new DateFieldMapper(name, ft, multiFieldsBuilder.build(this, context), copyTo, nullTimestamp, resolution, this);
+            return new DateFieldMapper(
+                name(),
+                ft,
+                multiFieldsBuilder.build(this, context),
+                copyTo,
+                nullTimestamp,
+                resolution,
+                context.isSourceSynthetic(),
+                this
+            );
         }
     }
 
@@ -795,7 +804,8 @@ public final class DateFieldMapper extends FieldMapper {
                 return new SortedNumericIndexFieldData.Builder(
                     name(),
                     resolution.numericType(),
-                    resolution.getDefaultToScriptFieldFactory()
+                    resolution.getDefaultToScriptFieldFactory(),
+                    isIndexed()
                 );
             }
 
@@ -849,6 +859,7 @@ public final class DateFieldMapper extends FieldMapper {
     private final Long nullValue;
     private final String nullValueAsString;
     private final Resolution resolution;
+    private final boolean isSourceSynthetic;
 
     private final boolean ignoreMalformedByDefault;
     private final IndexVersion indexCreatedVersion;
@@ -864,6 +875,7 @@ public final class DateFieldMapper extends FieldMapper {
         CopyTo copyTo,
         Long nullValue,
         Resolution resolution,
+        boolean isSourceSynthetic,
         Builder builder
     ) {
         super(simpleName, mappedFieldType, multiFields, copyTo, builder.script.get() != null, builder.onScriptError.get());
@@ -876,6 +888,7 @@ public final class DateFieldMapper extends FieldMapper {
         this.nullValueAsString = builder.nullValue.getValue();
         this.nullValue = nullValue;
         this.resolution = resolution;
+        this.isSourceSynthetic = isSourceSynthetic;
         this.ignoreMalformedByDefault = builder.ignoreMalformed.getDefaultValue();
         this.indexCreatedVersion = builder.indexCreatedVersion;
         this.script = builder.script.get();
@@ -914,6 +927,10 @@ public final class DateFieldMapper extends FieldMapper {
             } catch (IllegalArgumentException | ElasticsearchParseException | DateTimeException | ArithmeticException e) {
                 if (ignoreMalformed) {
                     context.addIgnoredField(mappedFieldType.name());
+                    if (isSourceSynthetic) {
+                        // Save a copy of the field so synthetic source can load it
+                        context.doc().add(IgnoreMalformedStoredValues.storedField(name(), context.parser()));
+                    }
                     return;
                 } else {
                     throw e;
@@ -961,6 +978,11 @@ public final class DateFieldMapper extends FieldMapper {
     }
 
     @Override
+    protected SyntheticSourceMode syntheticSourceMode() {
+        return SyntheticSourceMode.NATIVE;
+    }
+
+    @Override
     public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
         if (hasScript) {
             return SourceLoader.SyntheticFieldLoader.NOTHING;
@@ -968,11 +990,6 @@ public final class DateFieldMapper extends FieldMapper {
         if (hasDocValues == false) {
             throw new IllegalArgumentException(
                 "field [" + name() + "] of type [" + typeName() + "] doesn't support synthetic source because it doesn't have doc values"
-            );
-        }
-        if (ignoreMalformed) {
-            throw new IllegalArgumentException(
-                "field [" + name() + "] of type [" + typeName() + "] doesn't support synthetic source because it ignores malformed dates"
             );
         }
         if (copyTo.copyToFields().isEmpty() != true) {

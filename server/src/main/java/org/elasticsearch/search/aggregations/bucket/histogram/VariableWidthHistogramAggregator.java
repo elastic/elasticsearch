@@ -16,6 +16,8 @@ import org.elasticsearch.common.util.DoubleArray;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.index.fielddata.FieldData;
+import org.elasticsearch.index.fielddata.NumericDoubleValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationExecutionContext;
@@ -525,22 +527,37 @@ public class VariableWidthHistogramAggregator extends DeferableBucketAggregator 
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
         final SortedNumericDoubleValues values = valuesSource.doubleValues(aggCtx.getLeafReaderContext());
+        final NumericDoubleValues singleton = FieldData.unwrapSingleton(values);
+        return singleton != null ? getLeafCollector(singleton, sub) : getLeafCollector(values, sub);
+    }
+
+    private LeafBucketCollector getLeafCollector(SortedNumericDoubleValues values, LeafBucketCollector sub) {
         return new LeafBucketCollectorBase(sub, values) {
             @Override
             public void collect(int doc, long bucket) throws IOException {
                 assert bucket == 0;
                 if (values.advanceExact(doc)) {
-                    final int valuesCount = values.docValueCount();
                     double prevVal = Double.NEGATIVE_INFINITY;
-                    for (int i = 0; i < valuesCount; ++i) {
+                    for (int i = 0; i < values.docValueCount(); ++i) {
                         double val = values.nextValue();
                         assert val >= prevVal;
                         if (val == prevVal) {
                             continue;
                         }
-
                         collector = collector.collectValue(sub, doc, val);
                     }
+                }
+            }
+        };
+    }
+
+    private LeafBucketCollector getLeafCollector(NumericDoubleValues values, LeafBucketCollector sub) {
+        return new LeafBucketCollectorBase(sub, values) {
+            @Override
+            public void collect(int doc, long bucket) throws IOException {
+                assert bucket == 0;
+                if (values.advanceExact(doc)) {
+                    collector = collector.collectValue(sub, doc, values.doubleValue());
                 }
             }
         };
@@ -555,11 +572,11 @@ public class VariableWidthHistogramAggregator extends DeferableBucketAggregator 
             bucketOrdsToCollect[i] = i;
         }
 
-        InternalAggregations[] subAggregationResults = buildSubAggsForBuckets(bucketOrdsToCollect);
+        var subAggregationResults = buildSubAggsForBuckets(bucketOrdsToCollect);
 
         List<InternalVariableWidthHistogram.Bucket> buckets = new ArrayList<>(numClusters);
         for (int bucketOrd = 0; bucketOrd < numClusters; bucketOrd++) {
-            buckets.add(collector.buildBucket(bucketOrd, subAggregationResults[bucketOrd]));
+            buckets.add(collector.buildBucket(bucketOrd, subAggregationResults.apply(bucketOrd)));
         }
 
         Function<List<InternalVariableWidthHistogram.Bucket>, InternalAggregation> resultBuilder = bucketsToFormat -> {

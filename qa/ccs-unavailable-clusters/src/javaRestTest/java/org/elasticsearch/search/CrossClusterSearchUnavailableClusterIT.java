@@ -56,7 +56,6 @@ import java.util.concurrent.TimeUnit;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 
-@SuppressWarnings("removal")
 public class CrossClusterSearchUnavailableClusterIT extends ESRestTestCase {
 
     private final ThreadPool threadPool = new TestThreadPool(getClass().getName());

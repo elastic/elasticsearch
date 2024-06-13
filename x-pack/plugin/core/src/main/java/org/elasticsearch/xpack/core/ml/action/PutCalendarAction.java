@@ -31,7 +31,7 @@ public class PutCalendarAction extends ActionType<PutCalendarAction.Response> {
     public static final String NAME = "cluster:admin/xpack/ml/calendars/put";
 
     private PutCalendarAction() {
-        super(NAME, Response::new);
+        super(NAME);
     }
 
     public static class Request extends ActionRequest implements ToXContentObject {
@@ -49,7 +49,7 @@ public class PutCalendarAction extends ActionType<PutCalendarAction.Response> {
             return new Request(builder.build());
         }
 
-        private Calendar calendar;
+        private final Calendar calendar;
 
         public Request(StreamInput in) throws IOException {
             super(in);
@@ -117,12 +117,7 @@ public class PutCalendarAction extends ActionType<PutCalendarAction.Response> {
 
     public static class Response extends ActionResponse implements ToXContentObject {
 
-        private Calendar calendar;
-
-        public Response(StreamInput in) throws IOException {
-            super(in);
-            calendar = new Calendar(in);
-        }
+        private final Calendar calendar;
 
         public Response(Calendar calendar) {
             this.calendar = calendar;

@@ -31,7 +31,6 @@ import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.repositories.FinalizeSnapshotContext;
-import org.elasticsearch.repositories.RepositoriesMetrics;
 import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.blobstore.MeteredBlobStoreRepository;
@@ -173,6 +172,16 @@ class S3Repository extends MeteredBlobStoreRepository {
      */
     static final Setting<String> BASE_PATH_SETTING = Setting.simpleString("base_path");
 
+    /**
+     * The batch size for DeleteObjects request
+     */
+    static final Setting<Integer> DELETION_BATCH_SIZE_SETTING = Setting.intSetting(
+        "delete_objects_max_size",
+        S3BlobStore.MAX_BULK_DELETES,
+        1,
+        S3BlobStore.MAX_BULK_DELETES
+    );
+
     private final S3Service service;
 
     private final String bucket;
@@ -195,6 +204,8 @@ class S3Repository extends MeteredBlobStoreRepository {
 
     private final Executor snapshotExecutor;
 
+    private final S3RepositoriesMetrics s3RepositoriesMetrics;
+
     /**
      * Constructs an s3 backed repository
      */
@@ -205,7 +216,7 @@ class S3Repository extends MeteredBlobStoreRepository {
         final ClusterService clusterService,
         final BigArrays bigArrays,
         final RecoverySettings recoverySettings,
-        final RepositoriesMetrics repositoriesMetrics
+        final S3RepositoriesMetrics s3RepositoriesMetrics
     ) {
         super(
             metadata,
@@ -214,16 +225,16 @@ class S3Repository extends MeteredBlobStoreRepository {
             bigArrays,
             recoverySettings,
             buildBasePath(metadata),
-            buildLocation(metadata),
-            repositoriesMetrics
+            buildLocation(metadata)
         );
         this.service = service;
+        this.s3RepositoriesMetrics = s3RepositoriesMetrics;
         this.snapshotExecutor = threadPool().executor(ThreadPool.Names.SNAPSHOT);
 
         // Parse and validate the user's S3 Storage Class setting
         this.bucket = BUCKET_SETTING.get(metadata.settings());
-        if (bucket == null) {
-            throw new RepositoryException(metadata.name(), "No bucket defined for s3 repository");
+        if (Strings.hasLength(bucket) == false) {
+            throw new IllegalArgumentException("Invalid S3 bucket name, cannot be null or empty");
         }
 
         this.bufferSize = BUFFER_SIZE_SETTING.get(metadata.settings());
@@ -408,7 +419,7 @@ class S3Repository extends MeteredBlobStoreRepository {
             metadata,
             bigArrays,
             threadPool,
-            repositoriesMetrics
+            s3RepositoriesMetrics
         );
     }
 

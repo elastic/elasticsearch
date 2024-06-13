@@ -11,6 +11,7 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
+import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -24,7 +25,6 @@ import org.elasticsearch.license.PostStartTrialRequest;
 import org.elasticsearch.license.PostStartTrialResponse;
 import org.elasticsearch.license.TransportDeleteLicenseAction;
 import org.elasticsearch.protocol.xpack.XPackUsageRequest;
-import org.elasticsearch.protocol.xpack.license.DeleteLicenseRequest;
 import org.elasticsearch.snapshots.SnapshotRestoreException;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureResponse;
@@ -39,7 +39,9 @@ import static org.hamcrest.Matchers.oneOf;
 public class ArchiveLicenseIntegTests extends AbstractArchiveTestCase {
 
     public void testFeatureUsage() throws Exception {
-        XPackUsageFeatureResponse usage = client().execute(XPackUsageFeatureAction.ARCHIVE, new XPackUsageRequest()).get();
+        XPackUsageFeatureResponse usage = safeGet(
+            client().execute(XPackUsageFeatureAction.ARCHIVE, new XPackUsageRequest(SAFE_AWAIT_TIMEOUT))
+        );
         assertThat(usage.getUsage(), instanceOf(ArchiveFeatureSetUsage.class));
         ArchiveFeatureSetUsage archiveUsage = (ArchiveFeatureSetUsage) usage.getUsage();
         assertEquals(0, archiveUsage.getNumberOfArchiveIndices());
@@ -50,15 +52,20 @@ public class ArchiveLicenseIntegTests extends AbstractArchiveTestCase {
         assertThat(restoreSnapshotResponse.getRestoreInfo().failedShards(), equalTo(0));
         ensureGreen(indexName);
 
-        usage = client().execute(XPackUsageFeatureAction.ARCHIVE, new XPackUsageRequest()).get();
+        usage = safeGet(client().execute(XPackUsageFeatureAction.ARCHIVE, new XPackUsageRequest(SAFE_AWAIT_TIMEOUT)));
         assertThat(usage.getUsage(), instanceOf(ArchiveFeatureSetUsage.class));
         archiveUsage = (ArchiveFeatureSetUsage) usage.getUsage();
         assertEquals(1, archiveUsage.getNumberOfArchiveIndices());
     }
 
     public void testFailRestoreOnInvalidLicense() throws Exception {
-        assertAcked(client().execute(TransportDeleteLicenseAction.TYPE, new DeleteLicenseRequest()).get());
-        assertAcked(client().execute(PostStartBasicAction.INSTANCE, new PostStartBasicRequest()).get());
+        assertAcked(
+            client().execute(TransportDeleteLicenseAction.TYPE, new AcknowledgedRequest.Plain(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT))
+                .get()
+        );
+        assertAcked(
+            client().execute(PostStartBasicAction.INSTANCE, new PostStartBasicRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)).get()
+        );
 
         ensureClusterSizeConsistency();
         ensureClusterStateConsistency();
@@ -93,8 +100,13 @@ public class ArchiveLicenseIntegTests extends AbstractArchiveTestCase {
         assertThat(restoreSnapshotResponse.getRestoreInfo().failedShards(), equalTo(0));
         ensureGreen(indexName);
 
-        assertAcked(client().execute(TransportDeleteLicenseAction.TYPE, new DeleteLicenseRequest()).get());
-        assertAcked(client().execute(PostStartBasicAction.INSTANCE, new PostStartBasicRequest()).get());
+        assertAcked(
+            client().execute(TransportDeleteLicenseAction.TYPE, new AcknowledgedRequest.Plain(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT))
+                .get()
+        );
+        assertAcked(
+            client().execute(PostStartBasicAction.INSTANCE, new PostStartBasicRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)).get()
+        );
 
         ensureClusterSizeConsistency();
         ensureClusterStateConsistency();
@@ -122,7 +134,8 @@ public class ArchiveLicenseIntegTests extends AbstractArchiveTestCase {
         waitNoPendingTasksOnAll();
         ensureClusterStateConsistency();
 
-        PostStartTrialRequest request = new PostStartTrialRequest().setType(License.LicenseType.TRIAL.getTypeName()).acknowledge(true);
+        PostStartTrialRequest request = new PostStartTrialRequest(TEST_REQUEST_TIMEOUT).setType(License.LicenseType.TRIAL.getTypeName())
+            .acknowledge(true);
         final PostStartTrialResponse response = client().execute(PostStartTrialAction.INSTANCE, request).get();
         assertThat(
             response.getStatus(),

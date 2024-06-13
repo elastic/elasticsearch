@@ -11,7 +11,6 @@ package org.elasticsearch.search;
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.TransportVersions;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -671,6 +670,8 @@ public interface DocValueFormat extends NamedWriteable {
      * DocValues format for time series id.
      */
     class TimeSeriesIdDocValueFormat implements DocValueFormat {
+        private static final Base64.Decoder BASE64_DECODER = Base64.getUrlDecoder();
+
         private TimeSeriesIdDocValueFormat() {}
 
         @Override
@@ -686,13 +687,41 @@ public interface DocValueFormat extends NamedWriteable {
             return "tsid";
         }
 
+        /**
+         * @param value The TSID as a {@link BytesRef}
+         * @return the Base 64 encoded TSID
+         */
         @Override
         public Object format(BytesRef value) {
-            return TimeSeriesIdFieldMapper.decodeTsid(new BytesArray(value).streamInput());
+            try {
+                // NOTE: if the tsid is a map of dimension key/value pairs (as it was before introducing
+                // tsid hashing) we just decode the map and return it.
+                return TimeSeriesIdFieldMapper.decodeTsidAsMap(value);
+            } catch (Exception e) {
+                // NOTE: otherwise the _tsid field is just a hash and we can't decode it
+                return TimeSeriesIdFieldMapper.encodeTsid(value);
+            }
         }
 
         @Override
         public BytesRef parseBytesRef(Object value) {
+            if (value instanceof BytesRef valueAsBytesRef) {
+                return valueAsBytesRef;
+            }
+            if (value instanceof String valueAsString) {
+                return new BytesRef(BASE64_DECODER.decode(valueAsString));
+            }
+            return parseBytesRefMap(value);
+        }
+
+        /**
+         * After introducing tsid hashing this tsid parsing logic is deprecated.
+         * Tsid hashing does not allow us to parse the tsid extracting dimension fields key/values pairs.
+         * @param value The Map encoding tsid dimension fields key/value pairs.
+         *
+         * @return a {@link BytesRef} representing a map of key/value pairs
+         */
+        private BytesRef parseBytesRefMap(Object value) {
             if (value instanceof Map<?, ?> == false) {
                 throw new IllegalArgumentException("Cannot parse tsid object [" + value + "]");
             }
@@ -718,7 +747,8 @@ public interface DocValueFormat extends NamedWriteable {
             }
 
             try {
-                return builder.build().toBytesRef();
+                // NOTE: we can decode the tsid only if it is not hashed (represented as a map)
+                return builder.buildLegacyTsid().toBytesRef();
             } catch (IOException e) {
                 throw new IllegalArgumentException(e);
             }

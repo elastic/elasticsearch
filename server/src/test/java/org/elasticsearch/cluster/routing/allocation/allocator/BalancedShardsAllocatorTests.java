@@ -27,7 +27,6 @@ import org.elasticsearch.cluster.routing.RoutingNodesHelper;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
-import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.routing.allocation.AllocateUnassignedDecision;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
@@ -58,6 +57,7 @@ import static java.util.stream.Collectors.summingDouble;
 import static java.util.stream.Collectors.summingLong;
 import static java.util.stream.Collectors.toSet;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
+import static org.elasticsearch.cluster.routing.TestShardRouting.shardRoutingBuilder;
 import static org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator.Balancer.getIndexDiskUsageInBytes;
 import static org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator.DISK_USAGE_BALANCE_FACTOR_SETTING;
 import static org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider.SETTING_IGNORE_DISK_WATERMARKS;
@@ -574,14 +574,9 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
         for (var assignment : assignments.entrySet()) {
             for (int i = 0; i < assignment.getValue(); i++) {
                 indexRoutingTableBuilder.addShard(
-                    TestShardRouting.newShardRouting(
-                        new ShardId(indexId, shardId),
-                        assignment.getKey(),
-                        null,
-                        true,
-                        ShardRoutingState.STARTED,
-                        AllocationId.newInitializing(inSyncIds.get(shardId))
-                    )
+                    shardRoutingBuilder(new ShardId(indexId, shardId), assignment.getKey(), true, ShardRoutingState.STARTED)
+                        .withAllocationId(AllocationId.newInitializing(inSyncIds.get(shardId)))
+                        .build()
                 );
                 shardId++;
             }

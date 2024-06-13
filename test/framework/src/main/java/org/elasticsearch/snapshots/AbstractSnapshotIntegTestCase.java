@@ -12,9 +12,8 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
-import org.elasticsearch.action.admin.cluster.repositories.get.TransportGetRepositoriesAction;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
-import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
+import org.elasticsearch.action.admin.cluster.snapshots.get.SnapshotSortKey;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -42,6 +41,7 @@ import org.elasticsearch.repositories.FinalizeSnapshotContext;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryData;
+import org.elasticsearch.repositories.ResolvedRepositories;
 import org.elasticsearch.repositories.ShardGenerations;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.repositories.blobstore.BlobStoreTestUtil;
@@ -734,11 +734,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         });
     }
 
-    public static void assertSnapshotListSorted(
-        List<SnapshotInfo> snapshotInfos,
-        @Nullable GetSnapshotsRequest.SortBy sort,
-        SortOrder sortOrder
-    ) {
+    public static void assertSnapshotListSorted(List<SnapshotInfo> snapshotInfos, @Nullable SnapshotSortKey sort, SortOrder sortOrder) {
         final BiConsumer<SnapshotInfo, SnapshotInfo> assertion;
         if (sort == null) {
             assertion = (s1, s2) -> assertThat(s2, greaterThanOrEqualTo(s1));
@@ -799,7 +795,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
     }
 
     public static String[] matchAllPattern() {
-        return randomBoolean() ? new String[] { "*" } : new String[] { TransportGetRepositoriesAction.ALL_PATTERN };
+        return randomBoolean() ? new String[] { "*" } : new String[] { ResolvedRepositories.ALL_PATTERN };
     }
 
     public RepositoryMetadata getRepositoryMetadata(String repo) {

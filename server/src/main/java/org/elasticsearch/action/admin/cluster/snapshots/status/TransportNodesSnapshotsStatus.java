@@ -23,7 +23,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 import org.elasticsearch.snapshots.Snapshot;
@@ -50,8 +49,8 @@ public class TransportNodesSnapshotsStatus extends TransportNodesAction<
     TransportNodesSnapshotsStatus.NodeRequest,
     TransportNodesSnapshotsStatus.NodeSnapshotStatus> {
 
-    public static final String ACTION_NAME = SnapshotsStatusAction.NAME + "[nodes]";
-    public static final ActionType<NodesSnapshotStatus> TYPE = new ActionType<>(ACTION_NAME, Writeable.Reader.localOnly());
+    public static final String ACTION_NAME = TransportSnapshotsStatusAction.TYPE.name() + "[nodes]";
+    public static final ActionType<NodesSnapshotStatus> TYPE = new ActionType<>(ACTION_NAME);
 
     private final SnapshotShardsService snapshotShardsService;
 

@@ -17,6 +17,7 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.SourceLoader;
@@ -27,6 +28,7 @@ import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.rescore.RescorerBuilder;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.ShardDocSortField;
 import org.elasticsearch.search.sort.SortBuilder;
@@ -339,12 +341,49 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
                 if (source.rescores() != null && source.rescores().isEmpty() == false) {
                     validationException = addValidationError("using [rescore] is not allowed in a scroll context", validationException);
                 }
+                if (CollectionUtils.isEmpty(source.searchAfter()) == false) {
+                    validationException = addValidationError("[search_after] cannot be used in a scroll context", validationException);
+                }
+                if (source.collapse() != null) {
+                    validationException = addValidationError("cannot use `collapse` in a scroll context", validationException);
+                }
             }
             if (requestCache != null && requestCache) {
                 validationException = addValidationError("[request_cache] cannot be used in a scroll context", validationException);
             }
         }
         if (source != null) {
+            if (source.slice() != null) {
+                if (source.pointInTimeBuilder() == null && (scroll == false)) {
+                    validationException = addValidationError(
+                        "[slice] can only be used with [scroll] or [point-in-time] requests",
+                        validationException
+                    );
+                }
+            }
+            if (source.from() > 0 && CollectionUtils.isEmpty(source.searchAfter()) == false) {
+                validationException = addValidationError(
+                    "[from] parameter must be set to 0 when [search_after] is used",
+                    validationException
+                );
+            }
+            if (source.storedFields() != null) {
+                if (source.storedFields().fetchFields() == false) {
+                    if (source.fetchSource() != null && source.fetchSource().fetchSource()) {
+                        validationException = addValidationError(
+                            "[stored_fields] cannot be disabled if [_source] is requested",
+                            validationException
+                        );
+                    }
+                    if (source.fetchFields() != null) {
+                        validationException = addValidationError(
+                            "[stored_fields] cannot be disabled when using the [fields] option",
+                            validationException
+                        );
+                    }
+
+                }
+            }
             if (source.subSearches().size() >= 2 && source.rankBuilder() == null) {
                 validationException = addValidationError("[sub_searches] requires [rank]", validationException);
             }
@@ -356,10 +395,10 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
                 if (size == 0) {
                     validationException = addValidationError("[rank] requires [size] greater than [0]", validationException);
                 }
-                if (size > source.rankBuilder().windowSize()) {
+                if (size > source.rankBuilder().rankWindowSize()) {
                     validationException = addValidationError(
-                        "[rank] requires [window_size: "
-                            + source.rankBuilder().windowSize()
+                        "[rank] requires [rank_window_size: "
+                            + source.rankBuilder().rankWindowSize()
                             + "]"
                             + " be greater than or equal to [size: "
                             + size
@@ -368,7 +407,7 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
                     );
                 }
                 int queryCount = source.subSearches().size() + source.knnSearch().size();
-                if (queryCount < 2) {
+                if (source.rankBuilder().isCompoundBuilder() && queryCount < 2) {
                     validationException = addValidationError(
                         "[rank] requires a minimum of [2] result sets using a combination of sub searches and/or knn searches",
                         validationException
@@ -395,11 +434,11 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
                 if (source.pointInTimeBuilder() != null) {
                     validationException = addValidationError("[rank] cannot be used with [point in time]", validationException);
                 }
-                if (source.profile()) {
-                    validationException = addValidationError("[rank] requires [profile] is [false]", validationException);
-                }
-                if (source.explain() != null && source.explain()) {
-                    validationException = addValidationError("[rank] requires [explain] is [false]", validationException);
+            }
+            if (source.rescores() != null) {
+                for (@SuppressWarnings("rawtypes")
+                RescorerBuilder rescoreBuilder : source.rescores()) {
+                    validationException = rescoreBuilder.validate(this, validationException);
                 }
             }
         }
@@ -649,13 +688,6 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
      */
     public SearchRequest scroll(TimeValue keepAlive) {
         return scroll(new Scroll(keepAlive));
-    }
-
-    /**
-     * If set, will enable scrolling of the search request for the specified timeout.
-     */
-    public SearchRequest scroll(String keepAlive) {
-        return scroll(new Scroll(TimeValue.parseTimeValue(keepAlive, null, getClass().getSimpleName() + ".Scroll.keepAlive")));
     }
 
     /**

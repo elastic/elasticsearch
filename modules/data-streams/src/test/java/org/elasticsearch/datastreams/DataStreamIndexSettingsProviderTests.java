@@ -301,22 +301,7 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
             ).getMetadata()
         );
         DataStream ds = mb.dataStream(dataStreamName);
-        mb.put(
-            new DataStream(
-                ds.getName(),
-                ds.getIndices(),
-                ds.getGeneration(),
-                ds.getMetadata(),
-                ds.isHidden(),
-                ds.isReplicated(),
-                ds.isSystem(),
-                ds.isAllowCustomRouting(),
-                IndexMode.TIME_SERIES,
-                ds.getLifecycle(),
-                ds.isFailureStore(),
-                ds.getFailureIndices()
-            )
-        );
+        mb.put(ds.copy().setIndexMode(IndexMode.TIME_SERIES).build());
         Metadata metadata = mb.build();
 
         Instant now = twoHoursAgo.plus(2, ChronoUnit.HOURS);
@@ -493,6 +478,55 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
         assertEquals(3, routingPathList.size());
     }
 
+    public void testGenerateRoutingPathFromDynamicTemplateWithMultiplePathMatchEntriesMultiFields() throws Exception {
+        Instant now = Instant.now().truncatedTo(ChronoUnit.SECONDS);
+        String mapping = """
+            {
+                "_doc": {
+                    "dynamic_templates": [
+                        {
+                            "labels": {
+                                "path_match": ["xprometheus.labels.*", "yprometheus.labels.*"],
+                                "mapping": {
+                                    "type": "keyword",
+                                    "time_series_dimension": true,
+                                    "fields": {
+                                      "text": {
+                                        "type": "text"
+                                      }
+                                    }
+                                }
+                            }
+                        }
+                    ],
+                    "properties": {
+                        "host": {
+                            "properties": {
+                                "id": {
+                                    "type": "keyword",
+                                    "time_series_dimension": true
+                                }
+                            }
+                        },
+                        "another_field": {
+                            "type": "keyword"
+                        }
+                    }
+                }
+            }
+            """;
+        Settings result = generateTsdbSettings(mapping, now);
+        assertThat(result.size(), equalTo(3));
+        assertThat(IndexSettings.TIME_SERIES_START_TIME.get(result), equalTo(now.minusMillis(DEFAULT_LOOK_BACK_TIME.getMillis())));
+        assertThat(IndexSettings.TIME_SERIES_END_TIME.get(result), equalTo(now.plusMillis(DEFAULT_LOOK_AHEAD_TIME.getMillis())));
+        assertThat(
+            IndexMetadata.INDEX_ROUTING_PATH.get(result),
+            containsInAnyOrder("host.id", "xprometheus.labels.*", "yprometheus.labels.*")
+        );
+        List<String> routingPathList = IndexMetadata.INDEX_ROUTING_PATH.get(result);
+        assertEquals(3, routingPathList.size());
+    }
+
     public void testGenerateRoutingPathFromDynamicTemplate_templateWithNoPathMatch() throws Exception {
         Instant now = Instant.now().truncatedTo(ChronoUnit.SECONDS);
         String mapping = """
@@ -587,6 +621,35 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
         assertThat(IndexSettings.TIME_SERIES_END_TIME.get(result), equalTo(now.plusMillis(DEFAULT_LOOK_AHEAD_TIME.getMillis())));
         assertThat(IndexMetadata.INDEX_ROUTING_PATH.get(result), containsInAnyOrder("host.id", "prometheus.labels.*"));
         assertEquals(2, IndexMetadata.INDEX_ROUTING_PATH.get(result).size());
+    }
+
+    public void testGenerateRoutingPathFromPassThroughObject() throws Exception {
+        Instant now = Instant.now().truncatedTo(ChronoUnit.SECONDS);
+        String mapping = """
+            {
+                "_doc": {
+                    "properties": {
+                        "labels": {
+                            "type": "passthrough",
+                            "time_series_dimension": true,
+                            "priority": 2
+                        },
+                        "metrics": {
+                            "type": "passthrough",
+                            "priority": 1
+                        },
+                        "another_field": {
+                            "type": "keyword"
+                        }
+                    }
+                }
+            }
+            """;
+        Settings result = generateTsdbSettings(mapping, now);
+        assertThat(result.size(), equalTo(3));
+        assertThat(IndexSettings.TIME_SERIES_START_TIME.get(result), equalTo(now.minusMillis(DEFAULT_LOOK_BACK_TIME.getMillis())));
+        assertThat(IndexSettings.TIME_SERIES_END_TIME.get(result), equalTo(now.plusMillis(DEFAULT_LOOK_AHEAD_TIME.getMillis())));
+        assertThat(IndexMetadata.INDEX_ROUTING_PATH.get(result), containsInAnyOrder("labels.*"));
     }
 
     private Settings generateTsdbSettings(String mapping, Instant now) throws IOException {

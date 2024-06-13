@@ -13,6 +13,7 @@ import org.elasticsearch.bootstrap.ServerArgs;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.MockTerminal;
 import org.elasticsearch.cli.ProcessInfo;
+import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.settings.KeyStoreWrapper;
 import org.elasticsearch.common.settings.SecureSettings;
@@ -36,6 +37,8 @@ import java.nio.file.Paths;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CancellationException;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
@@ -44,6 +47,7 @@ import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.elasticsearch.bootstrap.BootstrapInfo.SERVER_READY_MARKER;
 import static org.elasticsearch.server.cli.ProcessUtil.nonInterruptibleVoid;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -64,6 +68,7 @@ public class ServerProcessTests extends ESTestCase {
     Settings.Builder nodeSettings;
     ProcessValidator processValidator;
     MainMethod mainCallback;
+    Runnable forceStopCallback;
     MockElasticsearchProcess process;
     SecureSettings secrets;
 
@@ -91,6 +96,7 @@ public class ServerProcessTests extends ESTestCase {
         nodeSettings = Settings.builder();
         processValidator = null;
         mainCallback = null;
+        forceStopCallback = null;
         secrets = KeyStoreWrapper.create();
     }
 
@@ -118,9 +124,11 @@ public class ServerProcessTests extends ESTestCase {
                 var in = new InputStreamStreamInput(stdin);
                 try {
                     var serverArgs = new ServerArgs(in);
-                    if (mainCallback != null) {
-                        try (var err = new PrintStream(stderr, true, StandardCharsets.UTF_8)) {
+                    try (var err = new PrintStream(stderr, true, StandardCharsets.UTF_8)) {
+                        if (mainCallback != null) {
                             mainCallback.main(serverArgs, stdin, err, exitCode);
+                        } else {
+                            err.println(SERVER_READY_MARKER);
                         }
                     }
                 } catch (IOException e) {
@@ -158,6 +166,8 @@ public class ServerProcessTests extends ESTestCase {
                 main.get();
             } catch (ExecutionException e) {
                 throw new AssertionError(e);
+            } catch (CancellationException e) {
+                return 137; // process killed
             }
             if (processException.get() != null) {
                 throw new AssertionError("Process failed", processException.get());
@@ -183,6 +193,8 @@ public class ServerProcessTests extends ESTestCase {
 
         public Process destroyForcibly() {
             main.cancel(true);
+            IOUtils.closeWhileHandlingException(stdin, stderr);
+            forceStopCallback.run();
             return this;
         }
     }
@@ -230,6 +242,7 @@ public class ServerProcessTests extends ESTestCase {
         mainCallback = (args, stdin, stderr, exitCode) -> {
             try (PrintStream err = new PrintStream(stderr, true, StandardCharsets.UTF_8)) {
                 err.println("stderr message");
+                err.println(SERVER_READY_MARKER);
             }
         };
         runForeground();
@@ -247,8 +260,8 @@ public class ServerProcessTests extends ESTestCase {
             stderr.println("a bootstrap exception");
             exitCode.set(ExitCodes.CONFIG);
         };
-        int exitCode = runForeground();
-        assertThat(exitCode, equalTo(ExitCodes.CONFIG));
+        var e = expectThrows(UserException.class, this::runForeground);
+        assertThat(e.exitCode, equalTo(ExitCodes.CONFIG));
         assertThat(terminal.getErrorOutput(), containsString("a bootstrap exception"));
     }
 
@@ -329,7 +342,7 @@ public class ServerProcessTests extends ESTestCase {
     public void testDetach() throws Exception {
         mainCallback = (args, stdin, stderr, exitCode) -> {
             assertThat(args.daemonize(), equalTo(true));
-            stderr.println(BootstrapInfo.SERVER_READY_MARKER);
+            stderr.println(SERVER_READY_MARKER);
             stderr.println("final message");
             stderr.close();
             // will block until stdin closed manually after test
@@ -345,7 +358,7 @@ public class ServerProcessTests extends ESTestCase {
     public void testStop() throws Exception {
         CountDownLatch mainReady = new CountDownLatch(1);
         mainCallback = (args, stdin, stderr, exitCode) -> {
-            stderr.println(BootstrapInfo.SERVER_READY_MARKER);
+            stderr.println(SERVER_READY_MARKER);
             nonInterruptibleVoid(mainReady::await);
             stderr.println("final message");
         };
@@ -356,30 +369,55 @@ public class ServerProcessTests extends ESTestCase {
         assertThat(terminal.getErrorOutput(), containsString("final message"));
     }
 
+    public void testForceStop() throws Exception {
+        CountDownLatch blockMain = new CountDownLatch(1);
+        CountDownLatch inMain = new CountDownLatch(1);
+        mainCallback = (args, stdin, stderr, exitCode) -> {
+            stderr.println(SERVER_READY_MARKER);
+            inMain.countDown();
+            nonInterruptibleVoid(blockMain::await);
+        };
+        var server = startProcess(false, false);
+        nonInterruptibleVoid(inMain::await);
+        forceStopCallback = blockMain::countDown;
+        server.forceStop();
+
+        assertThat(process.main.isCancelled(), is(true)); // stop should have waited
+    }
+
     public void testWaitFor() throws Exception {
         CountDownLatch mainReady = new CountDownLatch(1);
         mainCallback = (args, stdin, stderr, exitCode) -> {
-            stderr.println(BootstrapInfo.SERVER_READY_MARKER);
+            stderr.println(SERVER_READY_MARKER);
             mainReady.countDown();
             assertThat(stdin.read(), equalTo((int) BootstrapInfo.SERVER_SHUTDOWN_MARKER));
             stderr.println("final message");
         };
         var server = startProcess(false, false);
+
+        CompletableFuture<Void> stopping = new CompletableFuture<>();
         new Thread(() -> {
-            // simulate stop run as shutdown hook in another thread, eg from Ctrl-C
-            nonInterruptibleVoid(mainReady::await);
-            server.stop();
+            try {
+                // simulate stop run as shutdown hook in another thread, eg from Ctrl-C
+                nonInterruptibleVoid(mainReady::await);
+                server.stop();
+                stopping.complete(null);
+            } catch (Throwable e) {
+                stopping.completeExceptionally(e);
+            }
         }).start();
         int exitCode = server.waitFor();
         assertThat(process.main.isDone(), is(true));
         assertThat(exitCode, equalTo(0));
         assertThat(terminal.getErrorOutput(), containsString("final message"));
+        // rethrow any potential exception observed while stopping
+        stopping.get();
     }
 
     public void testProcessDies() throws Exception {
         CountDownLatch mainExit = new CountDownLatch(1);
         mainCallback = (args, stdin, stderr, exitCode) -> {
-            stderr.println(BootstrapInfo.SERVER_READY_MARKER);
+            stderr.println(SERVER_READY_MARKER);
             stderr.println("fatal message");
             stderr.close(); // mimic pipe break if cli process dies
             nonInterruptibleVoid(mainExit::await);

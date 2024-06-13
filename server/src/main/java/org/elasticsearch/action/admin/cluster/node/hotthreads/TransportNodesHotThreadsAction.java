@@ -39,7 +39,7 @@ public class TransportNodesHotThreadsAction extends TransportNodesAction<
     TransportNodesHotThreadsAction.NodeRequest,
     NodeHotThreads> {
 
-    public static final ActionType<NodesHotThreadsResponse> TYPE = ActionType.localOnly("cluster:monitor/nodes/hot_threads");
+    public static final ActionType<NodesHotThreadsResponse> TYPE = new ActionType<>("cluster:monitor/nodes/hot_threads");
 
     @Inject
     public TransportNodesHotThreadsAction(
@@ -79,12 +79,12 @@ public class TransportNodesHotThreadsAction extends TransportNodesAction<
 
     @Override
     protected NodeHotThreads nodeOperation(NodeRequest request, Task task) {
-        final var hotThreads = new HotThreads().busiestThreads(request.request.threads)
-            .type(request.request.type)
-            .sortOrder(request.request.sortOrder)
-            .interval(request.request.interval)
-            .threadElementsSnapshotCount(request.request.snapshots)
-            .ignoreIdleThreads(request.request.ignoreIdleThreads);
+        final var hotThreads = new HotThreads().busiestThreads(request.request.threads())
+            .type(request.request.type())
+            .sortOrder(request.request.sortOrder())
+            .interval(request.request.interval())
+            .threadElementsSnapshotCount(request.request.snapshots())
+            .ignoreIdleThreads(request.request.ignoreIdleThreads());
         final var out = transportService.newNetworkBytesStream();
         final var trackedResource = LeakTracker.wrap(out);
         var success = false;

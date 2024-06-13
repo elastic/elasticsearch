@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.inference.external.http.retry;
 
-import org.apache.http.client.methods.HttpRequestBase;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.inference.InferenceServiceResults;
@@ -36,7 +35,7 @@ public class AlwaysRetryingResponseHandler implements ResponseHandler {
         this.parseFunction = Objects.requireNonNull(parseFunction);
     }
 
-    public void validateResponse(ThrottlerManager throttlerManager, Logger logger, HttpRequestBase request, HttpResult result)
+    public void validateResponse(ThrottlerManager throttlerManager, Logger logger, Request request, HttpResult result)
         throws RetryException {
         try {
             checkForFailureStatusCode(throttlerManager, logger, request, result);

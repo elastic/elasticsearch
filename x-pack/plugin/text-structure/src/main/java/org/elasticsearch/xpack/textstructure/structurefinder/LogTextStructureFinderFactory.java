@@ -40,6 +40,10 @@ public class LogTextStructureFinderFactory implements TextStructureFinderFactory
         return true;
     }
 
+    public boolean canCreateFromMessages(List<String> explanation, List<String> messages, double allowedFractionOfBadLines) {
+        return true;
+    }
+
     @Override
     public TextStructureFinder createFromSample(
         List<String> explanation,
@@ -59,5 +63,14 @@ public class LogTextStructureFinderFactory implements TextStructureFinderFactory
             overrides,
             timeoutChecker
         );
+    }
+
+    public TextStructureFinder createFromMessages(
+        List<String> explanation,
+        List<String> messages,
+        TextStructureOverrides overrides,
+        TimeoutChecker timeoutChecker
+    ) {
+        return LogTextStructureFinder.makeLogTextStructureFinder(explanation, messages, "UTF-8", null, overrides, timeoutChecker);
     }
 }

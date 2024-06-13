@@ -40,7 +40,7 @@ public class UpdateTransformAction extends ActionType<UpdateTransformAction.Resp
     private static final TimeValue MAX_FREQUENCY = TimeValue.timeValueHours(1);
 
     private UpdateTransformAction() {
-        super(NAME, Response::new);
+        super(NAME);
     }
 
     public static final class Request extends BaseTasksRequest<Request> {

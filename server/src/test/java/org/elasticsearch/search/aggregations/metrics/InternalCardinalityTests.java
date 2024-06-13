@@ -8,7 +8,8 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
-import org.apache.lucene.util.hppc.BitMixer;
+import com.carrotsearch.hppc.BitMixer;
+
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.MockBigArrays;
@@ -16,7 +17,6 @@ import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
-import org.elasticsearch.search.aggregations.ParsedAggregation;
 import org.elasticsearch.test.InternalAggregationTestCase;
 import org.junit.After;
 
@@ -84,15 +84,6 @@ public class InternalCardinalityTests extends InternalAggregationTestCase<Intern
             }
             assertEquals(result.cardinality(0), reduced.value(), 0);
         }
-    }
-
-    @Override
-    protected void assertFromXContent(InternalCardinality aggregation, ParsedAggregation parsedAggregation) {
-        assertTrue(parsedAggregation instanceof ParsedCardinality);
-        ParsedCardinality parsed = (ParsedCardinality) parsedAggregation;
-
-        assertEquals(aggregation.getValue(), parsed.getValue(), Double.MIN_VALUE);
-        assertEquals(aggregation.getValueAsString(), parsed.getValueAsString());
     }
 
     @Override

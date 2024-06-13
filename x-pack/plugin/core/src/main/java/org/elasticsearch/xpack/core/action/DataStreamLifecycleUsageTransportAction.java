@@ -85,8 +85,8 @@ public class DataStreamLifecycleUsageTransportAction extends XPackUsageFeatureTr
         for (DataStream dataStream : dataStreams) {
             if (dataStream.getLifecycle() != null && dataStream.getLifecycle().isEnabled()) {
                 dataStreamsWithLifecycles++;
-                if (dataStream.getLifecycle().getEffectiveDataRetention() != null) {
-                    retentionStats.accept(dataStream.getLifecycle().getEffectiveDataRetention().getMillis());
+                if (dataStream.getLifecycle().getDataStreamRetention() != null) {
+                    retentionStats.accept(dataStream.getLifecycle().getDataStreamRetention().getMillis());
                 }
             }
         }

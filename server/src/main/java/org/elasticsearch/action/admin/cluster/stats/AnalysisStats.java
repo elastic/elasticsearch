@@ -42,7 +42,7 @@ import java.util.TreeMap;
  */
 public final class AnalysisStats implements ToXContentFragment, Writeable {
 
-    private static final TransportVersion SYNONYM_SETS_VERSION = TransportVersions.V_8_500_061;
+    private static final TransportVersion SYNONYM_SETS_VERSION = TransportVersions.V_8_10_X;
 
     private static final Set<String> SYNONYM_FILTER_TYPES = Set.of("synonym", "synonym_graph");
 

@@ -24,7 +24,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-final class FieldCapabilitiesIndexResponse implements Writeable {
+public final class FieldCapabilitiesIndexResponse implements Writeable {
     private static final TransportVersion MAPPING_HASH_VERSION = TransportVersions.V_8_2_0;
 
     private final String indexName;
@@ -34,7 +34,7 @@ final class FieldCapabilitiesIndexResponse implements Writeable {
     private final boolean canMatch;
     private final transient TransportVersion originVersion;
 
-    FieldCapabilitiesIndexResponse(
+    public FieldCapabilitiesIndexResponse(
         String indexName,
         @Nullable String indexMappingHash,
         Map<String, IndexFieldCapabilities> responseMap,
@@ -81,7 +81,7 @@ final class FieldCapabilitiesIndexResponse implements Writeable {
             responses.add(new FieldCapabilitiesIndexResponse(input));
         }
         final int groups = input.readVInt();
-        if (input.getTransportVersion().onOrAfter(TransportVersions.COMPACT_FIELD_CAPS_ADDED)) {
+        if (input.getTransportVersion().onOrAfter(TransportVersions.V_8_11_X)) {
             collectCompressedResponses(input, groups, responses);
         } else {
             collectResponsesLegacyFormat(input, groups, responses);
@@ -139,7 +139,7 @@ final class FieldCapabilitiesIndexResponse implements Writeable {
         }
 
         output.writeCollection(ungroupedResponses);
-        if (output.getTransportVersion().onOrAfter(TransportVersions.COMPACT_FIELD_CAPS_ADDED)) {
+        if (output.getTransportVersion().onOrAfter(TransportVersions.V_8_11_X)) {
             writeCompressedResponses(output, groupedResponsesMap);
         } else {
             writeResponsesLegacyFormat(output, groupedResponsesMap);

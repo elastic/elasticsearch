@@ -8,9 +8,9 @@ package org.elasticsearch.xpack.graph.test;
 
 import org.apache.lucene.search.BooleanQuery;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeResponse;
 import org.elasticsearch.action.admin.indices.segments.IndexShardSegments;
 import org.elasticsearch.action.admin.indices.segments.ShardSegments;
+import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.Settings.Builder;
@@ -97,7 +97,7 @@ public class GraphTests extends ESSingleNodeTestCase {
         indicesAdmin().prepareRefresh("test").get();
         // Ensure single segment with no deletes. Hopefully solves test instability in
         // issue https://github.com/elastic/x-pack-elasticsearch/issues/918
-        ForceMergeResponse actionGet = indicesAdmin().prepareForceMerge("test").setFlush(true).setMaxNumSegments(1).get();
+        BroadcastResponse actionGet = indicesAdmin().prepareForceMerge("test").setFlush(true).setMaxNumSegments(1).get();
         indicesAdmin().prepareRefresh("test").get();
         assertAllSuccessful(actionGet);
         for (IndexShardSegments seg : indicesAdmin().prepareSegments().get().getIndices().get("test")) {

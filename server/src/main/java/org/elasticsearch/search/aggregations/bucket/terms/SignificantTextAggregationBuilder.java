@@ -16,7 +16,6 @@ import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
-import org.elasticsearch.search.aggregations.AggregationInitializationException;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregator.BucketCountThresholds;
@@ -129,16 +128,12 @@ public class SignificantTextAggregationBuilder extends AbstractAggregationBuilde
 
     @Override
     public SignificantTextAggregationBuilder subAggregations(Builder subFactories) {
-        throw new AggregationInitializationException(
-            "Aggregator [" + name + "] of type [" + getType() + "] cannot accept sub-aggregations"
-        );
+        throw new IllegalArgumentException("Aggregator [" + name + "] of type [" + getType() + "] cannot accept sub-aggregations");
     }
 
     @Override
     public SignificantTextAggregationBuilder subAggregation(AggregationBuilder aggregation) {
-        throw new AggregationInitializationException(
-            "Aggregator [" + name + "] of type [" + getType() + "] cannot accept sub-aggregations"
-        );
+        throw new IllegalArgumentException("Aggregator [" + name + "] of type [" + getType() + "] cannot accept sub-aggregations");
     }
 
     /**

@@ -119,7 +119,7 @@ public class RankEvalSpecTests extends ESTestCase {
         RankEvalSpec testItem = createTestItem();
         XContentBuilder shuffled = shuffleXContent(testItem.toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS));
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(shuffled))) {
-            RankEvalSpec parsedItem = RankEvalSpec.parse(parser);
+            RankEvalSpec parsedItem = RankEvalSpec.parse(parser, nf -> false);
             assertNotSame(testItem, parsedItem);
             assertEquals(testItem, parsedItem);
             assertEquals(testItem.hashCode(), parsedItem.hashCode());
@@ -132,7 +132,7 @@ public class RankEvalSpecTests extends ESTestCase {
         BytesReference originalBytes = toShuffledXContent(testItem, xContentType, ToXContent.EMPTY_PARAMS, randomBoolean());
         BytesReference withRandomFields = insertRandomFields(xContentType, originalBytes, null, random());
         try (XContentParser parser = createParser(xContentType.xContent(), withRandomFields)) {
-            Exception exception = expectThrows(Exception.class, () -> RankEvalSpec.parse(parser));
+            Exception exception = expectThrows(Exception.class, () -> RankEvalSpec.parse(parser, nf -> false));
             assertThat(exception.getMessage(), containsString("[rank_eval] failed to parse field"));
         }
     }

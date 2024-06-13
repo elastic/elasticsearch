@@ -22,6 +22,7 @@ import org.elasticsearch.rest.AbstractRestChannel;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -35,15 +36,16 @@ import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.core.security.authz.RoleDescriptorTests.randomCrossClusterAccessRoleDescriptor;
-import static org.elasticsearch.xpack.core.security.authz.RoleDescriptorTests.randomUniquelyNamedRoleDescriptors;
-import static org.hamcrest.Matchers.arrayContaining;
+import static org.elasticsearch.xpack.core.security.authz.RoleDescriptorTestHelper.randomCrossClusterAccessRoleDescriptor;
+import static org.elasticsearch.xpack.core.security.authz.RoleDescriptorTestHelper.randomUniquelyNamedRoleDescriptors;
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.emptyIterable;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
 
@@ -60,7 +62,7 @@ public class RestGetApiKeyActionTests extends ESTestCase {
             .put("node.name", "test-" + getTestName())
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
             .build();
-        threadPool = new ThreadPool(settings);
+        threadPool = new ThreadPool(settings, MeterRegistry.NOOP);
     }
 
     @Override
@@ -94,34 +96,9 @@ public class RestGetApiKeyActionTests extends ESTestCase {
                 responseSetOnce.set(restResponse);
             }
         };
-        final ApiKey.Type type = randomFrom(ApiKey.Type.values());
-        final Instant creation = Instant.now();
-        final Instant expiration = randomFrom(Arrays.asList(null, Instant.now().plus(10, ChronoUnit.DAYS)));
-        final Map<String, Object> metadata = ApiKeyTests.randomMetadata();
-        final List<RoleDescriptor> roleDescriptors = type == ApiKey.Type.CROSS_CLUSTER
-            ? List.of(randomCrossClusterAccessRoleDescriptor())
-            : randomUniquelyNamedRoleDescriptors(0, 3);
-        final List<RoleDescriptor> limitedByRoleDescriptors = withLimitedBy && type != ApiKey.Type.CROSS_CLUSTER
-            ? randomUniquelyNamedRoleDescriptors(1, 3)
-            : null;
-        final GetApiKeyResponse getApiKeyResponseExpected = new GetApiKeyResponse(
-            Collections.singletonList(
-                new ApiKey(
-                    "api-key-name-1",
-                    "api-key-id-1",
-                    type,
-                    creation,
-                    expiration,
-                    false,
-                    null,
-                    "user-x",
-                    "realm-1",
-                    metadata,
-                    roleDescriptors,
-                    limitedByRoleDescriptors
-                )
-            )
-        );
+        final List<String> profileUids = randomSize1ProfileUidsList();
+        final ApiKey apiKey = randomApiKeyInfo(withLimitedBy);
+        final GetApiKeyResponse getApiKeyResponseExpected = new GetApiKeyResponse(List.of(apiKey), profileUids);
 
         final var client = new NodeClient(Settings.EMPTY, threadPool) {
             @SuppressWarnings("unchecked")
@@ -142,7 +119,7 @@ public class RestGetApiKeyActionTests extends ESTestCase {
                     || getApiKeyRequest.getRealmName() != null && getApiKeyRequest.getRealmName().equals("realm-1")
                     || getApiKeyRequest.getUserName() != null && getApiKeyRequest.getUserName().equals("user-x")) {
                     if (replyEmptyResponse) {
-                        listener.onResponse((Response) GetApiKeyResponse.emptyResponse());
+                        listener.onResponse((Response) GetApiKeyResponse.EMPTY);
                     } else {
                         listener.onResponse((Response) getApiKeyResponseExpected);
                     }
@@ -160,27 +137,68 @@ public class RestGetApiKeyActionTests extends ESTestCase {
         assertThat(restResponse.status(), (replyEmptyResponse && params.get("id") != null) ? is(RestStatus.NOT_FOUND) : is(RestStatus.OK));
         final GetApiKeyResponse actual = GetApiKeyResponse.fromXContent(createParser(XContentType.JSON.xContent(), restResponse.content()));
         if (replyEmptyResponse) {
-            assertThat(actual.getApiKeyInfos().length, is(0));
+            assertThat(actual.getApiKeyInfoList(), emptyIterable());
         } else {
             assertThat(
-                actual.getApiKeyInfos(),
-                arrayContaining(
-                    new ApiKey(
-                        "api-key-name-1",
-                        "api-key-id-1",
-                        type,
-                        creation,
-                        expiration,
-                        false,
-                        null,
-                        "user-x",
-                        "realm-1",
-                        metadata,
-                        roleDescriptors,
-                        limitedByRoleDescriptors
-                    )
-                )
+                actual.getApiKeyInfoList(),
+                contains(new GetApiKeyResponse.Item(apiKey, profileUids == null ? null : profileUids.get(0)))
             );
+        }
+    }
+
+    public void testGetApiKeyWithProfileUid() throws Exception {
+        final boolean isGetRequestWithProfileUid = randomBoolean();
+        final Map<String, String> param = new HashMap<>();
+        if (isGetRequestWithProfileUid) {
+            param.put("with_profile_uid", Boolean.TRUE.toString());
+        } else {
+            if (randomBoolean()) {
+                param.put("with_profile_uid", Boolean.FALSE.toString());
+            }
+        }
+        final FakeRestRequest restRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withParams(param).build();
+        final SetOnce<RestResponse> responseSetOnce = new SetOnce<>();
+        final RestChannel restChannel = new AbstractRestChannel(restRequest, randomBoolean()) {
+            @Override
+            public void sendResponse(RestResponse restResponse) {
+                responseSetOnce.set(restResponse);
+            }
+        };
+        final ApiKey apiKey1 = randomApiKeyInfo(randomBoolean());
+        final List<String> profileUids1 = randomSize1ProfileUidsList();
+        final var client = new NodeClient(Settings.EMPTY, threadPool) {
+            @SuppressWarnings("unchecked")
+            @Override
+            public <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
+                ActionType<Response> action,
+                Request request,
+                ActionListener<Response> listener
+            ) {
+                GetApiKeyRequest getApiKeyRequest = (GetApiKeyRequest) request;
+                ActionRequestValidationException validationException = getApiKeyRequest.validate();
+                if (validationException != null) {
+                    listener.onFailure(validationException);
+                    return;
+                }
+
+                if (getApiKeyRequest.withProfileUid()) {
+                    listener.onResponse((Response) new GetApiKeyResponse(List.of(apiKey1), profileUids1));
+                } else {
+                    listener.onResponse((Response) new GetApiKeyResponse(List.of(apiKey1), null));
+                }
+            }
+        };
+        final RestGetApiKeyAction restGetApiKeyAction = new RestGetApiKeyAction(Settings.EMPTY, mockLicenseState);
+        restGetApiKeyAction.handleRequest(restRequest, restChannel, client);
+        final RestResponse restResponse = responseSetOnce.get();
+        assertNotNull(restResponse);
+        assertThat(restResponse.status(), is(RestStatus.OK));
+        final GetApiKeyResponse actual = GetApiKeyResponse.fromXContent(createParser(XContentType.JSON.xContent(), restResponse.content()));
+        boolean responseHasProfile = isGetRequestWithProfileUid && profileUids1 != null && profileUids1.get(0) != null;
+        if (responseHasProfile) {
+            assertThat(actual.getApiKeyInfoList(), contains(new GetApiKeyResponse.Item(apiKey1, profileUids1.get(0))));
+        } else {
+            assertThat(actual.getApiKeyInfoList(), contains(new GetApiKeyResponse.Item(apiKey1, null)));
         }
     }
 
@@ -212,43 +230,15 @@ public class RestGetApiKeyActionTests extends ESTestCase {
             }
         };
 
-        final ApiKey.Type type = randomFrom(ApiKey.Type.values());
-        final Instant creation = Instant.now();
-        final Instant expiration = randomFrom(Arrays.asList(null, Instant.now().plus(10, ChronoUnit.DAYS)));
-        final ApiKey apiKey1 = new ApiKey(
-            "api-key-name-1",
-            "api-key-id-1",
-            type,
-            creation,
-            expiration,
-            false,
-            null,
-            "user-x",
-            "realm-1",
-            ApiKeyTests.randomMetadata(),
-            type == ApiKey.Type.CROSS_CLUSTER
-                ? List.of(randomCrossClusterAccessRoleDescriptor())
-                : randomUniquelyNamedRoleDescriptors(0, 3),
-            withLimitedBy && type != ApiKey.Type.CROSS_CLUSTER ? randomUniquelyNamedRoleDescriptors(1, 3) : null
+        final ApiKey apiKey1 = randomApiKeyInfo(withLimitedBy);
+        final List<String> profileUids1 = randomSize1ProfileUidsList();
+        final ApiKey apiKey2 = randomApiKeyInfo(withLimitedBy);
+        final List<String> profileUids2 = randomSize2ProfileUidsList();
+        final GetApiKeyResponse getApiKeyResponseExpectedWhenOwnerFlagIsTrue = new GetApiKeyResponse(List.of(apiKey1), profileUids1);
+        final GetApiKeyResponse getApiKeyResponseExpectedWhenOwnerFlagIsFalse = new GetApiKeyResponse(
+            List.of(apiKey1, apiKey2),
+            profileUids2
         );
-        final ApiKey apiKey2 = new ApiKey(
-            "api-key-name-2",
-            "api-key-id-2",
-            type,
-            creation,
-            expiration,
-            false,
-            null,
-            "user-y",
-            "realm-1",
-            ApiKeyTests.randomMetadata(),
-            type == ApiKey.Type.CROSS_CLUSTER
-                ? List.of(randomCrossClusterAccessRoleDescriptor())
-                : randomUniquelyNamedRoleDescriptors(0, 3),
-            withLimitedBy && type != ApiKey.Type.CROSS_CLUSTER ? randomUniquelyNamedRoleDescriptors(1, 3) : null
-        );
-        final GetApiKeyResponse getApiKeyResponseExpectedWhenOwnerFlagIsTrue = new GetApiKeyResponse(Collections.singletonList(apiKey1));
-        final GetApiKeyResponse getApiKeyResponseExpectedWhenOwnerFlagIsFalse = new GetApiKeyResponse(List.of(apiKey1, apiKey2));
 
         final var client = new NodeClient(Settings.EMPTY, threadPool) {
             @SuppressWarnings("unchecked")
@@ -281,11 +271,90 @@ public class RestGetApiKeyActionTests extends ESTestCase {
         assertThat(restResponse.status(), is(RestStatus.OK));
         final GetApiKeyResponse actual = GetApiKeyResponse.fromXContent(createParser(XContentType.JSON.xContent(), restResponse.content()));
         if (isGetRequestForOwnedKeysOnly) {
-            assertThat(actual.getApiKeyInfos().length, is(1));
-            assertThat(actual.getApiKeyInfos(), arrayContaining(apiKey1));
+            assertThat(
+                actual.getApiKeyInfoList(),
+                contains(new GetApiKeyResponse.Item(apiKey1, profileUids1 == null ? null : profileUids1.get(0)))
+            );
         } else {
-            assertThat(actual.getApiKeyInfos().length, is(2));
-            assertThat(actual.getApiKeyInfos(), arrayContaining(apiKey1, apiKey2));
+            assertThat(
+                actual.getApiKeyInfoList(),
+                contains(
+                    new GetApiKeyResponse.Item(apiKey1, profileUids2 == null ? null : profileUids2.get(0)),
+                    new GetApiKeyResponse.Item(apiKey2, profileUids2 == null ? null : profileUids2.get(1))
+                )
+            );
         }
+    }
+
+    private static List<String> randomSize1ProfileUidsList() {
+        final List<String> profileUids;
+        if (randomBoolean()) {
+            if (randomBoolean()) {
+                profileUids = null;
+            } else {
+                profileUids = new ArrayList<>(1);
+                profileUids.add(null);
+            }
+        } else {
+            profileUids = new ArrayList<>(1);
+            profileUids.add(randomAlphaOfLength(8));
+        }
+        return profileUids;
+    }
+
+    private static List<String> randomSize2ProfileUidsList() {
+        final List<String> profileUids2;
+        if (randomBoolean()) {
+            if (randomBoolean()) {
+                profileUids2 = null;
+            } else {
+                profileUids2 = new ArrayList<>(2);
+                profileUids2.add(null);
+                profileUids2.add(null);
+            }
+        } else {
+            profileUids2 = new ArrayList<>(2);
+            if (randomBoolean()) {
+                if (randomBoolean()) {
+                    profileUids2.add(randomAlphaOfLength(8));
+                    profileUids2.add(null);
+                } else {
+                    profileUids2.add(null);
+                    profileUids2.add(randomAlphaOfLength(8));
+                }
+            } else {
+                profileUids2.add(randomAlphaOfLength(8));
+                profileUids2.add(randomAlphaOfLength(8));
+            }
+        }
+        return profileUids2;
+    }
+
+    private ApiKey randomApiKeyInfo(boolean withLimitedBy) {
+        final ApiKey.Type type = randomFrom(ApiKey.Type.values());
+        final Instant creation = Instant.now();
+        final Instant expiration = randomFrom(Arrays.asList(null, Instant.now().plus(10, ChronoUnit.DAYS)));
+        final Map<String, Object> metadata = ApiKeyTests.randomMetadata();
+        final List<RoleDescriptor> roleDescriptors = type == ApiKey.Type.CROSS_CLUSTER
+            ? List.of(randomCrossClusterAccessRoleDescriptor())
+            : randomUniquelyNamedRoleDescriptors(0, 3);
+        final List<RoleDescriptor> limitedByRoleDescriptors = withLimitedBy && type != ApiKey.Type.CROSS_CLUSTER
+            ? randomUniquelyNamedRoleDescriptors(1, 3)
+            : null;
+        return new ApiKey(
+            "api-key-name-" + randomAlphaOfLength(4),
+            "api-key-id-" + randomAlphaOfLength(4),
+            type,
+            creation,
+            expiration,
+            false,
+            null,
+            "user-x",
+            "realm-1",
+            "realm-type-1",
+            metadata,
+            roleDescriptors,
+            limitedByRoleDescriptors
+        );
     }
 }

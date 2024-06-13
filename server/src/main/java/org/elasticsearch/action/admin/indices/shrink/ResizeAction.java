@@ -9,14 +9,15 @@
 package org.elasticsearch.action.admin.indices.shrink;
 
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 
-public class ResizeAction extends ActionType<ResizeResponse> {
+public class ResizeAction extends ActionType<CreateIndexResponse> {
 
     public static final ResizeAction INSTANCE = new ResizeAction();
     public static final String NAME = "indices:admin/resize";
 
     private ResizeAction() {
-        super(NAME, ResizeResponse::new);
+        super(NAME);
     }
 
 }

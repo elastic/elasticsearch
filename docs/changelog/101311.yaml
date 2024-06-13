@@ -1,5 +1,0 @@
-pr: 101311
-summary: Cache resolved index for mgets
-area: CRUD
-type: enhancement
-issues: []

@@ -16,7 +16,7 @@ public class GetFieldMappingsAction extends ActionType<GetFieldMappingsResponse>
     public static final String NAME = "indices:admin/mappings/fields/get";
 
     private GetFieldMappingsAction() {
-        super(NAME, GetFieldMappingsResponse::new);
+        super(NAME);
     }
 
 }

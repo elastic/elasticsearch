@@ -14,7 +14,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.tasks.Task;
@@ -139,7 +138,7 @@ public abstract class TransportAction<Request extends ActionRequest, Response ex
 
     /**
      * A method to use as a placeholder in implementations of {@link TransportAction} which only ever run on the local node, and therefore
-     * do not need to serialize or deserialize any messages. See also {@link Writeable.Reader#localOnly()}.
+     * do not need to serialize or deserialize any messages.
      */
     // TODO remove this when https://github.com/elastic/elasticsearch/issues/100111 is resolved
     public static <T> T localOnly() {

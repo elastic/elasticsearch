@@ -12,7 +12,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchTimeoutException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.bootstrap.BootstrapCheck;
 import org.elasticsearch.bootstrap.BootstrapContext;
@@ -47,6 +46,7 @@ import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.env.BuildVersion;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.NodeMetadata;
@@ -155,7 +155,7 @@ public class Node implements Closeable {
 
     public static final Setting<TimeValue> MAXIMUM_SHUTDOWN_TIMEOUT_SETTING = Setting.positiveTimeSetting(
         "node.maximum_shutdown_grace_period",
-        TimeValue.timeValueMillis(0),
+        TimeValue.ZERO,
         Setting.Property.NodeScope
     );
 
@@ -340,7 +340,7 @@ public class Node implements Closeable {
                     nodeEnvironment.nodeDataPaths()
                 );
                 assert nodeMetadata != null;
-                assert nodeMetadata.nodeVersion().equals(Version.CURRENT);
+                assert nodeMetadata.nodeVersion().equals(BuildVersion.current());
                 assert nodeMetadata.nodeId().equals(localNodeFactory.getNode().getId());
             } catch (IOException e) {
                 assert false : e;
@@ -358,10 +358,6 @@ public class Node implements Closeable {
 
         final FileSettingsService fileSettingsService = injector.getInstance(FileSettingsService.class);
         fileSettingsService.start();
-        // if we are using the readiness service, listen for the file settings being applied
-        if (ReadinessService.enabled(environment)) {
-            fileSettingsService.addFileChangedListener(injector.getInstance(ReadinessService.class));
-        }
 
         clusterService.addStateApplier(transportService.getTaskManager());
         // start after transport service so the local disco is known
@@ -432,6 +428,7 @@ public class Node implements Closeable {
         }
 
         injector.getInstance(NodeMetrics.class).start();
+        injector.getInstance(HealthPeriodicLogger.class).start();
 
         logger.info("started {}", transportService.getLocalNode());
 
@@ -456,6 +453,8 @@ public class Node implements Closeable {
         if (ReadinessService.enabled(environment)) {
             stopIfStarted(ReadinessService.class);
         }
+        // We stop the health periodic logger first since certain checks won't be possible anyway
+        stopIfStarted(HealthPeriodicLogger.class);
         stopIfStarted(FileSettingsService.class);
         injector.getInstance(ResourceWatcherService.class).close();
         stopIfStarted(HttpServerTransport.class);
@@ -618,7 +617,7 @@ public class Node implements Closeable {
         CompletableFuture<Void> allStoppers = CompletableFuture.allOf(futures.values().toArray(new CompletableFuture[stoppers.size()]));
 
         try {
-            if (maxTimeout.millis() == 0) {
+            if (TimeValue.ZERO.equals(maxTimeout)) {
                 FutureUtils.get(allStoppers);
             } else {
                 FutureUtils.get(allStoppers, maxTimeout.millis(), TimeUnit.MILLISECONDS);
@@ -653,7 +652,7 @@ public class Node implements Closeable {
                 // be spending on finishing those searches.
                 final TimeValue pollPeriod = TimeValue.timeValueMillis(500);
                 millisWaited += pollPeriod.millis();
-                if (millisWaited >= asyncSearchTimeout.millis()) {
+                if (TimeValue.ZERO.equals(asyncSearchTimeout) == false && millisWaited >= asyncSearchTimeout.millis()) {
                     logger.warn(
                         format(
                             "timed out after waiting [%s] for [%d] search tasks to finish",

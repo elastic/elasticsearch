@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.core.rollup.action;
 
-import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
@@ -30,7 +29,7 @@ public class PutRollupJobAction extends ActionType<AcknowledgedResponse> {
     public static final String NAME = "cluster:admin/xpack/rollup/put";
 
     private PutRollupJobAction() {
-        super(NAME, AcknowledgedResponse::readFrom);
+        super(NAME);
     }
 
     public static class Request extends AcknowledgedRequest<Request> implements IndicesRequest, ToXContentObject {
@@ -39,6 +38,7 @@ public class PutRollupJobAction extends ActionType<AcknowledgedResponse> {
         private IndicesOptions indicesOptions = IndicesOptions.fromOptions(false, false, true, false);
 
         public Request(RollupJobConfig config) {
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
             this.config = config;
         }
 
@@ -49,6 +49,7 @@ public class PutRollupJobAction extends ActionType<AcknowledgedResponse> {
 
         public Request() {
 
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
         }
 
         public static Request fromXContent(final XContentParser parser, final String id) throws IOException {
@@ -67,11 +68,6 @@ public class PutRollupJobAction extends ActionType<AcknowledgedResponse> {
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             this.config.writeTo(out);
-        }
-
-        @Override
-        public ActionRequestValidationException validate() {
-            return null;
         }
 
         public RollupActionRequestValidationException validateMappings(Map<String, Map<String, FieldCapabilities>> fieldCapsResponse) {

@@ -33,7 +33,7 @@ public class ListConnectorSyncJobsActionResponseBWCSerializingTests extends Abst
     @Override
     protected ListConnectorSyncJobsAction.Response createTestInstance() {
         return new ListConnectorSyncJobsAction.Response(
-            randomList(10, ConnectorSyncJobTestUtils::getRandomConnectorSyncJob),
+            randomList(10, ConnectorSyncJobTestUtils::getRandomSyncJobSearchResult),
             randomLongBetween(0, 100)
         );
     }

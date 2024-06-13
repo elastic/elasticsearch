@@ -82,6 +82,7 @@ import static org.elasticsearch.test.ESTestCase.randomFrom;
 import static org.elasticsearch.test.ESTestCase.randomZone;
 import static org.elasticsearch.xpack.ql.TestUtils.StringContainsRegex.containsRegex;
 import static org.elasticsearch.xpack.ql.tree.Source.EMPTY;
+import static org.elasticsearch.xpack.ql.type.DataTypes.INTEGER;
 import static org.hamcrest.Matchers.containsString;
 import static org.junit.Assert.assertEquals;
 
@@ -286,7 +287,7 @@ public final class TestUtils {
     public static Tuple<String, String> pathAndName(String string) {
         String folder = StringUtils.EMPTY;
         String file = string;
-        int lastIndexOf = string.lastIndexOf("/");
+        int lastIndexOf = string.lastIndexOf('/');
         if (lastIndexOf > 0) {
             folder = string.substring(0, lastIndexOf - 1);
             if (lastIndexOf + 1 < string.length()) {
@@ -443,6 +444,14 @@ public final class TestUtils {
             }
         }
         return arr;
+    }
+
+    public static FieldAttribute getFieldAttribute(String name) {
+        return getFieldAttribute(name, INTEGER);
+    }
+
+    public static FieldAttribute getFieldAttribute(String name, DataType dataType) {
+        return new FieldAttribute(EMPTY, name, new EsField(name + "f", dataType, emptyMap(), true));
     }
 
     // Matcher which extends the functionality of org.hamcrest.Matchers.matchesPattern(String)}

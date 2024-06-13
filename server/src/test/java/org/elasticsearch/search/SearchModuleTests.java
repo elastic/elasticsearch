@@ -425,6 +425,7 @@ public class SearchModuleTests extends ESTestCase {
         "combined_fields",
         "dis_max",
         "exists",
+        "exact_knn",
         "function_score",
         "fuzzy",
         "geo_bounding_box",

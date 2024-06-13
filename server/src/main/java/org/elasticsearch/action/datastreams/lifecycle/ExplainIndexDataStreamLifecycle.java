@@ -8,7 +8,9 @@
 
 package org.elasticsearch.action.datastreams.lifecycle;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.admin.indices.rollover.RolloverConfiguration;
+import org.elasticsearch.cluster.metadata.DataStreamGlobalRetention;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -23,7 +25,7 @@ import java.io.IOException;
 import java.util.Objects;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.TransportVersions.DSL_ERROR_STORE_INFORMATION_ENHANCED;
+import static org.elasticsearch.TransportVersions.V_8_12_0;
 
 /**
  * Encapsulates the information that describes an index from its data stream lifecycle perspective.
@@ -43,6 +45,7 @@ public class ExplainIndexDataStreamLifecycle implements Writeable, ToXContentObj
 
     private final String index;
     private final boolean managedByLifecycle;
+    private final boolean isSystemDataStream;
     @Nullable
     private final Long indexCreationDate;
     @Nullable
@@ -58,6 +61,7 @@ public class ExplainIndexDataStreamLifecycle implements Writeable, ToXContentObj
     public ExplainIndexDataStreamLifecycle(
         String index,
         boolean managedByLifecycle,
+        boolean isSystemDataStream,
         @Nullable Long indexCreationDate,
         @Nullable Long rolloverDate,
         @Nullable TimeValue generationDate,
@@ -66,6 +70,7 @@ public class ExplainIndexDataStreamLifecycle implements Writeable, ToXContentObj
     ) {
         this.index = index;
         this.managedByLifecycle = managedByLifecycle;
+        this.isSystemDataStream = isSystemDataStream;
         this.indexCreationDate = indexCreationDate;
         this.rolloverDate = rolloverDate;
         this.generationDateMillis = generationDate == null ? null : generationDate.millis();
@@ -76,12 +81,17 @@ public class ExplainIndexDataStreamLifecycle implements Writeable, ToXContentObj
     public ExplainIndexDataStreamLifecycle(StreamInput in) throws IOException {
         this.index = in.readString();
         this.managedByLifecycle = in.readBoolean();
+        if (in.getTransportVersion().onOrAfter(TransportVersions.NO_GLOBAL_RETENTION_FOR_SYSTEM_DATA_STREAMS)) {
+            this.isSystemDataStream = in.readBoolean();
+        } else {
+            this.isSystemDataStream = false;
+        }
         if (managedByLifecycle) {
             this.indexCreationDate = in.readOptionalLong();
             this.rolloverDate = in.readOptionalLong();
             this.generationDateMillis = in.readOptionalLong();
             this.lifecycle = in.readOptionalWriteable(DataStreamLifecycle::new);
-            if (in.getTransportVersion().onOrAfter(DSL_ERROR_STORE_INFORMATION_ENHANCED)) {
+            if (in.getTransportVersion().onOrAfter(V_8_12_0)) {
                 this.error = in.readOptionalWriteable(ErrorEntry::new);
             } else {
                 String bwcErrorMessage = in.readOptionalString();
@@ -98,11 +108,15 @@ public class ExplainIndexDataStreamLifecycle implements Writeable, ToXContentObj
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return toXContent(builder, params, null);
+        return toXContent(builder, params, null, null);
     }
 
-    public XContentBuilder toXContent(XContentBuilder builder, Params params, @Nullable RolloverConfiguration rolloverConfiguration)
-        throws IOException {
+    public XContentBuilder toXContent(
+        XContentBuilder builder,
+        Params params,
+        @Nullable RolloverConfiguration rolloverConfiguration,
+        @Nullable DataStreamGlobalRetention globalRetention
+    ) throws IOException {
         builder.startObject();
         builder.field(INDEX_FIELD.getPreferredName(), index);
         builder.field(MANAGED_BY_LIFECYCLE_FIELD.getPreferredName(), managedByLifecycle);
@@ -127,7 +141,7 @@ public class ExplainIndexDataStreamLifecycle implements Writeable, ToXContentObj
             }
             if (this.lifecycle != null) {
                 builder.field(LIFECYCLE_FIELD.getPreferredName());
-                lifecycle.toXContent(builder, params, rolloverConfiguration);
+                lifecycle.toXContent(builder, params, rolloverConfiguration, isSystemDataStream ? null : globalRetention);
             }
             if (this.error != null) {
                 if (error.firstOccurrenceTimestamp() != -1L && error.recordedTimestamp() != -1L && error.retryCount() != -1) {
@@ -146,12 +160,15 @@ public class ExplainIndexDataStreamLifecycle implements Writeable, ToXContentObj
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(index);
         out.writeBoolean(managedByLifecycle);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.NO_GLOBAL_RETENTION_FOR_SYSTEM_DATA_STREAMS)) {
+            out.writeBoolean(isSystemDataStream);
+        }
         if (managedByLifecycle) {
             out.writeOptionalLong(indexCreationDate);
             out.writeOptionalLong(rolloverDate);
             out.writeOptionalLong(generationDateMillis);
             out.writeOptionalWriteable(lifecycle);
-            if (out.getTransportVersion().onOrAfter(DSL_ERROR_STORE_INFORMATION_ENHANCED)) {
+            if (out.getTransportVersion().onOrAfter(V_8_12_0)) {
                 out.writeOptionalWriteable(error);
             } else {
                 String errorMessage = error != null ? error.error() : null;

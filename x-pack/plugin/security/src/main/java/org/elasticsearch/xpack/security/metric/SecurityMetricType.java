@@ -49,6 +49,13 @@ public enum SecurityMetricType {
         )
     ),
 
+    AUTHC_REALMS(
+        SecurityMetricGroup.AUTHC,
+        new SecurityMetricInfo("es.security.authc.realms.success.total", "Number of successful realm authentications.", "count"),
+        new SecurityMetricInfo("es.security.authc.realms.failures.total", "Number of failed realm authentications.", "count"),
+        new SecurityMetricInfo("es.security.authc.realms.time", "Time it took (in nanoseconds) to execute realm authentication.", "ns")
+    ),
+
     ;
 
     private final SecurityMetricGroup group;

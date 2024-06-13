@@ -33,6 +33,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Predicates;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.plugins.SystemIndexPlugin;
@@ -384,11 +385,11 @@ public class SystemIndices {
     public Predicate<String> getProductSystemIndexNamePredicate(ThreadContext threadContext) {
         final String product = threadContext.getHeader(EXTERNAL_SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY);
         if (product == null) {
-            return name -> false;
+            return Predicates.never();
         }
         final CharacterRunAutomaton automaton = productToSystemIndicesMatcher.get(product);
         if (automaton == null) {
-            return name -> false;
+            return Predicates.never();
         }
         return automaton::run;
     }

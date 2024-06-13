@@ -11,6 +11,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.ClusterInfoServiceUtils;
+import org.elasticsearch.cluster.DiskUsage;
 import org.elasticsearch.cluster.DiskUsageIntegTestCase;
 import org.elasticsearch.cluster.InternalClusterInfoService;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
@@ -176,6 +177,7 @@ public class SearchableSnapshotDiskThresholdIntegTests extends DiskUsageIntegTes
             client().execute(
                 MountSearchableSnapshotAction.INSTANCE,
                 new MountSearchableSnapshotRequest(
+                    TEST_REQUEST_TIMEOUT,
                     prefix + index,
                     repositoryName,
                     snapshotName,
@@ -232,10 +234,8 @@ public class SearchableSnapshotDiskThresholdIntegTests extends DiskUsageIntegTes
         final var masterInfoService = (InternalClusterInfoService) internalCluster().getCurrentMasterNodeInstance(ClusterInfoService.class);
         ClusterInfoServiceUtils.refresh(masterInfoService);
 
-        assertThat(
-            masterInfoService.getClusterInfo().getNodeMostAvailableDiskUsages().get(otherDataNodeId).getTotalBytes(),
-            equalTo(totalSpace)
-        );
+        DiskUsage usage = masterInfoService.getClusterInfo().getNodeMostAvailableDiskUsages().get(otherDataNodeId);
+        assertThat(usage.totalBytes(), equalTo(totalSpace));
 
         mountIndices(indicesStoresSizes.keySet(), "mounted-", repositoryName, snapshot, storage);
 
@@ -309,10 +309,8 @@ public class SearchableSnapshotDiskThresholdIntegTests extends DiskUsageIntegTes
             ClusterInfoService.class
         );
         ClusterInfoServiceUtils.refresh(masterInfoService);
-        assertThat(
-            masterInfoService.getClusterInfo().getNodeMostAvailableDiskUsages().get(coldNodeId).getTotalBytes(),
-            equalTo(totalSpace)
-        );
+        DiskUsage usage = masterInfoService.getClusterInfo().getNodeMostAvailableDiskUsages().get(coldNodeId);
+        assertThat(usage.totalBytes(), equalTo(totalSpace));
 
         String prefix = "mounted-";
         mountIndices(indicesToBeMounted.keySet(), prefix, repositoryName, snapshotName, FULL_COPY);

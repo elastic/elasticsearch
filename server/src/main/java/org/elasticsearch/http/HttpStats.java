@@ -24,7 +24,7 @@ import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.TransportVersions.NODE_STATS_HTTP_ROUTE_STATS_ADDED;
+import static org.elasticsearch.TransportVersions.V_8_12_0;
 
 public record HttpStats(long serverOpen, long totalOpen, List<ClientStats> clientStats, Map<String, HttpRouteStats> httpRouteStats)
     implements
@@ -42,7 +42,7 @@ public record HttpStats(long serverOpen, long totalOpen, List<ClientStats> clien
             in.readVLong(),
             in.readVLong(),
             in.readCollectionAsList(ClientStats::new),
-            in.getTransportVersion().onOrAfter(NODE_STATS_HTTP_ROUTE_STATS_ADDED) ? in.readMap(HttpRouteStats::new) : Map.of()
+            in.getTransportVersion().onOrAfter(V_8_12_0) ? in.readMap(HttpRouteStats::new) : Map.of()
         );
     }
 
@@ -51,7 +51,7 @@ public record HttpStats(long serverOpen, long totalOpen, List<ClientStats> clien
         out.writeVLong(serverOpen);
         out.writeVLong(totalOpen);
         out.writeCollection(clientStats);
-        if (out.getTransportVersion().onOrAfter(NODE_STATS_HTTP_ROUTE_STATS_ADDED)) {
+        if (out.getTransportVersion().onOrAfter(V_8_12_0)) {
             out.writeMap(httpRouteStats, StreamOutput::writeWriteable);
         }
     }

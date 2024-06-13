@@ -28,7 +28,6 @@ import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.core.TimeValue;
@@ -55,7 +54,7 @@ public class GetGlobalCheckpointsAction extends ActionType<GetGlobalCheckpointsA
     public static final String NAME = "indices:monitor/fleet/global_checkpoints";
 
     private GetGlobalCheckpointsAction() {
-        super(NAME, Writeable.Reader.localOnly());
+        super(NAME);
     }
 
     public static class Response extends ActionResponse implements ToXContentObject {

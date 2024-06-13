@@ -289,15 +289,15 @@ public abstract class PackagingTestCase extends Assert {
     protected void assertWhileRunning(Platforms.PlatformAction assertions) throws Exception {
         try {
             awaitElasticsearchStartup(runElasticsearchStartCommand(null, true, false));
-        } catch (Exception e) {
+        } catch (AssertionError | Exception e) {
             dumpDebug();
             throw e;
         }
 
         try {
             assertions.run();
-        } catch (Exception e) {
-            logger.warn("Elasticsearch log:\n" + FileUtils.slurpAllLogs(installation.logs, "elasticsearch.log", "*.log.gz"));
+        } catch (AssertionError | Exception e) {
+            dumpDebug();
             throw e;
         }
         stopElasticsearch();
@@ -392,15 +392,8 @@ public abstract class PackagingTestCase extends Assert {
     public void startElasticsearch() throws Exception {
         try {
             awaitElasticsearchStartup(runElasticsearchStartCommand(null, true, false));
-        } catch (Exception e) {
-            if (Files.exists(installation.home.resolve("elasticsearch.pid"))) {
-                String pid = FileUtils.slurp(installation.home.resolve("elasticsearch.pid")).trim();
-                logger.info("elasticsearch process ({}) failed to start", pid);
-                if (sh.run("jps").stdout().contains(pid)) {
-                    logger.info("Dumping jstack of elasticsearch process ({}) ", pid);
-                    sh.runIgnoreExitCode("jstack " + pid);
-                }
-            }
+        } catch (AssertionError | Exception e) {
+            dumpDebug();
             throw e;
         }
     }

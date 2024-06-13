@@ -12,9 +12,8 @@ import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksAction;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
-import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksResponse;
+import org.elasticsearch.action.admin.cluster.node.tasks.cancel.TransportCancelTasksAction;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.action.support.ActionTestUtils;
@@ -101,12 +100,7 @@ public class CancellableTasksTests extends TaskManagerTestCase {
     }
 
     public static class CancellableNodesRequest extends BaseNodesRequest<CancellableNodesRequest> {
-        private String requestName;
-
-        private CancellableNodesRequest(StreamInput in) throws IOException {
-            super(in);
-            requestName = in.readString();
-        }
+        private final String requestName;
 
         public CancellableNodesRequest(String requestName, String... nodesIds) {
             super(nodesIds);
@@ -148,7 +142,7 @@ public class CancellableTasksTests extends TaskManagerTestCase {
             boolean shouldBlock,
             CountDownLatch actionStartedLatch
         ) {
-            super(actionName, threadPool, clusterService, transportService, CancellableNodesRequest::new, CancellableNodeRequest::new);
+            super(actionName, threadPool, clusterService, transportService, CancellableNodeRequest::new);
             this.shouldBlock = shouldBlock;
             this.actionStartedLatch = actionStartedLatch;
         }
@@ -289,7 +283,7 @@ public class CancellableTasksTests extends TaskManagerTestCase {
         request.setReason("Testing Cancellation");
         request.setTargetTaskId(new TaskId(testNodes[0].getNodeId(), mainTask.getId()));
         // And send the cancellation request to a random node
-        CancelTasksResponse response = ActionTestUtils.executeBlocking(
+        ListTasksResponse response = ActionTestUtils.executeBlocking(
             testNodes[randomIntBetween(0, testNodes.length - 1)].transportCancelTasksAction,
             request
         );
@@ -368,7 +362,7 @@ public class CancellableTasksTests extends TaskManagerTestCase {
         request.setReason("Testing Cancellation");
         request.setTargetParentTaskId(new TaskId(testNodes[0].getNodeId(), mainTask.getId()));
         // And send the cancellation request to a random node
-        CancelTasksResponse response = ActionTestUtils.executeBlocking(
+        ListTasksResponse response = ActionTestUtils.executeBlocking(
             testNodes[randomIntBetween(1, testNodes.length - 1)].transportCancelTasksAction,
             request
         );
@@ -487,7 +481,7 @@ public class CancellableTasksTests extends TaskManagerTestCase {
                 request.setReason("Testing Cancellation");
                 request.setTargetTaskId(new TaskId(testNodes[0].getNodeId(), mainTask.getId()));
                 // And send the cancellation request to a random node
-                CancelTasksResponse response = ActionTestUtils.executeBlocking(testNodes[0].transportCancelTasksAction, request);
+                ListTasksResponse response = ActionTestUtils.executeBlocking(testNodes[0].transportCancelTasksAction, request);
                 logger.info("--> Done simulating issuing cancel request on the node that is about to leave the cluster");
                 // This node still thinks that's part of the cluster, so cancelling should look successful
                 assertThat(response.getTasks().size(), lessThanOrEqualTo(1));
@@ -544,7 +538,7 @@ public class CancellableTasksTests extends TaskManagerTestCase {
             randomSubsetOf(randomIntBetween(1, testNodes.length - 1), testNodes).stream().map(TestNode::getNodeId).toArray(String[]::new)
         );
         // And send the cancellation request to a random node
-        CancelTasksResponse response = ActionTestUtils.executeBlocking(
+        ListTasksResponse response = ActionTestUtils.executeBlocking(
             testNodes[randomIntBetween(1, testNodes.length - 1)].transportCancelTasksAction,
             request
         );
@@ -556,7 +550,7 @@ public class CancellableTasksTests extends TaskManagerTestCase {
             // Make sure that main task is no longer running
             ListTasksResponse listTasksResponse = ActionTestUtils.executeBlocking(
                 testNodes[randomIntBetween(0, testNodes.length - 1)].transportListTasksAction,
-                new ListTasksRequest().setActions(CancelTasksAction.NAME + "*")
+                new ListTasksRequest().setActions(TransportCancelTasksAction.NAME + "*")
             );
             assertEquals(0, listTasksResponse.getTasks().size());
         });

@@ -15,12 +15,12 @@ import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
-import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.analysis.common.CommonAnalysisPlugin;
 import org.elasticsearch.client.internal.Client;
@@ -409,7 +409,8 @@ public abstract class CcrIntegTestCase extends ESTestCase {
         String color = clusterHealthStatus.name().toLowerCase(Locale.ROOT);
         String method = "ensure" + Strings.capitalize(color);
 
-        ClusterHealthRequest healthRequest = new ClusterHealthRequest(indices).timeout(timeout)
+        ClusterHealthRequest healthRequest = new ClusterHealthRequest(indices).masterNodeTimeout(timeout)
+            .timeout(timeout)
             .waitForStatus(clusterHealthStatus)
             .waitForEvents(Priority.LANGUID)
             .waitForNoRelocatingShards(true)
@@ -461,8 +462,8 @@ public abstract class CcrIntegTestCase extends ESTestCase {
         return new Index(index, uuid);
     }
 
-    protected final RefreshResponse refresh(Client client, String... indices) {
-        RefreshResponse actionGet = client.admin().indices().prepareRefresh(indices).get();
+    protected final BroadcastResponse refresh(Client client, String... indices) {
+        BroadcastResponse actionGet = client.admin().indices().prepareRefresh(indices).get();
         assertNoFailures(actionGet);
         return actionGet;
     }
@@ -483,7 +484,7 @@ public abstract class CcrIntegTestCase extends ESTestCase {
 
     protected void pauseFollow(String... indices) throws Exception {
         for (String index : indices) {
-            final PauseFollowAction.Request unfollowRequest = new PauseFollowAction.Request(index);
+            final PauseFollowAction.Request unfollowRequest = new PauseFollowAction.Request(TEST_REQUEST_TIMEOUT, index);
             assertAcked(followerClient().execute(PauseFollowAction.INSTANCE, unfollowRequest).actionGet());
         }
         ensureNoCcrTasks();
@@ -491,8 +492,10 @@ public abstract class CcrIntegTestCase extends ESTestCase {
 
     protected void ensureNoCcrTasks() throws Exception {
         assertBusy(() -> {
-            CcrStatsAction.Response statsResponse = followerClient().execute(CcrStatsAction.INSTANCE, new CcrStatsAction.Request())
-                .actionGet();
+            CcrStatsAction.Response statsResponse = followerClient().execute(
+                CcrStatsAction.INSTANCE,
+                new CcrStatsAction.Request(TEST_REQUEST_TIMEOUT)
+            ).actionGet();
             assertThat(
                 "Follow stats not empty: " + Strings.toString(statsResponse.getFollowStats()),
                 statsResponse.getFollowStats().getStatsResponses(),
@@ -585,7 +588,7 @@ public abstract class CcrIntegTestCase extends ESTestCase {
     }
 
     public static PutFollowAction.Request putFollow(String leaderIndex, String followerIndex, ActiveShardCount waitForActiveShards) {
-        PutFollowAction.Request request = new PutFollowAction.Request();
+        PutFollowAction.Request request = new PutFollowAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT);
         request.setRemoteCluster("leader_cluster");
         request.setLeaderIndex(leaderIndex);
         request.setFollowerIndex(followerIndex);
@@ -594,14 +597,20 @@ public abstract class CcrIntegTestCase extends ESTestCase {
         request.getParameters().setMaxReadRequestSize(ByteSizeValue.ofBytes(between(1, 32 * 1024 * 1024)));
         request.getParameters().setMaxReadRequestOperationCount(between(1, 10000));
         request.waitForActiveShards(waitForActiveShards);
+        if (randomBoolean()) {
+            request.masterNodeTimeout(TimeValue.timeValueSeconds(randomFrom(10, 20, 30)));
+        }
         return request;
     }
 
     public static ResumeFollowAction.Request resumeFollow(String followerIndex) {
-        ResumeFollowAction.Request request = new ResumeFollowAction.Request();
+        ResumeFollowAction.Request request = new ResumeFollowAction.Request(TEST_REQUEST_TIMEOUT);
         request.setFollowerIndex(followerIndex);
         request.getParameters().setMaxRetryDelay(TimeValue.timeValueMillis(10));
         request.getParameters().setReadPollTimeout(TimeValue.timeValueMillis(10));
+        if (randomBoolean()) {
+            request.masterNodeTimeout(TimeValue.timeValueSeconds(randomFrom(10, 20, 30)));
+        }
         return request;
     }
 

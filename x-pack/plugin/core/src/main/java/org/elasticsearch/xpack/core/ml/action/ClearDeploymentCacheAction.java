@@ -27,7 +27,7 @@ public class ClearDeploymentCacheAction extends ActionType<ClearDeploymentCacheA
     public static final String NAME = "cluster:admin/xpack/ml/trained_models/deployment/clear_cache";
 
     private ClearDeploymentCacheAction() {
-        super(NAME, Response::new);
+        super(NAME);
     }
 
     public static class Request extends BaseTasksRequest<Request> {

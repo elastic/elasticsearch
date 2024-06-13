@@ -21,14 +21,13 @@ import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
+import org.elasticsearch.test.InternalAggregationTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
-import org.elasticsearch.xcontent.ContextParser;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -54,11 +53,6 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.mockito.Mockito.mock;
 
 public class InternalAutoDateHistogramTests extends AggregationMultiBucketAggregationTestCase<InternalAutoDateHistogram> {
-
-    @Override
-    protected Map.Entry<String, ContextParser<Object, Aggregation>> getParser() {
-        return Map.entry(AutoDateHistogramAggregationBuilder.NAME, (p, c) -> ParsedAutoDateHistogram.fromXContent(p, (String) c));
-    }
 
     protected InternalAutoDateHistogram createTestInstance(
         String name,
@@ -275,11 +269,6 @@ public class InternalAutoDateHistogramTests extends AggregationMultiBucketAggreg
     }
 
     @Override
-    protected Class<ParsedAutoDateHistogram> implementationClass() {
-        return ParsedAutoDateHistogram.class;
-    }
-
-    @Override
     protected InternalAutoDateHistogram mutateInstance(InternalAutoDateHistogram instance) {
         String name = instance.getName();
         List<InternalAutoDateHistogram.Bucket> buckets = instance.getBuckets();
@@ -433,7 +422,7 @@ public class InternalAutoDateHistogramTests extends AggregationMultiBucketAggreg
 
         InternalAutoDateHistogram reduce() {
             assertThat("finishShardResult must be called before reduce", buckets, empty());
-            return (InternalAutoDateHistogram) results.get(0).reduce(results, emptyReduceContextBuilder().forFinalReduction());
+            return (InternalAutoDateHistogram) InternalAggregationTestCase.reduce(results, emptyReduceContextBuilder().forFinalReduction());
         }
     }
 

@@ -84,7 +84,7 @@ public class DataFrameAnalyticsTaskState implements PersistentTaskState, MlTaskS
         this.state = DataFrameAnalyticsState.fromStream(in);
         this.allocationId = in.readLong();
         this.reason = in.readOptionalString();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.ML_STATE_CHANGE_TIMESTAMPS)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
             lastStateChangeTime = in.readOptionalInstant();
         } else {
             lastStateChangeTime = null;
@@ -129,7 +129,7 @@ public class DataFrameAnalyticsTaskState implements PersistentTaskState, MlTaskS
         state.writeTo(out);
         out.writeLong(allocationId);
         out.writeOptionalString(reason);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ML_STATE_CHANGE_TIMESTAMPS)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
             out.writeOptionalInstant(lastStateChangeTime);
         }
     }

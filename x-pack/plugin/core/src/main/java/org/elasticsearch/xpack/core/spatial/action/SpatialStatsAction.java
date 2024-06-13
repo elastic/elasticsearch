@@ -33,7 +33,7 @@ public class SpatialStatsAction extends ActionType<SpatialStatsAction.Response> 
     public static final String NAME = "cluster:monitor/xpack/spatial/stats";
 
     private SpatialStatsAction() {
-        super(NAME, Writeable.Reader.localOnly());
+        super(NAME);
     }
 
     /**

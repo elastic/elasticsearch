@@ -33,7 +33,6 @@ import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
-import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -85,21 +84,21 @@ import org.hamcrest.Matchers;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Collections;
-import java.util.Map;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.cluster.routing.TestShardRouting.shardRoutingBuilder;
+
 public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
 
     public void testSourceIncomplete() throws IOException {
-        ShardRouting shardRouting = TestShardRouting.newShardRouting(
+        ShardRouting shardRouting = shardRoutingBuilder(
             new ShardId("index", "_na_", 0),
             randomAlphaOfLength(10),
             true,
-            ShardRoutingState.INITIALIZING,
-            RecoverySource.EmptyStoreRecoverySource.INSTANCE
-        );
+            ShardRoutingState.INITIALIZING
+        ).withRecoverySource(RecoverySource.EmptyStoreRecoverySource.INSTANCE).build();
         Settings settings = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
@@ -351,18 +350,19 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
             assertEquals(copy.getStage(), IndexShardSnapshotStatus.Stage.DONE);
         }
         shard.refresh("test");
-        ShardRouting shardRouting = TestShardRouting.newShardRouting(
+        ShardRouting shardRouting = shardRoutingBuilder(
             new ShardId("index", "_na_", 0),
             randomAlphaOfLength(10),
             true,
-            ShardRoutingState.INITIALIZING,
+            ShardRoutingState.INITIALIZING
+        ).withRecoverySource(
             new RecoverySource.SnapshotRecoverySource(
                 UUIDs.randomBase64UUID(),
                 new Snapshot("src_only", snapshotId),
                 IndexVersion.current(),
                 indexId
             )
-        );
+        ).build();
         IndexMetadata metadata = runAsSnapshot(
             threadPool,
             () -> repository.getSnapshotIndexMetaData(
@@ -445,13 +445,12 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
     }
 
     public IndexShard reindex(DirectoryReader reader, MappingMetadata mapping) throws IOException {
-        ShardRouting targetShardRouting = TestShardRouting.newShardRouting(
+        ShardRouting targetShardRouting = shardRoutingBuilder(
             new ShardId("target", "_na_", 0),
             randomAlphaOfLength(10),
             true,
-            ShardRoutingState.INITIALIZING,
-            RecoverySource.EmptyStoreRecoverySource.INSTANCE
-        );
+            ShardRoutingState.INITIALIZING
+        ).withRecoverySource(RecoverySource.EmptyStoreRecoverySource.INSTANCE).build();
         Settings settings = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
@@ -481,14 +480,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
                         Engine.Result result = targetShard.applyIndexOperationOnPrimary(
                             Versions.MATCH_ANY,
                             VersionType.INTERNAL,
-                            new SourceToParse(
-                                id,
-                                source,
-                                XContentHelper.xContentType(source),
-                                rootFieldsVisitor.routing(),
-                                Map.of(),
-                                false
-                            ),
+                            new SourceToParse(id, source, XContentHelper.xContentType(source), rootFieldsVisitor.routing()),
                             SequenceNumbers.UNASSIGNED_SEQ_NO,
                             0,
                             IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP,

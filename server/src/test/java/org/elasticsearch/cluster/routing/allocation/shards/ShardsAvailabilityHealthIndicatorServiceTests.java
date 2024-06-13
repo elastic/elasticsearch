@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.AllocateUnassignedDecision;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
@@ -406,6 +407,95 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                 randomBoolean()
             );
             assertTrue(status.replicas.doAnyIndicesHaveAllUnavailable());
+        }
+        {
+            ClusterState clusterState = createClusterStateWith(
+                List.of(
+                    indexNewlyCreated(
+                        "myindex",
+                        new ShardAllocation(
+                            randomNodeId(),
+                            CREATING,
+                            new UnassignedInfo(
+                                UnassignedInfo.Reason.NODE_LEFT,
+                                "message",
+                                null,
+                                0,
+                                0,
+                                0,
+                                false,
+                                UnassignedInfo.AllocationStatus.NO_ATTEMPT,
+                                Set.of(),
+                                null
+                            )
+                        ), // Primary 1
+                        new ShardAllocation(randomNodeId(), UNAVAILABLE) // Replica 1
+                    )
+                ),
+                List.of()
+            );
+            var service = createShardsAvailabilityIndicatorService(clusterState);
+            ShardAllocationStatus status = service.createNewStatus(clusterState.metadata());
+            ShardsAvailabilityHealthIndicatorService.updateShardAllocationStatus(
+                status,
+                clusterState,
+                NodesShutdownMetadata.EMPTY,
+                randomBoolean()
+            );
+            // Here because the replica is unassigned due to the primary being created, it's treated as though the replica can be ignored.
+            assertFalse(
+                "an unassigned replica from a newly created and initializing primary "
+                    + "should not be treated as an index with all replicas unavailable",
+                status.replicas.doAnyIndicesHaveAllUnavailable()
+            );
+        }
+
+        /*
+          A couple of tests for
+          {@link ShardsAvailabilityHealthIndicatorService#areAllShardsOfThisTypeUnavailable(ShardRouting, ClusterState)}
+         */
+        {
+            IndexRoutingTable routingTable = indexWithTwoPrimaryOneReplicaShard(
+                "myindex",
+                new ShardAllocation(randomNodeId(), AVAILABLE), // Primary 1
+                new ShardAllocation(randomNodeId(), AVAILABLE), // Replica 1
+                new ShardAllocation(randomNodeId(), AVAILABLE), // Primary 2
+                new ShardAllocation(randomNodeId(), UNAVAILABLE) // Replica 2
+            );
+            ClusterState clusterState = createClusterStateWith(List.of(routingTable), List.of());
+            var service = createShardsAvailabilityIndicatorService(clusterState);
+            ShardAllocationStatus status = service.createNewStatus(clusterState.metadata());
+            ShardsAvailabilityHealthIndicatorService.updateShardAllocationStatus(
+                status,
+                clusterState,
+                NodesShutdownMetadata.EMPTY,
+                randomBoolean()
+            );
+            var shardRouting = routingTable.shardsWithState(ShardRoutingState.UNASSIGNED).get(0);
+            assertTrue(service.areAllShardsOfThisTypeUnavailable(shardRouting, clusterState));
+        }
+        {
+            ClusterState clusterState = createClusterStateWith(
+                List.of(
+                    index(
+                        "myindex",
+                        new ShardAllocation(randomNodeId(), AVAILABLE),
+                        new ShardAllocation(randomNodeId(), AVAILABLE),
+                        new ShardAllocation(randomNodeId(), UNAVAILABLE)
+                    )
+                ),
+                List.of()
+            );
+            var service = createShardsAvailabilityIndicatorService(clusterState);
+            ShardAllocationStatus status = service.createNewStatus(clusterState.metadata());
+            ShardsAvailabilityHealthIndicatorService.updateShardAllocationStatus(
+                status,
+                clusterState,
+                NodesShutdownMetadata.EMPTY,
+                randomBoolean()
+            );
+            var shardRouting = clusterState.routingTable().index("myindex").shardsWithState(ShardRoutingState.UNASSIGNED).get(0);
+            assertFalse(service.areAllShardsOfThisTypeUnavailable(shardRouting, clusterState));
         }
     }
 
@@ -1913,6 +2003,72 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         }
     }
 
+    public void testIsNewlyCreatedAndInitializingReplica() {
+        ShardId id = new ShardId("index", "uuid", 0);
+        IndexMetadata idxMeta = IndexMetadata.builder("index")
+            .numberOfShards(1)
+            .numberOfReplicas(1)
+            .settings(
+                Settings.builder()
+                    .put("index.number_of_shards", 1)
+                    .put("index.number_of_replicas", 1)
+                    .put("index.version.created", IndexVersion.current())
+                    .put("index.uuid", "uuid")
+                    .build()
+            )
+            .build();
+        ShardRouting primary = createShardRouting(id, true, new ShardAllocation("node", AVAILABLE));
+        var state = createClusterStateWith(List.of(index("index", new ShardAllocation("node", AVAILABLE))), List.of());
+        assertFalse(ShardsAvailabilityHealthIndicatorService.isNewlyCreatedAndInitializingReplica(primary, state));
+
+        ShardRouting replica = createShardRouting(id, false, new ShardAllocation("node", AVAILABLE));
+        state = createClusterStateWith(List.of(index("index", new ShardAllocation("node", AVAILABLE))), List.of());
+        assertFalse(ShardsAvailabilityHealthIndicatorService.isNewlyCreatedAndInitializingReplica(replica, state));
+
+        ShardRouting unassignedReplica = createShardRouting(id, false, new ShardAllocation("node", UNAVAILABLE));
+        state = createClusterStateWith(
+            List.of(idxMeta),
+            List.of(index("index", "uuid", new ShardAllocation("node", UNAVAILABLE))),
+            List.of(),
+            List.of()
+        );
+        assertFalse(ShardsAvailabilityHealthIndicatorService.isNewlyCreatedAndInitializingReplica(unassignedReplica, state));
+
+        UnassignedInfo.Reason reason = randomFrom(UnassignedInfo.Reason.NODE_LEFT, UnassignedInfo.Reason.NODE_RESTARTING);
+        ShardAllocation allocation = new ShardAllocation(
+            "node",
+            UNAVAILABLE,
+            new UnassignedInfo(
+                reason,
+                "message",
+                null,
+                0,
+                0,
+                0,
+                randomBoolean(),
+                randomFrom(UnassignedInfo.AllocationStatus.values()),
+                Set.of(),
+                reason == UnassignedInfo.Reason.NODE_LEFT ? null : randomAlphaOfLength(20)
+            )
+        );
+        ShardRouting unallocatedReplica = createShardRouting(id, false, allocation);
+        state = createClusterStateWith(
+            List.of(idxMeta),
+            List.of(index(idxMeta, new ShardAllocation("node", UNAVAILABLE), allocation)),
+            List.of(),
+            List.of()
+        );
+        assertFalse(ShardsAvailabilityHealthIndicatorService.isNewlyCreatedAndInitializingReplica(unallocatedReplica, state));
+
+        state = createClusterStateWith(
+            List.of(idxMeta),
+            List.of(index(idxMeta, new ShardAllocation("node", CREATING), allocation)),
+            List.of(),
+            List.of()
+        );
+        assertTrue(ShardsAvailabilityHealthIndicatorService.isNewlyCreatedAndInitializingReplica(unallocatedReplica, state));
+    }
+
     private HealthIndicatorResult createExpectedResult(
         HealthStatus status,
         String symptom,
@@ -2012,7 +2168,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
             .build();
     }
 
-    private static Map<String, Object> addDefaults(Map<String, Object> override) {
+    public static Map<String, Object> addDefaults(Map<String, Object> override) {
         return Map.of(
             "unassigned_primaries",
             override.getOrDefault("unassigned_primaries", 0),
@@ -2038,15 +2194,39 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
     }
 
     private static IndexRoutingTable index(String name, ShardAllocation primaryState, ShardAllocation... replicaStates) {
+        return index(name, "_na_", primaryState, replicaStates);
+    }
+
+    private static IndexRoutingTable index(String name, String uuid, ShardAllocation primaryState, ShardAllocation... replicaStates) {
         return index(
             IndexMetadata.builder(name)
-                .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build())
+                .settings(
+                    Settings.builder()
+                        .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+                        .put(IndexMetadata.SETTING_INDEX_UUID, uuid)
+                        .build()
+                )
                 .numberOfShards(1)
                 .numberOfReplicas(replicaStates.length)
                 .build(),
             primaryState,
             replicaStates
         );
+    }
+
+    private static IndexRoutingTable indexNewlyCreated(String name, ShardAllocation primary1State, ShardAllocation replica1State) {
+        var indexMetadata = IndexMetadata.builder(name)
+            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build())
+            .numberOfShards(1)
+            .numberOfReplicas(1)
+            .build();
+        var index = indexMetadata.getIndex();
+        var shard1Id = new ShardId(index, 0);
+
+        var builder = IndexRoutingTable.builder(index);
+        builder.addShard(createShardRouting(shard1Id, true, primary1State));
+        builder.addShard(createShardRouting(shard1Id, false, replica1State));
+        return builder.build();
     }
 
     private static IndexRoutingTable indexWithTwoPrimaryOneReplicaShard(

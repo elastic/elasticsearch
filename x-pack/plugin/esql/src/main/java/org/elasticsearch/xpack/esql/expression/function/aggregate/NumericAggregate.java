@@ -8,18 +8,16 @@ package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.planner.ToAggregator;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.TypeResolutions;
-import org.elasticsearch.xpack.ql.expression.function.aggregate.AggregateFunction;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.util.List;
 
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.DEFAULT;
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isNumeric;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 
 public abstract class NumericAggregate extends AggregateFunction implements ToAggregator {
 
@@ -36,14 +34,20 @@ public abstract class NumericAggregate extends AggregateFunction implements ToAg
         if (supportsDates()) {
             return TypeResolutions.isType(
                 this,
-                e -> e.isNumeric() || e == DataTypes.DATETIME,
+                e -> e == DataType.DATETIME || e.isNumeric() && e != DataType.UNSIGNED_LONG,
                 sourceText(),
                 DEFAULT,
-                "numeric",
-                "datetime"
+                "datetime",
+                "numeric except unsigned_long or counter types"
             );
         }
-        return isNumeric(field(), sourceText(), DEFAULT);
+        return isType(
+            field(),
+            dt -> dt.isNumeric() && dt != DataType.UNSIGNED_LONG,
+            sourceText(),
+            DEFAULT,
+            "numeric except unsigned_long or counter types"
+        );
     }
 
     protected boolean supportsDates() {
@@ -52,22 +56,22 @@ public abstract class NumericAggregate extends AggregateFunction implements ToAg
 
     @Override
     public DataType dataType() {
-        return DataTypes.DOUBLE;
+        return DataType.DOUBLE;
     }
 
     @Override
     public final AggregatorFunctionSupplier supplier(List<Integer> inputChannels) {
         DataType type = field().dataType();
-        if (supportsDates() && type == DataTypes.DATETIME) {
+        if (supportsDates() && type == DataType.DATETIME) {
             return longSupplier(inputChannels);
         }
-        if (type == DataTypes.LONG) {
+        if (type == DataType.LONG) {
             return longSupplier(inputChannels);
         }
-        if (type == DataTypes.INTEGER) {
+        if (type == DataType.INTEGER) {
             return intSupplier(inputChannels);
         }
-        if (type == DataTypes.DOUBLE) {
+        if (type == DataType.DOUBLE) {
             return doubleSupplier(inputChannels);
         }
         throw EsqlIllegalArgumentException.illegalDataType(type);

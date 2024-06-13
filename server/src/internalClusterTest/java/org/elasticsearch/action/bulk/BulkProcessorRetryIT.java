@@ -10,12 +10,12 @@ package org.elasticsearch.action.bulk;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESIntegTestCase;
 
-import java.util.Collections;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Set;
@@ -61,7 +61,7 @@ public class BulkProcessorRetryIT extends ESIntegTestCase {
         final CorrelatingBackoffPolicy internalPolicy = new CorrelatingBackoffPolicy(backoffPolicy);
         int numberOfAsyncOps = randomIntBetween(600, 700);
         final CountDownLatch latch = new CountDownLatch(numberOfAsyncOps);
-        final Set<Object> responses = Collections.newSetFromMap(new ConcurrentHashMap<>());
+        final Set<Object> responses = ConcurrentCollections.newConcurrentSet();
 
         assertAcked(prepareCreate(INDEX_NAME));
         ensureGreen();

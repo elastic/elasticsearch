@@ -56,7 +56,7 @@ IMPORTANT: Several options for this API can be specified using a query parameter
 or a request body parameter. If both parameters are specified, only the query
 parameter is used.
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=allow-no-indices]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=allow-no-indices]
 +
 Defaults to `true`.
 
@@ -70,9 +70,9 @@ no partial results. Defaults to `true`.
 To override the default for this field, set the
 `search.default_allow_partial_results` cluster setting to `false`.
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=analyzer]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=analyzer]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=analyze_wildcard]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=analyze_wildcard]
 
 `batched_reduce_size`::
 (Optional, integer) The number of shard results that should be reduced at once
@@ -86,15 +86,15 @@ shards in the request can be large. Defaults to `512`.
 coordinating node and the remote clusters are minimized when executing
 {ccs} (CCS) requests. See <<ccs-network-delays>>. Defaults to `true`.
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=default_operator]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=default_operator]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=df]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=df]
 
 `docvalue_fields`::
 (Optional, string) A comma-separated list of fields to return as the docvalue
 representation of a field for each hit. See <<docvalue-fields>>.
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
 +
 Defaults to `open`.
 
@@ -103,13 +103,13 @@ Defaults to `open`.
 computation as part of a hit. Defaults to `false`.
 
 [[search-from-param]]
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=from]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=from]
 +
 By default, you cannot page through more than 10,000 hits using the `from` and
 `size` parameters. To page through more hits, use the
 <<search-after,`search_after`>> parameter.
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=ignore_throttled]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=ignore_throttled]
 
 `include_named_queries_score`::
 (Optional, Boolean) If `true`, includes the score contribution from any named queries.
@@ -118,9 +118,9 @@ response. Typically, this adds a small overhead to a request. However, using
 computationally expensive named queries on a large number of hits may add
 significant overhead. Defaults to `false`.
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=lenient]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=lenient]
 
 `max_concurrent_shard_requests`::
 (Optional, integer) Defines the number of concurrent shard requests per node
@@ -141,6 +141,7 @@ When unspecified, the pre-filter phase is executed if any of these conditions is
   - The primary sort of the query targets an indexed field.
 
 [[search-preference]]
+tag::search-preference[]
 `preference`::
 (Optional, string)
 Nodes and shards used for the search. By default, {es} selects from eligible
@@ -177,10 +178,11 @@ Any string that does not start with `_`. If the cluster state and selected
 shards do not change, searches using the same `<custom-string>` value are routed
 to the same shards in the same order.
 ====
+end::search-preference[]
 
 
 [[search-api-query-params-q]]
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=search-q]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=search-q]
 +
 You can use the `q` parameter to run a query parameter search. Query parameter
 searches do not support the full {es} <<query-dsl,Query DSL>> but are handy for
@@ -199,7 +201,7 @@ level settings.
 (Optional, Boolean) Indicates whether hits.total should be rendered as an
 integer or an object in the rest search response. Defaults to `false`.
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=routing]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=routing]
 
 [[search-api-scroll-query-param]]
 `scroll`::
@@ -273,9 +275,9 @@ Comma-separated list of source fields to return.
 Wildcard (`*`) patterns are supported.
 ====
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=source_excludes]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=source_excludes]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=source_includes]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=source_includes]
 
 `stats`::
 (Optional, string) Specific `tag` of the request for logging and statistical
@@ -320,7 +322,7 @@ returned.
 This parameter can only be used when the `suggest_field` query string parameter
 is specified.
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=terminate_after]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=terminate_after]
 +
 Defaults to `0`, which does not terminate query execution early.
 
@@ -341,8 +343,8 @@ If `true`, the exact number of hits is returned at the cost of some performance.
 If `false`, the response does not include the total number of hits matching the query.
 
 `typed_keys`::
-(Optional, Boolean) If `true`, aggregation and suggester names are be prefixed
-by their respective types in the response. Defaults to `true`.
+(Optional, Boolean) If `true`, aggregation and suggester names are prefixed
+by their respective types in the response. Defaults to `false`.
 
 `version`::
 (Optional, Boolean)
@@ -464,7 +466,7 @@ search response.
 (Optional, Boolean) If `true`, returns detailed information about score
 computation as part of a hit. Defaults to `false`.
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=from]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=from]
 +
 By default, you cannot page through more than 10,000 hits using the `from` and
 `size` parameters. To page through more hits, use the
@@ -491,30 +493,30 @@ A boost value greater than `1.0` increases the score. A boost value between
 [[search-api-knn]]
 `knn`::
 (Optional, object or array of objects)
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=knn]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=knn]
 +
 .Properties of `knn` object
 [%collapsible%open]
 ====
 `field`::
 (Required, string)
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=knn-field]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=knn-field]
 
 `filter`::
 (Optional, <<query-dsl,Query DSL object>>)
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=knn-filter]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=knn-filter]
 
 `k`::
-(Required, integer)
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=knn-k]
+(Optional, integer)
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=knn-k]
 
 `num_candidates`::
-(Required, integer)
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=knn-num-candidates]
+(Optional, integer)
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=knn-num-candidates]
 
 `query_vector`::
 (Optional, array of floats)
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=knn-query-vector]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=knn-query-vector]
 
 `query_vector_builder`::
 (Optional, object)
@@ -524,7 +526,7 @@ not both. Refer to <<knn-semantic-search>> to learn more.
 
 `similarity`::
 (Optional, float)
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=knn-similarity]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=knn-similarity]
 
 ====
 
@@ -558,25 +560,11 @@ Period of time used to extend the life of the PIT.
 (Optional, <<query-dsl,query object>>) Defines the search definition using the
 <<query-dsl,Query DSL>>.
 
-[[request-body-rank]]
-`rank`::
+[[request-body-retriever]]
+`retriever`::
 preview:[]
-This param is in technical preview and may change in the future. The syntax will
-likely change before GA.
-+
-(Optional, object)
-Defines a method for combining and ranking result sets from
-a combination of <<request-body-search-query, query>>,
-<<request-body-sub-searches, sub searches>>, and/or
-<<search-api-knn, knn searches>>. Requires a minimum of 2 results sets for
-ranking from the specified sources.
-+
-.Ranking methods
-[%collapsible%open]
-====
-`rrf`::
-(Optional, object) Sets the ranking method to <<rrf, reciprocal rank fusion (RRF)>>.
-====
+(Optional, <<retriever, retriever object>>) Defines a top-level retriever to specify
+a desired set of top documents instead of a standard query or knn search.
 
 [[search-api-body-runtime]]
 // tag::runtime-mappings-def[]
@@ -725,34 +713,8 @@ Stats groups to associate with the search. Each group maintains a statistics
 aggregation for its associated searches. You can retrieve these stats using the
 <<indices-stats,indices stats API>>.
 
-[[request-body-sub-searches]]
-`sub_searches`::
-preview:[]
-This param is in technical preview and may change in the future. The syntax will
-likely change before GA.
-+
-(Optional, array of objects)
-An array of `sub_search` objects where each `sub_search` is evaluated
-independently, and their result sets are later combined as part of
-<<request-body-rank, ranking>>. Each `sub_search` object is required to
-contain a single `query`. `sub_searches` is only allowed with the
-<<request-body-rank,`rank`>> element, and is not allowed in conjunction
-with a top-level <<request-body-search-query, `query`>> element.
-+
-`sub_searches` as part of a search:
-[source,js]
-----
-{
-  "sub_searches": [
-    { "query": {...} },
-    { "query": {...} }
-  ]
-  ...
-}
-----
-// NOTCONSOLE
-
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=terminate_after]
+[[request-body-search-terminate-after]]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=terminate_after]
 +
 Defaults to `0`, which does not terminate query execution early.
 

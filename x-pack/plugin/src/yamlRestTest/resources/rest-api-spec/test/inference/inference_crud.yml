@@ -2,21 +2,20 @@
 "Test get missing model":
   - do:
       catch: missing
-      inference.get_model:
-        task_type: sparse_embedding
-        model_id: model_to_get
+      inference.get:
+        inference_id: inference_to_get
   - match: { error.type: "resource_not_found_exception" }
-  - match: { error.reason: "Model not found [model_to_get]" }
+  - match: { error.reason: "Inference endpoint not found [inference_to_get]" }
 
 ---
-"Test put model with bad task type":
+"Test put inference with bad task type":
   - do:
       catch: bad_request
-      inference.put_model:
-        task_type: bad
-        model_id: elser_model
+      inference.put:
+        inference_id: elser_model
         body: >
           {
+            "task_type": "bad",
             "service": "elser",
             "service_settings": {
               "num_allocations": 1,
@@ -33,9 +32,27 @@
       catch: bad_request
       inference.inference:
         task_type: bad
-        model_id: elser_model
+        inference_id: elser_model
         body: >
           {
             "input": "important text"
           }
   - match: { error.reason: "Unknown task_type [bad]" }
+
+---
+"Test get all":
+  - do:
+      inference.get:
+        inference_id: "*"
+  - length: { endpoints: 0}
+
+  - do:
+      inference.get:
+        inference_id: _all
+  - length: { endpoints: 0}
+
+  - do:
+      inference.get:
+        inference_id: ""
+  - length: { endpoints: 0}
+

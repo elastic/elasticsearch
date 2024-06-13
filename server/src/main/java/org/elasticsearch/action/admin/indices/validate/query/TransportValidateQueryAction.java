@@ -11,6 +11,7 @@ package org.elasticsearch.action.admin.indices.validate.query;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ResolvedIndices;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastShardOperationFailedException;
@@ -27,7 +28,6 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.QueryShardException;
@@ -39,6 +39,7 @@ import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
@@ -56,6 +57,7 @@ public class TransportValidateQueryAction extends TransportBroadcastAction<
     ShardValidateQueryResponse> {
 
     private final SearchService searchService;
+    private final RemoteClusterService remoteClusterService;
 
     @Inject
     public TransportValidateQueryAction(
@@ -76,12 +78,23 @@ public class TransportValidateQueryAction extends TransportBroadcastAction<
             transportService.getThreadPool().executor(ThreadPool.Names.SEARCH)
         );
         this.searchService = searchService;
+        this.remoteClusterService = transportService.getRemoteClusterService();
     }
 
     @Override
     protected void doExecute(Task task, ValidateQueryRequest request, ActionListener<ValidateQueryResponse> listener) {
         request.nowInMillis = System.currentTimeMillis();
         LongSupplier timeProvider = () -> request.nowInMillis;
+
+        // Indices are resolved twice (they are resolved again later by the base class), but that's ok for this action type
+        ResolvedIndices resolvedIndices = ResolvedIndices.resolveWithIndicesRequest(
+            request,
+            clusterService.state(),
+            indexNameExpressionResolver,
+            remoteClusterService,
+            request.nowInMillis
+        );
+
         ActionListener<org.elasticsearch.index.query.QueryBuilder> rewriteListener = ActionListener.wrap(rewrittenQuery -> {
             request.query(rewrittenQuery);
             super.doExecute(task, request, listener);
@@ -108,7 +121,7 @@ public class TransportValidateQueryAction extends TransportBroadcastAction<
         if (request.query() == null) {
             rewriteListener.onResponse(request.query());
         } else {
-            Rewriteable.rewriteAndFetch(request.query(), searchService.getRewriteContext(timeProvider), rewriteListener);
+            Rewriteable.rewriteAndFetch(request.query(), searchService.getRewriteContext(timeProvider, resolvedIndices), rewriteListener);
         }
     }
 
@@ -202,8 +215,7 @@ public class TransportValidateQueryAction extends TransportBroadcastAction<
             request.nowInMillis(),
             request.filteringAliases()
         );
-        SearchContext searchContext = searchService.createSearchContext(shardSearchLocalRequest, SearchService.NO_TIMEOUT);
-        try {
+        try (SearchContext searchContext = searchService.createSearchContext(shardSearchLocalRequest, SearchService.NO_TIMEOUT)) {
             ParsedQuery parsedQuery = searchContext.getSearchExecutionContext().toQuery(request.query());
             searchContext.parsedQuery(parsedQuery);
             searchContext.preProcess();
@@ -215,8 +227,6 @@ public class TransportValidateQueryAction extends TransportBroadcastAction<
         } catch (AssertionError e) {
             valid = false;
             error = e.getMessage();
-        } finally {
-            Releasables.close(searchContext);
         }
 
         return new ShardValidateQueryResponse(request.shardId(), valid, explanation, error);

@@ -1,7 +1,7 @@
 ---
 "Test cat recovery output":
-  - skip:
-      version: " - 7.99.99"
+  - requires:
+      cluster_features: ["gte_v8.0.0"]
       reason: format of bytes output changed in 8.0.0
 
   - do:
@@ -81,10 +81,10 @@
 
 ---
 "Test cat recovery output for closed index":
-  - skip:
-      version: " - 7.99.99"
+  - requires:
+      cluster_features: ["gte_v8.0.0"]
       reason: format of bytes output changed in 8.0.0
-      features: ["allowed_warnings"]
+      test_runner_features: ["allowed_warnings"]
 
   - do:
       indices.create:

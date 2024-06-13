@@ -11,7 +11,6 @@ package org.elasticsearch.search.aggregations.metrics;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.ParsedAggregation;
 import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.test.InternalAggregationTestCase;
 
@@ -86,19 +85,8 @@ public class InternalAvgTests extends InternalAggregationTestCase<InternalAvg> {
         for (double value : values) {
             aggregations.add(new InternalAvg("dummy1", value, 1, null, null));
         }
-        InternalAvg internalAvg = new InternalAvg("dummy2", 0, 0, null, null);
-        InternalAvg reduced = internalAvg.reduce(aggregations, null);
+        InternalAvg reduced = (InternalAvg) InternalAggregationTestCase.reduce(aggregations, null);
         assertEquals(expected, reduced.getValue(), delta);
-    }
-
-    @Override
-    protected void assertFromXContent(InternalAvg avg, ParsedAggregation parsedAggregation) {
-        ParsedAvg parsed = ((ParsedAvg) parsedAggregation);
-        assertEquals(avg.getValue(), parsed.getValue(), Double.MIN_VALUE);
-        // we don't print out VALUE_AS_STRING for avg.getCount() == 0, so we cannot get the exact same value back
-        if (avg.getCount() != 0) {
-            assertEquals(avg.getValueAsString(), parsed.getValueAsString());
-        }
     }
 
     @Override

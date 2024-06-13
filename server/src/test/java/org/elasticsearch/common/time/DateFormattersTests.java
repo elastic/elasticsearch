@@ -12,20 +12,26 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.util.LocaleUtils;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.test.ESTestCase;
+import org.hamcrest.Matcher;
 
 import java.time.Clock;
+import java.time.DateTimeException;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
 import java.time.temporal.ChronoField;
 import java.time.temporal.TemporalAccessor;
+import java.util.List;
 import java.util.Locale;
 
+import static org.elasticsearch.test.LambdaMatchers.transformedItemsMatch;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
@@ -40,6 +46,20 @@ public class DateFormattersTests extends ESTestCase {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> javaTimeFormatter.parse(input));
         assertThat(e.getMessage(), containsString(input));
         assertThat(e.getMessage(), containsString(format));
+        assertThat(e.getCause(), instanceOf(DateTimeException.class));
+    }
+
+    private void assertParseException(String input, String format, int errorIndex) {
+        assertParseException(input, format, equalTo(errorIndex));
+    }
+
+    private void assertParseException(String input, String format, Matcher<Integer> indexMatcher) {
+        DateFormatter javaTimeFormatter = DateFormatter.forPattern(format);
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> javaTimeFormatter.parse(input));
+        assertThat(e.getMessage(), containsString(input));
+        assertThat(e.getMessage(), containsString(format));
+        assertThat(e.getCause(), instanceOf(DateTimeParseException.class));
+        assertThat(((DateTimeParseException) e.getCause()).getErrorIndex(), indexMatcher);
     }
 
     private void assertParses(String input, String format) {
@@ -548,8 +568,8 @@ public class DateFormattersTests extends ESTestCase {
     public void testRoundupFormatterWithEpochDates() {
         assertRoundupFormatter("epoch_millis", "1234567890", 1234567890L);
         // also check nanos of the epoch_millis formatter if it is rounded up to the nano second
-        JavaDateFormatter roundUpFormatter = ((JavaDateFormatter) DateFormatter.forPattern("8epoch_millis")).getRoundupParser();
-        Instant epochMilliInstant = DateFormatters.from(roundUpFormatter.parse("1234567890")).toInstant();
+        var formatter = (JavaDateFormatter) DateFormatter.forPattern("8epoch_millis");
+        Instant epochMilliInstant = DateFormatters.from(formatter.roundupParse("1234567890")).toInstant();
         assertThat(epochMilliInstant.getLong(ChronoField.NANO_OF_SECOND), is(890_999_999L));
 
         assertRoundupFormatter("strict_date_optional_time||epoch_millis", "2018-10-10T12:13:14.123Z", 1539173594123L);
@@ -561,8 +581,8 @@ public class DateFormattersTests extends ESTestCase {
 
         assertRoundupFormatter("epoch_second", "1234567890", 1234567890999L);
         // also check nanos of the epoch_millis formatter if it is rounded up to the nano second
-        JavaDateFormatter epochSecondRoundupParser = ((JavaDateFormatter) DateFormatter.forPattern("8epoch_second")).getRoundupParser();
-        Instant epochSecondInstant = DateFormatters.from(epochSecondRoundupParser.parse("1234567890")).toInstant();
+        formatter = (JavaDateFormatter) DateFormatter.forPattern("8epoch_second");
+        Instant epochSecondInstant = DateFormatters.from(formatter.roundupParse("1234567890")).toInstant();
         assertThat(epochSecondInstant.getLong(ChronoField.NANO_OF_SECOND), is(999_999_999L));
 
         assertRoundupFormatter("strict_date_optional_time||epoch_second", "2018-10-10T12:13:14.123Z", 1539173594123L);
@@ -583,8 +603,7 @@ public class DateFormattersTests extends ESTestCase {
     private void assertRoundupFormatter(String format, String input, long expectedMilliSeconds) {
         JavaDateFormatter dateFormatter = (JavaDateFormatter) DateFormatter.forPattern(format);
         dateFormatter.parse(input);
-        JavaDateFormatter roundUpFormatter = dateFormatter.getRoundupParser();
-        long millis = DateFormatters.from(roundUpFormatter.parse(input)).toInstant().toEpochMilli();
+        long millis = DateFormatters.from(dateFormatter.roundupParse(input)).toInstant().toEpochMilli();
         assertThat(millis, is(expectedMilliSeconds));
     }
 
@@ -598,9 +617,8 @@ public class DateFormattersTests extends ESTestCase {
             "strict_date_optional_time||date_optional_time"
         );
         JavaDateFormatter formatter = (JavaDateFormatter) DateFormatter.forPattern(format).withZone(zoneId);
-        JavaDateFormatter roundUpFormatter = formatter.getRoundupParser();
-        assertThat(roundUpFormatter.zone(), is(zoneId));
         assertThat(formatter.zone(), is(zoneId));
+        assertThat(List.of(formatter.roundupParsers), transformedItemsMatch(DateTimeParser::getZone, everyItem(is(zoneId))));
     }
 
     public void testRoundupFormatterLocale() {
@@ -613,9 +631,8 @@ public class DateFormattersTests extends ESTestCase {
             "strict_date_optional_time||date_optional_time"
         );
         JavaDateFormatter formatter = (JavaDateFormatter) DateFormatter.forPattern(format).withLocale(locale);
-        JavaDateFormatter roundupParser = formatter.getRoundupParser();
-        assertThat(roundupParser.locale(), is(locale));
         assertThat(formatter.locale(), is(locale));
+        assertThat(List.of(formatter.roundupParsers), transformedItemsMatch(DateTimeParser::getLocale, everyItem(is(locale))));
     }
 
     public void test0MillisAreFormatted() {
@@ -696,7 +713,7 @@ public class DateFormattersTests extends ESTestCase {
          ES java.time implementation does not suffer from this,
          but we intentionally not allow parsing timezone without a time part as it is not allowed in iso8601
         */
-        assertParseException("2016-11-30T+01", "strict_date_optional_time");
+        assertParseException("2016-11-30T+01", "strict_date_optional_time", 11);
 
         assertParses("2016-11-30T12+01", "strict_date_optional_time");
         assertParses("2016-11-30T12:00+01", "strict_date_optional_time");
@@ -790,8 +807,8 @@ public class DateFormattersTests extends ESTestCase {
         assertParses("2001-01-01T00:00:00.123Z", javaFormatter);
         assertParses("2001-01-01T00:00:00,123Z", javaFormatter);
 
-        assertParseException("2001-01-01T00:00:00.123,456Z", "strict_date_optional_time");
-        assertParseException("2001-01-01T00:00:00.123,456Z", "date_optional_time");
+        assertParseException("2001-01-01T00:00:00.123,456Z", "strict_date_optional_time", 23);
+        assertParseException("2001-01-01T00:00:00.123,456Z", "date_optional_time", 23);
         // This should fail, but java is ok with this because the field has the same value
         // assertJavaTimeParseException("2001-01-01T00:00:00.123,123Z", "strict_date_optional_time_nanos");
     }
@@ -909,7 +926,7 @@ public class DateFormattersTests extends ESTestCase {
         assertParses("2018-12-31T12:12:12.123456789", "date_hour_minute_second_fraction");
         assertParses("2018-12-31T12:12:12.1", "date_hour_minute_second_millis");
         assertParses("2018-12-31T12:12:12.123", "date_hour_minute_second_millis");
-        assertParseException("2018-12-31T12:12:12.123456789", "date_hour_minute_second_millis");
+        assertParseException("2018-12-31T12:12:12.123456789", "date_hour_minute_second_millis", 23);
         assertParses("2018-12-31T12:12:12.1", "date_hour_minute_second_millis");
         assertParses("2018-12-31T12:12:12.1", "date_hour_minute_second_fraction");
 
@@ -979,11 +996,11 @@ public class DateFormattersTests extends ESTestCase {
         assertParses("12:12:12.123", "hour_minute_second_fraction");
         assertParses("12:12:12.123456789", "hour_minute_second_fraction");
         assertParses("12:12:12.1", "hour_minute_second_fraction");
-        assertParseException("12:12:12", "hour_minute_second_fraction");
+        assertParseException("12:12:12", "hour_minute_second_fraction", 8);
         assertParses("12:12:12.123", "hour_minute_second_millis");
-        assertParseException("12:12:12.123456789", "hour_minute_second_millis");
+        assertParseException("12:12:12.123456789", "hour_minute_second_millis", 12);
         assertParses("12:12:12.1", "hour_minute_second_millis");
-        assertParseException("12:12:12", "hour_minute_second_millis");
+        assertParseException("12:12:12", "hour_minute_second_millis", 8);
 
         assertParses("2018-128", "ordinal_date");
         assertParses("2018-1", "ordinal_date");
@@ -1023,8 +1040,8 @@ public class DateFormattersTests extends ESTestCase {
         assertParses("10:15:3.123Z", "time");
         assertParses("10:15:3.123+0100", "time");
         assertParses("10:15:3.123+01:00", "time");
-        assertParseException("10:15:3.1", "time");
-        assertParseException("10:15:3Z", "time");
+        assertParseException("10:15:3.1", "time", 9);
+        assertParseException("10:15:3Z", "time", 7);
 
         assertParses("10:15:30Z", "time_no_millis");
         assertParses("10:15:30+0100", "time_no_millis");
@@ -1041,7 +1058,7 @@ public class DateFormattersTests extends ESTestCase {
         assertParses("10:15:3Z", "time_no_millis");
         assertParses("10:15:3+0100", "time_no_millis");
         assertParses("10:15:3+01:00", "time_no_millis");
-        assertParseException("10:15:3", "time_no_millis");
+        assertParseException("10:15:3", "time_no_millis", 7);
 
         assertParses("T10:15:30.1Z", "t_time");
         assertParses("T10:15:30.123Z", "t_time");
@@ -1059,8 +1076,8 @@ public class DateFormattersTests extends ESTestCase {
         assertParses("T10:15:3.123Z", "t_time");
         assertParses("T10:15:3.123+0100", "t_time");
         assertParses("T10:15:3.123+01:00", "t_time");
-        assertParseException("T10:15:3.1", "t_time");
-        assertParseException("T10:15:3Z", "t_time");
+        assertParseException("T10:15:3.1", "t_time", 10);
+        assertParseException("T10:15:3Z", "t_time", 8);
 
         assertParses("T10:15:30Z", "t_time_no_millis");
         assertParses("T10:15:30+0100", "t_time_no_millis");
@@ -1074,12 +1091,12 @@ public class DateFormattersTests extends ESTestCase {
         assertParses("T10:15:3Z", "t_time_no_millis");
         assertParses("T10:15:3+0100", "t_time_no_millis");
         assertParses("T10:15:3+01:00", "t_time_no_millis");
-        assertParseException("T10:15:3", "t_time_no_millis");
+        assertParseException("T10:15:3", "t_time_no_millis", 8);
 
         assertParses("2012-W48-6", "week_date");
         assertParses("2012-W01-6", "week_date");
         assertParses("2012-W1-6", "week_date");
-        assertParseException("2012-W1-8", "week_date");
+        assertParseException("2012-W1-8", "week_date", 0);
 
         assertParses("2012-W48-6T10:15:30.1Z", "week_date_time");
         assertParses("2012-W48-6T10:15:30.123Z", "week_date_time");
@@ -1133,12 +1150,12 @@ public class DateFormattersTests extends ESTestCase {
     }
 
     public void testExceptionWhenCompositeParsingFails() {
-        assertParseException("2014-06-06T12:01:02.123", "yyyy-MM-dd'T'HH:mm:ss||yyyy-MM-dd'T'HH:mm:ss.SS");
+        assertParseException("2014-06-06T12:01:02.123", "yyyy-MM-dd'T'HH:mm:ss||yyyy-MM-dd'T'HH:mm:ss.SS", 19);
     }
 
     public void testStrictParsing() {
         assertParses("2018W313", "strict_basic_week_date");
-        assertParseException("18W313", "strict_basic_week_date");
+        assertParseException("18W313", "strict_basic_week_date", 0);
         assertParses("2018W313T121212.1Z", "strict_basic_week_date_time");
         assertParses("2018W313T121212.123Z", "strict_basic_week_date_time");
         assertParses("2018W313T121212.123456789Z", "strict_basic_week_date_time");
@@ -1146,52 +1163,52 @@ public class DateFormattersTests extends ESTestCase {
         assertParses("2018W313T121212.123+0100", "strict_basic_week_date_time");
         assertParses("2018W313T121212.1+01:00", "strict_basic_week_date_time");
         assertParses("2018W313T121212.123+01:00", "strict_basic_week_date_time");
-        assertParseException("2018W313T12128.123Z", "strict_basic_week_date_time");
-        assertParseException("2018W313T12128.123456789Z", "strict_basic_week_date_time");
-        assertParseException("2018W313T81212.123Z", "strict_basic_week_date_time");
-        assertParseException("2018W313T12812.123Z", "strict_basic_week_date_time");
-        assertParseException("2018W313T12812.1Z", "strict_basic_week_date_time");
+        assertParseException("2018W313T12128.123Z", "strict_basic_week_date_time", 13);
+        assertParseException("2018W313T12128.123456789Z", "strict_basic_week_date_time", 13);
+        assertParseException("2018W313T81212.123Z", "strict_basic_week_date_time", 13);
+        assertParseException("2018W313T12812.123Z", "strict_basic_week_date_time", 13);
+        assertParseException("2018W313T12812.1Z", "strict_basic_week_date_time", 13);
         assertParses("2018W313T121212Z", "strict_basic_week_date_time_no_millis");
         assertParses("2018W313T121212+0100", "strict_basic_week_date_time_no_millis");
         assertParses("2018W313T121212+01:00", "strict_basic_week_date_time_no_millis");
-        assertParseException("2018W313T12128Z", "strict_basic_week_date_time_no_millis");
-        assertParseException("2018W313T12128+0100", "strict_basic_week_date_time_no_millis");
-        assertParseException("2018W313T12128+01:00", "strict_basic_week_date_time_no_millis");
-        assertParseException("2018W313T81212Z", "strict_basic_week_date_time_no_millis");
-        assertParseException("2018W313T81212+0100", "strict_basic_week_date_time_no_millis");
-        assertParseException("2018W313T81212+01:00", "strict_basic_week_date_time_no_millis");
-        assertParseException("2018W313T12812Z", "strict_basic_week_date_time_no_millis");
-        assertParseException("2018W313T12812+0100", "strict_basic_week_date_time_no_millis");
-        assertParseException("2018W313T12812+01:00", "strict_basic_week_date_time_no_millis");
+        assertParseException("2018W313T12128Z", "strict_basic_week_date_time_no_millis", 13);
+        assertParseException("2018W313T12128+0100", "strict_basic_week_date_time_no_millis", 13);
+        assertParseException("2018W313T12128+01:00", "strict_basic_week_date_time_no_millis", 13);
+        assertParseException("2018W313T81212Z", "strict_basic_week_date_time_no_millis", 13);
+        assertParseException("2018W313T81212+0100", "strict_basic_week_date_time_no_millis", 13);
+        assertParseException("2018W313T81212+01:00", "strict_basic_week_date_time_no_millis", 13);
+        assertParseException("2018W313T12812Z", "strict_basic_week_date_time_no_millis", 13);
+        assertParseException("2018W313T12812+0100", "strict_basic_week_date_time_no_millis", 13);
+        assertParseException("2018W313T12812+01:00", "strict_basic_week_date_time_no_millis", 13);
         assertParses("2018-12-31", "strict_date");
-        assertParseException("10000-12-31", "strict_date");
-        assertParseException("2018-8-31", "strict_date");
+        assertParseException("10000-12-31", "strict_date", 0);
+        assertParseException("2018-8-31", "strict_date", 5);
         assertParses("2018-12-31T12", "strict_date_hour");
-        assertParseException("2018-12-31T8", "strict_date_hour");
+        assertParseException("2018-12-31T8", "strict_date_hour", 11);
         assertParses("2018-12-31T12:12", "strict_date_hour_minute");
-        assertParseException("2018-12-31T8:3", "strict_date_hour_minute");
+        assertParseException("2018-12-31T8:3", "strict_date_hour_minute", 11);
         assertParses("2018-12-31T12:12:12", "strict_date_hour_minute_second");
-        assertParseException("2018-12-31T12:12:1", "strict_date_hour_minute_second");
+        assertParseException("2018-12-31T12:12:1", "strict_date_hour_minute_second", 17);
         assertParses("2018-12-31T12:12:12.1", "strict_date_hour_minute_second_fraction");
         assertParses("2018-12-31T12:12:12.123", "strict_date_hour_minute_second_fraction");
         assertParses("2018-12-31T12:12:12.123456789", "strict_date_hour_minute_second_fraction");
         assertParses("2018-12-31T12:12:12.123", "strict_date_hour_minute_second_millis");
         assertParses("2018-12-31T12:12:12.1", "strict_date_hour_minute_second_millis");
         assertParses("2018-12-31T12:12:12.1", "strict_date_hour_minute_second_fraction");
-        assertParseException("2018-12-31T12:12:12", "strict_date_hour_minute_second_millis");
-        assertParseException("2018-12-31T12:12:12", "strict_date_hour_minute_second_fraction");
+        assertParseException("2018-12-31T12:12:12", "strict_date_hour_minute_second_millis", 19);
+        assertParseException("2018-12-31T12:12:12", "strict_date_hour_minute_second_fraction", 19);
         assertParses("2018-12-31", "strict_date_optional_time");
-        assertParseException("2018-12-1", "strict_date_optional_time");
-        assertParseException("2018-1-31", "strict_date_optional_time");
-        assertParseException("10000-01-31", "strict_date_optional_time");
+        assertParseException("2018-12-1", "strict_date_optional_time", 7);
+        assertParseException("2018-1-31", "strict_date_optional_time", 4);
+        assertParseException("10000-01-31", "strict_date_optional_time", 4);
         assertParses("2010-01-05T02:00", "strict_date_optional_time");
         assertParses("2018-12-31T10:15:30", "strict_date_optional_time");
         assertParses("2018-12-31T10:15:30Z", "strict_date_optional_time");
         assertParses("2018-12-31T10:15:30+0100", "strict_date_optional_time");
         assertParses("2018-12-31T10:15:30+01:00", "strict_date_optional_time");
-        assertParseException("2018-12-31T10:15:3", "strict_date_optional_time");
-        assertParseException("2018-12-31T10:5:30", "strict_date_optional_time");
-        assertParseException("2018-12-31T9:15:30", "strict_date_optional_time");
+        assertParseException("2018-12-31T10:15:3", "strict_date_optional_time", 16);
+        assertParseException("2018-12-31T10:5:30", "strict_date_optional_time", 13);
+        assertParseException("2018-12-31T9:15:30", "strict_date_optional_time", 11);
         assertParses("2015-01-04T00:00Z", "strict_date_optional_time");
         assertParses("2018-12-31T10:15:30.1Z", "strict_date_time");
         assertParses("2018-12-31T10:15:30.123Z", "strict_date_time");
@@ -1203,33 +1220,33 @@ public class DateFormattersTests extends ESTestCase {
         assertParses("2018-12-31T10:15:30.11Z", "strict_date_time");
         assertParses("2018-12-31T10:15:30.11+0100", "strict_date_time");
         assertParses("2018-12-31T10:15:30.11+01:00", "strict_date_time");
-        assertParseException("2018-12-31T10:15:3.123Z", "strict_date_time");
-        assertParseException("2018-12-31T10:5:30.123Z", "strict_date_time");
-        assertParseException("2018-12-31T1:15:30.123Z", "strict_date_time");
+        assertParseException("2018-12-31T10:15:3.123Z", "strict_date_time", 17);
+        assertParseException("2018-12-31T10:5:30.123Z", "strict_date_time", 14);
+        assertParseException("2018-12-31T1:15:30.123Z", "strict_date_time", 11);
         assertParses("2018-12-31T10:15:30Z", "strict_date_time_no_millis");
         assertParses("2018-12-31T10:15:30+0100", "strict_date_time_no_millis");
         assertParses("2018-12-31T10:15:30+01:00", "strict_date_time_no_millis");
-        assertParseException("2018-12-31T10:5:30Z", "strict_date_time_no_millis");
-        assertParseException("2018-12-31T10:15:3Z", "strict_date_time_no_millis");
-        assertParseException("2018-12-31T1:15:30Z", "strict_date_time_no_millis");
+        assertParseException("2018-12-31T10:5:30Z", "strict_date_time_no_millis", 14);
+        assertParseException("2018-12-31T10:15:3Z", "strict_date_time_no_millis", 17);
+        assertParseException("2018-12-31T1:15:30Z", "strict_date_time_no_millis", 11);
         assertParses("12", "strict_hour");
         assertParses("01", "strict_hour");
-        assertParseException("1", "strict_hour");
+        assertParseException("1", "strict_hour", 0);
         assertParses("12:12", "strict_hour_minute");
         assertParses("12:01", "strict_hour_minute");
-        assertParseException("12:1", "strict_hour_minute");
+        assertParseException("12:1", "strict_hour_minute", 3);
         assertParses("12:12:12", "strict_hour_minute_second");
         assertParses("12:12:01", "strict_hour_minute_second");
-        assertParseException("12:12:1", "strict_hour_minute_second");
+        assertParseException("12:12:1", "strict_hour_minute_second", 6);
         assertParses("12:12:12.123", "strict_hour_minute_second_fraction");
         assertParses("12:12:12.123456789", "strict_hour_minute_second_fraction");
         assertParses("12:12:12.1", "strict_hour_minute_second_fraction");
-        assertParseException("12:12:12", "strict_hour_minute_second_fraction");
+        assertParseException("12:12:12", "strict_hour_minute_second_fraction", 8);
         assertParses("12:12:12.123", "strict_hour_minute_second_millis");
         assertParses("12:12:12.1", "strict_hour_minute_second_millis");
-        assertParseException("12:12:12", "strict_hour_minute_second_millis");
+        assertParseException("12:12:12", "strict_hour_minute_second_millis", 8);
         assertParses("2018-128", "strict_ordinal_date");
-        assertParseException("2018-1", "strict_ordinal_date");
+        assertParseException("2018-1", "strict_ordinal_date", 5);
 
         assertParses("2018-128T10:15:30.1Z", "strict_ordinal_date_time");
         assertParses("2018-128T10:15:30.123Z", "strict_ordinal_date_time");
@@ -1238,23 +1255,23 @@ public class DateFormattersTests extends ESTestCase {
         assertParses("2018-128T10:15:30.123+0100", "strict_ordinal_date_time");
         assertParses("2018-128T10:15:30.1+01:00", "strict_ordinal_date_time");
         assertParses("2018-128T10:15:30.123+01:00", "strict_ordinal_date_time");
-        assertParseException("2018-1T10:15:30.123Z", "strict_ordinal_date_time");
+        assertParseException("2018-1T10:15:30.123Z", "strict_ordinal_date_time", 5);
 
         assertParses("2018-128T10:15:30Z", "strict_ordinal_date_time_no_millis");
         assertParses("2018-128T10:15:30+0100", "strict_ordinal_date_time_no_millis");
         assertParses("2018-128T10:15:30+01:00", "strict_ordinal_date_time_no_millis");
-        assertParseException("2018-1T10:15:30Z", "strict_ordinal_date_time_no_millis");
+        assertParseException("2018-1T10:15:30Z", "strict_ordinal_date_time_no_millis", 5);
 
         assertParses("10:15:30.1Z", "strict_time");
         assertParses("10:15:30.123Z", "strict_time");
         assertParses("10:15:30.123456789Z", "strict_time");
         assertParses("10:15:30.123+0100", "strict_time");
         assertParses("10:15:30.123+01:00", "strict_time");
-        assertParseException("1:15:30.123Z", "strict_time");
-        assertParseException("10:1:30.123Z", "strict_time");
-        assertParseException("10:15:3.123Z", "strict_time");
-        assertParseException("10:15:3.1", "strict_time");
-        assertParseException("10:15:3Z", "strict_time");
+        assertParseException("1:15:30.123Z", "strict_time", 0);
+        assertParseException("10:1:30.123Z", "strict_time", 3);
+        assertParseException("10:15:3.123Z", "strict_time", 6);
+        assertParseException("10:15:3.1", "strict_time", 6);
+        assertParseException("10:15:3Z", "strict_time", 6);
 
         assertParses("10:15:30Z", "strict_time_no_millis");
         assertParses("10:15:30+0100", "strict_time_no_millis");
@@ -1262,10 +1279,10 @@ public class DateFormattersTests extends ESTestCase {
         assertParses("01:15:30Z", "strict_time_no_millis");
         assertParses("01:15:30+0100", "strict_time_no_millis");
         assertParses("01:15:30+01:00", "strict_time_no_millis");
-        assertParseException("1:15:30Z", "strict_time_no_millis");
-        assertParseException("10:5:30Z", "strict_time_no_millis");
-        assertParseException("10:15:3Z", "strict_time_no_millis");
-        assertParseException("10:15:3", "strict_time_no_millis");
+        assertParseException("1:15:30Z", "strict_time_no_millis", 0);
+        assertParseException("10:5:30Z", "strict_time_no_millis", 3);
+        assertParseException("10:15:3Z", "strict_time_no_millis", 6);
+        assertParseException("10:15:3", "strict_time_no_millis", 6);
 
         assertParses("T10:15:30.1Z", "strict_t_time");
         assertParses("T10:15:30.123Z", "strict_t_time");
@@ -1274,28 +1291,28 @@ public class DateFormattersTests extends ESTestCase {
         assertParses("T10:15:30.123+0100", "strict_t_time");
         assertParses("T10:15:30.1+01:00", "strict_t_time");
         assertParses("T10:15:30.123+01:00", "strict_t_time");
-        assertParseException("T1:15:30.123Z", "strict_t_time");
-        assertParseException("T10:1:30.123Z", "strict_t_time");
-        assertParseException("T10:15:3.123Z", "strict_t_time");
-        assertParseException("T10:15:3.1", "strict_t_time");
-        assertParseException("T10:15:3Z", "strict_t_time");
+        assertParseException("T1:15:30.123Z", "strict_t_time", 1);
+        assertParseException("T10:1:30.123Z", "strict_t_time", 4);
+        assertParseException("T10:15:3.123Z", "strict_t_time", 7);
+        assertParseException("T10:15:3.1", "strict_t_time", 7);
+        assertParseException("T10:15:3Z", "strict_t_time", 7);
 
         assertParses("T10:15:30Z", "strict_t_time_no_millis");
         assertParses("T10:15:30+0100", "strict_t_time_no_millis");
         assertParses("T10:15:30+01:00", "strict_t_time_no_millis");
-        assertParseException("T1:15:30Z", "strict_t_time_no_millis");
-        assertParseException("T10:1:30Z", "strict_t_time_no_millis");
-        assertParseException("T10:15:3Z", "strict_t_time_no_millis");
-        assertParseException("T10:15:3", "strict_t_time_no_millis");
+        assertParseException("T1:15:30Z", "strict_t_time_no_millis", 1);
+        assertParseException("T10:1:30Z", "strict_t_time_no_millis", 4);
+        assertParseException("T10:15:3Z", "strict_t_time_no_millis", 7);
+        assertParseException("T10:15:3", "strict_t_time_no_millis", 7);
 
         assertParses("2012-W48-6", "strict_week_date");
         assertParses("2012-W01-6", "strict_week_date");
-        assertParseException("2012-W1-6", "strict_week_date");
-        assertParseException("2012-W1-8", "strict_week_date");
+        assertParseException("2012-W1-6", "strict_week_date", 6);
+        assertParseException("2012-W1-8", "strict_week_date", 6);
 
         assertParses("2012-W48-6", "strict_week_date");
         assertParses("2012-W01-6", "strict_week_date");
-        assertParseException("2012-W1-6", "strict_week_date");
+        assertParseException("2012-W1-6", "strict_week_date", 6);
         assertParseException("2012-W01-8", "strict_week_date");
 
         assertParses("2012-W48-6T10:15:30.1Z", "strict_week_date_time");
@@ -1305,38 +1322,38 @@ public class DateFormattersTests extends ESTestCase {
         assertParses("2012-W48-6T10:15:30.123+0100", "strict_week_date_time");
         assertParses("2012-W48-6T10:15:30.1+01:00", "strict_week_date_time");
         assertParses("2012-W48-6T10:15:30.123+01:00", "strict_week_date_time");
-        assertParseException("2012-W1-6T10:15:30.123Z", "strict_week_date_time");
+        assertParseException("2012-W1-6T10:15:30.123Z", "strict_week_date_time", 6);
 
         assertParses("2012-W48-6T10:15:30Z", "strict_week_date_time_no_millis");
         assertParses("2012-W48-6T10:15:30+0100", "strict_week_date_time_no_millis");
         assertParses("2012-W48-6T10:15:30+01:00", "strict_week_date_time_no_millis");
-        assertParseException("2012-W1-6T10:15:30Z", "strict_week_date_time_no_millis");
+        assertParseException("2012-W1-6T10:15:30Z", "strict_week_date_time_no_millis", 6);
 
         assertParses("2012", "strict_year");
-        assertParseException("1", "strict_year");
+        assertParseException("1", "strict_year", 0);
         assertParses("-2000", "strict_year");
 
         assertParses("2012-12", "strict_year_month");
-        assertParseException("1-1", "strict_year_month");
+        assertParseException("1-1", "strict_year_month", 0);
 
         assertParses("2012-12-31", "strict_year_month_day");
-        assertParseException("1-12-31", "strict_year_month_day");
-        assertParseException("2012-1-31", "strict_year_month_day");
-        assertParseException("2012-12-1", "strict_year_month_day");
+        assertParseException("1-12-31", "strict_year_month_day", 0);
+        assertParseException("2012-1-31", "strict_year_month_day", 4);
+        assertParseException("2012-12-1", "strict_year_month_day", 7);
 
         assertParses("2018", "strict_weekyear");
-        assertParseException("1", "strict_weekyear");
+        assertParseException("1", "strict_weekyear", 0);
 
         assertParses("2018", "strict_weekyear");
         assertParses("2017", "strict_weekyear");
-        assertParseException("1", "strict_weekyear");
+        assertParseException("1", "strict_weekyear", 0);
 
         assertParses("2018-W29", "strict_weekyear_week");
         assertParses("2018-W01", "strict_weekyear_week");
-        assertParseException("2018-W1", "strict_weekyear_week");
+        assertParseException("2018-W1", "strict_weekyear_week", 6);
 
         assertParses("2012-W31-5", "strict_weekyear_week_day");
-        assertParseException("2012-W1-1", "strict_weekyear_week_day");
+        assertParseException("2012-W1-1", "strict_weekyear_week_day", 6);
     }
 
     public void testDateFormatterWithLocale() {
@@ -1370,5 +1387,13 @@ public class DateFormattersTests extends ESTestCase {
         long millisJava = DateFormatter.forPattern("8yyyy-MM-dd HH:mm:ss").parseMillis("2018-02-18 17:47:17");
         long millisJoda = DateFormatter.forPattern("yyyy-MM-dd HH:mm:ss").parseMillis("2018-02-18 17:47:17");
         assertThat(millisJava, is(millisJoda));
+    }
+
+    // see https://bugs.openjdk.org/browse/JDK-8193877
+    public void testNoClassCastException() {
+        String input = "DpNKOGqhjZ";
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> DateFormatter.forPattern(input));
+        assertThat(e.getCause(), instanceOf(ClassCastException.class));
+        assertThat(e.getMessage(), containsString(input));
     }
 }

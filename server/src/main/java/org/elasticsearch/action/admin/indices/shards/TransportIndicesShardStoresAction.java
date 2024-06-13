@@ -63,7 +63,7 @@ public class TransportIndicesShardStoresAction extends TransportMasterNodeReadAc
     IndicesShardStoresRequest,
     IndicesShardStoresResponse> {
 
-    public static final ActionType<IndicesShardStoresResponse> TYPE = ActionType.localOnly("indices:monitor/shard_stores");
+    public static final ActionType<IndicesShardStoresResponse> TYPE = new ActionType<>("indices:monitor/shard_stores");
 
     private static final Logger logger = LogManager.getLogger(TransportIndicesShardStoresAction.class);
 

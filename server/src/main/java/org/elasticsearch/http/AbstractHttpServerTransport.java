@@ -29,6 +29,7 @@ import org.elasticsearch.common.transport.NetworkExceptionHelper;
 import org.elasticsearch.common.transport.PortsRange;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
@@ -51,7 +52,6 @@ import java.net.InetSocketAddress;
 import java.nio.channels.CancelledKeyException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -70,6 +70,7 @@ import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_PORT;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_PUBLISH_HOST;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_PUBLISH_PORT;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_SERVER_SHUTDOWN_GRACE_PERIOD;
+import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_SERVER_SHUTDOWN_POLL_PERIOD;
 
 public abstract class AbstractHttpServerTransport extends AbstractLifecycleComponent implements HttpServerTransport {
     private static final Logger logger = LogManager.getLogger(AbstractHttpServerTransport.class);
@@ -93,8 +94,9 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
     private final Map<HttpChannel, RequestTrackingHttpChannel> httpChannels = new ConcurrentHashMap<>();
     private final PlainActionFuture<Void> allClientsClosedListener = new PlainActionFuture<>();
     private final RefCounted refCounted = AbstractRefCounted.of(() -> allClientsClosedListener.onResponse(null));
-    private final Set<HttpServerChannel> httpServerChannels = Collections.newSetFromMap(new ConcurrentHashMap<>());
+    private final Set<HttpServerChannel> httpServerChannels = ConcurrentCollections.newConcurrentSet();
     private final long shutdownGracePeriodMillis;
+    private final long shutdownPollPeriodMillis;
     private final HttpClientStatsTracker httpClientStatsTracker;
 
     private final HttpTracer httpLogger;
@@ -146,6 +148,7 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
         slowLogThresholdMs = TransportSettings.SLOW_OPERATION_THRESHOLD_SETTING.get(settings).getMillis();
         httpClientStatsTracker = new HttpClientStatsTracker(settings, clusterSettings, threadPool);
         shutdownGracePeriodMillis = SETTING_HTTP_SERVER_SHUTDOWN_GRACE_PERIOD.get(settings).getMillis();
+        shutdownPollPeriodMillis = SETTING_HTTP_SERVER_SHUTDOWN_POLL_PERIOD.get(settings).getMillis();
     }
 
     public Recycler<BytesRef> recycler() {
@@ -272,17 +275,36 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
 
         boolean closed = false;
 
+        long pollTimeMillis = shutdownPollPeriodMillis;
         if (shutdownGracePeriodMillis > 0) {
+            if (shutdownGracePeriodMillis < pollTimeMillis) {
+                pollTimeMillis = shutdownGracePeriodMillis;
+            }
+            logger.debug(format("waiting [%d]ms for clients to close connections", shutdownGracePeriodMillis));
+        } else {
+            logger.debug("waiting indefinitely for clients to close connections");
+        }
+
+        long startPollTimeMillis = System.currentTimeMillis();
+        do {
             try {
-                logger.debug(format("waiting [%d]ms for clients to close connections", shutdownGracePeriodMillis));
-                FutureUtils.get(allClientsClosedListener, shutdownGracePeriodMillis, TimeUnit.MILLISECONDS);
+                FutureUtils.get(allClientsClosedListener, pollTimeMillis, TimeUnit.MILLISECONDS);
                 closed = true;
             } catch (ElasticsearchTimeoutException t) {
-                logger.warn(format("timed out while waiting [%d]ms for clients to close connections", shutdownGracePeriodMillis));
+                logger.info(format("still waiting on %d client connections to close", httpChannels.size()));
+                if (shutdownGracePeriodMillis > 0) {
+                    long endPollTimeMillis = System.currentTimeMillis();
+                    long remainingGracePeriodMillis = shutdownGracePeriodMillis - (endPollTimeMillis - startPollTimeMillis);
+                    if (remainingGracePeriodMillis <= 0) {
+                        logger.warn(format("timed out while waiting [%d]ms for clients to close connections", shutdownGracePeriodMillis));
+                        break;
+                    } else if (remainingGracePeriodMillis < pollTimeMillis) {
+                        pollTimeMillis = remainingGracePeriodMillis;
+                    }
+                }
             }
-        } else {
-            logger.debug("closing all client connections immediately");
-        }
+        } while (closed == false);
+
         if (closed == false) {
             try {
                 CloseableChannel.closeChannels(new ArrayList<>(httpChannels.values()), true);
@@ -424,7 +446,14 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
             // The channel may not be present if the close listener (set in serverAcceptedChannel) runs before this method because the
             // connection closed early
             if (trackingChannel == null) {
-                logger.warn("http channel [{}] missing tracking channel", httpChannel);
+                httpRequest.release();
+                logger.warn(
+                    "http channel [{}] closed before starting to handle [{}][{}][{}]",
+                    httpChannel,
+                    httpRequest.header(Task.X_OPAQUE_ID_HTTP_HEADER),
+                    httpRequest.method(),
+                    httpRequest.uri()
+                );
                 return;
             }
             trackingChannel.incomingRequest();

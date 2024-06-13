@@ -43,7 +43,9 @@ import org.elasticsearch.xpack.core.ml.inference.ModelAliasMetadata;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelInput;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceStats;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.LearningToRankConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.inference.InferenceDefinition;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.ml.MachineLearning;
@@ -424,6 +426,34 @@ public class ModelLoadingServiceTests extends ESTestCase {
         verify(trainedModelStatsService, never()).queueStats(any(InferenceStats.class), anyBoolean());
     }
 
+    public void testGetModelForLearningToRank() throws Exception {
+        String modelId = "test-get-model-for-ltr";
+        withTrainedModel(modelId, 1L, LearningToRankConfig.EMPTY_PARAMS);
+
+        ModelLoadingService modelLoadingService = new ModelLoadingService(
+            trainedModelProvider,
+            auditor,
+            threadPool,
+            clusterService,
+            trainedModelStatsService,
+            Settings.EMPTY,
+            "test-node",
+            circuitBreaker,
+            mock(XPackLicenseState.class)
+        );
+
+        for (int i = 0; i < 3; i++) {
+            PlainActionFuture<LocalModel> future = new PlainActionFuture<>();
+            modelLoadingService.getModelForLearningToRank(modelId, future);
+            assertThat(future.get(), is(not(nullValue())));
+        }
+
+        assertTrue(modelLoadingService.isModelCached(modelId));
+
+        verify(trainedModelProvider, times(1)).getTrainedModelForInference(eq(modelId), eq(false), any());
+        verify(trainedModelStatsService, never()).queueStats(any(InferenceStats.class), anyBoolean());
+    }
+
     public void testCircuitBreakerBreak() throws Exception {
         String model1 = "test-circuit-break-model-1";
         String model2 = "test-circuit-break-model-2";
@@ -656,13 +686,17 @@ public class ModelLoadingServiceTests extends ESTestCase {
         assertThat(modelLoadingService.getModelId("loaded_model_again"), equalTo(model1));
     }
 
-    @SuppressWarnings("unchecked")
     private void withTrainedModel(String modelId, long size) {
+        withTrainedModel(modelId, size, ClassificationConfig.EMPTY_PARAMS);
+    }
+
+    @SuppressWarnings("unchecked")
+    private void withTrainedModel(String modelId, long size, InferenceConfig inferenceConfig) {
         InferenceDefinition definition = mock(InferenceDefinition.class);
         when(definition.ramBytesUsed()).thenReturn(size);
         TrainedModelConfig trainedModelConfig = mock(TrainedModelConfig.class);
         when(trainedModelConfig.getModelId()).thenReturn(modelId);
-        when(trainedModelConfig.getInferenceConfig()).thenReturn(ClassificationConfig.EMPTY_PARAMS);
+        when(trainedModelConfig.getInferenceConfig()).thenReturn(inferenceConfig);
         when(trainedModelConfig.getInput()).thenReturn(new TrainedModelInput(Arrays.asList("foo", "bar", "baz")));
         when(trainedModelConfig.getModelSize()).thenReturn(size);
         doAnswer(invocationOnMock -> {

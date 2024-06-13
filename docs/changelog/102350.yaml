@@ -1,6 +1,0 @@
-pr: 102350
-summary: "ESQL: Fix rare bug with empty string"
-area: ES|QL
-type: bug
-issues:
- - 101969

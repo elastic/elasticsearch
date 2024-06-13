@@ -11,7 +11,7 @@ import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.protocol.xpack.watcher.PutWatchResponse;
-import org.elasticsearch.search.aggregations.Aggregations;
+import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
@@ -103,7 +103,7 @@ public class HistoryTemplateHttpMappingsTests extends AbstractWatcherIntegration
             response -> {
                 assertThat(response, notNullValue());
                 assertThat(response.getHits().getTotalHits().value, is(oneOf(1L, 2L)));
-                Aggregations aggs = response.getAggregations();
+                InternalAggregations aggs = response.getAggregations();
                 assertThat(aggs, notNullValue());
 
                 Terms terms = aggs.get("input_result_path");

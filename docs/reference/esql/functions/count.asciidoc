@@ -6,14 +6,14 @@
 
 [source,esql]
 ----
-COUNT([input])
+COUNT([expression])
 ----
 
 *Parameters*
 
-`input`::
-Column or literal for which to count the number of values. If omitted, returns a
-count all (the number of rows).
+`expression`::
+Expression that outputs values to be counted.
+If omitted, equivalent to `COUNT(*)` (the number of rows).
 
 *Description*
 
@@ -43,4 +43,16 @@ include::{esql-specs}/docs.csv-spec[tag=countAll]
 [%header.monospaced.styled,format=dsv,separator=|]
 |===
 include::{esql-specs}/docs.csv-spec[tag=countAll-result]
+|===
+
+The expression can use inline functions. This example splits a string into
+multiple values using the `SPLIT` function and counts the values:
+
+[source.merge.styled,esql]
+----
+include::{esql-specs}/stats.csv-spec[tag=docsCountWithExpression]
+----
+[%header.monospaced.styled,format=dsv,separator=|]
+|===
+include::{esql-specs}/stats.csv-spec[tag=docsCountWithExpression-result]
 |===

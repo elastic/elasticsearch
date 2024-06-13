@@ -23,10 +23,7 @@ import java.util.Collection;
 
 public class TransportClosePointInTimeAction extends HandledTransportAction<ClosePointInTimeRequest, ClosePointInTimeResponse> {
 
-    public static final ActionType<ClosePointInTimeResponse> TYPE = new ActionType<>(
-        "indices:data/read/close_point_in_time",
-        ClosePointInTimeResponse::new
-    );
+    public static final ActionType<ClosePointInTimeResponse> TYPE = new ActionType<>("indices:data/read/close_point_in_time");
     private final ClusterService clusterService;
     private final SearchTransportService searchTransportService;
     private final NamedWriteableRegistry namedWriteableRegistry;

@@ -179,11 +179,14 @@ public class NerProcessor extends NlpTask.Processor {
         }
 
         @Override
-        public InferenceResults processResult(TokenizationResult tokenization, PyTorchInferenceResult pyTorchResult) {
+        public InferenceResults processResult(TokenizationResult tokenization, PyTorchInferenceResult pyTorchResult, boolean chunkResult) {
             if (tokenization.isEmpty()) {
                 throw new ElasticsearchStatusException("no valid tokenization to build result", RestStatus.INTERNAL_SERVER_ERROR);
             }
             // TODO - process all results in the batch
+            if (chunkResult) {
+                throw chunkingNotSupportedException(TaskType.NER);
+            }
 
             // TODO It might be best to do the soft max after averaging scores for
             // sub-tokens. If we had a word that is "elastic" which is tokenized to

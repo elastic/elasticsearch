@@ -227,7 +227,7 @@ final class TransportHandshaker {
         }
 
         @Override
-        public Executor executor(ThreadPool threadPool) {
+        public Executor executor() {
             return TransportResponseHandler.TRANSPORT_WORKER;
         }
 
@@ -277,7 +277,7 @@ final class TransportHandshaker {
             super(streamInput);
             BytesReference remainingMessage;
             try {
-                remainingMessage = streamInput.readBytesReference();
+                remainingMessage = streamInput.readSlicedBytesReference();
             } catch (EOFException e) {
                 remainingMessage = null;
             }

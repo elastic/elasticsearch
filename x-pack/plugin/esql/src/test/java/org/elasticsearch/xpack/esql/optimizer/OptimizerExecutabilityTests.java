@@ -19,22 +19,20 @@ import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.esql.TestQueryExecutor;
+import org.elasticsearch.xpack.esql.TestQueryRunner;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
+import org.elasticsearch.xpack.esql.core.index.EsIndex;
+import org.elasticsearch.xpack.esql.core.index.IndexResolution;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders;
-import org.elasticsearch.xpack.ql.index.EsIndex;
-import org.elasticsearch.xpack.ql.index.IndexResolution;
-import org.elasticsearch.xpack.ql.type.DataTypes;
-import org.elasticsearch.xpack.ql.type.EsField;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
+import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
-
-import static org.elasticsearch.xpack.esql.plugin.EsqlPlugin.ESQL_THREAD_POOL_NAME;
 
 /**
  * Tests that run against actual indices, to confirm that optimized plans remain executable.
@@ -97,20 +95,23 @@ public class OptimizerExecutabilityTests extends MapperServiceTestCase {
     }
 
     private void runQuery(String query) throws IOException {
-        int numThreads = randomBoolean() ? 1 : between(2, 16);
-        var threadPool = new TestThreadPool(
-            "OptimizerExecutabilityTests",
-            new FixedExecutorBuilder(
-                Settings.EMPTY,
-                ESQL_THREAD_POOL_NAME,
-                numThreads,
-                1024,
-                "esql",
-                EsExecutors.TaskTrackingConfig.DEFAULT
-            )
-        );
+        ThreadPool threadPool;
+        Executor executor;
+
+        if (randomBoolean()) {
+            int numThreads = randomBoolean() ? 1 : between(2, 16);
+            threadPool = new TestThreadPool(
+                "CsvTests",
+                new FixedExecutorBuilder(Settings.EMPTY, "esql_test", numThreads, 1024, "esql", EsExecutors.TaskTrackingConfig.DEFAULT)
+            );
+            executor = threadPool.executor("esql_test");
+        } else {
+            threadPool = new TestThreadPool(getTestName());
+            executor = threadPool.executor(ThreadPool.Names.SEARCH);
+        }
+
         HeaderWarning.setThreadContext(threadPool.getThreadContext());
-        var executor = new TestQueryExecutor(threadPool);
+        var queryRunner = new TestQueryRunner(threadPool, executor);
 
         var parsed = parser.createStatement(query);
         MapperService mapperService = createMapperService(MAPPING_ALL_TYPES);
@@ -123,15 +124,14 @@ public class OptimizerExecutabilityTests extends MapperServiceTestCase {
             IndexSearcher searcher = newSearcher(ir);
             SearchExecutionContext ctx = createSearchExecutionContext(mapperService, searcher);
 
-            var actualResults = executor.executePlan(
+            var actualResults = queryRunner.executePlan(
                 parsed,
                 new EsPhysicalOperationProviders(List.of(new EsPhysicalOperationProviders.DefaultShardContext(0, ctx, AliasFilter.EMPTY))),
-                IndexResolution.valid(new EsIndex("testidx", Map.of("integer", new EsField("integer", DataTypes.INTEGER, Map.of(), true)))),
-                new EnrichResolution(Set.of(), Set.of()),
-                true
+                IndexResolution.valid(new EsIndex("testidx", Map.of("integer", new EsField("integer", DataType.INTEGER, Map.of(), true)))),
+                new EnrichResolution()
             );
 
-            assertWarnings("No limit defined, adding default limit of [500]");
+            assertWarnings("No limit defined, adding default limit of [1000]");
 
             HeaderWarning.removeThreadContext(threadPool.getThreadContext());
             ThreadPool.terminate(threadPool, 30, TimeUnit.SECONDS);

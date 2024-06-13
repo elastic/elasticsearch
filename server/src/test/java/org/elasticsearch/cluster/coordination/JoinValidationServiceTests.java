@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistryTests;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
@@ -59,6 +60,7 @@ import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import static org.elasticsearch.action.support.ActionTestUtils.assertNoSuccessListener;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 
@@ -99,9 +101,7 @@ public class JoinValidationServiceTests extends ESTestCase {
                         @Override
                         public void sendRequest(long requestId, String action, TransportRequest request, TransportRequestOptions options)
                             throws TransportException {
-                            final var executor = threadPool.executor(
-                                randomFrom(ThreadPool.Names.SAME, ThreadPool.Names.GENERIC, ThreadPool.Names.CLUSTER_COORDINATION)
-                            );
+                            final var executor = randomExecutor(threadPool, ThreadPool.Names.CLUSTER_COORDINATION);
                             executor.execute(new AbstractRunnable() {
                                 @Override
                                 public void onFailure(Exception e) {
@@ -296,19 +296,11 @@ public class JoinValidationServiceTests extends ESTestCase {
                 assertSame(node, joiningNode);
                 assertEquals(JoinValidationService.JOIN_VALIDATE_ACTION_NAME, action);
 
-                final var listener = new ActionListener<TransportResponse>() {
-                    @Override
-                    public void onResponse(TransportResponse transportResponse) {
-                        fail("should not succeed");
-                    }
+                final ActionListener<TransportResponse> listener = assertNoSuccessListener(
+                    e -> handleError(requestId, new RemoteTransportException(node.getName(), node.getAddress(), action, e))
+                );
 
-                    @Override
-                    public void onFailure(Exception e) {
-                        handleError(requestId, new RemoteTransportException(node.getName(), node.getAddress(), action, e));
-                    }
-                };
-
-                try (var out = new BytesStreamOutput()) {
+                try (var ignored = NamedWriteableRegistryTests.ignoringUnknownNamedWriteables(); var out = new BytesStreamOutput()) {
                     request.writeTo(out);
                     out.flush();
                     final var handler = joiningNodeTransport.getRequestHandlers().getHandler(action);

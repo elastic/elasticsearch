@@ -25,7 +25,7 @@ public class DeleteSynonymsAction extends ActionType<AcknowledgedResponse> {
     public static final String NAME = "cluster:admin/synonyms/delete";
 
     public DeleteSynonymsAction() {
-        super(NAME, AcknowledgedResponse::readFrom);
+        super(NAME);
     }
 
     public static class Request extends ActionRequest {

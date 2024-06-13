@@ -40,7 +40,7 @@ public class AnalyzeAction extends ActionType<AnalyzeAction.Response> {
     public static final String NAME = "indices:admin/analyze";
 
     private AnalyzeAction() {
-        super(NAME, AnalyzeAction.Response::new);
+        super(NAME);
     }
 
     public static class Fields {

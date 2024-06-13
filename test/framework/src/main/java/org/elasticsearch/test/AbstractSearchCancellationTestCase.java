@@ -11,7 +11,6 @@ package org.elasticsearch.test;
 import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionFuture;
-import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksResponse;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
@@ -117,7 +116,7 @@ public class AbstractSearchCancellationTestCase extends ESIntegTestCase {
         TaskInfo searchTask = listTasksResponse.getTasks().get(0);
 
         logger.info("Cancelling search");
-        CancelTasksResponse cancelTasksResponse = clusterAdmin().prepareCancelTasks().setTargetTaskId(searchTask.taskId()).get();
+        ListTasksResponse cancelTasksResponse = clusterAdmin().prepareCancelTasks().setTargetTaskId(searchTask.taskId()).get();
         assertThat(cancelTasksResponse.getTasks(), hasSize(1));
         assertThat(cancelTasksResponse.getTasks().get(0).taskId(), equalTo(searchTask.taskId()));
     }

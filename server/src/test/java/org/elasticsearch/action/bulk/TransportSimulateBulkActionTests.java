@@ -15,6 +15,7 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.ingest.SimulateIndexResponse;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -22,7 +23,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.indices.EmptySystemIndices;
@@ -52,7 +52,9 @@ import static org.mockito.Mockito.mock;
 
 public class TransportSimulateBulkActionTests extends ESTestCase {
 
-    /** Services needed by bulk action */
+    /**
+     * Services needed by bulk action
+     */
     private TransportService transportService;
     private ClusterService clusterService;
     private TestThreadPool threadPool;
@@ -72,6 +74,7 @@ public class TransportSimulateBulkActionTests extends ESTestCase {
                 clusterService,
                 null,
                 null,
+                new NodeClient(Settings.EMPTY, TransportSimulateBulkActionTests.this.threadPool),
                 new ActionFilters(Collections.emptySet()),
                 new TransportBulkActionTookTests.Resolver(),
                 new IndexingPressure(Settings.EMPTY),
@@ -80,7 +83,7 @@ public class TransportSimulateBulkActionTests extends ESTestCase {
         }
 
         @Override
-        void createIndex(String index, TimeValue timeout, ActionListener<CreateIndexResponse> listener) {
+        void createIndex(String index, boolean requireDataStream, TimeValue timeout, ActionListener<CreateIndexResponse> listener) {
             indexCreated = true;
             if (beforeIndexCreation != null) {
                 beforeIndexCreation.run();
@@ -189,18 +192,18 @@ public class TransportSimulateBulkActionTests extends ESTestCase {
                 fail(e, "Unexpected error");
             }
         };
-        Set<String> autoCreateIndices = Set.of(); // unused
+        Map<String, Boolean> indicesToAutoCreate = Map.of(); // unused
         Set<String> dataStreamsToRollover = Set.of(); // unused
-        Map<String, IndexNotFoundException> indicesThatCannotBeCreated = Map.of(); // unused
+        Set<String> failureStoresToRollover = Set.of(); // unused
         long startTime = 0;
         bulkAction.createMissingIndicesAndIndexData(
             task,
             bulkRequest,
-            randomAlphaOfLength(10),
+            r -> fail("executor is unused"),
             listener,
-            autoCreateIndices,
+            indicesToAutoCreate,
             dataStreamsToRollover,
-            indicesThatCannotBeCreated,
+            failureStoresToRollover,
             startTime
         );
         assertThat(onResponseCalled.get(), equalTo(true));

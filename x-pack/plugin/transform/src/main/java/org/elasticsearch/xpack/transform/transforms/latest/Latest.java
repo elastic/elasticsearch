@@ -116,6 +116,7 @@ public class Latest extends AbstractCompositeAggFunction {
     public void deduceMappings(
         Client client,
         Map<String, String> headers,
+        String transformId,
         SourceConfig sourceConfig,
         ActionListener<Map<String, String>> listener
     ) {

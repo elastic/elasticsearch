@@ -11,14 +11,18 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.aggregations.AggregationsPlugin;
 import org.elasticsearch.aggregations.bucket.histogram.AutoDateHistogramAggregationBuilder;
 import org.elasticsearch.aggregations.bucket.timeseries.InternalTimeSeries;
 import org.elasticsearch.aggregations.bucket.timeseries.TimeSeriesAggregationBuilder;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
@@ -63,8 +67,7 @@ public class TimeSeriesRateAggregatorTests extends AggregatorTestCase {
                 closeTo(206.0 / 4000.0 * MILLIS_IN_SECOND, 0.00001)
             );
         };
-        AggTestConfig aggTestConfig = new AggTestConfig(tsBuilder, timeStampField(), counterField("counter_field"))
-            .withSplitLeavesIntoSeperateAggregators(false);
+        AggTestConfig aggTestConfig = new AggTestConfig(tsBuilder, timeStampField(), counterField("counter_field"), dimensionField("dim"));
         testCase(iw -> {
             iw.addDocuments(docs(1000, "1", 15, 37, 60, /*reset*/ 14));
             iw.addDocuments(docs(1000, "2", 74, 150, /*reset*/ 50, 90, /*reset*/ 40));
@@ -103,7 +106,7 @@ public class TimeSeriesRateAggregatorTests extends AggregatorTestCase {
             }
         };
 
-        AggTestConfig aggTestConfig = new AggTestConfig(tsBuilder, timeStampField(), counterField("counter_field"))
+        AggTestConfig aggTestConfig = new AggTestConfig(tsBuilder, timeStampField(), counterField("counter_field"), dimensionField("dim"))
             .withSplitLeavesIntoSeperateAggregators(false);
         testCase(iw -> {
             iw.addDocuments(docs(2000, "1", 15, 37, 60, /*reset*/ 14));
@@ -154,7 +157,7 @@ public class TimeSeriesRateAggregatorTests extends AggregatorTestCase {
 
         List<Document> documents = new ArrayList<>();
         for (int i = 0; i < values.length; i++) {
-            documents.add(doc(startTimestamp + (i * 1000L), tsid(dim), values[i]));
+            documents.add(doc(startTimestamp + (i * 1000L), tsid(dim), values[i], dim));
         }
         return documents;
     }
@@ -162,15 +165,23 @@ public class TimeSeriesRateAggregatorTests extends AggregatorTestCase {
     private static BytesReference tsid(String dim) throws IOException {
         TimeSeriesIdFieldMapper.TimeSeriesIdBuilder idBuilder = new TimeSeriesIdFieldMapper.TimeSeriesIdBuilder(null);
         idBuilder.addString("dim", dim);
-        return idBuilder.build();
+        return idBuilder.buildTsidHash();
     }
 
-    private Document doc(long timestamp, BytesReference tsid, long counterValue) {
+    private Document doc(long timestamp, BytesReference tsid, long counterValue, String dim) {
         Document doc = new Document();
         doc.add(new SortedNumericDocValuesField("@timestamp", timestamp));
         doc.add(new SortedDocValuesField("_tsid", tsid.toBytesRef()));
         doc.add(new NumericDocValuesField("counter_field", counterValue));
+        doc.add(new SortedDocValuesField("dim", new BytesRef(dim)));
         return doc;
+    }
+
+    private MappedFieldType dimensionField(String name) {
+        return new KeywordFieldMapper.Builder(name, IndexVersion.current()).dimension(true)
+            .docValues(true)
+            .build(MapperBuilderContext.root(true, true))
+            .fieldType();
     }
 
     private MappedFieldType counterField(String name) {

@@ -40,7 +40,7 @@ public class StartPersistentTaskAction extends ActionType<PersistentTaskResponse
     public static final String NAME = "cluster:admin/persistent/start";
 
     private StartPersistentTaskAction() {
-        super(NAME, PersistentTaskResponse::new);
+        super(NAME);
     }
 
     public static class Request extends MasterNodeRequest<Request> {
@@ -51,7 +51,9 @@ public class StartPersistentTaskAction extends ActionType<PersistentTaskResponse
 
         private PersistentTaskParams params;
 
-        public Request() {}
+        public Request() {
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
+        }
 
         public Request(StreamInput in) throws IOException {
             super(in);
@@ -61,6 +63,7 @@ public class StartPersistentTaskAction extends ActionType<PersistentTaskResponse
         }
 
         public Request(String taskId, String taskName, PersistentTaskParams params) {
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
             this.taskId = taskId;
             this.taskName = taskName;
             this.params = params;
@@ -163,7 +166,7 @@ public class StartPersistentTaskAction extends ActionType<PersistentTaskResponse
                 threadPool.executor(ThreadPool.Names.GENERIC)
             );
             this.persistentTasksClusterService = persistentTasksClusterService;
-            NodePersistentTasksExecutor executor = new NodePersistentTasksExecutor(threadPool);
+            NodePersistentTasksExecutor executor = new NodePersistentTasksExecutor();
             clusterService.addListener(
                 new PersistentTasksNodeService(
                     threadPool,

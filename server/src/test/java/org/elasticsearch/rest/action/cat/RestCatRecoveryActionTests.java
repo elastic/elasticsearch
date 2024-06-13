@@ -58,7 +58,7 @@ public class RestCatRecoveryActionTests extends ESTestCase {
             when(timer.time()).thenReturn(time);
             when(timer.stopTime()).thenReturn(startTime + time);
             when(state.getTimer()).thenReturn(timer);
-            when(state.getRecoverySource()).thenReturn(TestShardRouting.randomRecoverySource());
+            when(state.getRecoverySource()).thenReturn(TestShardRouting.buildRecoverySource());
             when(state.getStage()).thenReturn(randomFrom(RecoveryState.Stage.values()));
             final DiscoveryNode sourceNode = randomBoolean() ? mock(DiscoveryNode.class) : null;
             if (sourceNode != null) {

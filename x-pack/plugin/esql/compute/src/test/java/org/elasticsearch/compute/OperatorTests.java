@@ -37,6 +37,7 @@ import org.elasticsearch.compute.aggregation.CountAggregatorFunction;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.BlockTestUtils;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DocBlock;
 import org.elasticsearch.compute.data.DocVector;
@@ -59,6 +60,7 @@ import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.OperatorTestCase;
 import org.elasticsearch.compute.operator.OrdinalsGroupingOperator;
 import org.elasticsearch.compute.operator.PageConsumerOperator;
+import org.elasticsearch.compute.operator.RowInTableLookupOperator;
 import org.elasticsearch.compute.operator.SequenceLongBlockSourceOperator;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Releasables;
@@ -71,12 +73,14 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
 
 import static org.elasticsearch.compute.aggregation.AggregatorMode.FINAL;
 import static org.elasticsearch.compute.aggregation.AggregatorMode.INITIAL;
@@ -97,7 +101,7 @@ public class OperatorTests extends MapperServiceTestCase {
             LuceneOperator.Factory factory = luceneOperatorFactory(reader, query, LuceneOperator.NO_LIMIT);
             List<Driver> drivers = new ArrayList<>();
             try {
-                Set<Integer> actualDocIds = Collections.newSetFromMap(ConcurrentCollections.newConcurrentMap());
+                Set<Integer> actualDocIds = ConcurrentCollections.newConcurrentSet();
                 for (int t = 0; t < factory.taskConcurrency(); t++) {
                     PageConsumerOperator docCollector = new PageConsumerOperator(page -> {
                         DocVector docVector = page.<DocBlock>getBlock(0).asVector();
@@ -239,8 +243,8 @@ public class OperatorTests extends MapperServiceTestCase {
                         new HashAggregationOperator(
                             List.of(CountAggregatorFunction.supplier(List.of(1, 2)).groupingAggregatorFactory(FINAL)),
                             () -> BlockHash.build(
-                                List.of(new HashAggregationOperator.GroupSpec(0, ElementType.BYTES_REF)),
-                                driverContext,
+                                List.of(new BlockHash.GroupSpec(0, ElementType.BYTES_REF)),
+                                driverContext.blockFactory(),
                                 randomPageSize(),
                                 false
                             ),
@@ -322,6 +326,78 @@ public class OperatorTests extends MapperServiceTestCase {
             }
         });
         return docIds;
+    }
+
+    public void testHashLookup() {
+        // TODO move this to an integration test once we've plugged in the lookup
+        DriverContext driverContext = driverContext();
+        Map<Long, Integer> primeOrds = new TreeMap<>();
+        Block primesBlock;
+        try (LongBlock.Builder primes = driverContext.blockFactory().newLongBlockBuilder(30)) {
+            boolean[] sieve = new boolean[100];
+            Arrays.fill(sieve, true);
+            sieve[0] = false;
+            sieve[1] = false;
+            int prime = 2;
+            while (prime < 100) {
+                if (false == sieve[prime]) {
+                    prime++;
+                    continue;
+                }
+                primes.appendLong(prime);
+                primeOrds.put((long) prime, primeOrds.size());
+                for (int m = prime + prime; m < sieve.length; m += prime) {
+                    sieve[m] = false;
+                }
+                prime++;
+            }
+            primesBlock = primes.build();
+        }
+        try {
+            List<Long> values = new ArrayList<>();
+            List<Object> expectedValues = new ArrayList<>();
+            List<Object> expectedPrimeOrds = new ArrayList<>();
+            for (int i = 0; i < 100; i++) {
+                long v = i % 10 == 0 ? randomFrom(primeOrds.keySet()) : randomLongBetween(0, 100);
+                values.add(v);
+                expectedValues.add(v);
+                expectedPrimeOrds.add(primeOrds.get(v));
+            }
+
+            var actualValues = new ArrayList<>();
+            var actualPrimeOrds = new ArrayList<>();
+            try (
+                var driver = new Driver(
+                    driverContext,
+                    new SequenceLongBlockSourceOperator(driverContext.blockFactory(), values, 100),
+                    List.of(
+                        new RowInTableLookupOperator(
+                            driverContext.blockFactory(),
+                            new RowInTableLookupOperator.Key[] { new RowInTableLookupOperator.Key("primes", primesBlock) },
+                            new int[] { 0 }
+                        )
+                    ),
+                    new PageConsumerOperator(page -> {
+                        try {
+                            BlockTestUtils.readInto(actualValues, page.getBlock(0));
+                            BlockTestUtils.readInto(actualPrimeOrds, page.getBlock(1));
+                        } finally {
+                            page.releaseBlocks();
+                        }
+                    }),
+                    () -> {}
+                )
+            ) {
+                OperatorTestCase.runDriver(driver);
+            }
+
+            assertThat(actualValues, equalTo(expectedValues));
+            assertThat(actualPrimeOrds, equalTo(expectedPrimeOrds));
+            assertDriverContext(driverContext);
+        } finally {
+            primesBlock.close();
+        }
+
     }
 
     /**

@@ -10,7 +10,7 @@ package org.elasticsearch.persistent;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksResponse;
+import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.common.Strings;
@@ -265,6 +265,7 @@ public class PersistentTasksNodeService implements ClusterStateListener {
             taskInProgress.getAllocationId(),
             originalException,
             null,
+            null,
             new ActionListener<>() {
                 @Override
                 public void onResponse(PersistentTask<?> persistentTask) {
@@ -300,9 +301,9 @@ public class PersistentTasksNodeService implements ClusterStateListener {
         if (task.markAsCancelled()) {
             // Cancel the local task using the task manager
             String reason = "task has been removed, cancelling locally";
-            persistentTasksService.sendCancelRequest(task.getId(), reason, new ActionListener<CancelTasksResponse>() {
+            persistentTasksService.sendCancelRequest(task.getId(), reason, null, new ActionListener<>() {
                 @Override
-                public void onResponse(CancelTasksResponse cancelTasksResponse) {
+                public void onResponse(ListTasksResponse cancelTasksResponse) {
                     logger.trace(
                         "Persistent task [{}] with id [{}] and allocation id [{}] was cancelled",
                         task.getAction(),

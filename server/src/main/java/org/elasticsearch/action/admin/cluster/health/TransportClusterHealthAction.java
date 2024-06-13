@@ -49,7 +49,7 @@ import java.util.function.Predicate;
 public class TransportClusterHealthAction extends TransportMasterNodeReadAction<ClusterHealthRequest, ClusterHealthResponse> {
 
     public static final String NAME = "cluster:monitor/health";
-    public static final ActionType<ClusterHealthResponse> TYPE = new ActionType<ClusterHealthResponse>(NAME, ClusterHealthResponse::new);
+    public static final ActionType<ClusterHealthResponse> TYPE = new ActionType<ClusterHealthResponse>(NAME);
     private static final Logger logger = LogManager.getLogger(TransportClusterHealthAction.class);
 
     private final AllocationService allocationService;

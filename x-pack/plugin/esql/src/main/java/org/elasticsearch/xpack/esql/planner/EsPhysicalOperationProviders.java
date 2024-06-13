@@ -19,10 +19,13 @@ import org.elasticsearch.compute.lucene.LuceneCountOperator;
 import org.elasticsearch.compute.lucene.LuceneOperator;
 import org.elasticsearch.compute.lucene.LuceneSourceOperator;
 import org.elasticsearch.compute.lucene.LuceneTopNSourceOperator;
+import org.elasticsearch.compute.lucene.TimeSeriesSortedSourceOperatorFactory;
 import org.elasticsearch.compute.lucene.ValuesSourceReaderOperator;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.OrdinalsGroupingOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -36,6 +39,9 @@ import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.sort.SortBuilder;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec.FieldSort;
@@ -44,9 +50,6 @@ import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.DriverParallel
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.LocalExecutionPlannerContext;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.PhysicalOperation;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
-import org.elasticsearch.xpack.ql.expression.Attribute;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.type.DataType;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -58,6 +61,7 @@ import java.util.function.IntFunction;
 
 import static org.elasticsearch.common.lucene.search.Queries.newNonNestedFilter;
 import static org.elasticsearch.compute.lucene.LuceneSourceOperator.NO_LIMIT;
+import static org.elasticsearch.index.mapper.MappedFieldType.FieldExtractPreference.NONE;
 
 public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProviders {
     /**
@@ -77,7 +81,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         /**
          * Returns something to load values from this field into a {@link Block}.
          */
-        BlockLoader blockLoader(String name, boolean asUnsupportedSource);
+        BlockLoader blockLoader(String name, boolean asUnsupportedSource, MappedFieldType.FieldExtractPreference fieldExtractPreference);
     }
 
     private final List<ShardContext> shardContexts;
@@ -88,9 +92,6 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
 
     @Override
     public final PhysicalOperation fieldExtractPhysicalOperation(FieldExtractExec fieldExtractExec, PhysicalOperation source) {
-        // TODO: see if we can get the FieldExtractExec to know if spatial types need to be read from source or doc values, and capture
-        // that information in the BlockReaderFactories.loaders method so it is passed in the BlockLoaderContext
-        // to GeoPointFieldMapper.blockLoader
         Layout.Builder layout = source.layout.builder();
         var sourceAttr = fieldExtractExec.sourceAttribute();
         List<ValuesSourceReaderOperator.ShardContext> readers = shardContexts.stream()
@@ -98,13 +99,15 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             .toList();
         List<ValuesSourceReaderOperator.FieldInfo> fields = new ArrayList<>();
         int docChannel = source.layout.get(sourceAttr.id()).channel();
+        var docValuesAttrs = fieldExtractExec.docValuesAttributes();
         for (Attribute attr : fieldExtractExec.attributesToExtract()) {
             layout.append(attr);
             DataType dataType = attr.dataType();
-            ElementType elementType = PlannerUtils.toElementType(dataType);
+            MappedFieldType.FieldExtractPreference fieldExtractPreference = PlannerUtils.extractPreference(docValuesAttrs.contains(attr));
+            ElementType elementType = PlannerUtils.toElementType(dataType, fieldExtractPreference);
             String fieldName = attr.name();
-            boolean isSupported = EsqlDataTypes.isUnsupported(dataType);
-            IntFunction<BlockLoader> loader = s -> shardContexts.get(s).blockLoader(fieldName, isSupported);
+            boolean isUnsupported = EsqlDataTypes.isUnsupported(dataType);
+            IntFunction<BlockLoader> loader = s -> shardContexts.get(s).blockLoader(fieldName, isUnsupported, fieldExtractPreference);
             fields.add(new ValuesSourceReaderOperator.FieldInfo(fieldName, elementType, loader));
         }
         return source.with(new ValuesSourceReaderOperator.Factory(fields, readers, docChannel), layout.build());
@@ -139,14 +142,25 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
                 fieldSorts
             );
         } else {
-            luceneFactory = new LuceneSourceOperator.Factory(
-                shardContexts,
-                querySupplier(esQueryExec.query()),
-                context.queryPragmas().dataPartitioning(),
-                context.queryPragmas().taskConcurrency(),
-                context.pageSize(rowEstimatedSize),
-                limit
-            );
+            if (esQueryExec.indexMode() == IndexMode.TIME_SERIES) {
+                luceneFactory = TimeSeriesSortedSourceOperatorFactory.create(
+                    limit,
+                    context.pageSize(rowEstimatedSize),
+                    context.queryPragmas().taskConcurrency(),
+                    TimeValue.ZERO,
+                    shardContexts,
+                    querySupplier(esQueryExec.query())
+                );
+            } else {
+                luceneFactory = new LuceneSourceOperator.Factory(
+                    shardContexts,
+                    querySupplier(esQueryExec.query()),
+                    context.queryPragmas().dataPartitioning(),
+                    context.queryPragmas().taskConcurrency(),
+                    context.pageSize(rowEstimatedSize),
+                    limit
+                );
+            }
         }
         Layout.Builder layout = new Layout.Builder();
         layout.append(esQueryExec.output());
@@ -186,7 +200,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         // Costin: why are they ready and not already exposed in the layout?
         boolean isUnsupported = EsqlDataTypes.isUnsupported(attrSource.dataType());
         return new OrdinalsGroupingOperator.OrdinalsGroupingOperatorFactory(
-            shardIdx -> shardContexts.get(shardIdx).blockLoader(attrSource.name(), isUnsupported),
+            shardIdx -> shardContexts.get(shardIdx).blockLoader(attrSource.name(), isUnsupported, NONE),
             vsShardContexts,
             groupElementType,
             docChannel,
@@ -255,7 +269,11 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         }
 
         @Override
-        public BlockLoader blockLoader(String name, boolean asUnsupportedSource) {
+        public BlockLoader blockLoader(
+            String name,
+            boolean asUnsupportedSource,
+            MappedFieldType.FieldExtractPreference fieldExtractPreference
+        ) {
             if (asUnsupportedSource) {
                 return BlockLoader.CONSTANT_NULLS;
             }
@@ -268,6 +286,11 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
                 @Override
                 public String indexName() {
                     return ctx.getFullyQualifiedIndex().getName();
+                }
+
+                @Override
+                public MappedFieldType.FieldExtractPreference fieldExtractPreference() {
+                    return fieldExtractPreference;
                 }
 
                 @Override

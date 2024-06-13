@@ -51,6 +51,9 @@ import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.legacygeo.mapper.LegacyGeoShapeFieldMapper;
+import org.elasticsearch.lucene.spatial.BinaryShapeDocValuesField;
+import org.elasticsearch.lucene.spatial.CoordinateEncoder;
+import org.elasticsearch.lucene.spatial.LatLonShapeDocValuesQuery;
 import org.elasticsearch.script.GeometryFieldScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptCompiler;
@@ -59,7 +62,6 @@ import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
 import org.elasticsearch.script.field.Field;
 import org.elasticsearch.search.lookup.FieldValues;
 import org.elasticsearch.search.lookup.SearchLookup;
-import org.elasticsearch.xpack.spatial.index.fielddata.CoordinateEncoder;
 import org.elasticsearch.xpack.spatial.index.fielddata.GeoShapeValues;
 import org.elasticsearch.xpack.spatial.index.fielddata.plain.AbstractAtomicGeoShapeShapeFieldData;
 import org.elasticsearch.xpack.spatial.index.fielddata.plain.LatLonShapeIndexFieldData;
@@ -171,7 +173,7 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
             GeometryFieldScript.Factory factory = scriptCompiler.compile(this.script.get(), GeometryFieldScript.CONTEXT);
             return factory == null
                 ? null
-                : (lookup, ctx, doc, consumer) -> factory.newFactory(name, script.get().getParams(), lookup, OnScriptError.FAIL)
+                : (lookup, ctx, doc, consumer) -> factory.newFactory(name(), script.get().getParams(), lookup, OnScriptError.FAIL)
                     .newInstance(ctx)
                     .runForDoc(doc, consumer);
         }
@@ -192,7 +194,7 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
             );
             GeoShapeParser parser = new GeoShapeParser(geometryParser, orientation.get().value());
             GeoShapeWithDocValuesFieldType ft = new GeoShapeWithDocValuesFieldType(
-                context.buildFullName(name),
+                context.buildFullName(name()),
                 indexed.get(),
                 hasDocValues.get(),
                 stored.get(),
@@ -204,7 +206,7 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
             );
             if (script.get() == null) {
                 return new GeoShapeWithDocValuesFieldMapper(
-                    name,
+                    name(),
                     ft,
                     multiFieldsBuilder.build(this, context),
                     copyTo,
@@ -214,7 +216,7 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
                 );
             }
             return new GeoShapeWithDocValuesFieldMapper(
-                name,
+                name(),
                 ft,
                 multiFieldsBuilder.build(this, context),
                 copyTo,

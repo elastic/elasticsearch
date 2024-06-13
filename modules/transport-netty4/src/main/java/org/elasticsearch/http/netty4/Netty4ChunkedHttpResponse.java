@@ -12,30 +12,41 @@ import io.netty.handler.codec.http.DefaultHttpResponse;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.netty.handler.codec.http.HttpVersion;
 
-import org.elasticsearch.rest.ChunkedRestResponseBody;
+import org.elasticsearch.http.HttpResponse;
+import org.elasticsearch.rest.ChunkedRestResponseBodyPart;
 import org.elasticsearch.rest.RestStatus;
 
 /**
  * A http response that will be transferred via chunked encoding when handled by {@link Netty4HttpPipeliningHandler}.
  */
-public final class Netty4ChunkedHttpResponse extends DefaultHttpResponse implements Netty4RestResponse {
+final class Netty4ChunkedHttpResponse extends DefaultHttpResponse implements Netty4HttpResponse, HttpResponse {
 
     private final int sequence;
 
-    private final ChunkedRestResponseBody body;
+    private final ChunkedRestResponseBodyPart firstBodyPart;
 
-    Netty4ChunkedHttpResponse(int sequence, HttpVersion version, RestStatus status, ChunkedRestResponseBody body) {
+    Netty4ChunkedHttpResponse(int sequence, HttpVersion version, RestStatus status, ChunkedRestResponseBodyPart firstBodyPart) {
         super(version, HttpResponseStatus.valueOf(status.getStatus()));
         this.sequence = sequence;
-        this.body = body;
+        this.firstBodyPart = firstBodyPart;
     }
 
-    public ChunkedRestResponseBody body() {
-        return body;
+    public ChunkedRestResponseBodyPart firstBodyPart() {
+        return firstBodyPart;
     }
 
     @Override
     public int getSequence() {
         return sequence;
+    }
+
+    @Override
+    public void addHeader(String name, String value) {
+        headers().add(name, value);
+    }
+
+    @Override
+    public boolean containsHeader(String name) {
+        return headers().contains(name);
     }
 }

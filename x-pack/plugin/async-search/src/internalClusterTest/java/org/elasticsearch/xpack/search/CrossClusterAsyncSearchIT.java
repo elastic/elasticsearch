@@ -11,7 +11,6 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
-import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksResponse;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
@@ -567,7 +566,10 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
             assertThat(localClusterSearchInfo.getFailures().size(), equalTo(1));
             assertThat(localClusterSearchInfo.getTook().millis(), greaterThan(0L));
             ShardSearchFailure localShardSearchFailure = localClusterSearchInfo.getFailures().get(0);
-            assertTrue("should have 'index corrupted' in reason", localShardSearchFailure.reason().contains("index corrupted"));
+            assertTrue(
+                "should have 'index corrupted' in reason but was: " + localShardSearchFailure.reason(),
+                localShardSearchFailure.reason().contains("index corrupted")
+            );
 
             SearchResponse.Cluster remoteClusterSearchInfo = clusters.getCluster(REMOTE_CLUSTER);
             assertNotNull(remoteClusterSearchInfo);
@@ -579,7 +581,10 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
             assertThat(remoteClusterSearchInfo.getFailures().size(), equalTo(1));
             assertThat(remoteClusterSearchInfo.getTook().millis(), greaterThan(0L));
             ShardSearchFailure remoteShardSearchFailure = remoteClusterSearchInfo.getFailures().get(0);
-            assertTrue("should have 'index corrupted' in reason", remoteShardSearchFailure.reason().contains("index corrupted"));
+            assertTrue(
+                "should have 'index corrupted' in reason but was: " + remoteShardSearchFailure.reason(),
+                remoteShardSearchFailure.reason().contains("index corrupted")
+            );
         } finally {
             finishedResponse.decRef();
         }
@@ -606,7 +611,10 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
             assertThat(localClusterSearchInfo.getFailures().size(), equalTo(1));
             assertThat(localClusterSearchInfo.getTook().millis(), greaterThan(0L));
             ShardSearchFailure localShardSearchFailure = localClusterSearchInfo.getFailures().get(0);
-            assertTrue("should have 'index corrupted' in reason", localShardSearchFailure.reason().contains("index corrupted"));
+            assertTrue(
+                "should have 'index corrupted' in reason but was: " + localShardSearchFailure.reason(),
+                localShardSearchFailure.reason().contains("index corrupted")
+            );
 
             SearchResponse.Cluster remoteClusterSearchInfo = clusters.getCluster(REMOTE_CLUSTER);
             assertNotNull(remoteClusterSearchInfo);
@@ -618,7 +626,10 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
             assertThat(remoteClusterSearchInfo.getFailures().size(), equalTo(1));
             assertThat(remoteClusterSearchInfo.getTook().millis(), greaterThan(0L));
             ShardSearchFailure remoteShardSearchFailure = remoteClusterSearchInfo.getFailures().get(0);
-            assertTrue("should have 'index corrupted' in reason", remoteShardSearchFailure.reason().contains("index corrupted"));
+            assertTrue(
+                "should have 'index corrupted' in reason but was: " + remoteShardSearchFailure.reason(),
+                remoteShardSearchFailure.reason().contains("index corrupted")
+            );
         }
     }
 
@@ -727,7 +738,10 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
             assertNull(remoteClusterSearchInfo.getTook());
             assertFalse(remoteClusterSearchInfo.isTimedOut());
             ShardSearchFailure remoteShardSearchFailure = remoteClusterSearchInfo.getFailures().get(0);
-            assertTrue("should have 'index corrupted' in reason", remoteShardSearchFailure.reason().contains("index corrupted"));
+            assertTrue(
+                "should have 'index corrupted' in reason but was: " + remoteShardSearchFailure.reason(),
+                remoteShardSearchFailure.reason().contains("index corrupted")
+            );
         } finally {
             finishedResponse.decRef();
         }
@@ -777,7 +791,10 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
             assertNull(remoteClusterSearchInfo.getTook());
             assertFalse(remoteClusterSearchInfo.isTimedOut());
             ShardSearchFailure remoteShardSearchFailure = remoteClusterSearchInfo.getFailures().get(0);
-            assertTrue("should have 'index corrupted' in reason", remoteShardSearchFailure.reason().contains("index corrupted"));
+            assertTrue(
+                "should have 'index corrupted' in reason but was: " + remoteShardSearchFailure.reason(),
+                remoteShardSearchFailure.reason().contains("index corrupted")
+            );
         }
     }
 
@@ -1164,7 +1181,10 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
             assertThat(remoteClusterSearchInfo.getFailures().size(), equalTo(1));
             assertThat(remoteClusterSearchInfo.getTook().millis(), greaterThan(0L));
             ShardSearchFailure remoteShardSearchFailure = remoteClusterSearchInfo.getFailures().get(0);
-            assertTrue("should have 'index corrupted' in reason", remoteShardSearchFailure.reason().contains("index corrupted"));
+            assertTrue(
+                "should have 'index corrupted' in reason but was: " + remoteShardSearchFailure.reason(),
+                remoteShardSearchFailure.reason().contains("index corrupted")
+            );
         } finally {
             finishedResponse.decRef();
         }
@@ -1193,7 +1213,10 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
             assertThat(remoteClusterSearchInfo.getFailures().size(), equalTo(1));
             assertThat(remoteClusterSearchInfo.getTook().millis(), greaterThan(0L));
             ShardSearchFailure remoteShardSearchFailure = remoteClusterSearchInfo.getFailures().get(0);
-            assertTrue("should have 'index corrupted' in reason", remoteShardSearchFailure.reason().contains("index corrupted"));
+            assertTrue(
+                "should have 'index corrupted' in reason but was: " + remoteShardSearchFailure.reason(),
+                remoteShardSearchFailure.reason().contains("index corrupted")
+            );
         }
     }
 
@@ -1318,7 +1341,7 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
 
         SearchListenerPlugin.waitSearchStarted();
 
-        ActionFuture<CancelTasksResponse> cancelFuture;
+        ActionFuture<ListTasksResponse> cancelFuture;
         try {
             ListTasksResponse listTasksResponse = client(LOCAL_CLUSTER).admin()
                 .cluster()
@@ -1666,7 +1689,10 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
         assertNull(cluster.getTook());
         assertFalse(cluster.isTimedOut());
         ShardSearchFailure shardSearchFailure = cluster.getFailures().get(0);
-        assertTrue("should have 'index corrupted' in reason", shardSearchFailure.reason().contains("index corrupted"));
+        assertTrue(
+            "should have 'index corrupted' in reason but was: " + shardSearchFailure.reason(),
+            shardSearchFailure.reason().contains("index corrupted")
+        );
     }
 
     protected AsyncSearchResponse submitAsyncSearch(SubmitAsyncSearchRequest request) throws ExecutionException, InterruptedException {

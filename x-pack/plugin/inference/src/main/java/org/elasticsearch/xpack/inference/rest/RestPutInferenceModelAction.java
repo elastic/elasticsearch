@@ -8,16 +8,23 @@
 package org.elasticsearch.xpack.inference.rest;
 
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.inference.action.PutInferenceModelAction;
 
-import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
+import static org.elasticsearch.xpack.inference.rest.Paths.INFERENCE_ID;
+import static org.elasticsearch.xpack.inference.rest.Paths.INFERENCE_ID_PATH;
+import static org.elasticsearch.xpack.inference.rest.Paths.TASK_TYPE_INFERENCE_ID_PATH;
+import static org.elasticsearch.xpack.inference.rest.Paths.TASK_TYPE_OR_INFERENCE_ID;
 
+@ServerlessScope(Scope.PUBLIC)
 public class RestPutInferenceModelAction extends BaseRestHandler {
     @Override
     public String getName() {
@@ -26,15 +33,27 @@ public class RestPutInferenceModelAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(PUT, "_inference/{task_type}/{model_id}"));
+        return List.of(new Route(PUT, INFERENCE_ID_PATH), new Route(PUT, TASK_TYPE_INFERENCE_ID_PATH));
     }
 
     @Override
-    protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
-        String taskType = restRequest.param("task_type");
-        String modelId = restRequest.param("model_id");
+    protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) {
+        String inferenceEntityId;
+        TaskType taskType;
+        if (restRequest.hasParam(INFERENCE_ID)) {
+            inferenceEntityId = restRequest.param(INFERENCE_ID);
+            taskType = TaskType.fromStringOrStatusException(restRequest.param(TASK_TYPE_OR_INFERENCE_ID));
+        } else {
+            inferenceEntityId = restRequest.param(TASK_TYPE_OR_INFERENCE_ID);
+            taskType = TaskType.ANY; // task type must be defined in the body
+        }
 
-        var request = new PutInferenceModelAction.Request(taskType, modelId, restRequest.requiredContent(), restRequest.getXContentType());
+        var request = new PutInferenceModelAction.Request(
+            taskType,
+            inferenceEntityId,
+            restRequest.requiredContent(),
+            restRequest.getXContentType()
+        );
         return channel -> client.execute(PutInferenceModelAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }
 }

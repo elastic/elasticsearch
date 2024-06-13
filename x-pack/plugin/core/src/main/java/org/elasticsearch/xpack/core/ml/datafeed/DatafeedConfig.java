@@ -38,7 +38,6 @@ import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.common.time.TimeUtils;
-import org.elasticsearch.xpack.core.ml.datafeed.extractor.ExtractorUtils;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.utils.MlStrings;
 import org.elasticsearch.xpack.core.ml.utils.QueryProvider;
@@ -144,7 +143,7 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
         }
 
         Builder.checkForOnlySingleTopLevelCompositeAggAndValidate(aggregations.getAggregatorFactories());
-        AggregationBuilder histogramAggregation = ExtractorUtils.getHistogramAggregation(aggregatorFactories);
+        AggregationBuilder histogramAggregation = DatafeedConfigUtils.getHistogramAggregation(aggregatorFactories);
         if (histogramAggregation instanceof CompositeAggregationBuilder
             && aggregations.getPipelineAggregatorFactories().isEmpty() == false) {
             throw ExceptionsHelper.badRequestException(
@@ -449,7 +448,7 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
      * @param namedXContentRegistry XContent registry to transform the lazily parsed aggregations
      */
     public long getHistogramIntervalMillis(NamedXContentRegistry namedXContentRegistry) {
-        return ExtractorUtils.getHistogramIntervalMillis(getParsedAggregations(namedXContentRegistry));
+        return DatafeedConfigUtils.getHistogramIntervalMillis(getParsedAggregations(namedXContentRegistry));
     }
 
     /**
@@ -461,7 +460,7 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
         if (hasAggregations() == false) {
             return false;
         }
-        AggregationBuilder maybeComposite = ExtractorUtils.getHistogramAggregation(
+        AggregationBuilder maybeComposite = DatafeedConfigUtils.getHistogramAggregation(
             getParsedAggregations(namedXContentRegistry).getAggregatorFactories()
         );
         return maybeComposite instanceof CompositeAggregationBuilder;
@@ -622,12 +621,14 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
         if (aggProvider == null || aggProvider.getParsedAggs() == null) {
             return ChunkingConfig.newAuto();
         } else {
-            AggregationBuilder histogram = ExtractorUtils.getHistogramAggregation(aggProvider.getParsedAggs().getAggregatorFactories());
+            AggregationBuilder histogram = DatafeedConfigUtils.getHistogramAggregation(
+                aggProvider.getParsedAggs().getAggregatorFactories()
+            );
             if (histogram instanceof CompositeAggregationBuilder) {
                 // Allow composite aggs to handle the underlying chunking and searching
                 return ChunkingConfig.newOff();
             }
-            long histogramIntervalMillis = ExtractorUtils.getHistogramIntervalMillis(histogram);
+            long histogramIntervalMillis = DatafeedConfigUtils.getHistogramIntervalMillis(histogram);
             if (histogramIntervalMillis <= 0) {
                 throw ExceptionsHelper.badRequestException(DATAFEED_AGGREGATIONS_INTERVAL_MUST_BE_GREATER_THAN_ZERO);
             }
@@ -1084,7 +1085,7 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
 
         private static void checkNoMoreHistogramAggregations(Collection<AggregationBuilder> aggregations) {
             for (AggregationBuilder agg : aggregations) {
-                if (ExtractorUtils.isHistogram(agg)) {
+                if (DatafeedConfigUtils.isHistogram(agg)) {
                     throw ExceptionsHelper.badRequestException(DATAFEED_AGGREGATIONS_MAX_ONE_DATE_HISTOGRAM);
                 }
                 checkNoMoreHistogramAggregations(agg.getSubAggregations());
@@ -1097,7 +1098,7 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
                 timeField = ((ValuesSourceAggregationBuilder<?>) histogramAggregation).field();
             }
             if (histogramAggregation instanceof CompositeAggregationBuilder) {
-                DateHistogramValuesSourceBuilder valueSource = ExtractorUtils.getDateHistogramValuesSource(
+                DateHistogramValuesSourceBuilder valueSource = DatafeedConfigUtils.getDateHistogramValuesSource(
                     (CompositeAggregationBuilder) histogramAggregation
                 );
                 timeField = valueSource.field();
@@ -1115,7 +1116,7 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
         }
 
         private static void checkHistogramIntervalIsPositive(AggregationBuilder histogramAggregation) {
-            long interval = ExtractorUtils.getHistogramIntervalMillis(histogramAggregation);
+            long interval = DatafeedConfigUtils.getHistogramIntervalMillis(histogramAggregation);
             if (interval <= 0) {
                 throw ExceptionsHelper.badRequestException(DATAFEED_AGGREGATIONS_INTERVAL_MUST_BE_GREATER_THAN_ZERO);
             }

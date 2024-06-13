@@ -7,11 +7,15 @@ dependencies {
   javaRestTestImplementation project(xpackModule('esql:qa:testFixtures'))
   javaRestTestImplementation project(xpackModule('esql:qa:server'))
   yamlRestTestImplementation project(xpackModule('esql:qa:server'))
+  dependencies {
+    clusterPlugins project(':plugins:mapper-size')
+    clusterPlugins project(':plugins:mapper-murmur3')
+  }
 }
 
 restResources {
   restApi {
-    include '_common', 'bulk', 'get', 'indices', 'esql', 'xpack', 'enrich', 'cluster'
+    include '_common', 'bulk', 'get', 'indices', 'esql', 'xpack', 'enrich', 'cluster', 'capabilities'
   }
   restTests {
     includeXpack 'esql'

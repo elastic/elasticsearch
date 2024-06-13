@@ -11,7 +11,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.tasks.Task;
@@ -23,12 +22,7 @@ public class TransportListConnectorAction extends HandledTransportAction<ListCon
     protected final ConnectorIndexService connectorIndexService;
 
     @Inject
-    public TransportListConnectorAction(
-        TransportService transportService,
-        ClusterService clusterService,
-        ActionFilters actionFilters,
-        Client client
-    ) {
+    public TransportListConnectorAction(TransportService transportService, ActionFilters actionFilters, Client client) {
         super(
             ListConnectorAction.NAME,
             transportService,
@@ -42,9 +36,14 @@ public class TransportListConnectorAction extends HandledTransportAction<ListCon
     @Override
     protected void doExecute(Task task, ListConnectorAction.Request request, ActionListener<ListConnectorAction.Response> listener) {
         final PageParams pageParams = request.getPageParams();
+
         connectorIndexService.listConnectors(
             pageParams.getFrom(),
             pageParams.getSize(),
+            request.getIndexNames(),
+            request.getConnectorNames(),
+            request.getConnectorServiceTypes(),
+            request.getConnectorSearchQuery(),
             listener.map(r -> new ListConnectorAction.Response(r.connectors(), r.totalResults()))
         );
     }

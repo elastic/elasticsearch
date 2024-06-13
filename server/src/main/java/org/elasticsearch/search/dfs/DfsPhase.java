@@ -17,7 +17,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.TermStatistics;
 import org.apache.lucene.search.TopDocs;
-import org.apache.lucene.search.TopScoreDocCollector;
+import org.apache.lucene.search.TopScoreDocCollectorManager;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -41,6 +41,8 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+
+import static org.elasticsearch.index.query.AbstractQueryBuilder.DEFAULT_BOOST;
 
 /**
  * DFS phase of a search request, used to make scoring 100% accurate by collecting additional info from each shard before the query phase.
@@ -179,8 +181,10 @@ public class DfsPhase {
         }
 
         SearchExecutionContext searchExecutionContext = context.getSearchExecutionContext();
-        List<KnnSearchBuilder> knnSearch = context.request().source().knnSearch();
+        List<KnnSearchBuilder> knnSearch = source.knnSearch();
         List<KnnVectorQueryBuilder> knnVectorQueryBuilders = knnSearch.stream().map(KnnSearchBuilder::toQueryBuilder).toList();
+        // Since we apply boost during the DfsQueryPhase, we should not apply boost here:
+        knnVectorQueryBuilders.forEach(knnVectorQueryBuilder -> knnVectorQueryBuilder.boost(DEFAULT_BOOST));
 
         if (context.request().getAliasFilter().getQueryBuilder() != null) {
             for (KnnVectorQueryBuilder knnVectorQueryBuilder : knnVectorQueryBuilders) {
@@ -199,7 +203,7 @@ public class DfsPhase {
 
     static DfsKnnResults singleKnnSearch(Query knnQuery, int k, Profilers profilers, ContextIndexSearcher searcher, String nestedPath)
         throws IOException {
-        CollectorManager<? extends Collector, TopDocs> topDocsCollectorManager = TopScoreDocCollector.createSharedManager(
+        CollectorManager<? extends Collector, TopDocs> topDocsCollectorManager = new TopScoreDocCollectorManager(
             k,
             null,
             Integer.MAX_VALUE

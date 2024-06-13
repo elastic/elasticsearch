@@ -9,7 +9,9 @@
 package org.elasticsearch.action.admin.indices.cache.clear;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.action.support.broadcast.node.TransportBroadcastByNodeAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -32,9 +34,10 @@ import java.io.IOException;
  */
 public class TransportClearIndicesCacheAction extends TransportBroadcastByNodeAction<
     ClearIndicesCacheRequest,
-    ClearIndicesCacheResponse,
+    BroadcastResponse,
     TransportBroadcastByNodeAction.EmptyResult> {
 
+    public static final ActionType<BroadcastResponse> TYPE = new ActionType<>("indices:admin/cache/clear");
     private final IndicesService indicesService;
 
     @Inject
@@ -46,7 +49,7 @@ public class TransportClearIndicesCacheAction extends TransportBroadcastByNodeAc
         IndexNameExpressionResolver indexNameExpressionResolver
     ) {
         super(
-            ClearIndicesCacheAction.NAME,
+            TYPE.name(),
             clusterService,
             transportService,
             actionFilters,
@@ -64,11 +67,11 @@ public class TransportClearIndicesCacheAction extends TransportBroadcastByNodeAc
     }
 
     @Override
-    protected ResponseFactory<ClearIndicesCacheResponse, TransportBroadcastByNodeAction.EmptyResult> getResponseFactory(
+    protected ResponseFactory<BroadcastResponse, TransportBroadcastByNodeAction.EmptyResult> getResponseFactory(
         ClearIndicesCacheRequest request,
         ClusterState clusterState
     ) {
-        return (totalShards, successfulShards, failedShards, responses, shardFailures) -> new ClearIndicesCacheResponse(
+        return (totalShards, successfulShards, failedShards, responses, shardFailures) -> new BroadcastResponse(
             totalShards,
             successfulShards,
             failedShards,

@@ -269,7 +269,7 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
             // a version before file settings existed (before 8.4).
             return supportsFileSettings(clusterState) == false;
         } else {
-            return fileSettingsMetadata.version().equals(ReservedStateMetadata.NO_VERSION) == false;
+            return fileSettingsMetadata.errorMetadata() == null;
         }
     }
 

@@ -8,7 +8,9 @@
 
 package org.elasticsearch.vec;
 
+import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.store.IndexInput;
+import org.apache.lucene.util.hnsw.RandomVectorScorer;
 import org.apache.lucene.util.hnsw.RandomVectorScorerSupplier;
 import org.apache.lucene.util.quantization.RandomAccessQuantizedByteVectorValues;
 
@@ -22,8 +24,8 @@ public interface VectorScorerFactory {
     }
 
     /**
-     * Returns an optional containing an int7 scalar quantized vector scorer for
-     * the given parameters, or an empty optional if a scorer is not supported.
+     * Returns an optional containing an int7 scalar quantized vector score supplier
+     * for the given parameters, or an empty optional if a scorer is not supported.
      *
      * @param similarityType the similarity type
      * @param input the index input containing the vector data;
@@ -33,10 +35,25 @@ public interface VectorScorerFactory {
      * @param scoreCorrectionConstant the score correction constant
      * @return an optional containing the vector scorer supplier, or empty
      */
-    Optional<RandomVectorScorerSupplier> getInt7ScalarQuantizedVectorScorer(
+    Optional<RandomVectorScorerSupplier> getInt7SQVectorScorerSupplier(
         VectorSimilarityType similarityType,
         IndexInput input,
         RandomAccessQuantizedByteVectorValues values,
         float scoreCorrectionConstant
+    );
+
+    /**
+     * Returns an optional containing an int7 scalar quantized vector scorer for
+     * the given parameters, or an empty optional if a scorer is not supported.
+     *
+     * @param sim the similarity type
+     * @param values the random access vector values
+     * @param queryVector the query vector
+     * @return an optional containing the vector scorer, or empty
+     */
+    Optional<RandomVectorScorer> getInt7SQVectorScorer(
+        VectorSimilarityFunction sim,
+        RandomAccessQuantizedByteVectorValues values,
+        float[] queryVector
     );
 }

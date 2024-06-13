@@ -38,6 +38,8 @@ import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.logging.DeprecationCategory;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -412,6 +414,9 @@ import org.elasticsearch.xpack.security.transport.netty4.SecurityNetty4ServerTra
 import java.io.Closeable;
 import java.io.IOException;
 import java.net.InetSocketAddress;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.security.PrivilegedAction;
 import java.security.Provider;
 import java.time.Clock;
 import java.util.ArrayList;
@@ -436,6 +441,7 @@ import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static java.security.AccessController.doPrivileged;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
@@ -695,6 +701,29 @@ public class Security extends Plugin
 
     protected List<ReloadableSecurityComponent> getReloadableSecurityComponents() {
         return this.reloadableComponents.get();
+    }
+
+    /*
+     * Copied from XPackPlugin.resolveConfigFile so we don't go to a different codesource
+     * and so fail the secured file permission check on the users file.
+     * If there's a secured permission granted on this file (which there should be),
+     * ES has already checked the file is actually in the config directory
+     */
+    public static Path resolveSecuredConfigFile(Environment env, String file) {
+        Path config = env.configFile().resolve(file);
+        if (doPrivileged((PrivilegedAction<Boolean>) () -> Files.exists(config)) == false) {
+            Path legacyConfig = env.configFile().resolve("x-pack").resolve(file);
+            if (doPrivileged((PrivilegedAction<Boolean>) () -> Files.exists(legacyConfig))) {
+                DeprecationLogger.getLogger(XPackPlugin.class)
+                    .warn(
+                        DeprecationCategory.OTHER,
+                        "config_file_path",
+                        "Config file [" + file + "] is in a deprecated location. Move from " + legacyConfig + " to " + config
+                    );
+                return legacyConfig;
+            }
+        }
+        return config;
     }
 
     @Override

@@ -24,7 +24,6 @@ public class Similarities {
     static final MethodHandle SQUARE_DISTANCE_7U = DISTANCE_FUNCS.squareDistanceHandle7u();
 
     static int dotProduct7u(MemorySegment a, MemorySegment b, int length) {
-        assert assertSegments(a, b, length);
         try {
             return (int) DOT_PRODUCT_7U.invokeExact(a, b, length);
         } catch (Throwable e) {
@@ -39,7 +38,6 @@ public class Similarities {
     }
 
     static int squareDistance7u(MemorySegment a, MemorySegment b, int length) {
-        assert assertSegments(a, b, length);
         try {
             return (int) SQUARE_DISTANCE_7U.invokeExact(a, b, length);
         } catch (Throwable e) {
@@ -51,9 +49,5 @@ public class Similarities {
                 throw new RuntimeException(e);
             }
         }
-    }
-
-    static boolean assertSegments(MemorySegment a, MemorySegment b, int length) {
-        return a.isNative() && a.byteSize() >= length && b.isNative() && b.byteSize() >= length;
     }
 }

@@ -416,6 +416,7 @@
   - requires:
       cluster_features: ["mapper.track_ignored_source"]
       reason: introduced in 8.15.0
+      test_runner_features: close_to
 
   - do:
       indices.create:
@@ -463,8 +464,8 @@
         index: test
         id: "1"
 
-  - match: { _source.geo_point.0.lon: -71.34000004269183 }
-  - match: { _source.geo_point.0.lat: 41.1199999647215 }
+  - close_to: { _source.geo_point.0.lon: { value: -71.34, error: 0.001 } }
+  - close_to: { _source.geo_point.0.lat: { value: 41.12, error: 0.001 } }
   - match: { _source.geo_point.1.string: "string" }
   - match: { _source.geo_point.1.array: [{ "a": 1 }, { "b": 2 }] }
   - match: { _source.geo_point.1.object: { "foo": "bar" } }
@@ -474,10 +475,10 @@
         index: test
         id: "2"
 
-  - match: { _source.geo_point.0.lon: -77.0365300308913 }
-  - match: { _source.geo_point.0.lat: 38.89767596963793 }
-  - match: { _source.geo_point.1.lon: -71.34000004269183 }
-  - match: { _source.geo_point.1.lat: 41.1199999647215 }
+  - close_to: { _source.geo_point.0.lon: { value: -77.03653, error: 0.0001 } }
+  - close_to: { _source.geo_point.0.lat: { value: 38.897676, error: 0.0001 } }
+  - close_to: { _source.geo_point.1.lon: { value: -71.34, error: 0.001 } }
+  - close_to: { _source.geo_point.1.lat: { value: 41.12, error: 0.001 } }
   - match: { _source.geo_point.2: "potato" }
 
   - do:
@@ -485,8 +486,8 @@
         index: test
         id: "3"
 
-  - match: { _source.geo_point.0.lon: -71.34000004269183 }
-  - match: { _source.geo_point.0.lat: 41.1199999647215 }
+  - close_to: { _source.geo_point.0.lon: { value: -71.34, error: 0.001 } }
+  - close_to: { _source.geo_point.0.lat: { value: 41.12, error: 0.001 } }
   - match: { _source.geo_point.1: "POINT (-77.03653 1000)" }
 
 

@@ -47,7 +47,7 @@ import org.elasticsearch.search.lookup.FieldValues;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.runtime.GeoPointScriptFieldDistanceFeatureQuery;
 import org.elasticsearch.xcontent.FilterXContentParserWrapper;
-import org.elasticsearch.xcontent.MemorizingXContentParser;
+import org.elasticsearch.xcontent.CopyingXContentParser;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -589,7 +589,7 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
                 if (parser.currentToken() == XContentParser.Token.START_OBJECT
                     || parser.currentToken() == XContentParser.Token.START_ARRAY) {
                     // We have a complex structure so we'll memorize it while parsing.
-                    var memorizingParser = new MemorizingXContentParser(parser);
+                    var memorizingParser = new CopyingXContentParser(parser);
                     malformedDataForSyntheticSource = memorizingParser.getBuilder();
                     parserWithCustomization = memorizingParser;
                 } else {

@@ -11,13 +11,14 @@ package org.elasticsearch.xcontent;
 import java.io.IOException;
 
 /**
- * A parser that parses a document preserving fields that were parsed so far in a {@link XContentBuilder}.
+ * A parser that copies data that was parsed into a {@link XContentBuilder}.
+ * This parser naturally has some memory and runtime overhead to perform said copying.
  * Use with {@link XContentSubParser} to preserve the entire object.
  */
-public class MemorizingXContentParser extends FilterXContentParserWrapper {
+public class CopyingXContentParser extends FilterXContentParserWrapper {
     private final XContentBuilder builder;
 
-    public MemorizingXContentParser(XContentParser delegate) throws IOException {
+    public CopyingXContentParser(XContentParser delegate) throws IOException {
         super(delegate);
         this.builder = XContentBuilder.builder(delegate.contentType().xContent());
         switch (delegate.currentToken()) {

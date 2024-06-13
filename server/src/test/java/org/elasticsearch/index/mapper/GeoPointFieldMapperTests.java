@@ -536,6 +536,8 @@ public class GeoPointFieldMapperTests extends MapperTestCase {
             ),
             exampleMalformedValue("-,1.3").errorMatches("latitude must be a number"),
             exampleMalformedValue("1.3,-").errorMatches("longitude must be a number"),
+            exampleMalformedValue(b -> b.startObject().field("lat", 1.3).endObject()).errorMatches("Required [lon]"),
+            exampleMalformedValue(b -> b.startObject().field("lon", 1.3).endObject()).errorMatches("Required [lat]"),
             exampleMalformedValue(b -> b.startObject().field("lat", "NaN").field("lon", 1.2).endObject()).errorMatches("Required [lat]"),
             exampleMalformedValue(b -> b.startObject().field("lat", 1.2).field("lon", "NaN").endObject()).errorMatches("Required [lon]"),
             exampleMalformedValue("NaN,1.3").errorMatches("invalid latitude NaN; must be between -90.0 and 90.0"),

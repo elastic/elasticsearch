@@ -59,7 +59,7 @@ public abstract class AbstractGeometryFieldMapper<T> extends FieldMapper {
 
         private void fetchFromSource(Object sourceMap, Consumer<T> consumer) {
             try (XContentParser parser = wrapObject(sourceMap)) {
-                parse(parser, v -> consumer.accept(normalizeFromSource(v)), new NoopMalformedValueHandler()); /* ignore malformed */
+                parse(parser, v -> consumer.accept(normalizeFromSource(v)), NoopMalformedValueHandler.INSTANCE);
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
             }
@@ -93,6 +93,8 @@ public abstract class AbstractGeometryFieldMapper<T> extends FieldMapper {
     }
 
     public record NoopMalformedValueHandler() implements MalformedValueHandler {
+        public static final NoopMalformedValueHandler INSTANCE = new NoopMalformedValueHandler();
+
         @Override
         public void notify(Exception parsingException) {}
 

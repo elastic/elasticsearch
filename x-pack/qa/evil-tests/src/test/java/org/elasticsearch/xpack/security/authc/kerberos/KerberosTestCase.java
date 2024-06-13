@@ -59,29 +59,34 @@ public abstract class KerberosTestCase extends ESTestCase {
     /*
      * Arabic and other language have problems due to handling of generalized time in SimpleKdcServer. For more, look at
      * org.apache.kerby.asn1.type.Asn1GeneralizedTime#toBytes
+     *
+     * Note: several locales were added in CLDR; these are also included here by ...
      */
     private static Set<String> UNSUPPORTED_LOCALE_LANGUAGES = Set.of(
         "ar",
-        "ja",
-        "th",
-        "hi",
-        "uz",
-        "fa",
-        "ks",
-        "ckb",
-        "ne",
-        "dz",
-        "mzn",
-        "mr",
         "as",
         "bn",
-        "lrc",
-        "my",
-        "ps",
-        "ur",
-        "pa",
+        "ckb",
+        "dz",
+        "fa",
+        "hi",
         "ig",
-        "sd"
+        "ja",
+        "ks",
+        "lrc",
+        "mni",
+        "mr",
+        "my",
+        "mzn",
+        "ne",
+        "pa",
+        "ps",
+        "sa",
+        "sat",
+        "sd",
+        "th",
+        "ur",
+        "uz"
     );
 
     @BeforeClass

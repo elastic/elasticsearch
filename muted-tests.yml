@@ -53,6 +53,9 @@ tests:
 - class: "org.elasticsearch.xpack.rollup.job.RollupIndexerStateTests"
   issue: "https://github.com/elastic/elasticsearch/issues/109627"
   method: "testMultipleJobTriggering"
+- class: "org.elasticsearch.xpack.unsignedlong.UnsignedLongFieldMapperTests"
+  issue: "https://github.com/elastic/elasticsearch/issues/109680"
+  method: "testSyntheticSourceMany"
 
 # Examples:
 #

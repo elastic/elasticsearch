@@ -158,23 +158,21 @@ public class TransportNodesStatsAction extends TransportNodesAction<
     public static class NodeStatsRequest extends TransportRequest {
 
         private final NodesStatsRequestParameters nodesStatsRequestParameters;
-        private final String[] nodesIds;
 
         public NodeStatsRequest(StreamInput in) throws IOException {
             super(in);
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
-                this.nodesStatsRequestParameters = new NodesStatsRequestParameters(in);
-                this.nodesIds = in.readStringArray();
+            if (in.getTransportVersion().before(TransportVersions.V_8_13_0)) {
+                this.nodesStatsRequestParameters = new NodesStatsRequest(in).getNodesStatsRequestParameters();
             } else {
-                final NodesStatsRequest nodesStatsRequest = new NodesStatsRequest(in);
-                this.nodesStatsRequestParameters = nodesStatsRequest.getNodesStatsRequestParameters();
-                this.nodesIds = nodesStatsRequest.nodesIds();
+                this.nodesStatsRequestParameters = new NodesStatsRequestParameters(in);
+                if (in.getTransportVersion().before(TransportVersions.DROP_UNUSED_NODES_IDS)) {
+                    in.readStringArray(); // formerly nodeIds, now unused
+                }
             }
         }
 
         NodeStatsRequest(NodesStatsRequest request) {
             this.nodesStatsRequestParameters = request.getNodesStatsRequestParameters();
-            this.nodesIds = request.nodesIds();
         }
 
         @Override
@@ -183,8 +181,7 @@ public class TransportNodesStatsAction extends TransportNodesAction<
                 @Override
                 public String getDescription() {
                     return Strings.format(
-                        "nodes=%s, metrics=%s, flags=%s",
-                        Arrays.toString(nodesIds),
+                        "metrics=%s, flags=%s",
                         nodesStatsRequestParameters.requestedMetrics().toString(),
                         Arrays.toString(nodesStatsRequestParameters.indices().getFlags())
                     );
@@ -195,11 +192,13 @@ public class TransportNodesStatsAction extends TransportNodesAction<
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
-                this.nodesStatsRequestParameters.writeTo(out);
-                out.writeStringArrayNullable(nodesIds);
+            if (out.getTransportVersion().before(TransportVersions.V_8_13_0)) {
+                new NodesStatsRequest(nodesStatsRequestParameters, Strings.EMPTY_ARRAY).writeTo(out);
             } else {
-                new NodesStatsRequest(nodesStatsRequestParameters, this.nodesIds).writeTo(out);
+                nodesStatsRequestParameters.writeTo(out);
+                if (out.getTransportVersion().before(TransportVersions.DROP_UNUSED_NODES_IDS)) {
+                    out.writeStringArray(Strings.EMPTY_ARRAY); // formerly nodeIds, now unused
+                }
             }
         }
 

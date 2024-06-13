@@ -1,0 +1,5 @@
+pr: 109714
+summary: Upgrade dependencies for module:repository-azure
+area: Distributed
+type: upgrade
+issues: []

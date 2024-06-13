@@ -273,7 +273,7 @@ public class DoubleBucketedSort implements Releasable {
     }
 
     /**
-     * Collects a value stored in the array[0] position.
+     * Collects a {@code value} into a {@code bucket}.
      * <p>
      *     It may or may not be inserted in the heap, depending on if it is better than the current root.
      * </p>

@@ -2223,12 +2223,12 @@ public class InternalEngine extends Engine {
                     // we need to refresh in order to clear older version values
                     refresh("version_table_flush", SearcherScope.INTERNAL, true);
                     translog.trimUnreferencedReaders();
-                    // This writeLocation read can piggyback on the above trimUnreferencedReaders call to save a readlock
+                    // Update the translog location for flushListener if (1) the writeLocation has changed during the flush and
+                    // (2) indexWriter has committed all the changes (checks must be done in this order).
+                    // If the indexWriter has uncommitted changes, they will be flushed by the next flush as intended.
                     final Translog.Location writeLocationAfterFlush = translog.getLastWriteLocation();
-                    // Update the translog location for flushListener if the writeLocation has changed during the flush and
-                    // indexWriter has committed all the changes. If the indexWriter has uncommitted changes, they will
-                    // be flushed by the next flush as intended.
                     if (writeLocationAfterFlush.equals(commitLocation) == false && hasUncommittedChanges() == false) {
+                        assert writeLocationAfterFlush.compareTo(commitLocation) > 0 : writeLocationAfterFlush + " <= " + commitLocation;
                         commitLocation = writeLocationAfterFlush;
                     }
                     // Use the timestamp from when the flush started, but only update it in case of success, so that any exception in

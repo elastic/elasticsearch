@@ -127,6 +127,9 @@ public class Lookup extends UnaryPlan {
                 : Expressions.asAttributes(matchFields);
             lazyOutput = Join.mergeOutput(child().output(), rightSide, matchFields);
         }
+        // TODO: this code path is seemingly not used; remove it, make it used, or at least fix+test it.
+        // This produces incorrect results w.r.t. variable shadowing. (Doesn't remove attributes from the child input that have name
+        // collisions with attributes obtained from the table.)
         return lazyOutput;
     }
 

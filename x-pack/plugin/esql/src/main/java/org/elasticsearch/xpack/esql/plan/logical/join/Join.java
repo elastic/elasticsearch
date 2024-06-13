@@ -76,7 +76,9 @@ public class Join extends BinaryPlan {
     private List<Attribute> computeOutput() {
         List<Attribute> right = makeReference(right().output());
         return switch (config.type()) {
+            // TODO: Only the LEFT case isn't dead code. Remove the rest.
             case LEFT -> // right side becomes nullable
+                // TODO: This one is wrong.
                 mergeOutput(left().output(), makeNullable(right), config.matchFields());
             case RIGHT -> // left side becomes nullable
                 mergeOutput(makeNullable(left().output()), right, config.matchFields());

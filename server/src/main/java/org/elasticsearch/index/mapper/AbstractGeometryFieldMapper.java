@@ -87,13 +87,12 @@ public abstract class AbstractGeometryFieldMapper<T> extends FieldMapper {
     }
 
     public interface MalformedValueHandler {
-        public void notify(Exception parsingException) throws IOException;
+        void notify(Exception parsingException) throws IOException;
 
-        public void notify(Exception parsingException, XContentBuilder malformedDataForSyntheticSource) throws IOException;
+        void notify(Exception parsingException, XContentBuilder malformedDataForSyntheticSource) throws IOException;
     }
 
     public record NoopMalformedValueHandler() implements MalformedValueHandler {
-
         @Override
         public void notify(Exception parsingException) {}
 

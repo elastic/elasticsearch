@@ -5,12 +5,6 @@ tests:
 - class: "org.elasticsearch.cluster.coordination.CoordinatorVotingConfigurationTests"
   issue: "https://github.com/elastic/elasticsearch/issues/108729"
   method: "testClusterUUIDLogging"
-- class: "org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT"
-  issue: "https://github.com/elastic/elasticsearch/issues/108808"
-  method: "test {k8s-metrics.MetricsWithAggs}"
-- class: "org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT"
-  issue: "https://github.com/elastic/elasticsearch/issues/108809"
-  method: "test {k8s-metrics.MetricsWithoutAggs}"
 - class: "org.elasticsearch.xpack.textstructure.structurefinder.TimestampFormatFinderTests"
   issue: "https://github.com/elastic/elasticsearch/issues/108855"
   method: "testGuessIsDayFirstFromLocale"
@@ -59,6 +53,11 @@ tests:
 - class: "org.elasticsearch.xpack.rollup.job.RollupIndexerStateTests"
   issue: "https://github.com/elastic/elasticsearch/issues/109627"
   method: "testMultipleJobTriggering"
+- class: "org.elasticsearch.xpack.unsignedlong.UnsignedLongFieldMapperTests"
+  issue: "https://github.com/elastic/elasticsearch/issues/109680"
+  method: "testSyntheticSourceMany"
+- class: "org.elasticsearch.index.store.FsDirectoryFactoryTests"
+  issue: "https://github.com/elastic/elasticsearch/issues/109681"
 
 # Examples:
 #

@@ -952,7 +952,8 @@ class NodeConstruction {
         RepositoriesModule repositoriesModule = new RepositoriesModule(
             environment,
             pluginsService.filterPlugins(RepositoryPlugin.class).toList(),
-            transportService,
+            client,
+            threadPool,
             clusterService,
             bigArrays,
             xContentRegistry,

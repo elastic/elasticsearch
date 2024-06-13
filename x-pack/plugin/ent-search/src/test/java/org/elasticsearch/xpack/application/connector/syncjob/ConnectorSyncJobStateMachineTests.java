@@ -38,6 +38,9 @@ public class ConnectorSyncJobStateMachineTests extends ESTestCase {
 
     public void testNoValidTransitionsFromCompleted() {
         for (ConnectorSyncStatus state : ConnectorSyncStatus.values()) {
+            if (state.equals(ConnectorSyncStatus.COMPLETED)) {
+                continue;
+            }
             assertFalse(ConnectorSyncJobStateMachine.isValidTransition(ConnectorSyncStatus.COMPLETED, state));
         }
     }
@@ -68,23 +71,30 @@ public class ConnectorSyncJobStateMachineTests extends ESTestCase {
 
     public void testNoValidTransitionsFromCanceled() {
         for (ConnectorSyncStatus state : ConnectorSyncStatus.values()) {
+            if (state.equals(ConnectorSyncStatus.CANCELED)) {
+                continue;
+            }
             assertFalse(ConnectorSyncJobStateMachine.isValidTransition(ConnectorSyncStatus.CANCELED, state));
         }
     }
 
     public void testNoValidTransitionsFromError() {
         for (ConnectorSyncStatus state : ConnectorSyncStatus.values()) {
+            if (state.equals(ConnectorSyncStatus.ERROR)) {
+                continue;
+            }
             assertFalse(ConnectorSyncJobStateMachine.isValidTransition(ConnectorSyncStatus.ERROR, state));
         }
     }
 
     public void testTransitionToSameState() {
-        for (ConnectorSyncStatus state : ConnectorSyncStatus.values()) {
-            assertFalse(
-                "Transition from " + state + " to itself should be invalid",
-                ConnectorSyncJobStateMachine.isValidTransition(state, state)
-            );
-        }
+        assertTrue(ConnectorSyncJobStateMachine.isValidTransition(ConnectorSyncStatus.CANCELING, ConnectorSyncStatus.CANCELING));
+        assertTrue(ConnectorSyncJobStateMachine.isValidTransition(ConnectorSyncStatus.CANCELED, ConnectorSyncStatus.CANCELED));
+        assertTrue(ConnectorSyncJobStateMachine.isValidTransition(ConnectorSyncStatus.COMPLETED, ConnectorSyncStatus.COMPLETED));
+        assertTrue(ConnectorSyncJobStateMachine.isValidTransition(ConnectorSyncStatus.ERROR, ConnectorSyncStatus.ERROR));
+        assertTrue(ConnectorSyncJobStateMachine.isValidTransition(ConnectorSyncStatus.IN_PROGRESS, ConnectorSyncStatus.IN_PROGRESS));
+        assertTrue(ConnectorSyncJobStateMachine.isValidTransition(ConnectorSyncStatus.PENDING, ConnectorSyncStatus.PENDING));
+        assertTrue(ConnectorSyncJobStateMachine.isValidTransition(ConnectorSyncStatus.SUSPENDED, ConnectorSyncStatus.SUSPENDED));
     }
 
     public void testAssertValidStateTransition_ExpectExceptionOnInvalidTransition() {

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.application.connector;
 
 import java.util.Collections;
 import java.util.EnumSet;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
@@ -34,6 +35,7 @@ public class ConnectorStateMachine {
 
     /**
      * Checks if a transition from one {@link ConnectorStatus} to another is valid.
+     * Transition to the same state is always valid.
      *
      * @param current The current {@link ConnectorStatus} of the {@link Connector}.
      * @param next The proposed next {@link ConnectorStatus} of the {@link Connector}.
@@ -56,6 +58,9 @@ public class ConnectorStateMachine {
     }
 
     public static Set<ConnectorStatus> validNextStates(ConnectorStatus current) {
-        return VALID_TRANSITIONS.getOrDefault(current, Collections.emptySet());
+        Set<ConnectorStatus> nextStates = new HashSet<>(VALID_TRANSITIONS.getOrDefault(current, Collections.emptySet()));
+        // Transition to the same state is allowed
+        nextStates.add(current);
+        return Collections.unmodifiableSet(nextStates);
     }
 }

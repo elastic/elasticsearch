@@ -61,9 +61,11 @@ public class ConnectorStateMachineTests extends ESTestCase {
     }
 
     public void testTransitionToSameState() {
-        for (ConnectorStatus state : ConnectorStatus.values()) {
-            assertFalse("Transition from " + state + " to itself should be invalid", ConnectorStateMachine.isValidTransition(state, state));
-        }
+        assertTrue(ConnectorStateMachine.isValidTransition(ConnectorStatus.CREATED, ConnectorStatus.CREATED));
+        assertTrue(ConnectorStateMachine.isValidTransition(ConnectorStatus.NEEDS_CONFIGURATION, ConnectorStatus.NEEDS_CONFIGURATION));
+        assertTrue(ConnectorStateMachine.isValidTransition(ConnectorStatus.CONFIGURED, ConnectorStatus.CONFIGURED));
+        assertTrue(ConnectorStateMachine.isValidTransition(ConnectorStatus.CONNECTED, ConnectorStatus.CONNECTED));
+        assertTrue(ConnectorStateMachine.isValidTransition(ConnectorStatus.ERROR, ConnectorStatus.ERROR));
     }
 
     public void testAssertValidStateTransition_ExpectExceptionOnInvalidTransition() {

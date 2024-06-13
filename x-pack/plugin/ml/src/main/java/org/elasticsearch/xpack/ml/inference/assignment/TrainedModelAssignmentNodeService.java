@@ -163,7 +163,7 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
             return;
         }
         scheduledFuture = threadPool.schedule(
-            this::loadQueuedModels,
+            () -> loadQueuedModels(this::schedule),
             MODEL_LOADING_CHECK_INTERVAL,
             threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME)
         );
@@ -177,9 +177,12 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
         }
     }
 
-    void loadQueuedModels() {
+    void loadQueuedModels(Runnable onFinish) {
+        if (stopped) {
+            return;
+        }
         if (loadingModels.isEmpty()) {
-            schedule();
+            onFinish.run();
             return;
         }
         if (latestState != null) {
@@ -194,7 +197,7 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
             );
             if (unassignedIndices.size() > 0) {
                 logger.trace("not loading models as indices {} primary shards are unassigned", unassignedIndices);
-                schedule();
+                onFinish.run();
                 return;
             }
         }
@@ -212,7 +215,7 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
                     return;
                 }
 
-                loadModel(loadingTask, l.delegateFailure((ll, retry) -> {
+                loadModel(loadingTask, l.delegateFailureAndWrap((ll, retry) -> {
                     if (retry != null && retry) {
                         loadingToRetry.offer(loadingTask);
                     }
@@ -224,7 +227,7 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
             try {
                 loadingModels.addAll(loadingToRetry);
             } finally {
-                schedule();
+                onFinish.run();
             }
         }));
     }

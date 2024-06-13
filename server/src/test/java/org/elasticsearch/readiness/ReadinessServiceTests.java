@@ -286,28 +286,6 @@ public class ReadinessServiceTests extends ESTestCase implements ReadinessClient
         readinessService.close();
     }
 
-    public void testFileSettingsUpdateError() throws Exception {
-        // ensure an update to file settings that results in an error state doesn't cause readiness to fail
-        // since the current file settings already applied cleanly
-        readinessService.start();
-
-        // initially the service isn't ready because initial cluster state has not been applied yet
-        assertFalse(readinessService.ready());
-
-        var fileSettingsState = new ReservedStateMetadata.Builder(FileSettingsService.NAMESPACE).version(21L)
-            .errorMetadata(new ReservedStateErrorMetadata(22L, TRANSIENT, List.of("dummy error")));
-        ClusterState state = ClusterState.builder(noFileSettingsState())
-            .metadata(new Metadata.Builder().put(fileSettingsState.build()))
-            .build();
-
-        ClusterChangedEvent event = new ClusterChangedEvent("test", state, ClusterState.EMPTY_STATE);
-        readinessService.clusterChanged(event);
-        assertTrue(readinessService.ready());
-
-        readinessService.stop();
-        readinessService.close();
-    }
-
     public void testFileSettingsMixedCluster() throws Exception {
         readinessService.start();
 

@@ -90,7 +90,7 @@ public abstract class RollupIndexer extends AsyncTwoPhaseIndexer<Map<String, Obj
         Map<String, Object> initialPosition,
         RollupIndexerJobStats jobStats
     ) {
-        super(threadPool, initialState, initialPosition, jobStats);
+        super(threadPool, initialState, initialPosition, jobStats, EventHook.NOOP);
         this.job = job;
         this.compositeBuilder = createCompositeBuilder(job.getConfig());
     }

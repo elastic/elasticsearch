@@ -159,7 +159,8 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
                 TransformCheckpoint.EMPTY,
                 new SeqNoPrimaryTermAndIndex(1, 1, "foo"),
                 context,
-                false
+                false,
+                EventHook.NOOP
             );
             this.searchFunction = searchFunction;
             this.bulkFunction = bulkFunction;

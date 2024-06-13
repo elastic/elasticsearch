@@ -101,7 +101,8 @@ public class TransformIndexerFailureOnStatePersistenceTests extends ESTestCase {
                 nextCheckpoint,
                 seqNoPrimaryTermAndIndex,
                 context,
-                shouldStopAtCheckpoint
+                shouldStopAtCheckpoint,
+                EventHook.NOOP
             );
         }
 

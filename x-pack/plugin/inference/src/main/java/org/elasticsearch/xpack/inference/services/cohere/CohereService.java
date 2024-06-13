@@ -300,7 +300,18 @@ public class CohereService extends SenderService {
         return new CohereEmbeddingsModel(model, serviceSettings);
     }
 
-    static SimilarityMeasure defaultSimilarity(CohereEmbeddingType embeddingType) {
+    /**
+     * Return the default similarity measure for the embedding type.
+     * Cohere embeddings are normalized to unit vectors so Dot Product
+     * can be used. However, Elasticsearch rejects the byte vectors with
+     * Dot Product similarity complaining they are not normalized so
+     * Cosine is used for bytes.
+     * TODO investigate why the byte vectors are not normalized.
+     *
+     * @param embeddingType The embedding type (can be null)
+     * @return The default similarity.
+     */
+    static SimilarityMeasure defaultSimilarity(@Nullable CohereEmbeddingType embeddingType) {
         if (embeddingType == null) {
             return SimilarityMeasure.DOT_PRODUCT;
         }

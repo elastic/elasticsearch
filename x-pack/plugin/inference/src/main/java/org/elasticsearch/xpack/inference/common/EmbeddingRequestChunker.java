@@ -246,7 +246,7 @@ public class EmbeddingRequestChunker {
                 onFailure(
                     new ElasticsearchStatusException(
                         "Error the number of embedding responses [{}] does not equal the number of " + "requests [{}]",
-                        RestStatus.BAD_REQUEST,
+                        RestStatus.INTERNAL_SERVER_ERROR,
                         numberOfResults,
                         numberOfRequests
                     )
@@ -281,7 +281,7 @@ public class EmbeddingRequestChunker {
                 if (errors.get(i) != null) {
                     response.add(errors.get(i));
                 } else {
-                    response.add(mergeResults(i));
+                    response.add(mergeResultsWithInputs(i));
                 }
             }
 
@@ -289,14 +289,14 @@ public class EmbeddingRequestChunker {
         }
     }
 
-    private ChunkedInferenceServiceResults mergeResults(int resultIndex) {
+    private ChunkedInferenceServiceResults mergeResultsWithInputs(int resultIndex) {
         return switch (embeddingType) {
-            case FLOAT -> mergeFloatResults(chunkedInputs.get(resultIndex), floatResults.get(resultIndex));
-            case BYTE -> mergeByteResults(chunkedInputs.get(resultIndex), byteResults.get(resultIndex));
+            case FLOAT -> mergeFloatResultsWithInputs(chunkedInputs.get(resultIndex), floatResults.get(resultIndex));
+            case BYTE -> mergeByteResultsWithInputs(chunkedInputs.get(resultIndex), byteResults.get(resultIndex));
         };
     }
 
-    private InferenceChunkedTextEmbeddingFloatResults mergeFloatResults(
+    private InferenceChunkedTextEmbeddingFloatResults mergeFloatResultsWithInputs(
         List<String> chunks,
         AtomicArray<List<InferenceTextEmbeddingFloatResults.InferenceFloatEmbedding>> debatchedResults
     ) {
@@ -318,7 +318,7 @@ public class EmbeddingRequestChunker {
         return new InferenceChunkedTextEmbeddingFloatResults(embeddingChunks);
     }
 
-    private InferenceChunkedTextEmbeddingByteResults mergeByteResults(
+    private InferenceChunkedTextEmbeddingByteResults mergeByteResultsWithInputs(
         List<String> chunks,
         AtomicArray<List<InferenceTextEmbeddingByteResults.InferenceByteEmbedding>> debatchedResults
     ) {

@@ -705,7 +705,9 @@ public class Security extends Plugin
 
     /*
      * Copied from XPackPlugin.resolveConfigFile so we don't go to a different codesource
-     * and so fail the secured file permission check on the users file
+     * and so fail the secured file permission check on the users file.
+     * If there's a secured permission granted on this file (which there should be),
+     * ES has already checked the file is actually in the config directory
      */
     public static Path resolveSecuredConfigFile(Environment env, String file) {
         Path config = env.configFile().resolve(file);
@@ -716,7 +718,7 @@ public class Security extends Plugin
                     .warn(
                         DeprecationCategory.OTHER,
                         "config_file_path",
-                        "Config file [users] is in a deprecated location. Move from " + legacyConfig + " to " + config
+                        "Config file [" + file + "] is in a deprecated location. Move from " + legacyConfig + " to " + config
                     );
                 return legacyConfig;
             }

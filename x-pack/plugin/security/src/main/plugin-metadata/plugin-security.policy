@@ -1,7 +1,7 @@
 grant {
   permission java.lang.RuntimePermission "setFactory";
 
-  // secure the users file from other things
+  // secure the users file from other things (current and legacy locations)
   permission org.elasticsearch.SecuredConfigFileAccessPermission "users";
   permission org.elasticsearch.SecuredConfigFileAccessPermission "x-pack/users";
   // other security files specified by settings

@@ -50,7 +50,6 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
-import java.util.concurrent.Executor;
 import java.util.function.Function;
 
 import static org.elasticsearch.core.Strings.format;
@@ -71,7 +70,7 @@ public class InferenceRunner {
     private final ProgressTracker progressTracker;
     private final DataCountsTracker dataCountsTracker;
     private final Function<Long, TestDocsIterator> testDocsIteratorFactory;
-    private final Executor executor;
+    private final ThreadPool threadPool;
     private volatile boolean isCancelled;
 
     InferenceRunner(
@@ -85,7 +84,7 @@ public class InferenceRunner {
         ProgressTracker progressTracker,
         DataCountsTracker dataCountsTracker,
         Function<Long, TestDocsIterator> testDocsIteratorFactory,
-        Executor executor
+        ThreadPool threadPool
     ) {
         this.settings = Objects.requireNonNull(settings);
         this.client = Objects.requireNonNull(client);
@@ -97,7 +96,7 @@ public class InferenceRunner {
         this.progressTracker = Objects.requireNonNull(progressTracker);
         this.dataCountsTracker = Objects.requireNonNull(dataCountsTracker);
         this.testDocsIteratorFactory = Objects.requireNonNull(testDocsIteratorFactory);
-        this.executor = executor;
+        this.threadPool = threadPool;
     }
 
     public void cancel() {
@@ -112,7 +111,7 @@ public class InferenceRunner {
 
         LOGGER.info("[{}] Started inference on test data against model [{}]", config.getId(), modelId);
         SubscribableListener.<LocalModel>newForked(l -> modelLoadingService.getModelForInternalInference(modelId, l))
-            .andThen(executor, null, this::handleLocalModel)
+            .andThen(threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME), threadPool.getThreadContext(), this::handleLocalModel)
             .addListener(listener.delegateResponse((delegate, e) -> delegate.onFailure(handleException(modelId, e))));
     }
 
@@ -289,7 +288,7 @@ public class InferenceRunner {
                 extractedFields,
                 lastIncrementalId
             ),
-            threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME)
+            threadPool
         );
     }
 

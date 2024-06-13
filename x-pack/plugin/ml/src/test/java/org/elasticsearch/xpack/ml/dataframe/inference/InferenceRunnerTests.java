@@ -188,6 +188,9 @@ public class InferenceRunnerTests extends ESTestCase {
     }
 
     private InferenceRunner createInferenceRunner(ExtractedFields extractedFields, TestDocsIterator testDocsIterator) {
+        var threadpool = mock(ThreadPool.class);
+        when(threadpool.executor(any())).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        when(threadpool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
         return new InferenceRunner(
             Settings.EMPTY,
             client,
@@ -199,7 +202,7 @@ public class InferenceRunnerTests extends ESTestCase {
             progressTracker,
             new DataCountsTracker(new DataCounts(config.getId())),
             id -> testDocsIterator,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE
+            threadpool
         );
     }
 

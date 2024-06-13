@@ -10,11 +10,11 @@ package org.elasticsearch.xpack.core.security.action.role;
 import org.elasticsearch.client.internal.Client;
 
 public interface BulkPutRoleRequestBuilderFactory {
-    BulkPutRoleRequestBuilder create(Client client, boolean restrictRequest);
+    BulkPutRoleRequestBuilder create(Client client);
 
     class Default implements BulkPutRoleRequestBuilderFactory {
         @Override
-        public BulkPutRoleRequestBuilder create(Client client, boolean restrictRequest) {
+        public BulkPutRoleRequestBuilder create(Client client) {
             // This needs to be added when Bulk API is made public in serverless
             return new BulkPutRoleRequestBuilder(client);
         }

@@ -365,11 +365,11 @@ public class EsExecutors {
      */
     private EsExecutors() {}
 
-    public static class ExecutorScalingQueue<E> extends LinkedTransferQueue<E> {
+    static class ExecutorScalingQueue<E> extends LinkedTransferQueue<E> {
 
         ThreadPoolExecutor executor;
 
-        public ExecutorScalingQueue() {}
+        ExecutorScalingQueue() {}
 
         @Override
         public boolean offer(E e) {

@@ -44,7 +44,7 @@ public final class MlAutoscalingDeciderService implements AutoscalingDeciderServ
     private final MlProcessorAutoscalingDecider processorDecider;
 
     private volatile boolean isMaster;
-    private volatile int allocatedProcessorsScale;
+    private volatile double allocatedProcessorsScale;
 
     public MlAutoscalingDeciderService(
         MlMemoryTracker memoryTracker,
@@ -78,7 +78,7 @@ public final class MlAutoscalingDeciderService implements AutoscalingDeciderServ
             .addSettingsUpdateConsumer(MachineLearning.ALLOCATED_PROCESSORS_SCALE, this::setAllocatedProcessorsScale);
     }
 
-    void setAllocatedProcessorsScale(int scale) {
+    void setAllocatedProcessorsScale(double scale) {
         this.allocatedProcessorsScale = scale;
     }
 

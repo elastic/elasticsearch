@@ -45,7 +45,7 @@ class MlProcessorAutoscalingDecider {
         Settings configuration,
         AutoscalingDeciderContext context,
         MlAutoscalingContext mlContext,
-        int allocatedProcessorsScale
+        double allocatedProcessorsScale
     ) {
         TrainedModelAssignmentMetadata trainedModelAssignmentMetadata = TrainedModelAssignmentMetadata.fromState(context.state());
 
@@ -147,7 +147,7 @@ class MlProcessorAutoscalingDecider {
         );
     }
 
-    MlProcessorAutoscalingCapacity computeCurrentCapacity(List<DiscoveryNode> mlNodes, int allocatedProcessorsScale) {
+    MlProcessorAutoscalingCapacity computeCurrentCapacity(List<DiscoveryNode> mlNodes, double allocatedProcessorsScale) {
         Processors maxNodeProcessors = Processors.ZERO;
         Processors tierProcessors = Processors.ZERO;
         for (DiscoveryNode node : mlNodes) {

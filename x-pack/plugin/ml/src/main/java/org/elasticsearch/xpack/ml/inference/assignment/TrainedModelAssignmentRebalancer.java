@@ -51,7 +51,7 @@ class TrainedModelAssignmentRebalancer {
     private final Map<DiscoveryNode, NodeLoad> nodeLoads;
     private final Map<List<String>, Collection<DiscoveryNode>> mlNodesByZone;
     private final Optional<StartTrainedModelDeploymentAction.TaskParams> deploymentToAdd;
-    private final int allocatedProcessorsScale;
+    private final double allocatedProcessorsScale;
 
     private final boolean useNewMemoryFields;
 
@@ -60,7 +60,7 @@ class TrainedModelAssignmentRebalancer {
         Map<DiscoveryNode, NodeLoad> nodeLoads,
         Map<List<String>, Collection<DiscoveryNode>> mlNodesByZone,
         Optional<StartTrainedModelDeploymentAction.TaskParams> deploymentToAdd,
-        int allocatedProcessorsScale,
+        double allocatedProcessorsScale,
         boolean useNewMemoryFields
     ) {
         this.currentMetadata = Objects.requireNonNull(currentMetadata);

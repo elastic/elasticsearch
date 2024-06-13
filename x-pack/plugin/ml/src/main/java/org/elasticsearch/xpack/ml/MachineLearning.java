@@ -601,10 +601,10 @@ public class MachineLearning extends Plugin
      * Increasing this setting above 1 reduces the number of model
      * allocations that can be deployed on a node.
      */
-    public static final Setting<Integer> ALLOCATED_PROCESSORS_SCALE = Setting.intSetting(
+    public static final Setting<Double> ALLOCATED_PROCESSORS_SCALE = Setting.doubleSetting(
         "xpack.ml.allocated_processors_scale",
-        1,
-        1,
+        1.0,
+        0,
         Property.Dynamic,
         Property.NodeScope
     );

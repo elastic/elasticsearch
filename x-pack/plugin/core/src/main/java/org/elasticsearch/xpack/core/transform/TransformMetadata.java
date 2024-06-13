@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -27,7 +28,7 @@ import java.util.EnumSet;
 import java.util.Iterator;
 import java.util.Objects;
 
-public class TransformMetadata implements Metadata.ProjectCustom {
+public class TransformMetadata implements ProjectMetadata.ProjectCustom {
     public static final String TYPE = "transform";
     public static final ParseField RESET_MODE = new ParseField("reset_mode");
 
@@ -69,7 +70,7 @@ public class TransformMetadata implements Metadata.ProjectCustom {
     }
 
     @Override
-    public Diff<Metadata.ProjectCustom> diff(Metadata.ProjectCustom previousState) {
+    public Diff<ProjectMetadata.ProjectCustom> diff(ProjectMetadata.ProjectCustom previousState) {
         return new TransformMetadata.TransformMetadataDiff((TransformMetadata) previousState, this);
     }
 
@@ -87,7 +88,7 @@ public class TransformMetadata implements Metadata.ProjectCustom {
         return ChunkedToXContentHelper.field(RESET_MODE.getPreferredName(), resetMode);
     }
 
-    public static class TransformMetadataDiff implements NamedDiff<Metadata.ProjectCustom> {
+    public static class TransformMetadataDiff implements NamedDiff<ProjectMetadata.ProjectCustom> {
 
         final boolean resetMode;
 
@@ -105,7 +106,7 @@ public class TransformMetadata implements Metadata.ProjectCustom {
          * @return The new transform metadata.
          */
         @Override
-        public Metadata.ProjectCustom apply(Metadata.ProjectCustom part) {
+        public ProjectMetadata.ProjectCustom apply(ProjectMetadata.ProjectCustom part) {
             return new TransformMetadata(resetMode);
         }
 

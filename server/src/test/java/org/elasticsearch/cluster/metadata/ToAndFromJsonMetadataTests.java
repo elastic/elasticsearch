@@ -15,11 +15,13 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TestClusterCustomMetadata;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
@@ -255,23 +257,23 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
                 "settings" : {
                   "index.version.created" : "%s"
                 },
-                "templates" : {
-                  "template" : {
-                    "order" : 0,
-                    "index_patterns" : [
-                      "pattern1",
-                      "pattern2"
-                    ],
-                    "settings" : {
-                      "index.version.created" : "%s"
-                    },
-                    "mappings" : {
-                      "key1" : { }
-                    },
-                    "aliases" : { }
-                  }
-                },
                 "project" : {
+                  "templates" : {
+                    "template" : {
+                      "order" : 0,
+                      "index_patterns" : [
+                        "pattern1",
+                        "pattern2"
+                      ],
+                      "settings" : {
+                        "index.version.created" : "%s"
+                      },
+                      "mappings" : {
+                        "key1" : { }
+                      },
+                      "aliases" : { }
+                    }
+                  },
                   "index-graveyard" : {
                     "tombstones" : [ ]
                   }
@@ -365,6 +367,38 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
             }""", IndexVersion.current()), Strings.toString(builder));
     }
 
+    public void testToXContentAPI_v7() throws IOException {
+        Map<String, String> mapParams = Map.of(Metadata.CONTEXT_MODE_PARAM, CONTEXT_MODE_API);
+        Metadata metadata = Metadata.builder()
+            .clusterUUID("clusterUUID")
+            .coordinationMetadata(CoordinationMetadata.builder().build())
+            .build();
+        XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent(), RestApiVersion.V_7).prettyPrint();
+        builder.startObject();
+        ChunkedToXContent.wrapAsToXContent(metadata).toXContent(builder, new ToXContent.MapParams(mapParams));
+        builder.endObject();
+
+        assertEquals(Strings.format("""
+            {
+              "metadata" : {
+                "cluster_uuid" : "clusterUUID",
+                "cluster_uuid_committed" : false,
+                "cluster_coordination" : {
+                  "term" : 0,
+                  "last_committed_config" : [ ],
+                  "last_accepted_config" : [ ],
+                  "voting_config_exclusions" : [ ]
+                },
+                "templates" : { },
+                "indices" : { },
+                "index-graveyard" : {
+                  "tombstones" : [ ]
+                },
+                "reserved_state" : { }
+              }
+            }""", IndexVersion.current()), Strings.toString(builder));
+    }
+
     public void testToXContentGateway_FlatSettingFalse_ReduceMappingTrue() throws IOException {
         Map<String, String> mapParams = Map.of(
             Metadata.CONTEXT_MODE_PARAM,
@@ -405,25 +439,25 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
                 "settings" : {
                   "index.version.created" : "%s"
                 },
-                "templates" : {
-                  "template" : {
-                    "order" : 0,
-                    "index_patterns" : [
-                      "pattern1",
-                      "pattern2"
-                    ],
-                    "settings" : {
-                      "index" : {
-                        "version" : {
-                          "created" : "%s"
-                        }
-                      }
-                    },
-                    "mappings" : { },
-                    "aliases" : { }
-                  }
-                },
                 "project" : {
+                  "templates" : {
+                    "template" : {
+                      "order" : 0,
+                      "index_patterns" : [
+                        "pattern1",
+                        "pattern2"
+                      ],
+                      "settings" : {
+                        "index" : {
+                          "version" : {
+                            "created" : "%s"
+                          }
+                        }
+                      },
+                      "mappings" : { },
+                      "aliases" : { }
+                    }
+                  },
                   "index-graveyard" : {
                     "tombstones" : [ ]
                   }

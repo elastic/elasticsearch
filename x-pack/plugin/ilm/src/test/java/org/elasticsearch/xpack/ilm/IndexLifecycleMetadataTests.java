@@ -10,6 +10,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.util.Maps;
@@ -54,7 +55,7 @@ import java.util.concurrent.TimeUnit;
 import static org.elasticsearch.xpack.ilm.LifecyclePolicyTestsUtils.newTestLifecyclePolicy;
 import static org.elasticsearch.xpack.ilm.LifecyclePolicyTestsUtils.randomTimeseriesLifecyclePolicy;
 
-public class IndexLifecycleMetadataTests extends ChunkedToXContentDiffableSerializationTestCase<Metadata.ProjectCustom> {
+public class IndexLifecycleMetadataTests extends ChunkedToXContentDiffableSerializationTestCase<ProjectMetadata.ProjectCustom> {
 
     @Override
     protected IndexLifecycleMetadata createTestInstance() {
@@ -76,7 +77,7 @@ public class IndexLifecycleMetadataTests extends ChunkedToXContentDiffableSerial
     }
 
     @Override
-    protected Reader<Metadata.ProjectCustom> instanceReader() {
+    protected Reader<ProjectMetadata.ProjectCustom> instanceReader() {
         return IndexLifecycleMetadata::new;
     }
 
@@ -143,7 +144,7 @@ public class IndexLifecycleMetadataTests extends ChunkedToXContentDiffableSerial
     }
 
     @Override
-    protected Metadata.ProjectCustom mutateInstance(Metadata.ProjectCustom instance) {
+    protected ProjectMetadata.ProjectCustom mutateInstance(ProjectMetadata.ProjectCustom instance) {
         IndexLifecycleMetadata metadata = (IndexLifecycleMetadata) instance;
         Map<String, LifecyclePolicyMetadata> policies = metadata.getPolicyMetadatas();
         policies = new TreeMap<>(policies);
@@ -166,12 +167,12 @@ public class IndexLifecycleMetadataTests extends ChunkedToXContentDiffableSerial
     }
 
     @Override
-    protected Metadata.ProjectCustom makeTestChanges(Metadata.ProjectCustom testInstance) {
+    protected ProjectMetadata.ProjectCustom makeTestChanges(ProjectMetadata.ProjectCustom testInstance) {
         return mutateInstance(testInstance);
     }
 
     @Override
-    protected Reader<Diff<Metadata.ProjectCustom>> diffReader() {
+    protected Reader<Diff<ProjectMetadata.ProjectCustom>> diffReader() {
         return IndexLifecycleMetadataDiff::new;
     }
 

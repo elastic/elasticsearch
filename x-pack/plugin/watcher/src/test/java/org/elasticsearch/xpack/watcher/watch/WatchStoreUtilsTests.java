@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.metadata.DataStreamMetadata;
 import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
@@ -31,7 +32,7 @@ public class WatchStoreUtilsTests extends ESTestCase {
     public void testGetConcreteIndexForDataStream() {
         String dataStreamName = randomAlphaOfLength(20);
         Metadata.Builder metadataBuilder = Metadata.builder();
-        Map<String, Metadata.ProjectCustom> customsBuilder = new HashMap<>();
+        Map<String, ProjectMetadata.ProjectCustom> customsBuilder = new HashMap<>();
         Map<String, DataStream> dataStreams = new HashMap<>();
         Map<String, IndexMetadata> indexMetadataMapBuilder = new HashMap<>();
         List<String> indexNames = new ArrayList<>();

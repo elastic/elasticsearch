@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.Maps;
@@ -34,7 +35,7 @@ import java.util.Map;
 /**
  * Holds the ingest pipelines that are available in the cluster
  */
-public final class IngestMetadata implements Metadata.ProjectCustom {
+public final class IngestMetadata implements ProjectMetadata.ProjectCustom {
 
     public static final String TYPE = "ingest";
     private static final ParseField PIPELINES_FIELD = new ParseField("pipeline");
@@ -111,15 +112,15 @@ public final class IngestMetadata implements Metadata.ProjectCustom {
     }
 
     @Override
-    public Diff<Metadata.ProjectCustom> diff(Metadata.ProjectCustom before) {
+    public Diff<ProjectMetadata.ProjectCustom> diff(ProjectMetadata.ProjectCustom before) {
         return new IngestMetadataDiff((IngestMetadata) before, this);
     }
 
-    public static NamedDiff<Metadata.ProjectCustom> readDiffFrom(StreamInput in) throws IOException {
+    public static NamedDiff<ProjectMetadata.ProjectCustom> readDiffFrom(StreamInput in) throws IOException {
         return new IngestMetadataDiff(in);
     }
 
-    static class IngestMetadataDiff implements NamedDiff<Metadata.ProjectCustom> {
+    static class IngestMetadataDiff implements NamedDiff<ProjectMetadata.ProjectCustom> {
 
         final Diff<Map<String, PipelineConfiguration>> pipelines;
 
@@ -137,7 +138,7 @@ public final class IngestMetadata implements Metadata.ProjectCustom {
         }
 
         @Override
-        public Metadata.ProjectCustom apply(Metadata.ProjectCustom part) {
+        public ProjectMetadata.ProjectCustom apply(ProjectMetadata.ProjectCustom part) {
             return new IngestMetadata(pipelines.apply(((IngestMetadata) part).pipelines));
         }
 

@@ -14,7 +14,7 @@ import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.cluster.metadata.Metadata.ProjectCustom;
+import org.elasticsearch.cluster.metadata.ProjectMetadata.ProjectCustom;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -35,7 +35,7 @@ import java.util.TreeMap;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-public class IndexLifecycleMetadata implements Metadata.ProjectCustom {
+public class IndexLifecycleMetadata implements ProjectCustom {
     public static final String TYPE = "index_lifecycle";
     public static final ParseField OPERATION_MODE_FIELD = new ParseField("operation_mode");
     public static final ParseField POLICIES_FIELD = new ParseField("policies");
@@ -154,7 +154,7 @@ public class IndexLifecycleMetadata implements Metadata.ProjectCustom {
         return Strings.toString(this, false, true);
     }
 
-    public static class IndexLifecycleMetadataDiff implements NamedDiff<Metadata.ProjectCustom> {
+    public static class IndexLifecycleMetadataDiff implements NamedDiff<ProjectCustom> {
 
         final Diff<Map<String, LifecyclePolicyMetadata>> policies;
         final OperationMode operationMode;
@@ -175,7 +175,7 @@ public class IndexLifecycleMetadata implements Metadata.ProjectCustom {
         }
 
         @Override
-        public Metadata.ProjectCustom apply(Metadata.ProjectCustom part) {
+        public ProjectCustom apply(ProjectCustom part) {
             TreeMap<String, LifecyclePolicyMetadata> newPolicies = new TreeMap<>(
                 policies.apply(((IndexLifecycleMetadata) part).policyMetadatas)
             );

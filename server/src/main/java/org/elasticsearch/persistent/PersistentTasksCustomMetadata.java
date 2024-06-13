@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.AbstractNamedDiffable;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -52,7 +53,9 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg
 /**
  * A cluster state record that contains a list of all running persistent tasks
  */
-public final class PersistentTasksCustomMetadata extends AbstractNamedDiffable<Metadata.ProjectCustom> implements Metadata.ProjectCustom {
+public final class PersistentTasksCustomMetadata extends AbstractNamedDiffable<ProjectMetadata.ProjectCustom>
+    implements
+        ProjectMetadata.ProjectCustom {
 
     public static final String TYPE = "persistent_tasks";
     private static final String API_CONTEXT = Metadata.XContentContext.API.toString();
@@ -550,8 +553,8 @@ public final class PersistentTasksCustomMetadata extends AbstractNamedDiffable<M
         out.writeMap(filteredTasks, StreamOutput::writeWriteable);
     }
 
-    public static NamedDiff<Metadata.ProjectCustom> readDiffFrom(StreamInput in) throws IOException {
-        return readDiffFrom(Metadata.ProjectCustom.class, TYPE, in);
+    public static NamedDiff<ProjectMetadata.ProjectCustom> readDiffFrom(StreamInput in) throws IOException {
+        return readDiffFrom(ProjectMetadata.ProjectCustom.class, TYPE, in);
     }
 
     @Override

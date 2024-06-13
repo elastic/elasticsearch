@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.AbstractNamedDiffable;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -34,7 +35,9 @@ import java.util.Set;
 import static org.elasticsearch.cluster.metadata.Metadata.ALL_CONTEXTS;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
-public final class RoleMappingMetadata extends AbstractNamedDiffable<Metadata.ProjectCustom> implements Metadata.ProjectCustom {
+public final class RoleMappingMetadata extends AbstractNamedDiffable<ProjectMetadata.ProjectCustom>
+    implements
+        ProjectMetadata.ProjectCustom {
 
     public static final String TYPE = "role_mappings";
 
@@ -87,8 +90,8 @@ public final class RoleMappingMetadata extends AbstractNamedDiffable<Metadata.Pr
         }
     }
 
-    public static NamedDiff<Metadata.ProjectCustom> readDiffFrom(StreamInput streamInput) throws IOException {
-        return readDiffFrom(Metadata.ProjectCustom.class, TYPE, streamInput);
+    public static NamedDiff<ProjectMetadata.ProjectCustom> readDiffFrom(StreamInput streamInput) throws IOException {
+        return readDiffFrom(ProjectMetadata.ProjectCustom.class, TYPE, streamInput);
     }
 
     @Override

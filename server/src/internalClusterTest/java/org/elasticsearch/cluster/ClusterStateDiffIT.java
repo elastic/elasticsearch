@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
@@ -662,15 +663,15 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
      * Randomly adds, deletes or updates project customs (repositories or indexGraveyard) in the metadata
      */
     private Metadata randomMetadataProjectCustoms(final Metadata metadata) {
-        return randomParts(metadata, "custom", new RandomPart<Metadata.ProjectCustom>() {
+        return randomParts(metadata, "custom", new RandomPart<ProjectMetadata.ProjectCustom>() {
 
             @Override
-            public Map<String, Metadata.ProjectCustom> parts(Metadata metadata) {
+            public Map<String, ProjectMetadata.ProjectCustom> parts(Metadata metadata) {
                 return metadata.projectCustoms();
             }
 
             @Override
-            public Metadata.Builder put(Metadata.Builder builder, Metadata.ProjectCustom part) {
+            public Metadata.Builder put(Metadata.Builder builder, ProjectMetadata.ProjectCustom part) {
                 return builder.putCustom(part.getWriteableName(), part);
             }
 
@@ -685,7 +686,7 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
             }
 
             @Override
-            public Metadata.ProjectCustom randomCreate(String name) {
+            public ProjectMetadata.ProjectCustom randomCreate(String name) {
                 if (randomBoolean()) {
                     return new RepositoriesMetadata(Collections.emptyList());
                 } else {
@@ -694,7 +695,7 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
             }
 
             @Override
-            public Metadata.ProjectCustom randomChange(Metadata.ProjectCustom part) {
+            public ProjectMetadata.ProjectCustom randomChange(ProjectMetadata.ProjectCustom part) {
                 return part;
             }
         });

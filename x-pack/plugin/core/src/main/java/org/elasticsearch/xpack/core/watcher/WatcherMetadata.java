@@ -11,6 +11,7 @@ import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.AbstractNamedDiffable;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
@@ -23,7 +24,7 @@ import java.util.EnumSet;
 import java.util.Iterator;
 import java.util.Objects;
 
-public class WatcherMetadata extends AbstractNamedDiffable<Metadata.ProjectCustom> implements Metadata.ProjectCustom {
+public class WatcherMetadata extends AbstractNamedDiffable<ProjectMetadata.ProjectCustom> implements ProjectMetadata.ProjectCustom {
 
     public static final String TYPE = "watcher";
 
@@ -56,8 +57,8 @@ public class WatcherMetadata extends AbstractNamedDiffable<Metadata.ProjectCusto
         this(streamInput.readBoolean());
     }
 
-    public static NamedDiff<Metadata.ProjectCustom> readDiffFrom(StreamInput streamInput) throws IOException {
-        return readDiffFrom(Metadata.ProjectCustom.class, TYPE, streamInput);
+    public static NamedDiff<ProjectMetadata.ProjectCustom> readDiffFrom(StreamInput streamInput) throws IOException {
+        return readDiffFrom(ProjectMetadata.ProjectCustom.class, TYPE, streamInput);
     }
 
     @Override
@@ -85,7 +86,7 @@ public class WatcherMetadata extends AbstractNamedDiffable<Metadata.ProjectCusto
         return Objects.hash(manuallyStopped);
     }
 
-    public static Metadata.ProjectCustom fromXContent(XContentParser parser) throws IOException {
+    public static ProjectMetadata.ProjectCustom fromXContent(XContentParser parser) throws IOException {
         XContentParser.Token token;
         Boolean manuallyStopped = null;
         String currentFieldName = null;

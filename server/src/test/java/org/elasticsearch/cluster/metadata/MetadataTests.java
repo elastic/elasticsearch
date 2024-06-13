@@ -44,14 +44,11 @@ import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.alias.RandomAliasActionsGenerator;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.indices.IndicesModule;
-import org.elasticsearch.ingest.IngestMetadata;
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.plugins.FieldPredicate;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.index.IndexVersionUtils;
-import org.elasticsearch.upgrades.FeatureMigrationResults;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -82,9 +79,7 @@ import java.util.stream.IntStream;
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.createBackingIndex;
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.createFirstBackingIndex;
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.newInstance;
-import static org.elasticsearch.cluster.metadata.Metadata.Builder.assertDataStreams;
-import static org.elasticsearch.cluster.metadata.Metadata.CONTEXT_MODE_API;
-import static org.elasticsearch.cluster.metadata.Metadata.CONTEXT_MODE_PARAM;
+import static org.elasticsearch.cluster.metadata.ProjectMetadata.Builder.assertDataStreams;
 import static org.elasticsearch.test.LambdaMatchers.transformedItemsMatch;
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.allOf;
@@ -1165,7 +1160,7 @@ public class MetadataTests extends ESTestCase {
             assertThat(expectThrows(NullPointerException.class, () -> builder.clusterCustoms(map)).getMessage(), containsString(key));
         }
         {
-            final Map<String, Metadata.ProjectCustom> map = new HashMap<>();
+            final Map<String, ProjectMetadata.ProjectCustom> map = new HashMap<>();
             map.put(key, null);
             assertThat(expectThrows(NullPointerException.class, () -> builder.projectCustoms(map)).getMessage(), containsString(key));
         }
@@ -2408,7 +2403,7 @@ public class MetadataTests extends ESTestCase {
     }
 
     public static int expectedChunkCount(ToXContent.Params params, Metadata metadata) {
-        final var context = Metadata.XContentContext.valueOf(params.param(CONTEXT_MODE_PARAM, CONTEXT_MODE_API));
+        final var context = Metadata.XContentContext.from(params);
 
         // 2 chunks at the beginning
         long chunkCount = 2;
@@ -2416,10 +2411,6 @@ public class MetadataTests extends ESTestCase {
         if (context != Metadata.XContentContext.API && metadata.persistentSettings().isEmpty() == false) {
             chunkCount += 1;
         }
-        // 2 chunks wrapping templates and one chunk per template
-        chunkCount += 2 + metadata.templates().size();
-        // 1 chunk for each index + 2 to wrap the indices field
-        chunkCount += 2 + metadata.indices().size();
 
         for (Metadata.ClusterCustom custom : metadata.clusterCustoms().values()) {
             chunkCount += 2;
@@ -2434,34 +2425,11 @@ public class MetadataTests extends ESTestCase {
                 );
             }
         }
+        // start/end object, plus any content
         if (context != Metadata.XContentContext.API) {
-            chunkCount += 2; // start/end "project":{}
-        }
-        for (Metadata.ProjectCustom custom : metadata.projectCustoms().values()) {
             chunkCount += 2;
-            if (custom instanceof ComponentTemplateMetadata componentTemplateMetadata) {
-                chunkCount += 2 + componentTemplateMetadata.componentTemplates().size();
-            } else if (custom instanceof ComposableIndexTemplateMetadata composableIndexTemplateMetadata) {
-                chunkCount += 2 + composableIndexTemplateMetadata.indexTemplates().size();
-            } else if (custom instanceof DataStreamMetadata dataStreamMetadata) {
-                chunkCount += 4 + dataStreamMetadata.dataStreams().size() + dataStreamMetadata.getDataStreamAliases().size();
-            } else if (custom instanceof FeatureMigrationResults featureMigrationResults) {
-                chunkCount += 2 + featureMigrationResults.getFeatureStatuses().size();
-            } else if (custom instanceof IndexGraveyard indexGraveyard) {
-                chunkCount += 2 + indexGraveyard.getTombstones().size();
-            } else if (custom instanceof IngestMetadata ingestMetadata) {
-                chunkCount += 2 + ingestMetadata.getPipelines().size();
-            } else if (custom instanceof PersistentTasksCustomMetadata persistentTasksCustomMetadata) {
-                chunkCount += 3 + persistentTasksCustomMetadata.tasks().size();
-            } else if (custom instanceof RepositoriesMetadata repositoriesMetadata) {
-                chunkCount += repositoriesMetadata.repositories().size();
-            } else {
-                // could be anything, we have to just try it
-                chunkCount += Iterables.size(
-                    (Iterable<ToXContent>) (() -> Iterators.map(custom.toXContentChunked(params), Function.identity()))
-                );
-            }
         }
+        chunkCount += ProjectMetadataTests.expectedChunkCount(params, metadata.project());
 
         // 2 chunks for wrapping reserved state + 1 chunk for each item
         chunkCount += 2 + metadata.reservedStateMetadata().size();
@@ -2488,7 +2456,7 @@ public class MetadataTests extends ESTestCase {
             "clusterUUID",
             "clusterUUIDCommitted",
             "clusterCustoms",
-            "projectCustoms",
+            "project",
             "reservedStateMetadata"
         );
         Set<String> excludedFromGlobalStateCheck = Set.of(
@@ -2668,7 +2636,7 @@ public class MetadataTests extends ESTestCase {
         implements
             Metadata.ClusterCustom {}
 
-    private static class TestProjectCustomMetadata extends AbstractCustomMetadata<Metadata.ProjectCustom>
+    private static class TestProjectCustomMetadata extends AbstractCustomMetadata<ProjectMetadata.ProjectCustom>
         implements
-            Metadata.ProjectCustom {}
+            ProjectMetadata.ProjectCustom {}
 }

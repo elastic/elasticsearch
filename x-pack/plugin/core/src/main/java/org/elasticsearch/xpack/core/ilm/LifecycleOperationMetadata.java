@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -32,7 +33,7 @@ import java.util.Optional;
  * Class that encapsulates the running operation mode of Index Lifecycle
  * Management and Snapshot Lifecycle Management
  */
-public class LifecycleOperationMetadata implements Metadata.ProjectCustom {
+public class LifecycleOperationMetadata implements ProjectMetadata.ProjectCustom {
     public static final String TYPE = "lifecycle_operation";
     public static final ParseField ILM_OPERATION_MODE_FIELD = new ParseField("ilm_operation_mode");
     public static final ParseField SLM_OPERATION_MODE_FIELD = new ParseField("slm_operation_mode");
@@ -114,7 +115,7 @@ public class LifecycleOperationMetadata implements Metadata.ProjectCustom {
     }
 
     @Override
-    public Diff<Metadata.ProjectCustom> diff(Metadata.ProjectCustom previousState) {
+    public Diff<ProjectMetadata.ProjectCustom> diff(ProjectMetadata.ProjectCustom previousState) {
         return new LifecycleOperationMetadata.LifecycleOperationMetadataDiff((LifecycleOperationMetadata) previousState, this);
     }
 
@@ -164,7 +165,7 @@ public class LifecycleOperationMetadata implements Metadata.ProjectCustom {
         return Strings.toString(this, true, true);
     }
 
-    public static class LifecycleOperationMetadataDiff implements NamedDiff<Metadata.ProjectCustom> {
+    public static class LifecycleOperationMetadataDiff implements NamedDiff<ProjectMetadata.ProjectCustom> {
 
         final OperationMode ilmOperationMode;
         final OperationMode slmOperationMode;
@@ -180,7 +181,7 @@ public class LifecycleOperationMetadata implements Metadata.ProjectCustom {
         }
 
         @Override
-        public Metadata.ProjectCustom apply(Metadata.ProjectCustom part) {
+        public ProjectMetadata.ProjectCustom apply(ProjectMetadata.ProjectCustom part) {
             return new LifecycleOperationMetadata(this.ilmOperationMode, this.slmOperationMode);
         }
 

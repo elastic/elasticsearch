@@ -33,7 +33,7 @@ import java.util.Objects;
  * {@link ComponentTemplateMetadata} is a custom {@link Metadata} implementation for storing a map
  * of component templates and their names.
  */
-public class ComponentTemplateMetadata implements Metadata.ProjectCustom {
+public class ComponentTemplateMetadata implements ProjectMetadata.ProjectCustom {
     public static final String TYPE = "component_template";
     private static final ParseField COMPONENT_TEMPLATE = new ParseField("component_template");
     @SuppressWarnings("unchecked")
@@ -72,11 +72,11 @@ public class ComponentTemplateMetadata implements Metadata.ProjectCustom {
     }
 
     @Override
-    public Diff<Metadata.ProjectCustom> diff(Metadata.ProjectCustom before) {
+    public Diff<ProjectMetadata.ProjectCustom> diff(ProjectMetadata.ProjectCustom before) {
         return new ComponentTemplateMetadataDiff((ComponentTemplateMetadata) before, this);
     }
 
-    public static NamedDiff<Metadata.ProjectCustom> readDiffFrom(StreamInput in) throws IOException {
+    public static NamedDiff<ProjectMetadata.ProjectCustom> readDiffFrom(StreamInput in) throws IOException {
         return new ComponentTemplateMetadataDiff(in);
     }
 
@@ -131,7 +131,7 @@ public class ComponentTemplateMetadata implements Metadata.ProjectCustom {
         return Strings.toString(this);
     }
 
-    static class ComponentTemplateMetadataDiff implements NamedDiff<Metadata.ProjectCustom> {
+    static class ComponentTemplateMetadataDiff implements NamedDiff<ProjectMetadata.ProjectCustom> {
 
         final Diff<Map<String, ComponentTemplate>> componentTemplateDiff;
 
@@ -153,7 +153,7 @@ public class ComponentTemplateMetadata implements Metadata.ProjectCustom {
         }
 
         @Override
-        public Metadata.ProjectCustom apply(Metadata.ProjectCustom part) {
+        public ProjectMetadata.ProjectCustom apply(ProjectMetadata.ProjectCustom part) {
             return new ComponentTemplateMetadata(componentTemplateDiff.apply(((ComponentTemplateMetadata) part).componentTemplates));
         }
 

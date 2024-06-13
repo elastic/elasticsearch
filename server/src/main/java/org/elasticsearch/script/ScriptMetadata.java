@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -37,7 +38,7 @@ import java.util.Map;
  * {@link ScriptMetadata} is used to store user-defined scripts
  * as part of the {@link ClusterState} using only an id as the key.
  */
-public final class ScriptMetadata implements Metadata.ProjectCustom, Writeable {
+public final class ScriptMetadata implements ProjectMetadata.ProjectCustom, Writeable {
 
     /**
      * Standard logger used to warn about dropped scripts.
@@ -100,7 +101,7 @@ public final class ScriptMetadata implements Metadata.ProjectCustom, Writeable {
         }
     }
 
-    static final class ScriptMetadataDiff implements NamedDiff<Metadata.ProjectCustom> {
+    static final class ScriptMetadataDiff implements NamedDiff<ProjectMetadata.ProjectCustom> {
 
         final Diff<Map<String, StoredScriptSource>> pipelines;
 
@@ -123,7 +124,7 @@ public final class ScriptMetadata implements Metadata.ProjectCustom, Writeable {
         }
 
         @Override
-        public Metadata.ProjectCustom apply(Metadata.ProjectCustom part) {
+        public ProjectMetadata.ProjectCustom apply(ProjectMetadata.ProjectCustom part) {
             return new ScriptMetadata(pipelines.apply(((ScriptMetadata) part).scripts));
         }
 
@@ -231,7 +232,7 @@ public final class ScriptMetadata implements Metadata.ProjectCustom, Writeable {
         return new ScriptMetadata(scripts);
     }
 
-    public static NamedDiff<Metadata.ProjectCustom> readDiffFrom(StreamInput in) throws IOException {
+    public static NamedDiff<ProjectMetadata.ProjectCustom> readDiffFrom(StreamInput in) throws IOException {
         return new ScriptMetadataDiff(in);
     }
 
@@ -275,7 +276,7 @@ public final class ScriptMetadata implements Metadata.ProjectCustom, Writeable {
     }
 
     @Override
-    public Diff<Metadata.ProjectCustom> diff(Metadata.ProjectCustom before) {
+    public Diff<ProjectMetadata.ProjectCustom> diff(ProjectMetadata.ProjectCustom before) {
         return new ScriptMetadataDiff((ScriptMetadata) before, this);
     }
 

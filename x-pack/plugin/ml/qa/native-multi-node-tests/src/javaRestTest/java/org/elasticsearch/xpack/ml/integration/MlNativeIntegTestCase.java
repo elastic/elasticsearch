@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -339,7 +340,7 @@ abstract class MlNativeIntegTestCase extends ESIntegTestCase {
             entries.addAll(new SearchModule(Settings.EMPTY, Collections.emptyList()).getNamedWriteables());
             entries.add(
                 new NamedWriteableRegistry.Entry(
-                    Metadata.ProjectCustom.class,
+                    ProjectMetadata.ProjectCustom.class,
                     TrainedModelAssignmentMetadata.NAME,
                     TrainedModelAssignmentMetadata::fromStream
                 )
@@ -351,11 +352,13 @@ abstract class MlNativeIntegTestCase extends ESIntegTestCase {
                     TrainedModelAssignmentMetadata::readDiffFrom
                 )
             );
-            entries.add(new NamedWriteableRegistry.Entry(Metadata.ProjectCustom.class, ModelAliasMetadata.NAME, ModelAliasMetadata::new));
+            entries.add(
+                new NamedWriteableRegistry.Entry(ProjectMetadata.ProjectCustom.class, ModelAliasMetadata.NAME, ModelAliasMetadata::new)
+            );
             entries.add(new NamedWriteableRegistry.Entry(NamedDiff.class, ModelAliasMetadata.NAME, ModelAliasMetadata::readDiffFrom));
             entries.add(
                 new NamedWriteableRegistry.Entry(
-                    Metadata.ProjectCustom.class,
+                    ProjectMetadata.ProjectCustom.class,
                     TrainedModelCacheMetadata.NAME,
                     TrainedModelCacheMetadata::new
                 )
@@ -363,9 +366,13 @@ abstract class MlNativeIntegTestCase extends ESIntegTestCase {
             entries.add(
                 new NamedWriteableRegistry.Entry(NamedDiff.class, TrainedModelCacheMetadata.NAME, TrainedModelCacheMetadata::readDiffFrom)
             );
-            entries.add(new NamedWriteableRegistry.Entry(Metadata.ProjectCustom.class, "ml", MlMetadata::new));
+            entries.add(new NamedWriteableRegistry.Entry(ProjectMetadata.ProjectCustom.class, "ml", MlMetadata::new));
             entries.add(
-                new NamedWriteableRegistry.Entry(Metadata.ProjectCustom.class, IndexLifecycleMetadata.TYPE, IndexLifecycleMetadata::new)
+                new NamedWriteableRegistry.Entry(
+                    ProjectMetadata.ProjectCustom.class,
+                    IndexLifecycleMetadata.TYPE,
+                    IndexLifecycleMetadata::new
+                )
             );
             entries.add(
                 new NamedWriteableRegistry.Entry(

@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
@@ -35,7 +36,7 @@ import java.util.TreeMap;
  * Holds the results of the most recent attempt to migrate system indices. Updated by {@link SystemIndexMigrator} as it finishes each
  * feature, or fails.
  */
-public class FeatureMigrationResults implements Metadata.ProjectCustom {
+public class FeatureMigrationResults implements ProjectMetadata.ProjectCustom {
     public static final String TYPE = "system_index_migration";
     public static final TransportVersion MIGRATION_ADDED_VERSION = TransportVersions.V_8_0_0;
 
@@ -122,15 +123,15 @@ public class FeatureMigrationResults implements Metadata.ProjectCustom {
     }
 
     @Override
-    public Diff<Metadata.ProjectCustom> diff(Metadata.ProjectCustom previousState) {
+    public Diff<ProjectMetadata.ProjectCustom> diff(ProjectMetadata.ProjectCustom previousState) {
         return new ResultsDiff((FeatureMigrationResults) previousState, this);
     }
 
-    public static NamedDiff<Metadata.ProjectCustom> readDiffFrom(StreamInput in) throws IOException {
+    public static NamedDiff<ProjectMetadata.ProjectCustom> readDiffFrom(StreamInput in) throws IOException {
         return new ResultsDiff(in);
     }
 
-    public static class ResultsDiff implements NamedDiff<Metadata.ProjectCustom> {
+    public static class ResultsDiff implements NamedDiff<ProjectMetadata.ProjectCustom> {
         private final Diff<Map<String, SingleFeatureMigrationResult>> resultsDiff;
 
         public ResultsDiff(FeatureMigrationResults before, FeatureMigrationResults after) {
@@ -147,7 +148,7 @@ public class FeatureMigrationResults implements Metadata.ProjectCustom {
         }
 
         @Override
-        public Metadata.ProjectCustom apply(Metadata.ProjectCustom part) {
+        public ProjectMetadata.ProjectCustom apply(ProjectMetadata.ProjectCustom part) {
             TreeMap<String, SingleFeatureMigrationResult> newResults = new TreeMap<>(
                 resultsDiff.apply(((FeatureMigrationResults) part).featureStatuses)
             );

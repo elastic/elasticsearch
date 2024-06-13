@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.AbstractNamedDiffable;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -26,7 +27,9 @@ import java.util.EnumSet;
 import java.util.Iterator;
 import java.util.Objects;
 
-public class TrainedModelCacheMetadata extends AbstractNamedDiffable<Metadata.ProjectCustom> implements Metadata.ProjectCustom {
+public class TrainedModelCacheMetadata extends AbstractNamedDiffable<ProjectMetadata.ProjectCustom>
+    implements
+        ProjectMetadata.ProjectCustom {
     public static final String NAME = "trained_model_cache_metadata";
     public static final TrainedModelCacheMetadata EMPTY = new TrainedModelCacheMetadata(0L);
     private static final ParseField VERSION_FIELD = new ParseField("version");
@@ -51,8 +54,8 @@ public class TrainedModelCacheMetadata extends AbstractNamedDiffable<Metadata.Pr
         return cacheMetadata == null ? EMPTY : cacheMetadata;
     }
 
-    public static NamedDiff<Metadata.ProjectCustom> readDiffFrom(StreamInput streamInput) throws IOException {
-        return readDiffFrom(Metadata.ProjectCustom.class, NAME, streamInput);
+    public static NamedDiff<ProjectMetadata.ProjectCustom> readDiffFrom(StreamInput streamInput) throws IOException {
+        return readDiffFrom(ProjectMetadata.ProjectCustom.class, NAME, streamInput);
     }
 
     private final long version;

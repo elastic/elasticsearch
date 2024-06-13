@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.metadata.MetadataIndexStateService;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.cluster.metadata.MetadataMappingService;
 import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
 import org.elasticsearch.cluster.routing.DelayedAllocationService;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -249,44 +250,56 @@ public class ClusterModule extends AbstractModule {
         // Metadata
         entries.add(
             new NamedXContentRegistry.Entry(
-                Metadata.ProjectCustom.class,
+                ProjectMetadata.ProjectCustom.class,
                 new ParseField(RepositoriesMetadata.TYPE),
                 RepositoriesMetadata::fromXContent
             )
         );
         entries.add(
-            new NamedXContentRegistry.Entry(Metadata.ProjectCustom.class, new ParseField(IngestMetadata.TYPE), IngestMetadata::fromXContent)
-        );
-        entries.add(
-            new NamedXContentRegistry.Entry(Metadata.ProjectCustom.class, new ParseField(ScriptMetadata.TYPE), ScriptMetadata::fromXContent)
-        );
-        entries.add(
-            new NamedXContentRegistry.Entry(Metadata.ProjectCustom.class, new ParseField(IndexGraveyard.TYPE), IndexGraveyard::fromXContent)
+            new NamedXContentRegistry.Entry(
+                ProjectMetadata.ProjectCustom.class,
+                new ParseField(IngestMetadata.TYPE),
+                IngestMetadata::fromXContent
+            )
         );
         entries.add(
             new NamedXContentRegistry.Entry(
-                Metadata.ProjectCustom.class,
+                ProjectMetadata.ProjectCustom.class,
+                new ParseField(ScriptMetadata.TYPE),
+                ScriptMetadata::fromXContent
+            )
+        );
+        entries.add(
+            new NamedXContentRegistry.Entry(
+                ProjectMetadata.ProjectCustom.class,
+                new ParseField(IndexGraveyard.TYPE),
+                IndexGraveyard::fromXContent
+            )
+        );
+        entries.add(
+            new NamedXContentRegistry.Entry(
+                ProjectMetadata.ProjectCustom.class,
                 new ParseField(PersistentTasksCustomMetadata.TYPE),
                 PersistentTasksCustomMetadata::fromXContent
             )
         );
         entries.add(
             new NamedXContentRegistry.Entry(
-                Metadata.ProjectCustom.class,
+                ProjectMetadata.ProjectCustom.class,
                 new ParseField(ComponentTemplateMetadata.TYPE),
                 ComponentTemplateMetadata::fromXContent
             )
         );
         entries.add(
             new NamedXContentRegistry.Entry(
-                Metadata.ProjectCustom.class,
+                ProjectMetadata.ProjectCustom.class,
                 new ParseField(ComposableIndexTemplateMetadata.TYPE),
                 ComposableIndexTemplateMetadata::fromXContent
             )
         );
         entries.add(
             new NamedXContentRegistry.Entry(
-                Metadata.ProjectCustom.class,
+                ProjectMetadata.ProjectCustom.class,
                 new ParseField(DataStreamMetadata.TYPE),
                 DataStreamMetadata::fromXContent
             )
@@ -326,13 +339,13 @@ public class ClusterModule extends AbstractModule {
         registerCustom(entries, Metadata.ClusterCustom.class, name, reader, diffReader);
     }
 
-    private static <T extends Metadata.ProjectCustom> void registerProjectCustom(
+    private static <T extends ProjectMetadata.ProjectCustom> void registerProjectCustom(
         List<Entry> entries,
         String name,
         Reader<? extends T> reader,
         Reader<NamedDiff<?>> diffReader
     ) {
-        registerCustom(entries, Metadata.ProjectCustom.class, name, reader, diffReader);
+        registerCustom(entries, ProjectMetadata.ProjectCustom.class, name, reader, diffReader);
     }
 
     private static <T extends NamedWriteable> void registerCustom(

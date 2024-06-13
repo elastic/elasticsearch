@@ -36,7 +36,7 @@ import java.util.function.UnaryOperator;
 /**
  * Contains metadata about registered snapshot repositories
  */
-public class RepositoriesMetadata extends AbstractNamedDiffable<Metadata.ProjectCustom> implements Metadata.ProjectCustom {
+public class RepositoriesMetadata extends AbstractNamedDiffable<ProjectMetadata.ProjectCustom> implements ProjectMetadata.ProjectCustom {
 
     public static final String TYPE = "repositories";
 
@@ -181,8 +181,8 @@ public class RepositoriesMetadata extends AbstractNamedDiffable<Metadata.Project
         this.repositories = in.readCollectionAsImmutableList(RepositoryMetadata::new);
     }
 
-    public static NamedDiff<Metadata.ProjectCustom> readDiffFrom(StreamInput in) throws IOException {
-        return readDiffFrom(Metadata.ProjectCustom.class, TYPE, in);
+    public static NamedDiff<ProjectMetadata.ProjectCustom> readDiffFrom(StreamInput in) throws IOException {
+        return readDiffFrom(ProjectMetadata.ProjectCustom.class, TYPE, in);
     }
 
     /**

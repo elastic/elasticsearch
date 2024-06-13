@@ -11,6 +11,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.CheckedFunction;
@@ -155,15 +156,15 @@ public class CustomMetadataContextIT extends AbstractSnapshotIntegTestCase {
             registerBuiltinWritables();
         }
 
-        private <T extends Metadata.ProjectCustom> void registerMetadataCustom(
+        private <T extends ProjectMetadata.ProjectCustom> void registerMetadataCustom(
             String name,
             Writeable.Reader<T> reader,
             Writeable.Reader<NamedDiff<?>> diffReader,
             CheckedFunction<XContentParser, T, IOException> parser
         ) {
-            namedWritables.add(new NamedWriteableRegistry.Entry(Metadata.ProjectCustom.class, name, reader));
+            namedWritables.add(new NamedWriteableRegistry.Entry(ProjectMetadata.ProjectCustom.class, name, reader));
             namedWritables.add(new NamedWriteableRegistry.Entry(NamedDiff.class, name, diffReader));
-            namedXContents.add(new NamedXContentRegistry.Entry(Metadata.ProjectCustom.class, new ParseField(name), parser));
+            namedXContents.add(new NamedXContentRegistry.Entry(ProjectMetadata.ProjectCustom.class, new ParseField(name), parser));
         }
 
         private void registerBuiltinWritables() {

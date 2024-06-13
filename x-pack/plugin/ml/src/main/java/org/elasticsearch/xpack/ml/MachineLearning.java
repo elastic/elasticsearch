@@ -24,7 +24,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
@@ -1833,21 +1833,21 @@ public class MachineLearning extends Plugin
         namedXContent.addAll(new MlModelSizeNamedXContentProvider().getNamedXContentParsers());
         namedXContent.add(
             new NamedXContentRegistry.Entry(
-                Metadata.ProjectCustom.class,
+                ProjectMetadata.ProjectCustom.class,
                 new ParseField((TrainedModelCacheMetadata.NAME)),
                 TrainedModelCacheMetadata::fromXContent
             )
         );
         namedXContent.add(
             new NamedXContentRegistry.Entry(
-                Metadata.ProjectCustom.class,
+                ProjectMetadata.ProjectCustom.class,
                 new ParseField(ModelAliasMetadata.NAME),
                 ModelAliasMetadata::fromXContent
             )
         );
         namedXContent.add(
             new NamedXContentRegistry.Entry(
-                Metadata.ProjectCustom.class,
+                ProjectMetadata.ProjectCustom.class,
                 new ParseField(TrainedModelAssignmentMetadata.NAME),
                 TrainedModelAssignmentMetadata::fromXContent
             )
@@ -1856,7 +1856,7 @@ public class MachineLearning extends Plugin
         // has no control over this. So, simply read it without logging a deprecation warning
         namedXContent.add(
             new NamedXContentRegistry.Entry(
-                Metadata.ProjectCustom.class,
+                ProjectMetadata.ProjectCustom.class,
                 new ParseField(TrainedModelAssignmentMetadata.DEPRECATED_NAME),
                 TrainedModelAssignmentMetadata::fromXContent
             )
@@ -1874,21 +1874,25 @@ public class MachineLearning extends Plugin
         List<NamedWriteableRegistry.Entry> namedWriteables = new ArrayList<>();
 
         // Custom metadata
-        namedWriteables.add(new NamedWriteableRegistry.Entry(Metadata.ProjectCustom.class, "ml", MlMetadata::new));
+        namedWriteables.add(new NamedWriteableRegistry.Entry(ProjectMetadata.ProjectCustom.class, "ml", MlMetadata::new));
         namedWriteables.add(new NamedWriteableRegistry.Entry(NamedDiff.class, "ml", MlMetadata.MlMetadataDiff::new));
         namedWriteables.add(
-            new NamedWriteableRegistry.Entry(Metadata.ProjectCustom.class, TrainedModelCacheMetadata.NAME, TrainedModelCacheMetadata::new)
+            new NamedWriteableRegistry.Entry(
+                ProjectMetadata.ProjectCustom.class,
+                TrainedModelCacheMetadata.NAME,
+                TrainedModelCacheMetadata::new
+            )
         );
         namedWriteables.add(
             new NamedWriteableRegistry.Entry(NamedDiff.class, TrainedModelCacheMetadata.NAME, TrainedModelCacheMetadata::readDiffFrom)
         );
         namedWriteables.add(
-            new NamedWriteableRegistry.Entry(Metadata.ProjectCustom.class, ModelAliasMetadata.NAME, ModelAliasMetadata::new)
+            new NamedWriteableRegistry.Entry(ProjectMetadata.ProjectCustom.class, ModelAliasMetadata.NAME, ModelAliasMetadata::new)
         );
         namedWriteables.add(new NamedWriteableRegistry.Entry(NamedDiff.class, ModelAliasMetadata.NAME, ModelAliasMetadata::readDiffFrom));
         namedWriteables.add(
             new NamedWriteableRegistry.Entry(
-                Metadata.ProjectCustom.class,
+                ProjectMetadata.ProjectCustom.class,
                 TrainedModelAssignmentMetadata.NAME,
                 TrainedModelAssignmentMetadata::fromStream
             )
@@ -1902,7 +1906,7 @@ public class MachineLearning extends Plugin
         );
         namedWriteables.add(
             new NamedWriteableRegistry.Entry(
-                Metadata.ProjectCustom.class,
+                ProjectMetadata.ProjectCustom.class,
                 TrainedModelAssignmentMetadata.DEPRECATED_NAME,
                 TrainedModelAssignmentMetadata::fromStreamOld
             )

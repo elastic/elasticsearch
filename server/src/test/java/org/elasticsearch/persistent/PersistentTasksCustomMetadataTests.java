@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.UUIDs;
@@ -57,7 +58,7 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.sameInstance;
 
-public class PersistentTasksCustomMetadataTests extends ChunkedToXContentDiffableSerializationTestCase<Metadata.ProjectCustom> {
+public class PersistentTasksCustomMetadataTests extends ChunkedToXContentDiffableSerializationTestCase<ProjectMetadata.ProjectCustom> {
 
     @Override
     protected PersistentTasksCustomMetadata createTestInstance() {
@@ -75,12 +76,12 @@ public class PersistentTasksCustomMetadataTests extends ChunkedToXContentDiffabl
     }
 
     @Override
-    protected Metadata.ProjectCustom mutateInstance(Metadata.ProjectCustom instance) {
+    protected ProjectMetadata.ProjectCustom mutateInstance(ProjectMetadata.ProjectCustom instance) {
         return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override
-    protected Writeable.Reader<Metadata.ProjectCustom> instanceReader() {
+    protected Writeable.Reader<ProjectMetadata.ProjectCustom> instanceReader() {
         return PersistentTasksCustomMetadata::new;
     }
 
@@ -88,7 +89,7 @@ public class PersistentTasksCustomMetadataTests extends ChunkedToXContentDiffabl
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
         return new NamedWriteableRegistry(
             Arrays.asList(
-                new Entry(Metadata.ProjectCustom.class, PersistentTasksCustomMetadata.TYPE, PersistentTasksCustomMetadata::new),
+                new Entry(ProjectMetadata.ProjectCustom.class, PersistentTasksCustomMetadata.TYPE, PersistentTasksCustomMetadata::new),
                 new Entry(NamedDiff.class, PersistentTasksCustomMetadata.TYPE, PersistentTasksCustomMetadata::readDiffFrom),
                 new Entry(PersistentTaskParams.class, TestPersistentTasksExecutor.NAME, TestParams::new),
                 new Entry(PersistentTaskState.class, TestPersistentTasksExecutor.NAME, State::new)
@@ -97,7 +98,7 @@ public class PersistentTasksCustomMetadataTests extends ChunkedToXContentDiffabl
     }
 
     @Override
-    protected Metadata.ProjectCustom makeTestChanges(Metadata.ProjectCustom testInstance) {
+    protected ProjectMetadata.ProjectCustom makeTestChanges(ProjectMetadata.ProjectCustom testInstance) {
         Builder builder = PersistentTasksCustomMetadata.builder((PersistentTasksCustomMetadata) testInstance);
         switch (randomInt(3)) {
             case 0:
@@ -129,7 +130,7 @@ public class PersistentTasksCustomMetadataTests extends ChunkedToXContentDiffabl
     }
 
     @Override
-    protected Writeable.Reader<Diff<Metadata.ProjectCustom>> diffReader() {
+    protected Writeable.Reader<Diff<ProjectMetadata.ProjectCustom>> diffReader() {
         return PersistentTasksCustomMetadata::readDiffFrom;
     }
 

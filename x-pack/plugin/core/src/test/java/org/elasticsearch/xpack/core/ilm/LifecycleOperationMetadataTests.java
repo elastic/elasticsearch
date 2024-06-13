@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.core.ilm;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
@@ -19,7 +20,7 @@ import java.io.IOException;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
 
-public class LifecycleOperationMetadataTests extends AbstractChunkedSerializingTestCase<Metadata.ProjectCustom> {
+public class LifecycleOperationMetadataTests extends AbstractChunkedSerializingTestCase<ProjectMetadata.ProjectCustom> {
 
     @Override
     protected LifecycleOperationMetadata createTestInstance() {
@@ -32,12 +33,12 @@ public class LifecycleOperationMetadataTests extends AbstractChunkedSerializingT
     }
 
     @Override
-    protected Writeable.Reader<Metadata.ProjectCustom> instanceReader() {
+    protected Writeable.Reader<ProjectMetadata.ProjectCustom> instanceReader() {
         return LifecycleOperationMetadata::new;
     }
 
     @Override
-    protected Metadata.ProjectCustom mutateInstance(Metadata.ProjectCustom instance) {
+    protected ProjectMetadata.ProjectCustom mutateInstance(ProjectMetadata.ProjectCustom instance) {
         LifecycleOperationMetadata metadata = (LifecycleOperationMetadata) instance;
         if (randomBoolean()) {
             return new LifecycleOperationMetadata(

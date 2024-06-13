@@ -10,7 +10,7 @@ package org.elasticsearch.snapshots;
 
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.Diff;
-import org.elasticsearch.cluster.metadata.Metadata.ProjectCustom;
+import org.elasticsearch.cluster.metadata.ProjectMetadata.ProjectCustom;
 import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;

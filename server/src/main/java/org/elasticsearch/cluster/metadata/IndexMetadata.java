@@ -1704,7 +1704,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         builder.primaryTerms(in.readVLongArray());
         int mappingsSize = in.readVInt();
         if (mappingsSize == 1) {
-            if (mappingLookup != null && in.getTransportVersion().onOrAfter(Metadata.MAPPINGS_AS_HASH_VERSION)) {
+            if (mappingLookup != null && in.getTransportVersion().onOrAfter(ProjectMetadata.MAPPINGS_AS_HASH_VERSION)) {
                 final String mappingHash = in.readString();
                 final MappingMetadata metadata = mappingLookup.apply(mappingHash);
                 assert metadata != null : "failed to find mapping [" + mappingHash + "] for [" + builder.index + "]";
@@ -1771,7 +1771,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             out.writeVInt(0);
         } else {
             out.writeVInt(1);
-            if (mappingsAsHash && out.getTransportVersion().onOrAfter(Metadata.MAPPINGS_AS_HASH_VERSION)) {
+            if (mappingsAsHash && out.getTransportVersion().onOrAfter(ProjectMetadata.MAPPINGS_AS_HASH_VERSION)) {
                 out.writeString(mapping.getSha256());
             } else {
                 mapping.writeTo(out);

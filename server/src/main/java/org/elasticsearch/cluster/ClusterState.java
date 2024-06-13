@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.coordination.CoordinationMetadata.VotingConfigu
 import org.elasticsearch.cluster.coordination.NoMasterBlockService;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingNodes;
@@ -499,9 +500,9 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
         }
         if (metadata.projectCustoms().isEmpty() == false) {
             sb.append("metadata customs (project):\n");
-            for (final Map.Entry<String, Metadata.ProjectCustom> cursor : metadata.projectCustoms().entrySet()) {
+            for (final Map.Entry<String, ProjectMetadata.ProjectCustom> cursor : metadata.projectCustoms().entrySet()) {
                 final String type = cursor.getKey();
-                final Metadata.ProjectCustom custom = cursor.getValue();
+                final ProjectMetadata.ProjectCustom custom = cursor.getValue();
                 sb.append(TAB).append(type).append(": ").append(custom);
             }
             sb.append("\n");

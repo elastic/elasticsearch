@@ -11,7 +11,7 @@ package org.elasticsearch.test;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.cluster.AbstractNamedDiffable;
 import org.elasticsearch.cluster.NamedDiff;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -22,7 +22,9 @@ import java.io.IOException;
 import java.util.Iterator;
 import java.util.function.Function;
 
-public abstract class TestProjectCustomMetadata extends AbstractNamedDiffable<Metadata.ProjectCustom> implements Metadata.ProjectCustom {
+public abstract class TestProjectCustomMetadata extends AbstractNamedDiffable<ProjectMetadata.ProjectCustom>
+    implements
+        ProjectMetadata.ProjectCustom {
     private final String data;
 
     protected TestProjectCustomMetadata(String data) {
@@ -58,8 +60,8 @@ public abstract class TestProjectCustomMetadata extends AbstractNamedDiffable<Me
         return supplier.apply(in.readString());
     }
 
-    public static NamedDiff<Metadata.ProjectCustom> readDiffFrom(String name, StreamInput in) throws IOException {
-        return readDiffFrom(Metadata.ProjectCustom.class, name, in);
+    public static NamedDiff<ProjectMetadata.ProjectCustom> readDiffFrom(String name, StreamInput in) throws IOException {
+        return readDiffFrom(ProjectMetadata.ProjectCustom.class, name, in);
     }
 
     @Override
@@ -68,7 +70,7 @@ public abstract class TestProjectCustomMetadata extends AbstractNamedDiffable<Me
     }
 
     @SuppressWarnings("unchecked")
-    public static <T extends Metadata.ProjectCustom> T fromXContent(Function<String, T> supplier, XContentParser parser)
+    public static <T extends ProjectMetadata.ProjectCustom> T fromXContent(Function<String, T> supplier, XContentParser parser)
         throws IOException {
         XContentParser.Token token;
         String data = null;

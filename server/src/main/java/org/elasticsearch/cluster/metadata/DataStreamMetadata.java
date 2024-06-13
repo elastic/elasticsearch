@@ -40,7 +40,7 @@ import java.util.Set;
 /**
  * ProjectCustom {@link Metadata} implementation for storing a map of {@link DataStream}s and their names.
  */
-public class DataStreamMetadata implements Metadata.ProjectCustom {
+public class DataStreamMetadata implements ProjectMetadata.ProjectCustom {
 
     public static final String TYPE = "data_stream";
 
@@ -191,11 +191,11 @@ public class DataStreamMetadata implements Metadata.ProjectCustom {
     }
 
     @Override
-    public Diff<Metadata.ProjectCustom> diff(Metadata.ProjectCustom before) {
+    public Diff<ProjectMetadata.ProjectCustom> diff(ProjectMetadata.ProjectCustom before) {
         return new DataStreamMetadata.DataStreamMetadataDiff((DataStreamMetadata) before, this);
     }
 
-    public static NamedDiff<Metadata.ProjectCustom> readDiffFrom(StreamInput in) throws IOException {
+    public static NamedDiff<ProjectMetadata.ProjectCustom> readDiffFrom(StreamInput in) throws IOException {
         return new DataStreamMetadata.DataStreamMetadataDiff(in);
     }
 
@@ -262,7 +262,7 @@ public class DataStreamMetadata implements Metadata.ProjectCustom {
         return Strings.toString(this);
     }
 
-    static class DataStreamMetadataDiff implements NamedDiff<Metadata.ProjectCustom> {
+    static class DataStreamMetadataDiff implements NamedDiff<ProjectMetadata.ProjectCustom> {
 
         private static final DiffableUtils.DiffableValueReader<String, DataStream> DS_DIFF_READER = new DiffableUtils.DiffableValueReader<>(
             DataStream::read,
@@ -294,7 +294,7 @@ public class DataStreamMetadata implements Metadata.ProjectCustom {
         }
 
         @Override
-        public Metadata.ProjectCustom apply(Metadata.ProjectCustom part) {
+        public ProjectMetadata.ProjectCustom apply(ProjectMetadata.ProjectCustom part) {
             return new DataStreamMetadata(
                 dataStreamDiff.apply(((DataStreamMetadata) part).dataStreams),
                 dataStreamAliasDiff.apply(((DataStreamMetadata) part).dataStreamAliases)

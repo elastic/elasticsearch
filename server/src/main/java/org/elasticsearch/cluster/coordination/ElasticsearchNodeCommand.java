@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.metadata.ComponentTemplateMetadata;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.DataStreamMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.cli.EnvironmentAwareCommand;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -68,7 +69,7 @@ public abstract class ElasticsearchNodeCommand extends EnvironmentAwareCommand {
         @Override
         public boolean hasParser(Class<?> categoryClass, String name, RestApiVersion apiVersion) {
             return Metadata.ClusterCustom.class.isAssignableFrom(categoryClass)
-                || Metadata.ProjectCustom.class.isAssignableFrom(categoryClass)
+                || ProjectMetadata.ProjectCustom.class.isAssignableFrom(categoryClass)
                 || Condition.class.isAssignableFrom(categoryClass);
         }
 
@@ -79,7 +80,7 @@ public abstract class ElasticsearchNodeCommand extends EnvironmentAwareCommand {
             if (Metadata.ClusterCustom.class.isAssignableFrom(categoryClass)) {
                 return (T) new UnknownMetadataCustom(name, parser.mapOrdered());
             }
-            if (Metadata.ProjectCustom.class.isAssignableFrom(categoryClass)) {
+            if (ProjectMetadata.ProjectCustom.class.isAssignableFrom(categoryClass)) {
                 if (DataStreamMetadata.TYPE.equals(name)
                     || ComposableIndexTemplateMetadata.TYPE.equals(name)
                     || ComponentTemplateMetadata.TYPE.equals(name)) {
@@ -262,7 +263,9 @@ public abstract class ElasticsearchNodeCommand extends EnvironmentAwareCommand {
         }
     }
 
-    public static class UnknownProjectCustom extends AbstractUnknownCustom<Metadata.ProjectCustom> implements Metadata.ProjectCustom {
+    public static class UnknownProjectCustom extends AbstractUnknownCustom<ProjectMetadata.ProjectCustom>
+        implements
+            ProjectMetadata.ProjectCustom {
         public UnknownProjectCustom(String name, Map<String, Object> contents) {
             super(name, contents);
         }

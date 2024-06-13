@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
@@ -36,7 +37,7 @@ import java.util.Objects;
 /**
  * ProjectCustom {@link Metadata} implementation for storing a map of model aliases that point to model IDs
  */
-public class ModelAliasMetadata implements Metadata.ProjectCustom {
+public class ModelAliasMetadata implements ProjectMetadata.ProjectCustom {
 
     public static final String NAME = "trained_model_alias";
 
@@ -47,7 +48,7 @@ public class ModelAliasMetadata implements Metadata.ProjectCustom {
         return modelAliasMetadata == null ? EMPTY : modelAliasMetadata;
     }
 
-    public static NamedDiff<Metadata.ProjectCustom> readDiffFrom(StreamInput in) throws IOException {
+    public static NamedDiff<ProjectMetadata.ProjectCustom> readDiffFrom(StreamInput in) throws IOException {
         return new ModelAliasMetadataDiff(in);
     }
 
@@ -97,7 +98,7 @@ public class ModelAliasMetadata implements Metadata.ProjectCustom {
     }
 
     @Override
-    public Diff<Metadata.ProjectCustom> diff(Metadata.ProjectCustom previousState) {
+    public Diff<ProjectMetadata.ProjectCustom> diff(ProjectMetadata.ProjectCustom previousState) {
         return new ModelAliasMetadataDiff((ModelAliasMetadata) previousState, this);
     }
 
@@ -129,7 +130,7 @@ public class ModelAliasMetadata implements Metadata.ProjectCustom {
         return entry.modelId;
     }
 
-    static class ModelAliasMetadataDiff implements NamedDiff<Metadata.ProjectCustom> {
+    static class ModelAliasMetadataDiff implements NamedDiff<ProjectMetadata.ProjectCustom> {
 
         final Diff<Map<String, ModelAliasEntry>> modelAliasesDiff;
 
@@ -147,7 +148,7 @@ public class ModelAliasMetadata implements Metadata.ProjectCustom {
         }
 
         @Override
-        public Metadata.ProjectCustom apply(Metadata.ProjectCustom part) {
+        public ProjectMetadata.ProjectCustom apply(ProjectMetadata.ProjectCustom part) {
             return new ModelAliasMetadata(modelAliasesDiff.apply(((ModelAliasMetadata) part).modelAliases));
         }
 

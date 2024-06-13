@@ -326,8 +326,8 @@ public class ClusterStateTests extends ESTestCase {
                                 "write_load_forecast" : 8.0
                               }
                             },
-                            "index-graveyard" : {
-                             "tombstones" : [ ]
+                            "index-graveyard": {
+                              "tombstones": []
                             },
                             "reserved_state" : { }
                           },

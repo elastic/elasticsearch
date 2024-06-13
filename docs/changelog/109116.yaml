@@ -1,6 +1,0 @@
-pr: 109116
-summary: Guard bootstrap plugins loading from detecting plugins cache
-area: Infra/Plugins
-type: bug
-issues:
- - 97702

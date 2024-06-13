@@ -38,6 +38,7 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.application.rules.action.DeleteQueryRuleAction;
 import org.elasticsearch.xpack.application.rules.action.PutQueryRuleAction;
 
 import java.io.IOException;
@@ -51,6 +52,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -102,7 +104,6 @@ public class QueryRulesIndexService {
     private static Settings getIndexSettings() {
         return Settings.builder()
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
             .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
             .put(IndexMetadata.SETTING_PRIORITY, 100)
             .put(IndexMetadata.INDEX_FORMAT_SETTING.getKey(), QueryRulesIndexMappingVersion.latest().id)
@@ -227,6 +228,24 @@ public class QueryRulesIndexService {
         });
     }
 
+    /**
+     * Retrieves a {@link QueryRule} from a {@link QueryRuleset}.
+     *
+     * @param rulesetId
+     * @param ruleId
+     * @param listener
+     */
+    public void getQueryRule(String rulesetId, String ruleId, ActionListener<QueryRule> listener) {
+        getQueryRuleset(rulesetId, listener.delegateFailure((delegate, queryRuleset) -> {
+            Optional<QueryRule> maybeQueryRule = queryRuleset.rules().stream().filter(r -> r.id().equals(ruleId)).findFirst();
+            if (maybeQueryRule.isPresent()) {
+                delegate.onResponse(maybeQueryRule.get());
+            } else {
+                delegate.onFailure(new ResourceNotFoundException("rule id " + ruleId + " not found in ruleset " + rulesetId));
+            }
+        }));
+    }
+
     @SuppressWarnings("unchecked")
     private static List<QueryRuleCriteria> parseCriteria(List<Map<String, Object>> rawCriteria) {
         List<QueryRuleCriteria> criteria = new ArrayList<>(rawCriteria.size());
@@ -339,6 +358,37 @@ public class QueryRulesIndexService {
                 listener.onFailure(e);
             }
         });
+    }
+
+    /**
+     * Deletes a {@link QueryRule} from a {@link QueryRuleset}.
+     *
+     * @param rulesetId
+     * @param ruleId
+     * @param listener
+     */
+    public void deleteQueryRule(String rulesetId, String ruleId, ActionListener<DeleteQueryRuleAction.Response> listener) {
+        getQueryRuleset(rulesetId, listener.delegateFailure((delegate, queryRuleset) -> {
+            Optional<QueryRule> maybeQueryRule = queryRuleset.rules().stream().filter(r -> r.id().equals(ruleId)).findFirst();
+            if (maybeQueryRule.isPresent()) {
+                final List<QueryRule> rules = queryRuleset.rules()
+                    .stream()
+                    .filter(rule -> rule.id().equals(ruleId) == false)
+                    .collect(Collectors.toList());
+                if (rules.isEmpty() == false) {
+                    putQueryRuleset(new QueryRuleset(rulesetId, rules), listener.delegateFailureAndWrap((delegate1, docWriteResponse) -> {
+                        delegate1.onResponse(new DeleteQueryRuleAction.Response(true));
+                    }));
+                } else {
+                    // Delete entire ruleset when there are no more rules left in it
+                    deleteQueryRuleset(rulesetId, listener.delegateFailureAndWrap((delegate1, deleteResponse) -> {
+                        delegate1.onResponse(new DeleteQueryRuleAction.Response(true));
+                    }));
+                }
+            } else {
+                delegate.onFailure(new ResourceNotFoundException("rule id " + ruleId + " not found in ruleset " + rulesetId));
+            }
+        }));
     }
 
     /**

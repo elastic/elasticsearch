@@ -33,7 +33,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg
 
 public class PutQueryRuleAction {
 
-    public static final String NAME = "cluster:admin/xpack/query_rule/put";
+    public static final String NAME = "cluster:admin/xpack/query_rules/rule/put";
     public static final ActionType<PutQueryRuleAction.Response> INSTANCE = new ActionType<>(NAME);
 
     private PutQueryRuleAction() {/* no instances */}

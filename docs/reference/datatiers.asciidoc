@@ -22,6 +22,9 @@ mounted indices>> of <<ilm-searchable-snapshot,{search-snaps}>> exclusively.
 This extends the storage capacity even further — by up to 20 times compared to
 the warm tier. 
 
+TIP: The performance of an {es} node is often limited by the performance of the underlying storage. 
+Review our recommendations for optimizing your storage for <<indexing-use-faster-hardware,indexing>> and <<search-use-faster-hardware,search>>.
+
 IMPORTANT: {es} generally expects nodes within a data tier to share the same 
 hardware profile. Variations not following this recommendation should be 
 carefully architected to avoid <<hotspotting,hot spotting>>.

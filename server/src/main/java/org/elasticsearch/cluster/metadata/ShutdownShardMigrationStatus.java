@@ -89,6 +89,25 @@ public class ShutdownShardMigrationStatus implements Writeable, ChunkedToXConten
         );
     }
 
+    public ShutdownShardMigrationStatus(
+        SingleNodeShutdownMetadata.Status status,
+        long startedShards,
+        long relocatingShards,
+        long initializingShards,
+        @Nullable String explanation,
+        @Nullable ShardAllocationDecision allocationDecision
+    ) {
+        this(
+            status,
+            startedShards,
+            relocatingShards,
+            initializingShards,
+            startedShards + relocatingShards + initializingShards,
+            explanation,
+            allocationDecision
+        );
+    }
+
     private ShutdownShardMigrationStatus(
         SingleNodeShutdownMetadata.Status status,
         long startedShards,
@@ -138,6 +157,10 @@ public class ShutdownShardMigrationStatus implements Writeable, ChunkedToXConten
 
     public SingleNodeShutdownMetadata.Status getStatus() {
         return status;
+    }
+
+    public ShardAllocationDecision getAllocationDecision() {
+        return allocationDecision;
     }
 
     @Override

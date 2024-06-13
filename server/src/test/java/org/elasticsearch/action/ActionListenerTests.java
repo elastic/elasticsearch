@@ -10,6 +10,7 @@ package org.elasticsearch.action;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.CheckedConsumer;
@@ -368,6 +369,52 @@ public class ActionListenerTests extends ESTestCase {
         }));
         assertThat(assertionError.getCause(), instanceOf(IllegalArgumentException.class));
         assertThat(exReference.get(), instanceOf(IllegalArgumentException.class));
+    }
+
+    public void testAssertAtLeastOnceWillLogAssertionErrorWhenNotResolved() throws Exception {
+        assumeTrue("assertAtLeastOnce will be a no-op when assertions are disabled", Assertions.ENABLED);
+        ActionListener<Object> listenerRef = ActionListener.assertAtLeastOnce(ActionListener.running(() -> {
+            // Do nothing, but don't use ActionListener.noop() as it'll never be garbage collected
+        }));
+        // Nullify reference so it becomes unreachable
+        listenerRef = null;
+        assertBusy(() -> {
+            System.gc();
+            assertLeakDetected("LEAK: resource was not cleaned up before it was garbage-collected\\.(.*|\\s)*");
+        });
+    }
+
+    public void testAssertAtLeastOnceWillNotLogWhenResolvedOrFailed() {
+        assumeTrue("assertAtLeastOnce will be a no-op when assertions are disabled", Assertions.ENABLED);
+        ReachabilityChecker reachabilityChecker = new ReachabilityChecker();
+        ActionListener<Object> listenerRef = reachabilityChecker.register(ActionListener.assertAtLeastOnce(ActionListener.running(() -> {
+            // Do nothing, but don't use ActionListener.noop() as it'll never be garbage collected
+        })));
+        // Call onResponse and/or onFailure at least once
+        int times = randomIntBetween(1, 3);
+        for (int i = 0; i < times; i++) {
+            if (randomBoolean()) {
+                listenerRef.onResponse("succeeded");
+            } else {
+                listenerRef.onFailure(new RuntimeException("Failed"));
+            }
+        }
+        // Nullify reference so it becomes unreachable
+        listenerRef = null;
+        reachabilityChecker.ensureUnreachable();
+    }
+
+    public void testAssertAtLeastOnceWillDelegateResponses() {
+        final var response = new Object();
+        assertSame(response, safeAwait(SubscribableListener.newForked(l -> ActionListener.assertAtLeastOnce(l).onResponse(response))));
+    }
+
+    public void testAssertAtLeastOnceWillDelegateFailures() {
+        final var exception = new RuntimeException();
+        assertSame(
+            exception,
+            safeAwaitFailure(SubscribableListener.newForked(l -> ActionListener.assertAtLeastOnce(l).onFailure(exception)))
+        );
     }
 
     /**

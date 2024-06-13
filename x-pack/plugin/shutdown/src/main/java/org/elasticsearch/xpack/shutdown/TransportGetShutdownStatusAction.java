@@ -368,8 +368,8 @@ public class TransportGetShutdownStatusAction extends TransportMasterNodeAction<
                     relocatingShards,
                     initializingShards,
                     format(
-                        "shard [%s] [%s] of index [%s] is waiting to be moved, see [%s] " +
-                            "for details or use the cluster allocation explain API",
+                        "shard [%s] [%s] of index [%s] is waiting to be moved, see [%s] "
+                            + "for details or use the cluster allocation explain API",
                         shardRouting.shardId().getId(),
                         shardRouting.primary() ? "primary" : "replica",
                         shardRouting.index().getName(),

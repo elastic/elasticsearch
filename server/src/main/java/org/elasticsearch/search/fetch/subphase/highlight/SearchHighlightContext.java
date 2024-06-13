@@ -86,7 +86,7 @@ public class SearchHighlightContext {
 
         private int boundaryMaxScan = -1;
 
-        private Character[] boundaryChars = null;
+        private char[] boundaryChars = null;
 
         private Locale boundaryScannerLocale;
 
@@ -156,7 +156,7 @@ public class SearchHighlightContext {
             return boundaryMaxScan;
         }
 
-        public Character[] boundaryChars() {
+        public char[] boundaryChars() {
             return boundaryChars;
         }
 
@@ -258,7 +258,7 @@ public class SearchHighlightContext {
                 return this;
             }
 
-            Builder boundaryChars(Character[] boundaryChars) {
+            Builder boundaryChars(char[] boundaryChars) {
                 fieldOptions.boundaryChars = boundaryChars;
                 return this;
             }

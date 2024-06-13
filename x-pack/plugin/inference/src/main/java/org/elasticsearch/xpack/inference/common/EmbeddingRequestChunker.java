@@ -13,9 +13,9 @@ import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.inference.ChunkedInferenceServiceResults;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.xpack.core.inference.results.ChunkedTextEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.inference.results.ErrorChunkedInferenceResults;
-import org.elasticsearch.xpack.core.inference.results.TextEmbeddingResults;
+import org.elasticsearch.xpack.core.inference.results.InferenceChunkedTextEmbeddingFloatResults;
+import org.elasticsearch.xpack.core.inference.results.InferenceTextEmbeddingFloatResults;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -45,7 +45,7 @@ public class EmbeddingRequestChunker {
     private final int chunkOverlap;
 
     private List<List<String>> chunkedInputs;
-    private List<AtomicArray<List<TextEmbeddingResults.Embedding>>> results;
+    private List<AtomicArray<List<InferenceTextEmbeddingFloatResults.InferenceFloatEmbedding>>> results;
     private AtomicArray<ErrorChunkedInferenceResults> errors;
     private ActionListener<List<ChunkedInferenceServiceResults>> finalListener;
 
@@ -160,7 +160,7 @@ public class EmbeddingRequestChunker {
 
         @Override
         public void onResponse(InferenceServiceResults inferenceServiceResults) {
-            if (inferenceServiceResults instanceof TextEmbeddingResults textEmbeddingResults) { // TODO byte embeddings
+            if (inferenceServiceResults instanceof InferenceTextEmbeddingFloatResults textEmbeddingResults) { // TODO byte embeddings
                 int numRequests = positions.stream().mapToInt(SubBatchPositionsAndCount::embeddingCount).sum();
                 if (numRequests != textEmbeddingResults.embeddings().size()) {
                     onFailure(
@@ -212,11 +212,11 @@ public class EmbeddingRequestChunker {
             finalListener.onResponse(response);
         }
 
-        private ChunkedTextEmbeddingFloatResults merge(
+        private InferenceChunkedTextEmbeddingFloatResults merge(
             List<String> chunks,
-            AtomicArray<List<TextEmbeddingResults.Embedding>> debatchedResults
+            AtomicArray<List<InferenceTextEmbeddingFloatResults.InferenceFloatEmbedding>> debatchedResults
         ) {
-            var all = new ArrayList<TextEmbeddingResults.Embedding>();
+            var all = new ArrayList<InferenceTextEmbeddingFloatResults.InferenceFloatEmbedding>();
             for (int i = 0; i < debatchedResults.length(); i++) {
                 var subBatch = debatchedResults.get(i);
                 all.addAll(subBatch);
@@ -224,12 +224,14 @@ public class EmbeddingRequestChunker {
 
             assert chunks.size() == all.size();
 
-            var embeddingChunks = new ArrayList<ChunkedTextEmbeddingFloatResults.EmbeddingChunk>();
+            var embeddingChunks = new ArrayList<InferenceChunkedTextEmbeddingFloatResults.InferenceFloatEmbeddingChunk>();
             for (int i = 0; i < chunks.size(); i++) {
-                embeddingChunks.add(new ChunkedTextEmbeddingFloatResults.EmbeddingChunk(chunks.get(i), all.get(i).values()));
+                embeddingChunks.add(
+                    new InferenceChunkedTextEmbeddingFloatResults.InferenceFloatEmbeddingChunk(chunks.get(i), all.get(i).values())
+                );
             }
 
-            return new ChunkedTextEmbeddingFloatResults(embeddingChunks);
+            return new InferenceChunkedTextEmbeddingFloatResults(embeddingChunks);
         }
     }
 

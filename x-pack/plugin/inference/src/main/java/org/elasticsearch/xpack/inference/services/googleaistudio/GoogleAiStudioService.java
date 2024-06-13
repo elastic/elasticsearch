@@ -108,7 +108,8 @@ public class GoogleAiStudioService extends SenderService {
                 NAME,
                 serviceSettings,
                 taskSettings,
-                secretSettings
+                secretSettings,
+                context
             );
             case TEXT_EMBEDDING -> new GoogleAiStudioEmbeddingsModel(
                 inferenceEntityId,
@@ -116,7 +117,8 @@ public class GoogleAiStudioService extends SenderService {
                 NAME,
                 serviceSettings,
                 taskSettings,
-                secretSettings
+                secretSettings,
+                context
             );
             default -> throw new ElasticsearchStatusException(failureMessage, RestStatus.BAD_REQUEST);
         };

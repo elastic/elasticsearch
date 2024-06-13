@@ -14,6 +14,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.core.Releasables;
@@ -23,9 +24,9 @@ import org.elasticsearch.xpack.esql.Column;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 
 import java.io.IOException;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
-import java.util.TreeMap;
 
 /**
  * Parses the {@code tables} request body parameter.
@@ -69,7 +70,7 @@ public class ParseTables {
      * so we can be sure we'll always have a type.
      */
     private Map<String, Column> parseTable() throws IOException {
-        Map<String, Column> columns = new TreeMap<>();
+        Map<String, Column> columns = new LinkedHashMap<>();
         boolean success = false;
         try {
             if (p.currentToken() != XContentParser.Token.START_OBJECT) {
@@ -82,17 +83,11 @@ public class ParseTables {
                         return columns;
                     }
                     case FIELD_NAME -> {
-                        String[] fname = p.currentName().split(":");
-                        if (fname.length != 2) {
-                            throw new XContentParseException(
-                                p.getTokenLocation(),
-                                "expected columns named name:type but was [" + p.currentName() + "]"
-                            );
+                        String name = p.currentName();
+                        if (columns.containsKey(name)) {
+                            throw new XContentParseException(p.getTokenLocation(), "duplicate column name [" + name + "]");
                         }
-                        if (columns.containsKey(fname[0])) {
-                            throw new XContentParseException(p.getTokenLocation(), "duplicate column name [" + fname[0] + "]");
-                        }
-                        columns.put(fname[0], parseColumn(fname[1]));
+                        columns.put(name, parseColumn());
                     }
                     default -> throw new XContentParseException(
                         p.getTokenLocation(),
@@ -107,13 +102,26 @@ public class ParseTables {
         }
     }
 
-    private Column parseColumn(String type) throws IOException {
-        return switch (type) {
+    private Column parseColumn() throws IOException {
+        if (p.nextToken() != XContentParser.Token.START_OBJECT) {
+            throw new XContentParseException(p.getTokenLocation(), "expected " + XContentParser.Token.START_OBJECT);
+        }
+        if (p.nextToken() != XContentParser.Token.FIELD_NAME) {
+            throw new XContentParseException(p.getTokenLocation(), "expected " + XContentParser.Token.FIELD_NAME);
+        }
+        String type = p.currentName();
+        Column result = switch (type) {
             case "integer" -> parseIntColumn();
             case "keyword" -> parseKeywordColumn();
             case "long" -> parseLongColumn();
+            case "double" -> parseDoubleColumn();
             default -> throw new XContentParseException(p.getTokenLocation(), "unsupported type [" + type + "]");
         };
+        if (p.nextToken() != XContentParser.Token.END_OBJECT) {
+            result.close();
+            throw new XContentParseException(p.getTokenLocation(), "expected " + XContentParser.Token.END_OBJECT);
+        }
+        return result;
     }
 
     private Column parseKeywordColumn() throws IOException {
@@ -244,5 +252,47 @@ public class ParseTables {
             throw new XContentParseException(p.getTokenLocation(), "tables too big");
         }
         builder.appendLong(p.longValue());
+    }
+
+    private Column parseDoubleColumn() throws IOException {
+        try (DoubleBlock.Builder builder = blockFactory.newDoubleBlockBuilder(100)) { // TODO 100?!
+            XContentParser.Token token = p.nextToken();
+            if (token != XContentParser.Token.START_ARRAY) {
+                throw new XContentParseException(p.getTokenLocation(), "expected " + XContentParser.Token.START_ARRAY);
+            }
+            while (true) {
+                switch (p.nextToken()) {
+                    case END_ARRAY -> {
+                        return new Column(DataType.DOUBLE, builder.build());
+                    }
+                    case START_ARRAY -> parseDoubleArray(builder);
+                    case VALUE_NULL -> builder.appendNull();
+                    case VALUE_NUMBER, VALUE_STRING -> appendDouble(builder);
+                    default -> throw new XContentParseException(p.getTokenLocation(), "expected number, array of numbers, or null");
+                }
+            }
+        }
+    }
+
+    private void parseDoubleArray(DoubleBlock.Builder builder) throws IOException {
+        builder.beginPositionEntry();
+        while (true) {
+            switch (p.nextToken()) {
+                case END_ARRAY -> {
+                    builder.endPositionEntry();
+                    return;
+                }
+                case VALUE_NUMBER, VALUE_STRING -> appendDouble(builder);
+                default -> throw new XContentParseException(p.getTokenLocation(), "expected number");
+            }
+        }
+    }
+
+    private void appendDouble(DoubleBlock.Builder builder) throws IOException {
+        length += Double.BYTES;
+        if (length > MAX_LENGTH) {
+            throw new XContentParseException(p.getTokenLocation(), "tables too big");
+        }
+        builder.appendDouble(p.doubleValue());
     }
 }

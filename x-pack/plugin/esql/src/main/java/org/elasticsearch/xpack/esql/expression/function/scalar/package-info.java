@@ -54,7 +54,7 @@
  *     </li>
  *     <li>
  *         Find a function in this package similar to the one you are working on and copy it to build
- *         yours. There's some ceremony required in each function class to make it constant foldable
+ *         yours. There's some ceremony required in each function class to make it constant foldable,
  *         and return the right types. Take a stab at these, but don't worry too much about getting
  *         it right. Your function might extend from one of several abstract base classes, all of
  *         those are fine for this guide, but might have special instructions called out later.
@@ -104,9 +104,21 @@
  *     </li>
  *     <li>
  *         Add your function to {@link org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry}.
- *         This links it into the language and {@code META FUNCTIONS}. Also add your function to
- *         {@link org.elasticsearch.xpack.esql.io.stream.PlanNamedTypes}. This makes your function
- *         serializable over the wire. Mostly you can copy existing implementations for both.
+ *         This links it into the language and {@code META FUNCTIONS}.
+ *     </li>
+ *     <li>
+ *         Register your function for serialization. We're in the process of migrating this serialization
+ *         from an older way to the more common, {@link org.elasticsearch.common.io.stream.NamedWriteable}.
+ *         <p>
+ *             All subclasses of {@link org.elasticsearch.xpack.esql.expression.function.scalar.UnaryScalarFunction}
+ *             are migrated and should include a "getWriteableName", "writeTo", and a deserializing constructor.
+ *             They should also include a {@link org.elasticsearch.common.io.stream.NamedWriteableRegistry.Entry}
+ *             and it should be linked in {@link org.elasticsearch.xpack.esql.expression.function.scalar.UnaryScalarFunction}.
+ *         </p>
+ *         <p>
+ *             Other functions serialized in {@link org.elasticsearch.xpack.esql.io.stream.PlanNamedTypes}
+ *             and you should copy what's done there.
+ *         </p>
  *     </li>
  *     <li>
  *         Rerun the {@code CsvTests}. They should find your function and maybe even pass. Add a

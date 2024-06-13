@@ -11,6 +11,7 @@ package org.elasticsearch.cluster.routing;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteUtils;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsGroup;
 import org.elasticsearch.action.admin.indices.refresh.TransportUnpromotableShardRefreshAction;
 import org.elasticsearch.action.search.ClosePointInTimeRequest;
@@ -114,7 +115,7 @@ public class ShardRoutingRoleIT extends ESIntegTestCase {
                 @Override
                 public Decision canForceAllocatePrimary(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
                     // once a primary is cancelled it _stays_ cancelled
-                    if (shardRouting.unassignedInfo().getReason() == UnassignedInfo.Reason.REROUTE_CANCELLED) {
+                    if (shardRouting.unassignedInfo().reason() == UnassignedInfo.Reason.REROUTE_CANCELLED) {
                         return Decision.NO;
                     }
                     return super.canForceAllocatePrimary(shardRouting, node, allocation);
@@ -422,7 +423,7 @@ public class ShardRoutingRoleIT extends ESIntegTestCase {
             updateIndexSettings(Settings.builder().put(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_PREFIX + "._name", "not-a-node"), "test");
             AllocationCommand cancelPrimaryCommand;
             while ((cancelPrimaryCommand = getCancelPrimaryCommand()) != null) {
-                clusterAdmin().prepareReroute().add(cancelPrimaryCommand).get();
+                ClusterRerouteUtils.reroute(client(), cancelPrimaryCommand);
             }
         } finally {
             masterClusterService.removeListener(routingTableWatcher);
@@ -450,7 +451,7 @@ public class ShardRoutingRoleIT extends ESIntegTestCase {
                         shardRouting.role().isPromotableToPrimary()
                             ? UnassignedInfo.Reason.REROUTE_CANCELLED
                             : UnassignedInfo.Reason.UNPROMOTABLE_REPLICA,
-                        shardRouting.unassignedInfo().getReason()
+                        shardRouting.unassignedInfo().reason()
                     );
                 }
             }

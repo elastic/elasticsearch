@@ -55,7 +55,7 @@ import java.io.IOException;
  */
 public class TransportUpdateReplicasAction extends TransportMasterNodeAction<TransportUpdateReplicasAction.Request, AcknowledgedResponse> {
 
-    public static final ActionType<AcknowledgedResponse> TYPE = new ActionType<>("indices:admin/stateless/update_replicas");
+    public static final ActionType<AcknowledgedResponse> TYPE = new ActionType<>("internal:admin/stateless/update_replicas");
 
     private final MetadataUpdateSettingsService metadataUpdateSettingsService;
 

@@ -28,6 +28,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.shard.IndexLongFieldRange;
+import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardLongFieldRange;
 import org.elasticsearch.indices.IndicesService;
@@ -131,6 +132,24 @@ public class EventIngestedRangeClusterStateService extends AbstractLifecycleComp
      */
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
+        /// MP TODO ALT LOOPING MODEL -- start
+        for (Map.Entry<String, IndexMetadata> entry : event.state().getMetadata().indices().entrySet()) {
+            String indexName = entry.getKey();
+            IndexMetadata indexMetadata = entry.getValue();
+            Index index = entry.getValue().getIndex();
+
+            if (isFrozenIndex(indexMetadata.getSettings())) {
+                IndexService indexService = indicesService.indexService(index);
+                for (Integer shardId : indexService.shardIds()) {
+                    IndexShard shard = indexService.getShard(shardId);
+                    ShardLongFieldRange eventIngestedRange = shard.getEventIngestedRange();
+                    // TODO: add this range to map like below if we go this route
+                }
+
+            }
+        }
+        /// MP TODO ALT LOOPING MODEL -- end
+
         // only run this task when a cluster has upgraded to a new version
         // TODO: how is this going to work in serverless? will event.state().nodes().getMinNodeVersion() return useful info?
         if (clusterVersionUpgrade(event)) {
@@ -155,7 +174,6 @@ public class EventIngestedRangeClusterStateService extends AbstractLifecycleComp
 
             logger.warn("XXX EventIngestedRangeClusterStateService.applyClusterState DEBUG 3. shardsForLookup: {}", shardsForLookup.size());
 
-            // TODO: should the key be String or Index?
             Map<Index, List<ShardRangeInfo>> eventIngestedRangeMap = new HashMap<>();
 
             // MP TODO - bogus entry to have something for initial testing -- start
@@ -175,7 +193,6 @@ public class EventIngestedRangeClusterStateService extends AbstractLifecycleComp
                 // TODO: ^^ speaks to the larger issue of error handling - what if on this pass not all the shards can't be
                 // TODO: inspected for some reason - then the event.ingested range remains unusable until the next version upgrade?
                 if (shard != null) {
-                    // TODO: should I call metadata.index(String) or metadata.index(Index)? The latter doesn't work in my other test
                     IndexMetadata indexMetadata = event.state().metadata().index(shardRouting.index());
                     // TODO: is indexMetadata guaranteed to never be null here?
                     IndexLongFieldRange clusterStateEventIngestedRange = indexMetadata.getEventIngestedRange();

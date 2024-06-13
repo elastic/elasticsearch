@@ -21,7 +21,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
 
 import static org.elasticsearch.action.support.replication.ClusterStateCreationUtils.state;
 import static org.elasticsearch.action.support.replication.ClusterStateCreationUtils.stateWithNoShard;
@@ -44,11 +43,13 @@ public class UpdateEventIngestedRangeTransportActionTaskExecutorTests extends ES
         ClusterState clusterState1;  // initial cluster state
         ClusterState clusterState2;  // cluster state after first task runs (building on clusterState1)
 
-        Index blogsIndex = new Index("blogs", UUID.randomUUID().toString());
+        String indexName = "blogs";
+        Index blogsIndex;
 
         // TODO: do I need to try other ShardRoutingStates here, like RELOCATING, UNASSIGNED or INITIALIZING?
         // ClusterState clusterState = state(blogsIndex, true, ShardRoutingState.STARTED);
-        clusterState1 = state(1, new String[] { blogsIndex.getName() }, 1);
+        clusterState1 = state(1, new String[] { indexName }, 1);
+        blogsIndex = clusterState1.metadata().index(indexName).getIndex();
 
         Map<Index, List<EventIngestedRangeClusterStateService.ShardRangeInfo>> eventIngestedRangeMap = new HashMap<>();
         EventIngestedRangeClusterStateService.ShardRangeInfo shardRangeInfo = new EventIngestedRangeClusterStateService.ShardRangeInfo(
@@ -62,8 +63,7 @@ public class UpdateEventIngestedRangeTransportActionTaskExecutorTests extends ES
 
         clusterState2 = executeTasks(clusterState1, List.of(eventIngestedRangeTask));
         assertNotSame(clusterState1, clusterState2);
-        // TODO: change this to blogsIndex
-        IndexLongFieldRange eventIngestedRange = clusterState2.getMetadata().index(blogsIndex.getName()).getEventIngestedRange();
+        IndexLongFieldRange eventIngestedRange = clusterState2.getMetadata().index(blogsIndex).getEventIngestedRange();
 
         assertEquals(1000L, eventIngestedRange.getMin());
         assertEquals(2000L, eventIngestedRange.getMax());

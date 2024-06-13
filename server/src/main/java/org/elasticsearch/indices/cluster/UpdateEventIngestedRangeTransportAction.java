@@ -117,8 +117,6 @@ public class UpdateEventIngestedRangeTransportAction extends TransportMasterNode
                     Index index = entry.getKey();
                     List<EventIngestedRangeClusterStateService.ShardRangeInfo> shardRangeList = entry.getValue();
 
-                    // TODO: why does state.getMetadata().index(index) return null in my tests but
-                    // state.getMetadata().index(index.getName()) does not?
                     // TODO: is it realistic to assume that IndexMetadata would never be null here?
                     IndexMetadata indexMetadata = state.getMetadata().index(index);
 
@@ -151,10 +149,7 @@ public class UpdateEventIngestedRangeTransportAction extends TransportMasterNode
                 for (Map.Entry<Index, IndexLongFieldRange> entry : updatedEventIngestedRangesMap.entrySet()) {
                     Index index = entry.getKey();
                     IndexLongFieldRange range = entry.getValue();
-
-                    metadataBuilder.put(IndexMetadata.builder(metadataBuilder.get(index.getName())).eventIngestedRange(range));
-                    // TODO: again, builder.getSafe(index)) returns null, but builder.get(index.getName())) does not - why?
-                    // metadataBuilder.put(IndexMetadata.builder(metadataBuilder.getSafe(index)).eventIngestedRange(range));
+                    metadataBuilder.put(IndexMetadata.builder(metadataBuilder.getSafe(index)).eventIngestedRange(range));
                 }
 
                 // MP TODO: Hmm, not sure this should be inside the for loop - it is NOT in ShardStateAction.execute :-(

@@ -34,7 +34,7 @@ public class RestDeleteSnapshotAction extends BaseRestHandler {
 
     private static final Set<String> SUPPORTED_QUERY_PARAMETERS = Set.of(RestUtils.REST_MASTER_TIMEOUT_PARAM, "wait_for_completion");
     private static final Set<String> ALL_SUPPORTED_PARAMETERS = Set.copyOf(
-        Sets.union(SUPPORTED_QUERY_PARAMETERS, Set.of("repository", "snapshoøt"))
+        Sets.union(SUPPORTED_QUERY_PARAMETERS, Set.of("repository", "snapshot"))
     );
 
     @Override

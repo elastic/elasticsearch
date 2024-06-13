@@ -91,7 +91,7 @@ public final class MoveDecision extends AbstractAllocationDecision {
      * Creates a move decision for the shard being able to remain on its current node, so the shard won't
      * be forced to move to another node.
      */
-    public static MoveDecision canRemain(Decision canRemainDecision) {
+    public static MoveDecision remain(Decision canRemainDecision) {
         if (canRemainDecision == Decision.YES) {
             return CACHED_STAY_DECISION;
         }
@@ -111,8 +111,8 @@ public final class MoveDecision extends AbstractAllocationDecision {
     public static MoveDecision move(
         Decision canRemainDecision,
         AllocationDecision moveDecision,
-        DiscoveryNode targetNode,
-        List<NodeAllocationResult> nodeDecisions
+        @Nullable DiscoveryNode targetNode,
+        @Nullable List<NodeAllocationResult> nodeDecisions
     ) {
         assert canRemainDecision != null;
         assert canRemainDecision.type() != Type.YES : "create decision with MoveDecision#stay instead";
@@ -126,47 +126,22 @@ public final class MoveDecision extends AbstractAllocationDecision {
     }
 
     /**
-     * Creates a move decision for when rebalancing the shard is not allowed.
-     */
-    public static MoveDecision cannotRebalance(
-        Decision canRebalanceDecision,
-        AllocationDecision allocationDecision,
-        int currentNodeRanking,
-        List<NodeAllocationResult> nodeDecisions
-    ) {
-        return new MoveDecision(null, nodeDecisions, allocationDecision, null, canRebalanceDecision, currentNodeRanking);
-    }
-
-    /**
      * Creates a decision for whether to move the shard to a different node to form a better cluster balance.
      */
     public static MoveDecision rebalance(
+        Decision canRemainDecision,
         Decision canRebalanceDecision,
-        AllocationDecision allocationDecision,
+        AllocationDecision canMoveDecision,
         @Nullable DiscoveryNode targetNode,
         int currentNodeRanking,
         List<NodeAllocationResult> nodeDecisions
     ) {
-        return new MoveDecision(targetNode, nodeDecisions, allocationDecision, null, canRebalanceDecision, currentNodeRanking);
+        return new MoveDecision(targetNode, nodeDecisions, canMoveDecision, canRemainDecision, canRebalanceDecision, currentNodeRanking);
     }
 
     @Override
     public boolean isDecisionTaken() {
         return canRemainDecision != null || clusterRebalanceDecision != null;
-    }
-
-    /**
-     * Creates a new move decision from this decision, plus adding a remain decision.
-     */
-    public MoveDecision withRemainDecision(Decision canRemainDecision) {
-        return new MoveDecision(
-            targetNode,
-            nodeDecisions,
-            canMoveDecision,
-            canRemainDecision,
-            clusterRebalanceDecision,
-            currentNodeRanking
-        );
     }
 
     /**

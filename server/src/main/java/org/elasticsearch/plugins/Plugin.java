@@ -44,7 +44,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 
 /**
@@ -127,11 +126,9 @@ public abstract class Plugin implements Closeable {
         IndexNameExpressionResolver indexNameExpressionResolver();
 
         /**
-         * A supplier for the service that manages snapshot repositories.
-         * This will return null when {@link #createComponents(PluginServices)} is called,
-         * but will return the repositories service once the node is initialized.
+         * A service that manages snapshot repositories.
          */
-        Supplier<RepositoriesService> repositoriesServiceSupplier();
+        RepositoriesService repositoriesService();
 
         /**
          * An interface for distributed tracing

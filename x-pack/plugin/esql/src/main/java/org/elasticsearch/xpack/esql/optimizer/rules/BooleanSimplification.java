@@ -5,14 +5,19 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.optimizer;
+package org.elasticsearch.xpack.esql.optimizer.rules;
 
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.predicate.logical.And;
 
-public class PropagateNullable extends org.elasticsearch.xpack.esql.optimizer.rules.PropagateNullable {
-    @Override
-    public Expression rule(And and) {
-        return super.rule(and);
+public final class BooleanSimplification extends org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules.BooleanSimplification {
+
+    public BooleanSimplification() {
+        super();
     }
+
+    @Override
+    protected Expression maybeSimplifyNegatable(Expression e) {
+        return null;
+    }
+
 }

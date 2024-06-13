@@ -1430,7 +1430,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     public SparseVectorStats sparseVectorStats() {
         readAllowed();
-        return getEngine().sparseVectorStats(mapperService.mappingLookup());
+        MappingLookup mappingLookup = mapperService != null ? mapperService.mappingLookup() : null;
+        return getEngine().sparseVectorStats(mappingLookup);
     }
 
     public BulkStats bulkStats() {

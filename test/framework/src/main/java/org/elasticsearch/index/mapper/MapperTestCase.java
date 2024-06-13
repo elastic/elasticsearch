@@ -1269,7 +1269,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
 
     private boolean shouldUseIgnoreMalformed() {
         // 5% of test runs use ignore_malformed
-        return supportsIgnoreMalformed() && randomDouble() >= 0.05;
+        return supportsIgnoreMalformed() && randomDouble() <= 0.05;
     }
 
     public final void testSyntheticEmptyListNoDocValuesLoader() throws IOException {

@@ -19,11 +19,14 @@ import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.security.authc.ApiKeyService;
 
 import java.io.IOException;
+import java.util.Set;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.xpack.security.support.FieldNameTranslators.API_KEY_FIELD_NAME_TRANSLATORS;
 
 public final class ApiKeyBoolQueryBuilder extends BoolQueryBuilder {
+
+    private static Set<String> FIELDS_ALLOWED_TO_QUERY = Set.of("_id", "doc_type", "type");
 
     private ApiKeyBoolQueryBuilder() {}
 
@@ -92,9 +95,6 @@ public final class ApiKeyBoolQueryBuilder extends BoolQueryBuilder {
     }
 
     static boolean isIndexFieldNameAllowed(String fieldName) {
-        return "_id".equals(fieldName)
-            || "doc_type".equals(fieldName)
-            || "type".equals(fieldName)
-            || API_KEY_FIELD_NAME_TRANSLATORS.isIndexFieldSupported(fieldName);
+        return FIELDS_ALLOWED_TO_QUERY.contains(fieldName) || API_KEY_FIELD_NAME_TRANSLATORS.isIndexFieldSupported(fieldName);
     }
 }

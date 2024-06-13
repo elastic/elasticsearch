@@ -43,7 +43,7 @@ available then a number of features are not supported:
 * The <<docs-update,`update`>>, <<docs-update-by-query,`update_by_query`>>,
 and <<docs-reindex,`reindex`>> APIs.
 
-* In the {kib} link:{kibana-ref}/discover.html[Discover] application, field data will not be displayed. 
+* In the {kib} link:{kibana-ref}/discover.html[Discover] application, field data will not be displayed.
 
 * On the fly <<highlighting,highlighting>>.
 
@@ -56,6 +56,8 @@ and <<docs-reindex,`reindex`>> APIs.
 
 * Potentially in the future, the ability to repair index corruption
   automatically.
+
+* Unable to upgrade to the next Elasticsearch version in the future
 ==================================================
 
 TIP: If disk space is a concern, rather increase the

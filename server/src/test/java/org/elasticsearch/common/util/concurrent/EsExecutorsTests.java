@@ -35,6 +35,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasToString;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.nullValue;
@@ -653,6 +654,24 @@ public class EsExecutorsTests extends ESTestCase {
         } finally {
             thread.join();
         }
+    }
+
+    public void testScalingWithTaskTimeTracking() {
+        final int min = between(1, 3);
+        final int max = between(min + 1, 6);
+
+        ThreadPoolExecutor pool = EsExecutors.newScaling(
+            getClass().getName() + "/" + getTestName(),
+            min,
+            max,
+            between(1, 100),
+            randomTimeUnit(),
+            randomBoolean(),
+            EsExecutors.daemonThreadFactory("test"),
+            threadContext,
+            new EsExecutors.TaskTrackingConfig(true, 0.3)
+        );
+        assertThat(pool, instanceOf(TaskExecutionTimeTrackingEsThreadPoolExecutor.class));
     }
 
     private static void runRejectOnShutdownTest(ExecutorService executor) {

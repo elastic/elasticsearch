@@ -323,9 +323,9 @@ public class TransportGetShutdownStatusAction extends TransportMasterNodeAction<
             )
             .findFirst();
 
-        var temporarilyUnmovableShard = unmovableShards.stream()
+        var temporarilyUnmovableShards = unmovableShards.stream()
             .filter(pair -> pair.v2().getMoveDecision().getAllocationDecision().equals(AllocationDecision.THROTTLED))
-            .findFirst();
+            .toList();
 
         if (totalRemainingShards == shardsToIgnoreForFinalStatus.get() && unmovableShard.isEmpty()) {
             return new ShutdownShardMigrationStatus(
@@ -353,34 +353,37 @@ public class TransportGetShutdownStatusAction extends TransportMasterNodeAction<
                 ),
                 decision
             );
-        } else if (relocatingShards == 0 && initializingShards == 0 && temporarilyUnmovableShard.isPresent()) {
-            // We found a shard that can't be moved temporarily,
-            // report it so that the cause of the throttling could be addressed if it is taking significant time
-            ShardRouting shardRouting = temporarilyUnmovableShard.get().v1();
-            ShardAllocationDecision decision = temporarilyUnmovableShard.get().v2();
+        } else if (relocatingShards == 0
+            && initializingShards == 0
+            && startedShards > 0
+            && temporarilyUnmovableShards.size() == startedShards) {
+                // We found a shard that can't be moved temporarily,
+                // report it so that the cause of the throttling could be addressed if it is taking significant time
+                ShardRouting shardRouting = temporarilyUnmovableShards.get(0).v1();
+                ShardAllocationDecision decision = temporarilyUnmovableShards.get(0).v2();
 
-            return new ShutdownShardMigrationStatus(
-                SingleNodeShutdownMetadata.Status.IN_PROGRESS,
-                startedShards,
-                relocatingShards,
-                initializingShards,
-                format(
-                    "shard [%s] [%s] of index [%s] is waiting to be moved, see [%s] for details or use the cluster allocation explain API",
-                    shardRouting.shardId().getId(),
-                    shardRouting.primary() ? "primary" : "replica",
-                    shardRouting.index().getName(),
-                    NODE_ALLOCATION_DECISION_KEY
-                ),
-                decision
-            );
-        } else {
-            return new ShutdownShardMigrationStatus(
-                SingleNodeShutdownMetadata.Status.IN_PROGRESS,
-                startedShards,
-                relocatingShards,
-                initializingShards
-            );
-        }
+                return new ShutdownShardMigrationStatus(
+                    SingleNodeShutdownMetadata.Status.IN_PROGRESS,
+                    startedShards,
+                    relocatingShards,
+                    initializingShards,
+                    format(
+                        "shard [%s] [%s] of index [%s] is waiting to be moved, see [%s] for details or use the cluster allocation explain API",
+                        shardRouting.shardId().getId(),
+                        shardRouting.primary() ? "primary" : "replica",
+                        shardRouting.index().getName(),
+                        NODE_ALLOCATION_DECISION_KEY
+                    ),
+                    decision
+                );
+            } else {
+                return new ShutdownShardMigrationStatus(
+                    SingleNodeShutdownMetadata.Status.IN_PROGRESS,
+                    startedShards,
+                    relocatingShards,
+                    initializingShards
+                );
+            }
     }
 
     private static boolean isIlmRestrictingShardMovement(ClusterState currentState, ShardRouting pair) {

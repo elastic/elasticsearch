@@ -22,10 +22,10 @@ import static org.hamcrest.Matchers.containsString;
 
 public class BulkPutRoleRestIT extends SecurityOnTrialLicenseRestTestCase {
     public void testPutManyValidRoles() throws Exception {
-        Map<String, Object> responseMap = upsertRoles(Map.of("test1", """
-            {"cluster": ["all"],"indices": [{"names": ["*"],"privileges": ["all"]}]}""", "test2", """
-            {"cluster": ["all"],"indices": [{"names": ["*"],"privileges": ["read"]}]}""", "test3", """
-            {"cluster": ["all"],"indices": [{"names": ["*"],"privileges": ["write"]}]}"""));
+        Map<String, Object> responseMap = upsertRoles("""
+            {"roles": {"test1": {"cluster": ["all"],"indices": [{"names": ["*"],"privileges": ["all"]}]}, "test2":
+            {"cluster": ["all"],"indices": [{"names": ["*"],"privileges": ["read"]}]}, "test3":
+            {"cluster": ["all"],"indices": [{"names": ["*"],"privileges": ["write"]}]}}}""");
         assertFalse((boolean) responseMap.get("errors"));
         fetchRoleAndAssertEqualsExpected(
             "test1",
@@ -85,10 +85,10 @@ public class BulkPutRoleRestIT extends SecurityOnTrialLicenseRestTestCase {
 
     @SuppressWarnings("unchecked")
     public void testPutMixedValidInvalidRoles() throws Exception {
-        Map<String, Object> responseMap = upsertRoles(Map.of("test1", """
-            {"cluster": ["all"],"indices": [{"names": ["*"],"privileges": ["all"]}]}""", "test2", """
-            {"cluster": ["bad_privilege"],"indices": [{"names": ["*"],"privileges": ["read"]}]}""", "test3", """
-            {"cluster": ["all"],"indices": [{"names": ["*"],"privileges": ["write"]}]}"""));
+        Map<String, Object> responseMap = upsertRoles("""
+            {"roles": {"test1": {"cluster": ["all"],"indices": [{"names": ["*"],"privileges": ["all"]}]}, "test2":
+            {"cluster": ["bad_privilege"],"indices": [{"names": ["*"],"privileges": ["read"]}]}, "test3":
+            {"cluster": ["all"],"indices": [{"names": ["*"],"privileges": ["write"]}]}}}""");
 
         assertTrue((boolean) responseMap.get("errors"));
 
@@ -142,10 +142,10 @@ public class BulkPutRoleRestIT extends SecurityOnTrialLicenseRestTestCase {
 
     @SuppressWarnings("unchecked")
     public void testPutNoValidRoles() throws Exception {
-        Map<String, Object> responseMap = upsertRoles(Map.of("test1", """
-            {"cluster": ["bad_privilege"],"indices": [{"names": ["*"],"privileges": ["all"]}]}""", "test2", """
-            {"cluster": ["bad_privilege"],"indices": [{"names": ["*"],"privileges": ["read"]}]}""", "test3", """
-            {"cluster": ["bad_privilege"],"indices": [{"names": ["*"],"privileges": ["write"]}]}"""));
+        Map<String, Object> responseMap = upsertRoles("""
+            {"roles": {"test1": {"cluster": ["bad_privilege"],"indices": [{"names": ["*"],"privileges": ["all"]}]}, "test2":
+            {"cluster": ["bad_privilege"],"indices": [{"names": ["*"],"privileges": ["read"]}]}, "test3":
+            {"cluster": ["bad_privilege"],"indices": [{"names": ["*"],"privileges": ["write"]}]}}}""");
 
         assertTrue((boolean) responseMap.get("errors"));
 
@@ -165,13 +165,13 @@ public class BulkPutRoleRestIT extends SecurityOnTrialLicenseRestTestCase {
 
     @SuppressWarnings("unchecked")
     public void testBulkUpdates() throws Exception {
-        Map<String, String> requestMap = Map.of("test1", """
-            {"cluster": ["all"],"indices": [{"names": ["*"],"privileges": ["all"]}]}""", "test2", """
-            {"cluster": ["all"],"indices": [{"names": ["*"],"privileges": ["read"]}]}""", "test3", """
-            {"cluster": ["all"],"indices": [{"names": ["*"],"privileges": ["write"]}]}""");
+        String request = """
+            {"roles": {"test1": {"cluster": ["all"],"indices": [{"names": ["*"],"privileges": ["all"]}]}, "test2":
+            {"cluster": ["all"],"indices": [{"names": ["*"],"privileges": ["read"]}]}, "test3":
+            {"cluster": ["all"],"indices": [{"names": ["*"],"privileges": ["write"]}]}}}""";
 
         {
-            Map<String, Object> responseMap = upsertRoles(requestMap);
+            Map<String, Object> responseMap = upsertRoles(request);
             assertFalse((boolean) responseMap.get("errors"));
             List<Map<String, Object>> items = (List<Map<String, Object>>) responseMap.get("items");
             assertEquals(3, items.size());
@@ -182,7 +182,7 @@ public class BulkPutRoleRestIT extends SecurityOnTrialLicenseRestTestCase {
             }
         }
         {
-            Map<String, Object> responseMap = upsertRoles(requestMap);
+            Map<String, Object> responseMap = upsertRoles(request);
             assertFalse((boolean) responseMap.get("errors"));
             List<Map<String, Object>> items = (List<Map<String, Object>>) responseMap.get("items");
             assertEquals(3, items.size());
@@ -193,12 +193,12 @@ public class BulkPutRoleRestIT extends SecurityOnTrialLicenseRestTestCase {
             }
         }
         {
-            requestMap = Map.of("test1", """
-                {"cluster": ["all"],"indices": [{"names": ["*"],"privileges": ["read"]}]}""", "test2", """
-                {"cluster": ["all"],"indices": [{"names": ["*"],"privileges": ["all"]}]}""", "test3", """
-                {"cluster": ["all"],"indices": [{"names": ["*"],"privileges": ["all"]}]}""");
+            request = """
+                {"roles": {"test1": {"cluster": ["all"],"indices": [{"names": ["*"],"privileges": ["read"]}]}, "test2":
+                {"cluster": ["all"],"indices": [{"names": ["*"],"privileges": ["all"]}]}, "test3":
+                {"cluster": ["all"],"indices": [{"names": ["*"],"privileges": ["all"]}]}}}""";
 
-            Map<String, Object> responseMap = upsertRoles(requestMap);
+            Map<String, Object> responseMap = upsertRoles(request);
             assertFalse((boolean) responseMap.get("errors"));
             List<Map<String, Object>> items = (List<Map<String, Object>>) responseMap.get("items");
             assertEquals(3, items.size());
@@ -210,23 +210,17 @@ public class BulkPutRoleRestIT extends SecurityOnTrialLicenseRestTestCase {
         }
     }
 
-    protected Map<String, Object> upsertRoles(Map<String, String> roleDescriptorsByName) throws IOException {
+    protected Map<String, Object> upsertRoles(String roleDescriptorsByName) throws IOException {
         Request request = rolesRequest(roleDescriptorsByName);
         Response response = adminClient().performRequest(request);
         assertOK(response);
         return responseAsMap(response);
     }
 
-    protected Request rolesRequest(Map<String, String> roleDescriptorsByName) {
+    protected Request rolesRequest(String roleDescriptorsByName) {
         Request rolesRequest;
         rolesRequest = new Request(HttpPost.METHOD_NAME, "/_security/_bulk/role");
-        String roles = String.join(
-            ",",
-            roleDescriptorsByName.entrySet().stream().map((entry) -> ("\"" + entry.getKey() + "\" : " + entry.getValue())).toList()
-        );
-        rolesRequest.setJsonEntity(org.elasticsearch.core.Strings.format("""
-                {"roles": {%s}}
-            """, roles));
+        rolesRequest.setJsonEntity(org.elasticsearch.core.Strings.format(roleDescriptorsByName));
         return rolesRequest;
     }
 

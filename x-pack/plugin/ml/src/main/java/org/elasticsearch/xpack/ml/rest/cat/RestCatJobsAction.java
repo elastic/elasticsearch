@@ -416,6 +416,7 @@ public class RestCatJobsAction extends AbstractCatAction {
             table.addCell(modelSizeStats == null ? null : modelSizeStats.getTotalPartitionFieldCount());
             table.addCell(modelSizeStats == null ? null : modelSizeStats.getBucketAllocationFailuresCount());
             table.addCell(modelSizeStats == null ? null : modelSizeStats.getCategorizationStatus().toString());
+            table.addCell(modelSizeStats == null ? null : modelSizeStats.getJsonMemmoryAllocatorBytes());
             table.addCell(modelSizeStats == null ? null : modelSizeStats.getCategorizedDocCount());
             table.addCell(modelSizeStats == null ? null : modelSizeStats.getTotalCategoryCount());
             table.addCell(modelSizeStats == null ? null : modelSizeStats.getFrequentCategoryCount());

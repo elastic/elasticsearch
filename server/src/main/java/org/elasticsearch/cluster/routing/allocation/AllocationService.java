@@ -569,7 +569,7 @@ public class AllocationService {
     public void addAllocFailuresResetListenerTo(ClusterService clusterService) {
         // batched cluster update executor, runs reroute once per batch
         // set retryFailed=true to trigger failures reset during reroute
-        var taskQueue = clusterService.createTaskQueue("reset-allocation-failures", Priority.URGENT, (batchCtx) -> {
+        var taskQueue = clusterService.createTaskQueue("reset-allocation-failures", Priority.NORMAL, (batchCtx) -> {
             batchCtx.taskContexts().forEach((taskCtx) -> taskCtx.success(() -> {}));
             return reroute(batchCtx.initialState(), new AllocationCommands(), false, true, false, ActionListener.noop()).clusterState();
         });

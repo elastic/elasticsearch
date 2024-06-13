@@ -14,16 +14,30 @@ top_salaries:integer | top_salary:integer
 
 topValuesListAllTypes
 required_capability: agg_top_values_list
-FROM all_types
+FROM employees
 | STATS
-    date = TOP_VALUES_LIST(date, 1, "asc"),
-    double = TOP_VALUES_LIST(double, 1, "asc"),
-    integer = TOP_VALUES_LIST(integer, 1, "asc"),
-    long = TOP_VALUES_LIST(long, 1, "asc")
+    date = TOP_VALUES_LIST(hire_date, 2, "asc"),
+    double = TOP_VALUES_LIST(salary_change, 2, "asc"),
+    integer = TOP_VALUES_LIST(salary, 2, "asc"),
+    long = TOP_VALUES_LIST(salary_change.long, 2, "asc")
 ;
 
 date:date | double:double | integer:integer | long:long
-1953-09-03T00:00:00Z | 0 | 0 | 0
+[1985-02-18T00:00:00.000Z,1985-02-24T00:00:00.000Z] | [-9.81,-9.28] | [25324,25945] | [-9,-9]
+;
+
+topValuesListAllTypesMax
+required_capability: agg_top_values_list
+FROM employees
+| STATS
+    date = TOP_VALUES_LIST(hire_date, 1, "asc"),
+    double = TOP_VALUES_LIST(salary_change, 1, "asc"),
+    integer = TOP_VALUES_LIST(salary, 1, "asc"),
+    long = TOP_VALUES_LIST(salary_change.long, 1, "asc")
+;
+
+date:date | double:double | integer:integer | long:long
+1985-02-18T00:00:00.000Z | -9.81 | 25324 | -9
 ;
 
 topValuesListAscDesc
@@ -49,11 +63,10 @@ null
 
 topValuesListDuplicates
 required_capability: agg_top_values_list
-FROM all_types
-| WHERE integer > 0
-| STATS integer = TOP_VALUES_LIST(integer, 2, "asc")
+FROM employees
+| STATS integer = TOP_VALUES_LIST(languages, 2, "desc")
 ;
 
 integer:integer
-[1, 1]
+[5, 5]
 ;

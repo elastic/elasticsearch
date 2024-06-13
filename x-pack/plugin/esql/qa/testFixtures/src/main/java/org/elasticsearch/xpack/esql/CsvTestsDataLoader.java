@@ -85,7 +85,6 @@ public class CsvTestsDataLoader {
         "mapping-cartesian_multipolygons.json",
         "cartesian_multipolygons.csv"
     );
-    private static final TestsDataset ALL_TYPES = new TestsDataset("all_types", "mapping-all_types.json", "all_types.csv");
 
     private static final TestsDataset K8S = new TestsDataset("k8s", "k8s-mappings.json", "k8s.csv", "k8s-settings.json", true);
 
@@ -108,7 +107,6 @@ public class CsvTestsDataLoader {
         Map.entry(COUNTRIES_BBOX_WEB.indexName, COUNTRIES_BBOX_WEB),
         Map.entry(AIRPORT_CITY_BOUNDARIES.indexName, AIRPORT_CITY_BOUNDARIES),
         Map.entry(CARTESIAN_MULTIPOLYGONS.indexName, CARTESIAN_MULTIPOLYGONS),
-        Map.entry(ALL_TYPES.indexName, ALL_TYPES),
         Map.entry(K8S.indexName, K8S)
     );
 

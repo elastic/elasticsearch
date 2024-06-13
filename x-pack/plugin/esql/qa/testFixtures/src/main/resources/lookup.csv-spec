@@ -249,6 +249,31 @@ languages:keyword | emp_no:integer
 ;
 
 //
+// Ensure LOOKUP shadows variables correctly and consistently with the rest of
+// the language
+//
+lookupColumnShadowsExistingColumnWithSameTypeFromRow
+ROW int = 1, name = "foobar"
+| LOOKUP int_number_names on int
+;
+
+int:integer | name:keyword
+          1 | one
+;
+
+lookupColumnShadowsExistingColumnFromIndex
+FROM employees
+| KEEP emp_no
+| WHERE emp_no == 10001
+| EVAL name = 2, int = emp_no - 10000
+| LOOKUP int_number_names on int
+;
+
+emp_no:integer | int:integer | name:keyword
+         10001 |           1 | one
+;
+
+//
 // Make sure that the new LOOKUP syntax doesn't clash with any existing things
 // named "lookup"
 //

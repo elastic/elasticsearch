@@ -25,6 +25,10 @@ versions << [
   'azureJackson': '2.15.4', // keep this roughly in sync with the jackson version in the rest of the codebase
   'azureAvro': '12.11.1',
 
+  // see https://repo1.maven.org/maven2/com/azure/azure-core/
+  'azureJson': '1.1.0',
+  'azureXml': '1.0.0',
+
   //see https://repo1.maven.org/maven2/com/fasterxml/jackson/module/jackson-module-jaxb-annotations/
   'jakartaActivation': '1.2.2',
   'jakartaXMLBind': '2.3.3',
@@ -41,6 +45,7 @@ versions << [
 
   // see https://repo1.maven.org/maven2/io/projectreactor/reactor-core/
   'reactiveStreams': '1.0.4',
+
 ]
 
 dependencies {
@@ -48,6 +53,8 @@ dependencies {
   api "com.azure:azure-storage-common:${versions.azureCommon}"
   api "com.azure:azure-core-http-netty:${versions.azureCoreHttpNetty}"
   api "com.azure:azure-core:${versions.azureCore}"
+  api "com.azure:azure-json:${versions.azureJson}"
+  api "com.azure:azure-xml:${versions.azureXml}"
   // jackson
   api "com.fasterxml.jackson.core:jackson-core:${versions.azureJackson}"
   api "com.fasterxml.jackson.core:jackson-databind:${versions.azureJackson}"

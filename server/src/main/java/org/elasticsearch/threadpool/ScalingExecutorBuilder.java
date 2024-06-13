@@ -81,6 +81,19 @@ public final class ScalingExecutorBuilder extends ExecutorBuilder<ScalingExecuto
         this(name, core, max, keepAlive, rejectAfterShutdown, prefix, EsExecutors.TaskTrackingConfig.DO_NOT_TRACK);
     }
 
+    /**
+     * Construct a scaling executor builder; the settings will have the
+     * specified key prefix.
+     *
+     * @param name      the name of the executor
+     * @param core      the minimum number of threads in the pool
+     * @param max       the maximum number of threads in the pool
+     * @param keepAlive the time that spare threads above {@code core}
+     *                  threads will be kept alive
+     * @param prefix    the prefix for the settings keys
+     * @param rejectAfterShutdown set to {@code true} if the executor should reject tasks after shutdown
+     * @param trackingConfig configuration that'll indicate if we should track statistics about task execution time
+     */
     public ScalingExecutorBuilder(
         final String name,
         final int core,

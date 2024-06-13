@@ -128,7 +128,7 @@ is often enough. To allow the full indexing buffer to be used, you should also
 increase the limit <<index-modules-translog,`index.translog.flush_threshold_size`>>.
 
 [discrete]
-=== Avoid heavy indexing during searches
+=== Avoid heavy indexing during times of heavy search throughput
 
 Actively indexing documents can have a negative impact on approximate kNN
 search performance, since indexing threads steal compute resources from

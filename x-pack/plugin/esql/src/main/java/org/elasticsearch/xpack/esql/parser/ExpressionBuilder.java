@@ -549,7 +549,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
     @Override
     public DataType visitToDataType(EsqlBaseParser.ToDataTypeContext ctx) {
         String typeName = visitIdentifier(ctx.identifier());
-        DataType dataType = EsqlDataTypes.fromNameOrAlias(typeName);
+        DataType dataType = DataType.fromNameOrAlias(typeName);
         if (dataType == DataType.UNSUPPORTED) {
             throw new ParsingException(source(ctx), "Unknown data type named [{}]", typeName);
         }

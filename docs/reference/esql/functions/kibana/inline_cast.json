@@ -1,0 +1,19 @@
+{
+  "bool" : "boolean",
+  "boolean" : "boolean",
+  "cartesian_point" : "cartesian_point",
+  "cartesian_shape" : "cartesian_shape",
+  "datetime" : "datetime",
+  "double" : "double",
+  "geo_point" : "geo_point",
+  "geo_shape" : "geo_shape",
+  "int" : "integer",
+  "integer" : "integer",
+  "ip" : "ip",
+  "keyword" : "keyword",
+  "long" : "long",
+  "string" : "keyword",
+  "text" : "keyword",
+  "unsigned_long" : "unsigned_long",
+  "version" : "version"
+}

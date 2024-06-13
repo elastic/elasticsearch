@@ -26,7 +26,7 @@ import static org.elasticsearch.xpack.security.support.FieldNameTranslators.API_
 
 public final class ApiKeyBoolQueryBuilder extends BoolQueryBuilder {
 
-    private static Set<String> FIELDS_ALLOWED_TO_QUERY = Set.of("_id", "doc_type", "type");
+    private static final Set<String> FIELDS_ALLOWED_TO_QUERY = Set.of("_id", "doc_type", "type");
 
     private ApiKeyBoolQueryBuilder() {}
 

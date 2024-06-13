@@ -530,7 +530,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                     try {
                         var nodeRequest = new Request(repositoryName, verificationToken);
                         client.execute(
-                            VerifyNodeRepositoryCoordinationAction.INSTANCE,
+                            VerifyNodeRepositoryCoordinationAction.TYPE,
                             nodeRequest,
                             listener.delegateFailure(
                                 (delegatedListener, response) -> threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(() -> {

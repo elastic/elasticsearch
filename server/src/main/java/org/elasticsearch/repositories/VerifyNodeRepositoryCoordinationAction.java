@@ -34,14 +34,12 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
 
-public class VerifyNodeRepositoryCoordinationAction extends ActionType<VerifyNodeRepositoryCoordinationAction.Response> {
+public class VerifyNodeRepositoryCoordinationAction {
 
-    public static final VerifyNodeRepositoryCoordinationAction INSTANCE = new VerifyNodeRepositoryCoordinationAction();
     public static final String NAME = "internal:admin/repository/verify/coordinate";
+    public static final ActionType<VerifyNodeRepositoryCoordinationAction.Response> TYPE = new ActionType<>(NAME);
 
-    private VerifyNodeRepositoryCoordinationAction() {
-        super(NAME);
-    }
+    private VerifyNodeRepositoryCoordinationAction() {}
 
     public static class Response extends ActionResponse {
 

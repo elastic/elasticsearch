@@ -168,6 +168,8 @@ import org.elasticsearch.plugins.scanners.StablePluginsRegistry;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryData;
+import org.elasticsearch.repositories.VerifyNodeRepositoryAction;
+import org.elasticsearch.repositories.VerifyNodeRepositoryCoordinationAction;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.repositories.blobstore.BlobStoreTestUtil;
 import org.elasticsearch.repositories.fs.FsRepository;
@@ -2253,6 +2255,14 @@ public class SnapshotResiliencyTests extends ESTestCase {
                         shardStateAction,
                         actionFilters
                     )
+                );
+                actions.put(
+                    VerifyNodeRepositoryAction.TYPE,
+                    new VerifyNodeRepositoryAction.TransportAction(transportService, actionFilters, threadPool, clusterService, repositoriesService)
+                );
+                actions.put(
+                    VerifyNodeRepositoryCoordinationAction.TYPE,
+                    new VerifyNodeRepositoryCoordinationAction.LocalAction(actionFilters, transportService, clusterService, client)
                 );
                 final MetadataMappingService metadataMappingService = new MetadataMappingService(clusterService, indicesService);
 

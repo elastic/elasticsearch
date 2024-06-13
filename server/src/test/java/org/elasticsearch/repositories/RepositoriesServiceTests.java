@@ -93,7 +93,7 @@ public class RepositoriesServiceTests extends ESTestCase {
         var actionFilters = new ActionFilters(Set.of());
         client.initialize(
             Map.of(
-                VerifyNodeRepositoryCoordinationAction.INSTANCE,
+                VerifyNodeRepositoryCoordinationAction.TYPE,
                 new VerifyNodeRepositoryCoordinationAction.LocalAction(actionFilters, transportService, clusterService, client)
             ),
             transportService.getTaskManager(),

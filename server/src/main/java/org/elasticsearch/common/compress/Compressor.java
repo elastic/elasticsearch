@@ -29,6 +29,7 @@ public interface Compressor {
         return new InputStreamStreamInput(new BufferedInputStream(threadLocalInputStream(in), DeflateCompressor.BUFFER_SIZE) {
             @Override
             public int read() throws IOException {
+                // override read to avoid synchronized single byte reads now that JEP374 removed biased locking
                 if (pos >= count) {
                     return super.read();
                 }

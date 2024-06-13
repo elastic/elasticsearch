@@ -157,7 +157,7 @@ public class AllocationService {
         final RoutingTable oldRoutingTable = oldState.routingTable();
         final RoutingNodes newRoutingNodes = allocation.routingNodes();
         final RoutingTable newRoutingTable = RoutingTable.of(oldRoutingTable.version(), newRoutingNodes);
-        final Metadata newMetadata = allocation.updateMetadataWithRoutingChanges(newRoutingTable, oldState.getMinTransportVersion());
+        final Metadata newMetadata = allocation.updateMetadataWithRoutingChanges(newRoutingTable);
         assert newRoutingTable.validate(newMetadata); // validates the routing table is coherent with the cluster state metadata
 
         final ClusterState.Builder newStateBuilder = ClusterState.builder(oldState).routingTable(newRoutingTable).metadata(newMetadata);

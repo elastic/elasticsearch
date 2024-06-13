@@ -15,9 +15,10 @@ This getting started is also available as an https://github.com/elastic/elastics
 [[esql-getting-started-prerequisites]]
 === Prerequisites
 
-To follow along with the queries in this guide, you'll need an {es} deployment with our sample data.
+To follow along with the queries in this guide, you can either set up your own
+deployment, or use Elastic's public {esql} demo environment.
 
-include::{es-ref-dir}/tab-widgets/esql/esql-getting-started-sample-data.asciidoc[tag=own-deployment]
+include::{es-ref-dir}/tab-widgets/esql/esql-getting-started-widget-sample-data.asciidoc[]
 
 [discrete]
 [[esql-getting-started-running-queries]]
@@ -268,8 +269,7 @@ Before you can use `ENRICH`, you first need to
 <<esql-create-enrich-policy,create>> and <<esql-execute-enrich-policy,execute>>
 an <<esql-enrich-policy,enrich policy>>.
 
-include::{es-ref-dir}/tab-widgets/esql/esql-getting-started-enrich-policy.asciidoc[tag=own-deployment]
-
+include::{es-ref-dir}/tab-widgets/esql/esql-getting-started-widget-enrich-policy.asciidoc[]
 
 After creating and executing a policy, you can use it with the `ENRICH`
 command:

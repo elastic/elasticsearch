@@ -23,6 +23,8 @@ import java.util.Objects;
  */
 public class RankFeatureShardResult implements RankShardResult {
 
+    public static final String NAME = "rank_feature_shard";
+
     public final RankFeatureDoc[] rankFeatureDocs;
 
     public RankFeatureShardResult(RankFeatureDoc[] rankFeatureDocs) {
@@ -35,7 +37,7 @@ public class RankFeatureShardResult implements RankShardResult {
 
     @Override
     public String getWriteableName() {
-        return "rank_feature_shard";
+        return NAME;
     }
 
     @Override

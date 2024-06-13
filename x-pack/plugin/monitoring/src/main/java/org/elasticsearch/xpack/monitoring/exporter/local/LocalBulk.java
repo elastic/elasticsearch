@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.monitoring.exporter.ExportException;
 import java.util.Arrays;
 import java.util.Collection;
 
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.ClientHelper.MONITORING_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
@@ -125,13 +126,14 @@ public class LocalBulk extends ExportBulk {
 
         Arrays.stream(bulkItemResponses)
             .filter(BulkItemResponse::isFailed)
-            .map(item -> new ExportException(item.getFailure().getCause()))
+            .map(item -> {
+                final ExportException e = new ExportException(item.getFailure().getCause());
+                logger.warn(() -> format("[%s] unexpected error while indexing monitoring document", item.getIndex()), e);
+                return e;
+            })
             .forEach(exception::addExportException);
 
         if (exception.hasExportExceptions()) {
-            for (ExportException e : exception) {
-                logger.warn("unexpected error while indexing monitoring document", e);
-            }
             listener.onFailure(exception);
         } else {
             listener.onResponse(null);

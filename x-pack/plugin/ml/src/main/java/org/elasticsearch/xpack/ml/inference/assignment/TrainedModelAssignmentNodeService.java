@@ -271,7 +271,7 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
                 } else {
                     handleLoadFailure(loadingTask, ex, retryL);
                 }
-            }));
+            }), threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME), null);
     }
 
     public void gracefullyStopDeploymentAndNotify(
@@ -744,9 +744,8 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
         updateStoredState(
             task.getDeploymentId(),
             RoutingInfoUpdate.updateStateAndReason(new RoutingStateAndReason(RoutingState.STARTED, "")),
-            ActionListener.wrap(r -> {
+            ActionListener.runAfter(ActionListener.wrap(r -> {
                 logger.debug(() -> "[" + task.getDeploymentId() + "] model loaded and accepting routes");
-                retryListener.onResponse(false);
             }, e -> {
                 // This means that either the assignment has been deleted, or this node's particular route has been removed
                 if (ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException) {
@@ -769,8 +768,7 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
                         e
                     );
                 }
-                retryListener.onResponse(false);
-            })
+            }), () -> retryListener.onResponse(false))
         );
     }
 

@@ -467,6 +467,7 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
 
     private void finishWithFailure(Exception exc) {
         onFailure(exc);
+        eventHook.safeOnError(exc);
         finishJob();
     }
 

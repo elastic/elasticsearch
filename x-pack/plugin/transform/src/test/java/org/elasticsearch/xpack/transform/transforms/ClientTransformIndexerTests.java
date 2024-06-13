@@ -43,6 +43,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ActionNotFoundTransportException;
+import org.elasticsearch.xpack.core.indexing.AsyncTwoPhaseIndexer;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
 import org.elasticsearch.xpack.core.transform.transforms.SettingsConfig;
 import org.elasticsearch.xpack.core.transform.transforms.SourceConfig;
@@ -505,7 +506,8 @@ public class ClientTransformIndexerTests extends ESTestCase {
                 nextCheckpoint,
                 seqNoPrimaryTermAndIndex,
                 context,
-                shouldStopAtCheckpoint
+                shouldStopAtCheckpoint,
+                EventHook.NOOP
             );
         }
 
@@ -653,7 +655,8 @@ public class ClientTransformIndexerTests extends ESTestCase {
             new TransformCheckpoint("transform", Instant.now().toEpochMilli(), 2L, Collections.emptyMap(), Instant.now().toEpochMilli()),
             new SeqNoPrimaryTermAndIndex(1, 1, TransformInternalIndexConstants.LATEST_INDEX_NAME),
             mock(TransformContext.class),
-            false
+            false,
+            AsyncTwoPhaseIndexer.EventHook.NOOP
         );
     }
 }

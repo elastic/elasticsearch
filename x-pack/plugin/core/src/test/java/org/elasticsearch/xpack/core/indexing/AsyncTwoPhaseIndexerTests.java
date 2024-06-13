@@ -65,7 +65,7 @@ public class AsyncTwoPhaseIndexerTests extends ESTestCase {
             boolean stoppedBeforeFinished,
             boolean noIndices
         ) {
-            super(threadPool, initialState, initialPosition, new MockJobStats());
+            super(threadPool, initialState, initialPosition, new MockJobStats(), EventHook.NOOP);
             this.latch = latch;
             this.stoppedBeforeFinished = stoppedBeforeFinished;
             this.noIndices = noIndices;
@@ -196,7 +196,7 @@ public class AsyncTwoPhaseIndexerTests extends ESTestCase {
             float maxDocsPerSecond,
             CountDownLatch latch
         ) {
-            super(threadPool, initialState, initialPosition, new MockJobStats());
+            super(threadPool, initialState, initialPosition, new MockJobStats(), EventHook.NOOP);
             startTime = System.nanoTime();
             this.latch = latch;
             this.maxDocsPerSecond = maxDocsPerSecond;
@@ -340,7 +340,7 @@ public class AsyncTwoPhaseIndexerTests extends ESTestCase {
             AtomicReference<IndexerState> initialState,
             Integer initialPosition
         ) {
-            super(threadPool, initialState, initialPosition, new MockJobStats());
+            super(threadPool, initialState, initialPosition, new MockJobStats(), EventHook.NOOP);
         }
 
         @Override

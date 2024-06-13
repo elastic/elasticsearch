@@ -106,7 +106,7 @@ public class IpPrefixTests extends AbstractFunctionTestCase {
             })
         );
 
-        return parameterSuppliersFromTypedData(errorsForCasesWithoutExamples(anyNullIsNull(true, suppliers)));
+        return parameterSuppliersFromTypedData(errorsForCasesWithoutExamples(anyNullIsNull(true, randomizeBytesRefsOffset(suppliers))));
     }
 
     @Override

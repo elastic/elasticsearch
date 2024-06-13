@@ -660,18 +660,34 @@ public class EsExecutorsTests extends ESTestCase {
         final int min = between(1, 3);
         final int max = between(min + 1, 6);
 
-        ThreadPoolExecutor pool = EsExecutors.newScaling(
-            getClass().getName() + "/" + getTestName(),
-            min,
-            max,
-            between(1, 100),
-            randomTimeUnit(),
-            randomBoolean(),
-            EsExecutors.daemonThreadFactory("test"),
-            threadContext,
-            new EsExecutors.TaskTrackingConfig(true, 0.3)
-        );
-        assertThat(pool, instanceOf(TaskExecutionTimeTrackingEsThreadPoolExecutor.class));
+        {
+            ThreadPoolExecutor pool = EsExecutors.newScaling(
+                getClass().getName() + "/" + getTestName(),
+                min,
+                max,
+                between(1, 100),
+                randomTimeUnit(),
+                randomBoolean(),
+                EsExecutors.daemonThreadFactory("test"),
+                threadContext,
+                new EsExecutors.TaskTrackingConfig(true, randomDoubleBetween(0.01, 0.1, true))
+            );
+            assertThat(pool, instanceOf(TaskExecutionTimeTrackingEsThreadPoolExecutor.class));
+        }
+        {
+            ThreadPoolExecutor pool = EsExecutors.newScaling(
+                getClass().getName() + "/" + getTestName(),
+                min,
+                max,
+                between(1, 100),
+                randomTimeUnit(),
+                randomBoolean(),
+                EsExecutors.daemonThreadFactory("test"),
+                threadContext
+            );
+            assertThat(pool, instanceOf(EsThreadPoolExecutor.class));
+        }
+
     }
 
     private static void runRejectOnShutdownTest(ExecutorService executor) {

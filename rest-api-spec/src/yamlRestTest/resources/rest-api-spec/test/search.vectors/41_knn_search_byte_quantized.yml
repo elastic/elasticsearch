@@ -247,6 +247,9 @@ setup:
       indices.create:
         index: mip
         body:
+          settings:
+            index:
+              number_of_shards: 1
           mappings:
             properties:
               name:
@@ -403,6 +406,10 @@ setup:
   - do:
       indices.create:
         index: hnsw_byte_quantized_merge_cosine
+        body:
+          settings:
+            index:
+              number_of_shards: 1
 
   - do:
       indices.put_mapping:
@@ -476,6 +483,10 @@ setup:
   - do:
       indices.create:
         index: hnsw_byte_quantized_merge_dot_product
+        body:
+          settings:
+            index:
+              number_of_shards: 1
 
   - do:
       indices.put_mapping:

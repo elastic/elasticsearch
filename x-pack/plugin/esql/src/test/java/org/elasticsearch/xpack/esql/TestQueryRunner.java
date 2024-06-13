@@ -68,7 +68,6 @@ import org.elasticsearch.xpack.esql.stats.DisabledSearchStats;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.mockito.Mockito;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;

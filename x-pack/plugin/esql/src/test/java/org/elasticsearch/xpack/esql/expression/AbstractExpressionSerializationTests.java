@@ -25,10 +25,8 @@ import org.elasticsearch.xpack.esql.session.EsqlConfigurationSerializationTests;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -47,10 +45,7 @@ public abstract class AbstractExpressionSerializationTests<T extends Expression>
 
     @Override
     protected final T copyInstance(T instance, TransportVersion version) throws IOException {
-        EsqlConfiguration config = EsqlConfigurationSerializationTests.randomConfiguration(
-            Arrays.stream(EXAMPLE_QUERY).collect(Collectors.joining("\n")),
-            Map.of()
-        );
+        EsqlConfiguration config = EsqlConfigurationSerializationTests.randomConfiguration(String.join("\n", EXAMPLE_QUERY), Map.of());
         return copyInstance(
             instance,
             getNamedWriteableRegistry(),

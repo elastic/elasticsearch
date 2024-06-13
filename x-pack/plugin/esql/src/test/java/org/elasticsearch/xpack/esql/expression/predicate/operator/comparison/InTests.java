@@ -7,11 +7,11 @@
 package org.elasticsearch.xpack.esql.expression.predicate.operator.comparison;
 
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.esql.core.TestUtils;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 
 import java.util.Arrays;
 
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.of;
 import static org.elasticsearch.xpack.esql.core.expression.Literal.NULL;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 
@@ -47,6 +47,6 @@ public class InTests extends ESTestCase {
     }
 
     private static Literal L(Object value) {
-        return TestUtils.of(EMPTY, value);
+        return of(EMPTY, value);
     }
 }

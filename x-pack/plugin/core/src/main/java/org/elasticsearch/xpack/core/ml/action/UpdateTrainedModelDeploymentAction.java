@@ -88,10 +88,9 @@ public class UpdateTrainedModelDeploymentAction extends ActionType<CreateTrained
             deploymentId = in.readString();
             if (in.getTransportVersion().before(TransportVersions.INFERENCE_AUTOSCALING)) {
                 numberOfAllocations = in.readVInt();
+                autoscalingSettings = null;
             } else {
                 numberOfAllocations = in.readOptionalVInt();
-            }
-            if (in.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_AUTOSCALING)) {
                 autoscalingSettings = in.readOptionalWriteable(AutoscalingSettings::new);
             }
         }
@@ -128,8 +127,6 @@ public class UpdateTrainedModelDeploymentAction extends ActionType<CreateTrained
                 out.writeVInt(numberOfAllocations);
             } else {
                 out.writeOptionalVInt(numberOfAllocations);
-            }
-            if (out.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_AUTOSCALING)) {
                 out.writeOptionalWriteable(autoscalingSettings);
             }
         }

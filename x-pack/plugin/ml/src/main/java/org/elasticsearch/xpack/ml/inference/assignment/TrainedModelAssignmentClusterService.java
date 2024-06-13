@@ -512,7 +512,6 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
     private static ClusterState update(ClusterState currentState, TrainedModelAssignmentMetadata.Builder modelAssignments) {
         TrainedModelAssignmentMetadata previousMetadata = TrainedModelAssignmentMetadata.fromState(currentState);
         TrainedModelAssignmentMetadata updatedMetadata = modelAssignments.build();
-
         if (updatedMetadata.equals(previousMetadata)) {
             return currentState;
         } else {
@@ -825,13 +824,11 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
             listener.onFailure(ExceptionsHelper.missingModelDeployment(deploymentId));
             return;
         }
-        AutoscalingSettings autoscalingSettings;
-        if (autoscalingSettingsUpdates == null) {
-            autoscalingSettings = existingAssignment.getAutoscalingSettings();
-        } else if (autoscalingSettingsUpdates == AutoscalingSettings.RESET_PLACEHOLDER) {
-            autoscalingSettings = null;
-        } else {
-            autoscalingSettings = getUpdatedAutoscalingSettings(existingAssignment.getAutoscalingSettings(), autoscalingSettingsUpdates);
+        AutoscalingSettings autoscalingSettings = getUpdatedAutoscalingSettings(
+            existingAssignment.getAutoscalingSettings(),
+            autoscalingSettingsUpdates
+        );
+        if (autoscalingSettings != null) {
             ActionRequestValidationException validationException = autoscalingSettings.validate();
             if (validationException != null) {
                 listener.onFailure(validationException);
@@ -911,7 +908,15 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
     }
 
     private AutoscalingSettings getUpdatedAutoscalingSettings(AutoscalingSettings original, AutoscalingSettings updates) {
-        return original == null ? updates : original.merge(updates);
+        if (updates == null) {
+            return original;
+        } else if (updates == AutoscalingSettings.RESET_PLACEHOLDER) {
+            return null;
+        } else if (original == null) {
+            return updates;
+        } else {
+            return original.merge(updates);
+        }
     }
 
     private void updateAssignment(

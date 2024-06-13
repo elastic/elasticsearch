@@ -165,10 +165,10 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
             timeout = in.readTimeValue();
             waitForState = in.readEnum(AllocationStatus.State.class);
             numberOfAllocations = in.readVInt();
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
-                this.deploymentId = in.readString();
+            if (in.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_AUTOSCALING)) {
+                this.autoscalingSettings = in.readOptionalWriteable(AutoscalingSettings::new);
             } else {
-                this.deploymentId = modelId;
+                this.autoscalingSettings = null;
             }
             threadsPerAllocation = in.readVInt();
             queueCapacity = in.readVInt();
@@ -179,6 +179,11 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
                 this.priority = in.readEnum(Priority.class);
             } else {
                 this.priority = Priority.NORMAL;
+            }
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
+                this.deploymentId = in.readString();
+            } else {
+                this.deploymentId = modelId;
             }
         }
 

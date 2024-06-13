@@ -145,7 +145,6 @@ public class TransportInferTrainedModelDeploymentAction extends TransportTasksAc
             }
 
             private void sendResponse() {
-                // System.out.println("RESPONSE: " + results.asList());
                 finalListener.onResponse(new InferTrainedModelDeploymentAction.Response(results.asList()));
             }
         };

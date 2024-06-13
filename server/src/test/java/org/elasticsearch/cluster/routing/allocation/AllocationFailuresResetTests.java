@@ -39,13 +39,19 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.util.List;
 import java.util.Set;
 
-public class AllocationFailuresResetServiceTests extends ESTestCase {
+public class AllocationFailuresResetTests extends ESTestCase {
 
     private ThreadPool threadPool;
     private ClusterService clusterService;
 
-    private static ClusterState addNode(ClusterState state) {
-        var nodes = DiscoveryNodes.builder(state.nodes()).add(DiscoveryNodeUtils.create("node-" + System.currentTimeMillis()));
+    private static ClusterState addNode(ClusterState state, String name) {
+        var nodes = DiscoveryNodes.builder(state.nodes()).add(DiscoveryNodeUtils.create(name));
+        return ClusterState.builder(state).nodes(nodes).build();
+    }
+
+    private static ClusterState removeNode(ClusterState state, String name) {
+        var nodes = DiscoveryNodes.builder();
+        state.nodes().stream().filter((node) -> node.getId() != name).forEach(nodes::add);
         return ClusterState.builder(state).nodes(nodes).build();
     }
 
@@ -60,12 +66,12 @@ public class AllocationFailuresResetServiceTests extends ESTestCase {
         var meta = Metadata.builder(state.metadata()).put(indexMeta, false).build();
 
         var shardId = new ShardId(indexMeta.getIndex(), shard);
-        var exhaustFailures = 5;
+        var nonZeroFailures = 5;
         var unassignedInfo = new UnassignedInfo(
             UnassignedInfo.Reason.ALLOCATION_FAILED,
             null,
             null,
-            exhaustFailures,
+            nonZeroFailures,
             0,
             0,
             false,
@@ -73,6 +79,7 @@ public class AllocationFailuresResetServiceTests extends ESTestCase {
             Set.of(),
             null
         );
+
         var shardRouting = ShardRouting.newUnassigned(
             shardId,
             true,
@@ -103,8 +110,7 @@ public class AllocationFailuresResetServiceTests extends ESTestCase {
             EmptySnapshotsInfoService.INSTANCE,
             TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY
         );
-        AllocationFailuresResetService resetService = new AllocationFailuresResetService(clusterService, allocationService);
-        clusterService.getClusterApplierService().addListener(resetService);
+        allocationService.addAllocFailuresResetListenerTo(clusterService);
     }
 
     @Override
@@ -114,28 +120,48 @@ public class AllocationFailuresResetServiceTests extends ESTestCase {
         threadPool.shutdownNow();
     }
 
-    public void testNoChangesDoesNotResetCounter() throws Exception {
+    /**
+     * Create state with two nodes and allocation failures, and does <b>not</b> reset counter after node removal
+     */
+    public void testRemoveNodeDoesNotResetCounter() throws Exception {
         var initState = clusterService.state();
-        var stateWithFailures = addShardWithFailures(initState);
+        var stateWithNewNode = addNode(initState, "node-2");
+        clusterService.getClusterApplierService().onNewClusterState("add node", () -> stateWithNewNode, ActionListener.noop());
+
+        var stateWithFailures = addShardWithFailures(stateWithNewNode);
         clusterService.getClusterApplierService().onNewClusterState("add failures", () -> stateWithFailures, ActionListener.noop());
 
         assertBusy(() -> {
             var resultState = clusterService.state();
-            assertFalse(resultState.getRoutingNodes().hasAllocationFailures());
+            assertEquals(2, resultState.nodes().size());
+            assertEquals(1, resultState.getRoutingTable().allShards().count());
+            assertTrue(resultState.getRoutingNodes().hasAllocationFailures());
         });
 
+        var stateWithRemovedNode = removeNode(stateWithFailures, "node-2");
+        clusterService.getClusterApplierService().onNewClusterState("remove node", () -> stateWithRemovedNode, ActionListener.noop());
+        assertBusy(() -> {
+            var resultState = clusterService.state();
+            assertEquals(1, resultState.nodes().size());
+            assertEquals(1, resultState.getRoutingTable().allShards().count());
+            assertTrue(resultState.getRoutingNodes().hasAllocationFailures());
+        });
     }
 
+    /**
+     * Create state with one node and allocation failures, and reset counter after node addition
+     */
     public void testAddNodeResetsCounter() throws Exception {
         var initState = clusterService.state();
         var stateWithFailures = addShardWithFailures(initState);
         clusterService.getClusterApplierService().onNewClusterState("add failures", () -> stateWithFailures, ActionListener.noop());
 
-        var stateWithNewNode = addNode(stateWithFailures);
+        var stateWithNewNode = addNode(stateWithFailures, "node-2");
         clusterService.getClusterApplierService().onNewClusterState("add node", () -> stateWithNewNode, ActionListener.noop());
 
         assertBusy(() -> {
             var resultState = clusterService.state();
+            assertEquals(2, resultState.nodes().size());
             assertEquals(1, resultState.getRoutingTable().allShards().count());
             assertFalse(resultState.getRoutingNodes().hasAllocationFailures());
         });

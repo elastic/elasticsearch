@@ -194,7 +194,7 @@ public final class LazyRolloverAction extends ActionType<RolloverResponse> {
         return new RolloverResponse(
             latestWriteIndex,
             latestWriteIndex,
-            Map.of("rollover_on_write", false),
+            Map.of(),
             false,
             false,
             true,

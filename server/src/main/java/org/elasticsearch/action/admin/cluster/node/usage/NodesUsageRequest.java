@@ -11,6 +11,7 @@ package org.elasticsearch.action.admin.cluster.node.usage;
 import org.elasticsearch.action.support.nodes.BaseNodesRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.UpdateForV9;
 
 import java.io.IOException;
 
@@ -19,6 +20,7 @@ public class NodesUsageRequest extends BaseNodesRequest<NodesUsageRequest> {
     private boolean restActions;
     private boolean aggregations;
 
+    @UpdateForV9 // will be unused in v9
     public NodesUsageRequest(StreamInput in) throws IOException {
         super(in);
         this.restActions = in.readBoolean();
@@ -80,6 +82,7 @@ public class NodesUsageRequest extends BaseNodesRequest<NodesUsageRequest> {
         return this;
     }
 
+    @UpdateForV9 // can become localOnly() in v9
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);

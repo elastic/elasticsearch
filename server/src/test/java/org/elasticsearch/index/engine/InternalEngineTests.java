@@ -7792,7 +7792,7 @@ public class InternalEngineTests extends EngineTestCase {
         safeAwait(barrier);
         flushThread.join();
 
-        // The translog location (before flush (1st doc) is always visible
+        // The translog location before flush (1st doc) is always visible
         assertThat(safeGet(future1), equalTo(engine.getLastCommittedSegmentInfos().getGeneration()));
 
         if (indexingAfterCommit) {

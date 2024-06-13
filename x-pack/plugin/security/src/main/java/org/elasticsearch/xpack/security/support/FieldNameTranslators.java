@@ -43,28 +43,28 @@ public final class FieldNameTranslators {
 
     public static final FieldNameTranslators API_KEY_FIELD_NAME_TRANSLATORS = new FieldNameTranslators(
         List.of(
-            new ExactFieldNameTranslator("creator.principal", "username"),
-            new ExactFieldNameTranslator("creator.realm", "realm_name"),
-            new ExactFieldNameTranslator("name", "name"),
-            new ExactFieldNameTranslator(API_KEY_TYPE_RUNTIME_MAPPING_FIELD, "type"),
-            new ExactFieldNameTranslator("creation_time", "creation"),
-            new ExactFieldNameTranslator("expiration_time", "expiration"),
-            new ExactFieldNameTranslator("api_key_invalidated", "invalidated"),
-            new ExactFieldNameTranslator("invalidation_time", "invalidation"),
+            new SimpleFieldNameTranslator("creator.principal", "username"),
+            new SimpleFieldNameTranslator("creator.realm", "realm_name"),
+            new SimpleFieldNameTranslator("name", "name"),
+            new SimpleFieldNameTranslator(API_KEY_TYPE_RUNTIME_MAPPING_FIELD, "type"),
+            new SimpleFieldNameTranslator("creation_time", "creation"),
+            new SimpleFieldNameTranslator("expiration_time", "expiration"),
+            new SimpleFieldNameTranslator("api_key_invalidated", "invalidated"),
+            new SimpleFieldNameTranslator("invalidation_time", "invalidation"),
             // allows querying on any non-wildcard sub-fields under the "metadata." prefix
-            // also allows querying on the metadata field itself
+            // also allows querying on the "metadata" field itself (including by specifying patterns)
             new FlattenedFieldNameTranslator("metadata_flattened", "metadata")
         )
     );
 
     public static final FieldNameTranslators USER_FIELD_NAME_TRANSLATORS = new FieldNameTranslators(
         List.of(
-            new ExactFieldNameTranslator("username", "username"),
-            new ExactFieldNameTranslator("roles", "roles"),
-            new ExactFieldNameTranslator("enabled", "enabled"),
-            // the mapping for these fields does not support sorting
-            new ExactFieldNameTranslator("full_name", "full_name", false),
-            new ExactFieldNameTranslator("email", "email", false)
+            idemFieldNameTranslator("username"),
+            idemFieldNameTranslator("roles"),
+            idemFieldNameTranslator("enabled"),
+            // the mapping for these fields does not support sorting (because their mapping does not store "fielddata" in the index)
+            idemFieldNameTranslator("full_name", false),
+            idemFieldNameTranslator("email", false)
         )
     );
 
@@ -344,18 +344,26 @@ public final class FieldNameTranslators {
         boolean isSortSupported();
     }
 
-    private static class ExactFieldNameTranslator implements FieldNameTranslator {
+    private static SimpleFieldNameTranslator idemFieldNameTranslator(String fieldName) {
+        return new SimpleFieldNameTranslator(fieldName, fieldName);
+    }
+
+    private static SimpleFieldNameTranslator idemFieldNameTranslator(String fieldName, boolean isSortSupported) {
+        return new SimpleFieldNameTranslator(fieldName, fieldName, isSortSupported);
+    }
+
+    private static class SimpleFieldNameTranslator implements FieldNameTranslator {
         private final String indexFieldName;
         private final String queryFieldName;
         private final boolean isSortSupported;
 
-        ExactFieldNameTranslator(String indexFieldName, String queryFieldName, boolean isSortSupported) {
+        SimpleFieldNameTranslator(String indexFieldName, String queryFieldName, boolean isSortSupported) {
             this.indexFieldName = indexFieldName;
             this.queryFieldName = queryFieldName;
             this.isSortSupported = isSortSupported;
         }
 
-        ExactFieldNameTranslator(String indexFieldName, String queryFieldName) {
+        SimpleFieldNameTranslator(String indexFieldName, String queryFieldName) {
             this(indexFieldName, queryFieldName, true);
         }
 

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.ml.inference.autoscaling;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.common.Strings;
 
 public class Autoscaler {
 
@@ -88,7 +89,7 @@ public class Autoscaler {
 
         if (numberOfAllocations != oldNumberOfAllocations) {
             logger.debug(
-                () -> String.format(
+                () -> Strings.format(
                     "[%s] Inference autoscaling: load in [%.3f, %.3f], scaling to %d allocations.",
                     deploymentId,
                     loadLower,
@@ -98,7 +99,7 @@ public class Autoscaler {
             );
         } else {
             logger.debug(
-                () -> String.format(
+                () -> Strings.format(
                     "[%s] Inference autoscaling: load in [%.3f, %.3f], keeping %d allocations.",
                     deploymentId,
                     loadLower,

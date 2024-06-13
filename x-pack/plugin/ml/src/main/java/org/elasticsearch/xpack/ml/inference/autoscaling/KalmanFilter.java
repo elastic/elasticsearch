@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.ml.inference.autoscaling;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.common.Strings;
 
 /**
  * Estimator for the mean value and stderr of a series of measurements.
@@ -63,7 +64,7 @@ class KalmanFilter {
         }
         dynamicsChangedLastTime = dynamicChanged;
         logger.debug(
-            () -> String.format(
+            () -> Strings.format(
                 "[%s] measurement %.3f ± %.3f: estimate %.3f ± %.3f (dynamic changed: %s).",
                 name,
                 value,

@@ -211,6 +211,7 @@ created, updated or was a noop in the same order as in the bulk request.
     ]
 }
 --------------------------------------------------
+// TESTRESPONSE[s/"took": 45/"took": $body.took/]
 
 <1> When an existing role is updated, `result` is set to `updated` or when no changes were made it's set to `noop`.
 <2> When an existing role is updated, `status` is set to `200`.
@@ -313,7 +314,7 @@ The result would then have the `errors` field set to `true` and hold the error f
 [source,console-result]
 --------------------------------------------------
 {
-    "took": 4,
+    "took": 49,
     "errors": true, <1>
     "items": [
         {
@@ -322,7 +323,7 @@ The result would then have the `errors` field set to `true` and hold the error f
             "_id": "my_admin_role",
             "error": {
                 "type": "action_request_validation_exception", <3>
-                "reason": "Validation Failed: 1: unknown cluster privilege [bad_cluster_privilege]." <4>
+                "reason": "Validation Failed: 1: unknown cluster privilege [bad_cluster_privilege]. a privilege must be either one of the predefined cluster privilege names [manage_own_api_key,none,cancel_task,cross_cluster_replication,cross_cluster_search,delegate_pki,grant_api_key,manage_autoscaling,manage_index_templates,manage_logstash_pipelines,manage_oidc,manage_saml,manage_search_application,manage_search_query_rules,manage_search_synonyms,manage_service_account,manage_token,manage_user_profile,monitor_data_stream_global_retention,monitor_enrich,monitor_inference,monitor_ml,monitor_rollup,monitor_snapshot,monitor_text_structure,monitor_watcher,post_behavioral_analytics_event,read_ccr,read_connector_secrets,read_fleet_secrets,read_ilm,read_pipeline,read_security,read_slm,transport_client,write_connector_secrets,write_fleet_secrets,create_snapshot,manage_behavioral_analytics,manage_ccr,manage_data_stream_global_retention,manage_enrich,manage_ilm,manage_inference,manage_ml,manage_rollup,manage_slm,manage_watcher,monitor_data_frame_transforms,monitor_transform,manage_api_key,manage_ingest_pipelines,manage_pipeline,manage_data_frame_transforms,manage_transform,manage_security,monitor,manage,all] or a pattern over one of the available cluster actions;"
             }
         },
         {
@@ -333,6 +334,8 @@ The result would then have the `errors` field set to `true` and hold the error f
     ]
 }
 --------------------------------------------------
+// TESTRESPONSE[s/"took": 49/"took": $body.took/]
+
 <1> The `errors` field indicates that the response contains errors.
 <2> THe http failure code of the error.
 <3> The type of error.

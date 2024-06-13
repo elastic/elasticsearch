@@ -23,7 +23,6 @@ import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.reservedstate.service.FileSettingsFeatures;
 import org.elasticsearch.reservedstate.service.FileSettingsService;
 import org.elasticsearch.shutdown.PluginShutdownService;
@@ -47,7 +46,6 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
 
     private final Environment environment;
     private final CheckedSupplier<ServerSocketChannel, IOException> socketChannelFactory;
-    private final FeatureService featureService;
 
     private volatile boolean active; // false;
     private volatile ServerSocketChannel serverChannel;
@@ -58,20 +56,18 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
 
     public static final Setting<Integer> PORT = Setting.intSetting("readiness.port", -1, Setting.Property.NodeScope);
 
-    public ReadinessService(ClusterService clusterService, Environment environment, FeatureService featureService) {
-        this(clusterService, environment, featureService, ServerSocketChannel::open);
+    public ReadinessService(ClusterService clusterService, Environment environment) {
+        this(clusterService, environment, ServerSocketChannel::open);
     }
 
     // package private to enable mocking (for testing)
     ReadinessService(
         ClusterService clusterService,
         Environment environment,
-        FeatureService featureService,
         CheckedSupplier<ServerSocketChannel, IOException> socketChannelFactory
     ) {
         this.serverChannel = null;
         this.environment = environment;
-        this.featureService = featureService;
         this.socketChannelFactory = socketChannelFactory;
         clusterService.addListener(this);
     }
@@ -274,8 +270,8 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
     }
 
     @SuppressForbidden(reason = "need to check file settings support on exact cluster state")
-    private boolean supportsFileSettings(ClusterState clusterState) {
-        return featureService.clusterHasFeature(clusterState, FileSettingsFeatures.FILE_SETTINGS_SUPPORTED);
+    private static boolean supportsFileSettings(ClusterState clusterState) {
+        return clusterState.clusterFeatures().clusterHasFeature(FileSettingsFeatures.FILE_SETTINGS_SUPPORTED);
     }
 
     private void setReady(boolean ready) {

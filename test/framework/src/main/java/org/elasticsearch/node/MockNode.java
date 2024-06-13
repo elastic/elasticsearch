@@ -23,7 +23,6 @@ import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.indices.ExecutorSelector;
 import org.elasticsearch.indices.IndicesService;
@@ -148,16 +147,11 @@ public class MockNode extends Node {
         }
 
         @Override
-        ReadinessService newReadinessService(
-            PluginsService pluginsService,
-            ClusterService clusterService,
-            Environment environment,
-            FeatureService featureService
-        ) {
+        ReadinessService newReadinessService(PluginsService pluginsService, ClusterService clusterService, Environment environment) {
             if (pluginsService.filterPlugins(MockReadinessService.TestPlugin.class).findAny().isEmpty()) {
-                return super.newReadinessService(pluginsService, clusterService, environment, featureService);
+                return super.newReadinessService(pluginsService, clusterService, environment);
             }
-            return new MockReadinessService(clusterService, environment, featureService);
+            return new MockReadinessService(clusterService, environment);
         }
 
         @Override

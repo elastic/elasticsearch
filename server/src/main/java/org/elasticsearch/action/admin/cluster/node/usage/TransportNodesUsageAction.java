@@ -92,12 +92,12 @@ public class TransportNodesUsageAction extends TransportNodesAction<
         public NodeUsageRequest(StreamInput in) throws IOException {
             super(in);
             if (in.getTransportVersion().onOrAfter(TransportVersions.MORE_LIGHTER_NODES_REQUESTS)) {
+                restActions = in.readBoolean();
+                aggregations = in.readBoolean();
+            } else {
                 final var request = new NodesUsageRequest(in);
                 restActions = request.restActions();
                 aggregations = request.aggregations();
-            } else {
-                restActions = in.readBoolean();
-                aggregations = in.readBoolean();
             }
         }
 
@@ -110,10 +110,10 @@ public class TransportNodesUsageAction extends TransportNodesAction<
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             if (out.getTransportVersion().onOrAfter(TransportVersions.MORE_LIGHTER_NODES_REQUESTS)) {
-                new NodesUsageRequest().restActions(restActions).aggregations(aggregations).writeTo(out);
-            } else {
                 out.writeBoolean(restActions);
                 out.writeBoolean(aggregations);
+            } else {
+                new NodesUsageRequest().restActions(restActions).aggregations(aggregations).writeTo(out);
             }
         }
     }

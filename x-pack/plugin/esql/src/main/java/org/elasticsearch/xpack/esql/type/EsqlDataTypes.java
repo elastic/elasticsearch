@@ -12,7 +12,6 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import java.util.Collections;
 import java.util.Locale;
 import java.util.Map;
-import java.util.function.Function;
 
 import static java.util.stream.Collectors.toMap;
 import static java.util.stream.Collectors.toUnmodifiableMap;

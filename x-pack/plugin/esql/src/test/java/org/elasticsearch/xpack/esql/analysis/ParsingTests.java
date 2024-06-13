@@ -8,12 +8,12 @@
 package org.elasticsearch.xpack.esql.analysis;
 
 import org.elasticsearch.core.PathUtils;
-import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.core.ParsingException;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.core.index.EsIndex;
 import org.elasticsearch.xpack.esql.core.index.IndexResolution;
 import org.elasticsearch.xpack.esql.core.plan.logical.LogicalPlan;
@@ -31,8 +31,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-import static org.elasticsearch.test.ListMatcher.matchesList;
-import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_CFG;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
@@ -79,6 +77,7 @@ public class ParsingTests extends ESTestCase {
      * builds a little json report of the valid types.
      */
     public void testInlineCast() throws IOException {
+        EsqlFunctionRegistry registry = new EsqlFunctionRegistry();
         Path dir = PathUtils.get(System.getProperty("java.io.tmpdir")).resolve("esql").resolve("functions").resolve("kibana");
         Files.createDirectories(dir);
         Path file = dir.resolve("inline_cast.json");
@@ -98,12 +97,22 @@ public class ParsingTests extends ESTestCase {
                 LogicalPlan plan = parser.createStatement("ROW a = 1::" + nameOrAlias);
                 Row row = as(plan, Row.class);
                 assertThat(row.fields(), hasSize(1));
-                assertThat(row.fields().get(0).child().dataType(), equalTo(expectedType));
-                report.field(nameOrAlias, expectedType.typeName());
+                Expression functionCall = row.fields().get(0).child();
+                assertThat(functionCall.dataType(), equalTo(expectedType));
+                report.field(nameOrAlias, functionName(registry, functionCall));
             }
             report.endObject();
         }
         logger.info("Wrote to file: {}", file);
+    }
+
+    private String functionName(EsqlFunctionRegistry registry, Expression functionCall) {
+        for (FunctionDefinition def : registry.listFunctions()) {
+            if (functionCall.getClass().equals(def.clazz())) {
+                return def.name();
+            }
+        }
+        throw new IllegalArgumentException("can't find name for " + functionCall);
     }
 
     private String error(String query) {

@@ -109,11 +109,6 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
     public static class NodesRequest extends BaseNodesRequest<NodesRequest> {
         private final String requestName;
 
-        NodesRequest(StreamInput in) throws IOException {
-            super(in);
-            requestName = in.readString();
-        }
-
         public NodesRequest(String requestName, String... nodesIds) {
             super(nodesIds);
             this.requestName = requestName;
@@ -142,7 +137,7 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
     abstract class TestNodesAction extends AbstractTestNodesAction<NodesRequest, NodeRequest> {
 
         TestNodesAction(String actionName, ThreadPool threadPool, ClusterService clusterService, TransportService transportService) {
-            super(actionName, threadPool, clusterService, transportService, NodesRequest::new, NodeRequest::new);
+            super(actionName, threadPool, clusterService, transportService, NodeRequest::new);
         }
 
         @Override

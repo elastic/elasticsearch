@@ -43,10 +43,6 @@ public class GetInferenceDiagnosticsAction extends ActionType<GetInferenceDiagno
             super((String[]) null);
         }
 
-        public Request(StreamInput in) throws IOException {
-            super(in);
-        }
-
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;

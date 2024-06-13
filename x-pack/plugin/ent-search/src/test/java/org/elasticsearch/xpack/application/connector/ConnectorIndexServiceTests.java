@@ -725,6 +725,21 @@ public class ConnectorIndexServiceTests extends ESSingleNodeTestCase {
         assertThat(updateErrorRequest.getError(), equalTo(indexedConnector.getError()));
     }
 
+    public void testUpdateConnectorError_resetWithNull() throws Exception {
+        Connector connector = ConnectorTestUtils.getRandomConnector();
+        String connectorId = randomUUID();
+        ConnectorCreateActionResponse resp = awaitCreateConnector(connectorId, connector);
+        assertThat(resp.status(), anyOf(equalTo(RestStatus.CREATED), equalTo(RestStatus.OK)));
+
+        UpdateConnectorErrorAction.Request updateErrorRequest = new UpdateConnectorErrorAction.Request(connectorId, null);
+
+        DocWriteResponse updateResponse = awaitUpdateConnectorError(updateErrorRequest);
+        assertThat(updateResponse.status(), equalTo(RestStatus.OK));
+
+        Connector indexedConnector = awaitGetConnector(connectorId);
+        assertThat(updateErrorRequest.getError(), equalTo(indexedConnector.getError()));
+    }
+
     public void testUpdateConnectorNameOrDescription() throws Exception {
         Connector connector = ConnectorTestUtils.getRandomConnector();
         String connectorId = randomUUID();
@@ -1336,7 +1351,7 @@ public class ConnectorIndexServiceTests extends ESSingleNodeTestCase {
         CountDownLatch latch = new CountDownLatch(1);
         final AtomicReference<UpdateResponse> resp = new AtomicReference<>(null);
         final AtomicReference<Exception> exc = new AtomicReference<>(null);
-        connectorIndexService.updateConnectorError(updatedError, new ActionListener<>() {
+        connectorIndexService.updateConnectorError(updatedError.getConnectorId(), updatedError.getError(), new ActionListener<>() {
             @Override
             public void onResponse(UpdateResponse indexResponse) {
                 resp.set(indexResponse);

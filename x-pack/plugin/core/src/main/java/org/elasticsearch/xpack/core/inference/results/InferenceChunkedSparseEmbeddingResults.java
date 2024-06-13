@@ -59,9 +59,7 @@ public class InferenceChunkedSparseEmbeddingResults implements ChunkedInferenceS
             .map(weightedToken -> new WeightedToken(weightedToken.token(), weightedToken.weight()))
             .toList();
 
-        return new InferenceChunkedSparseEmbeddingResults(
-            List.of(new MlChunkedTextExpansionResults.ChunkedResult(input, weightedTokens))
-        );
+        return new InferenceChunkedSparseEmbeddingResults(List.of(new MlChunkedTextExpansionResults.ChunkedResult(input, weightedTokens)));
     }
 
     private final List<MlChunkedTextExpansionResults.ChunkedResult> chunkedResults;

@@ -6,24 +6,155 @@
  */
 
 /**
- * TODO Checklist:
- * - Discuss with the team about the new aggregation
- * - Add CSV tests for it
- * - Adding aggregation. Check existing base classes, which simplify some configurations
- * - List aggregation methods
- *   - Add a implement SurrogateExpression and surrogate() if constants, or if some case can be optimally solved with existing functions
- *   - Add a implement ToAggregator and suppliers() that will eventually return the aggregators in the next section
- *     - Call [Agg][Type]AggregatorFunctionSupplier from there for each specific type
+ * Functions that aggregate values, with or without grouping within buckets.
+ * Used in `STATS` and similar commands.
  *
- * - Make An aggregator at `x-pack/plugin/esql/compute/src/main/java/org/elasticsearch/compute/aggregation/`
- *   - Make a `X-*.java.st` template if required for multiple types
- *   - Test with AggregatorFunctionTestCase for easy aggregator tests per type
- *   - Methods:
- *     - initSingle and initGrouping
- *     - combine and combineIntermediate
- *     - evaluateFinal
- *   - State class and methods:
- *     - toIntermediate
- * - Add to AggregateMapper
+ * <h2>Guide to adding new aggregate function</h2>
+ * <ol>
+ *     <li>
+ *         Aggregation functions are more complex than scalar functions, so it's a good idea to discuss
+ *         the new function with the ESQL team before starting to implement it.
+ *         <p>
+ *             You may also discuss its implementation, as aggregations may require special performance considerations.
+ *         </p>
+ *     </li>
+ *     <li>
+ *         Run the csv tests (see {@code x-pack/plugin/esql/src/test/java/org/elasticsearch/xpack/esql/CsvTests.java})
+ *         from within Intellij or, alternatively, via Gradle:
+ *         {@code ./gradlew :x-pack:plugin:esql:test --tests "org.elasticsearch.xpack.esql.CsvTests"}
+ *         IntelliJ will take a few minutes to compile everything but the test itself should take only a few seconds.
+ *         This is a fast path to running ESQL's integration tests.
+ *     </li>
+ *     <li>
+ *         Pick one of the csv-spec files in {@code x-pack/plugin/esql/qa/testFixtures/src/main/resources/}
+ *         and add a test for the function you want to write. These files are roughly themed but there
+ *         isn't a strong guiding principle in the organization.
+ *     </li>
+ *     <li>
+ *         Rerun the {@code CsvTests} and watch your new test fail.
+ *     </li>
+ *     <li>
+ *         Find an aggregate function in this package similar to the one you are working on and copy it to build
+ *         yours.
+ *         Your function might extend from the available abstract classes. Check the javadoc of each before using them:
+ *         <ul>
+ *             <li>{@link org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction}: The base class for aggregates</li>
+ *             <li>{@link org.elasticsearch.xpack.esql.expression.function.aggregate.NumericAggregate}: Aggregation for numeric values</li>
+ *             <li>{@link org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialAggregateFunction}: Aggregation for spatial values</li>
+ *         </ul>
+ *     </li>
+ *     <li>
+ *         Fill the required methods in your new function. Check their JavaDoc for more information.
+ *         Here are some of the important ones:
+ *         <ul>
+ *             <li>Constructor: Review the constructor annotations, and make sure to add the correct types and descriptions</li>
+ *             <li>
+ *                 {@code resolveType}: Check the metadata of your function parameters.
+ *                 This may include types, if they are foldable, or their possible values.
+ *             </li>
+ *             <li>
+ *                 {@code dataType}: This will return the datatype of your function.
+ *                 May be based on its current parameters.
+ *             </li>
+ *         </ul>
+ *
+ *         Finally, you may want to implement some interfaces.
+ *         Check their JavaDocs to see if they are suitable for your function:
+ *         <ul>
+ *             <li>
+ *                 {@link org.elasticsearch.xpack.esql.planner.ToAggregator}: (More information about aggregators below)
+ *             </li>
+ *             <li>
+ *                 {@link org.elasticsearch.xpack.esql.expression.SurrogateExpression}
+ *             </li>
+ *         </ul>
+ *     </li>
+ *     <li>
+ *         To introduce your aggregation to the engine:
+ *         <ul>
+ *             <li>
+ *                 Add it to {@code org.elasticsearch.xpack.esql.planner.AggregateMapper}.
+ *                 Check all usages of other aggregations there, and replicate the logic.
+ *             </li>
+ *             <li>
+ *                 Add it to {@link org.elasticsearch.xpack.esql.io.stream.PlanNamedTypes}.
+ *                 Consider adding the {@code writeTo} and {@code readFrom} methods inside your function,
+ *                 to keep all the logic in one place.
+ *                 <p>
+ *                     You can find examples of other aggregations using this method.
+ *                 </p>
+ *             </li>
+ *             <li>
+ *                 Do the same with {@link org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry}.
+ *             </li>
+ *         </ul>
+ *     </li>
+ * </ol>
+ *
+ * <h3>Creating aggregators for your function</h3>
+ * <p>
+ *     Aggregators contain the core logic of your aggregation. That is, how to combine values, what to store, how to process data, etc.
+ * </p>
+ * <ol>
+ *     <li>
+ *         Copy an existing aggregator to use as a base. You'll usually make one per type. Check other classes to see the naming pattern.
+ *         You can find them in {@link org.elasticsearch.compute.aggregation}.
+ *         <p>
+ *             Note that some aggregators are autogenerated, so they live in different directories.
+ *             The base is {@code x-pack/plugin/esql/compute/src/main/java/org/elasticsearch/compute/aggregation/}
+ *         </p>
+ *     </li>
+ *     <li>
+ *         Make a test for your aggregator.
+ *         You can copy an existing one from {@code x-pack/plugin/esql/compute/src/test/java/org/elasticsearch/compute/aggregation/}.
+ *         <p>
+ *             Tests extending from {@code org.elasticsearch.compute.aggregation.AggregatorFunctionTestCase}
+ *             will already include most required cases. You should only need to fill the required abstract methods.
+ *         </p>
+ *     </li>
+ *     <li>
+ *         Check the Javadoc of the {@link org.elasticsearch.compute.ann.Aggregator}
+ *         and {@link org.elasticsearch.compute.ann.GroupingAggregator} annotations.
+ *         Add/Modify them on your aggregator.
+ *     </li>
+ *     <li>
+ *         The {@link org.elasticsearch.compute.ann.Aggregator} JavaDoc explains the static methods you should add.
+ *     </li>
+ *     <li>
+ *         After implementing the required methods (Even if they have a dummy implementation),
+ *         run the CsvTests to generate some extra required classes.
+ *         <p>
+ *             One of them will be the {@code AggregatorFunctionSupplier} for your aggregator.
+ *             Find it by its name ({@code <Aggregation-name><Type>AggregatorFunctionSupplier}),
+ *             and return it in the {@code toSupplier} method in your function, under the correct type condition.
+ *         </p>
+ *     </li>
+ *     <li>
+ *         Now, complete the implementation of the aggregator, until the tests pass!
+ *     </li>
+ * </ol>
+ *
+ * <h3>StringTemplates</h3>
+ * <p>
+ *     Making an aggregator per type may be repetitive. To avoid code duplication, we use StringTemplates:
+ * </p>
+ * <ol>
+ *     <li>
+ *         Create a new StringTemplate file.
+ *         Use another as a reference, like {@code x-pack/plugin/esql/compute/src/main/java/org/elasticsearch/compute/aggregation/X-TopValuesListAggregator.java.st}.
+ *     </li>
+ *     <li>
+ *         Add the template scripts to {@code x-pack/plugin/esql/compute/build.gradle}.
+ *         <p>
+ *             You can also see there which variables you can use, and which types are currently supported.
+ *         </p>
+ *     </li>
+ *     <li>
+ *         After completing your template, run the generation with {@code ./gradlew :x-pack:plugin:esql:compute:stringTemplates}.
+ *         <p>
+ *             You may need to tweak some import orders per type so they don't raise warnings.
+ *         </p>
+ *     </li>
+ * </ol>
  */
 package org.elasticsearch.xpack.esql.expression.function.aggregate;

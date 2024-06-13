@@ -38,9 +38,16 @@
  *         yours.
  *         Your function might extend from the available abstract classes. Check the javadoc of each before using them:
  *         <ul>
- *             <li>{@link org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction}: The base class for aggregates</li>
- *             <li>{@link org.elasticsearch.xpack.esql.expression.function.aggregate.NumericAggregate}: Aggregation for numeric values</li>
- *             <li>{@link org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialAggregateFunction}: Aggregation for spatial values</li>
+ *             <li>
+ *                 {@link org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction}: The base class for aggregates
+ *             </li>
+ *             <li>
+ *                 {@link org.elasticsearch.xpack.esql.expression.function.aggregate.NumericAggregate}: Aggregation for numeric values
+ *             </li>
+ *             <li>
+ *                 {@link org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialAggregateFunction}:
+ *                 Aggregation for spatial values
+ *             </li>
  *         </ul>
  *     </li>
  *     <li>
@@ -141,7 +148,8 @@
  * <ol>
  *     <li>
  *         Create a new StringTemplate file.
- *         Use another as a reference, like {@code x-pack/plugin/esql/compute/src/main/java/org/elasticsearch/compute/aggregation/X-TopValuesListAggregator.java.st}.
+ *         Use another as a reference, like
+ *         {@code x-pack/plugin/esql/compute/src/main/java/org/elasticsearch/compute/aggregation/X-TopValuesListAggregator.java.st}.
  *     </li>
  *     <li>
  *         Add the template scripts to {@code x-pack/plugin/esql/compute/build.gradle}.

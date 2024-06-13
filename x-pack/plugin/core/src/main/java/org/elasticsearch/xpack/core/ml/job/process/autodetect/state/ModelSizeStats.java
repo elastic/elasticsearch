@@ -409,7 +409,9 @@ public class ModelSizeStats implements ToXContentObject, Writeable {
         return assignmentMemoryBasis;
     }
 
-    public Long getJsonMemmoryAllocatorBytes() { return jsonMemoryAllocatorBytes; }
+    public Long getJsonMemmoryAllocatorBytes() {
+        return jsonMemoryAllocatorBytes;
+    }
 
     public long getCategorizedDocCount() {
         return categorizedDocCount;

@@ -214,6 +214,12 @@ public class RestCatJobsAction extends AbstractCatAction {
                 .build()
         );
         table.addCell(
+            "json_memory_allocator_bytes",
+            TableColumnAttributeBuilder.builder("how many bytes have the JSON memory allocators used", false)
+                .setAliases("jmab", "jsonMemoryAllocatorBytes")
+                .build()
+        );
+        table.addCell(
             "model.categorization_status",
             TableColumnAttributeBuilder.builder("current categorization status", false)
                 .setAliases("mcs", "modelCategorizationStatus")
@@ -416,7 +422,11 @@ public class RestCatJobsAction extends AbstractCatAction {
             table.addCell(modelSizeStats == null ? null : modelSizeStats.getTotalPartitionFieldCount());
             table.addCell(modelSizeStats == null ? null : modelSizeStats.getBucketAllocationFailuresCount());
             table.addCell(modelSizeStats == null ? null : modelSizeStats.getCategorizationStatus().toString());
-            table.addCell(modelSizeStats == null ? null : modelSizeStats.getJsonMemmoryAllocatorBytes());
+            table.addCell(
+                modelSizeStats == null || modelSizeStats.getJsonMemmoryAllocatorBytes() == null
+                    ? null
+                    : ByteSizeValue.ofBytes(modelSizeStats.getJsonMemmoryAllocatorBytes())
+            );
             table.addCell(modelSizeStats == null ? null : modelSizeStats.getCategorizedDocCount());
             table.addCell(modelSizeStats == null ? null : modelSizeStats.getTotalCategoryCount());
             table.addCell(modelSizeStats == null ? null : modelSizeStats.getFrequentCategoryCount());

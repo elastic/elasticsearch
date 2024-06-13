@@ -190,9 +190,15 @@ setup:
       index:
         index: knn_hex_vector_index_dyn_dims
         id: "1"
+        refresh: true
         body:
           my_vector_byte: "807f0a"
           my_vector_byte_indexed: "807f0a"
+
+  # wait and ensure that the index update is replicated and searchable
+  - do:
+      cluster.health:
+        wait_for_events: languid
 
   # assert the index is created with 3 dimensions
   - do:

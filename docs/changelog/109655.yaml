@@ -1,10 +1,10 @@
 pr: 109655
 summary: "Ingest-geoip: establish boundaries"
 area: Ingest Node
-type: breaking-java
+type: tech debt
 issues: []
 breaking:
-  title: "Simplify interface for GeoIpDatabase"
+  title: Simplify interface for GeoIpDatabase
   area: Java API
   details: |
     External implementations of the `ingest-geoip` `GeoIpDatabase` interface, which

@@ -84,7 +84,7 @@ public class IndexingDiskControllerTests extends ESTestCase {
         );
         assertThat(
             exception.getMessage(),
-            equalTo("Reserved disk space [1kb (1024 bytes)] must be larger than Lucene indexing buffer [10kb (10240 bytes)]")
+            equalTo("Reserved disk space [1kb (1024 bytes)] must be larger than Lucene indexing buffer [10240 bytes]")
         );
     }
 
@@ -115,7 +115,7 @@ public class IndexingDiskControllerTests extends ESTestCase {
                 .build();
 
             final var indicesService = mock(IndicesService.class);
-            when(indicesService.getTotalIndexingBufferBytes()).thenReturn(INDEX_BUFFER_SIZE_SETTING.get(finalSettings));
+            when(indicesService.getTotalIndexingBufferBytes()).thenReturn(INDEX_BUFFER_SIZE_SETTING.get(finalSettings).getBytes());
 
             try (var nodeEnvironment = new NodeEnvironment(finalSettings, TestEnvironment.newEnvironment(finalSettings))) {
                 var indexingDiskController = new IndexingDiskController(

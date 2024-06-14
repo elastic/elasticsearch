@@ -133,7 +133,7 @@ public class IndexingDiskController extends AbstractLifecycleComponent {
                     + " bytes)]"
             );
         }
-        if (reservedBytes.getBytes() <= indicesService.getTotalIndexingBufferBytes().getBytes()) {
+        if (reservedBytes.getBytes() <= indicesService.getTotalIndexingBufferBytes()) {
             throw new IllegalStateException(
                 "Reserved disk space ["
                     + reservedBytes
@@ -141,22 +141,19 @@ public class IndexingDiskController extends AbstractLifecycleComponent {
                     + reservedBytes.getBytes()
                     + " bytes)] must be larger than Lucene indexing buffer ["
                     + indicesService.getTotalIndexingBufferBytes()
-                    + " ("
-                    + indicesService.getTotalIndexingBufferBytes().getBytes()
-                    + " bytes)]"
+                    + " bytes]"
             );
         }
         this.reservedBytes = reservedBytes;
         if (interval.millis() > 0) {
             logger.info(
                 "indexing disk controller will flush and throttle indexing shards "
-                    + "if available disk space drops below [{}/{} bytes] on [{}/{}] total [indexing buffer size={}/{}]",
+                    + "if available disk space drops below [{}/{} bytes] on [{}/{}] total [indexing buffer size={}]",
                 reservedBytes,
                 reservedBytes.getBytes(),
                 totalBytes,
                 totalBytes.getBytes(),
-                indicesService.getTotalIndexingBufferBytes(),
-                indicesService.getTotalIndexingBufferBytes().getBytes()
+                indicesService.getTotalIndexingBufferBytes()
             );
             this.monitor = new ShardsDiskUsageMonitor();
         } else {

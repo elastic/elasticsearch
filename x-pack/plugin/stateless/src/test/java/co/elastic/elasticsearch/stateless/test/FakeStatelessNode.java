@@ -249,7 +249,6 @@ public class FakeStatelessNode implements Closeable {
             repoService = new RepositoriesService(
                 nodeSettings,
                 clusterService,
-                transportService,
                 Map.of(
                     FsRepository.TYPE,
                     metadata -> new FsRepository(
@@ -275,6 +274,7 @@ public class FakeStatelessNode implements Closeable {
                 ),
                 Map.of(),
                 threadPool,
+                client,
                 List.of()
             );
 
@@ -282,7 +282,7 @@ public class FakeStatelessNode implements Closeable {
             transportService.acceptIncomingRequests();
             localCloseables.add(transportService::stop);
 
-            objectStoreService = new ObjectStoreService(nodeSettings, () -> repoService, threadPool, clusterService);
+            objectStoreService = new ObjectStoreService(nodeSettings, repoService, threadPool, clusterService);
             objectStoreService.start();
             localCloseables.add(objectStoreService);
             electionStrategy = new StatelessElectionStrategy(objectStoreService::getClusterStateBlobContainer, threadPool);

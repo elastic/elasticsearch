@@ -1603,8 +1603,8 @@ The API returns the following response:
       "docs": {
          "count": 10,
          "deleted": 0,
+         "total_size": "8.6kb",
          "total_size_in_bytes": 8833
-         "total_size": "8.6kb"
       },
       "store": {
          "size": "16.2kb",

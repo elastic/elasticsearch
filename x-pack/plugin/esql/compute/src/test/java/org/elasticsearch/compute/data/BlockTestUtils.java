@@ -91,6 +91,26 @@ public class BlockTestUtils {
                 return;
             }
         }
+        if (builder instanceof FloatBlock.Builder b) {
+            if (value instanceof Float v) {
+                b.appendFloat(v);
+                return;
+            }
+            if (value instanceof List<?> l) {
+                switch (l.size()) {
+                    case 0 -> b.appendNull();
+                    case 1 -> b.appendFloat((Float) l.get(0));
+                    default -> {
+                        b.beginPositionEntry();
+                        for (Object o : l) {
+                            b.appendFloat((Float) o);
+                        }
+                        b.endPositionEntry();
+                    }
+                }
+                return;
+            }
+        }
         if (builder instanceof DoubleBlock.Builder b) {
             if (value instanceof Double v) {
                 b.appendDouble(v);

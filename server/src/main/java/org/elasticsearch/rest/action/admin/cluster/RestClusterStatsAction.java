@@ -19,12 +19,15 @@ import org.elasticsearch.rest.action.RestCancellableNodeClient;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestUtils.getTimeout;
 
 @ServerlessScope(Scope.INTERNAL)
 public class RestClusterStatsAction extends BaseRestHandler {
+
+    private static final Set<String> SUPPORTED_CAPABILITIES = Set.of("human-readable-total-docs-size");
 
     @Override
     public List<Route> routes() {
@@ -48,5 +51,10 @@ public class RestClusterStatsAction extends BaseRestHandler {
     @Override
     public boolean canTripCircuitBreaker() {
         return false;
+    }
+
+    @Override
+    public Set<String> supportedCapabilities() {
+        return SUPPORTED_CAPABILITIES;
     }
 }

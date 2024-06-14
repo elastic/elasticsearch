@@ -32,6 +32,15 @@
 
 ---
 "cluster stats with human flag returns docs as human readable size":
+  - requires:
+      capabilities:
+        - method: GET
+          path: /_cluster/stats
+          capabilities:
+            - "human-readable-total-docs-size"
+      test_runner_feature: [capabilities]
+      reason: Capability required to run test
+
   - do:
       index:
         index: test

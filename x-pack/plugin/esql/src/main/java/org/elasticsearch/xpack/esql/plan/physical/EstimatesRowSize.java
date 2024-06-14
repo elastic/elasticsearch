@@ -113,12 +113,12 @@ public interface EstimatesRowSize {
                 default -> 50; // wild estimate for the size of a string.
             };
             case DOC -> throw new EsqlIllegalArgumentException("can't load a [doc] with field extraction");
+            case FLOAT -> Float.BYTES;
             case DOUBLE -> Double.BYTES;
             case INT -> Integer.BYTES;
             case LONG -> Long.BYTES;
             case NULL -> 0;
             // TODO: provide a specific estimate for aggregated_metrics_double
-            case FLOAT -> throw new EsqlIllegalArgumentException("can't estimate size for float blocks");
             case COMPOSITE -> throw new EsqlIllegalArgumentException("can't estimate size for composite blocks");
             case UNKNOWN -> throw new EsqlIllegalArgumentException("[unknown] can't be the result of field extraction");
         };

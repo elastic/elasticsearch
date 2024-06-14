@@ -197,7 +197,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
     private static final int UPLOAD_PERMITS = Integer.MAX_VALUE;
 
     private final Settings settings;
-    private final Supplier<RepositoriesService> repositoriesServiceSupplier;
+    private final RepositoriesService repositoriesService;
     private final ThreadPool threadPool;
     private final PrioritizedThrottledTaskRunner<TranslogFileUploadTask> uploadTranslogTaskRunner;
     private final PrioritizedThrottledTaskRunner<ObjectStoreTask> uploadTaskRunner;
@@ -214,12 +214,12 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
     @Inject
     public ObjectStoreService(
         Settings settings,
-        Supplier<RepositoriesService> repositoriesServiceSupplier,
+        RepositoriesService repositoriesService,
         ThreadPool threadPool,
         ClusterService clusterService
     ) {
         this.settings = settings;
-        this.repositoriesServiceSupplier = repositoriesServiceSupplier;
+        this.repositoriesService = repositoriesService;
         this.threadPool = threadPool;
         this.clusterService = clusterService;
         this.uploadTranslogTaskRunner = new PrioritizedThrottledTaskRunner<>(
@@ -335,7 +335,6 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
 
     @Override
     protected void doStart() {
-        final var repositoriesService = repositoriesServiceSupplier.get();
         if (repositoriesService == null) {
             throw new IllegalStateException("Repositories service is not initialized");
         }

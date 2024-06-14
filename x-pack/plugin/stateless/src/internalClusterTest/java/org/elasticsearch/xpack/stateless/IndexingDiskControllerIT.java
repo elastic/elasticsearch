@@ -65,7 +65,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -338,11 +337,11 @@ public class IndexingDiskControllerIT extends AbstractStatelessIntegTestCase {
         @Override
         protected ObjectStoreService createObjectStoreService(
             Settings settings,
-            Supplier<RepositoriesService> repositoriesServiceSupplier,
+            RepositoriesService repositoriesService,
             ThreadPool threadPool,
             ClusterService clusterService
         ) {
-            return new TestObjectStoreService(settings, repositoriesServiceSupplier, threadPool, clusterService);
+            return new TestObjectStoreService(settings, repositoriesService, threadPool, clusterService);
         }
     }
 
@@ -357,11 +356,11 @@ public class IndexingDiskControllerIT extends AbstractStatelessIntegTestCase {
         @Inject
         public TestObjectStoreService(
             Settings settings,
-            Supplier<RepositoriesService> supplier,
+            RepositoriesService repositoriesService,
             ThreadPool threadPool,
             ClusterService clusterService
         ) {
-            super(settings, supplier, threadPool, clusterService);
+            super(settings, repositoriesService, threadPool, clusterService);
         }
 
         synchronized void block() {

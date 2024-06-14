@@ -33,13 +33,13 @@
 ---
 "cluster stats with human flag returns docs as human readable size":
   - requires:
+      test_runner_features: [capabilities]
       capabilities:
         - method: GET
           path: /_cluster/stats
           capabilities:
             - "human-readable-total-docs-size"
-      test_runner_feature: [capabilities]
-      reason: Capability required to run test
+      reason: "Capability required to run test"
 
   - do:
       index:
@@ -53,8 +53,8 @@
       cluster.stats:
         human: true
 
-  - is_true: indices.docs.total_size_in_bytes
-  - is_true: indices.docs.total_size
+  - exists: indices.docs.total_size_in_bytes
+  - exists: indices.docs.total_size
 
 ---
 "get cluster stats returns cluster_uuid at the top level":

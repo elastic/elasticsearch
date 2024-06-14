@@ -401,7 +401,7 @@ public class Stateless extends Plugin
         Settings settings = environment.settings();
         var objectStoreService = setAndGet(
             this.objectStoreService,
-            createObjectStoreService(settings, services.repositoriesServiceSupplier(), threadPool, clusterService)
+            createObjectStoreService(settings, services.repositoriesService(), threadPool, clusterService)
         );
         components.add(objectStoreService);
         var cacheService = createSharedBlobCacheService(services, nodeEnvironment, settings, threadPool);
@@ -558,11 +558,11 @@ public class Stateless extends Plugin
 
     protected ObjectStoreService createObjectStoreService(
         Settings settings,
-        Supplier<RepositoriesService> repositoriesServiceSupplier,
+        RepositoriesService repositoriesService,
         ThreadPool threadPool,
         ClusterService clusterService
     ) {
-        return new ObjectStoreService(settings, repositoriesServiceSupplier, threadPool, clusterService);
+        return new ObjectStoreService(settings, repositoriesService, threadPool, clusterService);
     }
 
     protected StatelessSharedBlobCacheService createSharedBlobCacheService(

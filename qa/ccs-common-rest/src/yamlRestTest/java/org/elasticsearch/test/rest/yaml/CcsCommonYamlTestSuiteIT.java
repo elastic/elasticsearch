@@ -79,6 +79,7 @@ public class CcsCommonYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
 
     private static LocalClusterConfigProvider commonClusterConfig = cluster -> cluster.module("x-pack-async-search")
         .module("aggregations")
+        .module("analysis-common")
         .module("mapper-extras")
         .module("vector-tile")
         .module("x-pack-analytics")

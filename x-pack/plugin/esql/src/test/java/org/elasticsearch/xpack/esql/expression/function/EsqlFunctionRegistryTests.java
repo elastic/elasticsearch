@@ -21,7 +21,7 @@ import org.elasticsearch.xpack.esql.core.tree.SourceTests;
 
 import java.util.Arrays;
 
-import static org.elasticsearch.xpack.esql.core.TestUtils.randomConfiguration;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.randomConfiguration;
 import static org.elasticsearch.xpack.esql.core.expression.function.FunctionRegistry.def;
 import static org.elasticsearch.xpack.esql.core.expression.function.FunctionResolutionStrategy.DEFAULT;
 import static org.hamcrest.Matchers.endsWith;

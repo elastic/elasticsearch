@@ -1046,6 +1046,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
         @Override
         public KnnVectorsFormat getVectorsFormat() {
+            // int bits = 7;
+            // boolean compress = false; // TODO we only support 7 and false, for now
             return new ES814HnswScalarQuantizedVectorsFormat(m, efConstruction, 1, confidenceInterval, null);
         }
 

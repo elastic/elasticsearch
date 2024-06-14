@@ -88,12 +88,10 @@ public record DataStreamOptions(@Nullable DataStreamLifecycle lifecycle, @Nullab
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         if (lifecycle != null) {
-            builder.field(LIFECYCLE_FIELD.getPreferredName());
-            builder.value(lifecycle);
+            builder.field(LIFECYCLE_FIELD.getPreferredName(), lifecycle);
         }
         if (failureStore != null) {
-            builder.field(FAILURE_STORE_FIELD.getPreferredName());
-            builder.value(failureStore);
+            builder.field(FAILURE_STORE_FIELD.getPreferredName(), failureStore);
         }
         builder.endObject();
         return builder;

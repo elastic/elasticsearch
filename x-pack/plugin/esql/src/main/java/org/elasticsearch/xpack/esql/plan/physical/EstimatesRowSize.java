@@ -118,6 +118,7 @@ public interface EstimatesRowSize {
             case LONG -> Long.BYTES;
             case NULL -> 0;
             // TODO: provide a specific estimate for aggregated_metrics_double
+            case FLOAT -> throw new EsqlIllegalArgumentException("can't estimate size for float blocks");
             case COMPOSITE -> throw new EsqlIllegalArgumentException("can't estimate size for composite blocks");
             case UNKNOWN -> throw new EsqlIllegalArgumentException("[unknown] can't be the result of field extraction");
         };

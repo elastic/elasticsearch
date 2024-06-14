@@ -31,6 +31,7 @@ public class BlockTestUtils {
         return switch (e) {
             case INT -> randomInt();
             case LONG -> randomLong();
+            case FLOAT -> Float.intBitsToFloat(randomInt());
             case DOUBLE -> randomDouble();
             case BYTES_REF -> new BytesRef(randomRealisticUnicodeOfCodepointLengthBetween(0, 5));   // TODO: also test spatial WKB
             case BOOLEAN -> randomBoolean();

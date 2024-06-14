@@ -16,6 +16,7 @@ public enum ElementType {
     BOOLEAN(BlockFactory::newBooleanBlockBuilder),
     INT(BlockFactory::newIntBlockBuilder),
     LONG(BlockFactory::newLongBlockBuilder),
+    FLOAT(BlockFactory::newFloatBlockBuilder),
     DOUBLE(BlockFactory::newDoubleBlockBuilder),
     /**
      * Blocks containing only null values.

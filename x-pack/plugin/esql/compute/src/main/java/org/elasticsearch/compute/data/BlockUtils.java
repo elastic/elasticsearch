@@ -265,6 +265,7 @@ public final class BlockUtils {
             case BOOLEAN -> ((BooleanBlock) block).getBoolean(offset);
             case BYTES_REF -> BytesRef.deepCopyOf(((BytesRefBlock) block).getBytesRef(offset, new BytesRef()));
             case DOUBLE -> ((DoubleBlock) block).getDouble(offset);
+            case FLOAT -> ((FloatBlock) block).getFloat(offset);
             case INT -> ((IntBlock) block).getInt(offset);
             case LONG -> ((LongBlock) block).getLong(offset);
             case NULL -> null;

@@ -63,6 +63,8 @@ public enum ElementType {
             elementType = INT;
         } else if (type == Long.class) {
             elementType = LONG;
+        } else if (type == Float.class) {
+            elementType = FLOAT;
         } else if (type == Double.class) {
             elementType = DOUBLE;
         } else if (type == String.class || type == BytesRef.class) {

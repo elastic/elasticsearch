@@ -208,6 +208,7 @@ public final class BlockUtils {
             case LONG -> ((LongBlock.Builder) builder).appendLong((Long) val);
             case INT -> ((IntBlock.Builder) builder).appendInt((Integer) val);
             case BYTES_REF -> ((BytesRefBlock.Builder) builder).appendBytesRef(toBytesRef(val));
+            case FLOAT -> ((FloatBlock.Builder) builder).appendFloat((Float) val);
             case DOUBLE -> ((DoubleBlock.Builder) builder).appendDouble((Double) val);
             case BOOLEAN -> ((BooleanBlock.Builder) builder).appendBoolean((Boolean) val);
             default -> throw new UnsupportedOperationException("unsupported element type [" + type + "]");

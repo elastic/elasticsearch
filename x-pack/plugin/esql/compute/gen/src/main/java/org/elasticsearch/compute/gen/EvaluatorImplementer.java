@@ -206,11 +206,18 @@ public class EvaluatorImplementer {
                                 }
                                 builder.endControlFlow();
                             } else if (a instanceof BlockArrayProcessFunctionArg aba) {
-                                builder.beginControlFlow("aba: for (int i = 0; i < $L.length; i++)", aba.paramName(true));
-                                builder.beginControlFlow("if (!$N[i].isNull(p))", aba.paramName(blockStyle));
+                                builder.beginControlFlow("for (int i = 0; i < $L.length; i++)", aba.paramName(true));
+                                builder.beginControlFlow("if (!$N[i].isNull(p) && allBlocksAreNulls)", aba.paramName(blockStyle));
                                 {
                                     builder.addStatement("allBlocksAreNulls = false");
-                                    builder.addStatement("break aba");
+                                }
+                                builder.endControlFlow();
+                                builder.beginControlFlow("if ($N[i].getValueCount(p) > 1)", aba.paramName(blockStyle));
+                                {
+                                    builder.addStatement(
+                                        "warnings.registerException(new $T(\"single-value function encountered multi-value\"))",
+                                        IllegalArgumentException.class
+                                    );
                                 }
                                 builder.endControlFlow();
                                 builder.endControlFlow();

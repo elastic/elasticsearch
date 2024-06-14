@@ -236,7 +236,8 @@ public class In extends EsqlScalarFunction {
         }
     }
 
-    private static void checkMV(int p, Block field) {
+    private static void checkLHS(int p, Block field) {
+        // mv is not allowed on the left hand side
         if (field.getValueCount(p) > 1) {
             throw new IllegalArgumentException("single-value function encountered multi-value");
         }
@@ -244,98 +245,148 @@ public class In extends EsqlScalarFunction {
 
     @Evaluator(extraName = "Boolean", warnExceptions = { IllegalArgumentException.class })
     static void process(BooleanBlock.Builder builder, int p, BooleanBlock lhs, BooleanBlock[] rhs) {
-        checkMV(p, lhs);
-        Boolean l = lhs.getBoolean(lhs.getFirstValueIndex(p));
+        checkLHS(p, lhs);
+        boolean l = lhs.getBoolean(lhs.getFirstValueIndex(p));
         Boolean[] r = new Boolean[rhs.length];
         BitSet nulls = new BitSet(rhs.length);
         int index;
-        for (int i = 0; i < rhs.length; i++) {
-            checkMV(p, rhs[i]);
+        rhs: for (int i = 0; i < rhs.length; i++) {
             if (rhs[i].isNull(p)) {
                 nulls.set(i);
                 continue;
             }
-            index = rhs[i].getFirstValueIndex(p);
-            r[i] = rhs[i].getBoolean(index);
+            if (rhs[i].getValueCount(p) > 1) {
+                int start = rhs[i].getFirstValueIndex(p);
+                int end = start + rhs[i].getValueCount(p);
+                for (int j = start; j < end; j++) {
+                    r[i] = rhs[i].getBoolean(j);
+                    if (r[i] == l) {
+                        continue rhs;
+                    }
+                }
+            } else {
+                index = rhs[i].getFirstValueIndex(p);
+                r[i] = rhs[i].getBoolean(index);
+            }
         }
         processCommon(builder, nulls, l, r);
     }
 
     @Evaluator(extraName = "Int", warnExceptions = { IllegalArgumentException.class })
     static void process(BooleanBlock.Builder builder, int p, IntBlock lhs, IntBlock[] rhs) {
-        checkMV(p, lhs);
-        Integer l = lhs.getInt(lhs.getFirstValueIndex(p));
+        checkLHS(p, lhs);
+        int l = lhs.getInt(lhs.getFirstValueIndex(p));
         Integer[] r = new Integer[rhs.length];
         BitSet nulls = new BitSet(rhs.length);
         int index;
-        for (int i = 0; i < rhs.length; i++) {
-            checkMV(p, rhs[i]);
+        rhs: for (int i = 0; i < rhs.length; i++) {
             if (rhs[i].isNull(p)) {
                 nulls.set(i);
                 continue;
             }
-            index = rhs[i].getFirstValueIndex(p);
-            r[i] = rhs[i].getInt(index);
+            if (rhs[i].getValueCount(p) > 1) {
+                int start = rhs[i].getFirstValueIndex(p);
+                int end = start + rhs[i].getValueCount(p);
+                for (int j = start; j < end; j++) {
+                    r[i] = rhs[i].getInt(j);
+                    if (r[i] == l) {
+                        continue rhs;
+                    }
+                }
+            } else {
+                index = rhs[i].getFirstValueIndex(p);
+                r[i] = rhs[i].getInt(index);
+            }
         }
         processCommon(builder, nulls, l, r);
     }
 
     @Evaluator(extraName = "Long", warnExceptions = { IllegalArgumentException.class })
     static void process(BooleanBlock.Builder builder, int p, LongBlock lhs, LongBlock[] rhs) {
-        checkMV(p, lhs);
-        Long l = lhs.getLong(lhs.getFirstValueIndex(p));
+        checkLHS(p, lhs);
+        long l = lhs.getLong(lhs.getFirstValueIndex(p));
         Long[] r = new Long[rhs.length];
         BitSet nulls = new BitSet(rhs.length);
         int index;
-        for (int i = 0; i < rhs.length; i++) {
-            checkMV(p, rhs[i]);
+        rhs: for (int i = 0; i < rhs.length; i++) {
             if (rhs[i].isNull(p)) {
                 nulls.set(i);
                 continue;
             }
-            index = rhs[i].getFirstValueIndex(p);
-            r[i] = rhs[i].getLong(index);
+            if (rhs[i].getValueCount(p) > 1) {
+                int start = rhs[i].getFirstValueIndex(p);
+                int end = start + rhs[i].getValueCount(p);
+                for (int j = start; j < end; j++) {
+                    r[i] = rhs[i].getLong(j);
+                    if (r[i] == l) {
+                        continue rhs;
+                    }
+                }
+            } else {
+                index = rhs[i].getFirstValueIndex(p);
+                r[i] = rhs[i].getLong(index);
+            }
         }
         processCommon(builder, nulls, l, r);
     }
 
     @Evaluator(extraName = "Double", warnExceptions = { IllegalArgumentException.class })
     static void process(BooleanBlock.Builder builder, int p, DoubleBlock lhs, DoubleBlock[] rhs) {
-        checkMV(p, lhs);
-        Double l = lhs.getDouble(lhs.getFirstValueIndex(p));
+        checkLHS(p, lhs);
+        double l = lhs.getDouble(lhs.getFirstValueIndex(p));
         Double[] r = new Double[rhs.length];
         BitSet nulls = new BitSet(rhs.length);
         int index;
-        for (int i = 0; i < rhs.length; i++) {
-            checkMV(p, rhs[i]);
+        rhs: for (int i = 0; i < rhs.length; i++) {
             if (rhs[i].isNull(p)) {
                 nulls.set(i);
                 continue;
             }
-            index = rhs[i].getFirstValueIndex(p);
-            r[i] = rhs[i].getDouble(index);
+            if (rhs[i].getValueCount(p) > 1) {
+                int start = rhs[i].getFirstValueIndex(p);
+                int end = start + rhs[i].getValueCount(p);
+                for (int j = start; j < end; j++) {
+                    r[i] = rhs[i].getDouble(j);
+                    if (r[i] == l) {
+                        continue rhs;
+                    }
+                }
+            } else {
+                index = rhs[i].getFirstValueIndex(p);
+                r[i] = rhs[i].getDouble(index);
+            }
         }
         processCommon(builder, nulls, l, r);
     }
 
     @Evaluator(extraName = "BytesRef", warnExceptions = { IllegalArgumentException.class })
     static void process(BooleanBlock.Builder builder, int p, BytesRefBlock lhs, BytesRefBlock[] rhs) {
-        checkMV(p, lhs);
+        checkLHS(p, lhs);
         BytesRef lhsScratch = new BytesRef();
         BytesRef l = lhs.getBytesRef(lhs.getFirstValueIndex(p), lhsScratch);
         BytesRef[] r = new BytesRef[rhs.length];
         BytesRef[] rhsScratch = new BytesRef[rhs.length];
         BitSet nulls = new BitSet(rhs.length);
         int index;
-        for (int i = 0; i < rhs.length; i++) {
-            checkMV(p, rhs[i]);
+        rhs: for (int i = 0; i < rhs.length; i++) {
             if (rhs[i].isNull(p)) {
                 nulls.set(i);
                 continue;
             }
             rhsScratch[i] = new BytesRef();
-            index = rhs[i].getFirstValueIndex(p);
-            r[i] = rhs[i].getBytesRef(index, rhsScratch[i]);
+            if (rhs[i].getValueCount(p) > 1) {
+                int start = rhs[i].getFirstValueIndex(p);
+                int end = start + rhs[i].getValueCount(p);
+                for (int j = start; j < end; j++) {
+                    r[i] = rhs[i].getBytesRef(j, rhsScratch[i]);
+                    if (r[i] == l) {
+                        continue rhs;
+                    }
+                }
+            } else {
+                index = rhs[i].getFirstValueIndex(p);
+                r[i] = rhs[i].getBytesRef(index, rhsScratch[i]);
+            }
         }
         processCommon(builder, nulls, l, r);
     }

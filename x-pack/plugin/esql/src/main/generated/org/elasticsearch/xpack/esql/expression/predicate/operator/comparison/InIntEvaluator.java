@@ -60,10 +60,12 @@ public final class InIntEvaluator implements EvalOperator.ExpressionEvaluator {
         if (!lhsBlock.isNull(p)) {
           allBlocksAreNulls = false;
         }
-        aba: for (int i = 0; i < rhsBlocks.length; i++) {
-          if (!rhsBlocks[i].isNull(p)) {
+        for (int i = 0; i < rhsBlocks.length; i++) {
+          if (!rhsBlocks[i].isNull(p) && allBlocksAreNulls) {
             allBlocksAreNulls = false;
-            break aba;
+          }
+          if (rhsBlocks[i].getValueCount(p) > 1) {
+            warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
           }
         }
         if (allBlocksAreNulls) {

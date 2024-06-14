@@ -146,7 +146,7 @@ fe80::cae2:65ff:fece:fec1                             |[fe80::cae2:65ff:fece:feb
 ;
 
 in
-required_capability: in_evaluatormapper
+required_capability: mv_warn
 
 from hosts | eval eq=case(ip0==ip1, ip0, ip1) | where eq in (ip0, ip1) | keep card, host, ip0, ip1, eq;
 ignoreOrder:true
@@ -163,11 +163,12 @@ eth1           |beta           |127.0.0.1                                       
 eth1           |beta           |127.0.0.1                                                                        |128.0.0.1                |128.0.0.1
 lo0            |gamma          |fe80::cae2:65ff:fece:feb9                                                        |fe81::cae2:65ff:fece:feb9|fe81::cae2:65ff:fece:feb9
 eth0           |gamma          |fe80::cae2:65ff:fece:feb9                                                        |127.0.0.3                |127.0.0.3
+eth0           |epsilon        |[fe80::cae2:65ff:fece:feb9, fe80::cae2:65ff:fece:fec0, fe80::cae2:65ff:fece:fec1]|fe80::cae2:65ff:fece:fec1|fe80::cae2:65ff:fece:fec1
 ;
 
 
 inWithWarningsRegex#[skip:-8.13.99, reason:regex warnings in tests introduced in v 8.14.0]
-required_capability: in_evaluatormapper
+required_capability: mv_warn
 
 from hosts | eval eq=case(ip0==ip1, ip0, ip1) | where eq in (ip0, ip1) | keep card, host, ip0, ip1, eq;
 ignoreOrder:true
@@ -183,6 +184,7 @@ eth1           |beta           |127.0.0.1                                       
 eth1           |beta           |127.0.0.1                                                                        |128.0.0.1                |128.0.0.1
 lo0            |gamma          |fe80::cae2:65ff:fece:feb9                                                        |fe81::cae2:65ff:fece:feb9|fe81::cae2:65ff:fece:feb9
 eth0           |gamma          |fe80::cae2:65ff:fece:feb9                                                        |127.0.0.3                |127.0.0.3
+eth0           |epsilon        |[fe80::cae2:65ff:fece:feb9, fe80::cae2:65ff:fece:fec0, fe80::cae2:65ff:fece:fec1]|fe80::cae2:65ff:fece:fec1|fe80::cae2:65ff:fece:fec1
 ;
 
 cidrMatchSimple

@@ -519,10 +519,10 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                 @Override
                 public void onResponse(RolloverResponse result) {
                     logger.debug(
-                        "Data stream{} {} has {} over,  the latest index is {}",
+                        "Data stream{} {} has {} over, the latest index is {}",
                         rolloverRequest.targetsFailureStore() ? " failure store" : "",
                         dataStream,
-                        result.isRolledOver() ? "been successfully rolled" : "skipped rolling ",
+                        result.isRolledOver() ? "been successfully rolled" : "skipped rolling",
                         result.getNewIndex()
                     );
                 }

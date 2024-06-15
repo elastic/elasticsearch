@@ -131,7 +131,8 @@ inconsistencies and data loss.
 
 To prevent state from occurring, we recommend the following practices:
 
-* <<modules-discovery-voting,Avoid stopping more half of the voting nodes>> at the same time
+<<modules-discovery-voting,Avoid even 
+master-eligible node counts>> by creating an odd number of master-eligible nodes or adding a voting-only <<high-availability-cluster-design-two-nodes, tiebreaker>>
 
 * Remove the <<initial_master_nodes,`cluster.initial_master_nodes` 
 setting>> after <<modules-discovery-bootstrap-cluster,bootstrapping a cluster>>

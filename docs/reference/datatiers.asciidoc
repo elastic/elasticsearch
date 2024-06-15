@@ -12,8 +12,8 @@ The following data tiers are can be used with each data category:
 
 Content data:
 
-* <<content-tier,Content tier>> nodes handle the indexing and query load for content 
-indices, such as a <<system-indices,system index>> or a product catalog.
+* <<content-tier,Content tier>> nodes handle the indexing and query load for non-timeseries 
+indices, such as a product catalog.
 
 Time series data:
 
@@ -56,10 +56,10 @@ Using the principle that lower-temperature tiers should hold less frequently upd
 	- Search: 85% hot, 10% warm, 5% cold, and 1% frozen
 	- Ingest: 95% hot, 4% warm, 1% cold, and 0% frozen
 	
-	You can check how your access requests are distributed among your data tiers using the <<cat-thread-pool,CAT thread pools>> API.  If your lower temperature tiers are being accessed at higher proportions, then your cluster performance might be impacted. 
+	You can check how your access requests are distributed among your data tiers using the {kibana-ref}/xpack-monitoring.html[Stack Monitoring] UI after setting up <<monitoring-overview,{es} monitoring>>.  If your lower temperature tiers are being accessed at higher proportions, then your cluster performance might be impacted. 
 	
 	These proportions are intended to serve as a general baseline that you can apply to your specific 
-	use case, hardware profiles, and architecture.
+	use case, billing requirements, and response time needs. 
 ====
 
 [discrete]

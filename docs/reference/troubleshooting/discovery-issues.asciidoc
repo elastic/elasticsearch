@@ -131,9 +131,6 @@ inconsistencies and data loss.
 
 To prevent state from occurring, we recommend the following practices:
 
-* <<modules-discovery-voting,Avoid even 
-master-eligible node counts>> by creating an odd number of master-eligible nodes or adding a voting-only <<high-availability-cluster-design-two-nodes, tiebreaker>>
-
 * <<modules-discovery-voting,Avoid stopping more half of the voting nodes>> at the same time
 
 * Remove the <<initial_master_nodes,`cluster.initial_master_nodes` 
@@ -153,6 +150,18 @@ from within a cluster. Instead, you have to check for split-brain per node, usin
 [source,console]
 --------------------------------------------------
 GET /_cluster/state/master_node?local=true
+--------------------------------------------------
++ 
+Where for example the `cluster_name` would overlap but the `master_node` would 
+disagree across the two checked node's response bodies
++ 
+[source,json]
+--------------------------------------------------
+{
+  "cluster_name": "0fds584fes1es09s88se6c01j4290eed",
+  "cluster_uuid": "4spssZBssnshgVqWPiDzCA",
+  "master_node": "Zg1jXgyMQa2GavDr7MmIDA"
+}
 --------------------------------------------------
 
 * If a node's logs contain messages about cluster UUID disagreements, such as:
@@ -185,7 +194,7 @@ To resolve split-brain, do the following:
 . Choose which elected master to continue running the cluster. Usually 
 this will be the one recognized by the most nodes or containing the most desired data. 
 
-. Stop any nodes pointing to the other master or masters. While each node is stopped, fix any <<settings,`elasticsearch.yml`>> settings as highlighted above. 
+. Stop any nodes pointing to the other master or masters. While each node is stopped, remove the <<initial_master_nodes,`cluster.initial_master_nodes` setting>>, if present.
 
 . Attempt to restart the nodes. Start-up logs will show if the node is willing 
 and able to join the existing master, or if it refuses to leave previous cluster UUID. 

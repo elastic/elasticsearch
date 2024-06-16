@@ -126,6 +126,7 @@ import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPool.Names;
+import org.elasticsearch.transport.EmptyRequest;
 import org.elasticsearch.transport.TransportActionProxy;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -3158,7 +3159,7 @@ public class AuthorizationServiceTests extends ESTestCase {
     }
 
     public void testProxyRequestFailsOnNonProxyAction() {
-        TransportRequest request = TransportRequest.Empty.INSTANCE;
+        TransportRequest request = new EmptyRequest();
         DiscoveryNode node = DiscoveryNodeUtils.create("foo");
         TransportRequest transportRequest = TransportActionProxy.wrapRequest(node, request);
         final String requestId = AuditUtil.getOrGenerateRequestId(threadContext);
@@ -3177,7 +3178,7 @@ public class AuthorizationServiceTests extends ESTestCase {
     }
 
     public void testProxyRequestFailsOnNonProxyRequest() {
-        TransportRequest request = TransportRequest.Empty.INSTANCE;
+        TransportRequest request = new EmptyRequest();
         User user = new User("test user", "role");
         AuditUtil.getOrGenerateRequestId(threadContext);
         ElasticsearchSecurityException ese = expectThrows(

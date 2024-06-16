@@ -227,6 +227,10 @@ space of deleted Lucene documents when a segment is merged.
 `total_size_in_bytes`::
 (integer)
 Total size in bytes across all primary shards assigned to selected nodes.
+
+`total_size`::
+(string)
+Total size across all primary shards assigned to selected nodes, as a human-readable string.
 =====
 
 `store`::
@@ -1599,6 +1603,7 @@ The API returns the following response:
       "docs": {
          "count": 10,
          "deleted": 0,
+         "total_size": "8.6kb",
          "total_size_in_bytes": 8833
       },
       "store": {

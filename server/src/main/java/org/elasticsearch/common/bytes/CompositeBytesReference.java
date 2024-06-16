@@ -116,17 +116,19 @@ public final class CompositeBytesReference extends AbstractBytesReference {
         }
 
         final int firstReferenceIndex = getOffsetIndex(from);
-        for (int i = firstReferenceIndex; i < references.length; ++i) {
-            final BytesReference reference = references[i];
+        final BytesReference[] referencesAsLocal = references;
+        final int[] offsetsAsLocal = offsets;
+        for (int i = firstReferenceIndex; i < referencesAsLocal.length; ++i) {
+            final BytesReference reference = referencesAsLocal[i];
             final int internalFrom;
             if (i == firstReferenceIndex) {
-                internalFrom = from - offsets[firstReferenceIndex];
+                internalFrom = from - offsetsAsLocal[firstReferenceIndex];
             } else {
                 internalFrom = 0;
             }
             result = reference.indexOf(marker, internalFrom);
             if (result != -1) {
-                result += offsets[i];
+                result += offsetsAsLocal[i];
                 break;
             }
         }

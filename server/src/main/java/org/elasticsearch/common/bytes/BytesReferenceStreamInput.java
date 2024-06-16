@@ -56,6 +56,7 @@ class BytesReferenceStreamInput extends StreamInput {
 
     @Override
     public short readShort() throws IOException {
+        final ByteBuffer slice = this.slice;
         if (slice.remaining() >= 2) {
             return slice.getShort();
         } else {
@@ -66,6 +67,7 @@ class BytesReferenceStreamInput extends StreamInput {
 
     @Override
     public int readInt() throws IOException {
+        final ByteBuffer slice = this.slice;
         if (slice.remaining() >= 4) {
             return slice.getInt();
         } else {
@@ -76,6 +78,7 @@ class BytesReferenceStreamInput extends StreamInput {
 
     @Override
     public long readLong() throws IOException {
+        final ByteBuffer slice = this.slice;
         if (slice.remaining() >= 8) {
             return slice.getLong();
         } else {
@@ -87,6 +90,7 @@ class BytesReferenceStreamInput extends StreamInput {
     @Override
     public String readString() throws IOException {
         final int chars = readArraySize();
+        final ByteBuffer slice = this.slice;
         if (slice.hasArray()) {
             // attempt reading bytes directly into a string to minimize copying
             final String string = tryReadStringFromBytes(
@@ -104,6 +108,7 @@ class BytesReferenceStreamInput extends StreamInput {
 
     @Override
     public int readVInt() throws IOException {
+        final ByteBuffer slice = this.slice;
         if (slice.remaining() >= 5) {
             return ByteBufferStreamInput.readVInt(slice);
         }
@@ -112,6 +117,7 @@ class BytesReferenceStreamInput extends StreamInput {
 
     @Override
     public long readVLong() throws IOException {
+        final ByteBuffer slice = this.slice;
         if (slice.remaining() >= 10) {
             return ByteBufferStreamInput.readVLong(slice);
         } else {
@@ -161,6 +167,7 @@ class BytesReferenceStreamInput extends StreamInput {
 
     @Override
     public int read(final byte[] b, final int bOffset, final int len) throws IOException {
+        final ByteBuffer slice = this.slice;
         if (slice.remaining() >= len) {
             slice.get(b, bOffset, len);
             return len;
@@ -226,6 +233,7 @@ class BytesReferenceStreamInput extends StreamInput {
         int remaining = numBytesSkipped;
         while (remaining > 0) {
             maybeNextSlice();
+            final ByteBuffer slice = this.slice;
             int currentLen = Math.min(remaining, slice.remaining());
             remaining -= currentLen;
             slice.position(slice.position() + currentLen);

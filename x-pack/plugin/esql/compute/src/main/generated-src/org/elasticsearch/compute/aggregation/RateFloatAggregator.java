@@ -18,11 +18,7 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
-$if(float)$
 import org.elasticsearch.compute.data.FloatBlock;
-$elseif(int)$
-import org.elasticsearch.compute.data.IntBlock;
-$endif$
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.operator.DriverContext;
@@ -32,31 +28,31 @@ import org.elasticsearch.core.Releasables;
 import java.util.Arrays;
 
 /**
- * A rate grouping aggregation definition for $type$.
+ * A rate grouping aggregation definition for float.
  * This class is generated. Edit `X-RateAggregator.java.st` instead.
  */
 @GroupingAggregator(
     includeTimestamps = true,
     value = {
         @IntermediateState(name = "timestamps", type = "LONG_BLOCK"),
-        @IntermediateState(name = "values", type = "$TYPE$_BLOCK"),
+        @IntermediateState(name = "values", type = "FLOAT_BLOCK"),
         @IntermediateState(name = "resets", type = "DOUBLE") }
 )
-public class Rate$Type$Aggregator {
+public class RateFloatAggregator {
 
-    public static $Type$RateGroupingState initGrouping(DriverContext driverContext, long unitInMillis) {
-        return new $Type$RateGroupingState(driverContext.bigArrays(), driverContext.breaker(), unitInMillis);
+    public static FloatRateGroupingState initGrouping(DriverContext driverContext, long unitInMillis) {
+        return new FloatRateGroupingState(driverContext.bigArrays(), driverContext.breaker(), unitInMillis);
     }
 
-    public static void combine($Type$RateGroupingState current, int groupId, long timestamp, $type$ value) {
+    public static void combine(FloatRateGroupingState current, int groupId, long timestamp, float value) {
         current.append(groupId, timestamp, value);
     }
 
     public static void combineIntermediate(
-        $Type$RateGroupingState current,
+        FloatRateGroupingState current,
         int groupId,
         LongBlock timestamps,
-        $Type$Block values,
+        FloatBlock values,
         double reset,
         int otherPosition
     ) {
@@ -64,40 +60,40 @@ public class Rate$Type$Aggregator {
     }
 
     public static void combineStates(
-        $Type$RateGroupingState current,
+        FloatRateGroupingState current,
         int currentGroupId, // make the stylecheck happy
-        $Type$RateGroupingState otherState,
+        FloatRateGroupingState otherState,
         int otherGroupId
     ) {
         current.combineState(currentGroupId, otherState, otherGroupId);
     }
 
-    public static Block evaluateFinal($Type$RateGroupingState state, IntVector selected, DriverContext driverContext) {
+    public static Block evaluateFinal(FloatRateGroupingState state, IntVector selected, DriverContext driverContext) {
         return state.evaluateFinal(selected, driverContext.blockFactory());
     }
 
-    private static class $Type$RateState {
-        static final long BASE_RAM_USAGE = RamUsageEstimator.sizeOfObject($Type$RateState.class);
+    private static class FloatRateState {
+        static final long BASE_RAM_USAGE = RamUsageEstimator.sizeOfObject(FloatRateState.class);
         final long[] timestamps; // descending order
-        final $type$[] values;
+        final float[] values;
         double reset = 0;
 
-        $Type$RateState(int initialSize) {
+        FloatRateState(int initialSize) {
             this.timestamps = new long[initialSize];
-            this.values = new $type$[initialSize];
+            this.values = new float[initialSize];
         }
 
-        $Type$RateState(long[] ts, $type$[] vs) {
+        FloatRateState(long[] ts, float[] vs) {
             this.timestamps = ts;
             this.values = vs;
         }
 
-        private $type$ dv($type$ v0, $type$ v1) {
+        private float dv(float v0, float v1) {
             // counter reset detection
             return v0 > v1 ? v1 : v1 - v0;
         }
 
-        void append(long t, $type$ v) {
+        void append(long t, float v) {
             assert timestamps.length == 2 : "expected two timestamps; got " + timestamps.length;
             assert t < timestamps[1] : "@timestamp goes backward: " + t + " >= " + timestamps[1];
             reset += dv(v, values[1]) + dv(values[1], values[0]) - dv(v, values[0]);
@@ -111,19 +107,19 @@ public class Rate$Type$Aggregator {
 
         static long bytesUsed(int entries) {
             var ts = RamUsageEstimator.alignObjectSize(RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) Long.BYTES * entries);
-            var vs = RamUsageEstimator.alignObjectSize(RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) $BYTES$ * entries);
+            var vs = RamUsageEstimator.alignObjectSize(RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) Float.BYTES * entries);
             return BASE_RAM_USAGE + ts + vs;
         }
     }
 
-    public static final class $Type$RateGroupingState implements Releasable, Accountable, GroupingAggregatorState {
-        private ObjectArray<$Type$RateState> states;
+    public static final class FloatRateGroupingState implements Releasable, Accountable, GroupingAggregatorState {
+        private ObjectArray<FloatRateState> states;
         private final long unitInMillis;
         private final BigArrays bigArrays;
         private final CircuitBreaker breaker;
         private long stateBytes; // for individual states
 
-        $Type$RateGroupingState(BigArrays bigArrays, CircuitBreaker breaker, long unitInMillis) {
+        FloatRateGroupingState(BigArrays bigArrays, CircuitBreaker breaker, long unitInMillis) {
             this.bigArrays = bigArrays;
             this.breaker = breaker;
             this.states = bigArrays.newObjectArray(1);
@@ -140,26 +136,26 @@ public class Rate$Type$Aggregator {
             assert stateBytes >= 0 : stateBytes;
         }
 
-        void append(int groupId, long timestamp, $type$ value) {
+        void append(int groupId, long timestamp, float value) {
             ensureCapacity(groupId);
             var state = states.get(groupId);
             if (state == null) {
-                adjustBreaker($Type$RateState.bytesUsed(1));
-                state = new $Type$RateState(new long[] { timestamp }, new $type$[] { value });
+                adjustBreaker(FloatRateState.bytesUsed(1));
+                state = new FloatRateState(new long[] { timestamp }, new float[] { value });
                 states.set(groupId, state);
             } else {
                 if (state.entries() == 1) {
-                    adjustBreaker($Type$RateState.bytesUsed(2));
-                    state = new $Type$RateState(new long[] { state.timestamps[0], timestamp }, new $type$[] { state.values[0], value });
+                    adjustBreaker(FloatRateState.bytesUsed(2));
+                    state = new FloatRateState(new long[] { state.timestamps[0], timestamp }, new float[] { state.values[0], value });
                     states.set(groupId, state);
-                    adjustBreaker(-$Type$RateState.bytesUsed(1)); // old state
+                    adjustBreaker(-FloatRateState.bytesUsed(1)); // old state
                 } else {
                     state.append(timestamp, value);
                 }
             }
         }
 
-        void combine(int groupId, LongBlock timestamps, $Type$Block values, double reset, int otherPosition) {
+        void combine(int groupId, LongBlock timestamps, FloatBlock values, double reset, int otherPosition) {
             final int valueCount = timestamps.getValueCount(otherPosition);
             if (valueCount == 0) {
                 return;
@@ -168,26 +164,26 @@ public class Rate$Type$Aggregator {
             ensureCapacity(groupId);
             var state = states.get(groupId);
             if (state == null) {
-                adjustBreaker($Type$RateState.bytesUsed(valueCount));
-                state = new $Type$RateState(valueCount);
+                adjustBreaker(FloatRateState.bytesUsed(valueCount));
+                state = new FloatRateState(valueCount);
                 state.reset = reset;
                 states.set(groupId, state);
                 // TODO: add bulk_copy to Block
                 for (int i = 0; i < valueCount; i++) {
                     state.timestamps[i] = timestamps.getLong(firstIndex + i);
-                    state.values[i] = values.get$Type$(firstIndex + i);
+                    state.values[i] = values.getFloat(firstIndex + i);
                 }
             } else {
-                adjustBreaker($Type$RateState.bytesUsed(state.entries() + valueCount));
-                var newState = new $Type$RateState(state.entries() + valueCount);
+                adjustBreaker(FloatRateState.bytesUsed(state.entries() + valueCount));
+                var newState = new FloatRateState(state.entries() + valueCount);
                 newState.reset = state.reset + reset;
                 states.set(groupId, newState);
                 merge(state, newState, firstIndex, valueCount, timestamps, values);
-                adjustBreaker(-$Type$RateState.bytesUsed(state.entries())); // old state
+                adjustBreaker(-FloatRateState.bytesUsed(state.entries())); // old state
             }
         }
 
-        void merge($Type$RateState curr, $Type$RateState dst, int firstIndex, int rightCount, LongBlock timestamps, $Type$Block values) {
+        void merge(FloatRateState curr, FloatRateState dst, int firstIndex, int rightCount, LongBlock timestamps, FloatBlock values) {
             int i = 0, j = 0, k = 0;
             final int leftCount = curr.entries();
             while (i < leftCount && j < rightCount) {
@@ -199,7 +195,7 @@ public class Rate$Type$Aggregator {
                     ++i;
                 } else {
                     dst.timestamps[k] = t2;
-                    dst.values[k] = values.get$Type$(firstIndex + j);
+                    dst.values[k] = values.getFloat(firstIndex + j);
                     ++j;
                 }
                 ++k;
@@ -210,13 +206,13 @@ public class Rate$Type$Aggregator {
             }
             while (j < rightCount) {
                 dst.timestamps[k] = timestamps.getLong(firstIndex + j);
-                dst.values[k] = values.get$Type$(firstIndex + j);
+                dst.values[k] = values.getFloat(firstIndex + j);
                 ++k;
                 ++j;
             }
         }
 
-        void combineState(int groupId, $Type$RateGroupingState otherState, int otherGroupId) {
+        void combineState(int groupId, FloatRateGroupingState otherState, int otherGroupId) {
             var other = otherGroupId < otherState.states.size() ? otherState.states.get(otherGroupId) : null;
             if (other == null) {
                 return;
@@ -225,8 +221,8 @@ public class Rate$Type$Aggregator {
             var curr = states.get(groupId);
             if (curr == null) {
                 var len = other.entries();
-                adjustBreaker($Type$RateState.bytesUsed(len));
-                curr = new $Type$RateState(Arrays.copyOf(other.timestamps, len), Arrays.copyOf(other.values, len));
+                adjustBreaker(FloatRateState.bytesUsed(len));
+                curr = new FloatRateState(Arrays.copyOf(other.timestamps, len), Arrays.copyOf(other.values, len));
                 curr.reset = other.reset;
                 states.set(groupId, curr);
             } else {
@@ -234,10 +230,10 @@ public class Rate$Type$Aggregator {
             }
         }
 
-        $Type$RateState mergeState($Type$RateState s1, $Type$RateState s2) {
+        FloatRateState mergeState(FloatRateState s1, FloatRateState s2) {
             var newLen = s1.entries() + s2.entries();
-            adjustBreaker($Type$RateState.bytesUsed(newLen));
-            var dst = new $Type$RateState(newLen);
+            adjustBreaker(FloatRateState.bytesUsed(newLen));
+            var dst = new FloatRateState(newLen);
             dst.reset = s1.reset + s2.reset;
             int i = 0, j = 0, k = 0;
             while (i < s1.entries() && j < s2.entries()) {
@@ -276,7 +272,7 @@ public class Rate$Type$Aggregator {
             final int positionCount = selected.getPositionCount();
             try (
                 LongBlock.Builder timestamps = blockFactory.newLongBlockBuilder(positionCount * 2);
-                $Type$Block.Builder values = blockFactory.new$Type$BlockBuilder(positionCount * 2);
+                FloatBlock.Builder values = blockFactory.newFloatBlockBuilder(positionCount * 2);
                 DoubleVector.FixedBuilder resets = blockFactory.newDoubleVectorFixedBuilder(positionCount)
             ) {
                 for (int i = 0; i < positionCount; i++) {
@@ -290,8 +286,8 @@ public class Rate$Type$Aggregator {
                         timestamps.endPositionEntry();
 
                         values.beginPositionEntry();
-                        for ($type$ v : state.values) {
-                            values.append$Type$(v);
+                        for (float v : state.values) {
+                            values.appendFloat(v);
                         }
                         values.endPositionEntry();
 

@@ -409,6 +409,11 @@ tasks.named('stringTemplates').configure {
     it.outputFile = "org/elasticsearch/compute/aggregation/LongState.java"
   }
   template {
+    it.properties = floatProperties
+    it.inputFile =  stateInputFile
+    it.outputFile = "org/elasticsearch/compute/aggregation/FloatState.java"
+  }
+  template {
     it.properties = doubleProperties
     it.inputFile =  stateInputFile
     it.outputFile = "org/elasticsearch/compute/aggregation/DoubleState.java"
@@ -461,6 +466,11 @@ tasks.named('stringTemplates').configure {
     it.inputFile =  arrayStateInputFile
     it.outputFile = "org/elasticsearch/compute/aggregation/DoubleArrayState.java"
   }
+  template {
+    it.properties = floatProperties
+    it.inputFile =  arrayStateInputFile
+    it.outputFile = "org/elasticsearch/compute/aggregation/FloatArrayState.java"
+  }
   File valuesAggregatorInputFile = new File("${projectDir}/src/main/java/org/elasticsearch/compute/aggregation/X-ValuesAggregator.java.st")
   template {
     it.properties = intProperties
@@ -471,6 +481,11 @@ tasks.named('stringTemplates').configure {
     it.properties = longProperties
     it.inputFile =  valuesAggregatorInputFile
     it.outputFile = "org/elasticsearch/compute/aggregation/ValuesLongAggregator.java"
+  }
+  template {
+    it.properties = floatProperties
+    it.inputFile =  valuesAggregatorInputFile
+    it.outputFile = "org/elasticsearch/compute/aggregation/ValuesFloatAggregator.java"
   }
   template {
     it.properties = doubleProperties
@@ -493,6 +508,11 @@ tasks.named('stringTemplates').configure {
     it.properties = longProperties
     it.inputFile =  rateAggregatorInputFile
     it.outputFile = "org/elasticsearch/compute/aggregation/RateLongAggregator.java"
+  }
+  template {
+    it.properties = floatProperties
+    it.inputFile =  rateAggregatorInputFile
+    it.outputFile = "org/elasticsearch/compute/aggregation/RateFloatAggregator.java"
   }
   template {
     it.properties = doubleProperties

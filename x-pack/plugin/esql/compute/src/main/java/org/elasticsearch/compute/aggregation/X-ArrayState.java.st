@@ -17,10 +17,7 @@ import org.elasticsearch.compute.data.$Type$Block;
 $if(int)$
 import org.elasticsearch.compute.data.$Type$Vector;
 $endif$
-$if(double)$
-import org.elasticsearch.compute.data.IntVector;
-$endif$
-$if(float)$
+$if(double||float)$
 import org.elasticsearch.compute.data.IntVector;
 $endif$
 import org.elasticsearch.compute.operator.DriverContext;

@@ -14,6 +14,7 @@ import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 
 import java.io.IOException;
@@ -24,12 +25,10 @@ public abstract class BaseNodesRequest<Request extends BaseNodesRequest<Request>
      * the list of nodesIds that will be used to resolve this request and {@link #concreteNodes}
      * will be populated. Note that if {@link #concreteNodes} is not null, it will be used and nodeIds
      * will be ignored.
-     *
+     * <p>
      * See {@link DiscoveryNodes#resolveNodes} for a full description of the options.
-     *
-     * TODO: we can get rid of this and resolve it to concrete nodes in the rest layer
      **/
-    private String[] nodesIds;
+    private final String[] nodesIds;
 
     /**
      * once {@link #nodesIds} are resolved this will contain the concrete nodes that are part of this request. If set, {@link #nodesIds}
@@ -37,6 +36,7 @@ public abstract class BaseNodesRequest<Request extends BaseNodesRequest<Request>
      * */
     private DiscoveryNode[] concreteNodes;
 
+    @Nullable // if no timeout
     private TimeValue timeout;
 
     protected BaseNodesRequest(String... nodesIds) {
@@ -50,12 +50,6 @@ public abstract class BaseNodesRequest<Request extends BaseNodesRequest<Request>
 
     public final String[] nodesIds() {
         return nodesIds;
-    }
-
-    @SuppressWarnings("unchecked")
-    public final Request nodesIds(String... nodesIds) {
-        this.nodesIds = nodesIds;
-        return (Request) this;
     }
 
     public TimeValue timeout() {

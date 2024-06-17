@@ -42,13 +42,3 @@ The following services are available through the {infer} API, click the links to
 * <<infer-service-hugging-face,Hugging Face>>
 * <<infer-service-mistral,Mistral>>
 * <<infer-service-openai,OpenAI>>
-
-include::service-azure-ai-studio.asciidoc[]
-include::service-azure-openai.asciidoc[]
-include::service-cohere.asciidoc[]
-include::service-elasticsearch.asciidoc[]
-include::service-elser.asciidoc[]
-include::service-google-ai-studio.asciidoc[]
-include::service-hugging-face.asciidoc[]
-include::service-mistral.asciidoc[]
-include::service-openai.asciidoc[]

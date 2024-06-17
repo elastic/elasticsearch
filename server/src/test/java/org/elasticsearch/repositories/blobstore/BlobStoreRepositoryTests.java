@@ -8,9 +8,18 @@
 
 package org.elasticsearch.repositories.blobstore;
 
+import org.apache.logging.log4j.Level;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
+import org.elasticsearch.action.admin.cluster.repositories.delete.DeleteRepositoryRequest;
+import org.elasticsearch.action.admin.cluster.repositories.delete.TransportDeleteRepositoryAction;
+import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
+import org.elasticsearch.action.admin.cluster.repositories.put.TransportPutRepositoryAction;
+import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
+import org.elasticsearch.action.admin.cluster.snapshots.create.TransportCreateSnapshotAction;
+import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
+import org.elasticsearch.action.admin.cluster.snapshots.get.TransportGetSnapshotsAction;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.action.support.RefCountingRunnable;
@@ -20,6 +29,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Numbers;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -49,6 +59,7 @@ import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
 
@@ -534,5 +545,104 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
         assertEquals(expectedShardGenerations.build(), shardBlobsToDelete.getUpdatedShardGenerations());
         shardBlobsToDelete.getBlobPaths().forEachRemaining(s -> assertTrue(expectedBlobsToDelete.remove(s)));
         assertThat(expectedBlobsToDelete, empty());
+    }
+
+    public void testUuidCreationLogging() {
+        final var repo = setupRepo();
+        final var repoMetadata = repo.getMetadata();
+        final var repoName = repoMetadata.name();
+        final var snapshot = randomIdentifier();
+
+        MockLog.assertThatLogger(
+            () -> safeGet(
+                client().execute(TransportCreateSnapshotAction.TYPE, new CreateSnapshotRequest(repoName, snapshot).waitForCompletion(true))
+            ),
+            BlobStoreRepository.class,
+            new MockLog.SeenEventExpectation(
+                "new repo uuid message",
+                BlobStoreRepository.class.getCanonicalName(),
+                Level.INFO,
+                Strings.format("Generated new repository UUID [*] for repository [%s] in generation [*]", repoName)
+            )
+        );
+
+        MockLog.assertThatLogger(
+            // no more "Generated" messages ...
+            () -> {
+                safeGet(client().execute(TransportDeleteRepositoryAction.TYPE, new DeleteRepositoryRequest(repoName)));
+
+                // we get a "Registering" message when re-registering the repository with ?verify=true (the default)
+                MockLog.assertThatLogger(
+                    () -> safeGet(
+                        client().execute(
+                            TransportPutRepositoryAction.TYPE,
+                            new PutRepositoryRequest(repoName).type("fs").verify(true).settings(repoMetadata.settings())
+                        )
+                    ),
+                    RepositoriesService.class,
+                    new MockLog.SeenEventExpectation(
+                        "existing repo uuid message",
+                        RepositoriesService.class.getCanonicalName(),
+                        Level.INFO,
+                        Strings.format("Registering repository [%s] with repository UUID *", repoName)
+                    )
+                );
+
+                safeGet(
+                    client().execute(
+                        TransportCreateSnapshotAction.TYPE,
+                        new CreateSnapshotRequest(repoName, randomIdentifier()).waitForCompletion(true)
+                    )
+                );
+                assertTrue(
+                    safeGet(client().execute(TransportGetSnapshotsAction.TYPE, new GetSnapshotsRequest(repoName))).getSnapshots()
+                        .stream()
+                        .anyMatch(snapshotInfo -> snapshotInfo.snapshotId().getName().equals(snapshot))
+                );
+
+                safeGet(client().execute(TransportDeleteRepositoryAction.TYPE, new DeleteRepositoryRequest(repoName)));
+
+                // No "Registering" message with ?verify=false because we don't read the repo data yet
+                MockLog.assertThatLogger(
+                    () -> safeGet(
+                        client().execute(
+                            TransportPutRepositoryAction.TYPE,
+                            new PutRepositoryRequest(repoName).type("fs").verify(false).settings(repoMetadata.settings())
+                        )
+                    ),
+                    RepositoriesService.class,
+                    new MockLog.UnseenEventExpectation(
+                        "existing repo uuid message",
+                        RepositoriesService.class.getCanonicalName(),
+                        Level.INFO,
+                        "Registering repository*"
+                    )
+                );
+
+                // But we do get the "Registering" message the first time we read the repo
+                MockLog.assertThatLogger(
+                    () -> safeGet(
+                        client().execute(
+                            TransportCreateSnapshotAction.TYPE,
+                            new CreateSnapshotRequest(repoName, randomIdentifier()).waitForCompletion(true)
+                        )
+                    ),
+                    RepositoriesService.class,
+                    new MockLog.SeenEventExpectation(
+                        "existing repo uuid message",
+                        RepositoriesService.class.getCanonicalName(),
+                        Level.INFO,
+                        Strings.format("Registering repository [%s] with repository UUID *", repoName)
+                    )
+                );
+            },
+            BlobStoreRepository.class,
+            new MockLog.UnseenEventExpectation(
+                "no repo uuid generated messages",
+                BlobStoreRepository.class.getCanonicalName(),
+                Level.INFO,
+                "Generated new repository UUID*"
+            )
+        );
     }
 }

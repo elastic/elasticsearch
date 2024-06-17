@@ -35,8 +35,8 @@ import org.apache.lucene.util.quantization.QuantizedByteVectorValues;
 import org.apache.lucene.util.quantization.QuantizedVectorsReader;
 import org.apache.lucene.util.quantization.RandomAccessQuantizedByteVectorValues;
 import org.apache.lucene.util.quantization.ScalarQuantizer;
-import org.elasticsearch.vec.VectorScorerFactory;
-import org.elasticsearch.vec.VectorSimilarityType;
+import org.elasticsearch.simdvec.VectorScorerFactory;
+import org.elasticsearch.simdvec.VectorSimilarityType;
 
 import java.io.IOException;
 

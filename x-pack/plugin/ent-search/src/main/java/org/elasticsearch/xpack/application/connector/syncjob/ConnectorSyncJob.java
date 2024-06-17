@@ -101,7 +101,7 @@ public class ConnectorSyncJob implements Writeable, ToXContentObject {
 
     public static final ParseField TRIGGER_METHOD_FIELD = new ParseField("trigger_method");
 
-    static final ParseField WORKER_HOSTNAME_FIELD = new ParseField("worker_hostname");
+    public static final ParseField WORKER_HOSTNAME_FIELD = new ParseField("worker_hostname");
 
     static final ConnectorSyncStatus DEFAULT_INITIAL_STATUS = ConnectorSyncStatus.PENDING;
 

@@ -208,7 +208,7 @@ public class ClusterAdminClient implements ElasticsearchClient {
     }
 
     public NodesInfoRequestBuilder prepareNodesInfo(String... nodesIds) {
-        return new NodesInfoRequestBuilder(this).setNodesIds(nodesIds);
+        return new NodesInfoRequestBuilder(this, nodesIds);
     }
 
     public void clusterStats(ClusterStatsRequest request, ActionListener<ClusterStatsResponse> listener) {
@@ -228,7 +228,7 @@ public class ClusterAdminClient implements ElasticsearchClient {
     }
 
     public NodesStatsRequestBuilder prepareNodesStats(String... nodesIds) {
-        return new NodesStatsRequestBuilder(this).setNodesIds(nodesIds);
+        return new NodesStatsRequestBuilder(this, nodesIds);
     }
 
     public ActionFuture<NodesCapabilitiesResponse> nodesCapabilities(final NodesCapabilitiesRequest request) {

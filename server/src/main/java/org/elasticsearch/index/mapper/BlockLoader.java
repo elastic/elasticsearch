@@ -456,6 +456,13 @@ public interface BlockLoader {
         BytesRefBuilder appendBytesRef(BytesRef value);
     }
 
+    interface FloatBuilder extends Builder {
+        /**
+         * Appends a float to the current entry.
+         */
+        FloatBuilder appendFloat(float value);
+    }
+
     interface DoubleBuilder extends Builder {
         /**
          * Appends a double to the current entry.

@@ -31,6 +31,32 @@
   - is_true: nodes.network_types
 
 ---
+"cluster stats with human flag returns docs as human readable size":
+  - requires:
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: GET
+          path: /_cluster/stats
+          capabilities:
+            - "human-readable-total-docs-size"
+      reason: "Capability required to run test"
+
+  - do:
+      index:
+        index: test
+        id: "1"
+        refresh: true
+        body:
+          foo: bar
+
+  - do:
+      cluster.stats:
+        human: true
+
+  - exists: indices.docs.total_size_in_bytes
+  - exists: indices.docs.total_size
+
+---
 "get cluster stats returns cluster_uuid at the top level":
 
   - do:

@@ -141,7 +141,10 @@ public final class KeywordFieldMapper extends FieldMapper {
 
         private final Parameter<Boolean> indexed = Parameter.indexParam(m -> toType(m).indexed, true);
         private final Parameter<Boolean> hasDocValues = Parameter.docValuesParam(m -> toType(m).hasDocValues, true);
-        private final Parameter<Boolean> stored = Parameter.storeParam(m -> toType(m).fieldType.stored(), false);
+        private final Parameter<Boolean> stored = Parameter.storeParam(
+            m -> toType(m).mappedFieldType.getTextSearchInfo().luceneFieldType().stored(),
+            false
+        );
 
         private final Parameter<String> nullValue = Parameter.stringParam("null_value", false, m -> toType(m).fieldType().nullValue, null)
             .acceptsNull();
@@ -160,7 +163,10 @@ public final class KeywordFieldMapper extends FieldMapper {
         );
 
         private final Parameter<String> indexOptions = TextParams.keywordIndexOptions(m -> toType(m).indexOptions);
-        private final Parameter<Boolean> hasNorms = TextParams.norms(false, m -> toType(m).fieldType.omitNorms() == false);
+        private final Parameter<Boolean> hasNorms = TextParams.norms(
+            false,
+            m -> toType(m).mappedFieldType.getTextSearchInfo().luceneFieldType().omitNorms() == false
+        );
         private final Parameter<SimilarityProvider> similarity = TextParams.similarity(
             m -> toType(m).fieldType().getTextSearchInfo().similarity()
         );
@@ -846,7 +852,6 @@ public final class KeywordFieldMapper extends FieldMapper {
     private final boolean indexed;
     private final boolean hasDocValues;
     private final String indexOptions;
-    private final FieldType fieldType;
     private final String normalizerName;
     private final boolean splitQueriesOnWhitespace;
     private final Script script;
@@ -870,7 +875,6 @@ public final class KeywordFieldMapper extends FieldMapper {
         this.indexed = builder.indexed.getValue();
         this.hasDocValues = builder.hasDocValues.getValue();
         this.indexOptions = builder.indexOptions.getValue();
-        this.fieldType = freezeAndDeduplicateFieldType(fieldType);
         this.normalizerName = builder.normalizer.getValue();
         this.splitQueriesOnWhitespace = builder.splitQueriesOnWhitespace.getValue();
         this.script = builder.script.get();
@@ -905,6 +909,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         if (value == null) {
             return;
         }
+        var fieldType = mappedFieldType.getTextSearchInfo().luceneFieldType();
         // if field is disabled, skip indexing
         if ((fieldType.indexOptions() == IndexOptions.NONE) && (fieldType.stored() == false) && (fieldType().hasDocValues() == false)) {
             return;
@@ -1045,7 +1050,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                 "field [" + name() + "] of type [" + typeName() + "] doesn't support synthetic source because it declares a normalizer"
             );
         }
-        if (fieldType.stored()) {
+        if (mappedFieldType.getTextSearchInfo().luceneFieldType().stored()) {
             return new StringStoredFieldFieldLoader(
                 name(),
                 simpleName,

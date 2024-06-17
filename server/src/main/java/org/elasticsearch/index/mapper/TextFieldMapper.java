@@ -176,32 +176,7 @@ public final class TextFieldMapper extends FieldMapper {
         return new PrefixConfig(minChars, maxChars);
     }
 
-    private static final class FielddataFrequencyFilter implements ToXContent {
-        final double minFreq;
-        final double maxFreq;
-        final int minSegmentSize;
-
-        private FielddataFrequencyFilter(double minFreq, double maxFreq, int minSegmentSize) {
-            this.minFreq = minFreq;
-            this.maxFreq = maxFreq;
-            this.minSegmentSize = minSegmentSize;
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            FielddataFrequencyFilter that = (FielddataFrequencyFilter) o;
-            return Double.compare(that.minFreq, minFreq) == 0
-                && Double.compare(that.maxFreq, maxFreq) == 0
-                && minSegmentSize == that.minSegmentSize;
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(minFreq, maxFreq, minSegmentSize);
-        }
-
+    private record FielddataFrequencyFilter(double minFreq, double maxFreq, int minSegmentSize) implements ToXContent {
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
@@ -210,11 +185,6 @@ public final class TextFieldMapper extends FieldMapper {
             builder.field("min_segment_size", minSegmentSize);
             builder.endObject();
             return builder;
-        }
-
-        @Override
-        public String toString() {
-            return "{ min=" + minFreq + ", max=" + maxFreq + ", min_segment_size=" + minSegmentSize + " }";
         }
     }
 
@@ -242,7 +212,9 @@ public final class TextFieldMapper extends FieldMapper {
 
         private final Parameter<Boolean> index = Parameter.indexParam(m -> ((TextFieldMapper) m).index, true);
 
-        final Parameter<SimilarityProvider> similarity = TextParams.similarity(m -> ((TextFieldMapper) m).similarity);
+        final Parameter<SimilarityProvider> similarity = TextParams.similarity(
+            m -> ((TextFieldMapper) m).fieldType().getTextSearchInfo().similarity()
+        );
 
         final Parameter<String> indexOptions = TextParams.textIndexOptions(m -> ((TextFieldMapper) m).indexOptions);
         final Parameter<Boolean> norms = TextParams.norms(true, m -> ((TextFieldMapper) m).norms);
@@ -639,13 +611,9 @@ public final class TextFieldMapper extends FieldMapper {
         }
     }
 
-    private static final class SubFieldInfo {
+    private record SubFieldInfo(String field, FieldType fieldType, Analyzer analyzer) {
 
-        private final Analyzer analyzer;
-        private final FieldType fieldType;
-        private final String field;
-
-        SubFieldInfo(String field, FieldType fieldType, Analyzer analyzer) {
+        private SubFieldInfo(String field, FieldType fieldType, Analyzer analyzer) {
             this.fieldType = Mapper.freezeAndDeduplicateFieldType(fieldType);
             this.analyzer = analyzer;
             this.field = field;
@@ -1196,14 +1164,12 @@ public final class TextFieldMapper extends FieldMapper {
     private final String indexOptions;
     private final boolean norms;
     private final String termVectors;
-    private final SimilarityProvider similarity;
     private final NamedAnalyzer indexAnalyzer;
     private final IndexAnalyzers indexAnalyzers;
     private final int positionIncrementGap;
     private final PrefixConfig indexPrefixes;
     private final FielddataFrequencyFilter freqFilter;
     private final boolean fieldData;
-    private final FieldType fieldType;
     private final SubFieldInfo prefixFieldInfo;
     private final SubFieldInfo phraseFieldInfo;
 
@@ -1225,7 +1191,6 @@ public final class TextFieldMapper extends FieldMapper {
         if (fieldType.indexOptions() == IndexOptions.NONE && fieldType().fielddata()) {
             throw new IllegalArgumentException("Cannot enable fielddata on a [text] field that is not indexed: [" + name() + "]");
         }
-        this.fieldType = freezeAndDeduplicateFieldType(fieldType);
         this.prefixFieldInfo = prefixFieldInfo;
         this.phraseFieldInfo = phraseFieldInfo;
         this.indexCreatedVersion = builder.indexCreatedVersion;
@@ -1234,7 +1199,6 @@ public final class TextFieldMapper extends FieldMapper {
         this.positionIncrementGap = builder.analyzers.positionIncrementGap.getValue();
         this.index = builder.index.getValue();
         this.store = builder.store.getValue();
-        this.similarity = builder.similarity.getValue();
         this.indexOptions = builder.indexOptions.getValue();
         this.norms = builder.norms.getValue();
         this.termVectors = builder.termVectors.getValue();
@@ -1276,6 +1240,7 @@ public final class TextFieldMapper extends FieldMapper {
             return;
         }
 
+        var fieldType = mappedFieldType.getTextSearchInfo().luceneFieldType();
         if (fieldType.indexOptions() != IndexOptions.NONE || fieldType.stored()) {
             Field field = new Field(fieldType().name(), value, fieldType);
             context.doc().add(field);

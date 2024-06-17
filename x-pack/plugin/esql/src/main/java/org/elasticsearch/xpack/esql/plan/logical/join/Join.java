@@ -105,30 +105,6 @@ public class Join extends BinaryPlan {
     }
 
     /**
-     * Merge output fields, left hand side wins in name conflicts <strong>except</strong>
-     * for fields defined in {@link JoinConfig#matchFields()}.
-     */
-    public static List<Attribute> mergeOutput(
-        List<? extends Attribute> lhs,
-        List<? extends Attribute> rhs,
-        List<? extends Attribute> matchFields
-    ) {
-        List<Attribute> results = new ArrayList<>(lhs.size() + rhs.size());
-
-        for (Attribute a : lhs) {
-            if (rhs.contains(a) == false || matchFields.stream().anyMatch(m -> m.name().equals(a.name()))) {
-                results.add(a);
-            }
-        }
-        for (Attribute a : rhs) {
-            if (false == matchFields.stream().anyMatch(m -> m.name().equals(a.name()))) {
-                results.add(a);
-            }
-        }
-        return results;
-    }
-
-    /**
      * Make fields references, so we don't check if they exist in the index.
      * We do this for fields that we know don't come from the index.
      * <p>

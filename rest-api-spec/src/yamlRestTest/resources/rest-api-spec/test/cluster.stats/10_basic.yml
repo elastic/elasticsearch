@@ -33,7 +33,7 @@
 ---
 "cluster stats with human flag returns docs as human readable size":
   - requires:
-      test_runner_features: [capabilities]
+      test_runner_features: [ capabilities ]
       capabilities:
         - method: GET
           path: /_cluster/stats
@@ -356,6 +356,8 @@
                 type: sparse_vector
               another_vector:
                 type: sparse_vector
+              not_a_vector:
+                type: keyword
 
   - do:
       indices.create:
@@ -383,6 +385,7 @@
             d: 4.0
             e: 5.0
             f: 6.0
+          not_a_vector: "I'm not a vector"
 
   - do:
       index:
@@ -397,6 +400,13 @@
             j: 10.0
             k: 11.0
             l: 12.0
+
+  - do:
+      index:
+        index: test1
+        id: "3"
+        body:
+          not_a_vector: "seriously, I'm not a vector"
 
   - do:
       index:
@@ -427,7 +437,7 @@
 
   - do: { cluster.stats: { } }
 
-  - match: { indices.docs.count: 4 }
+  - match: { indices.docs.count: 5 }
   - match: { indices.docs.deleted: 0 }
   - match: { indices.sparse_vector.value_count: 7 }
 

@@ -11,7 +11,7 @@ Bulk adds and updates roles in the native realm.
 [[security-api-bulk-put-role-request]]
 ==== {api-request-title}
 
-`POST /_security/_bulk/role/` +
+`POST /_security/role/` +
 
 [[security-api-bulk-put-role-prereqs]]
 ==== {api-prereq-title}
@@ -101,7 +101,7 @@ The following example adds the roles called `my_admin_role` and `my_user_role`:
 
 [source,console]
 --------------------------------------------------
-POST /_security/_bulk/role
+POST /_security/role
 {
     "roles": {
         "my_admin_role": {
@@ -222,7 +222,7 @@ The following query would throw an error for `my_admin_role` but would be succes
 
 [source,console]
 --------------------------------------------------
-POST /_security/_bulk/role
+POST /_security/role
 {
     "roles": {
         "my_admin_role": {

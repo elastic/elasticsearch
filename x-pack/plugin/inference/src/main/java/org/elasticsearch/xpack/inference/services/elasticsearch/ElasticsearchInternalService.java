@@ -25,6 +25,7 @@ import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
+import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.ClientHelper;
@@ -46,6 +47,8 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfigUpd
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextEmbeddingConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextSimilarityConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TokenizationConfigUpdate;
+import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
+import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.settings.InternalServiceSettings;
 
 import java.io.IOException;
@@ -128,7 +131,8 @@ public class ElasticsearchInternalService implements InferenceService {
                 );
             } else {
                 var customElandInternalServiceSettings = (CustomElandInternalServiceSettings) CustomElandInternalServiceSettings.fromMap(
-                    serviceSettingsMap
+                    serviceSettingsMap,
+                    ConfigurationParseContext.REQUEST
                 ).build();
                 throwIfNotEmptyMap(serviceSettingsMap, name());
 
@@ -214,12 +218,48 @@ public class ElasticsearchInternalService implements InferenceService {
                 (MultilingualE5SmallInternalServiceSettings) MultilingualE5SmallInternalServiceSettings.fromMap(serviceSettingsMap).build()
             );
         } else {
-            var serviceSettings = (CustomElandInternalServiceSettings) CustomElandInternalServiceSettings.fromMap(serviceSettingsMap)
-                .build();
+            var serviceSettings = (CustomElandInternalServiceSettings) CustomElandInternalServiceSettings.fromMap(
+                serviceSettingsMap,
+                ConfigurationParseContext.PERSISTENT
+            ).build();
             var taskSettings = CustomElandModel.taskSettingsFromMap(taskType, taskSettingsMap);
 
             return CustomElandModel.build(inferenceEntityId, taskType, name(), serviceSettings, taskSettings);
         }
+    }
+
+    @Override
+    public void checkModelConfig(Model model, ActionListener<Model> listener) {
+        if (model instanceof CustomElandModel elandModel && elandModel.getTaskType() == TaskType.TEXT_EMBEDDING) {
+            ServiceUtils.getEmbeddingSize(
+                model,
+                this,
+                listener.delegateFailureAndWrap((l, size) -> l.onResponse(updateModelWithEmbeddingDetails(elandModel, size)))
+            );
+        } else {
+            listener.onResponse(model);
+        }
+    }
+
+    private static CustomElandModel updateModelWithEmbeddingDetails(CustomElandModel model, int embeddingSize) {
+        var similarityFromModel = model.getServiceSettings().similarity();
+        var similarityToUse = similarityFromModel == null ? SimilarityMeasure.COSINE : similarityFromModel;
+
+        CustomElandInternalServiceSettings serviceSettings = new CustomElandInternalServiceSettings(
+            model.getServiceSettings().getNumAllocations(),
+            model.getServiceSettings().getNumThreads(),
+            model.getServiceSettings().getModelId(),
+            embeddingSize,
+            similarityToUse,
+            model.getServiceSettings().elementType()
+        );
+
+        return new CustomElandModel(
+            model.getInferenceEntityId(),
+            model.getTaskType(),
+            model.getConfigurations().getService(),
+            serviceSettings
+        );
     }
 
     @Override

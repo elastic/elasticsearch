@@ -248,56 +248,31 @@ languages:keyword | emp_no:integer
              five | 10004
 ;
 
-//
-// Ensure LOOKUP shadows variables correctly and consistently with the rest of
-// the language
-//
-lookupColumnShadowsExistingColumnWithSameTypeFromRow
-required_capability: lookup_command
-ROW int = 1, name = "foobar"
-| LOOKUP int_number_names on int
-;
-
-int:integer | name:keyword
-          1 | one
-;
-
-lookupColumnShadowsExistingColumnFromIndex
+shadowing
 required_capability: lookup_command
 FROM employees
 | KEEP emp_no
 | WHERE emp_no == 10001
-| EVAL name = 2, int = emp_no - 10000
-| LOOKUP int_number_names on int
-;
-
-emp_no:integer | int:integer | name:keyword
-         10001 |           1 | one
-;
-
-lookupLeavesOrderOfExistingColumnsIntactFromRow
-required_capability: lookup_command
-ROW left = "left", int = 1, name = "foobar", right = "right"
-| LOOKUP int_number_names on int
-;
-
-left:keyword | int:integer | right:keyword | name:keyword
-left         |           1 | right         | one
-;
-
-lookupLeavesOrderOfExistingColumnsIntactFromIndex
-required_capability: lookup_command
-FROM employees
-| KEEP emp_no
-| WHERE emp_no == 10001
-| EVAL left = "left", name = 2, int = emp_no - 10000, right = "right"
-| LOOKUP int_number_names on int
+| EVAL left = "left", int = emp_no - 10000, name = "name", right = "right"
+| LOOKUP int_number_names ON int
 ;
 
 emp_no:integer | left:keyword | int:integer | right:keyword | name:keyword
          10001 | left         |           1 | right         | one
 ;
 
+shadowingMulti
+required_capability: lookup_command
+FROM employees
+| KEEP emp_no
+| WHERE emp_no == 10001
+| EVAL left = "left", nb = -10011+emp_no, na = "na", middle = "middle", ab = "ab", aa = "bar", right = "right"
+| LOOKUP big ON aa, nb
+;
+
+emp_no:integer | left:keyword | nb:integer | middle:keyword | aa:keyword | right:keyword | ab:keyword | na:integer 
+         10001 | left         |        -10 | middle         | bar        | right         | zop        | 10
+;
 
 //
 // Make sure that the new LOOKUP syntax doesn't clash with any existing things

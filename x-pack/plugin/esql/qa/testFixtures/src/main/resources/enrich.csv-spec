@@ -31,11 +31,8 @@ FROM sample_data
 median_duration:double | env:keyword
 ;
 
-//
-// Shadowing and attribute order tests
-//
-
-shadowingLeavesOrderOfExistingColumnsIntact
+//TODO: align lookup, grok, dissect, eval tests
+shadowing
 ROW left = "left", client_ip = "127.0.0.1", env = "env", right = "right"
 | ENRICH clientip_policy ON client_ip
 | LIMIT 0
@@ -44,22 +41,31 @@ ROW left = "left", client_ip = "127.0.0.1", env = "env", right = "right"
 left:keyword | client_ip:keyword | right:keyword | env:keyword
 ;
 
-shadowingWithLeavesOrderOfExistingColumnsIntact
-ROW left = "left", env = "env", client_ip = "127.0.0.1", right = "right"
-| ENRICH clientip_policy ON client_ip WITH env
-| LIMIT 0
-;
-
-left:keyword | client_ip:keyword | right:keyword | env:keyword
-;
-
-shadowingWithAliasLeavesOrderOfExistingColumnsIntact
+shadowingWithAlias
 ROW left = "left", foo = "foo", client_ip = "127.0.0.1", env = "env", right = "right"
 | ENRICH clientip_policy ON client_ip WITH foo = env
 | LIMIT 0
 ;
 
 left:keyword | client_ip:keyword | env:keyword | right:keyword | foo:keyword
+;
+
+shadowingSelf
+ROW left = "left", client_ip = "127.0.0.1", env = "env", right = "right"
+| ENRICH clientip_policy ON client_ip WITH client_ip = env
+| LIMIT 0
+;
+
+left:keyword | env:keyword | right:keyword | client_ip:keyword
+;
+
+shadowingMulti
+ROW left = "left", airport = "Zurich Airport ZRH", city = "Zurich", middle = "middle", region = "North-East Switzerland", right = "right" 
+| ENRICH city_names ON city WITH airport, region, city_boundary
+| LIMIT 0
+;
+
+left:keyword | city:keyword | middle:keyword | right:keyword | airport:text | region:text | city_boundary:geo_shape
 ;
 
 simple

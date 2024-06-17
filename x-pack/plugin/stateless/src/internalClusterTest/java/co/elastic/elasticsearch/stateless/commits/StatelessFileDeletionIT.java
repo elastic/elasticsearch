@@ -19,19 +19,28 @@ package co.elastic.elasticsearch.stateless.commits;
 
 import co.elastic.elasticsearch.stateless.AbstractStatelessIntegTestCase;
 import co.elastic.elasticsearch.stateless.IndexingDiskController;
+import co.elastic.elasticsearch.stateless.Stateless;
 import co.elastic.elasticsearch.stateless.action.NewCommitNotificationRequest;
 import co.elastic.elasticsearch.stateless.action.NewCommitNotificationResponse;
 import co.elastic.elasticsearch.stateless.action.TransportGetVirtualBatchedCompoundCommitChunkAction;
 import co.elastic.elasticsearch.stateless.action.TransportNewCommitNotificationAction;
+import co.elastic.elasticsearch.stateless.cache.StatelessSharedBlobCacheService;
+import co.elastic.elasticsearch.stateless.cache.reader.CacheBlobReaderService;
+import co.elastic.elasticsearch.stateless.cache.reader.MutableObjectStoreUploadTracker;
 import co.elastic.elasticsearch.stateless.cluster.coordination.StatelessClusterConsistencyService;
 import co.elastic.elasticsearch.stateless.engine.PrimaryTermAndGeneration;
 import co.elastic.elasticsearch.stateless.engine.translog.TranslogReplicator;
+import co.elastic.elasticsearch.stateless.lucene.SearchDirectory;
+import co.elastic.elasticsearch.stateless.lucene.SearchIndexInput;
 import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
 import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreTestUtils;
 import co.elastic.elasticsearch.stateless.recovery.TransportRegisterCommitForRecoveryAction;
 
 import org.apache.logging.log4j.Level;
+import org.apache.lucene.store.IOContext;
+import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
@@ -44,9 +53,11 @@ import org.elasticsearch.cluster.coordination.Coordinator;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.CheckedRunnable;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexSettings;
@@ -56,17 +67,22 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.RecoveryClusterStateDelayListeners;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.search.SearchResponseUtils;
+import org.elasticsearch.snapshots.SnapshotInfo;
+import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TestTransportChannel;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportSettings;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.Locale;
@@ -75,6 +91,7 @@ import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -84,6 +101,7 @@ import java.util.stream.Collectors;
 
 import static co.elastic.elasticsearch.stateless.commits.StatelessCommitService.SHARD_INACTIVITY_DURATION_TIME_SETTING;
 import static co.elastic.elasticsearch.stateless.commits.StatelessCommitService.SHARD_INACTIVITY_MONITOR_INTERVAL_TIME_SETTING;
+import static co.elastic.elasticsearch.stateless.lucene.SearchDirectoryTestUtils.getCacheService;
 import static co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService.OBJECT_STORE_FILE_DELETION_DELAY;
 import static org.elasticsearch.cluster.coordination.FollowersChecker.FOLLOWER_CHECK_INTERVAL_SETTING;
 import static org.elasticsearch.cluster.coordination.FollowersChecker.FOLLOWER_CHECK_RETRY_COUNT_SETTING;
@@ -101,6 +119,7 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
@@ -108,9 +127,84 @@ import static org.hamcrest.Matchers.notNullValue;
 
 public class StatelessFileDeletionIT extends AbstractStatelessIntegTestCase {
 
+    /**
+     * A plugin that can block snapshot threads from opening {@link SearchIndexInput} instances
+     */
+    public static class SnapshotBlockerStatelessPlugin extends Stateless {
+
+        public final Semaphore snapshotBlocker = new Semaphore(Integer.MAX_VALUE);
+
+        public SnapshotBlockerStatelessPlugin(Settings settings) {
+            super(settings);
+        }
+
+        @Override
+        protected SearchDirectory createSearchDirectory(
+            StatelessSharedBlobCacheService cacheService,
+            CacheBlobReaderService cacheBlobReaderService,
+            MutableObjectStoreUploadTracker objectStoreUploadTracker,
+            ShardId shardId
+        ) {
+            return new TrackingSearchDirectory(cacheService, cacheBlobReaderService, objectStoreUploadTracker, shardId, snapshotBlocker);
+        }
+
+        private static class TrackingSearchDirectory extends SearchDirectory {
+
+            public final Semaphore blocker;
+
+            TrackingSearchDirectory(
+                StatelessSharedBlobCacheService cacheService,
+                CacheBlobReaderService cacheBlobReaderService,
+                MutableObjectStoreUploadTracker objectStoreUploadTracker,
+                ShardId shardId,
+                Semaphore blocker
+            ) {
+                super(cacheService, cacheBlobReaderService, objectStoreUploadTracker, shardId);
+                this.blocker = blocker;
+            }
+
+            @Override
+            public IndexInput openInput(String name, IOContext context) throws IOException {
+                if (EsExecutors.executorName(Thread.currentThread()).equals(ThreadPool.Names.SNAPSHOT)) {
+                    safeAcquire(blocker);
+                    try {
+                        return super.openInput(name, context);
+                    } finally {
+                        blocker.release();
+                    }
+                }
+                return super.openInput(name, context);
+            }
+        }
+
+        public Releasable blockSnapshots() {
+            try {
+                snapshotBlocker.tryAcquire(Integer.MAX_VALUE, SAFE_AWAIT_TIMEOUT.seconds(), TimeUnit.SECONDS);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                fail(e, "unable to acquire all permits");
+            }
+
+            return () -> {
+                if (snapshotBlocker.availablePermits() == 0) {
+                    unblockSnapshots();
+                }
+            };
+        }
+
+        public void unblockSnapshots() {
+            assert snapshotBlocker.availablePermits() == 0;
+            snapshotBlocker.release(Integer.MAX_VALUE);
+        }
+    }
+
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return CollectionUtils.appendToCopy(super.nodePlugins(), MockRepository.Plugin.class);
+        var plugins = new ArrayList<>(super.nodePlugins());
+        plugins.remove(Stateless.class);
+        plugins.add(SnapshotBlockerStatelessPlugin.class);
+        plugins.add(MockRepository.Plugin.class);
+        return plugins;
     }
 
     @Override
@@ -124,6 +218,100 @@ public class StatelessFileDeletionIT extends AbstractStatelessIntegTestCase {
             .put(Coordinator.PUBLISH_TIMEOUT_SETTING.getKey(), "1s")
             .put(TransportSettings.CONNECT_TIMEOUT.getKey(), "5s")
             .put(StatelessClusterConsistencyService.DELAYED_CLUSTER_CONSISTENCY_INTERVAL_SETTING.getKey(), "100ms");
+    }
+
+    public void testSnapshotRetainsCommits() throws Exception {
+        startMasterOnlyNode();
+        var indexNode = startIndexNode();
+        ensureStableCluster(2);
+
+        boolean fastRefresh = randomBoolean();
+        final var indexName = fastRefresh ? SYSTEM_INDEX_NAME : randomIdentifier();
+        final var settings = indexSettings(1, 0).put(IndexSettings.INDEX_FAST_REFRESH_SETTING.getKey(), fastRefresh)
+            .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.MINUS_ONE)
+            .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), ByteSizeValue.ofGb(1L))
+            .build();
+        if (fastRefresh) {
+            createSystemIndex(settings);
+        } else {
+            createIndex(indexName, settings);
+        }
+        ensureGreen(indexName);
+
+        indexDocsAndFlush(indexName);
+        final var genA = getIndexingShardTermAndGeneration(indexName, 0);
+        indexDocsAndFlush(indexName);
+        final var genB = getIndexingShardTermAndGeneration(indexName, 0);
+
+        final var indexShard = findIndexShard(indexName);
+
+        createRepository(logger, "test-repo", "fs");
+
+        final Thread snapshot = new Thread(() -> {
+            try {
+                String snapshotName = "test-snap-0";
+                CreateSnapshotResponse createSnapshotResponse = client().admin()
+                    .cluster()
+                    .prepareCreateSnapshot("test-repo", snapshotName)
+                    .setIncludeGlobalState(true)
+                    .setWaitForCompletion(true)
+                    .get();
+                final SnapshotInfo snapshotInfo = createSnapshotResponse.getSnapshotInfo();
+                assertThat(snapshotInfo.successfulShards(), is(snapshotInfo.totalShards()));
+                assertThat(snapshotInfo.state(), is(SnapshotState.SUCCESS));
+            } catch (Throwable e) {
+                throw new AssertionError(e);
+            }
+        });
+
+        var plugin = internalCluster().getInstance(PluginsService.class, indexNode)
+            .filterPlugins(SnapshotBlockerStatelessPlugin.class)
+            .findFirst()
+            .get();
+        try (Releasable ignored = plugin.blockSnapshots()) {
+            logger.info("Starting snapshot");
+            snapshot.start();
+            assertBusy(() -> assertTrue(plugin.snapshotBlocker.hasQueuedThreads()));
+
+            logger.info("Indexing more docs");
+            indexDocsAndFlush(indexName);
+            final var genC = getIndexingShardTermAndGeneration(indexName, 0);
+            indexDocsAndFlush(indexName);
+            final var genD = getIndexingShardTermAndGeneration(indexName, 0);
+
+            // force merge to one segment
+            logger.info("Force merging");
+            var forceMerge = client().admin().indices().prepareForceMerge(indexName).setMaxNumSegments(1).setFlush(false).get();
+            assertThat(forceMerge.getSuccessfulShards(), equalTo(1));
+            logger.info("Flushing");
+            flush(indexName);
+            final var genE = getIndexingShardTermAndGeneration(indexName, 0);
+
+            assertBusy(() -> {
+                var blobCommits = listBlobsTermAndGenerations(indexShard.shardId());
+                // genA and genB retained due to being referenced by the snapshot. genE retained as latest commit.
+                assertThat(blobCommits, hasItems(genA, genB, genE));
+                // genC and genD have been merged away and not referenced by anything.
+                assertThat(blobCommits, not(hasItems(genC, genD)));
+            });
+
+            // Evict everything from the indexing node's cache
+            logger.info("Evicting cache");
+            SearchDirectory indexShardSearchDirectory = SearchDirectory.unwrapDirectory(indexShard.store().directory());
+            getCacheService(indexShardSearchDirectory).forceEvict((key) -> true);
+
+            logger.info("Unblocking snapshot");
+            plugin.unblockSnapshots();
+            snapshot.join();
+
+            assertBusy(() -> {
+                var blobCommits = listBlobsTermAndGenerations(indexShard.shardId());
+                // genE retained as latest commit.
+                assertThat(blobCommits, hasItems(genE));
+                // genB and genC are ultimately deleted after the snapshot has ended.
+                assertThat(blobCommits, not(hasItems(genA, genB)));
+            });
+        }
     }
 
     public void testActiveTranslogFilesArePrunedAfterCommit() throws Exception {

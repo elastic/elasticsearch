@@ -40,6 +40,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
+import java.nio.file.NoSuchFileException;
 
 import static org.elasticsearch.blobcache.shared.SharedBytes.MAX_BYTES_PER_WRITE;
 
@@ -204,6 +205,9 @@ public final class SearchIndexInput extends BlobCacheBufferedIndexInput {
                             // TODO we should remove this and allow gap completion in SparseFileTracker even if progress < range end
                             progressUpdater.accept(len);
                         }
+                    } catch (NoSuchFileException ex) {
+                        logger.warn(() -> this + " did not find file", ex); // includes the file name of the SearchIndexInput
+                        throw ex;
                     }
                 });
                 byteBufferReference.finish(bytesRead);

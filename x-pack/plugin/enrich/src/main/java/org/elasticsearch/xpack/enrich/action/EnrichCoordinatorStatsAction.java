@@ -49,11 +49,6 @@ public class EnrichCoordinatorStatsAction extends ActionType<EnrichCoordinatorSt
         public Request() {
             super(new String[0]);
         }
-
-        @Override
-        public void writeTo(StreamOutput out) {
-            org.elasticsearch.action.support.TransportAction.localOnly();
-        }
     }
 
     public static class NodeRequest extends TransportRequest {

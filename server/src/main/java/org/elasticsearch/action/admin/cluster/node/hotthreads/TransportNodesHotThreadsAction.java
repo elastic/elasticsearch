@@ -16,7 +16,6 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.nodes.TransportNodesAction;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.Streams;
@@ -116,21 +115,15 @@ public class TransportNodesHotThreadsAction extends TransportNodesAction<
 
         NodeRequest(StreamInput in) throws IOException {
             super(in);
-            if (in.getTransportVersion().onOrAfter(TransportVersions.MORE_LIGHTER_NODES_REQUESTS)) {
-                requestOptions = HotThreads.RequestOptions.readFrom(in);
-            } else {
-                requestOptions = new NodesHotThreadsRequest(in).requestOptions;
-            }
+            skipLegacyNodesRequestHeader(TransportVersions.MORE_LIGHTER_NODES_REQUESTS, in);
+            requestOptions = HotThreads.RequestOptions.readFrom(in);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.MORE_LIGHTER_NODES_REQUESTS)) {
-                requestOptions.writeTo(out);
-            } else {
-                new NodesHotThreadsRequest(Strings.EMPTY_ARRAY, requestOptions).writeTo(out);
-            }
+            sendLegacyNodesRequestHeader(TransportVersions.MORE_LIGHTER_NODES_REQUESTS, out);
+            requestOptions.writeTo(out);
         }
     }
 }

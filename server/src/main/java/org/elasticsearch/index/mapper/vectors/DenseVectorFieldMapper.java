@@ -44,6 +44,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.codec.vectors.ES813FlatVectorFormat;
@@ -105,6 +106,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
     static boolean isNotUnitVector(float magnitude) {
         return Math.abs(magnitude - 1.0f) > EPS;
     }
+
+    public static final NodeFeature INT4_QUANTIZATION = new NodeFeature("mapper.vectors.int4_quantization");
 
     public static final IndexVersion MAGNITUDE_STORED_INDEX_VERSION = IndexVersions.V_7_5_0;
     public static final IndexVersion INDEXED_BY_DEFAULT_INDEX_VERSION = IndexVersions.FIRST_DETACHED_INDEX_VERSION;
@@ -198,6 +201,9 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 },
                 Objects::toString
             ).setSerializerCheck((id, ic, v) -> v != null).addValidator(v -> {
+                if (v != null && dims.isConfigured() && dims.get() != null) {
+                    v.validateDimension(dims.get());
+                }
                 if (v != null && v.supportsElementType(elementType.getValue()) == false) {
                     throw new IllegalArgumentException(
                         "[element_type] cannot be [" + elementType.getValue().toString() + "] when using index type [" + v.type + "]"
@@ -255,6 +261,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     dims.getValue(),
                     indexed.getValue(),
                     similarity.getValue(),
+                    indexOptions.getValue(),
                     meta.getValue()
                 ),
                 indexOptions.getValue(),
@@ -857,7 +864,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         public abstract VectorSimilarityFunction vectorSimilarityFunction(IndexVersion indexVersion, ElementType elementType);
     }
 
-    private abstract static class IndexOptions implements ToXContent {
+    abstract static class IndexOptions implements ToXContent {
         final String type;
 
         IndexOptions(String type) {
@@ -871,6 +878,10 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         abstract boolean updatableTo(IndexOptions update);
+
+        void validateDimension(int dim) {
+            // no-op
+        }
     }
 
     private enum VectorIndexType {
@@ -913,6 +924,27 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 return new Int8HnswIndexOptions(m, efConstruction, confidenceInterval);
             }
         },
+        INT4_HNSW("int4_hnsw") {
+            public IndexOptions parseIndexOptions(String fieldName, Map<String, ?> indexOptionsMap) {
+                Object mNode = indexOptionsMap.remove("m");
+                Object efConstructionNode = indexOptionsMap.remove("ef_construction");
+                Object confidenceIntervalNode = indexOptionsMap.remove("confidence_interval");
+                if (mNode == null) {
+                    mNode = Lucene99HnswVectorsFormat.DEFAULT_MAX_CONN;
+                }
+                if (efConstructionNode == null) {
+                    efConstructionNode = Lucene99HnswVectorsFormat.DEFAULT_BEAM_WIDTH;
+                }
+                int m = XContentMapValues.nodeIntegerValue(mNode);
+                int efConstruction = XContentMapValues.nodeIntegerValue(efConstructionNode);
+                Float confidenceInterval = null;
+                if (confidenceIntervalNode != null) {
+                    confidenceInterval = (float) XContentMapValues.nodeDoubleValue(confidenceIntervalNode);
+                }
+                MappingParser.checkNoRemainingFields(fieldName, indexOptionsMap);
+                return new Int4HnswIndexOptions(m, efConstruction, confidenceInterval);
+            }
+        },
         FLAT("flat") {
             @Override
             public IndexOptions parseIndexOptions(String fieldName, Map<String, ?> indexOptionsMap) {
@@ -929,7 +961,19 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     confidenceInterval = (float) XContentMapValues.nodeDoubleValue(confidenceIntervalNode);
                 }
                 MappingParser.checkNoRemainingFields(fieldName, indexOptionsMap);
-                return new Int8FlatIndexOption(confidenceInterval);
+                return new Int8FlatIndexOptions(confidenceInterval);
+            }
+        },
+        INT4_FLAT("int4_flat") {
+            @Override
+            public IndexOptions parseIndexOptions(String fieldName, Map<String, ?> indexOptionsMap) {
+                Object confidenceIntervalNode = indexOptionsMap.remove("confidence_interval");
+                Float confidenceInterval = null;
+                if (confidenceIntervalNode != null) {
+                    confidenceInterval = (float) XContentMapValues.nodeDoubleValue(confidenceIntervalNode);
+                }
+                MappingParser.checkNoRemainingFields(fieldName, indexOptionsMap);
+                return new Int4FlatIndexOptions(confidenceInterval);
             }
         };
 
@@ -946,10 +990,10 @@ public class DenseVectorFieldMapper extends FieldMapper {
         abstract IndexOptions parseIndexOptions(String fieldName, Map<String, ?> indexOptionsMap);
     }
 
-    private static class Int8FlatIndexOption extends IndexOptions {
+    static class Int8FlatIndexOptions extends IndexOptions {
         private final Float confidenceInterval;
 
-        Int8FlatIndexOption(Float confidenceInterval) {
+        Int8FlatIndexOptions(Float confidenceInterval) {
             super("int8_flat");
             this.confidenceInterval = confidenceInterval;
         }
@@ -967,14 +1011,14 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
         @Override
         KnnVectorsFormat getVectorsFormat() {
-            return new ES813Int8FlatVectorFormat(confidenceInterval);
+            return new ES813Int8FlatVectorFormat(confidenceInterval, 7, false);
         }
 
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
-            Int8FlatIndexOption that = (Int8FlatIndexOption) o;
+            Int8FlatIndexOptions that = (Int8FlatIndexOptions) o;
             return Objects.equals(confidenceInterval, that.confidenceInterval);
         }
 
@@ -996,7 +1040,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
     }
 
-    private static class FlatIndexOptions extends IndexOptions {
+    static class FlatIndexOptions extends IndexOptions {
 
         FlatIndexOptions() {
             super("flat");
@@ -1032,12 +1076,147 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
     }
 
-    private static class Int8HnswIndexOptions extends IndexOptions {
+    static class Int4HnswIndexOptions extends IndexOptions {
+        private final int m;
+        private final int efConstruction;
+        private final float confidenceInterval;
+
+        Int4HnswIndexOptions(int m, int efConstruction, Float confidenceInterval) {
+            super("int4_hnsw");
+            this.m = m;
+            this.efConstruction = efConstruction;
+            // The default confidence interval for int4 is dynamic quantiles, this provides the best relevancy and is
+            // effectively required for int4 to behave well across a wide range of data.
+            this.confidenceInterval = confidenceInterval == null ? 0f : confidenceInterval;
+        }
+
+        @Override
+        public KnnVectorsFormat getVectorsFormat() {
+            return new ES814HnswScalarQuantizedVectorsFormat(m, efConstruction, confidenceInterval, 4, true);
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            builder.field("type", type);
+            builder.field("m", m);
+            builder.field("ef_construction", efConstruction);
+            builder.field("confidence_interval", confidenceInterval);
+            builder.endObject();
+            return builder;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            Int4HnswIndexOptions that = (Int4HnswIndexOptions) o;
+            return m == that.m && efConstruction == that.efConstruction && Objects.equals(confidenceInterval, that.confidenceInterval);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(m, efConstruction, confidenceInterval);
+        }
+
+        @Override
+        public String toString() {
+            return "{type="
+                + type
+                + ", m="
+                + m
+                + ", ef_construction="
+                + efConstruction
+                + ", confidence_interval="
+                + confidenceInterval
+                + "}";
+        }
+
+        @Override
+        boolean supportsElementType(ElementType elementType) {
+            return elementType != ElementType.BYTE;
+        }
+
+        @Override
+        boolean updatableTo(IndexOptions update) {
+            return Objects.equals(this, update);
+        }
+
+        @Override
+        void validateDimension(int dim) {
+            if (dim % 2 != 0) {
+                throw new IllegalArgumentException("int4_hnsw only supports even dimensions; provided=" + dim);
+            }
+        }
+    }
+
+    static class Int4FlatIndexOptions extends IndexOptions {
+        private final float confidenceInterval;
+
+        Int4FlatIndexOptions(Float confidenceInterval) {
+            super("int4_flat");
+            // The default confidence interval for int4 is dynamic quantiles, this provides the best relevancy and is
+            // effectively required for int4 to behave well across a wide range of data.
+            this.confidenceInterval = confidenceInterval == null ? 0f : confidenceInterval;
+        }
+
+        @Override
+        public KnnVectorsFormat getVectorsFormat() {
+            return new ES813Int8FlatVectorFormat(confidenceInterval, 4, true);
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            builder.field("type", type);
+            builder.field("confidence_interval", confidenceInterval);
+            builder.endObject();
+            return builder;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            Int4FlatIndexOptions that = (Int4FlatIndexOptions) o;
+            return Objects.equals(confidenceInterval, that.confidenceInterval);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(confidenceInterval);
+        }
+
+        @Override
+        public String toString() {
+            return "{type=" + type + ", confidence_interval=" + confidenceInterval + "}";
+        }
+
+        @Override
+        boolean supportsElementType(ElementType elementType) {
+            return elementType != ElementType.BYTE;
+        }
+
+        @Override
+        boolean updatableTo(IndexOptions update) {
+            // TODO: add support for updating from flat, hnsw, and int8_hnsw and updating params
+            return Objects.equals(this, update);
+        }
+
+        @Override
+        void validateDimension(int dim) {
+            if (dim % 2 != 0) {
+                throw new IllegalArgumentException("int4_flat only supports even dimensions; provided=" + dim);
+            }
+        }
+    }
+
+    static class Int8HnswIndexOptions extends IndexOptions {
         private final int m;
         private final int efConstruction;
         private final Float confidenceInterval;
 
-        private Int8HnswIndexOptions(int m, int efConstruction, Float confidenceInterval) {
+        Int8HnswIndexOptions(int m, int efConstruction, Float confidenceInterval) {
             super("int8_hnsw");
             this.m = m;
             this.efConstruction = efConstruction;
@@ -1046,9 +1225,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
         @Override
         public KnnVectorsFormat getVectorsFormat() {
-            // int bits = 7;
-            // boolean compress = false; // TODO we only support 7 and false, for now
-            return new ES814HnswScalarQuantizedVectorsFormat(m, efConstruction, 1, confidenceInterval, null);
+            return new ES814HnswScalarQuantizedVectorsFormat(m, efConstruction, confidenceInterval, 7, false);
         }
 
         @Override
@@ -1111,11 +1288,11 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
     }
 
-    private static class HnswIndexOptions extends IndexOptions {
+    static class HnswIndexOptions extends IndexOptions {
         private final int m;
         private final int efConstruction;
 
-        private HnswIndexOptions(int m, int efConstruction) {
+        HnswIndexOptions(int m, int efConstruction) {
             super("hnsw");
             this.m = m;
             this.efConstruction = efConstruction;
@@ -1177,6 +1354,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         private final boolean indexed;
         private final VectorSimilarity similarity;
         private final IndexVersion indexVersionCreated;
+        private final IndexOptions indexOptions;
 
         public DenseVectorFieldType(
             String name,
@@ -1185,6 +1363,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             Integer dims,
             boolean indexed,
             VectorSimilarity similarity,
+            IndexOptions indexOptions,
             Map<String, String> meta
         ) {
             super(name, indexed, false, indexed == false, TextSearchInfo.NONE, meta);
@@ -1193,6 +1372,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             this.indexed = indexed;
             this.similarity = similarity;
             this.indexVersionCreated = indexVersionCreated;
+            this.indexOptions = indexOptions;
         }
 
         @Override
@@ -1456,6 +1636,10 @@ public class DenseVectorFieldMapper extends FieldMapper {
         ElementType getElementType() {
             return elementType;
         }
+
+        IndexOptions getIndexOptions() {
+            return indexOptions;
+        }
     }
 
     private final IndexOptions indexOptions;
@@ -1500,6 +1684,9 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
         if (fieldType().dims == null) {
             int dims = fieldType().elementType.parseDimensionCount(context);
+            if (fieldType().indexOptions != null) {
+                fieldType().indexOptions.validateDimension(dims);
+            }
             DenseVectorFieldType updatedDenseVectorFieldType = new DenseVectorFieldType(
                 fieldType().name(),
                 indexCreatedVersion,
@@ -1507,6 +1694,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 dims,
                 fieldType().indexed,
                 fieldType().similarity,
+                fieldType().indexOptions,
                 fieldType().meta()
             );
             Mapper update = new DenseVectorFieldMapper(

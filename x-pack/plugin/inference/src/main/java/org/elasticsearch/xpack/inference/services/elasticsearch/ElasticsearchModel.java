@@ -41,6 +41,10 @@ public abstract class ElasticsearchModel extends Model {
         return (ElasticsearchInternalServiceSettings) super.getServiceSettings();
     }
 
+    public String getModelId() {
+        return getServiceSettings().getModelId();
+    }
+
     abstract StartTrainedModelDeploymentAction.Request getStartTrainedModelDeploymentActionRequest();
 
     abstract ActionListener<CreateTrainedModelAssignmentAction.Response> getCreateTrainedModelAssignmentActionListener(

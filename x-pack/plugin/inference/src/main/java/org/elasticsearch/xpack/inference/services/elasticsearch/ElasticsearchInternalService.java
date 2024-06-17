@@ -25,7 +25,6 @@ import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
-import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.ClientHelper;
@@ -231,8 +230,19 @@ public class ElasticsearchInternalService implements InferenceService {
     @Override
     public void checkModelConfig(Model model, ActionListener<Model> listener) {
         if (model instanceof CustomElandModel elandModel && elandModel.getTaskType() == TaskType.TEXT_EMBEDDING) {
+            // At this point the inference endpoint configuration has not been persisted yet, if we attempt to do inference using the
+            // inference id we'll get an error because the trained model code needs to use the persisted inference endpoint to retrieve the
+            // model id. To get around this we'll have the getEmbeddingSize() method use the model id instead of inference id. So we need
+            // to create a temporary model that overrides the inference id with the model id.
+            var temporaryModelWithModelId = new CustomElandModel(
+                elandModel.getModelId(),
+                elandModel.getTaskType(),
+                elandModel.getConfigurations().getService(),
+                elandModel.getServiceSettings()
+            );
+
             ServiceUtils.getEmbeddingSize(
-                model,
+                temporaryModelWithModelId,
                 this,
                 listener.delegateFailureAndWrap((l, size) -> l.onResponse(updateModelWithEmbeddingDetails(elandModel, size)))
             );
@@ -242,15 +252,12 @@ public class ElasticsearchInternalService implements InferenceService {
     }
 
     private static CustomElandModel updateModelWithEmbeddingDetails(CustomElandModel model, int embeddingSize) {
-        var similarityFromModel = model.getServiceSettings().similarity();
-        var similarityToUse = similarityFromModel == null ? SimilarityMeasure.COSINE : similarityFromModel;
-
         CustomElandInternalServiceSettings serviceSettings = new CustomElandInternalServiceSettings(
             model.getServiceSettings().getNumAllocations(),
             model.getServiceSettings().getNumThreads(),
             model.getServiceSettings().getModelId(),
             embeddingSize,
-            similarityToUse,
+            model.getServiceSettings().similarity(),
             model.getServiceSettings().elementType()
         );
 

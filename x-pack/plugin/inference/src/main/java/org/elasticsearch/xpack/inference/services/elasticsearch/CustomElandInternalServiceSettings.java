@@ -100,7 +100,15 @@ public class CustomElandInternalServiceSettings extends ElasticsearchInternalSer
             throw validationException;
         }
 
-        return new ElandBuilder(commonFields);
+        var defaultedCommonFields = new CommonFields(
+            commonFields.numAllocations,
+            commonFields.numThreads,
+            commonFields.modelId,
+            Objects.requireNonNullElse(commonFields.similarityMeasure, SimilarityMeasure.COSINE),
+            Objects.requireNonNullElse(commonFields.elementType, DenseVectorFieldMapper.ElementType.FLOAT)
+        );
+
+        return new ElandBuilder(defaultedCommonFields);
     }
 
     private static Builder fromPersistentMap(Map<String, Object> map) {
@@ -156,7 +164,9 @@ public class CustomElandInternalServiceSettings extends ElasticsearchInternalSer
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        var superBuilder = super.toXContent(builder, params);
+        builder.startObject();
+
+        var superBuilder = toXContentFragment(builder, params);
 
         if (dimensions != null) {
             superBuilder.field(DIMENSIONS, dimensions);
@@ -170,6 +180,7 @@ public class CustomElandInternalServiceSettings extends ElasticsearchInternalSer
             superBuilder.field(ELEMENT_TYPE, elementType);
         }
 
+        superBuilder.endObject();
         return superBuilder;
     }
 

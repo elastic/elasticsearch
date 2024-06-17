@@ -551,14 +551,14 @@ If the `include_segment_file_sizes` parameter is `true`,
 this metric includes the aggregated disk usage
 of each Lucene index file.
 
+`sparse_vector`::
+Total number of sparse vectors indexed.
+
 `store`::
 Size of the index in <<byte-units, byte units>>.
 
 `translog`::
 <<index-modules-translog,Translog>> statistics.
-
-`sparse_vector`::
-Total number of sparse vectors indexed.
 
 <<indices-refresh,Index refreshes>> can affect this statistic.
 

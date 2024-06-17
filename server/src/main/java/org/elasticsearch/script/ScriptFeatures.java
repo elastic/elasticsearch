@@ -6,26 +6,16 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.index.mapper;
+package org.elasticsearch.script;
 
 import org.elasticsearch.features.FeatureSpecification;
 import org.elasticsearch.features.NodeFeature;
-import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 
 import java.util.Set;
 
-/**
- * Spec for mapper-related features.
- */
-public class MapperFeatures implements FeatureSpecification {
+public final class ScriptFeatures implements FeatureSpecification {
     @Override
     public Set<NodeFeature> getFeatures() {
-        return Set.of(
-            IgnoredSourceFieldMapper.TRACK_IGNORED_SOURCE,
-            PassThroughObjectMapper.PASS_THROUGH_PRIORITY,
-            RangeFieldMapper.NULL_VALUES_OFF_BY_ONE_FIX,
-            SourceFieldMapper.SYNTHETIC_SOURCE_FALLBACK,
-            DenseVectorFieldMapper.INT4_QUANTIZATION
-        );
+        return Set.of(VectorScoreScriptUtils.HAMMING_DISTANCE_FUNCTION);
     }
 }

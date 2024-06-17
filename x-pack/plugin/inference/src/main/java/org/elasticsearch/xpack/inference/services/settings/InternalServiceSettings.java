@@ -115,14 +115,6 @@ public abstract class InternalServiceSettings implements ServiceSettings {
         private int numThreads;
         private String modelId;
 
-        public Builder() {}
-
-        public Builder(int numAllocations, int numThreads, String modelId) {
-            this.numAllocations = numAllocations;
-            this.numThreads = numThreads;
-            this.modelId = modelId;
-        }
-
         public abstract InternalServiceSettings build();
 
         public void setNumAllocations(int numAllocations) {

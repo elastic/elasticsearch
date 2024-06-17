@@ -11,6 +11,7 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.ShardSearchFailure;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
@@ -115,8 +116,17 @@ public class TrainedModelAssignmentNodeServiceTests extends ESTestCase {
     }
 
     private void loadQueuedModels(TrainedModelAssignmentNodeService trainedModelAssignmentNodeService) throws InterruptedException {
+        loadQueuedModels(trainedModelAssignmentNodeService, 1);
+    }
+
+    private void loadQueuedModels(TrainedModelAssignmentNodeService trainedModelAssignmentNodeService, int times)
+        throws InterruptedException {
         var latch = new CountDownLatch(1);
-        trainedModelAssignmentNodeService.loadQueuedModels(latch::countDown);
+        var chain = SubscribableListener.newForked(l -> trainedModelAssignmentNodeService.loadQueuedModels(() -> l.onResponse(null)));
+        for (int i = 1; i < times; i++) {
+            chain = chain.andThen((l, r) -> trainedModelAssignmentNodeService.loadQueuedModels(() -> l.onResponse(null)));
+        }
+        chain.addListener(ActionListener.running(latch::countDown));
         assertTrue("Timed out waiting for loadQueuedModels to finish.", latch.await(10, TimeUnit.SECONDS));
     }
 
@@ -134,7 +144,7 @@ public class TrainedModelAssignmentNodeServiceTests extends ESTestCase {
         trainedModelAssignmentNodeService.prepareModelToLoad(newParams(deploymentId, modelToLoad));
         trainedModelAssignmentNodeService.prepareModelToLoad(newParams(anotherDeployment, anotherModel));
 
-        loadQueuedModels(trainedModelAssignmentNodeService);
+        loadQueuedModels(trainedModelAssignmentNodeService, 2);
 
         ArgumentCaptor<TrainedModelDeploymentTask> taskCapture = ArgumentCaptor.forClass(TrainedModelDeploymentTask.class);
         ArgumentCaptor<UpdateTrainedModelAssignmentRoutingInfoAction.Request> requestCapture = ArgumentCaptor.forClass(
@@ -172,9 +182,7 @@ public class TrainedModelAssignmentNodeServiceTests extends ESTestCase {
         trainedModelAssignmentNodeService.prepareModelToLoad(newParams(deploymentId, modelToLoad));
         trainedModelAssignmentNodeService.prepareModelToLoad(newParams(failedDeploymentId, failedModelToLoad));
 
-        loadQueuedModels(trainedModelAssignmentNodeService);
-
-        loadQueuedModels(trainedModelAssignmentNodeService);
+        loadQueuedModels(trainedModelAssignmentNodeService, 3);
 
         ArgumentCaptor<TrainedModelDeploymentTask> startTaskCapture = ArgumentCaptor.forClass(TrainedModelDeploymentTask.class);
         ArgumentCaptor<UpdateTrainedModelAssignmentRoutingInfoAction.Request> requestCapture = ArgumentCaptor.forClass(
@@ -281,7 +289,7 @@ public class TrainedModelAssignmentNodeServiceTests extends ESTestCase {
         trainedModelAssignmentNodeService.prepareModelToLoad(newParams(loadingDeploymentId, modelToLoad));
         trainedModelAssignmentNodeService.prepareModelToLoad(newParams(failedLoadingDeploymentId, failedModelToLoad));
 
-        loadQueuedModels(trainedModelAssignmentNodeService);
+        loadQueuedModels(trainedModelAssignmentNodeService, 2);
 
         ArgumentCaptor<TrainedModelDeploymentTask> startTaskCapture = ArgumentCaptor.forClass(TrainedModelDeploymentTask.class);
         ArgumentCaptor<UpdateTrainedModelAssignmentRoutingInfoAction.Request> requestCapture = ArgumentCaptor.forClass(
@@ -753,7 +761,7 @@ public class TrainedModelAssignmentNodeServiceTests extends ESTestCase {
         givenAssignmentsInClusterStateForModels(List.of(deploymentOne, deploymentTwo), List.of(modelOne, modelTwo));
         trainedModelAssignmentNodeService.prepareModelToLoad(newParams(deploymentOne, modelOne));
         trainedModelAssignmentNodeService.prepareModelToLoad(newParams(deploymentTwo, modelTwo));
-        loadQueuedModels(trainedModelAssignmentNodeService);
+        loadQueuedModels(trainedModelAssignmentNodeService, 2);
 
         ClusterChangedEvent event = new ClusterChangedEvent(
             "shouldUpdateAllocations",

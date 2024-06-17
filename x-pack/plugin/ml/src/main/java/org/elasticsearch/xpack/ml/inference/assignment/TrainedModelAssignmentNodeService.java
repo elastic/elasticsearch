@@ -181,10 +181,6 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
         if (stopped) {
             return;
         }
-        if (loadingModels.isEmpty()) {
-            onFinish.run();
-            return;
-        }
         if (latestState != null) {
             List<String> unassignedIndices = AbstractJobPersistentTasksExecutor.verifyIndicesPrimaryShardsAreActive(
                 latestState,
@@ -202,40 +198,16 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
             }
         }
 
-        // deploy the models synchronously by flattening loadingModels into a chain of listeners
-        // if we need to retry, wait to add it back to loadingModels until after we finish this batch of deployments
-        // if someone calls stop halfway through, abandon this entire chain
-        var loadingToRetry = new ConcurrentLinkedDeque<TrainedModelDeploymentTask>();
-        var deploymentChain = SubscribableListener.<Void>newSucceeded(null);
-        while (loadingModels.isEmpty() == false) {
-            var loadingTask = loadingModels.poll();
-            deploymentChain = deploymentChain.andThen((l, r) -> {
-                if (stopped) {
-                    // don't bother calling the listener, the lifecycle will not resume the instance of this class
-                    return;
-                }
-
-                loadModel(loadingTask, l.delegateFailureAndWrap((ll, retry) -> {
-                    if (retry != null && retry) {
-                        loadingToRetry.offer(loadingTask);
-                    }
-                    ll.onResponse(null);
-                }));
-            });
+        if (loadingModels.isEmpty()) {
+            onFinish.run();
+            return;
         }
-        deploymentChain.addListener(thenRun(() -> {
-            try {
-                loadingModels.addAll(loadingToRetry);
-            } finally {
-                onFinish.run();
+        var loadingTask = loadingModels.poll();
+        loadModel(loadingTask, ActionListener.runAfter(ActionListener.wrap(retry -> {
+            if (retry != null && retry) {
+                loadingModels.offer(loadingTask);
             }
-        }));
-    }
-
-    // using noop() here, because we want to ignore success or exceptions and always invoke the runnable
-    // runnable should not throw an exception though, it isn't caught anywhere
-    private static <T> ActionListener<T> thenRun(Runnable runnable) {
-        return ActionListener.runAfter(ActionListener.noop(), runnable);
+        }, e -> {}), onFinish));
     }
 
     void loadModel(TrainedModelDeploymentTask loadingTask, ActionListener<Boolean> retryListener) {
@@ -808,14 +780,14 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
         Runnable stopTask = () -> stopDeploymentAsync(
             task,
             "model failed to load; reason [" + ex.getMessage() + "]",
-            thenRun(() -> retryListener.onResponse(false))
+            ActionListener.running(() -> retryListener.onResponse(false))
         );
         updateStoredState(
             task.getDeploymentId(),
             RoutingInfoUpdate.updateStateAndReason(
                 new RoutingStateAndReason(RoutingState.FAILED, ExceptionsHelper.unwrapCause(ex).getMessage())
             ),
-            thenRun(stopTask)
+            ActionListener.running(stopTask)
         );
     }
 

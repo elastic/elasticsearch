@@ -153,6 +153,7 @@ public class Constants {
         "cluster:admin/xpack/connector/secret/put",
         "indices:data/write/xpack/connector/sync_job/cancel",
         "indices:data/write/xpack/connector/sync_job/check_in",
+        "indices:data/write/xpack/connector/sync_job/claim",
         "indices:data/write/xpack/connector/sync_job/delete",
         "indices:data/read/xpack/connector/sync_job/get",
         "indices:data/read/xpack/connector/sync_job/list",

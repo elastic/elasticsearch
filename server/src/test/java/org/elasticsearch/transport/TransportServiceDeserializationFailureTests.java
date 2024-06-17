@@ -69,7 +69,7 @@ public class TransportServiceDeserializationFailureTests extends ESTestCase {
         transportService.registerRequestHandler(
             testActionName,
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
-            TransportRequest.Empty::new,
+            EmptyRequest::new,
             (request, channel, task) -> channel.sendResponse(TransportResponse.Empty.INSTANCE)
         );
 
@@ -86,7 +86,7 @@ public class TransportServiceDeserializationFailureTests extends ESTestCase {
             transportService.sendRequest(
                 otherNode,
                 testActionName,
-                TransportRequest.Empty.INSTANCE,
+                new EmptyRequest(),
                 TransportRequestOptions.EMPTY,
                 new TransportResponseHandler<TransportResponse.Empty>() {
                     @Override
@@ -151,7 +151,7 @@ public class TransportServiceDeserializationFailureTests extends ESTestCase {
             transportService.sendChildRequest(
                 otherNode,
                 testActionName,
-                TransportRequest.Empty.INSTANCE,
+                new EmptyRequest(),
                 parentTask,
                 TransportRequestOptions.EMPTY,
                 new TransportResponseHandler<TransportResponse.Empty>() {

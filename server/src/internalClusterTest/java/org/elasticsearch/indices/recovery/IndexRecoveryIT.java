@@ -322,8 +322,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
      * @param isRecoveryThrottlingNode whether to expect throttling to have occurred on the node
      */
     public void assertNodeHasThrottleTimeAndNoRecoveries(String nodeName, Boolean isRecoveryThrottlingNode) {
-        NodesStatsResponse nodesStatsResponse = clusterAdmin().prepareNodesStats()
-            .setNodesIds(nodeName)
+        NodesStatsResponse nodesStatsResponse = clusterAdmin().prepareNodesStats(nodeName)
             .clear()
             .setIndices(new CommonStatsFlags(CommonStatsFlags.Flag.Recovery))
             .get();
@@ -612,8 +611,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         validateIndexRecoveryState(recoveryStates.get(0).getIndex());
 
         Consumer<String> assertNodeHasThrottleTimeAndNoRecoveries = nodeName -> {
-            NodesStatsResponse nodesStatsResponse = clusterAdmin().prepareNodesStats()
-                .setNodesIds(nodeName)
+            NodesStatsResponse nodesStatsResponse = clusterAdmin().prepareNodesStats(nodeName)
                 .clear()
                 .setIndices(new CommonStatsFlags(CommonStatsFlags.Flag.Recovery))
                 .get();

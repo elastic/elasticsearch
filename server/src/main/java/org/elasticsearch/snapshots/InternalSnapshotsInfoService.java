@@ -59,7 +59,7 @@ public final class InternalSnapshotsInfoService implements ClusterStateListener,
     );
 
     private final ThreadPool threadPool;
-    private final Supplier<RepositoriesService> repositoriesService;
+    private final RepositoriesService repositoriesService;
     private final Supplier<RerouteService> rerouteService;
 
     /** contains the snapshot shards for which the size is known **/
@@ -87,11 +87,11 @@ public final class InternalSnapshotsInfoService implements ClusterStateListener,
     public InternalSnapshotsInfoService(
         final Settings settings,
         final ClusterService clusterService,
-        final Supplier<RepositoriesService> repositoriesServiceSupplier,
+        final RepositoriesService repositoriesService,
         final Supplier<RerouteService> rerouteServiceSupplier
     ) {
         this.threadPool = clusterService.getClusterApplierService().threadPool();
-        this.repositoriesService = repositoriesServiceSupplier;
+        this.repositoriesService = repositoriesService;
         this.rerouteService = rerouteServiceSupplier;
         this.knownSnapshotShards = ImmutableOpenMap.of();
         this.unknownSnapshotShards = new LinkedHashSet<>();
@@ -210,9 +210,7 @@ public final class InternalSnapshotsInfoService implements ClusterStateListener,
 
         @Override
         protected void doRun() throws Exception {
-            final RepositoriesService repositories = repositoriesService.get();
-            assert repositories != null;
-            final Repository repository = repositories.repository(snapshotShard.snapshot.getRepository());
+            final Repository repository = repositoriesService.repository(snapshotShard.snapshot.getRepository());
 
             logger.debug("fetching snapshot shard size for {}", snapshotShard);
             final long snapshotShardSize = repository.getShardSnapshotStatus(

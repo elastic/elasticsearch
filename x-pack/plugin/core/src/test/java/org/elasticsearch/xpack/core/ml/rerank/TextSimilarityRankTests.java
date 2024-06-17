@@ -65,7 +65,8 @@ public class TextSimilarityRankTests extends ESSingleNodeTestCase {
             new RankedDocsResults.RankedDoc(0, 0.8f, ""),
             new RankedDocsResults.RankedDoc(2, 0.7f, ""),
             new RankedDocsResults.RankedDoc(1, 0.6f, ""),
-            new RankedDocsResults.RankedDoc(4, 0.5f, ""));
+            new RankedDocsResults.RankedDoc(4, 0.5f, "")
+        );
 
         @Override
         public int order() {

@@ -7,36 +7,65 @@
 
 package org.elasticsearch.xpack.core.ml.rerank;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.search.rank.rerank.ActionRequestRankFeaturePhaseRankCoordinatorContext;
+import org.elasticsearch.search.rank.context.RankFeaturePhaseRankCoordinatorContext;
+import org.elasticsearch.search.rank.feature.RankFeatureDoc;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.RankedDocsResults;
 
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
-public class TextSimilarityRankFeaturePhaseRankCoordinatorContext extends ActionRequestRankFeaturePhaseRankCoordinatorContext<
-    InferenceAction.Request,
-    InferenceAction.Response> {
+public class TextSimilarityRankFeaturePhaseRankCoordinatorContext extends RankFeaturePhaseRankCoordinatorContext {
+
+    protected final Client client;
+    protected final String inferenceId;
+    protected final String inferenceText;
+    protected final float minScore;
 
     public TextSimilarityRankFeaturePhaseRankCoordinatorContext(
         int size,
         int from,
-        int windowSize,
+        int rankWindowSize,
         Client client,
         String inferenceId,
         String inferenceText,
         float minScore
     ) {
-        super(size, from, windowSize, client, inferenceId, inferenceText, minScore);
+        super(size, from, rankWindowSize);
+        this.client = client;
+        this.inferenceId = inferenceId;
+        this.inferenceText = inferenceText;
+        this.minScore = minScore;
     }
 
     @Override
-    protected InferenceAction.Request generateRequest(List<String> docFeatures) {
+    protected void computeScores(RankFeatureDoc[] featureDocs, ActionListener<float[]> scoreListener) {
+        // Wrap the provided rankListener to an ActionListener that would handle the response from the inference service
+        // and then pass the results
+        final ActionListener<InferenceAction.Response> actionListener = scoreListener.delegateFailureAndWrap((l, r) -> {
+            float[] scores = extractScoresFromResponse(r);
+            assert scores.length == featureDocs.length;
+            l.onResponse(scores);
+        });
+
+        List<String> featureData = Arrays.stream(featureDocs).map(x -> x.featureData).toList();
+        InferenceAction.Request request = generateRequest(featureData);
+        try {
+            ActionType<InferenceAction.Response> action = InferenceAction.INSTANCE;
+            client.execute(action, request, actionListener);
+        } finally {
+            request.decRef();
+        }
+    }
+
+    private InferenceAction.Request generateRequest(List<String> docFeatures) {
         return new InferenceAction.Request(
             TaskType.RERANK,
             inferenceId,
@@ -48,13 +77,7 @@ public class TextSimilarityRankFeaturePhaseRankCoordinatorContext extends Action
         );
     }
 
-    @Override
-    protected ActionType<InferenceAction.Response> actionType() {
-        return InferenceAction.INSTANCE;
-    }
-
-    @Override
-    protected float[] extractScoresFromResponse(InferenceAction.Response response) {
+    private float[] extractScoresFromResponse(InferenceAction.Response response) {
         InferenceServiceResults results = response.getResults();
         assert results instanceof RankedDocsResults;
 
@@ -65,5 +88,10 @@ public class TextSimilarityRankFeaturePhaseRankCoordinatorContext extends Action
         }
 
         return scores;
+    }
+
+    @Override
+    protected boolean keepRankFeatureDoc(RankFeatureDoc doc) {
+        return doc.score >= minScore;
     }
 }

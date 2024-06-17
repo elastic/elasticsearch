@@ -35,8 +35,8 @@ public class TextSimilarityRankBuilder extends RankBuilder {
     private final String field;
     private final float minScore;
 
-    public TextSimilarityRankBuilder(String field, String inferenceId, String inferenceText, int windowSize, float minScore) {
-        super(windowSize);
+    public TextSimilarityRankBuilder(String field, String inferenceId, String inferenceText, int rankWindowSize, float minScore) {
+        super(rankWindowSize);
         this.inferenceId = inferenceId;
         this.inferenceText = inferenceText;
         this.field = field;

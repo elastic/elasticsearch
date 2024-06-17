@@ -25,10 +25,11 @@ import static org.elasticsearch.search.rank.RankBuilder.DEFAULT_RANK_WINDOW_SIZE
 public class TextSimilarityRankRetrieverBuilder extends RetrieverBuilder {
 
     public static final NodeFeature NODE_FEATURE = new NodeFeature(XPackField.TEXT_SIMILARITY_RERANKER + "_retriever");
+    public static final String NAME = NODE_FEATURE.id();
 
     public static final ParseField RETRIEVER_FIELD = new ParseField("retriever");
     public static final ParseField FIELD_FIELD = new ParseField("field");
-    public static final ParseField WINDOW_SIZE_FIELD = new ParseField("window_size");
+    public static final ParseField RANK_WINDOW_SIZE_FIELD = new ParseField("rank_window_size");
     public static final ParseField INFERENCE_ID_FIELD = new ParseField("inference_id");
     public static final ParseField INFERENCE_TEXT_FIELD = new ParseField("inference_text");
     public static final ParseField MIN_SCORE_FIELD = new ParseField("min_score");
@@ -53,11 +54,11 @@ public class TextSimilarityRankRetrieverBuilder extends RetrieverBuilder {
             return field;
         }, FIELD_FIELD, ObjectParser.ValueType.STRING);
 
-        PARSER.declareField((r, v) -> r.windowSize = v, (p, c) -> {
-            int windowSize = p.intValue();
-            c.trackSectionUsage(XPackField.TEXT_SIMILARITY_RERANKER + ":" + WINDOW_SIZE_FIELD.getPreferredName());
-            return windowSize;
-        }, WINDOW_SIZE_FIELD, ObjectParser.ValueType.INT_OR_NULL);
+        PARSER.declareField((r, v) -> r.rankWindowSize = v, (p, c) -> {
+            int rankWindowSize = p.intValue();
+            c.trackSectionUsage(XPackField.TEXT_SIMILARITY_RERANKER + ":" + RANK_WINDOW_SIZE_FIELD.getPreferredName());
+            return rankWindowSize;
+        }, RANK_WINDOW_SIZE_FIELD, ObjectParser.ValueType.INT_OR_NULL);
 
         PARSER.declareField((r, v) -> r.inferenceId = v, (p, c) -> {
             String inferenceId = p.text();
@@ -90,13 +91,13 @@ public class TextSimilarityRankRetrieverBuilder extends RetrieverBuilder {
 
     private RetrieverBuilder retrieverBuilder;
     private String field;
-    private int windowSize;
+    private int rankWindowSize;
     private String inferenceId;
     private String inferenceText;
     private float minScore;
 
     public TextSimilarityRankRetrieverBuilder() {
-        this.windowSize = DEFAULT_RANK_WINDOW_SIZE;
+        this.rankWindowSize = DEFAULT_RANK_WINDOW_SIZE;
         this.minScore = DEFAULT_MIN_SCORE;
     }
 
@@ -106,20 +107,18 @@ public class TextSimilarityRankRetrieverBuilder extends RetrieverBuilder {
 
         if (searchSourceBuilder.rankBuilder() == null) {
             searchSourceBuilder.rankBuilder(
-                new TextSimilarityRankBuilder(this.field, this.inferenceId, this.inferenceText, this.windowSize, this.minScore)
+                new TextSimilarityRankBuilder(this.field, this.inferenceId, this.inferenceText, this.rankWindowSize, this.minScore)
             );
         }
     }
 
     @Override
     public String getName() {
-        return null;
+        return NAME;
     }
 
     @Override
-    protected void doToXContent(XContentBuilder builder, Params params) {
-
-    }
+    protected void doToXContent(XContentBuilder builder, Params params) {}
 
     @Override
     protected boolean doEquals(Object o) {

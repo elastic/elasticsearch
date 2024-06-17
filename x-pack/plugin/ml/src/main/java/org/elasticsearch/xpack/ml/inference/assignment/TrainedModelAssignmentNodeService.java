@@ -198,11 +198,12 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
             }
         }
 
-        if (loadingModels.isEmpty()) {
+        var loadingTask = loadingModels.poll();
+        if (loadingTask == null) {
             onFinish.run();
             return;
         }
-        var loadingTask = loadingModels.poll();
+        
         loadModel(loadingTask, ActionListener.runAfter(ActionListener.wrap(retry -> {
             if (retry != null && retry) {
                 loadingModels.offer(loadingTask);

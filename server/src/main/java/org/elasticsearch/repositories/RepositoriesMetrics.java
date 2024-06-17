@@ -44,16 +44,12 @@ public record RepositoriesMetrics(
             meterRegistry,
             meterRegistry.registerLongCounter(METRIC_REQUESTS_TOTAL, "repository request counter", "unit"),
             meterRegistry.registerLongCounter(METRIC_EXCEPTIONS_TOTAL, "repository request exception counter", "unit"),
-            meterRegistry.registerLongCounter(
-                METRIC_CLIENT_EXCEPTIONS_TOTAL,
-                "repository request RequestedRangeNotSatisfiedException counter",
-                "unit"
-            ),
+            meterRegistry.registerLongCounter(METRIC_CLIENT_EXCEPTIONS_TOTAL, "repository client errors counter", "unit"),
             meterRegistry.registerLongCounter(METRIC_THROTTLES_TOTAL, "repository request throttle counter", "unit"),
             meterRegistry.registerLongCounter(METRIC_OPERATIONS_TOTAL, "repository operation counter", "unit"),
             meterRegistry.registerLongCounter(METRIC_UNSUCCESSFUL_OPERATIONS_TOTAL, "repository unsuccessful operation counter", "unit"),
             meterRegistry.registerLongHistogram(METRIC_EXCEPTIONS_HISTOGRAM, "repository request exception histogram", "unit"),
-            meterRegistry.registerLongHistogram(METRIC_CLIENT_EXCEPTIONS_HISTOGRAM, "repository request exception histogram", "unit"),
+            meterRegistry.registerLongHistogram(METRIC_CLIENT_EXCEPTIONS_HISTOGRAM, "repository client errors histogram", "unit"),
             meterRegistry.registerLongHistogram(
                 METRIC_THROTTLES_HISTOGRAM,
                 "repository request RequestedRangeNotSatisfiedException histogram",

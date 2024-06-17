@@ -554,13 +554,13 @@ of each Lucene index file.
 `sparse_vector`::
 Total number of sparse vectors indexed.
 
+<<indices-refresh,Index refreshes>> can affect this statistic.
+
 `store`::
 Size of the index in <<byte-units, byte units>>.
 
 `translog`::
 <<index-modules-translog,Translog>> statistics.
-
-<<indices-refresh,Index refreshes>> can affect this statistic.
 
 --
 end::index-metric[]

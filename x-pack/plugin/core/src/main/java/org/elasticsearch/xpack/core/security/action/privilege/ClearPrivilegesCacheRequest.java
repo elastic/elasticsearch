@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.core.security.action.privilege;
 
-import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.support.nodes.BaseNodesRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -40,11 +39,6 @@ public class ClearPrivilegesCacheRequest extends BaseNodesRequest<ClearPrivilege
 
     public boolean clearRolesCache() {
         return clearRolesCache;
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        TransportAction.localOnly();
     }
 
     public static class Node extends TransportRequest {

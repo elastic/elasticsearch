@@ -1257,7 +1257,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         }
         waitForever.countDown();
         doneWaitingForever.await();
-        assertTrue(inFlight.tryAcquire(Integer.MAX_VALUE, 10, TimeUnit.SECONDS));
+        safeAcquire(Integer.MAX_VALUE, inFlight);
     }
 
     @TestLogging(

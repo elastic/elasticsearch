@@ -1927,9 +1927,9 @@ public class MasterServiceTests extends ESTestCase {
             );
 
             barrier.await(10, TimeUnit.SECONDS);
-            assertTrue(smallBatchExecutor.semaphore.tryAcquire(4, 10, TimeUnit.SECONDS));
-            assertTrue(manySourceExecutor.semaphore.tryAcquire(2048, 10, TimeUnit.SECONDS));
-            assertTrue(manyTasksPerSourceExecutor.semaphore.tryAcquire(2048, 10, TimeUnit.SECONDS));
+            safeAcquire(4, smallBatchExecutor.semaphore);
+            safeAcquire(2048, manySourceExecutor.semaphore);
+            safeAcquire(2048, manyTasksPerSourceExecutor.semaphore);
             mockLog.assertAllExpectationsMatched();
         }
     }

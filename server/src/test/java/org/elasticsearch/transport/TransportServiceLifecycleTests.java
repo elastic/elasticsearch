@@ -120,7 +120,7 @@ public class TransportServiceLifecycleTests extends ESTestCase {
             // every handler is completed even if the request or response are being handled concurrently with shutdown
 
             keepGoing.set(false);
-            assertTrue(requestPermits.tryAcquire(Integer.MAX_VALUE, 10, TimeUnit.SECONDS));
+            safeAcquire(Integer.MAX_VALUE, requestPermits);
             for (final var thread : threads) {
                 thread.join();
             }

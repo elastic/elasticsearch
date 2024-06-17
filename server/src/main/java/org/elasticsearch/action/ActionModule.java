@@ -361,7 +361,6 @@ import org.elasticsearch.rest.action.cat.RestCatComponentTemplateAction;
 import org.elasticsearch.rest.action.cat.RestCatRecoveryAction;
 import org.elasticsearch.rest.action.cat.RestFielddataAction;
 import org.elasticsearch.rest.action.cat.RestHealthAction;
-import org.elasticsearch.rest.action.cat.RestIndicesAction;
 import org.elasticsearch.rest.action.cat.RestMasterAction;
 import org.elasticsearch.rest.action.cat.RestNodeAttrsAction;
 import org.elasticsearch.rest.action.cat.RestNodesAction;
@@ -976,7 +975,6 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestNodesAction());
         registerHandler.accept(new RestClusterInfoAction());
         registerHandler.accept(new RestTasksAction(nodesInCluster));
-        registerHandler.accept(new RestIndicesAction());
         registerHandler.accept(new RestSegmentsAction());
         // Fully qualified to prevent interference with rest.action.count.RestCountAction
         registerHandler.accept(new org.elasticsearch.rest.action.cat.RestCountAction());

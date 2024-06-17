@@ -41,6 +41,7 @@ public class CoreWithSecurityClientYamlTestSuiteIT extends ESClientYamlSuiteTest
         .module("analysis-common")
         .module("health-shards-availability")
         .module("data-streams")
+        .module("cat")
         .setting("xpack.security.enabled", "true")
         .setting("xpack.watcher.enabled", "false")
         .setting("xpack.ml.enabled", "false")

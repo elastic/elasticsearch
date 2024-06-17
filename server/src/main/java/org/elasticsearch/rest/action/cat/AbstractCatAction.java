@@ -63,7 +63,7 @@ public abstract class AbstractCatAction extends BaseRestHandler {
         }
     }
 
-    static Set<String> RESPONSE_PARAMS = Set.of("format", "h", "v", "ts", "pri", "bytes", "size", "time", "s");
+    public static Set<String> RESPONSE_PARAMS = Set.of("format", "h", "v", "ts", "pri", "bytes", "size", "time", "s");
 
     @Override
     protected Set<String> responseParams() {

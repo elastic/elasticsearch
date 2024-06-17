@@ -161,13 +161,11 @@ public class TransportNodesStatsAction extends TransportNodesAction<
 
         public NodeStatsRequest(StreamInput in) throws IOException {
             super(in);
-            if (in.getTransportVersion().before(TransportVersions.V_8_13_0)) {
-                this.nodesStatsRequestParameters = new NodesStatsRequest(in).getNodesStatsRequestParameters();
-            } else {
-                this.nodesStatsRequestParameters = new NodesStatsRequestParameters(in);
-                if (in.getTransportVersion().before(TransportVersions.DROP_UNUSED_NODES_IDS)) {
-                    in.readStringArray(); // formerly nodeIds, now unused
-                }
+            skipLegacyNodesRequestHeader(TransportVersions.V_8_13_0, in);
+            this.nodesStatsRequestParameters = new NodesStatsRequestParameters(in);
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)
+                && in.getTransportVersion().before(TransportVersions.DROP_UNUSED_NODES_IDS)) {
+                in.readStringArray(); // formerly nodeIds, now unused
             }
         }
 
@@ -192,13 +190,11 @@ public class TransportNodesStatsAction extends TransportNodesAction<
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            if (out.getTransportVersion().before(TransportVersions.V_8_13_0)) {
-                new NodesStatsRequest(nodesStatsRequestParameters, Strings.EMPTY_ARRAY).writeTo(out);
-            } else {
-                nodesStatsRequestParameters.writeTo(out);
-                if (out.getTransportVersion().before(TransportVersions.DROP_UNUSED_NODES_IDS)) {
-                    out.writeStringArray(Strings.EMPTY_ARRAY); // formerly nodeIds, now unused
-                }
+            sendLegacyNodesRequestHeader(TransportVersions.V_8_13_0, out);
+            nodesStatsRequestParameters.writeTo(out);
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)
+                && out.getTransportVersion().before(TransportVersions.DROP_UNUSED_NODES_IDS)) {
+                out.writeStringArray(Strings.EMPTY_ARRAY); // formerly nodeIds, now unused
             }
         }
 

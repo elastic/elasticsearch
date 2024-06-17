@@ -102,7 +102,11 @@ public class MistralService extends SenderService {
         var actionCreator = new MistralActionCreator(getSender(), getServiceComponents());
 
         if (model instanceof MistralEmbeddingsModel mistralEmbeddingsModel) {
-            var batchedRequests = new EmbeddingRequestChunker(input, MistralConstants.MAX_BATCH_SIZE).batchRequestsWithListeners(listener);
+            var batchedRequests = new EmbeddingRequestChunker(
+                input,
+                MistralConstants.MAX_BATCH_SIZE,
+                EmbeddingRequestChunker.EmbeddingType.FLOAT
+            ).batchRequestsWithListeners(listener);
 
             for (var request : batchedRequests) {
                 var action = mistralEmbeddingsModel.accept(actionCreator, taskSettings);

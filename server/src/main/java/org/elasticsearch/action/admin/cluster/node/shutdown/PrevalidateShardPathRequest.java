@@ -27,12 +27,6 @@ public class PrevalidateShardPathRequest extends BaseNodesRequest<PrevalidateSha
         this.shardIds = Set.copyOf(Objects.requireNonNull(shardIds));
     }
 
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        TransportAction.localOnly();
-    }
-
     public Set<ShardId> getShardIds() {
         return shardIds;
     }

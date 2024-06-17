@@ -19,11 +19,6 @@ public final class ClearRepositoriesMeteringArchiveRequest extends BaseNodesRequ
         this.maxVersionToClear = maxVersionToClear;
     }
 
-    @Override
-    public void writeTo(StreamOutput out) {
-        TransportAction.localOnly();
-    }
-
     public long getMaxVersionToClear() {
         return maxVersionToClear;
     }

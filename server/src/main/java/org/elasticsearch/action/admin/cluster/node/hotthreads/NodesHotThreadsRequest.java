@@ -61,9 +61,4 @@ public class NodesHotThreadsRequest extends BaseNodesRequest<NodesHotThreadsRequ
     public int snapshots() {
         return requestOptions.snapshots();
     }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        TransportAction.localOnly();
-    }
 }

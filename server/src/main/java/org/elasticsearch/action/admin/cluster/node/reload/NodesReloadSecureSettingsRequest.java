@@ -58,11 +58,6 @@ public class NodesReloadSecureSettingsRequest extends BaseNodesRequest<NodesRelo
     }
 
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        TransportAction.localOnly();
-    }
-
-    @Override
     public void incRef() {
         refs.incRef();
     }

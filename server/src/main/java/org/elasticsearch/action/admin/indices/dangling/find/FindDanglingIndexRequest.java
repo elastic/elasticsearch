@@ -31,9 +31,4 @@ public class FindDanglingIndexRequest extends BaseNodesRequest<FindDanglingIndex
     public String toString() {
         return "FindDanglingIndicesRequest{indexUUID='" + indexUUID + "'}";
     }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        TransportAction.localOnly();
-    }
 }

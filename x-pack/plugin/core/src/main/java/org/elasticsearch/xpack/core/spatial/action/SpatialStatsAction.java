@@ -75,11 +75,6 @@ public class SpatialStatsAction extends ActionType<SpatialStatsAction.Response> 
             }
             return true;
         }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            TransportAction.localOnly();
-        }
     }
 
     public static class NodeRequest extends TransportRequest {

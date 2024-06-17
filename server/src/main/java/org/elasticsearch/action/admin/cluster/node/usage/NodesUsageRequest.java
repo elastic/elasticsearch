@@ -73,9 +73,4 @@ public class NodesUsageRequest extends BaseNodesRequest<NodesUsageRequest> {
         this.aggregations = aggregations;
         return this;
     }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        TransportAction.localOnly();
-    }
 }

@@ -66,11 +66,6 @@ public class GeoIpStatsAction {
             }
             return true;
         }
-
-        @Override
-        public void writeTo(StreamOutput out) {
-            TransportAction.localOnly();
-        }
     }
 
     public static class NodeRequest extends TransportRequest {

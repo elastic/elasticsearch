@@ -42,11 +42,6 @@ public class ClearRolesCacheRequest extends BaseNodesRequest<ClearRolesCacheRequ
         return names;
     }
 
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        TransportAction.localOnly();
-    }
-
     public static class Node extends TransportRequest {
         private String[] names;
 

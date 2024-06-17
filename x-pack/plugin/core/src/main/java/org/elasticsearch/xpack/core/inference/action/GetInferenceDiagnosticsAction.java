@@ -55,11 +55,6 @@ public class GetInferenceDiagnosticsAction extends ActionType<GetInferenceDiagno
             // The class doesn't have any members at the moment so return the same hash code
             return Objects.hash(NAME);
         }
-
-        @Override
-        public void writeTo(StreamOutput out) {
-            TransportAction.localOnly();
-        }
     }
 
     public static class NodeRequest extends TransportRequest {

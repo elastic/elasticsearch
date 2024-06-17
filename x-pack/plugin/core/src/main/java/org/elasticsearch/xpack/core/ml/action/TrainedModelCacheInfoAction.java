@@ -41,11 +41,6 @@ public class TrainedModelCacheInfoAction extends ActionType<TrainedModelCacheInf
         }
 
         @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            TransportAction.localOnly();
-        }
-
-        @Override
         public int hashCode() {
             return Arrays.hashCode(concreteNodes());
         }

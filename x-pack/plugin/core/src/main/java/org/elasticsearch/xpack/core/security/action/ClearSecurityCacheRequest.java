@@ -42,11 +42,6 @@ public class ClearSecurityCacheRequest extends BaseNodesRequest<ClearSecurityCac
         return keys;
     }
 
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        TransportAction.localOnly();
-    }
-
     public static class Node extends TransportRequest {
         private String cacheName;
         private String[] keys;

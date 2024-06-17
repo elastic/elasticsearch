@@ -30,11 +30,6 @@ public class GetServiceAccountCredentialsNodesRequest extends BaseNodesRequest<G
         this.serviceName = serviceName;
     }
 
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        TransportAction.localOnly();
-    }
-
     public static class Node extends TransportRequest {
 
         private final String namespace;

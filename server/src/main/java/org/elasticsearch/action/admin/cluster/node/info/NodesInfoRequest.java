@@ -100,11 +100,6 @@ public final class NodesInfoRequest extends BaseNodesRequest<NodesInfoRequest> {
         return this;
     }
 
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        TransportAction.localOnly();
-    }
-
     public NodesInfoMetrics getNodesInfoMetrics() {
         return nodesInfoMetrics;
     }

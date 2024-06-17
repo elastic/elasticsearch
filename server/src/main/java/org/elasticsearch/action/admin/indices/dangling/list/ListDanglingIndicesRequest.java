@@ -39,9 +39,4 @@ public class ListDanglingIndicesRequest extends BaseNodesRequest<ListDanglingInd
     public String toString() {
         return "ListDanglingIndicesRequest{indexUUID='" + indexUUID + "'}";
     }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        TransportAction.localOnly();
-    }
 }

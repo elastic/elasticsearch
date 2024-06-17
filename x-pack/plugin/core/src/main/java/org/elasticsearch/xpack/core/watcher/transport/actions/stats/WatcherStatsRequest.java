@@ -52,11 +52,6 @@ public class WatcherStatsRequest extends BaseNodesRequest<WatcherStatsRequest> {
     }
 
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        TransportAction.localOnly();
-    }
-
-    @Override
     public String toString() {
         return "watcher_stats";
     }

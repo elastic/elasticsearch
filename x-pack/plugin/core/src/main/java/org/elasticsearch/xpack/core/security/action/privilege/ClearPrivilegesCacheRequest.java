@@ -42,11 +42,6 @@ public class ClearPrivilegesCacheRequest extends BaseNodesRequest<ClearPrivilege
         return clearRolesCache;
     }
 
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        TransportAction.localOnly();
-    }
-
     public static class Node extends TransportRequest {
         private String[] applicationNames;
         private boolean clearRolesCache;

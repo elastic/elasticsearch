@@ -21,11 +21,6 @@ public class NodesDeprecationCheckRequest extends BaseNodesRequest<NodesDeprecat
     }
 
     @Override
-    public void writeTo(StreamOutput out) {
-        TransportAction.localOnly();
-    }
-
-    @Override
     public int hashCode() {
         return Objects.hash((Object[]) this.nodesIds());
     }

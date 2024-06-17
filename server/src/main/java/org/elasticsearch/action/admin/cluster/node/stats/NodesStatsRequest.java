@@ -172,11 +172,6 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
         nodesStatsRequestParameters.setIncludeShardsStats(includeShardsStats);
     }
 
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        TransportAction.localOnly();
-    }
-
     public NodesStatsRequestParameters getNodesStatsRequestParameters() {
         return nodesStatsRequestParameters;
     }

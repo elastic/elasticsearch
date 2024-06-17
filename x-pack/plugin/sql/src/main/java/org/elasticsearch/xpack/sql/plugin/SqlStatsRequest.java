@@ -35,11 +35,6 @@ public class SqlStatsRequest extends BaseNodesRequest<SqlStatsRequest> {
     }
 
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        TransportAction.localOnly();
-    }
-
-    @Override
     public String toString() {
         return "sql_stats";
     }

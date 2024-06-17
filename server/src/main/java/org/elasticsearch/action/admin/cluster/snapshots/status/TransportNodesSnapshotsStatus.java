@@ -132,11 +132,6 @@ public class TransportNodesSnapshotsStatus extends TransportNodesAction<
             this.snapshots = snapshots;
             return this;
         }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            TransportAction.localOnly();
-        }
     }
 
     public static class NodesSnapshotStatus extends BaseNodesResponse<NodeSnapshotStatus> {

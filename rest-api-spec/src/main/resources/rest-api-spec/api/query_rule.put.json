@@ -17,7 +17,7 @@
     "url": {
       "paths": [
         {
-          "path": "/_query_rules/{ruleset_id}/{rule_id}",
+          "path": "/_query_rules/{ruleset_id}/_rule/{rule_id}",
           "methods": [
             "PUT"
           ],

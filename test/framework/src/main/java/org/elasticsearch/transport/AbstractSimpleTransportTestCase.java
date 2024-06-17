@@ -514,7 +514,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
     }
 
     public void testMessageListeners() throws Exception {
-        final TransportRequestHandler<TransportRequest.Empty> requestHandler = (request, channel, task) -> {
+        final TransportRequestHandler<EmptyRequest> requestHandler = (request, channel, task) -> {
             try {
                 if (randomBoolean()) {
                     channel.sendResponse(TransportResponse.Empty.INSTANCE);
@@ -527,8 +527,8 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             }
         };
         final String ACTION = "internal:action";
-        serviceA.registerRequestHandler(ACTION, threadPool.executor(ThreadPool.Names.GENERIC), TransportRequest.Empty::new, requestHandler);
-        serviceB.registerRequestHandler(ACTION, threadPool.executor(ThreadPool.Names.GENERIC), TransportRequest.Empty::new, requestHandler);
+        serviceA.registerRequestHandler(ACTION, threadPool.executor(ThreadPool.Names.GENERIC), EmptyRequest::new, requestHandler);
+        serviceB.registerRequestHandler(ACTION, threadPool.executor(ThreadPool.Names.GENERIC), EmptyRequest::new, requestHandler);
 
         class CountingListener implements TransportMessageListener {
             AtomicInteger requestsReceived = new AtomicInteger();
@@ -585,7 +585,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         serviceB.addMessageListener(tracerB);
 
         try {
-            submitRequest(serviceA, nodeB, ACTION, TransportRequest.Empty.INSTANCE, NOOP_HANDLER).get();
+            submitRequest(serviceA, nodeB, ACTION, new EmptyRequest(), NOOP_HANDLER).get();
         } catch (ExecutionException e) {
             assertThat(e.getCause(), instanceOf(ElasticsearchException.class));
             assertThat(ExceptionsHelper.unwrapCause(e.getCause()).getMessage(), equalTo("simulated"));
@@ -604,7 +604,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         });
 
         try {
-            submitRequest(serviceB, nodeA, ACTION, TransportRequest.Empty.INSTANCE, NOOP_HANDLER).get();
+            submitRequest(serviceB, nodeA, ACTION, new EmptyRequest(), NOOP_HANDLER).get();
         } catch (ExecutionException e) {
             assertThat(e.getCause(), instanceOf(ElasticsearchException.class));
             assertThat(ExceptionsHelper.unwrapCause(e.getCause()).getMessage(), equalTo("simulated"));
@@ -624,7 +624,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
         // use assert busy as callbacks are called on a different thread
         try {
-            submitRequest(serviceA, nodeA, ACTION, TransportRequest.Empty.INSTANCE, NOOP_HANDLER).get();
+            submitRequest(serviceA, nodeA, ACTION, new EmptyRequest(), NOOP_HANDLER).get();
         } catch (ExecutionException e) {
             assertThat(e.getCause(), instanceOf(ElasticsearchException.class));
             assertThat(ExceptionsHelper.unwrapCause(e.getCause()).getMessage(), equalTo("simulated"));
@@ -648,7 +648,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             serviceA.registerRequestHandler(
                 "internal:sayHello",
                 threadPool.executor(ThreadPool.Names.GENERIC),
-                TransportRequest.Empty::new,
+                EmptyRequest::new,
                 (request, channel, task) -> {
                     try {
                         channel.sendResponse(TransportResponse.Empty.INSTANCE);
@@ -673,7 +673,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 serviceC,
                 nodeA,
                 "internal:sayHello",
-                TransportRequest.Empty.INSTANCE,
+                new EmptyRequest(),
                 new TransportResponseHandler<>() {
                     @Override
                     public TransportResponse.Empty read(StreamInput in) {
@@ -1257,7 +1257,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         }
         waitForever.countDown();
         doneWaitingForever.await();
-        assertTrue(inFlight.tryAcquire(Integer.MAX_VALUE, 10, TimeUnit.SECONDS));
+        safeAcquire(Integer.MAX_VALUE, inFlight);
     }
 
     @TestLogging(
@@ -3185,48 +3185,38 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
     public void testChannelToString() {
         final String ACTION = "internal:action";
-        serviceA.registerRequestHandler(
-            ACTION,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE,
-            TransportRequest.Empty::new,
-            (request, channel, task) -> {
-                assertThat(
-                    channel.toString(),
-                    allOf(
-                        containsString("DirectResponseChannel"),
-                        containsString('{' + ACTION + '}'),
-                        containsString("TaskTransportChannel{task=" + task.getId() + '}')
-                    )
-                );
-                assertThat(new ChannelActionListener<>(channel).toString(), containsString(channel.toString()));
-                channel.sendResponse(TransportResponse.Empty.INSTANCE);
-            }
-        );
-        serviceB.registerRequestHandler(
-            ACTION,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE,
-            TransportRequest.Empty::new,
-            (request, channel, task) -> {
-                assertThat(
-                    channel.toString(),
-                    allOf(
-                        containsString("TcpTransportChannel"),
-                        containsString('{' + ACTION + '}'),
-                        containsString("TaskTransportChannel{task=" + task.getId() + '}'),
-                        containsString("localAddress="),
-                        containsString(serviceB.getLocalNode().getAddress().toString())
-                    )
-                );
-                channel.sendResponse(TransportResponse.Empty.INSTANCE);
-            }
-        );
+        serviceA.registerRequestHandler(ACTION, EsExecutors.DIRECT_EXECUTOR_SERVICE, EmptyRequest::new, (request, channel, task) -> {
+            assertThat(
+                channel.toString(),
+                allOf(
+                    containsString("DirectResponseChannel"),
+                    containsString('{' + ACTION + '}'),
+                    containsString("TaskTransportChannel{task=" + task.getId() + '}')
+                )
+            );
+            assertThat(new ChannelActionListener<>(channel).toString(), containsString(channel.toString()));
+            channel.sendResponse(TransportResponse.Empty.INSTANCE);
+        });
+        serviceB.registerRequestHandler(ACTION, EsExecutors.DIRECT_EXECUTOR_SERVICE, EmptyRequest::new, (request, channel, task) -> {
+            assertThat(
+                channel.toString(),
+                allOf(
+                    containsString("TcpTransportChannel"),
+                    containsString('{' + ACTION + '}'),
+                    containsString("TaskTransportChannel{task=" + task.getId() + '}'),
+                    containsString("localAddress="),
+                    containsString(serviceB.getLocalNode().getAddress().toString())
+                )
+            );
+            channel.sendResponse(TransportResponse.Empty.INSTANCE);
+        });
 
         PlainActionFuture.get(
             f -> submitRequest(
                 serviceA,
                 serviceA.getLocalNode(),
                 ACTION,
-                TransportRequest.Empty.INSTANCE,
+                new EmptyRequest(),
                 new ActionListenerResponseHandler<>(
                     f,
                     ignored -> TransportResponse.Empty.INSTANCE,
@@ -3242,7 +3232,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 serviceA,
                 serviceB.getLocalNode(),
                 ACTION,
-                TransportRequest.Empty.INSTANCE,
+                new EmptyRequest(),
                 new ActionListenerResponseHandler<>(
                     f,
                     ignored -> TransportResponse.Empty.INSTANCE,
@@ -3360,23 +3350,18 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         final var barrier = new CyclicBarrier(2);
         final var threadNameFuture = new PlainActionFuture<String>();
         final var actionName = "internal:action";
-        serviceA.registerRequestHandler(
-            actionName,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE,
-            TransportRequest.Empty::new,
-            (request, channel, task) -> {
-                threadNameFuture.onResponse(Thread.currentThread().getName());
-                safeAwait(barrier);
-                channel.sendResponse(TransportResponse.Empty.INSTANCE);
-            }
-        );
+        serviceA.registerRequestHandler(actionName, EsExecutors.DIRECT_EXECUTOR_SERVICE, EmptyRequest::new, (request, channel, task) -> {
+            threadNameFuture.onResponse(Thread.currentThread().getName());
+            safeAwait(barrier);
+            channel.sendResponse(TransportResponse.Empty.INSTANCE);
+        });
 
         final var responseLatch = new CountDownLatch(1);
         submitRequest(
             serviceB,
             nodeA,
             actionName,
-            new TransportRequest.Empty(),
+            new EmptyRequest(),
             new ActionListenerResponseHandler<TransportResponse>(
                 ActionTestUtils.assertNoFailureListener(t -> responseLatch.countDown()),
                 in -> TransportResponse.Empty.INSTANCE,
@@ -3470,7 +3455,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             serviceC.sendRequest(
                 connection,
                 "fail-to-send-action",
-                TransportRequest.Empty.INSTANCE,
+                new EmptyRequest(),
                 TransportRequestOptions.EMPTY,
                 new TransportResponseHandler.Empty() {
                     @Override

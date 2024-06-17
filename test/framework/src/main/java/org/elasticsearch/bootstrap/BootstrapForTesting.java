@@ -223,7 +223,7 @@ public class BootstrapForTesting {
         addClassCodebase(codebases, "elasticsearch-core", "org.elasticsearch.core.Booleans");
         addClassCodebase(codebases, "elasticsearch-cli", "org.elasticsearch.cli.Command");
         addClassCodebase(codebases, "elasticsearch-preallocate", "org.elasticsearch.preallocate.Preallocate");
-        addClassCodebase(codebases, "elasticsearch-vec", "org.elasticsearch.vec.VectorScorerFactory");
+        addClassCodebase(codebases, "elasticsearch-vec", "org.elasticsearch.simdvec.VectorScorerFactory");
         addClassCodebase(codebases, "framework", "org.elasticsearch.test.ESTestCase");
         return codebases;
     }

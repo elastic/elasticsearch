@@ -6,10 +6,10 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.action.admin.cluster.hotthreads;
+package org.elasticsearch.action.admin.cluster.node.hotthreads;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.action.admin.cluster.node.hotthreads.NodesHotThreadsRequest;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.core.TimeValue;
@@ -46,10 +46,13 @@ public class NodesHotThreadsRequestTests extends ESTestCase {
 
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             out.setTransportVersion(latest);
-            request.writeTo(out);
+            request.requestOptions.writeTo(out);
             try (StreamInput in = out.bytes().streamInput()) {
                 in.setTransportVersion(previous);
-                NodesHotThreadsRequest deserialized = new NodesHotThreadsRequest(in);
+                NodesHotThreadsRequest deserialized = new NodesHotThreadsRequest(
+                    Strings.EMPTY_ARRAY,
+                    HotThreads.RequestOptions.readFrom(in)
+                );
                 assertEquals(request.threads(), deserialized.threads());
                 assertEquals(request.ignoreIdleThreads(), deserialized.ignoreIdleThreads());
                 assertEquals(request.type(), deserialized.type());
@@ -61,10 +64,13 @@ public class NodesHotThreadsRequestTests extends ESTestCase {
 
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             out.setTransportVersion(previous);
-            request.writeTo(out);
+            request.requestOptions.writeTo(out);
             try (StreamInput in = out.bytes().streamInput()) {
                 in.setTransportVersion(previous);
-                NodesHotThreadsRequest deserialized = new NodesHotThreadsRequest(in);
+                NodesHotThreadsRequest deserialized = new NodesHotThreadsRequest(
+                    Strings.EMPTY_ARRAY,
+                    HotThreads.RequestOptions.readFrom(in)
+                );
                 assertEquals(request.threads(), deserialized.threads());
                 assertEquals(request.ignoreIdleThreads(), deserialized.ignoreIdleThreads());
                 assertEquals(request.type(), deserialized.type());

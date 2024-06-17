@@ -203,7 +203,7 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
             onFinish.run();
             return;
         }
-        
+
         loadModel(loadingTask, ActionListener.runAfter(ActionListener.wrap(retry -> {
             if (retry != null && retry) {
                 loadingModels.offer(loadingTask);

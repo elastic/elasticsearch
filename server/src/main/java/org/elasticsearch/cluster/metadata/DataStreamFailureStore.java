@@ -13,7 +13,6 @@ import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -34,7 +33,7 @@ public record DataStreamFailureStore(boolean enabled) implements SimpleDiffable<
     public static final ConstructingObjectParser<DataStreamFailureStore, Void> PARSER = new ConstructingObjectParser<>(
         "failure_store",
         false,
-        (args, unused) -> new DataStreamFailureStore((Boolean) args[0])
+        (args, unused) -> new DataStreamFailureStore(args[0] == null || (Boolean) args[0])
     );
 
     static {
@@ -43,10 +42,6 @@ public record DataStreamFailureStore(boolean enabled) implements SimpleDiffable<
 
     public DataStreamFailureStore() {
         this(true);
-    }
-
-    public DataStreamFailureStore(@Nullable Boolean enabled) {
-        this(enabled == null || enabled);
     }
 
     public static DataStreamFailureStore read(StreamInput in) throws IOException {

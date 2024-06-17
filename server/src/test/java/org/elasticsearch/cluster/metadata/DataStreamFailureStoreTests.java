@@ -37,6 +37,6 @@ public class DataStreamFailureStoreTests extends AbstractXContentSerializingTest
     }
 
     static DataStreamFailureStore randomFailureStore() {
-        return new DataStreamFailureStore(randomBoolean() ? null : randomBoolean());
+        return new DataStreamFailureStore(randomBoolean());
     }
 }

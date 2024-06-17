@@ -31,14 +31,35 @@ FROM sample_data
 median_duration:double | env:keyword
 ;
 
-// TODO: add more variants
-enrichLeavesOrderOfExistingColumnsIntactFromRowWith
-ROW left = "left", client_ip = "127.0.0.1", right = "right"
+//
+// Shadowing and attribute order tests
+//
+
+shadowingLeavesOrderOfExistingColumnsIntact
+ROW left = "left", client_ip = "127.0.0.1", env = "env", right = "right"
+| ENRICH clientip_policy ON client_ip
+| LIMIT 0
+;
+
+left:keyword | client_ip:keyword | right:keyword | env:keyword
+;
+
+shadowingWithLeavesOrderOfExistingColumnsIntact
+ROW left = "left", env = "env", client_ip = "127.0.0.1", right = "right"
 | ENRICH clientip_policy ON client_ip WITH env
 | LIMIT 0
 ;
 
 left:keyword | client_ip:keyword | right:keyword | env:keyword
+;
+
+shadowingWithAliasLeavesOrderOfExistingColumnsIntact
+ROW left = "left", foo = "foo", client_ip = "127.0.0.1", env = "env", right = "right"
+| ENRICH clientip_policy ON client_ip WITH foo = env
+| LIMIT 0
+;
+
+left:keyword | client_ip:keyword | env:keyword | right:keyword | foo:keyword
 ;
 
 simple

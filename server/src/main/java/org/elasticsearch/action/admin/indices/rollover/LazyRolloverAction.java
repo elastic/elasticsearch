@@ -183,10 +183,15 @@ public final class LazyRolloverAction extends ActionType<RolloverResponse> {
                 groupedRequests.computeIfAbsent(taskContext.getTask().rolloverRequest(), ignored -> new ArrayList<>()).add(taskContext);
             }
             for (final var entry : groupedRequests.entrySet()) {
+                List<TaskContext<LazyRolloverTask>> rolloverTaskContexts = entry.getValue();
                 try {
-                    state = executeTask(state, entry.getKey(), results, entry.getValue(), listener);
+                    RolloverRequest rolloverRequest = entry.getKey();
+                    state = executeTask(state, rolloverRequest, results, rolloverTaskContexts, listener);
                 } catch (Exception e) {
-                    entry.getValue().forEach(taskContext -> taskContext.onFailure(e));
+                    rolloverTaskContexts.forEach(taskContext -> {
+                        taskContext.captureResponseHeaders().close();
+                        taskContext.onFailure(e);
+                    });
                 }
             }
 

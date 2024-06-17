@@ -63,10 +63,11 @@ public class AutoscalerService implements ClusterStateListener {
         }
     }
 
-    private static final int TIME_INTERVAL_SECONDS = 10;
+    private static final int DEFAULT_TIME_INTERVAL_SECONDS = 10;
 
     private static final Logger logger = LogManager.getLogger(AutoscalerService.class);
 
+    private final int timeIntervalSeconds;
     private final ThreadPool threadPool;
     private final ClusterService clusterService;
     private final Client client;
@@ -78,26 +79,44 @@ public class AutoscalerService implements ClusterStateListener {
     private volatile Scheduler.Cancellable cancellable;
 
     public AutoscalerService(ThreadPool threadPool, ClusterService clusterService, Client client, boolean isNlpEnabled) {
+        this(threadPool, clusterService, client, isNlpEnabled, DEFAULT_TIME_INTERVAL_SECONDS);
+    }
+
+    // visible for testing
+    AutoscalerService(ThreadPool threadPool, ClusterService clusterService, Client client, boolean isNlpEnabled, int timeIntervalSeconds) {
         this.threadPool = threadPool;
         this.clusterService = clusterService;
         this.client = client;
         this.isNlpEnabled = isNlpEnabled;
+        this.timeIntervalSeconds = timeIntervalSeconds;
 
         lastInferenceStatsByDeploymentNode = new HashMap<>();
         autoscalers = new HashMap<>();
     }
 
-    public void start() {
-        update(clusterService.state());
+    public synchronized void start() {
+        updateAutoscalers(clusterService.state());
         clusterService.addListener(this);
+        if (autoscalers.isEmpty() == false) {
+            startScheduling();
+        }
+    }
+
+    public synchronized void stop() {
+        stopScheduling();
     }
 
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
-        update(event.state());
+        updateAutoscalers(event.state());
+        if (autoscalers.isEmpty() == false) {
+            startScheduling();
+        }  else {
+            stopScheduling();
+        }
     }
 
-    private synchronized void update(ClusterState state) {
+    private synchronized void updateAutoscalers(ClusterState state) {
         if (isNlpEnabled == false) {
             return;
         }
@@ -117,18 +136,22 @@ public class AutoscalerService implements ClusterStateListener {
                 autoscalers.remove(assignment.getDeploymentId());
             }
         }
+    }
 
-        if (autoscalers.isEmpty() == false) {
-            if (cancellable == null) {
-                logger.debug("Starting ML inference autoscaler");
-                scheduleNextTrigger();
+    private synchronized void startScheduling() {
+        if (cancellable == null) {
+            logger.debug("Starting ML inference autoscaler");
+            try {
+                cancellable = threadPool.scheduleWithFixedDelay(this::trigger, TimeValue.timeValueSeconds(timeIntervalSeconds), threadPool.generic());
+            } catch (EsRejectedExecutionException e) {
+                if (e.isExecutorShutdown() == false) {
+                    throw e;
+                }
             }
-        } else {
-            stop();
         }
     }
 
-    public synchronized void stop() {
+    private synchronized void stopScheduling() {
         if (cancellable != null && cancellable.isCancelled() == false) {
             logger.debug("Stopping ML inference autoscaler");
             cancellable.cancel();
@@ -136,22 +159,11 @@ public class AutoscalerService implements ClusterStateListener {
         }
     }
 
-    private void scheduleNextTrigger() {
-        try {
-            cancellable = threadPool.schedule(this::trigger, TimeValue.timeValueSeconds(TIME_INTERVAL_SECONDS), threadPool.generic());
-        } catch (EsRejectedExecutionException e) {
-            if (e.isExecutorShutdown() == false) {
-                throw e;
-            }
-        }
-    }
-
     private synchronized void trigger() {
-        scheduleNextTrigger();
         getDeploymentStats(ActionListener.wrap(this::processDeploymentStats, e -> logger.warn("Error in inference autoscaling", e)));
     }
 
-    private void getDeploymentStats(ActionListener<GetDeploymentStatsAction.Response> processDeploymentStats) {
+    private synchronized void getDeploymentStats(ActionListener<GetDeploymentStatsAction.Response> processDeploymentStats) {
         String deploymentIds = String.join(",", autoscalers.keySet());
         ClientHelper.executeAsyncWithOrigin(
             client,
@@ -162,7 +174,7 @@ public class AutoscalerService implements ClusterStateListener {
         );
     }
 
-    private void processDeploymentStats(GetDeploymentStatsAction.Response statsResponse) {
+    private synchronized void processDeploymentStats(GetDeploymentStatsAction.Response statsResponse) {
         Map<String, Stats> recentStatsByDeployment = new HashMap<>();
         Map<String, Integer> numberOfAllocations = new HashMap<>();
 
@@ -191,7 +203,7 @@ public class AutoscalerService implements ClusterStateListener {
             String deploymentId = deploymentAndStats.getKey();
             Stats stats = deploymentAndStats.getValue();
             Autoscaler autoscaler = autoscalers.get(deploymentId);
-            autoscaler.process(stats, TIME_INTERVAL_SECONDS, numberOfAllocations.get(deploymentId));
+            autoscaler.process(stats, timeIntervalSeconds, numberOfAllocations.get(deploymentId));
             Integer newNumberOfAllocations = autoscaler.autoscale();
             if (newNumberOfAllocations != null) {
                 UpdateTrainedModelDeploymentAction.Request updateRequest = new UpdateTrainedModelDeploymentAction.Request(deploymentId);

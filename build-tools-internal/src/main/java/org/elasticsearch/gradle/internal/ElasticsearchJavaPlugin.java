@@ -116,7 +116,7 @@ public class ElasticsearchJavaPlugin implements Plugin<Project> {
         project.getPluginManager().apply("nebula.info-broker");
         project.getPluginManager().apply("nebula.info-basic");
         project.getPluginManager().apply("nebula.info-java");
-//        project.getPluginManager().apply("nebula.info-jar");
+        project.getPluginManager().apply("nebula.info-jar");
     }
 
     private static void configureJavadoc(Project project) {

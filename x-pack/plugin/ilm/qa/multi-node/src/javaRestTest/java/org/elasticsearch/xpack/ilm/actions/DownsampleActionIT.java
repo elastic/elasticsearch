@@ -395,10 +395,12 @@ public class DownsampleActionIT extends ESRestTestCase {
     }
 
     public void testRollupNonTSIndex() throws Exception {
+        // Create the ILM policy
         String phaseName = randomFrom("warm", "cold");
         DateHistogramInterval fixedInterval = ConfigTestHelpers.randomInterval();
         createNewSingletonPolicy(client(), policy, phaseName, new DownsampleAction(fixedInterval, DownsampleAction.DEFAULT_WAIT_TIMEOUT));
 
+        // Create a non TSDB managed index
         createIndex(index, alias, policy, false);
         index(client(), index, true, null, "@timestamp", "2020-01-01T05:10:00Z", "volume", 11.0, "metricset", randomAlphaOfLength(5));
 

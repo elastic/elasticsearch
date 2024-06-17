@@ -21,8 +21,10 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputAttributes;
 
@@ -76,22 +78,30 @@ public class Join extends BinaryPlan {
         return lazyOutput;
     }
 
+    /**
+     * Merge output fields.
+     * Currently only implemented for LEFT JOINs; the rightOutput shadows the leftOutput, except for any attributes that
+     * occur in the join's matchFields.
+     */
     public static List<Attribute> computeOutput(List<Attribute> leftOutput, List<Attribute> rightOutput, JoinConfig config) {
-        AttributeSet toBeRemoved = new AttributeSet(Expressions.references(config.conditions()));
-        toBeRemoved.removeAll(config.matchFields());
+        AttributeSet matchFieldSet = new AttributeSet(config.matchFields());
+        Set<String> matchFieldNames = new HashSet<>(Expressions.names(config.matchFields()));
         return switch (config.type()) {
             case LEFT -> {
                 // Right side becomes nullable.
-                List<Attribute> fieldsAddedFromRight = new ArrayList<>();
-                for (Attribute attribute : rightOutput) {
-                    if (toBeRemoved.contains(attribute) == false) {
-                        fieldsAddedFromRight.add(makeReference(attribute).withNullability(Nullability.TRUE));
-                    }
-                }
-                yield mergeOutputAttributes(makeReference(fieldsAddedFromRight), leftOutput);
+                List<Attribute> fieldsAddedFromRight = removeCollisionsWithMatchFields(rightOutput, matchFieldSet, matchFieldNames);
+                yield mergeOutputAttributes(makeNullable(makeReference(fieldsAddedFromRight)), leftOutput);
             }
             default -> throw new UnsupportedOperationException("Other JOINs than LEFT not supported");
         };
+    }
+
+    private static List<Attribute> removeCollisionsWithMatchFields(
+        List<Attribute> attributes,
+        AttributeSet matchFields,
+        Set<String> matchFieldNames
+    ) {
+        return attributes.stream().filter(attr -> matchFields.contains(attr) || matchFieldNames.contains(attr.name()) == false).toList();
     }
 
     /**
@@ -129,16 +139,12 @@ public class Join extends BinaryPlan {
      *   TODO we should rework stats so we don't have to do this
      * </p>
      */
-    public static Attribute makeReference(Attribute a) {
-        if (a.resolved() && a instanceof ReferenceAttribute == false) {
-            return new ReferenceAttribute(a.source(), a.name(), a.dataType(), a.qualifier(), a.nullable(), a.id(), a.synthetic());
-        } else {
-            return a;
-        }
-    }
-
     public static List<Attribute> makeReference(List<Attribute> output) {
-        return output.stream().map(Join::makeReference).toList();
+        List<Attribute> out = new ArrayList<>(output.size());
+        for (Attribute a : output) {
+            out.add(new ReferenceAttribute(a.source(), a.name(), a.dataType(), a.qualifier(), a.nullable(), a.id(), a.synthetic()));
+        }
+        return out;
     }
 
     public static List<Attribute> makeNullable(List<Attribute> output) {

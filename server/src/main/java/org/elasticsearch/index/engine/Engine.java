@@ -292,6 +292,10 @@ public abstract class Engine implements Closeable {
     protected final SparseVectorStats sparseVectorStats(IndexReader indexReader, MappingLookup mappingLookup) {
         long valueCount = 0;
 
+        if (mappingLookup == null) {
+            return new SparseVectorStats(valueCount);
+        }
+
         // we don't wait for a pending refreshes here since it's a stats call instead we mark it as accessed only which will cause
         // the next scheduled refresh to go through and refresh the stats as well
         for (LeafReaderContext readerContext : indexReader.leaves()) {
@@ -306,10 +310,6 @@ public abstract class Engine implements Closeable {
 
     private long getSparseVectorValueCount(final LeafReader atomicReader, MappingLookup mappingLookup) throws IOException {
         long count = 0;
-
-        if (mappingLookup == null) {
-            return count;
-        }
 
         Map<String, FieldMapper> mappers = new HashMap<>();
         for (Mapper mapper : mappingLookup.fieldMappers()) {

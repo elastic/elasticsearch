@@ -5,23 +5,38 @@
  * 2.0.
  */
 
-package org.elasticsearch.compute.operator.In;
+package org.elasticsearch.xpack.esql.expression.predicate.operator.comparison;
 
-import org.apache.lucene.util.ArrayUtil;
 $if(BytesRef)$
 import org.apache.lucene.util.BytesRef;
 $endif$
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
 $if(int)$
 import org.elasticsearch.compute.data.IntBlock;
+import org.elasticsearch.compute.data.IntVector;
 $elseif(long)$
 import org.elasticsearch.compute.data.LongBlock;
-$else$
-import org.elasticsearch.compute.data.$Type$Block;
+import org.elasticsearch.compute.data.LongVector;
+$elseif(double)$
+import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.DoubleVector;
+$elseif(BytesRef)$
+import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.BytesRefVector;
+$elseif(boolean)$
+import org.elasticsearch.compute.data.BooleanVector;
 $endif$
+import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.expression.function.Warnings;
+
 import java.util.Arrays;
+import java.util.BitSet;
 
 /**
  * This class is generated. Edit {@code X-In.java.st} instead.
@@ -70,19 +85,28 @@ public class In$Type$Evaluator implements EvalOperator.ExpressionEvaluator {
 
     public BooleanBlock eval(int positionCount, $Type$Block lhsBlock, $Type$Block[] rhsBlocks) {
         try (BooleanBlock.Builder result = driverContext.blockFactory().newBooleanBlockBuilder(positionCount)) {
+$if(int)$
+            int[] rhsValues = new int[rhs.length];
+$elseif(long)$
+            long[] rhsValues = new long[rhs.length];
+$elseif(double)$
+            double[] rhsValues = new double[rhs.length];
+$elseif(boolean)$
+            boolean[] rhsValues = new boolean[rhs.length];
+$elseif(BytesRef)$
             $Type$[] rhsValues = new $Type$[rhs.length];
-            BitSet nulls = new BitSet(rhs.length);
-$if(BytesRef)$
             BytesRef lhsScratch = new BytesRef();
             BytesRef[] rhsScratch = new BytesRef[rhs.length];
             for (int i = 0; i < rhs.length; i++) {
                 rhsScratch[i] = new BytesRef();
             }
 $endif$
-            position: for (int p = 0; p < positionCount; p++) {
+            BitSet nulls = new BitSet(rhs.length);
+            BitSet mvs = new BitSet(rhs.length);
+            for (int p = 0; p < positionCount; p++) {
                 if (lhsBlock.isNull(p)) {
                     result.appendNull();
-                    continue position;
+                    continue;
                 }
                 if (lhsBlock.getValueCount(p) != 1) {
                     if (lhsBlock.getValueCount(p) > 1) {
@@ -90,33 +114,38 @@ $endif$
                             new IllegalArgumentException("single-value function encountered multi-value"));
                     }
                     result.appendNull();
-                    continue position;
+                    continue;
                 }
                 // unpack rhsBlocks into rhsValues
+                nulls.clear();
+                mvs.clear();
                 for (int i = 0; i < rhsBlocks.length; i++) {
-                    nulls.clear();
-                    arrayArgs: for (int i = 0; i < rhsBlocks.length; i++) {
-                        if (rhsBlocks[i].isNull(p)) {
-                            nulls.set(i);
-                            continue arrayArgs;
-                        }
-                        int o = rhsBlocks[i].getFirstValueIndex(p);
-$if(BytesRef)$
-                        rhsValues[i] = rhsBlocks[i].getBytesRef(o, rhsScratch[i]);
-$else$
-                        rhsValues[i] = rhsBlocks[i].get$Type$(o);
-$endif$
+                    if (rhsBlocks[i].isNull(p)) {
+                        nulls.set(i);
+                        continue;
                     }
+                    if (rhsBlocks[i].getValueCount(p) > 1) {
+                        mvs.set(i);
+                        warnings.registerException(
+                            new IllegalArgumentException("single-value function encountered multi-value"));
+                        continue;
+                    }
+                    int o = rhsBlocks[i].getFirstValueIndex(p);
+$if(BytesRef)$
+                    rhsValues[i] = rhsBlocks[i].getBytesRef(o, rhsScratch[i]);
+$else$
+                    rhsValues[i] = rhsBlocks[i].get$Type$(o);
+$endif$
                 }
-                if (nulls.cardinality() == rhsBlocks.length) {
+                if (nulls.cardinality() == rhsBlocks.length || mvs.cardinality() == rhsBlocks.length) {
                     result.appendNull();
-                    continue position;
+                    continue;
                 }
                 try {
 $if(BytesRef)$
-                    In.process(result, nulls, lhsBlock.getBytesRef(lhsBlock.getFirstValueIndex(p), lhsScratch), rhsValues);
+                    In.process(result, nulls, mvs, lhsBlock.getBytesRef(lhsBlock.getFirstValueIndex(p), lhsScratch), rhsValues);
 $else$
-                    In.process(result, nulls, lhsBlock.get$Type$(lhsBlock.getFirstValueIndex(p)), rhsValues);
+                    In.process(result, nulls, mvs, lhsBlock.get$Type$(lhsBlock.getFirstValueIndex(p)), rhsValues);
 $endif$
                 } catch (IllegalArgumentException e) {
                     warnings.registerException(e);
@@ -129,45 +158,43 @@ $endif$
 
     public BooleanBlock eval(int positionCount, $Type$Vector lhsVector, $Type$Vector[] rhsVectors) {
         try (BooleanBlock.Builder result = driverContext.blockFactory().newBooleanBlockBuilder(positionCount)) {
+$if(int)$
+            int[] rhsValues = new int[rhs.length];
+$elseif(long)$
+            long[] rhsValues = new long[rhs.length];
+$elseif(double)$
+            double[] rhsValues = new double[rhs.length];
+$elseif(boolean)$
+            boolean[] rhsValues = new boolean[rhs.length];
+$elseif(BytesRef)$
             $Type$[] rhsValues = new $Type$[rhs.length];
-            BitSet nulls = new BitSet(rhs.length);
-$if(BytesRef)$
             BytesRef lhsScratch = new BytesRef();
             BytesRef[] rhsScratch = new BytesRef[rhs.length];
             for (int i = 0; i < rhs.length; i++) {
                 rhsScratch[i] = new BytesRef();
             }
 $endif$
-            position: for (int p = 0; p < positionCount; p++) {
+            for (int p = 0; p < positionCount; p++) {
                 // unpack rhsVectors into rhsValues
-                nulls.clear();
-                arrayArgs: for (int i = 0; i < rhsVectors.length; i++) {
-                    if (rhsVectors[i].isNull(p)) {
-                        nulls.set(i);
-                        continue arrayArgs;
-                    }
+                for (int i = 0; i < rhsVectors.length; i++) {
 $if(BytesRef)$
                     rhsValues[i] = rhsVectors[i].getBytesRef(p, rhsScratch[i]);
 $else$
                     rhsValues[i] = rhsVectors[i].get$Type$(p);
 $endif$
                 }
-                if (nulls.cardinality() == rhsVectors.length) {
-                    result.appendNull();
-                    continue position;
-                }
                 try {
 $if(BytesRef)$
-                    In.process(result, nulls, lhsVector.getBytesRef(lhsBlock.getFirstValueIndex(p), lhsScratch), rhsValues);
+                    In.process(result, null, null, lhsVector.getBytesRef(p, lhsScratch), rhsValues);
 $else$
-                    In.process(result, nulls, lhsVector.get$Type$(p), rhsValues);
+                    In.process(result, null, null, lhsVector.get$Type$(p), rhsValues);
 $endif$
                 } catch (IllegalArgumentException e) {
                     warnings.registerException(e);
                     result.appendNull();
                 }
-                return result.build();
             }
+            return result.build();
         }
     }
 
@@ -186,7 +213,7 @@ $endif$
         private final EvalOperator.ExpressionEvaluator.Factory lhs;
         private final EvalOperator.ExpressionEvaluator.Factory[] rhs;
 
-        public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory lhs,
+        Factory(Source source, EvalOperator.ExpressionEvaluator.Factory lhs,
             EvalOperator.ExpressionEvaluator.Factory[] rhs) {
             this.source = source;
             this.lhs = lhs;

@@ -305,6 +305,34 @@ tasks.named('stringTemplates').configure {
     it.inputFile = enrichResultBuilderInput
     it.outputFile = "org/elasticsearch/xpack/esql/enrich/EnrichResultBuilderForBoolean.java"
   }
+
+
+  File inInputFile = file("src/main/java/org/elasticsearch/xpack/esql/expression/predicate/operator/comparison/X-In.java.st")
+  template {
+    it.properties = booleanProperties
+    it.inputFile =  inInputFile
+    it.outputFile = "org/elasticsearch/xpack/esql/expression/predicate/operator/comparison/InBooleanEvaluator.java"
+  }
+  template {
+    it.properties = intProperties
+    it.inputFile =  inInputFile
+    it.outputFile = "org/elasticsearch/xpack/esql/expression/predicate/operator/comparison/InIntEvaluator.java"
+  }
+  template {
+    it.properties = longProperties
+    it.inputFile =  inInputFile
+    it.outputFile = "org/elasticsearch/xpack/esql/expression/predicate/operator/comparison/InLongEvaluator.java"
+  }
+  template {
+    it.properties = doubleProperties
+    it.inputFile =  inInputFile
+    it.outputFile = "org/elasticsearch/xpack/esql/expression/predicate/operator/comparison/InDoubleEvaluator.java"
+  }
+  template {
+    it.properties = bytesRefProperties
+    it.inputFile =  inInputFile
+    it.outputFile = "org/elasticsearch/xpack/esql/expression/predicate/operator/comparison/InBytesRefEvaluator.java"
+  }
 }
 
 tasks.withType(CheckForbiddenApisTask).configureEach {

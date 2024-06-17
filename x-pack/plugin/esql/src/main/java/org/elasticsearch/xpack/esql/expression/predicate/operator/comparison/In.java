@@ -8,13 +8,7 @@
 package org.elasticsearch.xpack.esql.expression.predicate.operator.comparison;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.compute.ann.Evaluator;
-import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
-import org.elasticsearch.compute.data.BytesRefBlock;
-import org.elasticsearch.compute.data.DoubleBlock;
-import org.elasticsearch.compute.data.IntBlock;
-import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -236,158 +230,113 @@ public class In extends EsqlScalarFunction {
         }
     }
 
-    private static void checkLHS(int p, Block field) {
-        // mv is not allowed on the left hand side
-        if (field.getValueCount(p) > 1) {
-            throw new IllegalArgumentException("single-value function encountered multi-value");
+    static void process(BooleanBlock.Builder builder, BitSet nulls, BitSet mvs, boolean lhs, boolean[] rhs) {
+        boolean hasNull = nulls == null ? false : nulls.cardinality() > 0;
+        for (int i = 0; i < rhs.length; i++) {
+            if (hasNull && nulls.get(i)) {
+                continue;
+            }
+            if (mvs != null && mvs.get(i)) {
+                continue;
+            }
+            Boolean compResult = Comparisons.eq(lhs, rhs[i]);
+            if (compResult == Boolean.TRUE) {
+                builder.appendBoolean(true);
+                return;
+            }
+        }
+        if (hasNull) {
+            builder.appendNull();
+        } else {
+            builder.appendBoolean(false);
         }
     }
 
-    @Evaluator(extraName = "Boolean", warnExceptions = { IllegalArgumentException.class })
-    static void process(BooleanBlock.Builder builder, int p, BooleanBlock lhs, BooleanBlock[] rhs) {
-        checkLHS(p, lhs);
-        boolean l = lhs.getBoolean(lhs.getFirstValueIndex(p));
-        Boolean[] r = new Boolean[rhs.length];
-        BitSet nulls = new BitSet(rhs.length);
-        int index;
-        rhs: for (int i = 0; i < rhs.length; i++) {
-            if (rhs[i].isNull(p)) {
-                nulls.set(i);
+    static void process(BooleanBlock.Builder builder, BitSet nulls, BitSet mvs, int lhs, int[] rhs) {
+        boolean hasNull = nulls == null ? false : nulls.cardinality() > 0;
+        for (int i = 0; i < rhs.length; i++) {
+            if (hasNull && nulls.get(i)) {
                 continue;
             }
-            if (rhs[i].getValueCount(p) > 1) {
-                int start = rhs[i].getFirstValueIndex(p);
-                int end = start + rhs[i].getValueCount(p);
-                for (int j = start; j < end; j++) {
-                    r[i] = rhs[i].getBoolean(j);
-                    if (r[i] == l) {
-                        continue rhs;
-                    }
-                }
-            } else {
-                index = rhs[i].getFirstValueIndex(p);
-                r[i] = rhs[i].getBoolean(index);
+            if (mvs != null && mvs.get(i)) {
+                continue;
+            }
+            Boolean compResult = Comparisons.eq(lhs, rhs[i]);
+            if (compResult == Boolean.TRUE) {
+                builder.appendBoolean(true);
+                return;
             }
         }
-        processCommon(builder, nulls, l, r);
+        if (hasNull) {
+            builder.appendNull();
+        } else {
+            builder.appendBoolean(false);
+        }
     }
 
-    @Evaluator(extraName = "Int", warnExceptions = { IllegalArgumentException.class })
-    static void process(BooleanBlock.Builder builder, int p, IntBlock lhs, IntBlock[] rhs) {
-        checkLHS(p, lhs);
-        int l = lhs.getInt(lhs.getFirstValueIndex(p));
-        Integer[] r = new Integer[rhs.length];
-        BitSet nulls = new BitSet(rhs.length);
-        int index;
-        rhs: for (int i = 0; i < rhs.length; i++) {
-            if (rhs[i].isNull(p)) {
-                nulls.set(i);
+    static void process(BooleanBlock.Builder builder, BitSet nulls, BitSet mvs, long lhs, long[] rhs) {
+        boolean hasNull = nulls == null ? false : nulls.cardinality() > 0;
+        for (int i = 0; i < rhs.length; i++) {
+            if (hasNull && nulls.get(i)) {
                 continue;
             }
-            if (rhs[i].getValueCount(p) > 1) {
-                int start = rhs[i].getFirstValueIndex(p);
-                int end = start + rhs[i].getValueCount(p);
-                for (int j = start; j < end; j++) {
-                    r[i] = rhs[i].getInt(j);
-                    if (r[i] == l) {
-                        continue rhs;
-                    }
-                }
-            } else {
-                index = rhs[i].getFirstValueIndex(p);
-                r[i] = rhs[i].getInt(index);
+            if (mvs != null && mvs.get(i)) {
+                continue;
+            }
+            Boolean compResult = Comparisons.eq(lhs, rhs[i]);
+            if (compResult == Boolean.TRUE) {
+                builder.appendBoolean(true);
+                return;
             }
         }
-        processCommon(builder, nulls, l, r);
+        if (hasNull) {
+            builder.appendNull();
+        } else {
+            builder.appendBoolean(false);
+        }
     }
 
-    @Evaluator(extraName = "Long", warnExceptions = { IllegalArgumentException.class })
-    static void process(BooleanBlock.Builder builder, int p, LongBlock lhs, LongBlock[] rhs) {
-        checkLHS(p, lhs);
-        long l = lhs.getLong(lhs.getFirstValueIndex(p));
-        Long[] r = new Long[rhs.length];
-        BitSet nulls = new BitSet(rhs.length);
-        int index;
-        rhs: for (int i = 0; i < rhs.length; i++) {
-            if (rhs[i].isNull(p)) {
-                nulls.set(i);
+    static void process(BooleanBlock.Builder builder, BitSet nulls, BitSet mvs, double lhs, double[] rhs) {
+        boolean hasNull = nulls == null ? false : nulls.cardinality() > 0;
+        for (int i = 0; i < rhs.length; i++) {
+            if (hasNull && nulls.get(i)) {
                 continue;
             }
-            if (rhs[i].getValueCount(p) > 1) {
-                int start = rhs[i].getFirstValueIndex(p);
-                int end = start + rhs[i].getValueCount(p);
-                for (int j = start; j < end; j++) {
-                    r[i] = rhs[i].getLong(j);
-                    if (r[i] == l) {
-                        continue rhs;
-                    }
-                }
-            } else {
-                index = rhs[i].getFirstValueIndex(p);
-                r[i] = rhs[i].getLong(index);
+            if (mvs != null && mvs.get(i)) {
+                continue;
+            }
+            Boolean compResult = Comparisons.eq(lhs, rhs[i]);
+            if (compResult == Boolean.TRUE) {
+                builder.appendBoolean(true);
+                return;
             }
         }
-        processCommon(builder, nulls, l, r);
+        if (hasNull) {
+            builder.appendNull();
+        } else {
+            builder.appendBoolean(false);
+        }
     }
 
-    @Evaluator(extraName = "Double", warnExceptions = { IllegalArgumentException.class })
-    static void process(BooleanBlock.Builder builder, int p, DoubleBlock lhs, DoubleBlock[] rhs) {
-        checkLHS(p, lhs);
-        double l = lhs.getDouble(lhs.getFirstValueIndex(p));
-        Double[] r = new Double[rhs.length];
-        BitSet nulls = new BitSet(rhs.length);
-        int index;
-        rhs: for (int i = 0; i < rhs.length; i++) {
-            if (rhs[i].isNull(p)) {
-                nulls.set(i);
+    static void process(BooleanBlock.Builder builder, BitSet nulls, BitSet mvs, BytesRef lhs, BytesRef[] rhs) {
+        boolean hasNull = nulls == null ? false : nulls.cardinality() > 0;
+        for (int i = 0; i < rhs.length; i++) {
+            if (hasNull && nulls.get(i)) {
                 continue;
             }
-            if (rhs[i].getValueCount(p) > 1) {
-                int start = rhs[i].getFirstValueIndex(p);
-                int end = start + rhs[i].getValueCount(p);
-                for (int j = start; j < end; j++) {
-                    r[i] = rhs[i].getDouble(j);
-                    if (r[i] == l) {
-                        continue rhs;
-                    }
-                }
-            } else {
-                index = rhs[i].getFirstValueIndex(p);
-                r[i] = rhs[i].getDouble(index);
-            }
-        }
-        processCommon(builder, nulls, l, r);
-    }
-
-    @Evaluator(extraName = "BytesRef", warnExceptions = { IllegalArgumentException.class })
-    static void process(BooleanBlock.Builder builder, int p, BytesRefBlock lhs, BytesRefBlock[] rhs) {
-        checkLHS(p, lhs);
-        BytesRef lhsScratch = new BytesRef();
-        BytesRef l = lhs.getBytesRef(lhs.getFirstValueIndex(p), lhsScratch);
-        BytesRef[] r = new BytesRef[rhs.length];
-        BytesRef[] rhsScratch = new BytesRef[rhs.length];
-        BitSet nulls = new BitSet(rhs.length);
-        int index;
-        rhs: for (int i = 0; i < rhs.length; i++) {
-            if (rhs[i].isNull(p)) {
-                nulls.set(i);
+            if (mvs != null && mvs.get(i)) {
                 continue;
             }
-            rhsScratch[i] = new BytesRef();
-            if (rhs[i].getValueCount(p) > 1) {
-                int start = rhs[i].getFirstValueIndex(p);
-                int end = start + rhs[i].getValueCount(p);
-                for (int j = start; j < end; j++) {
-                    r[i] = rhs[i].getBytesRef(j, rhsScratch[i]);
-                    if (r[i] == l) {
-                        continue rhs;
-                    }
-                }
-            } else {
-                index = rhs[i].getFirstValueIndex(p);
-                r[i] = rhs[i].getBytesRef(index, rhsScratch[i]);
+            Boolean compResult = Comparisons.eq(lhs, rhs[i]);
+            if (compResult == Boolean.TRUE) {
+                builder.appendBoolean(true);
+                return;
             }
         }
-        processCommon(builder, nulls, l, r);
+        if (hasNull) {
+            builder.appendNull();
+        } else {
+            builder.appendBoolean(false);
+        }
     }
 }

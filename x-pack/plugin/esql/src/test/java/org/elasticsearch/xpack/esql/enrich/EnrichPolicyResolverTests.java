@@ -39,7 +39,7 @@ import org.elasticsearch.xpack.core.enrich.EnrichMetadata;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
-import org.elasticsearch.xpack.esql.session.EsqlIndexResolver;
+import org.elasticsearch.xpack.esql.session.IndexResolver;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeRegistry;
 import org.junit.After;
 import org.junit.Before;
@@ -418,7 +418,7 @@ public class EnrichPolicyResolverTests extends ESTestCase {
             super(
                 mockClusterService(policies),
                 transports.get(cluster),
-                new EsqlIndexResolver(new FieldCapsClient(threadPool, aliases, mappings), EsqlDataTypeRegistry.INSTANCE)
+                new IndexResolver(new FieldCapsClient(threadPool, aliases, mappings), EsqlDataTypeRegistry.INSTANCE)
             );
             this.policies = policies;
             this.cluster = cluster;

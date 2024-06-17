@@ -43,7 +43,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.OBJECT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSUPPORTED;
 
-public class EsqlIndexResolver {
+public class IndexResolver {
     public static final Set<String> ALL_FIELDS = Set.of("*");
     public static final Set<String> INDEX_METADATA_FIELD = Set.of("_index");
     public static final String UNMAPPED = "unmapped";
@@ -66,7 +66,7 @@ public class EsqlIndexResolver {
     private final Client client;
     private final DataTypeRegistry typeRegistry;
 
-    public EsqlIndexResolver(Client client, DataTypeRegistry typeRegistry) {
+    public IndexResolver(Client client, DataTypeRegistry typeRegistry) {
         this.client = client;
         this.typeRegistry = typeRegistry;
     }

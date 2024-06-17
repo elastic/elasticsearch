@@ -72,7 +72,7 @@ public class EsqlSession {
 
     private final String sessionId;
     private final EsqlConfiguration configuration;
-    private final EsqlIndexResolver esqlIndexResolver;
+    private final IndexResolver indexResolver;
     private final EnrichPolicyResolver enrichPolicyResolver;
 
     private final PreAnalyzer preAnalyzer;
@@ -86,7 +86,7 @@ public class EsqlSession {
     public EsqlSession(
         String sessionId,
         EsqlConfiguration configuration,
-        EsqlIndexResolver esqlIndexResolver,
+        IndexResolver indexResolver,
         EnrichPolicyResolver enrichPolicyResolver,
         PreAnalyzer preAnalyzer,
         FunctionRegistry functionRegistry,
@@ -96,7 +96,7 @@ public class EsqlSession {
     ) {
         this.sessionId = sessionId;
         this.configuration = configuration;
-        this.esqlIndexResolver = esqlIndexResolver;
+        this.indexResolver = indexResolver;
         this.enrichPolicyResolver = enrichPolicyResolver;
         this.preAnalyzer = preAnalyzer;
         this.verifier = verifier;
@@ -198,7 +198,7 @@ public class EsqlSession {
             TableInfo tableInfo = preAnalysis.indices.get(0);
             TableIdentifier table = tableInfo.id();
             var fieldNames = fieldNames(parsed, enrichPolicyMatchFields);
-            esqlIndexResolver.resolveAsMergedMapping(table.index(), fieldNames, listener);
+            indexResolver.resolveAsMergedMapping(table.index(), fieldNames, listener);
         } else {
             try {
                 // occurs when dealing with local relations (row a = 1)
@@ -212,7 +212,7 @@ public class EsqlSession {
     static Set<String> fieldNames(LogicalPlan parsed, Set<String> enrichPolicyMatchFields) {
         if (false == parsed.anyMatch(plan -> plan instanceof Aggregate || plan instanceof Project)) {
             // no explicit columns selection, for example "from employees"
-            return EsqlIndexResolver.ALL_FIELDS;
+            return IndexResolver.ALL_FIELDS;
         }
 
         Holder<Boolean> projectAll = new Holder<>(false);
@@ -223,7 +223,7 @@ public class EsqlSession {
             projectAll.set(true);
         });
         if (projectAll.get()) {
-            return EsqlIndexResolver.ALL_FIELDS;
+            return IndexResolver.ALL_FIELDS;
         }
 
         AttributeSet references = new AttributeSet();
@@ -285,7 +285,7 @@ public class EsqlSession {
 
         if (fieldNames.isEmpty() && enrichPolicyMatchFields.isEmpty()) {
             // there cannot be an empty list of fields, we'll ask the simplest and lightest one instead: _index
-            return EsqlIndexResolver.INDEX_METADATA_FIELD;
+            return IndexResolver.INDEX_METADATA_FIELD;
         } else {
             fieldNames.addAll(subfields(fieldNames));
             fieldNames.addAll(enrichPolicyMatchFields);
@@ -332,14 +332,14 @@ public class EsqlSession {
     }
 
     public static InvalidMappedField specificValidity(String fieldName, Map<String, FieldCapabilities> types) {
-        boolean hasUnmapped = types.containsKey(EsqlIndexResolver.UNMAPPED);
+        boolean hasUnmapped = types.containsKey(IndexResolver.UNMAPPED);
         boolean hasTypeConflicts = types.size() > (hasUnmapped ? 2 : 1);
         String metricConflictsTypeName = null;
         boolean hasMetricConflicts = false;
 
         if (hasTypeConflicts == false) {
             for (Map.Entry<String, FieldCapabilities> type : types.entrySet()) {
-                if (EsqlIndexResolver.UNMAPPED.equals(type.getKey())) {
+                if (IndexResolver.UNMAPPED.equals(type.getKey())) {
                     continue;
                 }
                 if (type.getValue().metricConflictsIndices() != null && type.getValue().metricConflictsIndices().length > 0) {

@@ -19,8 +19,8 @@ import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.planner.Mapper;
 import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
-import org.elasticsearch.xpack.esql.session.EsqlIndexResolver;
 import org.elasticsearch.xpack.esql.session.EsqlSession;
+import org.elasticsearch.xpack.esql.session.IndexResolver;
 import org.elasticsearch.xpack.esql.stats.Metrics;
 import org.elasticsearch.xpack.esql.stats.QueryMetric;
 
@@ -28,15 +28,15 @@ import static org.elasticsearch.action.ActionListener.wrap;
 
 public class PlanExecutor {
 
-    private final EsqlIndexResolver esqlIndexResolver;
+    private final IndexResolver indexResolver;
     private final PreAnalyzer preAnalyzer;
     private final FunctionRegistry functionRegistry;
     private final Mapper mapper;
     private final Metrics metrics;
     private final Verifier verifier;
 
-    public PlanExecutor(EsqlIndexResolver esqlIndexResolver) {
-        this.esqlIndexResolver = esqlIndexResolver;
+    public PlanExecutor(IndexResolver indexResolver) {
+        this.indexResolver = indexResolver;
         this.preAnalyzer = new PreAnalyzer();
         this.functionRegistry = new EsqlFunctionRegistry();
         this.mapper = new Mapper(functionRegistry);
@@ -54,7 +54,7 @@ public class PlanExecutor {
         final var session = new EsqlSession(
             sessionId,
             cfg,
-            esqlIndexResolver,
+            indexResolver,
             enrichPolicyResolver,
             preAnalyzer,
             functionRegistry,
@@ -71,8 +71,8 @@ public class PlanExecutor {
         }));
     }
 
-    public EsqlIndexResolver indexResolver() {
-        return esqlIndexResolver;
+    public IndexResolver indexResolver() {
+        return indexResolver;
     }
 
     public Metrics metrics() {

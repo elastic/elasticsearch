@@ -40,7 +40,7 @@ import org.elasticsearch.xpack.esql.core.index.EsIndex;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
-import org.elasticsearch.xpack.esql.session.EsqlIndexResolver;
+import org.elasticsearch.xpack.esql.session.IndexResolver;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 
 import java.io.IOException;
@@ -59,7 +59,7 @@ import java.util.stream.Collectors;
  * 1. Calculates the policies that need to be resolved for each cluster, see {@link #lookupPolicies}.
  * 2. Sends out {@link LookupRequest} to each cluster to resolve policies. Internally, a remote cluster handles the lookup in two steps:
  *    - 2.1 Ensures the caller has permission to access the enrich policies.
- *    - 2.2 For each found enrich policy, uses {@link EsqlIndexResolver} to resolve the mappings of the concrete enrich index.
+ *    - 2.2 For each found enrich policy, uses {@link IndexResolver} to resolve the mappings of the concrete enrich index.
  * 3. For each unresolved policy, combines the lookup results to compute the actual enrich policy and mappings depending on the enrich mode.
  * This approach requires at most one cross-cluster call for each cluster.
  */
@@ -67,11 +67,11 @@ public class EnrichPolicyResolver {
     private static final String RESOLVE_ACTION_NAME = "cluster:monitor/xpack/enrich/esql/resolve_policy";
 
     private final ClusterService clusterService;
-    private final EsqlIndexResolver indexResolver;
+    private final IndexResolver indexResolver;
     private final TransportService transportService;
     private final ThreadPool threadPool;
 
-    public EnrichPolicyResolver(ClusterService clusterService, TransportService transportService, EsqlIndexResolver indexResolver) {
+    public EnrichPolicyResolver(ClusterService clusterService, TransportService transportService, IndexResolver indexResolver) {
         this.clusterService = clusterService;
         this.transportService = transportService;
         this.indexResolver = indexResolver;
@@ -358,7 +358,7 @@ public class EnrichPolicyResolver {
                     }
                     try (ThreadContext.StoredContext ignored = threadContext.stashWithOrigin(ClientHelper.ENRICH_ORIGIN)) {
                         String indexName = EnrichPolicy.getBaseName(policyName);
-                        indexResolver.resolveAsMergedMapping(indexName, EsqlIndexResolver.ALL_FIELDS, refs.acquire(indexResult -> {
+                        indexResolver.resolveAsMergedMapping(indexName, IndexResolver.ALL_FIELDS, refs.acquire(indexResult -> {
                             if (indexResult.isValid() && indexResult.get().concreteIndices().size() == 1) {
                                 EsIndex esIndex = indexResult.get();
                                 var concreteIndices = Map.of(request.clusterAlias, Iterables.get(esIndex.concreteIndices(), 0));

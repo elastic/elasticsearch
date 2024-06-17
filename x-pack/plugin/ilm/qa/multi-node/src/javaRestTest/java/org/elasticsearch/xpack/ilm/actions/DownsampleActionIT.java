@@ -223,7 +223,7 @@ public class DownsampleActionIT extends ESRestTestCase {
         );
     }
 
-    public void testRollupIndexInTheHotPhaseWithoutRollover() throws Exception {
+    public void testRollupIndexInTheHotPhaseWithoutRollover() {
         ResponseException e = expectThrows(
             ResponseException.class,
             () -> createNewSingletonPolicy(

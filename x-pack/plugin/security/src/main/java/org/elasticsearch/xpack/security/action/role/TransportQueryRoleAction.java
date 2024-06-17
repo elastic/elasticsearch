@@ -54,8 +54,12 @@ public class TransportQueryRoleAction extends TransportAction<QueryRoleRequest, 
             searchSourceBuilder.searchAfter(request.getSearchAfterBuilder().getSortValues());
         }
         SearchRequest searchRequest = new SearchRequest(new String[] { SECURITY_MAIN_ALIAS }, searchSourceBuilder);
-        nativeRolesStore.queryRoleDescriptors(searchRequest, ActionListener.wrap(queryRoleResults -> {
-            listener.onResponse(new QueryRoleResponse(queryRoleResults.total(), queryRoleResults.items()));
-        }, listener::onFailure));
+        nativeRolesStore.queryRoleDescriptors(
+            searchRequest,
+            ActionListener.wrap(
+                queryRoleResults -> listener.onResponse(new QueryRoleResponse(queryRoleResults.total(), queryRoleResults.items())),
+                listener::onFailure
+            )
+        );
     }
 }

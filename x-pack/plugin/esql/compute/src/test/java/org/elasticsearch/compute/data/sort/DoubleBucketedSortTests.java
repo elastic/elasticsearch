@@ -29,13 +29,12 @@ public class DoubleBucketedSortTests extends BucketedSortTestCase<DoubleBucketed
 
     @Override
     protected double randomValue() {
-        // 2L^50 fits in the mantisa of a double which the test sort of needs.
-        return randomLongBetween(-2L ^ 50, 2L ^ 50);
+        return randomDoubleBetween(Double.MIN_VALUE, Double.MAX_VALUE, true);
     }
 
     @Override
     protected void collect(DoubleBucketedSort sort, double value, int bucket) {
-        sort.collect((long) value, bucket);
+        sort.collect(value, bucket);
     }
 
     @Override

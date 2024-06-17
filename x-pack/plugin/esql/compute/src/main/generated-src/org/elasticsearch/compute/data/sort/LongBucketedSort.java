@@ -36,6 +36,33 @@ public class LongBucketedSort implements Releasable {
      * it is still gathering.
      */
     private final BitArray heapMode;
+    /**
+     * An array containing all the values on all buckets. The structure is as follows:
+     * <p>
+     *     For each bucket, there are bucketSize elements, based on the bucket id (0, 1, 2...).
+     *     Then, for each bucket, it can be in 2 states:
+     * </p>
+     * <ul>
+     *     <li>
+     *         Gather mode: All buckets start in gather mode, and remain here while they have less than bucketSize elements.
+     *         In gather mode, the elements are stored in the array from the highest index to the lowest index.
+     *         The lowest index contains the offset to the next slot to be filled.
+     *         <p>
+     *             This allows us to insert elements in O(1) time.
+     *         </p>
+     *         <p>
+     *             When the bucketSize-th element is collected, the bucket transitions to heap mode, by heapifying its contents.
+     *         </p>
+     *     </li>
+     *     <li>
+     *         Heap mode: The bucket slots are organized as a min heap structure.
+     *         <p>
+     *             The root of the heap is the minimum value in the bucket,
+     *             which allows us to quickly discard new values that are not in the top N.
+     *         </p>
+     *     </li>
+     * </ul>
+     */
     private LongArray values;
 
     public LongBucketedSort(BigArrays bigArrays, SortOrder order, int bucketSize) {
@@ -56,6 +83,39 @@ public class LongBucketedSort implements Releasable {
     }
 
     /**
+     * Collects a {@code value} into a {@code bucket}.
+     * <p>
+     *     It may or may not be inserted in the heap, depending on if it is better than the current root.
+     * </p>
+     */
+    public void collect(long value, int bucket) {
+        long rootIndex = (long) bucket * bucketSize;
+        if (inHeapMode(bucket)) {
+            if (betterThan(value, values.get(rootIndex))) {
+                values.set(rootIndex, value);
+                downHeap(rootIndex, 0);
+            }
+            return;
+        }
+        // Gathering mode
+        long requiredSize = rootIndex + bucketSize;
+        if (values.size() < requiredSize) {
+            grow(requiredSize);
+        }
+        int next = getNextGatherOffset(rootIndex);
+        assert 0 <= next && next < bucketSize
+            : "Expected next to be in the range of valid buckets [0 <= " + next + " < " + bucketSize + "]";
+        long index = next + rootIndex;
+        values.set(index, value);
+        if (next == 0) {
+            heapMode.set(bucket);
+            heapify(rootIndex);
+        } else {
+            setNextGatherOffset(rootIndex, next - 1);
+        }
+    }
+
+    /**
      * The order of the sort.
      */
     public SortOrder getOrder() {
@@ -70,11 +130,11 @@ public class LongBucketedSort implements Releasable {
     }
 
     /**
-     * Get the bound indexes (inclusive, exclusive) of the values for a bucket.
+     * Get the first and last indexes (inclusive, exclusive) of the values for a bucket.
      * Returns [0, 0] if the bucket has never been collected.
      */
-    private Tuple<Long, Long> getBucketValuesBounds(long bucket) {
-        long rootIndex = bucket * bucketSize;
+    private Tuple<Long, Long> getBucketValuesIndexes(int bucket) {
+        long rootIndex = (long) bucket * bucketSize;
         if (rootIndex >= values.size()) {
             // We've never seen this bucket.
             return Tuple.tuple(0L, 0L);
@@ -88,7 +148,7 @@ public class LongBucketedSort implements Releasable {
      * Merge the values from {@code other}'s {@code otherGroupId} into {@code groupId}.
      */
     public void merge(int groupId, LongBucketedSort other, int otherGroupId) {
-        var otherBounds = other.getBucketValuesBounds(otherGroupId);
+        var otherBounds = other.getBucketValuesIndexes(otherGroupId);
 
         // TODO: This can be improved for heapified buckets by making use of the heap structures
         for (long i = otherBounds.v1(); i < otherBounds.v2(); i++) {
@@ -107,7 +167,7 @@ public class LongBucketedSort implements Releasable {
             for (int s = 0; s < selected.getPositionCount(); s++) {
                 int bucket = selected.getInt(s);
 
-                var bounds = getBucketValuesBounds(bucket);
+                var bounds = getBucketValuesIndexes(bucket);
                 var size = bounds.v2() - bounds.v1();
 
                 if (size == 0) {
@@ -145,7 +205,7 @@ public class LongBucketedSort implements Releasable {
     /**
      * Is this bucket a min heap {@code true} or in gathering mode {@code false}?
      */
-    private boolean inHeapMode(long bucket) {
+    private boolean inHeapMode(int bucket) {
         return heapMode.get(bucket);
     }
 
@@ -270,38 +330,5 @@ public class LongBucketedSort implements Releasable {
     @Override
     public final void close() {
         Releasables.close(values, heapMode);
-    }
-
-    /**
-     * Collects a {@code value} into a {@code bucket}.
-     * <p>
-     *     It may or may not be inserted in the heap, depending on if it is better than the current root.
-     * </p>
-     */
-    public void collect(long value, long bucket) {
-        long rootIndex = bucket * bucketSize;
-        if (inHeapMode(bucket)) {
-            if (betterThan(value, values.get(rootIndex))) {
-                values.set(rootIndex, value);
-                downHeap(rootIndex, 0);
-            }
-            return;
-        }
-        // Gathering mode
-        long requiredSize = rootIndex + bucketSize;
-        if (values.size() < requiredSize) {
-            grow(requiredSize);
-        }
-        int next = getNextGatherOffset(rootIndex);
-        assert 0 <= next && next < bucketSize
-            : "Expected next to be in the range of valid buckets [0 <= " + next + " < " + bucketSize + "]";
-        long index = next + rootIndex;
-        values.set(index, value);
-        if (next == 0) {
-            heapMode.set(bucket);
-            heapify(rootIndex);
-        } else {
-            setNextGatherOffset(rootIndex, next - 1);
-        }
     }
 }

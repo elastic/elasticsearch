@@ -65,7 +65,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class TransportQueryUserActionTests extends ESTestCase {
-    private static final String[] allowedQueryFieldNames = new String[] { "username", "roles", "enabled", "full_name", "email" };
+    private static final String[] allowedQueryFieldNames = new String[] { "username", "roles", "enabled" };
 
     public void testTranslateFieldSortBuilders() {
         final List<String> fieldNames = List.of(allowedQueryFieldNames);

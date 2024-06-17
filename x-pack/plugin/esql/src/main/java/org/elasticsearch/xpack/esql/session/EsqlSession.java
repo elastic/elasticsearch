@@ -11,7 +11,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.regex.Regex;
-import org.elasticsearch.core.Assertions;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -31,12 +30,9 @@ import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedStar;
 import org.elasticsearch.xpack.esql.core.expression.function.FunctionRegistry;
 import org.elasticsearch.xpack.esql.core.index.IndexResolution;
-import org.elasticsearch.xpack.esql.core.index.IndexResolver;
 import org.elasticsearch.xpack.esql.core.index.MappingException;
 import org.elasticsearch.xpack.esql.core.plan.TableIdentifier;
 import org.elasticsearch.xpack.esql.core.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver;
@@ -59,7 +55,6 @@ import org.elasticsearch.xpack.esql.planner.Mapper;
 
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -68,7 +63,6 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
-import static org.elasticsearch.xpack.esql.core.index.IndexResolver.UNMAPPED;
 import static org.elasticsearch.xpack.esql.core.util.ActionListeners.map;
 import static org.elasticsearch.xpack.esql.core.util.StringUtils.WILDCARD;
 
@@ -78,7 +72,6 @@ public class EsqlSession {
 
     private final String sessionId;
     private final EsqlConfiguration configuration;
-    private final IndexResolver indexResolver;
     private final EsqlIndexResolver esqlIndexResolver;
     private final EnrichPolicyResolver enrichPolicyResolver;
 
@@ -93,7 +86,6 @@ public class EsqlSession {
     public EsqlSession(
         String sessionId,
         EsqlConfiguration configuration,
-        IndexResolver indexResolver,
         EsqlIndexResolver esqlIndexResolver,
         EnrichPolicyResolver enrichPolicyResolver,
         PreAnalyzer preAnalyzer,
@@ -104,7 +96,6 @@ public class EsqlSession {
     ) {
         this.sessionId = sessionId;
         this.configuration = configuration;
-        this.indexResolver = indexResolver;
         this.esqlIndexResolver = esqlIndexResolver;
         this.enrichPolicyResolver = enrichPolicyResolver;
         this.preAnalyzer = preAnalyzer;
@@ -207,12 +198,7 @@ public class EsqlSession {
             TableInfo tableInfo = preAnalysis.indices.get(0);
             TableIdentifier table = tableInfo.id();
             var fieldNames = fieldNames(parsed, enrichPolicyMatchFields);
-
-            if (Assertions.ENABLED) {
-                resolveMergedMappingAgainstBothResolvers(table.index(), fieldNames, listener);
-            } else {
-                esqlIndexResolver.resolveAsMergedMapping(table.index(), fieldNames, listener);
-            }
+            esqlIndexResolver.resolveAsMergedMapping(table.index(), fieldNames, listener);
         } else {
             try {
                 // occurs when dealing with local relations (row a = 1)
@@ -223,140 +209,10 @@ public class EsqlSession {
         }
     }
 
-    /**
-     * Resolves the mapping against both the new, fast {@link #esqlIndexResolver}
-     * and the older, known correct {@link #indexResolver}. We then assert that they
-     * produce the same output.
-     */
-    private void resolveMergedMappingAgainstBothResolvers(
-        String indexWildcard,
-        Set<String> fieldNames,
-        ActionListener<IndexResolution> listener
-    ) {
-        indexResolver.resolveAsMergedMapping(indexWildcard, fieldNames, false, Map.of(), new ActionListener<>() {
-            @Override
-            public void onResponse(IndexResolution fromQl) {
-                esqlIndexResolver.resolveAsMergedMapping(indexWildcard, fieldNames, new ActionListener<>() {
-                    @Override
-                    public void onResponse(IndexResolution fromEsql) {
-                        if (fromQl.isValid() == false) {
-                            if (fromEsql.isValid()) {
-                                throw new IllegalArgumentException(
-                                    "ql and esql didn't make the same resolution: validity differs " + fromQl + " != " + fromEsql
-                                );
-                            }
-                        } else {
-                            assertSameMappings("", fromQl.get().mapping(), fromEsql.get().mapping());
-                            if (fromQl.get().concreteIndices().equals(fromEsql.get().concreteIndices()) == false) {
-                                throw new IllegalArgumentException(
-                                    "ql and esql didn't make the same resolution: concrete indices differ "
-                                        + fromQl.get().concreteIndices()
-                                        + " != "
-                                        + fromEsql.get().concreteIndices()
-                                );
-                            }
-                        }
-                        listener.onResponse(fromEsql);
-                    }
-
-                    private void assertSameMappings(String prefix, Map<String, EsField> fromQl, Map<String, EsField> fromEsql) {
-                        List<String> qlFields = new ArrayList<>();
-                        qlFields.addAll(fromQl.keySet());
-                        Collections.sort(qlFields);
-
-                        List<String> esqlFields = new ArrayList<>();
-                        esqlFields.addAll(fromEsql.keySet());
-                        Collections.sort(esqlFields);
-                        if (qlFields.equals(esqlFields) == false) {
-                            throw new IllegalArgumentException(
-                                prefix + ": ql and esql didn't make the same resolution: fields differ \n" + qlFields + " !=\n" + esqlFields
-                            );
-                        }
-
-                        for (int f = 0; f < qlFields.size(); f++) {
-                            String name = qlFields.get(f);
-                            EsField qlField = fromQl.get(name);
-                            EsField esqlField = fromEsql.get(name);
-
-                            if (qlField.getProperties().isEmpty() == false || esqlField.getProperties().isEmpty() == false) {
-                                assertSameMappings(
-                                    prefix.equals("") ? name : prefix + "." + name,
-                                    qlField.getProperties(),
-                                    esqlField.getProperties()
-                                );
-                            }
-
-                            /*
-                             * Check that the field itself is the same, skipping isAlias because
-                             * we don't actually use it in ESQL and the EsqlIndexResolver doesn't
-                             * produce exactly the same result.
-                             */
-                            if (qlField.getDataType().equals(DataType.UNSUPPORTED) == false
-                                && qlField.getName().equals(esqlField.getName()) == false
-                            // QL uses full paths for unsupported fields. ESQL does not. This particular difference is fine.
-                            ) {
-                                throw new IllegalArgumentException(
-                                    prefix
-                                        + "."
-                                        + name
-                                        + ": ql and esql didn't make the same resolution: names differ ["
-                                        + qlField.getName()
-                                        + "] != ["
-                                        + esqlField.getName()
-                                        + "]"
-                                );
-                            }
-                            if (qlField.getDataType() != esqlField.getDataType()) {
-                                throw new IllegalArgumentException(
-                                    prefix
-                                        + "."
-                                        + name
-                                        + ": ql and esql didn't make the same resolution: types differ ["
-                                        + qlField.getDataType()
-                                        + "] != ["
-                                        + esqlField.getDataType()
-                                        + "]"
-                                );
-                            }
-                            if (qlField.isAggregatable() != esqlField.isAggregatable()) {
-                                throw new IllegalArgumentException(
-                                    prefix
-                                        + "."
-                                        + name
-                                        + ": ql and esql didn't make the same resolution: aggregability differ ["
-                                        + qlField.isAggregatable()
-                                        + "] != ["
-                                        + esqlField.isAggregatable()
-                                        + "]"
-                                );
-                            }
-                        }
-                    }
-
-                    @Override
-                    public void onFailure(Exception e) {
-                        listener.onFailure(e);
-                    }
-                });
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                listener.onFailure(e);
-            }
-        },
-            EsqlSession::specificValidity,
-            IndexResolver.PRESERVE_PROPERTIES,
-            // TODO no matter what metadata fields are asked in a query, the "allowedMetadataFields" is always _index, does it make
-            // sense to reflect the actual list of metadata fields instead?
-            IndexResolver.INDEX_METADATA_FIELD
-        );
-    }
-
     static Set<String> fieldNames(LogicalPlan parsed, Set<String> enrichPolicyMatchFields) {
         if (false == parsed.anyMatch(plan -> plan instanceof Aggregate || plan instanceof Project)) {
             // no explicit columns selection, for example "from employees"
-            return IndexResolver.ALL_FIELDS;
+            return EsqlIndexResolver.ALL_FIELDS;
         }
 
         Holder<Boolean> projectAll = new Holder<>(false);
@@ -367,7 +223,7 @@ public class EsqlSession {
             projectAll.set(true);
         });
         if (projectAll.get()) {
-            return IndexResolver.ALL_FIELDS;
+            return EsqlIndexResolver.ALL_FIELDS;
         }
 
         AttributeSet references = new AttributeSet();
@@ -429,7 +285,7 @@ public class EsqlSession {
 
         if (fieldNames.isEmpty() && enrichPolicyMatchFields.isEmpty()) {
             // there cannot be an empty list of fields, we'll ask the simplest and lightest one instead: _index
-            return IndexResolver.INDEX_METADATA_FIELD;
+            return EsqlIndexResolver.INDEX_METADATA_FIELD;
         } else {
             fieldNames.addAll(subfields(fieldNames));
             fieldNames.addAll(enrichPolicyMatchFields);
@@ -476,14 +332,14 @@ public class EsqlSession {
     }
 
     public static InvalidMappedField specificValidity(String fieldName, Map<String, FieldCapabilities> types) {
-        boolean hasUnmapped = types.containsKey(UNMAPPED);
+        boolean hasUnmapped = types.containsKey(EsqlIndexResolver.UNMAPPED);
         boolean hasTypeConflicts = types.size() > (hasUnmapped ? 2 : 1);
         String metricConflictsTypeName = null;
         boolean hasMetricConflicts = false;
 
         if (hasTypeConflicts == false) {
             for (Map.Entry<String, FieldCapabilities> type : types.entrySet()) {
-                if (UNMAPPED.equals(type.getKey())) {
+                if (EsqlIndexResolver.UNMAPPED.equals(type.getKey())) {
                     continue;
                 }
                 if (type.getValue().metricConflictsIndices() != null && type.getValue().metricConflictsIndices().length > 0) {

@@ -20,7 +20,6 @@ import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
-import org.elasticsearch.xpack.esql.core.index.IndexResolver;
 import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver;
 import org.elasticsearch.xpack.esql.execution.PlanExecutor;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
@@ -34,7 +33,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.hamcrest.Matchers.instanceOf;
@@ -73,7 +71,7 @@ public class PlanExecutorMetricsTests extends ESTestCase {
         String[] indices = new String[] { "test" };
 
         Client qlClient = mock(Client.class);
-        IndexResolver idxResolver = new IndexResolver(qlClient, randomAlphaOfLength(10), EsqlDataTypeRegistry.INSTANCE, Set::of);
+        EsqlIndexResolver idxResolver = new EsqlIndexResolver(qlClient, EsqlDataTypeRegistry.INSTANCE);
         // simulate a valid field_caps response so we can parse and correctly analyze de query
         FieldCapabilitiesResponse fieldCapabilitiesResponse = mock(FieldCapabilitiesResponse.class);
         when(fieldCapabilitiesResponse.getIndices()).thenReturn(indices);
@@ -96,7 +94,7 @@ public class PlanExecutorMetricsTests extends ESTestCase {
             return null;
         }).when(esqlClient).fieldCaps(any(), any());
 
-        var planExecutor = new PlanExecutor(idxResolver, esqlIndexResolver);
+        var planExecutor = new PlanExecutor(esqlIndexResolver);
         var enrichResolver = mockEnrichResolver();
 
         var request = new EsqlQueryRequest();

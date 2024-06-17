@@ -118,7 +118,11 @@ public class Join extends BinaryPlan {
     public static List<Attribute> makeReference(List<Attribute> output) {
         List<Attribute> out = new ArrayList<>(output.size());
         for (Attribute a : output) {
-            out.add(new ReferenceAttribute(a.source(), a.name(), a.dataType(), a.qualifier(), a.nullable(), a.id(), a.synthetic()));
+            if (a.resolved() && a instanceof ReferenceAttribute == false) {
+                out.add(new ReferenceAttribute(a.source(), a.name(), a.dataType(), a.qualifier(), a.nullable(), a.id(), a.synthetic()));
+            } else {
+                out.add(a);
+            }
         }
         return out;
     }

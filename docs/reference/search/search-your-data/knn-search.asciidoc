@@ -274,7 +274,7 @@ in the index.
 
 NOTE: The default index type for `dense_vector` is `int8_hnsw`.
 
-To use quantization, you can use the index type `int8_hnsw` object in the `dense_vector` mapping.
+To use quantization, you can use the index type `int8_hnsw` or `int4_hnsw` object in the `dense_vector` mapping.
 
 [source,console]
 ----

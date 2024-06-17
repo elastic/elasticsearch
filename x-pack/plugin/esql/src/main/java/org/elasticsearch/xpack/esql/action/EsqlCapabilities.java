@@ -28,9 +28,19 @@ public class EsqlCapabilities {
     private static final String FN_CBRT = "fn_cbrt";
 
     /**
+     * Support for {@code MV_APPEND} function. #107001
+     */
+    private static final String FN_MV_APPEND = "fn_mv_append";
+
+    /**
      * Support for function {@code IP_PREFIX}.
      */
     private static final String FN_IP_PREFIX = "fn_ip_prefix";
+
+    /**
+     * Fix on function {@code SUBSTRING} that makes it not return null on empty strings.
+     */
+    private static final String FN_SUBSTRING_EMPTY_NULL = "fn_substring_empty_null";
 
     /**
      * Optimization for ST_CENTROID changed some results in cartesian data. #108713
@@ -43,9 +53,29 @@ public class EsqlCapabilities {
     private static final String METADATA_IGNORED_FIELD = "metadata_field_ignored";
 
     /**
-     * Support for requesting the "LOOKUP" command.
+     * Support for the "LOOKUP" command.
      */
-    private static final String LOOKUP = "lookup";
+    private static final String LOOKUP_COMMAND = "lookup_command";
+
+    /**
+     * Support for the syntax {@code "tables": {"type": [<values>]}}.
+     */
+    private static final String TABLES_TYPES = "tables_types";
+
+    /**
+     * Support for requesting the "REPEAT" command.
+     */
+    private static final String REPEAT = "repeat";
+
+    /**
+     * Cast string literals to datetime in addition and subtraction when the other side is a date or time interval.
+     */
+    public static final String STRING_LITERAL_AUTO_CASTING_TO_DATETIME_ADD_SUB = "string_literal_auto_casting_to_datetime_add_sub";
+
+    /**
+     * Support for named or positional parameters in EsqlQueryRequest.
+     */
+    private static final String NAMED_POSITIONAL_PARAMETER = "named_positional_parameter";
 
     /**
      * Cast string literals to temporal amount.
@@ -58,12 +88,16 @@ public class EsqlCapabilities {
         List<String> caps = new ArrayList<>();
         caps.add(FN_CBRT);
         caps.add(FN_IP_PREFIX);
+        caps.add(FN_SUBSTRING_EMPTY_NULL);
         caps.add(ST_CENTROID_AGG_OPTIMIZED);
         caps.add(METADATA_IGNORED_FIELD);
+        caps.add(FN_MV_APPEND);
+        caps.add(REPEAT);
+        caps.add(NAMED_POSITIONAL_PARAMETER);
         caps.add(CAST_STRING_LITERAL_TO_TEMPORAL_AMOUNT);
 
         if (Build.current().isSnapshot()) {
-            caps.add(LOOKUP);
+            caps.add(LOOKUP_COMMAND);
         }
 
         /*
@@ -75,6 +109,7 @@ public class EsqlCapabilities {
         for (NodeFeature feature : new EsqlFeatures().getHistoricalFeatures().keySet()) {
             caps.add(cap(feature));
         }
+        caps.add(STRING_LITERAL_AUTO_CASTING_TO_DATETIME_ADD_SUB);
         return Set.copyOf(caps);
     }
 

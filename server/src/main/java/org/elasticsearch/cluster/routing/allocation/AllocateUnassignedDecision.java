@@ -34,9 +34,9 @@ import java.util.Objects;
 public class AllocateUnassignedDecision extends AbstractAllocationDecision {
     /** a constant representing a shard decision where no decision was taken */
     public static final AllocateUnassignedDecision NOT_TAKEN = new AllocateUnassignedDecision(
+        null,
+        null,
         AllocationStatus.NO_ATTEMPT,
-        null,
-        null,
         null,
         false,
         0L,
@@ -51,23 +51,23 @@ public class AllocateUnassignedDecision extends AbstractAllocationDecision {
         Map<AllocationStatus, AllocateUnassignedDecision> cachedDecisions = new EnumMap<>(AllocationStatus.class);
         cachedDecisions.put(
             AllocationStatus.FETCHING_SHARD_DATA,
-            new AllocateUnassignedDecision(AllocationStatus.FETCHING_SHARD_DATA, null, null, null, false, 0L, 0L)
+            new AllocateUnassignedDecision(null, null, AllocationStatus.FETCHING_SHARD_DATA, null, false, 0L, 0L)
         );
         cachedDecisions.put(
             AllocationStatus.NO_VALID_SHARD_COPY,
-            new AllocateUnassignedDecision(AllocationStatus.NO_VALID_SHARD_COPY, null, null, null, false, 0L, 0L)
+            new AllocateUnassignedDecision(null, null, AllocationStatus.NO_VALID_SHARD_COPY, null, false, 0L, 0L)
         );
         cachedDecisions.put(
             AllocationStatus.DECIDERS_NO,
-            new AllocateUnassignedDecision(AllocationStatus.DECIDERS_NO, null, null, null, false, 0L, 0L)
+            new AllocateUnassignedDecision(null, null, AllocationStatus.DECIDERS_NO, null, false, 0L, 0L)
         );
         cachedDecisions.put(
             AllocationStatus.DECIDERS_THROTTLED,
-            new AllocateUnassignedDecision(AllocationStatus.DECIDERS_THROTTLED, null, null, null, false, 0L, 0L)
+            new AllocateUnassignedDecision(null, null, AllocationStatus.DECIDERS_THROTTLED, null, false, 0L, 0L)
         );
         cachedDecisions.put(
             AllocationStatus.DELAYED_ALLOCATION,
-            new AllocateUnassignedDecision(AllocationStatus.DELAYED_ALLOCATION, null, null, null, false, 0L, 0L)
+            new AllocateUnassignedDecision(null, null, AllocationStatus.DELAYED_ALLOCATION, null, false, 0L, 0L)
         );
         CACHED_DECISIONS = Collections.unmodifiableMap(cachedDecisions);
     }
@@ -81,10 +81,10 @@ public class AllocateUnassignedDecision extends AbstractAllocationDecision {
     private final long configuredDelayInMillis;
 
     private AllocateUnassignedDecision(
-        AllocationStatus allocationStatus,
         DiscoveryNode assignedNode,
-        String allocationId,
         List<NodeAllocationResult> nodeDecisions,
+        AllocationStatus allocationStatus,
+        String allocationId,
         boolean reuseStore,
         long remainingDelayInMillis,
         long configuredDelayInMillis
@@ -145,7 +145,7 @@ public class AllocateUnassignedDecision extends AbstractAllocationDecision {
         long totalDelay
     ) {
         if (decisions != null) {
-            return new AllocateUnassignedDecision(allocationStatus, null, null, decisions, reuseStore, remainingDelay, totalDelay);
+            return new AllocateUnassignedDecision(null, decisions, allocationStatus, null, reuseStore, remainingDelay, totalDelay);
         } else {
             return getCachedDecision(allocationStatus);
         }
@@ -157,7 +157,7 @@ public class AllocateUnassignedDecision extends AbstractAllocationDecision {
      */
     public static AllocateUnassignedDecision throttle(@Nullable List<NodeAllocationResult> decisions) {
         if (decisions != null) {
-            return new AllocateUnassignedDecision(AllocationStatus.DECIDERS_THROTTLED, null, null, decisions, false, 0L, 0L);
+            return new AllocateUnassignedDecision(null, decisions, AllocationStatus.DECIDERS_THROTTLED, null, false, 0L, 0L);
         } else {
             return getCachedDecision(AllocationStatus.DECIDERS_THROTTLED);
         }
@@ -174,7 +174,7 @@ public class AllocateUnassignedDecision extends AbstractAllocationDecision {
         @Nullable List<NodeAllocationResult> decisions,
         boolean reuseStore
     ) {
-        return new AllocateUnassignedDecision(null, assignedNode, allocationId, decisions, reuseStore, 0L, 0L);
+        return new AllocateUnassignedDecision(assignedNode, decisions, null, allocationId, reuseStore, 0L, 0L);
     }
 
     /**
@@ -187,7 +187,7 @@ public class AllocateUnassignedDecision extends AbstractAllocationDecision {
     ) {
         final Type decisionType = decision.type();
         AllocationStatus allocationStatus = decisionType != Type.YES ? AllocationStatus.fromDecision(decisionType) : null;
-        return new AllocateUnassignedDecision(allocationStatus, assignedNode, null, nodeDecisions, false, 0L, 0L);
+        return new AllocateUnassignedDecision(assignedNode, nodeDecisions, allocationStatus, null, false, 0L, 0L);
     }
 
     private static AllocateUnassignedDecision getCachedDecision(AllocationStatus allocationStatus) {

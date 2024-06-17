@@ -51,6 +51,7 @@ import java.util.regex.Pattern;
 
 import static org.elasticsearch.common.Strings.delimitedListToStringArray;
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.reader;
 import static org.elasticsearch.xpack.esql.core.SpecReader.shouldSkipLine;
 import static org.elasticsearch.xpack.esql.core.type.DataTypeConverter.safeToUnsignedLong;
 import static org.elasticsearch.xpack.esql.core.util.DateUtils.UTC_DATE_TIME_FORMATTER;
@@ -148,7 +149,7 @@ public final class CsvTestUtils {
         CsvColumn[] columns = null;
 
         var blockFactory = BlockFactory.getInstance(new NoopCircuitBreaker("test-noop"), BigArrays.NON_RECYCLING_INSTANCE);
-        try (BufferedReader reader = org.elasticsearch.xpack.esql.core.TestUtils.reader(source)) {
+        try (BufferedReader reader = reader(source)) {
             String line;
             int lineNumber = 1;
 
@@ -354,7 +355,8 @@ public final class CsvTestUtils {
                 for (int i = 0; i < row.size(); i++) {
                     String value = row.get(i);
                     if (value == null) {
-                        rowValues.add(null);
+                        // Empty cells are converted to null by SuperCSV. We convert them back to empty strings.
+                        rowValues.add("");
                         continue;
                     }
 
@@ -497,6 +499,7 @@ public final class CsvTestUtils {
             return switch (elementType) {
                 case INT -> INTEGER;
                 case LONG -> LONG;
+                case FLOAT -> FLOAT;
                 case DOUBLE -> DOUBLE;
                 case NULL -> NULL;
                 case BYTES_REF -> bytesRefBlockType(actualType);

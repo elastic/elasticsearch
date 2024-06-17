@@ -12,7 +12,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.DataTypes;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 
@@ -34,12 +34,12 @@ public class ToBooleanTests extends AbstractFunctionTestCase {
         final String read = "Attribute[channel=0]";
         final List<TestCaseSupplier> suppliers = new ArrayList<>();
 
-        TestCaseSupplier.forUnaryBoolean(suppliers, read, DataTypes.BOOLEAN, b -> b, emptyList());
+        TestCaseSupplier.forUnaryBoolean(suppliers, read, DataType.BOOLEAN, b -> b, emptyList());
 
         TestCaseSupplier.forUnaryInt(
             suppliers,
             "ToBooleanFromIntEvaluator[field=" + read + "]",
-            DataTypes.BOOLEAN,
+            DataType.BOOLEAN,
             i -> i != 0,
             Integer.MIN_VALUE,
             Integer.MAX_VALUE,
@@ -48,7 +48,7 @@ public class ToBooleanTests extends AbstractFunctionTestCase {
         TestCaseSupplier.forUnaryLong(
             suppliers,
             "ToBooleanFromLongEvaluator[field=" + read + "]",
-            DataTypes.BOOLEAN,
+            DataType.BOOLEAN,
             l -> l != 0,
             Long.MIN_VALUE,
             Long.MAX_VALUE,
@@ -57,7 +57,7 @@ public class ToBooleanTests extends AbstractFunctionTestCase {
         TestCaseSupplier.forUnaryUnsignedLong(
             suppliers,
             "ToBooleanFromUnsignedLongEvaluator[field=" + read + "]",
-            DataTypes.BOOLEAN,
+            DataType.BOOLEAN,
             ul -> ul.compareTo(BigInteger.ZERO) != 0,
             BigInteger.ZERO,
             UNSIGNED_LONG_MAX,
@@ -66,7 +66,7 @@ public class ToBooleanTests extends AbstractFunctionTestCase {
         TestCaseSupplier.forUnaryDouble(
             suppliers,
             "ToBooleanFromDoubleEvaluator[field=" + read + "]",
-            DataTypes.BOOLEAN,
+            DataType.BOOLEAN,
             d -> d != 0d,
             Double.NEGATIVE_INFINITY,
             Double.POSITIVE_INFINITY,
@@ -75,7 +75,7 @@ public class ToBooleanTests extends AbstractFunctionTestCase {
         TestCaseSupplier.forUnaryStrings(
             suppliers,
             "ToBooleanFromStringEvaluator[field=" + read + "]",
-            DataTypes.BOOLEAN,
+            DataType.BOOLEAN,
             bytesRef -> String.valueOf(bytesRef).toLowerCase(Locale.ROOT).equals("true"),
             emptyList()
         );

@@ -44,7 +44,13 @@ public abstract class AzureAiStudioServiceSettings extends FilteredXContentObjec
         ConfigurationParseContext context
     ) {
         String target = extractRequiredString(map, TARGET_FIELD, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        RateLimitSettings rateLimitSettings = RateLimitSettings.of(map, DEFAULT_RATE_LIMIT_SETTINGS, validationException);
+        RateLimitSettings rateLimitSettings = RateLimitSettings.of(
+            map,
+            DEFAULT_RATE_LIMIT_SETTINGS,
+            validationException,
+            AzureAiStudioService.NAME,
+            context
+        );
         AzureAiStudioEndpointType endpointType = extractRequiredEnum(
             map,
             ENDPOINT_TYPE_FIELD,
@@ -118,13 +124,13 @@ public abstract class AzureAiStudioServiceSettings extends FilteredXContentObjec
 
     protected void addXContentFields(XContentBuilder builder, Params params) throws IOException {
         this.addExposedXContentFields(builder, params);
-        rateLimitSettings.toXContent(builder, params);
     }
 
     protected void addExposedXContentFields(XContentBuilder builder, Params params) throws IOException {
         builder.field(TARGET_FIELD, this.target);
         builder.field(PROVIDER_FIELD, this.provider);
         builder.field(ENDPOINT_TYPE_FIELD, this.endpointType);
+        rateLimitSettings.toXContent(builder, params);
     }
 
 }

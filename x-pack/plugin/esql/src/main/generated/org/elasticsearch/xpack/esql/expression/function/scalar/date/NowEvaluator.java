@@ -26,9 +26,9 @@ public final class NowEvaluator implements EvalOperator.ExpressionEvaluator {
   private final DriverContext driverContext;
 
   public NowEvaluator(Source source, long now, DriverContext driverContext) {
-    this.warnings = new Warnings(source);
     this.now = now;
     this.driverContext = driverContext;
+    this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
   }
 
   @Override
@@ -37,9 +37,9 @@ public final class NowEvaluator implements EvalOperator.ExpressionEvaluator {
   }
 
   public LongVector eval(int positionCount) {
-    try(LongVector.Builder result = driverContext.blockFactory().newLongVectorBuilder(positionCount)) {
+    try(LongVector.FixedBuilder result = driverContext.blockFactory().newLongVectorFixedBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendLong(Now.process(now));
+        result.appendLong(p, Now.process(now));
       }
       return result.build();
     }

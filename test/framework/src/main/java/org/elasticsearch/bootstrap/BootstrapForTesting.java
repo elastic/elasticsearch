@@ -73,6 +73,7 @@ public class BootstrapForTesting {
     // without making things complex???
 
     static {
+
         // make sure java.io.tmpdir exists always (in case code uses it in a static initializer)
         Path javaTmpDir = PathUtils.get(
             Objects.requireNonNull(System.getProperty("java.io.tmpdir"), "please set ${java.io.tmpdir} in pom.xml")
@@ -222,7 +223,7 @@ public class BootstrapForTesting {
         addClassCodebase(codebases, "elasticsearch-core", "org.elasticsearch.core.Booleans");
         addClassCodebase(codebases, "elasticsearch-cli", "org.elasticsearch.cli.Command");
         addClassCodebase(codebases, "elasticsearch-preallocate", "org.elasticsearch.preallocate.Preallocate");
-        addClassCodebase(codebases, "elasticsearch-vec", "org.elasticsearch.vec.VectorScorerFactory");
+        addClassCodebase(codebases, "elasticsearch-vec", "org.elasticsearch.simdvec.VectorScorerFactory");
         addClassCodebase(codebases, "framework", "org.elasticsearch.test.ESTestCase");
         return codebases;
     }

@@ -16,14 +16,13 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.Converter;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.DataTypeConverter;
-import org.elasticsearch.xpack.esql.core.type.DataTypes;
 import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.AbstractConvertFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToBoolean;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToCartesianPoint;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToCartesianShape;
@@ -54,29 +53,27 @@ import java.util.function.BiFunction;
 import java.util.function.Function;
 
 import static java.util.Map.entry;
+import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
+import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_POINT;
+import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_SHAPE;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_POINT;
+import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_SHAPE;
+import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
+import static org.elasticsearch.xpack.esql.core.type.DataType.IP;
+import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
+import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
+import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
+import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
+import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
+import static org.elasticsearch.xpack.esql.core.type.DataType.VERSION;
+import static org.elasticsearch.xpack.esql.core.type.DataType.isPrimitive;
+import static org.elasticsearch.xpack.esql.core.type.DataType.isString;
 import static org.elasticsearch.xpack.esql.core.type.DataTypeConverter.safeDoubleToLong;
 import static org.elasticsearch.xpack.esql.core.type.DataTypeConverter.safeToInt;
 import static org.elasticsearch.xpack.esql.core.type.DataTypeConverter.safeToLong;
 import static org.elasticsearch.xpack.esql.core.type.DataTypeConverter.safeToUnsignedLong;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.BOOLEAN;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.CARTESIAN_POINT;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.CARTESIAN_SHAPE;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.DATETIME;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.DATE_PERIOD;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.DOUBLE;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.GEO_POINT;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.GEO_SHAPE;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.INTEGER;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.IP;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.KEYWORD;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.LONG;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.NULL;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.TEXT;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.TIME_DURATION;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.UNSIGNED_LONG;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.VERSION;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.isPrimitive;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.isString;
 import static org.elasticsearch.xpack.esql.core.util.NumericUtils.ONE_AS_UNSIGNED_LONG;
 import static org.elasticsearch.xpack.esql.core.util.NumericUtils.ZERO_AS_UNSIGNED_LONG;
 import static org.elasticsearch.xpack.esql.core.util.NumericUtils.asLongUnsigned;
@@ -90,7 +87,7 @@ public class EsqlDataTypeConverter {
 
     public static final DateFormatter HOUR_MINUTE_SECOND = DateFormatter.forPattern("strict_hour_minute_second_fraction");
 
-    private static final Map<DataType, BiFunction<Source, Expression, ?>> TYPE_TO_CONVERTER_FUNCTION = Map.ofEntries(
+    private static final Map<DataType, BiFunction<Source, Expression, AbstractConvertFunction>> TYPE_TO_CONVERTER_FUNCTION = Map.ofEntries(
         entry(BOOLEAN, ToBoolean::new),
         entry(CARTESIAN_POINT, ToCartesianPoint::new),
         entry(CARTESIAN_SHAPE, ToCartesianShape::new),
@@ -106,12 +103,7 @@ public class EsqlDataTypeConverter {
         entry(KEYWORD, ToString::new),
         entry(TEXT, ToString::new),
         entry(UNSIGNED_LONG, ToUnsignedLong::new),
-        entry(VERSION, ToVersion::new),
-        entry(DATE_PERIOD, (s, e) -> {
-            return EsqlDataTypeConverter.stringToDatePeriod(s, e);
-        }),
-        entry(TIME_DURATION, (s, e) -> { return EsqlDataTypeConverter.stringToTimeDuration(s, e); })
-
+        entry(VERSION, ToVersion::new)
     );
 
     /**
@@ -129,34 +121,34 @@ public class EsqlDataTypeConverter {
     public static Converter converterFor(DataType from, DataType to) {
         // TODO move EXPRESSION_TO_LONG here if there is no regression
         if (isString(from)) {
-            if (to == DataTypes.DATETIME) {
+            if (to == DataType.DATETIME) {
                 return EsqlConverter.STRING_TO_DATETIME;
             }
-            if (to == DataTypes.IP) {
+            if (to == DataType.IP) {
                 return EsqlConverter.STRING_TO_IP;
             }
-            if (to == DataTypes.VERSION) {
+            if (to == DataType.VERSION) {
                 return EsqlConverter.STRING_TO_VERSION;
             }
-            if (to == DataTypes.DOUBLE) {
+            if (to == DataType.DOUBLE) {
                 return EsqlConverter.STRING_TO_DOUBLE;
             }
-            if (to == DataTypes.LONG) {
+            if (to == DataType.LONG) {
                 return EsqlConverter.STRING_TO_LONG;
             }
-            if (to == DataTypes.INTEGER) {
+            if (to == DataType.INTEGER) {
                 return EsqlConverter.STRING_TO_INT;
             }
-            if (to == DataTypes.BOOLEAN) {
+            if (to == DataType.BOOLEAN) {
                 return EsqlConverter.STRING_TO_BOOLEAN;
             }
             if (EsqlDataTypes.isSpatial(to)) {
                 return EsqlConverter.STRING_TO_SPATIAL;
             }
-            if (to == TIME_DURATION) {
+            if (to == DataType.TIME_DURATION) {
                 return EsqlConverter.STRING_TO_TIME_DURATION;
             }
-            if (to == DATE_PERIOD) {
+            if (to == DataType.DATE_PERIOD) {
                 return EsqlConverter.STRING_TO_DATE_PERIOD;
             }
         }
@@ -165,16 +157,6 @@ public class EsqlDataTypeConverter {
             return converter;
         }
         return null;
-    }
-
-    private static Expression stringToTimeDuration(Source s, Expression e) {
-        TemporalAmount t = parseTemporalAmount(e.fold(), TIME_DURATION);
-        return new Literal(Source.EMPTY, t, TIME_DURATION);
-    }
-
-    private static Expression stringToDatePeriod(Source s, Expression e) {
-        TemporalAmount t = parseTemporalAmount(e.fold(), DATE_PERIOD);
-        return new Literal(s, t, DATE_PERIOD);
     }
 
     public static TemporalAmount parseTemporalAmount(Object val, DataType expectedType) {
@@ -205,15 +187,15 @@ public class EsqlDataTypeConverter {
         if ((value.isEmpty() || qualifier.isEmpty()) == false) {
             try {
                 TemporalAmount result = parseTemporalAmout(Integer.parseInt(value.toString()), qualifier.toString(), Source.EMPTY);
-                if (DATE_PERIOD == expectedType && result instanceof Period
-                    || TIME_DURATION == expectedType && result instanceof Duration) {
+                if (DataType.DATE_PERIOD == expectedType && result instanceof Period
+                    || DataType.TIME_DURATION == expectedType && result instanceof Duration) {
                     return result;
                 }
-                if (result instanceof Period && expectedType == TIME_DURATION) {
-                    errorMessage += ", did you mean " + DATE_PERIOD + "?";
+                if (result instanceof Period && expectedType == DataType.TIME_DURATION) {
+                    errorMessage += ", did you mean " + DataType.DATE_PERIOD + "?";
                 }
-                if (result instanceof Duration && expectedType == DATE_PERIOD) {
-                    errorMessage += ", did you mean " + TIME_DURATION + "?";
+                if (result instanceof Duration && expectedType == DataType.DATE_PERIOD) {
+                    errorMessage += ", did you mean " + DataType.TIME_DURATION + "?";
                 }
             } catch (NumberFormatException ex) {
                 // wrong pattern
@@ -448,8 +430,8 @@ public class EsqlDataTypeConverter {
 
     public enum EsqlConverter implements Converter {
 
-        STRING_TO_DATE_PERIOD(x -> EsqlDataTypeConverter.parseTemporalAmount(x, DATE_PERIOD)),
-        STRING_TO_TIME_DURATION(x -> EsqlDataTypeConverter.parseTemporalAmount(x, TIME_DURATION)),
+        STRING_TO_DATE_PERIOD(x -> EsqlDataTypeConverter.parseTemporalAmount(x, DataType.DATE_PERIOD)),
+        STRING_TO_TIME_DURATION(x -> EsqlDataTypeConverter.parseTemporalAmount(x, DataType.TIME_DURATION)),
         STRING_TO_CHRONO_FIELD(EsqlDataTypeConverter::stringToChrono),
         STRING_TO_DATETIME(x -> EsqlDataTypeConverter.dateTimeToLong((String) x)),
         STRING_TO_IP(x -> EsqlDataTypeConverter.stringToIP((String) x)),
@@ -490,7 +472,7 @@ public class EsqlDataTypeConverter {
         }
     }
 
-    public static BiFunction<Source, Expression, ?> converterFunctionFactory(DataType toType) {
+    public static BiFunction<Source, Expression, AbstractConvertFunction> converterFunctionFactory(DataType toType) {
         return TYPE_TO_CONVERTER_FUNCTION.get(toType);
     }
 }

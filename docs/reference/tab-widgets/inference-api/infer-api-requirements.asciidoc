@@ -33,3 +33,9 @@ You can apply for access to Azure OpenAI by completing the form at https://aka.m
 * A deployed https://ai.azure.com/explore/models?selectedTask=embeddings[embeddings] or https://ai.azure.com/explore/models?selectedTask=chat-completion[chat completion] model.
 
 // end::azure-ai-studio[]
+
+// tag::mistral[]
+* A Mistral Account on https://console.mistral.ai/[La Plateforme]
+* An API key generated for your account
+
+// end::mistral[]

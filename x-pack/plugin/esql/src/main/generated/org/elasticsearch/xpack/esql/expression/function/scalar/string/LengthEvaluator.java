@@ -33,9 +33,9 @@ public final class LengthEvaluator implements EvalOperator.ExpressionEvaluator {
 
   public LengthEvaluator(Source source, EvalOperator.ExpressionEvaluator val,
       DriverContext driverContext) {
-    this.warnings = new Warnings(source);
     this.val = val;
     this.driverContext = driverContext;
+    this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
   }
 
   @Override
@@ -71,10 +71,10 @@ public final class LengthEvaluator implements EvalOperator.ExpressionEvaluator {
   }
 
   public IntVector eval(int positionCount, BytesRefVector valVector) {
-    try(IntVector.Builder result = driverContext.blockFactory().newIntVectorBuilder(positionCount)) {
+    try(IntVector.FixedBuilder result = driverContext.blockFactory().newIntVectorFixedBuilder(positionCount)) {
       BytesRef valScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendInt(Length.process(valVector.getBytesRef(p, valScratch)));
+        result.appendInt(p, Length.process(valVector.getBytesRef(p, valScratch)));
       }
       return result.build();
     }

@@ -44,12 +44,13 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.license.LicenseStateListener;
 import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.EmptyRequest;
 import org.elasticsearch.transport.TransportRequest;
-import org.elasticsearch.transport.TransportRequest.Empty;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.XPackPlugin;
@@ -1948,7 +1949,8 @@ public class CompositeRolesStoreTests extends ESTestCase {
                 mock(SecurityIndexManager.class),
                 clusterService,
                 mock(CacheInvalidatorRegistry.class),
-                mock(ThreadPool.class)
+                mock(ThreadPool.class),
+                MeterRegistry.NOOP
             )
         );
         NativePrivilegeStore nativePrivStore = mock(NativePrivilegeStore.class);
@@ -2031,7 +2033,8 @@ public class CompositeRolesStoreTests extends ESTestCase {
                 mock(SecurityIndexManager.class),
                 clusterService,
                 mock(CacheInvalidatorRegistry.class),
-                mock(ThreadPool.class)
+                mock(ThreadPool.class),
+                MeterRegistry.NOOP
             )
         );
         NativePrivilegeStore nativePrivStore = mock(NativePrivilegeStore.class);
@@ -2076,7 +2079,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
         PlainActionFuture<Role> roleFuture = new PlainActionFuture<>();
         compositeRolesStore.getRole(authentication.getEffectiveSubject(), roleFuture);
         Role role = roleFuture.actionGet();
-        assertThat(role.checkClusterAction("cluster:admin/foo", Empty.INSTANCE, AuthenticationTestHelper.builder().build()), is(false));
+        assertThat(role.checkClusterAction("cluster:admin/foo", new EmptyRequest(), AuthenticationTestHelper.builder().build()), is(false));
         assertThat(effectiveRoleDescriptors.get(), is(nullValue()));
         if (version == TransportVersion.current()) {
             verify(apiKeyService).parseRoleDescriptorsBytes(
@@ -2131,7 +2134,8 @@ public class CompositeRolesStoreTests extends ESTestCase {
                 mock(SecurityIndexManager.class),
                 clusterService,
                 mock(CacheInvalidatorRegistry.class),
-                mock(ThreadPool.class)
+                mock(ThreadPool.class),
+                MeterRegistry.NOOP
             )
         );
         final NativePrivilegeStore nativePrivStore = mock(NativePrivilegeStore.class);
@@ -2289,7 +2293,8 @@ public class CompositeRolesStoreTests extends ESTestCase {
             mock(SecurityIndexManager.class),
             clusterService,
             mock(CacheInvalidatorRegistry.class),
-            mock(ThreadPool.class)
+            mock(ThreadPool.class),
+            MeterRegistry.NOOP
         );
         final NativePrivilegeStore privilegeStore = mock(NativePrivilegeStore.class);
         doAnswer((invocationOnMock) -> {
@@ -2401,7 +2406,8 @@ public class CompositeRolesStoreTests extends ESTestCase {
             mock(SecurityIndexManager.class),
             clusterService,
             mock(CacheInvalidatorRegistry.class),
-            mock(ThreadPool.class)
+            mock(ThreadPool.class),
+            MeterRegistry.NOOP
         );
         final NativePrivilegeStore privilegeStore = mock(NativePrivilegeStore.class);
         doAnswer((invocationOnMock) -> {

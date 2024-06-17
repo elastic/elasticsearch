@@ -32,9 +32,9 @@ public final class CastUnsignedLongToDoubleEvaluator implements EvalOperator.Exp
 
   public CastUnsignedLongToDoubleEvaluator(Source source, EvalOperator.ExpressionEvaluator v,
       DriverContext driverContext) {
-    this.warnings = new Warnings(source);
     this.v = v;
     this.driverContext = driverContext;
+    this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
   }
 
   @Override
@@ -69,9 +69,9 @@ public final class CastUnsignedLongToDoubleEvaluator implements EvalOperator.Exp
   }
 
   public DoubleVector eval(int positionCount, LongVector vVector) {
-    try(DoubleVector.Builder result = driverContext.blockFactory().newDoubleVectorBuilder(positionCount)) {
+    try(DoubleVector.FixedBuilder result = driverContext.blockFactory().newDoubleVectorFixedBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendDouble(Cast.castUnsignedLongToDouble(vVector.getLong(p)));
+        result.appendDouble(p, Cast.castUnsignedLongToDouble(vVector.getLong(p)));
       }
       return result.build();
     }

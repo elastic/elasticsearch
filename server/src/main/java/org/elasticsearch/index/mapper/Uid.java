@@ -112,7 +112,7 @@ public final class Uid {
     }
 
     private static BytesRef encodeUtf8Id(String id) {
-        byte[] b = new byte[1 + UnicodeUtil.maxUTF8Length(id.length())];
+        byte[] b = new byte[1 + UnicodeUtil.calcUTF16toUTF8Length(id, 0, id.length())];
         // Prepend a byte that indicates that the content is an utf8 string
         b[0] = (byte) UTF8;
         int length = UnicodeUtil.UTF16toUTF8(id, 0, id.length(), b, 1);

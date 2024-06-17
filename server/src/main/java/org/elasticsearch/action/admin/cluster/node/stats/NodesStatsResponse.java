@@ -53,11 +53,9 @@ public class NodesStatsResponse extends BaseNodesResponse<NodeStats> implements 
             Iterators.flatMap(
                 getNodes().iterator(),
                 nodeStats -> Iterators.concat(
-
-                    ChunkedToXContentHelper.singleChunk((b, p) -> {
-                        b.startObject(nodeStats.getNode().getId());
-                        return b.field("timestamp", nodeStats.getTimestamp());
-                    }),
+                    ChunkedToXContentHelper.singleChunk(
+                        (b, p) -> b.startObject(nodeStats.getNode().getId()).field("timestamp", nodeStats.getTimestamp())
+                    ),
                     nodeStats.toXContentChunked(params),
                     ChunkedToXContentHelper.endObject()
                 )

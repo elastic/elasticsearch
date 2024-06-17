@@ -10,10 +10,11 @@ package org.elasticsearch.action.support.nodes;
 
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 
 import java.io.IOException;
@@ -24,12 +25,10 @@ public abstract class BaseNodesRequest<Request extends BaseNodesRequest<Request>
      * the list of nodesIds that will be used to resolve this request and {@link #concreteNodes}
      * will be populated. Note that if {@link #concreteNodes} is not null, it will be used and nodeIds
      * will be ignored.
-     *
+     * <p>
      * See {@link DiscoveryNodes#resolveNodes} for a full description of the options.
-     *
-     * TODO: we can get rid of this and resolve it to concrete nodes in the rest layer
      **/
-    private String[] nodesIds;
+    private final String[] nodesIds;
 
     /**
      * once {@link #nodesIds} are resolved this will contain the concrete nodes that are part of this request. If set, {@link #nodesIds}
@@ -37,16 +36,8 @@ public abstract class BaseNodesRequest<Request extends BaseNodesRequest<Request>
      * */
     private DiscoveryNode[] concreteNodes;
 
+    @Nullable // if no timeout
     private TimeValue timeout;
-
-    protected BaseNodesRequest(StreamInput in) throws IOException {
-        // A bare `BaseNodesRequest` is never sent over the wire, but several implementations send the full top-level request to each node
-        // (wrapped up in another request). They shouldn't, but until we fix that we must keep this. See #100878.
-        super(in);
-        nodesIds = in.readStringArray();
-        concreteNodes = in.readOptionalArray(DiscoveryNode::new, DiscoveryNode[]::new);
-        timeout = in.readOptionalTimeValue();
-    }
 
     protected BaseNodesRequest(String... nodesIds) {
         this.nodesIds = nodesIds;
@@ -59,12 +50,6 @@ public abstract class BaseNodesRequest<Request extends BaseNodesRequest<Request>
 
     public final String[] nodesIds() {
         return nodesIds;
-    }
-
-    @SuppressWarnings("unchecked")
-    public final Request nodesIds(String... nodesIds) {
-        this.nodesIds = nodesIds;
-        return (Request) this;
     }
 
     public TimeValue timeout() {
@@ -91,12 +76,9 @@ public abstract class BaseNodesRequest<Request extends BaseNodesRequest<Request>
     }
 
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        // A bare `BaseNodesRequest` is never sent over the wire, but several implementations send the full top-level request to each node
-        // (wrapped up in another request). They shouldn't, but until we fix that we must keep this. See #100878.
-        super.writeTo(out);
-        out.writeStringArrayNullable(nodesIds);
-        out.writeOptionalArray(concreteNodes);
-        out.writeOptionalTimeValue(timeout);
+    public final void writeTo(StreamOutput out) throws IOException {
+        // `BaseNodesRequest` is rather heavyweight, especially all those `DiscoveryNodes` objects in larger clusters, and there is no need
+        // to send it out over the wire. Use a dedicated transport request just for the bits you need.
+        TransportAction.localOnly();
     }
 }

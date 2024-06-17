@@ -26,7 +26,7 @@ import static org.elasticsearch.datastreams.LogsDataStreamIT.getValueFromPath;
 import static org.elasticsearch.datastreams.LogsDataStreamIT.getWriteBackingIndex;
 import static org.elasticsearch.datastreams.LogsDataStreamIT.indexDoc;
 import static org.elasticsearch.datastreams.LogsDataStreamIT.searchDocs;
-import static org.elasticsearch.datastreams.LogsDataStreamIT.waitForLogs;
+import static org.elasticsearch.datastreams.LogsDataStreamIT.waitForIndexTemplate;
 import static org.hamcrest.Matchers.is;
 
 public class EcsLogsDataStreamIT extends DisabledSecurityDataStreamTestCase {
@@ -38,7 +38,7 @@ public class EcsLogsDataStreamIT extends DisabledSecurityDataStreamTestCase {
     @Before
     public void setup() throws Exception {
         client = client();
-        waitForLogs(client);
+        waitForIndexTemplate(client, "logs");
 
         {
             Request request = new Request("PUT", "/_ingest/pipeline/logs@custom");

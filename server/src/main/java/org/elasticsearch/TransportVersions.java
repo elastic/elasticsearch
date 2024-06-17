@@ -187,6 +187,12 @@ public class TransportVersions {
     public static final TransportVersion RANK_FEATURE_PHASE_ADDED = def(8_678_00_0);
     public static final TransportVersion RANK_DOC_IN_SHARD_FETCH_REQUEST = def(8_679_00_0);
     public static final TransportVersion SECURITY_SETTINGS_REQUEST_TIMEOUTS = def(8_680_00_0);
+    public static final TransportVersion QUERY_RULE_CRUD_API_PUT = def(8_681_00_0);
+    public static final TransportVersion DROP_UNUSED_NODES_REQUESTS = def(8_682_00_0);
+    public static final TransportVersion QUERY_RULE_CRUD_API_GET_DELETE = def(8_683_00_0);
+    public static final TransportVersion MORE_LIGHTER_NODES_REQUESTS = def(8_684_00_0);
+    public static final TransportVersion DROP_UNUSED_NODES_IDS = def(8_685_00_0);
+    public static final TransportVersion DELETE_SNAPSHOTS_ASYNC_ADDED = def(8_686_00_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,

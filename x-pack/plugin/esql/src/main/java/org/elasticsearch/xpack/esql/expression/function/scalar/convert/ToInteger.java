@@ -8,6 +8,8 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.ann.ConvertEvaluator;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -18,6 +20,7 @@ import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
@@ -34,6 +37,11 @@ import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToIn
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.unsignedLongToInt;
 
 public class ToInteger extends AbstractConvertFunction {
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
+        Expression.class,
+        "ToInteger",
+        ToInteger::new
+    );
 
     private static final Map<DataType, BuildFactory> EVALUATORS = Map.ofEntries(
         Map.entry(INTEGER, (fieldEval, source) -> fieldEval),
@@ -74,6 +82,15 @@ public class ToInteger extends AbstractConvertFunction {
         ) Expression field
     ) {
         super(source, field);
+    }
+
+    private ToInteger(StreamInput in) throws IOException {
+        super(in);
+    }
+
+    @Override
+    public String getWriteableName() {
+        return ENTRY.name;
     }
 
     @Override

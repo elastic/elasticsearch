@@ -13,7 +13,6 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.engine.InternalEngine;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.plugins.EnginePlugin;
 import org.elasticsearch.plugins.IngestPlugin;
@@ -106,7 +105,7 @@ public class DocumentSizeObserverIT extends ESIntegTestCase {
 
                     DocumentSizeReporter documentParsingReporter = documentParsingProvider.newDocumentSizeReporter(
                         shardId.getIndexName(),
-                        config().getMappingLookup(),
+                        config().getMapperService(),
                         DocumentSizeAccumulator.EMPTY_INSTANCE
                     );
                     documentParsingReporter.onIndexingCompleted(index.parsedDoc());
@@ -138,7 +137,7 @@ public class DocumentSizeObserverIT extends ESIntegTestCase {
                 @Override
                 public DocumentSizeReporter newDocumentSizeReporter(
                     String indexName,
-                    MappingLookup mappingLookup,
+                    MapperService mapperService,
                     DocumentSizeAccumulator documentSizeAccumulator
                 ) {
                     return new TestDocumentSizeReporter(indexName);

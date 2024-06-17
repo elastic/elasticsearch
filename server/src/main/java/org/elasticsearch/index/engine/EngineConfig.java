@@ -25,7 +25,6 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.seqno.RetentionLeases;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
@@ -53,7 +52,7 @@ public final class EngineConfig {
     private volatile boolean enableGcDeletes = true;
     private final TimeValue flushMergesAfter;
     private final String codecName;
-    private final MappingLookup mappingLookup;
+    private final MapperService mapperService;
     private final IndexStorePlugin.SnapshotCommitSupplier snapshotCommitSupplier;
     private final ThreadPool threadPool;
     private final Engine.Warmer warmer;
@@ -167,7 +166,7 @@ public final class EngineConfig {
         LongSupplier relativeTimeInNanosSupplier,
         Engine.IndexCommitListener indexCommitListener,
         boolean promotableToPrimary,
-        MappingLookup mappingLookup
+        MapperService mapperService
     ) {
         this.shardId = shardId;
         this.indexSettings = indexSettings;
@@ -180,7 +179,7 @@ public final class EngineConfig {
         this.codecService = codecService;
         this.eventListener = eventListener;
         codecName = indexSettings.getValue(INDEX_CODEC_SETTING);
-        this.mappingLookup = mappingLookup;
+        this.mapperService = mapperService;
         // We need to make the indexing buffer for this shard at least as large
         // as the amount of memory that is available for all engines on the
         // local node so that decisions to flush segments to disk are made by
@@ -442,7 +441,7 @@ public final class EngineConfig {
         return useCompoundFile;
     }
 
-    public MappingLookup getMappingLookup() {
-        return mappingLookup;
+    public MapperService getMapperService() {
+        return mapperService;
     }
 }

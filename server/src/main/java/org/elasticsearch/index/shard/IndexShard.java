@@ -3490,7 +3490,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             relativeTimeInNanosSupplier,
             indexCommitListener,
             routingEntry().isPromotableToPrimary(),
-            mapperService().mappingLookup()
+            mapperService()
         );
     }
 

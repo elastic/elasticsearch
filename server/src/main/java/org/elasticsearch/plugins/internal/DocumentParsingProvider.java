@@ -9,7 +9,6 @@
 package org.elasticsearch.plugins.internal;
 
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.MappingLookup;
 
 /**
  * An interface to provide instances of document parsing observer and reporter
@@ -37,7 +36,7 @@ public interface DocumentParsingProvider {
      */
     default DocumentSizeReporter newDocumentSizeReporter(
         String indexName,
-        MappingLookup mappingLookup,
+        MapperService mapperService,
         DocumentSizeAccumulator documentSizeAccumulator
     ) {
         return DocumentSizeReporter.EMPTY_INSTANCE;

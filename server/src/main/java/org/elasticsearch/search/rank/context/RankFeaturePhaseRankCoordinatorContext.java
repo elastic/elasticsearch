@@ -24,7 +24,8 @@ import static org.elasticsearch.search.SearchService.DEFAULT_SIZE;
 
 /**
  * {@code RankFeaturePhaseRankCoordinatorContext} is a base class that runs on the coordinating node and is responsible for retrieving
- * {@code window_size} total results from all shards, rank them, and then produce a final paginated response of [from, from+size] results.
+ * {@code rank_window_size} total results from all shards, rank them, and then produce a final paginated response of [from, from+size]
+ * results.
  */
 public abstract class RankFeaturePhaseRankCoordinatorContext {
 
@@ -44,6 +45,10 @@ public abstract class RankFeaturePhaseRankCoordinatorContext {
      */
     protected abstract void computeScores(RankFeatureDoc[] featureDocs, ActionListener<float[]> scoreListener);
 
+    /**
+     * Should we keep or discard this feature before adding it to the final result set?
+     * @param doc the feature
+     */
     protected boolean keepRankFeatureDoc(RankFeatureDoc doc) {
         return true;
     }

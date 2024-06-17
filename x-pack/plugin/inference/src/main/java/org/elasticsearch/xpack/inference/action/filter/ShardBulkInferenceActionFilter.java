@@ -392,7 +392,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                     new SemanticTextField.InferenceResult(
                         model.getInferenceEntityId(),
                         new SemanticTextField.ModelSettings(model),
-                        toSemanticTextFieldChunks(fieldName, model.getInferenceEntityId(), results, indexRequest.getContentType())
+                        toSemanticTextFieldChunks(results, indexRequest.getContentType())
                     ),
                     indexRequest.getContentType()
                 );

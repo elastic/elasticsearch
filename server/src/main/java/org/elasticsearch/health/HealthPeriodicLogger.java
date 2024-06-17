@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.component.LifecycleListener;
@@ -311,7 +312,7 @@ public class HealthPeriodicLogger extends AbstractLifecycleComponent implements 
                 RunOnce release = new RunOnce(currentlyRunning::release);
                 try {
                     ActionListener<List<HealthIndicatorResult>> listenerWithRelease = ActionListener.runAfter(resultsListener, release);
-                    this.healthService.getHealth(this.client, null, false, 0, listenerWithRelease);
+                    this.healthService.getHealth(this.client, null, true, 0, listenerWithRelease);
                 } catch (Exception e) {
                     // In case of an exception before the listener was wired, we can release the flag here, and we feel safe
                     // that it will not release it again because this can only be run once.
@@ -359,6 +360,12 @@ public class HealthPeriodicLogger extends AbstractLifecycleComponent implements 
                 String.format(Locale.ROOT, "%s.%s.status", HEALTH_FIELD_PREFIX, indicatorResult.name()),
                 indicatorResult.status().xContentValue()
             );
+            if (GREEN.equals(indicatorResult.status()) == false && indicatorResult.details() != null) {
+                result.put(
+                    String.format(Locale.ROOT, "%s.%s.details", HEALTH_FIELD_PREFIX, indicatorResult.name()),
+                    Strings.toString(indicatorResult.details())
+                );
+            }
         });
 
         // message field. Show the non-green indicators if they exist.

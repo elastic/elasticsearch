@@ -85,7 +85,7 @@ import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmDomain;
 import org.elasticsearch.xpack.core.security.authc.file.FileRealmSettings;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
-import org.elasticsearch.xpack.core.security.authz.RoleDescriptorTests;
+import org.elasticsearch.xpack.core.security.authz.RoleDescriptorTestHelper;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
@@ -658,24 +658,6 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         );
     }
 
-    private Client waitForInactiveApiKeysRemoverTriggerReadyAndGetClient() throws Exception {
-        String nodeWithMostRecentRun = null;
-        long apiKeyLastTrigger = -1L;
-        for (String nodeName : internalCluster().getNodeNames()) {
-            ApiKeyService apiKeyService = internalCluster().getInstance(ApiKeyService.class, nodeName);
-            if (apiKeyService != null) {
-                if (apiKeyService.lastTimeWhenApiKeysRemoverWasTriggered() > apiKeyLastTrigger) {
-                    nodeWithMostRecentRun = nodeName;
-                    apiKeyLastTrigger = apiKeyService.lastTimeWhenApiKeysRemoverWasTriggered();
-                }
-            }
-        }
-        final ThreadPool threadPool = internalCluster().getInstance(ThreadPool.class, nodeWithMostRecentRun);
-        final long lastRunTime = apiKeyLastTrigger;
-        assertBusy(() -> { assertThat(threadPool.relativeTimeInMillis() - lastRunTime, greaterThan(DELETE_INTERVAL_MILLIS)); });
-        return internalCluster().client(nodeWithMostRecentRun);
-    }
-
     private void doTestDeletionBehaviorWhenKeysBecomeInvalidBeforeAndAfterRetentionPeriod(String namePrefix) throws Exception {
         assertThat(deleteRetentionPeriodDays, greaterThan(0L));
         Client client = waitForInactiveApiKeysRemoverTriggerReadyAndGetClient().filterWithHeader(
@@ -818,6 +800,35 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             }
         }
         assertThat(getApiKeyResponseListener.get().getApiKeyInfoList().size(), is(4));
+    }
+
+    private Client waitForInactiveApiKeysRemoverTriggerReadyAndGetClient() throws Exception {
+        String[] nodeNames = internalCluster().getNodeNames();
+        // Default to first node in list of no remover run detected
+        String nodeWithMostRecentRun = nodeNames[0];
+        final long[] apiKeyRemoverLastTriggerTimestamp = new long[] { -1 };
+
+        for (String nodeName : nodeNames) {
+            ApiKeyService apiKeyService = internalCluster().getInstance(ApiKeyService.class, nodeName);
+            if (apiKeyService != null) {
+                if (apiKeyService.lastTimeWhenApiKeysRemoverWasTriggered() > apiKeyRemoverLastTriggerTimestamp[0]) {
+                    nodeWithMostRecentRun = nodeName;
+                    apiKeyRemoverLastTriggerTimestamp[0] = apiKeyService.lastTimeWhenApiKeysRemoverWasTriggered();
+                }
+            }
+        }
+        final ThreadPool threadPool = internalCluster().getInstance(ThreadPool.class, nodeWithMostRecentRun);
+
+        // If remover didn't run, no need to wait, just return a client
+        if (apiKeyRemoverLastTriggerTimestamp[0] == -1) {
+            return internalCluster().client(nodeWithMostRecentRun);
+        }
+
+        // If remover ran, wait until delete interval has passed to make sure next invalidate will trigger remover
+        assertBusy(
+            () -> assertThat(threadPool.relativeTimeInMillis() - apiKeyRemoverLastTriggerTimestamp[0], greaterThan(DELETE_INTERVAL_MILLIS))
+        );
+        return internalCluster().client(nodeWithMostRecentRun);
     }
 
     private void refreshSecurityIndex() throws Exception {
@@ -1598,7 +1609,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             getApiKeyDocument(apiKeyId)
         );
 
-        final ApiKey apiKeyInfo = getApiKeyInfo(client(), apiKeyId, true, randomBoolean());
+        ApiKey apiKeyInfo = getApiKeyInfo(client(), apiKeyId, true, randomBoolean());
         assertThat(
             apiKeyInfo.getLimitedBy().roleDescriptorsList().iterator().next(),
             equalTo(Set.of(ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR))
@@ -2540,11 +2551,11 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         final List<RoleDescriptor> newRoleDescriptors = List.of(
             randomValueOtherThanMany(
                 rd -> RoleDescriptorRequestValidator.validate(rd) != null || initialRequest.getRoleDescriptors().contains(rd),
-                () -> RoleDescriptorTests.randomRoleDescriptor(false)
+                () -> RoleDescriptorTestHelper.builder().build()
             ),
             randomValueOtherThanMany(
                 rd -> RoleDescriptorRequestValidator.validate(rd) != null || initialRequest.getRoleDescriptors().contains(rd),
-                () -> RoleDescriptorTests.randomRoleDescriptor(false)
+                () -> RoleDescriptorTestHelper.builder().build()
             )
         );
         response = updateSingleApiKeyMaybeUsingBulkAction(
@@ -2662,7 +2673,9 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         // raw document has the legacy superuser role descriptor
         expectRoleDescriptorsForApiKey("limited_by_role_descriptors", legacySuperuserRoleDescriptor, getApiKeyDocument(apiKeyId));
 
-        final Set<RoleDescriptor> currentSuperuserRoleDescriptors = Set.of(ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR);
+        final Set<RoleDescriptor> currentSuperuserRoleDescriptors = ApiKeyService.removeUserRoleDescriptorDescriptions(
+            Set.of(ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR)
+        );
         // The first request is not a noop because we are auto-updating the legacy role descriptors to 8.x role descriptors
         assertSingleUpdate(
             apiKeyId,
@@ -2758,7 +2771,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
                 new RoleDescriptor(randomAlphaOfLength(10), new String[] { "all" }, null, null),
                 randomValueOtherThanMany(
                     rd -> RoleDescriptorRequestValidator.validate(rd) != null,
-                    () -> RoleDescriptorTests.randomRoleDescriptor(false, true, false)
+                    () -> RoleDescriptorTestHelper.builder().allowRemoteIndices(true).allowRemoteClusters(true).build()
                 )
             );
             case 2 -> null;
@@ -2795,7 +2808,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
     private void doTestApiKeyHasExpectedAttributes(String apiKeyId, Map<ApiKeyAttribute, Object> attributes) throws IOException {
         final Map<String, Object> apiKeyDocMap = getApiKeyDocument(apiKeyId);
         final boolean useGetApiKey = randomBoolean();
-        final ApiKey apiKeyInfo = getApiKeyInfo(client(), apiKeyId, true, useGetApiKey);
+        ApiKey apiKeyInfo = getApiKeyInfo(client(), apiKeyId, true, useGetApiKey);
         // Update does not change API key type
         assertThat(apiKeyDocMap.get("type"), equalTo("rest"));
         assertThat(apiKeyInfo.getType(), equalTo(ApiKey.Type.REST));
@@ -2874,60 +2887,21 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         for (RoleDescriptor expectedRoleDescriptor : expectedRoleDescriptors) {
             assertThat(rawRoleDescriptor, hasKey(expectedRoleDescriptor.getName()));
             final var descriptor = (Map<String, ?>) rawRoleDescriptor.get(expectedRoleDescriptor.getName());
-            final var roleDescriptor = RoleDescriptor.parse(
-                expectedRoleDescriptor.getName(),
-                XContentTestUtils.convertToXContent(descriptor, XContentType.JSON),
-                false,
-                XContentType.JSON
-            );
+            final var roleDescriptor = RoleDescriptor.parserBuilder()
+                .allowRestriction(true)
+                .allowDescription(true)
+                .build()
+                .parse(
+                    expectedRoleDescriptor.getName(),
+                    XContentTestUtils.convertToXContent(descriptor, XContentType.JSON),
+                    XContentType.JSON
+                );
             assertEquals(expectedRoleDescriptor, roleDescriptor);
         }
     }
 
     private Map<String, Object> getApiKeyDocument(String apiKeyId) {
         return client().execute(TransportGetAction.TYPE, new GetRequest(SECURITY_MAIN_ALIAS, apiKeyId)).actionGet().getSource();
-    }
-
-    private ApiKey getApiKeyInfo(Client client, String apiKeyId, boolean withLimitedBy, boolean useGetApiKey) {
-        if (useGetApiKey) {
-            final PlainActionFuture<GetApiKeyResponse> future = new PlainActionFuture<>();
-            client.execute(
-                GetApiKeyAction.INSTANCE,
-                GetApiKeyRequest.builder().apiKeyId(apiKeyId).withLimitedBy(withLimitedBy).build(),
-                future
-            );
-            final GetApiKeyResponse getApiKeyResponse = future.actionGet();
-            assertThat(getApiKeyResponse.getApiKeyInfoList(), iterableWithSize(1));
-            return getApiKeyResponse.getApiKeyInfoList().get(0).apiKeyInfo();
-        } else {
-            final PlainActionFuture<QueryApiKeyResponse> future = new PlainActionFuture<>();
-            client.execute(
-                QueryApiKeyAction.INSTANCE,
-                new QueryApiKeyRequest(QueryBuilders.idsQuery().addIds(apiKeyId), null, null, null, null, null, withLimitedBy),
-                future
-            );
-            final QueryApiKeyResponse queryApiKeyResponse = future.actionGet();
-            assertThat(queryApiKeyResponse.getApiKeyInfoList(), iterableWithSize(1));
-            return queryApiKeyResponse.getApiKeyInfoList().get(0).apiKeyInfo();
-        }
-    }
-
-    private List<ApiKey> getAllApiKeyInfo(Client client, boolean withLimitedBy) {
-        if (randomBoolean()) {
-            final PlainActionFuture<GetApiKeyResponse> future = new PlainActionFuture<>();
-            client.execute(GetApiKeyAction.INSTANCE, GetApiKeyRequest.builder().withLimitedBy(withLimitedBy).build(), future);
-            final GetApiKeyResponse getApiKeyResponse = future.actionGet();
-            return getApiKeyResponse.getApiKeyInfoList().stream().map(GetApiKeyResponse.Item::apiKeyInfo).toList();
-        } else {
-            final PlainActionFuture<QueryApiKeyResponse> future = new PlainActionFuture<>();
-            client.execute(
-                QueryApiKeyAction.INSTANCE,
-                new QueryApiKeyRequest(QueryBuilders.matchAllQuery(), null, null, 1000, null, null, withLimitedBy),
-                future
-            );
-            final QueryApiKeyResponse queryApiKeyResponse = future.actionGet();
-            return queryApiKeyResponse.getApiKeyInfoList().stream().map(QueryApiKeyResponse.Item::apiKeyInfo).toList();
-        }
     }
 
     private ServiceWithNodeName getServiceWithNodeName() {
@@ -3359,6 +3333,120 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         assertThat(ese, throwableWithMessage(containsString("action [" + action + "] is unauthorized for user [" + userName + "]")));
         assertThat(ese, throwableWithMessage(containsString(", this action is granted by the cluster privileges [")));
         assertThat(ese, throwableWithMessage(containsString("manage_api_key,manage_security,all]")));
+    }
+
+    public static ApiKey getApiKeyInfo(Client client, String apiKeyId, boolean withLimitedBy, boolean useGetApiKey) {
+        if (useGetApiKey) {
+            final PlainActionFuture<GetApiKeyResponse> future = new PlainActionFuture<>();
+            client.execute(
+                GetApiKeyAction.INSTANCE,
+                GetApiKeyRequest.builder().apiKeyId(apiKeyId).withLimitedBy(withLimitedBy).withProfileUid(randomBoolean()).build(),
+                future
+            );
+            final GetApiKeyResponse getApiKeyResponse = future.actionGet();
+            assertThat(getApiKeyResponse.getApiKeyInfoList(), iterableWithSize(1));
+            return getApiKeyResponse.getApiKeyInfoList().get(0).apiKeyInfo();
+        } else {
+            final PlainActionFuture<QueryApiKeyResponse> future = new PlainActionFuture<>();
+            client.execute(
+                QueryApiKeyAction.INSTANCE,
+                new QueryApiKeyRequest(
+                    QueryBuilders.idsQuery().addIds(apiKeyId),
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    withLimitedBy,
+                    randomBoolean()
+                ),
+                future
+            );
+            final QueryApiKeyResponse queryApiKeyResponse = future.actionGet();
+            assertThat(queryApiKeyResponse.getApiKeyInfoList(), iterableWithSize(1));
+            return queryApiKeyResponse.getApiKeyInfoList().get(0).apiKeyInfo();
+        }
+    }
+
+    public static Tuple<ApiKey, String> getApiKeyInfoWithProfileUid(Client client, String apiKeyId, boolean ownKey) {
+        if (randomBoolean()) {
+            PlainActionFuture<GetApiKeyResponse> future = new PlainActionFuture<>();
+            client.execute(
+                GetApiKeyAction.INSTANCE,
+                GetApiKeyRequest.builder()
+                    .apiKeyId(apiKeyId)
+                    .withLimitedBy(randomBoolean())
+                    .withProfileUid(true)
+                    .ownedByAuthenticatedUser(ownKey)
+                    .build(),
+                future
+            );
+            GetApiKeyResponse getApiKeyResponse = future.actionGet();
+            assertThat(getApiKeyResponse.getApiKeyInfoList(), iterableWithSize(1));
+            GetApiKeyResponse.Item item = getApiKeyResponse.getApiKeyInfoList().get(0);
+            return new Tuple<>(item.apiKeyInfo(), item.ownerProfileUid());
+        } else {
+            PlainActionFuture<QueryApiKeyResponse> future = new PlainActionFuture<>();
+            client.execute(
+                QueryApiKeyAction.INSTANCE,
+                new QueryApiKeyRequest(QueryBuilders.idsQuery().addIds(apiKeyId), null, null, null, null, null, randomBoolean(), true),
+                future
+            );
+            QueryApiKeyResponse queryApiKeyResponse = future.actionGet();
+            assertThat(queryApiKeyResponse.getApiKeyInfoList(), iterableWithSize(1));
+            QueryApiKeyResponse.Item item = queryApiKeyResponse.getApiKeyInfoList().get(0);
+            return new Tuple<>(item.apiKeyInfo(), item.ownerProfileUid());
+        }
+    }
+
+    public static List<ApiKey> getAllApiKeyInfo(Client client, boolean withLimitedBy) {
+        if (randomBoolean()) {
+            PlainActionFuture<GetApiKeyResponse> future = new PlainActionFuture<>();
+            client.execute(
+                GetApiKeyAction.INSTANCE,
+                GetApiKeyRequest.builder().withLimitedBy(withLimitedBy).withProfileUid(randomBoolean()).build(),
+                future
+            );
+            GetApiKeyResponse getApiKeyResponse = future.actionGet();
+            return getApiKeyResponse.getApiKeyInfoList().stream().map(GetApiKeyResponse.Item::apiKeyInfo).toList();
+        } else {
+            PlainActionFuture<QueryApiKeyResponse> future = new PlainActionFuture<>();
+            client.execute(
+                QueryApiKeyAction.INSTANCE,
+                new QueryApiKeyRequest(QueryBuilders.matchAllQuery(), null, null, 1000, null, null, withLimitedBy, randomBoolean()),
+                future
+            );
+            QueryApiKeyResponse queryApiKeyResponse = future.actionGet();
+            return queryApiKeyResponse.getApiKeyInfoList().stream().map(QueryApiKeyResponse.Item::apiKeyInfo).toList();
+        }
+    }
+
+    public static List<Tuple<ApiKey, String>> getAllApiKeyInfoWithProfileUid(Client client) {
+        if (randomBoolean()) {
+            PlainActionFuture<GetApiKeyResponse> future = new PlainActionFuture<>();
+            client.execute(
+                GetApiKeyAction.INSTANCE,
+                GetApiKeyRequest.builder().withLimitedBy(randomBoolean()).withProfileUid(true).build(),
+                future
+            );
+            GetApiKeyResponse getApiKeyResponse = future.actionGet();
+            return getApiKeyResponse.getApiKeyInfoList()
+                .stream()
+                .map(item -> new Tuple<>(item.apiKeyInfo(), item.ownerProfileUid()))
+                .toList();
+        } else {
+            PlainActionFuture<QueryApiKeyResponse> future = new PlainActionFuture<>();
+            client.execute(
+                QueryApiKeyAction.INSTANCE,
+                new QueryApiKeyRequest(QueryBuilders.matchAllQuery(), null, null, 1000, null, null, randomBoolean(), true),
+                future
+            );
+            QueryApiKeyResponse queryApiKeyResponse = future.actionGet();
+            return queryApiKeyResponse.getApiKeyInfoList()
+                .stream()
+                .map(item -> new Tuple<>(item.apiKeyInfo(), item.ownerProfileUid()))
+                .toList();
+        }
     }
 
     private static <T extends Throwable> T expectThrowsWithUnwrappedExecutionException(Class<T> expectedType, ThrowingRunnable runnable) {

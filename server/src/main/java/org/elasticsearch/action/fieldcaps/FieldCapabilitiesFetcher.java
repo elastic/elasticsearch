@@ -21,6 +21,7 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.plugins.FieldPredicate;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.AliasFilter;
@@ -123,14 +124,15 @@ class FieldCapabilitiesFetcher {
             final String shardUuid = indexService.getShard(shardId.getId()).getShardUuid();
             indexMappingHash = mapping == null ? shardUuid : shardUuid + mapping.getSha256();
         }
+        FieldPredicate fieldPredicate = indicesService.getFieldFilter().apply(shardId.getIndexName());
         if (indexMappingHash != null) {
+            indexMappingHash = fieldPredicate.modifyHash(indexMappingHash);
             final Map<String, IndexFieldCapabilities> existing = indexMappingHashToResponses.get(indexMappingHash);
             if (existing != null) {
                 return new FieldCapabilitiesIndexResponse(shardId.getIndexName(), indexMappingHash, existing, true);
             }
         }
         task.ensureNotCancelled();
-        Predicate<String> fieldPredicate = indicesService.getFieldFilter().apply(shardId.getIndexName());
         final Map<String, IndexFieldCapabilities> responseMap = retrieveFieldCaps(
             searchExecutionContext,
             fieldNameFilter,
@@ -151,7 +153,7 @@ class FieldCapabilitiesFetcher {
         Predicate<String> fieldNameFilter,
         String[] filters,
         String[] types,
-        Predicate<String> indexFieldfilter,
+        FieldPredicate fieldPredicate,
         IndexShard indexShard,
         boolean includeEmptyFields
     ) {
@@ -169,7 +171,7 @@ class FieldCapabilitiesFetcher {
             }
             MappedFieldType ft = entry.getValue();
             if ((includeEmptyFields || ft.fieldHasValue(fieldInfos))
-                && (indexFieldfilter.test(ft.name()) || context.isMetadataField(ft.name()))
+                && (fieldPredicate.test(ft.name()) || context.isMetadataField(ft.name()))
                 && (filter == null || filter.test(ft))) {
                 IndexFieldCapabilities fieldCap = new IndexFieldCapabilities(
                     field,

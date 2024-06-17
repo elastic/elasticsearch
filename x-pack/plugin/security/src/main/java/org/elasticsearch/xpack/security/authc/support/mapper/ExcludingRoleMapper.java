@@ -44,7 +44,7 @@ public class ExcludingRoleMapper implements UserRoleMapper {
     }
 
     @Override
-    public void refreshRealmOnChange(CachingRealm realm) {
-        delegate.refreshRealmOnChange(realm);
+    public void clearRealmCacheOnChange(CachingRealm realm) {
+        delegate.clearRealmCacheOnChange(realm);
     }
 }

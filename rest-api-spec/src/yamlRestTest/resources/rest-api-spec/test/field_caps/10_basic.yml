@@ -164,8 +164,8 @@ setup:
 
 ---
 "Get field caps with fields in body":
-  - skip:
-      version: " - 8.4.99"
+  - requires:
+      cluster_features: ["gte_v8.5.0"]
       reason: re-added support for fields in the request body in 8.5
   - do:
       field_caps:
@@ -229,8 +229,8 @@ setup:
 
 ---
 "Field caps for number field with only doc values":
-  - skip:
-      version: " - 8.0.99"
+  - requires:
+      cluster_features: ["gte_v8.1.0"]
       reason: "doc values search was added in 8.1.0"
   - do:
       field_caps:
@@ -241,8 +241,8 @@ setup:
 
 ---
 "Field caps for date field with only doc values":
-  - skip:
-      version: " - 8.0.99"
+  - requires:
+      cluster_features: ["gte_v8.1.0"]
       reason: "doc values search was added in 8.1.0"
   - do:
       field_caps:
@@ -253,8 +253,8 @@ setup:
 
 ---
 "Field caps for keyword field with only doc values":
-  - skip:
-      version: " - 8.0.99"
+  - requires:
+      cluster_features: ["gte_v8.1.0"]
       reason: "doc values search was added in 8.1.0"
   - do:
       field_caps:
@@ -265,8 +265,8 @@ setup:
 
 ---
 "Field caps for boolean field with only doc values":
-  - skip:
-      version: " - 8.0.99"
+  - requires:
+      cluster_features: ["gte_v8.1.0"]
       reason: "doc values search was added in 8.1.0"
   - do:
       field_caps:
@@ -277,8 +277,8 @@ setup:
 
 ---
 "Field caps for ip field with only doc values":
-  - skip:
-      version: " - 8.0.99"
+  - requires:
+      cluster_features: ["gte_v8.1.0"]
       reason: "doc values search was added in 8.1.0"
   - do:
       field_caps:
@@ -289,8 +289,8 @@ setup:
 
 ---
 "Field caps for geo_point field with only doc values":
-  - skip:
-      version: " - 8.0.99"
+  - requires:
+      cluster_features: ["gte_v8.1.0"]
       reason: "doc values search was added in 8.1.0"
   - do:
       field_caps:
@@ -397,8 +397,8 @@ setup:
 
 ---
 "Field caps with include_unmapped":
-  - skip:
-      version: " - 7.1.99"
+  - requires:
+      cluster_features: ["gte_v7.2.0"]
       reason: include_unmapped has been added in 7.2.0
 
   - do:

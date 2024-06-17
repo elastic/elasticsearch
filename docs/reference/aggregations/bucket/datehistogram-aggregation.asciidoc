@@ -341,23 +341,24 @@ Response:
 rounding is also done in UTC. Use the `time_zone` parameter to indicate
 that bucketing should use a different time zone.
 
-For example, if the interval is a calendar day and the time zone is
-`America/New_York` then `2020-01-03T01:00:01Z` is :
-# Converted to `2020-01-02T18:00:01`
-# Rounded down to `2020-01-02T00:00:00`
-# Then converted back to UTC to produce `2020-01-02T05:00:00:00Z`
-# Finally, when the bucket is turned into a string key it is printed in
-  `America/New_York` so it'll display as `"2020-01-02T00:00:00"`.
-
-It looks like:
+When you specify a time zone, the following logic is used to determine the bucket the document belongs in:
 
 [source,java]
 ----
 bucket_key = localToUtc(Math.floor(utcToLocal(value) / interval) * interval))
 ----
 
-You can specify time zones as an ISO 8601 UTC offset (e.g. `+01:00` or
-`-08:00`) or as an IANA time zone ID,
+For example, if the interval is a calendar day and the time zone is
+`America/New_York`, then the date value `2020-01-03T01:00:01Z` is processed as follows:
+
+. Converted to EST: `2020-01-02T20:00:01`
+. Rounded down to the nearest interval: `2020-01-02T00:00:00`
+. Converted back to UTC: `2020-01-02T05:00:00:00Z`
+
+When a `key_as_string` is generated for the bucket, the key value is stored in `America/New_York` time, so it'll display as `"2020-01-02T00:00:00"`.
+
+You can specify time zones as an ISO 8601 UTC offset, such as `+01:00` or
+`-08:00`, or as an IANA time zone ID,
 such as `America/Los_Angeles`.
 
 Consider the following example:
@@ -618,7 +619,7 @@ For example, for `+50d` we see:
 --------------------------------------------------
 // TESTRESPONSE[skip:no setup made for this example yet]
 
-It is therefor always important when using `offset` with `calendar_interval` bucket sizes
+It is therefore always important when using `offset` with `calendar_interval` bucket sizes
 to understand the consequences of using offsets larger than the interval size.
 
 More examples:
@@ -633,7 +634,7 @@ but as soon as you push the start date into the second month by having an offset
 quarters will all start on different dates.
 
 [[date-histogram-keyed-response]]
-==== Keyed Response
+==== Keyed response
 
 Setting the `keyed` flag to `true` associates a unique string key with each
 bucket and returns the ranges as a hash rather than an array:

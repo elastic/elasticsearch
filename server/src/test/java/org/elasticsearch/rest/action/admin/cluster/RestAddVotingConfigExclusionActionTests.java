@@ -18,6 +18,7 @@ import org.elasticsearch.test.rest.FakeRestRequest;
 import java.util.HashMap;
 import java.util.Map;
 
+import static org.elasticsearch.rest.RestUtils.REST_MASTER_TIMEOUT_PARAM;
 import static org.elasticsearch.rest.action.admin.cluster.RestAddVotingConfigExclusionAction.resolveVotingConfigExclusionsRequest;
 
 public class RestAddVotingConfigExclusionActionTests extends ESTestCase {
@@ -69,7 +70,7 @@ public class RestAddVotingConfigExclusionActionTests extends ESTestCase {
     public void testResolveVotingConfigExclusionsRequestMasterTimeout() {
         Map<String, String> params = new HashMap<>();
         params.put("node_names", "node-1,node-2,node-3");
-        params.put("master_timeout", "60s");
+        params.put(REST_MASTER_TIMEOUT_PARAM, "60s");
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.POST)
             .withPath("/_cluster/voting_config_exclusions")
             .withParams(params)
@@ -84,7 +85,7 @@ public class RestAddVotingConfigExclusionActionTests extends ESTestCase {
         Map<String, String> params = new HashMap<>();
         params.put("node_names", "node-1,node-2,node-3");
         params.put("timeout", "60s");
-        params.put("master_timeout", "120s");
+        params.put(REST_MASTER_TIMEOUT_PARAM, "120s");
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.POST)
             .withPath("/_cluster/voting_config_exclusions")
             .withParams(params)

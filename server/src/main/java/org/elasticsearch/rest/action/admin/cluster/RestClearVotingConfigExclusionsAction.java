@@ -19,6 +19,7 @@ import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.DELETE;
+import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 
 public class RestClearVotingConfigExclusionsAction extends BaseRestHandler {
 
@@ -45,7 +46,7 @@ public class RestClearVotingConfigExclusionsAction extends BaseRestHandler {
 
     static ClearVotingConfigExclusionsRequest resolveVotingConfigExclusionsRequest(final RestRequest request) {
         final var resolvedRequest = new ClearVotingConfigExclusionsRequest();
-        resolvedRequest.masterNodeTimeout(request.paramAsTime("master_timeout", resolvedRequest.masterNodeTimeout()));
+        resolvedRequest.masterNodeTimeout(getMasterNodeTimeout(request));
         resolvedRequest.setTimeout(resolvedRequest.masterNodeTimeout());
         resolvedRequest.setWaitForRemoval(request.paramAsBoolean("wait_for_removal", resolvedRequest.getWaitForRemoval()));
         return resolvedRequest;

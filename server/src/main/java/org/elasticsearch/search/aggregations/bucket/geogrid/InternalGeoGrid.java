@@ -17,7 +17,7 @@ import org.elasticsearch.search.aggregations.AggregatorReducer;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
-import org.elasticsearch.search.aggregations.bucket.MultiBucketAggregatorsReducer;
+import org.elasticsearch.search.aggregations.bucket.BucketReducer;
 import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -81,7 +81,7 @@ public abstract class InternalGeoGrid<B extends InternalGeoGridBucket> extends I
     protected AggregatorReducer getLeaderReducer(AggregationReduceContext context, int size) {
         return new AggregatorReducer() {
 
-            final LongObjectPagedHashMap<MultiBucketAggregatorsReducer> bucketsReducer = new LongObjectPagedHashMap<>(
+            final LongObjectPagedHashMap<BucketReducer<InternalGeoGridBucket>> bucketsReducer = new LongObjectPagedHashMap<>(
                 size,
                 context.bigArrays()
             );
@@ -91,9 +91,9 @@ public abstract class InternalGeoGrid<B extends InternalGeoGridBucket> extends I
                 @SuppressWarnings("unchecked")
                 final InternalGeoGrid<B> grid = (InternalGeoGrid<B>) aggregation;
                 for (InternalGeoGridBucket bucket : grid.getBuckets()) {
-                    MultiBucketAggregatorsReducer reducer = bucketsReducer.get(bucket.hashAsLong());
+                    BucketReducer<InternalGeoGridBucket> reducer = bucketsReducer.get(bucket.hashAsLong());
                     if (reducer == null) {
-                        reducer = new MultiBucketAggregatorsReducer(context, size);
+                        reducer = new BucketReducer<>(bucket, context, size);
                         bucketsReducer.put(bucket.hashAsLong(), reducer);
                     }
                     reducer.accept(bucket);
@@ -106,8 +106,8 @@ public abstract class InternalGeoGrid<B extends InternalGeoGridBucket> extends I
                     context.isFinalReduce() == false ? bucketsReducer.size() : Math.min(requiredSize, bucketsReducer.size())
                 );
                 try (BucketPriorityQueue<InternalGeoGridBucket> ordered = new BucketPriorityQueue<>(size, context.bigArrays())) {
-                    bucketsReducer.iterator().forEachRemaining(entry -> {
-                        InternalGeoGridBucket bucket = createBucket(entry.key, entry.value.getDocCount(), entry.value.get());
+                    bucketsReducer.forEach(entry -> {
+                        InternalGeoGridBucket bucket = createBucket(entry.key, entry.value.getDocCount(), entry.value.getAggregations());
                         ordered.insertWithOverflow(bucket);
                     });
                     final InternalGeoGridBucket[] list = new InternalGeoGridBucket[(int) ordered.size()];
@@ -121,7 +121,7 @@ public abstract class InternalGeoGrid<B extends InternalGeoGridBucket> extends I
 
             @Override
             public void close() {
-                bucketsReducer.iterator().forEachRemaining(r -> Releasables.close(r.value));
+                bucketsReducer.forEach(r -> Releasables.close(r.value));
                 Releasables.close(bucketsReducer);
             }
         };

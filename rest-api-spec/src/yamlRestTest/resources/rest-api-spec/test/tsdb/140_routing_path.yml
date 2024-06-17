@@ -1,8 +1,8 @@
 ---
 missing routing path field:
-  - skip:
-      features: close_to
-      version: " - 8.12.99"
+  - requires:
+      test_runner_features: close_to
+      cluster_features: ["gte_v8.13.0"]
       reason: _tsid hashing introduced in 8.13
 
   - do:
@@ -89,12 +89,12 @@ missing routing path field:
 
 ---
 missing dimension on routing path field:
-  - skip:
-      version: " - 8.7.99"
-      reason: error message changed in 8.8.0
+  - requires:
+      cluster_features: ["gte_v8.14.0"]
+      reason: error message changed in 8.14.0
 
   - do:
-      catch: '/All fields that match routing_path must be keywords with \[time_series_dimension: true\] or flattened fields with a list of dimensions in \[time_series_dimensions\] and without the \[script\] parameter. \[tag\] was not a dimension./'
+      catch: '/All fields that match routing_path must be configured with \[time_series_dimension: true\] or flattened fields with a list of dimensions in \[time_series_dimensions\] and without the \[script\] parameter. \[tag\] was not a dimension./'
       indices.create:
         index: test
         body:
@@ -120,9 +120,9 @@ missing dimension on routing path field:
 
 ---
 multi-value routing path field:
-  - skip:
-      features: close_to
-      version: " - 8.12.99"
+  - requires:
+      test_runner_features: close_to
+      cluster_features: ["gte_v8.13.0"]
       reason: _tsid hashing introduced in 8.13
 
   - do:

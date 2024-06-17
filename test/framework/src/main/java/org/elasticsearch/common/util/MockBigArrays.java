@@ -31,6 +31,7 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -144,11 +145,18 @@ public class MockBigArrays extends BigArrays {
         when(breakerService.getBreaker(CircuitBreaker.REQUEST)).thenReturn(new LimitedBreaker(CircuitBreaker.REQUEST, limit));
     }
 
+    /**
+     * Create {@linkplain BigArrays} with a provided breaker service. The breaker is not enable by default.
+     */
     public MockBigArrays(PageCacheRecycler recycler, CircuitBreakerService breakerService) {
         this(recycler, breakerService, false);
     }
 
-    private MockBigArrays(PageCacheRecycler recycler, CircuitBreakerService breakerService, boolean checkBreaker) {
+    /**
+     * Create {@linkplain BigArrays} with a provided breaker service. The breaker can be enabled with the
+     * {@code checkBreaker} flag.
+     */
+    public MockBigArrays(PageCacheRecycler recycler, CircuitBreakerService breakerService, boolean checkBreaker) {
         super(recycler, breakerService, CircuitBreaker.REQUEST, checkBreaker);
         this.recycler = recycler;
         this.breakerService = breakerService;
@@ -406,7 +414,7 @@ public class MockBigArrays extends BigArrays {
         }
 
         @Override
-        public void fillWith(StreamInput streamInput) throws IOException {
+        public void fillWith(InputStream streamInput) throws IOException {
             in.fillWith(streamInput);
         }
 

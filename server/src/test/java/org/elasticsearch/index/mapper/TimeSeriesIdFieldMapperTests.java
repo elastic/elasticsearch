@@ -720,38 +720,4 @@ public class TimeSeriesIdFieldMapperTests extends MetadataMapperTestCase {
         });
         assertThat(failure.getMessage(), equalTo("[5:1] failed to parse: Illegal base64 character 20"));
     }
-
-    public void testParseWithDynamicMappingNullId() {
-        Settings indexSettings = Settings.builder()
-            .put(IndexSettings.MODE.getKey(), "time_series")
-            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "dim")
-            .build();
-        MapperService mapper = createMapperService(IndexVersion.current(), indexSettings, () -> false);
-        SourceToParse source = new SourceToParse(null, new BytesArray("""
-            {
-                "@timestamp": 1609459200000,
-                "dim": "6a841a21",
-                "value": 100
-            }"""), XContentType.JSON);
-        var failure = expectThrows(DocumentParsingException.class, () -> {
-            IndexShard.prepareIndex(
-                mapper,
-                source,
-                UNASSIGNED_SEQ_NO,
-                randomNonNegativeLong(),
-                Versions.MATCH_ANY,
-                VersionType.INTERNAL,
-                Engine.Operation.Origin.PRIMARY,
-                -1,
-                false,
-                UNASSIGNED_SEQ_NO,
-                0,
-                System.nanoTime()
-            );
-        });
-        assertThat(
-            failure.getMessage(),
-            equalTo("[5:1] failed to parse: _ts_routing_hash was null but must be set because index [index] is in time_series mode")
-        );
-    }
 }

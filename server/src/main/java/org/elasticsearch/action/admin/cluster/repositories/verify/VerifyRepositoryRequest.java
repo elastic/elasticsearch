@@ -29,7 +29,9 @@ public class VerifyRepositoryRequest extends AcknowledgedRequest<VerifyRepositor
         name = in.readString();
     }
 
-    public VerifyRepositoryRequest() {}
+    public VerifyRepositoryRequest() {
+        super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
+    }
 
     /**
      * Constructs a new unregister repository request with the provided name.
@@ -37,6 +39,7 @@ public class VerifyRepositoryRequest extends AcknowledgedRequest<VerifyRepositor
      * @param name name of the repository
      */
     public VerifyRepositoryRequest(String name) {
+        super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
         this.name = name;
     }
 

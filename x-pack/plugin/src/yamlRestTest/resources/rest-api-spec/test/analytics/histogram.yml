@@ -174,8 +174,8 @@ setup:
 
 ---
 histogram with synthetic source:
-  - skip:
-      version: " - 8.4.99"
+  - requires:
+      cluster_features: ["gte_v8.5.0"]
       reason: introduced in 8.5.0
 
   - do:
@@ -220,8 +220,8 @@ histogram with synthetic source:
 
 ---
 histogram with synthetic source and zero counts:
-  - skip:
-      version: " - 8.4.99"
+  - requires:
+      cluster_features: ["gte_v8.5.0"]
       reason: introduced in 8.5.0
 
   - do:
@@ -255,8 +255,8 @@ histogram with synthetic source and zero counts:
 
 ---
 histogram with large count values:
-  - skip:
-      version: " - 8.10.99"
+  - requires:
+      cluster_features: ["gte_v8.11.0"]
       reason: Support for `long` values was introduced in 8.11.0
 
   - do:

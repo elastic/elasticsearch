@@ -130,7 +130,7 @@ public class EsqlActionBreakerIT extends EsqlActionIT {
         setRequestCircuitBreakerLimit(ByteSizeValue.ofBytes(between(256, 512)));
         try {
             final ElasticsearchException e = expectThrows(ElasticsearchException.class, () -> {
-                var request = new EsqlQueryRequest();
+                var request = EsqlQueryRequest.syncEsqlQueryRequest();
                 request.query("from test_breaker | stats count_distinct(foo) by bar");
                 request.pragmas(randomPragmas());
                 try (var ignored = client().execute(EsqlQueryAction.INSTANCE, request).actionGet(2, TimeUnit.MINUTES)) {

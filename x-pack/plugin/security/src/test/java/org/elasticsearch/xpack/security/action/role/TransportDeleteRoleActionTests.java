@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.core.security.action.role.DeleteRoleRequest;
 import org.elasticsearch.xpack.core.security.action.role.DeleteRoleResponse;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
+import org.elasticsearch.xpack.security.authz.ReservedRoleNameChecker;
 import org.elasticsearch.xpack.security.authz.store.NativeRolesStore;
 import org.junit.BeforeClass;
 
@@ -61,7 +62,12 @@ public class TransportDeleteRoleActionTests extends ESTestCase {
             null,
             Collections.emptySet()
         );
-        TransportDeleteRoleAction action = new TransportDeleteRoleAction(mock(ActionFilters.class), rolesStore, transportService);
+        TransportDeleteRoleAction action = new TransportDeleteRoleAction(
+            mock(ActionFilters.class),
+            rolesStore,
+            transportService,
+            new ReservedRoleNameChecker.Default()
+        );
 
         DeleteRoleRequest request = new DeleteRoleRequest();
         request.name(roleName);
@@ -105,7 +111,12 @@ public class TransportDeleteRoleActionTests extends ESTestCase {
             null,
             Collections.emptySet()
         );
-        TransportDeleteRoleAction action = new TransportDeleteRoleAction(mock(ActionFilters.class), rolesStore, transportService);
+        TransportDeleteRoleAction action = new TransportDeleteRoleAction(
+            mock(ActionFilters.class),
+            rolesStore,
+            transportService,
+            new ReservedRoleNameChecker.Default()
+        );
 
         DeleteRoleRequest request = new DeleteRoleRequest();
         request.name(roleName);
@@ -153,7 +164,12 @@ public class TransportDeleteRoleActionTests extends ESTestCase {
             null,
             Collections.emptySet()
         );
-        TransportDeleteRoleAction action = new TransportDeleteRoleAction(mock(ActionFilters.class), rolesStore, transportService);
+        TransportDeleteRoleAction action = new TransportDeleteRoleAction(
+            mock(ActionFilters.class),
+            rolesStore,
+            transportService,
+            new ReservedRoleNameChecker.Default()
+        );
 
         DeleteRoleRequest request = new DeleteRoleRequest();
         request.name(roleName);

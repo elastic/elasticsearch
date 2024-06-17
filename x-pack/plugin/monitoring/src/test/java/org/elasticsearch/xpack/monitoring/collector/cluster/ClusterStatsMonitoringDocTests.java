@@ -522,7 +522,8 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                   },
                   "docs": {
                     "count": 0,
-                    "deleted": 0
+                    "deleted": 0,
+                    "total_size_in_bytes": 0
                   },
                   "store": {
                     "size_in_bytes": 0,
@@ -729,7 +730,8 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                         "all_in_bytes": 0,
                         "coordinating_rejections": 0,
                         "primary_rejections": 0,
-                        "replica_rejections": 0
+                        "replica_rejections": 0,
+                        "primary_document_rejections": 0
                       },
                       "limit_in_bytes": 0
                     }

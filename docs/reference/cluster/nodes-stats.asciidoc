@@ -127,31 +127,31 @@ using metrics.
     * `dense_vector`
 --
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=node-id]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=node-id]
 
 
 [[cluster-nodes-stats-api-query-params]]
 ==== {api-query-parms-title}
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=completion-fields]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=completion-fields]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=fielddata-fields]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=fielddata-fields]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=fields]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=fields]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=groups]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=groups]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=level]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=level]
 
 `types`::
     (Optional, string) A comma-separated list of document types for the
     `indexing` index metric.
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=timeout-nodes-request]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=include-segment-file-sizes]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=include-segment-file-sizes]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=include-unloaded-segments]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=include-unloaded-segments]
 
 [role="child_attributes"]
 [[cluster-nodes-stats-api-response-body]]
@@ -244,11 +244,11 @@ node.
 =======
 `count`::
 (integer)
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=docs-count]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=docs-count]
 
 `deleted`::
 (integer)
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=docs-deleted]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=docs-deleted]
 =======
 
 `store`::
@@ -626,6 +626,7 @@ Total time spent performing flush operations.
 (integer)
 Total time in milliseconds
 spent performing flush operations.
+
 =======
 
 `warmer`::
@@ -1852,6 +1853,68 @@ store.
 (integer)
 Total number of bytes available to this Java virtual machine on this file
 store.
+
+`low_watermark_free_space`::
+(<<byte-units,byte value>>)
+The effective low disk watermark for this data path on this node: when a node
+has less free space than this value for at least one data path, its disk usage
+has exceeded the low watermark. See <<disk-based-shard-allocation>> for more
+information about disk watermarks and their effects on shard allocation.
+
+`low_watermark_free_space_in_bytes`::
+(integer)
+The effective low disk watermark, in bytes, for this data path on this node:
+when a node has less free space than this value for at least one data path, its
+disk usage has exceeded the low watermark. See <<disk-based-shard-allocation>>
+for more information about disk watermarks and their effects on shard
+allocation.
+
+`high_watermark_free_space`::
+(<<byte-units,byte value>>)
+The effective high disk watermark for this data path on this node: when a node
+has less free space than this value for at least one data path, its disk usage
+has exceeded the high watermark. See <<disk-based-shard-allocation>> for more
+information about disk watermarks and their effects on shard allocation.
+
+`high_watermark_free_space_in_bytes`::
+(integer)
+The effective high disk watermark, in bytes, for this data path on this node:
+when a node has less free space than this value for at least one data path, its
+disk usage has exceeded the high watermark. See <<disk-based-shard-allocation>>
+for more information about disk watermarks and their effects on shard
+allocation.
+
+`flood_stage_free_space`::
+(<<byte-units,byte value>>)
+The effective flood stage disk watermark for this data path on this node: when
+a node has less free space than this value for at least one data path, its disk
+usage has exceeded the flood stage watermark. See
+<<disk-based-shard-allocation>> for more information about disk watermarks and
+their effects on shard allocation.
+
+`flood_stage_free_space_in_bytes`::
+(integer)
+The effective flood stage disk watermark, in bytes, for this data path on this
+node: when a node has less free space than this value for at least one data
+path, its disk usage has exceeded the flood stage watermark. See
+<<disk-based-shard-allocation>> for more information about disk watermarks and
+their effects on shard allocation.
+
+`frozen_flood_stage_free_space`::
+(<<byte-units,byte value>>)
+The effective flood stage disk watermark for this data path on a dedicated
+frozen node: when a dedicated frozen node has less free space than this value
+for at least one data path, its disk usage has exceeded the flood stage
+watermark. See <<disk-based-shard-allocation>> for more information about disk
+watermarks and their effects on shard allocation.
+
+`frozen_flood_stage_free_space_in_bytes`::
+(integer)
+The effective flood stage disk watermark, in bytes, for this data path on a
+dedicated frozen node: when a dedicated frozen node has less free space than
+this value for at least one data path, its disk usage has exceeded the flood
+stage watermark. See <<disk-based-shard-allocation>> for more information about
+disk watermarks and their effects on shard allocation.
 =======
 
 `io_stats` (Linux only)::
@@ -2579,6 +2642,34 @@ pipeline.
 `failed`::
 (integer)
 Total number of failed operations for the ingest pipeline.
+
+`ingested_as_first_pipeline`::
+(<<byte-units,byte value>>)
+Total ingested size of all documents which were first processed by this pipeline.
+A document is not added to the stat value for this pipeline if it is a final pipeline after a default pipeline, a pipeline
+run after a reroute processor, or is within a pipeline processor.
+Instead, the document size is added to the stat value of the pipeline which initially ingested the document.
+
+`ingested_as_first_pipeline_in_bytes`::
+(integer)
+Total ingested size, in bytes, of all documents which were first processed by this pipeline.
+A document is not added to the stat value for this pipeline if it is a final pipeline after a default pipeline, a pipeline
+run after a reroute processor, or is within a pipeline processor.
+Instead, the document size is added to the stat value of the pipeline which initially ingested the document.
+
+`produced_as_first_pipeline`::
+(<<byte-units,byte value>>)
+Total produced size of all documents which were first processed by this pipeline.
+A document is not added to the stat value for this pipeline if it is a final pipeline after a default pipeline, a pipeline
+run after a reroute processor, or is within a pipeline processor.
+Instead, the document size is added to the stat value of the pipeline which initially ingested the document.
+
+`produced_as_first_pipeline_in_bytes`::
+(integer)
+Total produced size, in bytes, of all documents which were first processed by this pipeline.
+A document is not added to the stat value for this pipeline if it is a final pipeline after a default pipeline, a pipeline
+run after a reroute processor, or is within a pipeline processor.
+Instead, the document size is added to the stat value of the pipeline which initially ingested the document.
 
 `processors`::
 (array of objects)

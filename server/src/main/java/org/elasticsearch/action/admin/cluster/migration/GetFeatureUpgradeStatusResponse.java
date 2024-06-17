@@ -185,7 +185,7 @@ public class GetFeatureUpgradeStatusResponse extends ActionResponse implements T
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             builder.field("feature_name", this.featureName);
-            builder.field("minimum_index_version", this.minimumIndexVersion.toString());
+            builder.field("minimum_index_version", this.minimumIndexVersion.toReleaseVersion());
             builder.field("migration_status", this.upgradeStatus);
             builder.startArray("indices");
             for (IndexInfo version : this.indexInfos) {
@@ -300,7 +300,7 @@ public class GetFeatureUpgradeStatusResponse extends ActionResponse implements T
 
             builder.startObject();
             builder.field("index", this.indexName);
-            builder.field("version", this.version.toString());
+            builder.field("version", this.version.toReleaseVersion());
             if (exception != null) {
                 builder.startObject("failure_cause");
                 {

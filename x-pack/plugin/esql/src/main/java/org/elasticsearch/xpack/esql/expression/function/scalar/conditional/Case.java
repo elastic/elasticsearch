@@ -16,17 +16,18 @@ import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.Nullability;
+import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
+import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.Literal;
-import org.elasticsearch.xpack.ql.expression.Nullability;
-import org.elasticsearch.xpack.ql.expression.TypeResolutions;
-import org.elasticsearch.xpack.ql.tree.NodeInfo;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -35,7 +36,7 @@ import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
-import static org.elasticsearch.xpack.ql.type.DataTypes.NULL;
+import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
 
 public final class Case extends EsqlScalarFunction {
     record Condition(Expression condition, Expression value) {}
@@ -59,14 +60,30 @@ public final class Case extends EsqlScalarFunction {
             "unsigned_long",
             "version" },
         description = """
-            Accepts pairs of conditions and values.
-            The function returns the value that belongs to the first condition that evaluates to true."""
+            Accepts pairs of conditions and values. The function returns the value that
+            belongs to the first condition that evaluates to `true`.
+
+            If the number of arguments is odd, the last argument is the default value which
+            is returned when no condition matches. If the number of arguments is even, and
+            no condition matches, the function returns `null`.""",
+        examples = {
+            @Example(description = "Determine whether employees are monolingual, bilingual, or polyglot:", file = "docs", tag = "case"),
+            @Example(
+                description = "Calculate the total connection success rate based on log messages:",
+                file = "conditional",
+                tag = "docsCaseSuccessRate"
+            ),
+            @Example(
+                description = "Calculate an hourly error rate as a percentage of the total number of log messages:",
+                file = "conditional",
+                tag = "docsCaseHourlyErrorRate"
+            ) }
     )
     public Case(
         Source source,
-        @Param(name = "condition", type = { "boolean" }) Expression first,
+        @Param(name = "condition", type = { "boolean" }, description = "A condition.") Expression first,
         @Param(
-            name = "rest",
+            name = "trueValue",
             type = {
                 "boolean",
                 "cartesian_point",
@@ -79,7 +96,9 @@ public final class Case extends EsqlScalarFunction {
                 "long",
                 "text",
                 "unsigned_long",
-                "version" }
+                "version" },
+            description = "The value that's returned when the corresponding condition is the first to evaluate to `true`. "
+                + "The default value is returned when no condition matches."
         ) List<Expression> rest
     ) {
         super(source, Stream.concat(Stream.of(first), rest.stream()).toList());

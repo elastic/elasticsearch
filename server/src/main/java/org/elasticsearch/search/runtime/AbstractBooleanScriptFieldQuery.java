@@ -23,7 +23,7 @@ abstract class AbstractBooleanScriptFieldQuery extends AbstractScriptFieldQuery<
     }
 
     @Override
-    protected boolean matches(BooleanFieldScript scriptContext, int docId) {
+    protected final boolean matches(BooleanFieldScript scriptContext, int docId) {
         scriptContext.runForDoc(docId);
         return matches(scriptContext.trues(), scriptContext.falses());
     }

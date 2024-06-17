@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.inference.services.openai.embeddings;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ModelConfigurations;
@@ -16,7 +14,7 @@ import org.elasticsearch.inference.ModelConfigurations;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalString;
-import static org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsTaskSettings.USER;
+import static org.elasticsearch.xpack.inference.services.openai.OpenAiServiceFields.USER;
 
 /**
  * This class handles extracting OpenAI task settings from a request. The difference between this class and
@@ -25,7 +23,6 @@ import static org.elasticsearch.xpack.inference.services.openai.embeddings.OpenA
  * @param user a unique identifier representing your end-user, which can help OpenAI to monitor and detect abuse
  */
 public record OpenAiEmbeddingsRequestTaskSettings(@Nullable String user) {
-    private static final Logger logger = LogManager.getLogger(OpenAiEmbeddingsRequestTaskSettings.class);
 
     public static final OpenAiEmbeddingsRequestTaskSettings EMPTY_SETTINGS = new OpenAiEmbeddingsRequestTaskSettings(null);
 

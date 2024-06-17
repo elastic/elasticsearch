@@ -98,6 +98,7 @@ public abstract class AbstractQueryVectorBuilderTestCase<T extends QueryVectorBu
                 10,
                 randomBoolean() ? null : randomFloat()
             );
+            searchBuilder.queryName(randomAlphaOfLengthBetween(5, 10));
             KnnSearchBuilder serialized = copyWriteable(
                 searchBuilder,
                 getNamedWriteableRegistry(),

@@ -71,55 +71,6 @@ final class DoubleBlockBuilder extends AbstractBlockBuilder implements DoubleBlo
         return this;
     }
 
-    /**
-     * Appends the all values of the given block into a the current position
-     * in this builder.
-     */
-    @Override
-    public DoubleBlockBuilder appendAllValuesToCurrentPosition(Block block) {
-        if (block.areAllValuesNull()) {
-            return appendNull();
-        }
-        return appendAllValuesToCurrentPosition((DoubleBlock) block);
-    }
-
-    /**
-     * Appends the all values of the given block into a the current position
-     * in this builder.
-     */
-    @Override
-    public DoubleBlockBuilder appendAllValuesToCurrentPosition(DoubleBlock block) {
-        final int positionCount = block.getPositionCount();
-        if (positionCount == 0) {
-            return appendNull();
-        }
-        final int totalValueCount = block.getTotalValueCount();
-        if (totalValueCount == 0) {
-            return appendNull();
-        }
-        if (totalValueCount > 1) {
-            beginPositionEntry();
-        }
-        final DoubleVector vector = block.asVector();
-        if (vector != null) {
-            for (int p = 0; p < positionCount; p++) {
-                appendDouble(vector.getDouble(p));
-            }
-        } else {
-            for (int p = 0; p < positionCount; p++) {
-                int count = block.getValueCount(p);
-                int i = block.getFirstValueIndex(p);
-                for (int v = 0; v < count; v++) {
-                    appendDouble(block.getDouble(i++));
-                }
-            }
-        }
-        if (totalValueCount > 1) {
-            endPositionEntry();
-        }
-        return this;
-    }
-
     @Override
     public DoubleBlockBuilder copyFrom(Block block, int beginInclusive, int endExclusive) {
         if (block.areAllValuesNull()) {
@@ -210,28 +161,19 @@ final class DoubleBlockBuilder extends AbstractBlockBuilder implements DoubleBlo
             DoubleBlock theBlock;
             if (hasNonNullValue && positionCount == 1 && valueCount == 1) {
                 theBlock = blockFactory.newConstantDoubleBlockWith(values[0], 1, estimatedBytes);
+            } else if (estimatedBytes > blockFactory.maxPrimitiveArrayBytes()) {
+                theBlock = buildBigArraysBlock();
+            } else if (isDense() && singleValued()) {
+                theBlock = blockFactory.newDoubleArrayVector(values, positionCount, estimatedBytes).asBlock();
             } else {
-                if (estimatedBytes > blockFactory.maxPrimitiveArrayBytes()) {
-                    theBlock = buildBigArraysBlock();
-                } else {
-                    if (values.length - valueCount > 1024 || valueCount < (values.length / 2)) {
-                        adjustBreaker(valueCount * elementSize());
-                        values = Arrays.copyOf(values, valueCount);
-                        adjustBreaker(-values.length * elementSize());
-                    }
-                    if (isDense() && singleValued()) {
-                        theBlock = blockFactory.newDoubleArrayVector(values, positionCount, estimatedBytes).asBlock();
-                    } else {
-                        theBlock = blockFactory.newDoubleArrayBlock(
-                            values,
-                            positionCount,
-                            firstValueIndexes,
-                            nullsMask,
-                            mvOrdering,
-                            estimatedBytes
-                        );
-                    }
-                }
+                theBlock = blockFactory.newDoubleArrayBlock(
+                    values, // stylecheck
+                    positionCount,
+                    firstValueIndexes,
+                    nullsMask,
+                    mvOrdering,
+                    estimatedBytes
+                );
             }
             built();
             return theBlock;

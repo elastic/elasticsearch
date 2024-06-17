@@ -56,11 +56,11 @@ import org.elasticsearch.search.profile.ProfileResult;
 import org.elasticsearch.search.profile.SearchProfileQueryPhaseResult;
 import org.elasticsearch.search.profile.aggregation.AggregationProfileShardResult;
 import org.elasticsearch.search.query.QuerySearchResult;
-import org.elasticsearch.search.rank.RankCoordinatorContext;
 import org.elasticsearch.search.rank.RankDoc;
 import org.elasticsearch.search.rank.RankShardResult;
 import org.elasticsearch.search.rank.TestRankDoc;
 import org.elasticsearch.search.rank.TestRankShardResult;
+import org.elasticsearch.search.rank.context.QueryPhaseRankCoordinatorContext;
 import org.elasticsearch.search.suggest.SortBy;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.search.suggest.completion.CompletionSuggestion;
@@ -356,8 +356,10 @@ public class SearchPhaseControllerTests extends ESTestCase {
     }
 
     public void testMergeWithRank() {
-        int nShards = randomIntBetween(1, 20);
-        int queryResultSize = randomBoolean() ? 0 : randomIntBetween(1, nShards * 2);
+        final int nShards = randomIntBetween(1, 20);
+        final int fsize = randomIntBetween(1, 10);
+        final int windowSize = randomIntBetween(11, 100);
+        final int queryResultSize = randomBoolean() ? 0 : randomIntBetween(1, nShards * 2);
         for (int trackTotalHits : new int[] { SearchContext.TRACK_TOTAL_HITS_DISABLED, SearchContext.TRACK_TOTAL_HITS_ACCURATE }) {
             AtomicArray<SearchPhaseResult> queryResults = generateQueryResults(nShards, List.of(), queryResultSize, false, false, true);
             try {
@@ -369,13 +371,10 @@ public class SearchPhaseControllerTests extends ESTestCase {
                     0,
                     true,
                     InternalAggregationTestCase.emptyReduceContextBuilder(),
-                    new RankCoordinatorContext(randomIntBetween(1, 10), 0, randomIntBetween(11, 100)) {
+                    new QueryPhaseRankCoordinatorContext(windowSize) {
                         @Override
-                        public SearchPhaseController.SortedTopDocs rank(
-                            List<QuerySearchResult> querySearchResults,
-                            TopDocsStats topDocStats
-                        ) {
-                            PriorityQueue<RankDoc> queue = new PriorityQueue<RankDoc>(windowSize) {
+                        public ScoreDoc[] rankQueryPhaseResults(List<QuerySearchResult> querySearchResults, TopDocsStats topDocStats) {
+                            PriorityQueue<RankDoc> queue = new PriorityQueue<>(windowSize) {
                                 @Override
                                 protected boolean lessThan(RankDoc a, RankDoc b) {
                                     return a.score < b.score;
@@ -389,14 +388,14 @@ public class SearchPhaseControllerTests extends ESTestCase {
                                     }
                                 }
                             }
-                            int size = Math.min(this.size, queue.size());
+                            int size = Math.min(fsize, queue.size());
                             RankDoc[] topResults = new RankDoc[size];
                             for (int rdi = 0; rdi < size; ++rdi) {
                                 topResults[rdi] = queue.pop();
                                 topResults[rdi].rank = rdi + 1;
                             }
                             topDocStats.fetchHits = topResults.length;
-                            return new SearchPhaseController.SortedTopDocs(topResults, false, null, null, null, 0);
+                            return topResults;
                         }
                     },
                     true

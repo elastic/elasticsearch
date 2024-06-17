@@ -110,7 +110,7 @@ public class ClusterHealthResponsesTests extends AbstractXContentSerializingTest
     private static final ObjectParser.NamedObjectParser<ClusterIndexHealth, Void> INDEX_PARSER = (
         XContentParser parser,
         Void context,
-        String index) -> ClusterIndexHealth.innerFromXContent(parser, index);
+        String index) -> ClusterIndexHealthTests.parseInstance(parser, index);
 
     static {
         // ClusterStateHealth fields

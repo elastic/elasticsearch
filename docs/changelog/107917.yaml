@@ -1,0 +1,6 @@
+pr: 107917
+summary: Exit gracefully when deleted
+area: Transform
+type: bug
+issues:
+ - 107266

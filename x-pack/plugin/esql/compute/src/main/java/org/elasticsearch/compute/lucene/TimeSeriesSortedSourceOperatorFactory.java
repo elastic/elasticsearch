@@ -7,16 +7,20 @@
 
 package org.elasticsearch.compute.lucene;
 
+import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
+import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.PriorityQueue;
+import org.elasticsearch.common.Rounding;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.DocVector;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
@@ -25,6 +29,8 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -43,18 +49,28 @@ import java.util.function.Function;
  * This operator currently only supports shard level concurrency. A new concurrency mechanism should be introduced at the time serie level
  * in order to read tsdb indices in parallel.
  */
-public record TimeSeriesSortedSourceOperatorFactory(int limit, int maxPageSize, int taskConcurrency, LuceneSliceQueue sliceQueue)
-    implements
-        LuceneOperator.Factory {
+public class TimeSeriesSortedSourceOperatorFactory extends LuceneOperator.Factory {
 
-    @Override
-    public SourceOperator get(DriverContext driverContext) {
-        return new Impl(driverContext.blockFactory(), sliceQueue, maxPageSize, limit);
+    private final int maxPageSize;
+    private final TimeValue timeSeriesPeriod;
+
+    private TimeSeriesSortedSourceOperatorFactory(
+        List<? extends ShardContext> contexts,
+        Function<ShardContext, Query> queryFunction,
+        int taskConcurrency,
+        int maxPageSize,
+        TimeValue timeSeriesPeriod,
+        int limit
+    ) {
+        super(contexts, queryFunction, DataPartitioning.SHARD, taskConcurrency, limit, ScoreMode.COMPLETE_NO_SCORES);
+        this.maxPageSize = maxPageSize;
+        this.timeSeriesPeriod = timeSeriesPeriod;
     }
 
     @Override
-    public int taskConcurrency() {
-        return taskConcurrency;
+    public SourceOperator get(DriverContext driverContext) {
+        var rounding = timeSeriesPeriod.equals(TimeValue.ZERO) == false ? Rounding.builder(timeSeriesPeriod).build() : null;
+        return new Impl(driverContext.blockFactory(), sliceQueue, maxPageSize, limit, rounding);
     }
 
     @Override
@@ -66,13 +82,18 @@ public record TimeSeriesSortedSourceOperatorFactory(int limit, int maxPageSize, 
         int limit,
         int maxPageSize,
         int taskConcurrency,
+        TimeValue timeSeriesPeriod,
         List<? extends ShardContext> searchContexts,
         Function<ShardContext, Query> queryFunction
     ) {
-        var weightFunction = LuceneOperator.weightFunction(queryFunction, ScoreMode.COMPLETE_NO_SCORES);
-        var sliceQueue = LuceneSliceQueue.create(searchContexts, weightFunction, DataPartitioning.SHARD, taskConcurrency);
-        taskConcurrency = Math.min(sliceQueue.totalSlices(), taskConcurrency);
-        return new TimeSeriesSortedSourceOperatorFactory(limit, maxPageSize, taskConcurrency, sliceQueue);
+        return new TimeSeriesSortedSourceOperatorFactory(
+            searchContexts,
+            queryFunction,
+            taskConcurrency,
+            maxPageSize,
+            timeSeriesPeriod,
+            limit
+        );
     }
 
     static final class Impl extends SourceOperator {
@@ -80,26 +101,49 @@ public record TimeSeriesSortedSourceOperatorFactory(int limit, int maxPageSize, 
         private final int maxPageSize;
         private final BlockFactory blockFactory;
         private final LuceneSliceQueue sliceQueue;
+        private final Rounding.Prepared rounding;
         private int currentPagePos = 0;
         private int remainingDocs;
         private boolean doneCollecting;
         private IntVector.Builder docsBuilder;
         private IntVector.Builder segmentsBuilder;
-        private LongVector.Builder timestampIntervalBuilder;
-        // TODO: handle when a time series spans across backing indices
-        // In that case we need to bytes representation of the tsid
-        private IntVector.Builder tsOrdBuilder;
+        private LongVector.Builder timestampsBuilder;
+        private LongVector.Builder intervalsBuilder;
+        // TODO: add an ordinal block for tsid hashes
+        // (This allows for efficiently grouping by tsid locally, no need to use bytes representation of tsid hash)
+        private BytesRefVector.Builder tsHashesBuilder;
         private TimeSeriesIterator iterator;
 
-        Impl(BlockFactory blockFactory, LuceneSliceQueue sliceQueue, int maxPageSize, int limit) {
+        Impl(BlockFactory blockFactory, LuceneSliceQueue sliceQueue, int maxPageSize, int limit, Rounding rounding) {
             this.maxPageSize = maxPageSize;
             this.blockFactory = blockFactory;
             this.remainingDocs = limit;
             this.docsBuilder = blockFactory.newIntVectorBuilder(Math.min(limit, maxPageSize));
             this.segmentsBuilder = null;
-            this.timestampIntervalBuilder = blockFactory.newLongVectorBuilder(Math.min(limit, maxPageSize));
-            this.tsOrdBuilder = blockFactory.newIntVectorBuilder(Math.min(limit, maxPageSize));
+            this.timestampsBuilder = blockFactory.newLongVectorBuilder(Math.min(limit, maxPageSize));
+            this.tsHashesBuilder = blockFactory.newBytesRefVectorBuilder(Math.min(limit, maxPageSize));
             this.sliceQueue = sliceQueue;
+            if (rounding != null) {
+                try {
+                    long minTimestamp = Long.MAX_VALUE;
+                    long maxTimestamp = Long.MIN_VALUE;
+                    for (var slice : sliceQueue.getSlices()) {
+                        for (var leaf : slice.leaves()) {
+                            var pointValues = leaf.leafReaderContext().reader().getPointValues(DataStreamTimestampFieldMapper.DEFAULT_PATH);
+                            long segmentMin = LongPoint.decodeDimension(pointValues.getMinPackedValue(), 0);
+                            minTimestamp = Math.min(segmentMin, minTimestamp);
+                            long segmentMax = LongPoint.decodeDimension(pointValues.getMaxPackedValue(), 0);
+                            maxTimestamp = Math.max(segmentMax, maxTimestamp);
+                        }
+                    }
+                    this.rounding = rounding.prepare(minTimestamp, maxTimestamp);
+                    this.intervalsBuilder = blockFactory.newLongVectorBuilder(Math.min(limit, maxPageSize));
+                } catch (IOException ioe) {
+                    throw new UncheckedIOException(ioe);
+                }
+            } else {
+                this.rounding = null;
+            }
         }
 
         @Override
@@ -127,8 +171,9 @@ public record TimeSeriesSortedSourceOperatorFactory(int limit, int maxPageSize, 
             IntBlock shard = null;
             IntVector leaf = null;
             IntVector docs = null;
-            LongVector timestampIntervals = null;
-            IntVector tsids = null;
+            LongVector timestamps = null;
+            LongVector intervals = null;
+            BytesRefVector tsids = null;
             try {
                 if (iterator == null) {
                     var slice = sliceQueue.nextSlice();
@@ -143,30 +188,33 @@ public record TimeSeriesSortedSourceOperatorFactory(int limit, int maxPageSize, 
                 }
                 iterator.consume();
                 shard = blockFactory.newConstantIntBlockWith(iterator.slice.shardContext().index(), currentPagePos);
-                boolean singleSegmentNonDecreasing;
                 if (iterator.slice.numLeaves() == 1) {
-                    singleSegmentNonDecreasing = true;
                     int segmentOrd = iterator.slice.getLeaf(0).leafReaderContext().ord;
                     leaf = blockFactory.newConstantIntBlockWith(segmentOrd, currentPagePos).asVector();
                 } else {
                     // Due to the multi segment nature of time series source operator singleSegmentNonDecreasing must be false
-                    singleSegmentNonDecreasing = false;
                     leaf = segmentsBuilder.build();
                     segmentsBuilder = blockFactory.newIntVectorBuilder(Math.min(remainingDocs, maxPageSize));
                 }
                 docs = docsBuilder.build();
                 docsBuilder = blockFactory.newIntVectorBuilder(Math.min(remainingDocs, maxPageSize));
 
-                timestampIntervals = timestampIntervalBuilder.build();
-                timestampIntervalBuilder = blockFactory.newLongVectorBuilder(Math.min(remainingDocs, maxPageSize));
-                tsids = tsOrdBuilder.build();
-                tsOrdBuilder = blockFactory.newIntVectorBuilder(Math.min(remainingDocs, maxPageSize));
-
+                timestamps = timestampsBuilder.build();
+                timestampsBuilder = blockFactory.newLongVectorBuilder(Math.min(remainingDocs, maxPageSize));
+                if (rounding != null) {
+                    intervals = intervalsBuilder.build();
+                    intervalsBuilder = blockFactory.newLongVectorBuilder(Math.min(remainingDocs, maxPageSize));
+                } else {
+                    intervals = blockFactory.newConstantLongVector(0, timestamps.getPositionCount());
+                }
+                tsids = tsHashesBuilder.build();
+                tsHashesBuilder = blockFactory.newBytesRefVectorBuilder(Math.min(remainingDocs, maxPageSize));
                 page = new Page(
                     currentPagePos,
-                    new DocVector(shard.asVector(), leaf, docs, singleSegmentNonDecreasing).asBlock(),
+                    new DocVector(shard.asVector(), leaf, docs, leaf.isConstant()).asBlock(),
                     tsids.asBlock(),
-                    timestampIntervals.asBlock()
+                    timestamps.asBlock(),
+                    intervals.asBlock()
                 );
 
                 currentPagePos = 0;
@@ -177,7 +225,7 @@ public record TimeSeriesSortedSourceOperatorFactory(int limit, int maxPageSize, 
                 throw new UncheckedIOException(e);
             } finally {
                 if (page == null) {
-                    Releasables.closeExpectNoException(shard, leaf, docs, timestampIntervals, tsids);
+                    Releasables.closeExpectNoException(shard, leaf, docs, timestamps, tsids, intervals);
                 }
             }
             return page;
@@ -185,7 +233,7 @@ public record TimeSeriesSortedSourceOperatorFactory(int limit, int maxPageSize, 
 
         @Override
         public void close() {
-            Releasables.closeExpectNoException(docsBuilder, segmentsBuilder, timestampIntervalBuilder, tsOrdBuilder);
+            Releasables.closeExpectNoException(docsBuilder, segmentsBuilder, timestampsBuilder, intervalsBuilder, tsHashesBuilder);
         }
 
         class TimeSeriesIterator {
@@ -227,63 +275,59 @@ public record TimeSeriesSortedSourceOperatorFactory(int limit, int maxPageSize, 
 
             void consume() throws IOException {
                 if (queue != null) {
-                    currentTsid = BytesRef.deepCopyOf(queue.top().timeSeriesHash);
-                    boolean breakOnNextTsidChange = false;
+                    if (queue.size() > 0) {
+                        currentTsid = BytesRef.deepCopyOf(queue.top().timeSeriesHash);
+                        queue.top().reinitializeIfNeeded(Thread.currentThread());
+                    }
                     while (queue.size() > 0) {
-                        if (remainingDocs <= 0) {
+                        if (remainingDocs <= 0 || currentPagePos >= maxPageSize) {
                             break;
                         }
-                        if (currentPagePos > maxPageSize) {
-                            breakOnNextTsidChange = true;
-                        }
-
                         currentPagePos++;
                         remainingDocs--;
                         Leaf leaf = queue.top();
                         segmentsBuilder.appendInt(leaf.segmentOrd);
                         docsBuilder.appendInt(leaf.iterator.docID());
-                        timestampIntervalBuilder.appendLong(leaf.timestamp);
-                        tsOrdBuilder.appendInt(globalTsidOrd);
+                        timestampsBuilder.appendLong(leaf.timestamp);
+                        if (rounding != null) {
+                            intervalsBuilder.appendLong(rounding.round(leaf.timestamp));
+                        }
+                        tsHashesBuilder.appendBytesRef(currentTsid);
+                        final Leaf newTop;
                         if (leaf.nextDoc()) {
                             // TODO: updating the top is one of the most expensive parts of this operation.
                             // Ideally we would do this a less as possible. Maybe the top can be updated every N docs?
-                            Leaf newTop = queue.updateTop();
+                            newTop = queue.updateTop();
+                        } else {
+                            queue.pop();
+                            newTop = queue.size() > 0 ? queue.top() : null;
+                        }
+                        if (newTop != null) {
+                            if (newTop != leaf) {
+                                newTop.reinitializeIfNeeded(Thread.currentThread());
+                            }
                             if (newTop.timeSeriesHash.equals(currentTsid) == false) {
                                 globalTsidOrd++;
                                 currentTsid = BytesRef.deepCopyOf(newTop.timeSeriesHash);
-                                if (breakOnNextTsidChange) {
-                                    break;
-                                }
                             }
-                        } else {
-                            queue.pop();
                         }
                     }
                 } else {
-                    int previousTsidOrd = leaf.timeSeriesHashOrd;
-                    boolean breakOnNextTsidChange = false;
                     // Only one segment, so no need to use priority queue and use segment ordinals as tsid ord.
+                    leaf.reinitializeIfNeeded(Thread.currentThread());
                     while (leaf.nextDoc()) {
-                        if (remainingDocs <= 0) {
-                            break;
+                        tsHashesBuilder.appendBytesRef(leaf.timeSeriesHash);
+                        timestampsBuilder.appendLong(leaf.timestamp);
+                        if (rounding != null) {
+                            intervalsBuilder.appendLong(rounding.round(leaf.timestamp));
                         }
-                        if (currentPagePos > maxPageSize) {
-                            breakOnNextTsidChange = true;
-                        }
-                        if (breakOnNextTsidChange) {
-                            if (previousTsidOrd != leaf.timeSeriesHashOrd) {
-                                break;
-                            }
-                        }
-
-                        currentPagePos++;
-                        remainingDocs--;
-
-                        tsOrdBuilder.appendInt(leaf.timeSeriesHashOrd);
-                        timestampIntervalBuilder.appendLong(leaf.timestamp);
                         // Don't append segment ord, because there is only one segment.
                         docsBuilder.appendInt(leaf.iterator.docID());
-                        previousTsidOrd = leaf.timeSeriesHashOrd;
+                        currentPagePos++;
+                        remainingDocs--;
+                        if (remainingDocs <= 0 || currentPagePos >= maxPageSize) {
+                            break;
+                        }
                     }
                 }
             }
@@ -299,37 +343,57 @@ public record TimeSeriesSortedSourceOperatorFactory(int limit, int maxPageSize, 
             static class Leaf {
 
                 private final int segmentOrd;
-                private final SortedDocValues tsids;
-                private final SortedNumericDocValues timestamps;
-                private final DocIdSetIterator iterator;
+                private final Weight weight;
+                private final LeafReaderContext leaf;
+                private SortedDocValues tsids;
+                private SortedNumericDocValues timestamps;
+                private DocIdSetIterator iterator;
+                private Thread createdThread;
 
                 private long timestamp;
                 private int timeSeriesHashOrd;
                 private BytesRef timeSeriesHash;
+                private int docID = -1;
 
                 Leaf(Weight weight, LeafReaderContext leaf) throws IOException {
                     this.segmentOrd = leaf.ord;
+                    this.weight = weight;
+                    this.leaf = leaf;
+                    this.createdThread = Thread.currentThread();
                     tsids = leaf.reader().getSortedDocValues("_tsid");
                     timestamps = leaf.reader().getSortedNumericDocValues("@timestamp");
-                    iterator = weight.scorer(leaf).iterator();
+                    final Scorer scorer = weight.scorer(leaf);
+                    iterator = scorer != null ? scorer.iterator() : DocIdSetIterator.empty();
                 }
 
                 boolean nextDoc() throws IOException {
-                    int docID = iterator.nextDoc();
+                    docID = iterator.nextDoc();
                     if (docID == DocIdSetIterator.NO_MORE_DOCS) {
                         return false;
                     }
 
-                    boolean advanced = tsids.advanceExact(iterator.docID());
+                    boolean advanced = tsids.advanceExact(docID);
                     assert advanced;
                     timeSeriesHashOrd = tsids.ordValue();
                     timeSeriesHash = tsids.lookupOrd(timeSeriesHashOrd);
-                    advanced = timestamps.advanceExact(iterator.docID());
+                    advanced = timestamps.advanceExact(docID);
                     assert advanced;
                     timestamp = timestamps.nextValue();
                     return true;
                 }
 
+                void reinitializeIfNeeded(Thread executingThread) throws IOException {
+                    if (executingThread != createdThread) {
+                        tsids = leaf.reader().getSortedDocValues("_tsid");
+                        timestamps = leaf.reader().getSortedNumericDocValues("@timestamp");
+                        final Scorer scorer = weight.scorer(leaf);
+                        iterator = scorer != null ? scorer.iterator() : DocIdSetIterator.empty();
+                        if (docID != -1) {
+                            iterator.advance(docID);
+                        }
+                        createdThread = executingThread;
+                    }
+                }
             }
 
         }

@@ -21,7 +21,7 @@ setup:
               ],
               "applications": [
                 {
-                  "application": "myapp",
+                  "application": "kibana-.kibana",
                   "privileges": ["*"],
                   "resources": ["*"]
                 }
@@ -43,14 +43,14 @@ setup:
       security.put_privileges:
         body: >
           {
-            "myapp": {
+            "kibana-.kibana": {
               "read": {
-                "application": "myapp",
+                "application": "kibana-.kibana",
                 "name": "read",
                 "actions": [ "data:read/*" ]
               },
               "write": {
-                "application": "myapp",
+                "application": "kibana-.kibana",
                 "name": "write",
                 "actions": [ "data:write/*" ]
               }
@@ -71,7 +71,7 @@ teardown:
 
   - do:
       security.delete_privileges:
-        application: myapp
+        application: "kibana-.kibana"
         name: "read,write"
         ignore: 404
 
@@ -301,7 +301,7 @@ teardown:
                   ],
                   "applications": [
                     {
-                      "application": "myapp",
+                      "application": "kibana-.kibana",
                       "privileges": ["read"],
                       "resources": ["*"]
                     }
@@ -344,7 +344,7 @@ teardown:
             ],
             "application": [
               {
-                "application" : "myapp",
+                "application" : "kibana-.kibana",
                 "resources" : [ "*", "some-other-res" ],
                 "privileges" : [ "data:read/me", "data:write/me" ]
               }
@@ -369,7 +369,7 @@ teardown:
       }
     } }
   - match: { "application" : {
-      "myapp" : {
+      "kibana-.kibana" : {
         "*" : {
           "data:read/me" : true,
           "data:write/me" : false

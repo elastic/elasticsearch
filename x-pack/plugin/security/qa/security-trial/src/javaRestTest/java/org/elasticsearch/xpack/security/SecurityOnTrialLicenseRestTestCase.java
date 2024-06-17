@@ -87,8 +87,16 @@ public abstract class SecurityOnTrialLicenseRestTestCase extends ESRestTestCase 
         final RoleDescriptor role = new RoleDescriptor(
             name,
             clusterPrivileges.toArray(String[]::new),
-            new RoleDescriptor.IndicesPrivileges[0],
-            new String[0]
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
         );
         getSecurityClient().putRole(role);
     }

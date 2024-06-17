@@ -23,6 +23,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.snapshots.AbstractSnapshotIntegTestCase;
 import org.elasticsearch.snapshots.SnapshotInfo;
+import org.elasticsearch.snapshots.SnapshotInfoUtils;
 import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
@@ -524,7 +525,7 @@ public class RestGetSnapshotsIT extends AbstractSnapshotRestTestCase {
     static {
         GET_SNAPSHOT_PARSER.declareObjectArray(
             ConstructingObjectParser.constructorArg(),
-            (p, c) -> SnapshotInfo.SNAPSHOT_INFO_PARSER.apply(p, c).build(),
+            (p, c) -> SnapshotInfoUtils.snapshotInfoFromXContent(p),
             new ParseField("snapshots")
         );
         GET_SNAPSHOT_PARSER.declareObject(

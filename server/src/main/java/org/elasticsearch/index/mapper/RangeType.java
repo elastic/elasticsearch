@@ -107,9 +107,8 @@ public enum RangeType {
         }
 
         @Override
-        public List<RangeFieldMapper.Range> decodeRanges(BytesRef bytes) {
-            // TODO: Implement this.
-            throw new UnsupportedOperationException();
+        public List<RangeFieldMapper.Range> decodeRanges(BytesRef bytes) throws IOException {
+            return BinaryRangeUtil.decodeIPRanges(bytes);
         }
 
         @Override
@@ -250,7 +249,7 @@ public enum RangeType {
 
         @Override
         public List<RangeFieldMapper.Range> decodeRanges(BytesRef bytes) throws IOException {
-            return LONG.decodeRanges(bytes);
+            return BinaryRangeUtil.decodeDateRanges(bytes);
         }
 
         @Override
@@ -571,12 +570,13 @@ public enum RangeType {
 
         @Override
         public List<RangeFieldMapper.Range> decodeRanges(BytesRef bytes) throws IOException {
-            return LONG.decodeRanges(bytes);
+            return BinaryRangeUtil.decodeIntegerRanges(bytes);
         }
 
         @Override
         public Double doubleValue(Object endpointValue) {
-            return LONG.doubleValue(endpointValue);
+            assert endpointValue instanceof Integer;
+            return ((Integer) endpointValue).doubleValue();
         }
 
         @Override
@@ -843,6 +843,15 @@ public enum RangeType {
         throws IOException {
         Number value = numberType.parse(parser, coerce);
         return included ? value : (Number) nextDown(value);
+    }
+
+    public Object defaultFrom(boolean included) {
+        return included ? minValue() : nextUp(minValue());
+
+    }
+
+    public Object defaultTo(boolean included) {
+        return included ? maxValue() : nextDown(maxValue());
     }
 
     public abstract Object minValue();

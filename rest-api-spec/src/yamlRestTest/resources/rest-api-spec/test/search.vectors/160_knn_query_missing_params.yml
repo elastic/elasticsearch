@@ -1,11 +1,13 @@
 setup:
-  - skip:
-      version: ' - 8.12.99'
+  - requires:
+      cluster_features: "gte_v8.13.0"
       reason: '[k] and [num_candidates] were made optional for kNN query in 8.13.0'
   - do:
       indices.create:
         index: knn_query_test_index
         body:
+          settings:
+            number_of_shards: 1
           mappings:
             properties:
                   vector:
@@ -13,6 +15,10 @@ setup:
                     dims: 3
                     index: true
                     similarity: l2_norm
+                    index_options:
+                      type: hnsw
+                      ef_construction: 100
+                      m: 16
                   category:
                     type: keyword
                   nested:
@@ -25,6 +31,10 @@ setup:
                         dims: 5
                         index: true
                         similarity: l2_norm
+                        index_options:
+                          type: hnsw
+                          ef_construction: 100
+                          m: 16
 
   - do:
       index:

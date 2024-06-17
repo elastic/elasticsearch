@@ -448,6 +448,10 @@ POST _snapshot/my_repository/my_snapshot_2099.05.06/_restore
 . When the restore operation is complete, resume indexing and restart any
 features you stopped:
 +
+NOTE: When the snapshot is restored, the license that was in use at the time the snapshot
+was taken will be restored as well. If your license has expired since the snapshot was taken,
+you will need to use the <<update-license,Update License API>> to install a current license.
++
 --
 * GeoIP database downloader and ILM history store
 +

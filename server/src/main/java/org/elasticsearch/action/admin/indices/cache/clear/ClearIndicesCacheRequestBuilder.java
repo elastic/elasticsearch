@@ -18,7 +18,7 @@ public class ClearIndicesCacheRequestBuilder extends BroadcastOperationRequestBu
     ClearIndicesCacheRequestBuilder> {
 
     public ClearIndicesCacheRequestBuilder(ElasticsearchClient client) {
-        super(client, ClearIndicesCacheAction.INSTANCE, new ClearIndicesCacheRequest());
+        super(client, TransportClearIndicesCacheAction.TYPE, new ClearIndicesCacheRequest());
     }
 
     public ClearIndicesCacheRequestBuilder setQueryCache(boolean queryCache) {

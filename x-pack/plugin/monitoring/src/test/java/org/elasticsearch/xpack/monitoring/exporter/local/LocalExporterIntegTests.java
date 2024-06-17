@@ -173,7 +173,7 @@ public class LocalExporterIntegTests extends LocalExporterIntegTestCase {
                             aggregation.getBuckets().size()
                         );
                         for (String nodeName : internalCluster().getNodeNames()) {
-                            String nodeId = internalCluster().clusterService(nodeName).localNode().getId();
+                            String nodeId = getNodeId(nodeName);
                             Terms.Bucket bucket = aggregation.getBucketByKey(nodeId);
                             assertTrue("No bucket found for node id [" + nodeId + "]", bucket != null);
                             assertTrue(bucket.getDocCount() >= 1L);
@@ -208,7 +208,7 @@ public class LocalExporterIntegTests extends LocalExporterIntegTestCase {
                     response -> {
                         Terms aggregation = response.getAggregations().get("agg_nodes_ids");
                         for (String nodeName : internalCluster().getNodeNames()) {
-                            String nodeId = internalCluster().clusterService(nodeName).localNode().getId();
+                            String nodeId = getNodeId(nodeName);
                             Terms.Bucket bucket = aggregation.getBucketByKey(nodeId);
                             assertTrue("No bucket found for node id [" + nodeId + "]", bucket != null);
                             assertTrue(bucket.getDocCount() >= 1L);

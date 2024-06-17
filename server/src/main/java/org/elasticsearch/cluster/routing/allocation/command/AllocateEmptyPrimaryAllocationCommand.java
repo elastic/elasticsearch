@@ -74,8 +74,7 @@ public class AllocateEmptyPrimaryAllocationCommand extends BasePrimaryAllocation
 
     public static class Builder extends BasePrimaryAllocationCommand.Builder<AllocateEmptyPrimaryAllocationCommand> {
 
-        @Override
-        public Builder parse(XContentParser parser) throws IOException {
+        private Builder parse(XContentParser parser) throws IOException {
             return EMPTY_PRIMARY_PARSER.parse(parser, this, null);
         }
 
@@ -127,20 +126,20 @@ public class AllocateEmptyPrimaryAllocationCommand extends BasePrimaryAllocation
         }
 
         UnassignedInfo unassignedInfoToUpdate = null;
-        if (shardRouting.unassignedInfo().getReason() != UnassignedInfo.Reason.FORCED_EMPTY_PRIMARY) {
+        if (shardRouting.unassignedInfo().reason() != UnassignedInfo.Reason.FORCED_EMPTY_PRIMARY) {
             String unassignedInfoMessage = "force empty allocation from previous reason "
-                + shardRouting.unassignedInfo().getReason()
+                + shardRouting.unassignedInfo().reason()
                 + ", "
-                + shardRouting.unassignedInfo().getMessage();
+                + shardRouting.unassignedInfo().message();
             unassignedInfoToUpdate = new UnassignedInfo(
                 UnassignedInfo.Reason.FORCED_EMPTY_PRIMARY,
                 unassignedInfoMessage,
-                shardRouting.unassignedInfo().getFailure(),
+                shardRouting.unassignedInfo().failure(),
                 0,
                 System.nanoTime(),
                 System.currentTimeMillis(),
                 false,
-                shardRouting.unassignedInfo().getLastAllocationStatus(),
+                shardRouting.unassignedInfo().lastAllocationStatus(),
                 Collections.emptySet(),
                 null
             );

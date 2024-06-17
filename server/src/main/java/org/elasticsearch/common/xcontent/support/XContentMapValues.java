@@ -555,7 +555,7 @@ public class XContentMapValues {
         if (node instanceof Map) {
             return (Map<String, Object>) node;
         } else {
-            throw new ElasticsearchParseException(desc + " should be a hash but was of type: " + node.getClass());
+            throw new ElasticsearchParseException(desc + " should be a map but was of type: " + node.getClass());
         }
     }
 

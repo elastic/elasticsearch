@@ -10,6 +10,8 @@ package org.elasticsearch.compute.data;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.ReleasableIterator;
 
 import java.io.IOException;
 
@@ -26,6 +28,9 @@ public sealed interface DoubleVector extends Vector permits ConstantDoubleVector
 
     @Override
     DoubleVector filter(int... positions);
+
+    @Override
+    ReleasableIterator<? extends DoubleBlock> lookup(IntBlock positions, ByteSizeValue targetBlockSize);
 
     /**
      * Compares the given object with this vector for equality. Returns {@code true} if and only if the
@@ -112,7 +117,7 @@ public sealed interface DoubleVector extends Vector permits ConstantDoubleVector
     private static DoubleVector readValues(int positions, StreamInput in, BlockFactory blockFactory) throws IOException {
         try (var builder = blockFactory.newDoubleVectorFixedBuilder(positions)) {
             for (int i = 0; i < positions; i++) {
-                builder.appendDouble(in.readDouble());
+                builder.appendDouble(i, in.readDouble());
             }
             return builder.build();
         }
@@ -146,5 +151,8 @@ public sealed interface DoubleVector extends Vector permits ConstantDoubleVector
          */
         @Override
         FixedBuilder appendDouble(double value);
+
+        FixedBuilder appendDouble(int index, double value);
+
     }
 }

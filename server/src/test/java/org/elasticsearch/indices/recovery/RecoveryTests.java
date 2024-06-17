@@ -48,6 +48,7 @@ import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -57,6 +58,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 
@@ -231,7 +233,7 @@ public class RecoveryTests extends ESIndexLevelReplicationTestCase {
             final String historyUUID = replica.getHistoryUUID();
             Translog.TranslogGeneration translogGeneration = getTranslog(replica).getGeneration();
             shards.removeReplica(replica);
-            replica.close("test", false);
+            closeShardNoCheck(replica);
             IndexWriterConfig iwc = new IndexWriterConfig(null).setCommitOnClose(false)
                 // we don't want merges to happen here - we call maybe merge on the engine
                 // later once we stared it up otherwise we would need to wait for it here
@@ -355,7 +357,7 @@ public class RecoveryTests extends ESIndexLevelReplicationTestCase {
             if (randomBoolean()) {
                 shards.flush();
             }
-            replica.close("test", randomBoolean());
+            closeShardNoCheck(replica, randomBoolean());
             replica.store().close();
             final IndexShard newReplica = shards.addReplicaWithExistingPath(replica.shardPath(), replica.routingEntry().currentNodeId());
             shards.recoverReplica(newReplica);
@@ -423,6 +425,14 @@ public class RecoveryTests extends ESIndexLevelReplicationTestCase {
                             }
                             return super.addDocument(doc);
                         }
+
+                        @Override
+                        public long addDocuments(Iterable<? extends Iterable<? extends IndexableField>> docs) throws IOException {
+                            @SuppressWarnings("unchecked")
+                            Collection<Iterable<? extends IndexableField>> col = asInstanceOf(Collection.class, docs);
+                            assertThat(col, hasSize(1));
+                            return addDocument(col.iterator().next());
+                        }
                     }, null, null, config);
                 }
             }
@@ -472,7 +482,7 @@ public class RecoveryTests extends ESIndexLevelReplicationTestCase {
             }
             shards.syncGlobalCheckpoint();
             shards.promoteReplicaToPrimary(randomFrom(shards.getReplicas())).get();
-            oldPrimary.close("demoted", false);
+            closeShardNoCheck(oldPrimary);
             oldPrimary.store().close();
             oldPrimary = shards.addReplicaWithExistingPath(oldPrimary.shardPath(), oldPrimary.routingEntry().currentNodeId());
             shards.recoverReplica(oldPrimary);

@@ -17,6 +17,8 @@ import org.elasticsearch.search.suggest.completion.CompletionSuggestion;
 import org.elasticsearch.search.suggest.phrase.PhraseSuggestion;
 import org.elasticsearch.search.suggest.term.TermSuggestion;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
@@ -39,9 +41,53 @@ public class SuggestionEntryTests extends ESTestCase {
 
     private static final Map<Class<? extends Entry<?>>, Function<XContentParser, ? extends Entry<?>>> ENTRY_PARSERS = new HashMap<>();
     static {
-        ENTRY_PARSERS.put(TermSuggestion.Entry.class, TermSuggestion.Entry::fromXContent);
-        ENTRY_PARSERS.put(PhraseSuggestion.Entry.class, PhraseSuggestion.Entry::fromXContent);
-        ENTRY_PARSERS.put(CompletionSuggestion.Entry.class, CompletionSuggestion.Entry::fromXContent);
+        ENTRY_PARSERS.put(TermSuggestion.Entry.class, SuggestTests::parseTermSuggestionEntry);
+        ENTRY_PARSERS.put(PhraseSuggestion.Entry.class, SuggestionEntryTests::parsePhraseSuggestionEntry);
+        ENTRY_PARSERS.put(CompletionSuggestion.Entry.class, SuggestionEntryTests::parseCompletionSuggestionEntry);
+    }
+
+    private static final ObjectParser<PhraseSuggestion.Entry, Void> PHRASE_SUGGESTION_ENTRY_PARSER = new ObjectParser<>(
+        "PhraseSuggestionEntryParser",
+        true,
+        PhraseSuggestion.Entry::new
+    );
+    static {
+        SuggestTests.declareCommonEntryParserFields(PHRASE_SUGGESTION_ENTRY_PARSER);
+        /*
+         * The use of a lambda expression instead of the method reference Entry::addOptions is a workaround for a JDK 14 compiler bug.
+         * The bug is: https://bugs.java.com/bugdatabase/view_bug.do?bug_id=JDK-8242214
+         */
+        PHRASE_SUGGESTION_ENTRY_PARSER.declareObjectArray(
+            (e, o) -> e.addOptions(o),
+            (p, c) -> SuggestionOptionTests.parsePhraseSuggestionOption(p),
+            new ParseField(Entry.OPTIONS)
+        );
+    }
+
+    public static PhraseSuggestion.Entry parsePhraseSuggestionEntry(XContentParser parser) {
+        return PHRASE_SUGGESTION_ENTRY_PARSER.apply(parser, null);
+    }
+
+    private static final ObjectParser<CompletionSuggestion.Entry, Void> COMPLETION_SUGGESTION_ENTRY_PARSER = new ObjectParser<>(
+        "CompletionSuggestionEntryParser",
+        true,
+        CompletionSuggestion.Entry::new
+    );
+    static {
+        SuggestTests.declareCommonEntryParserFields(COMPLETION_SUGGESTION_ENTRY_PARSER);
+        /*
+         * The use of a lambda expression instead of the method reference Entry::addOptions is a workaround for a JDK 14 compiler bug.
+         * The bug is: https://bugs.java.com/bugdatabase/view_bug.do?bug_id=JDK-8242214
+         */
+        COMPLETION_SUGGESTION_ENTRY_PARSER.declareObjectArray(
+            (e, o) -> e.addOptions(o),
+            (p, c) -> CompletionSuggestionOptionTests.parseOption(p),
+            new ParseField(Entry.OPTIONS)
+        );
+    }
+
+    public static CompletionSuggestion.Entry parseCompletionSuggestionEntry(XContentParser parser) {
+        return COMPLETION_SUGGESTION_ENTRY_PARSER.apply(parser, null);
     }
 
     /**

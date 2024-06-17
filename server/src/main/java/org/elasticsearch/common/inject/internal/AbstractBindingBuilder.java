@@ -61,7 +61,7 @@ public abstract class AbstractBindingBuilder<T> {
 
     public void asEagerSingleton() {
         checkNotScoped();
-        setBinding(getBinding().withScoping(Scoping.EAGER_SINGLETON));
+        setBinding(getBinding().withEagerSingletonScoping());
     }
 
     protected void checkNotTargetted() {

@@ -139,7 +139,7 @@ public class TransportValidateTransformAction extends HandledTransportAction<Req
             if (request.isDeferValidation()) {
                 validateQueryListener.onResponse(true);
             } else {
-                function.validateQuery(client, config.getHeaders(), config.getSource(), request.timeout(), validateQueryListener);
+                function.validateQuery(client, config.getHeaders(), config.getSource(), request.ackTimeout(), validateQueryListener);
             }
         }, listener::onFailure);
 

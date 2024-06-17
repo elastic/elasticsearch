@@ -129,8 +129,11 @@ public class CoreEsqlActionIT extends ESIntegTestCase {
 
     protected EsqlQueryResponse run(EsqlQueryRequestBuilder<? extends EsqlQueryRequest, ? extends EsqlQueryResponse> request) {
         try {
+            // The variants here ensure API usage patterns
             if (randomBoolean()) {
                 return request.execute().actionGet(30, SECONDS);
+            } else if (randomBoolean()) {
+                return client().execute(request.action(), request.request()).actionGet(30, SECONDS);
             } else {
                 return ClientHelper.executeWithHeaders(
                     Map.of("Foo", "bar"),

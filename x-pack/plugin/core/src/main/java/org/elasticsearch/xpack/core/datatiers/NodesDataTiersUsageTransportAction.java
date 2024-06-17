@@ -170,11 +170,6 @@ public class NodesDataTiersUsageTransportAction extends TransportNodesAction<
         public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
             return new CancellableTask(id, type, action, "", parentTaskId, headers);
         }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-        }
     }
 
     public static class NodeRequest extends TransportRequest {

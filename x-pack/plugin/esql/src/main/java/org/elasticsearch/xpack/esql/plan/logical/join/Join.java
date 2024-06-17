@@ -8,6 +8,8 @@
 package org.elasticsearch.xpack.esql.plan.logical.join;
 
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
+import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.plan.logical.BinaryPlan;
@@ -21,6 +23,8 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+
+import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputAttributes;
 
 public class Join extends BinaryPlan {
 
@@ -73,13 +77,20 @@ public class Join extends BinaryPlan {
     }
 
     private List<Attribute> computeOutput() {
-        List<Attribute> right = makeReference(right().output());
+        AttributeSet toBeRemoved = new AttributeSet(Expressions.references(config.conditions()));
+        toBeRemoved.removeAll(config.matchFields());
         return switch (config.type()) {
-            case LEFT -> // right side becomes nullable
-                // TODO: This one is wrong.
-                mergeOutput(left().output(), makeNullable(right), config.matchFields());
-            default -> // neither side becomes nullable
-                throw new UnsupportedOperationException("Other JOINs than LEFT not supported");
+            case LEFT -> {
+                // Right side becomes nullable.
+                List<Attribute> fieldsAddedFromRight = new ArrayList<>();
+                for (Attribute attribute : right().output()) {
+                    if (toBeRemoved.contains(attribute) == false) {
+                        fieldsAddedFromRight.add(makeReference(attribute).withNullability(Nullability.TRUE));
+                    }
+                }
+                yield mergeOutputAttributes(makeReference(fieldsAddedFromRight), left().output());
+            }
+            default -> throw new UnsupportedOperationException("Other JOINs than LEFT not supported");
         };
     }
 
@@ -118,16 +129,16 @@ public class Join extends BinaryPlan {
      *   TODO we should rework stats so we don't have to do this
      * </p>
      */
-    public static List<Attribute> makeReference(List<Attribute> output) {
-        List<Attribute> out = new ArrayList<>(output.size());
-        for (Attribute a : output) {
-            if (a.resolved()) {
-                out.add(new ReferenceAttribute(a.source(), a.name(), a.dataType(), a.qualifier(), a.nullable(), a.id(), a.synthetic()));
-            } else {
-                out.add(a);
-            }
+    public static Attribute makeReference(Attribute a) {
+        if (a.resolved() && a instanceof ReferenceAttribute == false) {
+            return new ReferenceAttribute(a.source(), a.name(), a.dataType(), a.qualifier(), a.nullable(), a.id(), a.synthetic());
+        } else {
+            return a;
         }
-        return out;
+    }
+
+    public static List<Attribute> makeReference(List<Attribute> output) {
+        return output.stream().map(Join::makeReference).toList();
     }
 
     public static List<Attribute> makeNullable(List<Attribute> output) {

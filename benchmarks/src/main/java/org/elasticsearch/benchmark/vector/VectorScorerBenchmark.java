@@ -22,7 +22,7 @@ import org.apache.lucene.util.quantization.RandomAccessQuantizedByteVectorValues
 import org.apache.lucene.util.quantization.ScalarQuantizer;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.core.IOUtils;
-import org.elasticsearch.vec.VectorScorerFactory;
+import org.elasticsearch.simdvec.VectorScorerFactory;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -41,8 +41,8 @@ import java.nio.file.Files;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.vec.VectorSimilarityType.DOT_PRODUCT;
-import static org.elasticsearch.vec.VectorSimilarityType.EUCLIDEAN;
+import static org.elasticsearch.simdvec.VectorSimilarityType.DOT_PRODUCT;
+import static org.elasticsearch.simdvec.VectorSimilarityType.EUCLIDEAN;
 
 @Fork(value = 1, jvmArgsPrepend = { "--add-modules=jdk.incubator.vector" })
 @Warmup(iterations = 3, time = 3)

@@ -499,6 +499,7 @@ public final class CsvTestUtils {
             return switch (elementType) {
                 case INT -> INTEGER;
                 case LONG -> LONG;
+                case FLOAT -> FLOAT;
                 case DOUBLE -> DOUBLE;
                 case NULL -> NULL;
                 case BYTES_REF -> bytesRefBlockType(actualType);

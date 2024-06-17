@@ -119,8 +119,7 @@ public final class LazyRolloverAction extends ActionType<RolloverResponse> {
             Metadata metadata = clusterState.metadata();
             DataStream dataStream = metadata.dataStreams().get(rolloverRequest.getRolloverTarget());
             DataStream.DataStreamIndices targetIndices = dataStream.getDataStreamIndices(rolloverRequest.targetsFailureStore());
-            // Because of the high priority of the lazy rollover task we choose to skip even adding the task if we detect
-            // that the lazy rollover has been already executed.
+            // Skip even adding submitting the task if we detect that the lazy rollover has been already executed.
             if (targetIndices.isRolloverOnWrite() == false) {
                 listener.onResponse(noopLazyRolloverResponse(targetIndices));
                 return;

@@ -21,8 +21,8 @@ import org.elasticsearch.action.get.MultiGetRequest;
 import org.elasticsearch.action.get.MultiGetResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.MultiSearchResponse;
-import org.elasticsearch.action.search.MultiSearchResponse.Item;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -36,6 +36,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
@@ -45,6 +46,8 @@ import org.elasticsearch.xpack.core.security.action.role.ClearRolesCacheRequest;
 import org.elasticsearch.xpack.core.security.action.role.ClearRolesCacheResponse;
 import org.elasticsearch.xpack.core.security.action.role.DeleteRoleRequest;
 import org.elasticsearch.xpack.core.security.action.role.PutRoleRequest;
+import org.elasticsearch.xpack.core.security.action.role.QueryRoleResponse;
+import org.elasticsearch.xpack.core.security.action.role.QueryRoleResponse.QueryRoleResult;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.IndicesPrivileges;
 import org.elasticsearch.xpack.core.security.authz.store.RoleRetrievalResult;
@@ -214,6 +217,43 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
                     client::multiGet
                 );
             });
+        }
+    }
+
+    public void queryRoleDescriptors(SearchRequest searchRequest, ActionListener<QueryRoleResult> listener) {
+        final SecurityIndexManager frozenSecurityIndex = securityIndex.defensiveCopy();
+        if (frozenSecurityIndex.indexExists() == false) {
+            logger.debug("security index does not exist");
+            listener.onResponse(QueryRoleResult.EMPTY);
+        } else if (frozenSecurityIndex.isAvailable(SEARCH_SHARDS) == false) {
+            listener.onFailure(frozenSecurityIndex.getUnavailableReason(SEARCH_SHARDS));
+        } else {
+            securityIndex.checkIndexVersionThenExecute(
+                listener::onFailure,
+                () -> executeAsyncWithOrigin(
+                    client,
+                    SECURITY_ORIGIN,
+                    TransportSearchAction.TYPE,
+                    searchRequest,
+                    ActionListener.wrap(searchResponse -> {
+                        long total = searchResponse.getHits().getTotalHits().value;
+                        if (total == 0) {
+                            logger.debug("No roles found for query [{}]", searchRequest.source().query());
+                            listener.onResponse(QueryRoleResult.EMPTY);
+                            return;
+                        }
+                        SearchHit[] hits = searchResponse.getHits().getHits();
+                        List<QueryRoleResponse.Item> items = Arrays.stream(hits).map(hit -> {
+                            RoleDescriptor roleDescriptor = transformRole(hit.getId(), hit.getSourceRef(), logger, licenseState);
+                            if (roleDescriptor == null) {
+                                return null;
+                            }
+                            return new QueryRoleResponse.Item(roleDescriptor, hit.getSortValues());
+                        }).filter(Objects::nonNull).toList();
+                        listener.onResponse(new QueryRoleResult(total, items));
+                    }, listener::onFailure)
+                )
+            );
         }
     }
 
@@ -415,7 +455,7 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
                     new DelegatingActionListener<MultiSearchResponse, Map<String, Object>>(listener) {
                         @Override
                         public void onResponse(MultiSearchResponse items) {
-                            Item[] responses = items.getResponses();
+                            MultiSearchResponse.Item[] responses = items.getResponses();
                             if (responses[0].isFailure()) {
                                 usageStats.put("size", 0);
                             } else {

@@ -16,51 +16,35 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
 
 public final class QueryRoleResponse extends ActionResponse implements ToXContentObject {
 
-    public static final QueryRoleResponse EMPTY = new QueryRoleResponse(0, List.of(), List.of());
+    public static final QueryRoleResponse EMPTY = new QueryRoleResponse(0, List.of());
 
     private final long total;
-    private final List<QueryRoleResponse.Item> foundRoleDescriptorList;
+    private final List<QueryRoleResponse.Item> foundRoleDescriptors;
 
-    public QueryRoleResponse(long total, Collection<RoleDescriptor> foundRoleDescriptors, Collection<Object[]> sortValues) {
+    public QueryRoleResponse(long total, List<Item> foundRoleDescriptors) {
         this.total = total;
         Objects.requireNonNull(foundRoleDescriptors, "found_role_descriptor must be provided");
-        Objects.requireNonNull(sortValues, "sort_values must be provided");
-        if (foundRoleDescriptors.size() != sortValues.size()) {
-            throw new IllegalStateException("Each role descriptor must be associated to a (nullable) sort value");
-        }
-        int size = foundRoleDescriptors.size();
-        this.foundRoleDescriptorList = new ArrayList<>(size);
-        Iterator<RoleDescriptor> roleDescriptorIterator = foundRoleDescriptors.iterator();
-        Iterator<Object[]> sortValueIterator = sortValues.iterator();
-        while (roleDescriptorIterator.hasNext()) {
-            if (false == sortValueIterator.hasNext()) {
-                throw new IllegalStateException("Each role descriptor must be associated to a (nullable) sort value");
-            }
-            this.foundRoleDescriptorList.add(new QueryRoleResponse.Item(roleDescriptorIterator.next(), sortValueIterator.next()));
-        }
+        this.foundRoleDescriptors = foundRoleDescriptors;
     }
 
     public long getTotal() {
         return total;
     }
 
-    public List<QueryRoleResponse.Item> getRoleDescriptorList() {
-        return foundRoleDescriptorList;
+    public List<Item> getRoleDescriptors() {
+        return foundRoleDescriptors;
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field("total", total).field("count", foundRoleDescriptorList.size()).field("roles", foundRoleDescriptorList);
+        builder.field("total", total).field("count", foundRoleDescriptors.size()).field("roles", foundRoleDescriptors);
         builder.endObject();
         return builder;
     }
@@ -75,19 +59,19 @@ public final class QueryRoleResponse extends ActionResponse implements ToXConten
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         QueryRoleResponse that = (QueryRoleResponse) o;
-        return total == that.total && Objects.equals(foundRoleDescriptorList, that.foundRoleDescriptorList);
+        return total == that.total && Objects.equals(foundRoleDescriptors, that.foundRoleDescriptors);
     }
 
     @Override
     public int hashCode() {
         int result = Objects.hash(total);
-        result = 31 * result + Objects.hash(foundRoleDescriptorList);
+        result = 31 * result + Objects.hash(foundRoleDescriptors);
         return result;
     }
 
     @Override
     public String toString() {
-        return "QueryRoleResponse{total=" + total + ", items=" + foundRoleDescriptorList + "}";
+        return "QueryRoleResponse{total=" + total + ", items=" + foundRoleDescriptors + "}";
     }
 
     public record Item(RoleDescriptor roleDescriptor, @Nullable Object[] sortValues) implements ToXContentObject {
@@ -107,5 +91,9 @@ public final class QueryRoleResponse extends ActionResponse implements ToXConten
         public String toString() {
             return "Item{roleDescriptor=" + roleDescriptor + ", sortValues=" + Arrays.toString(sortValues) + "}";
         }
+    }
+
+    public record QueryRoleResult(long total, List<Item> items) {
+        public static final QueryRoleResult EMPTY = new QueryRoleResult(0, List.of());
     }
 }

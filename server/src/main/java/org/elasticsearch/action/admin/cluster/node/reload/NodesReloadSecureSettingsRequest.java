@@ -9,7 +9,6 @@
 package org.elasticsearch.action.admin.cluster.node.reload;
 
 import org.elasticsearch.TransportVersions;
-import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.support.nodes.BaseNodesRequest;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Strings;

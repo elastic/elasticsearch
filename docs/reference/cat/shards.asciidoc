@@ -244,7 +244,7 @@ Local checkpoint.
 Maximum sequence number.
 
 `sparse_vector.value_count`, `svc`, `sparseVectorCount`::
-Number of indexed sparse vectors.
+Number of indexed <<sparse-vector, sparse vectors>>.
 
 `suggest.current`, `suc`, `suggestCurrent`::
 Number of current suggest operations, such as `0`.

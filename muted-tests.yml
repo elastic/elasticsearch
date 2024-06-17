@@ -2,6 +2,9 @@ tests:
 - class: "org.elasticsearch.upgrades.MappingIT"
   issue: "https://github.com/elastic/elasticsearch/issues/109455"
   method: "testMapperDynamicIndexSetting"
+- class: org.elasticsearch.packaging.test.CertGenCliTests
+  method: test40RunWithCert
+  issue: https://github.com/elastic/elasticsearch/issues/109831
 
 # Examples:
 #

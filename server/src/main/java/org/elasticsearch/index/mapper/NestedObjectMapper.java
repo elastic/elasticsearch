@@ -450,23 +450,20 @@ public class NestedObjectMapper extends ObjectMapper {
         @Override
         public void write(XContentBuilder b) throws IOException {
             assert (children != null && children.size() > 0);
-            switch (children.size()) {
-                case 1 -> {
-                    b.startObject(simpleName());
-                    leafStoredFieldLoader.advanceTo(children.get(0));
-                    leafSourceLoader.write(leafStoredFieldLoader, children.get(0), b);
+            if (children.size() == 1) {
+                b.startObject(simpleName());
+                leafStoredFieldLoader.advanceTo(children.get(0));
+                leafSourceLoader.write(leafStoredFieldLoader, children.get(0), b);
+                b.endObject();
+            } else {
+                b.startArray(simpleName());
+                for (int childId : children) {
+                    b.startObject();
+                    leafStoredFieldLoader.advanceTo(childId);
+                    leafSourceLoader.write(leafStoredFieldLoader, childId, b);
                     b.endObject();
                 }
-                default -> {
-                    b.startArray(simpleName());
-                    for (int childId : children) {
-                        b.startObject();
-                        leafStoredFieldLoader.advanceTo(childId);
-                        leafSourceLoader.write(leafStoredFieldLoader, childId, b);
-                        b.endObject();
-                    }
-                    b.endArray();
-                }
+                b.endArray();
             }
         }
 

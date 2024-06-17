@@ -802,6 +802,7 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
         try (Directory roundTripDirectory = newDirectory()) {
             RandomIndexWriter roundTripIw = indexWriterForSyntheticSource(roundTripDirectory);
             ParsedDocument doc = mapper.parse(new SourceToParse("1", new BytesArray(syntheticSource), XContentType.JSON));
+            // Process root and nested documents in the same way as the normal indexing chain (assuming a single document)
             doc.updateSeqID(0, 0);
             doc.version().setLongValue(0);
             roundTripIw.addDocuments(doc.docs());

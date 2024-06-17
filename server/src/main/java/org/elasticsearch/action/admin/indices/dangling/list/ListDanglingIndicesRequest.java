@@ -8,12 +8,8 @@
 
 package org.elasticsearch.action.admin.indices.dangling.list;
 
-import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.support.nodes.BaseNodesRequest;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.io.stream.StreamOutput;
-
-import java.io.IOException;
 
 public class ListDanglingIndicesRequest extends BaseNodesRequest<ListDanglingIndicesRequest> {
     /**
@@ -38,10 +34,5 @@ public class ListDanglingIndicesRequest extends BaseNodesRequest<ListDanglingInd
     @Override
     public String toString() {
         return "ListDanglingIndicesRequest{indexUUID='" + indexUUID + "'}";
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        TransportAction.localOnly();
     }
 }

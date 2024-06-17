@@ -10,9 +10,9 @@ package org.elasticsearch.action.support.nodes;
 
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.TimeValue;
 
@@ -38,23 +38,6 @@ public abstract class BaseNodesRequest<Request extends BaseNodesRequest<Request>
     private DiscoveryNode[] concreteNodes;
 
     private TimeValue timeout;
-
-    /**
-     * @deprecated {@link BaseNodesRequest} derivatives are quite heavyweight and should never need sending over the wire. Do not include
-     * the full top-level request directly in the node-level requests. Instead, copy the needed fields over to a dedicated node-level
-     * request.
-     *
-     * @see <a href="https://github.com/elastic/elasticsearch/issues/100878">#100878</a>
-     */
-    @Deprecated(forRemoval = true)
-    protected BaseNodesRequest(StreamInput in) throws IOException {
-        // A bare `BaseNodesRequest` is never sent over the wire, but several implementations send the full top-level request to each node
-        // (wrapped up in another request). They shouldn't, but until we fix that we must keep this. See #100878.
-        super(in);
-        nodesIds = in.readStringArray();
-        concreteNodes = in.readOptionalArray(DiscoveryNode::new, DiscoveryNode[]::new);
-        timeout = in.readOptionalTimeValue();
-    }
 
     protected BaseNodesRequest(String... nodesIds) {
         this.nodesIds = nodesIds;
@@ -99,12 +82,9 @@ public abstract class BaseNodesRequest<Request extends BaseNodesRequest<Request>
     }
 
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        // A bare `BaseNodesRequest` is never sent over the wire, but several implementations send the full top-level request to each node
-        // (wrapped up in another request). They shouldn't, but until we fix that we must keep this. See #100878.
-        super.writeTo(out);
-        out.writeStringArrayNullable(nodesIds);
-        out.writeOptionalArray(concreteNodes);
-        out.writeOptionalTimeValue(timeout);
+    public final void writeTo(StreamOutput out) throws IOException {
+        // `BaseNodesRequest` is rather heavyweight, especially all those `DiscoveryNodes` objects in larger clusters, and there is no need
+        // to send it out over the wire. Use a dedicated transport request just for the bits you need.
+        TransportAction.localOnly();
     }
 }

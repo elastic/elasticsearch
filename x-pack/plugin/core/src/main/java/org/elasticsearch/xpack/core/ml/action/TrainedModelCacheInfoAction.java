@@ -39,15 +39,6 @@ public class TrainedModelCacheInfoAction extends ActionType<TrainedModelCacheInf
             super(concreteNodes);
         }
 
-        public Request(StreamInput in) throws IOException {
-            super(in);
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-        }
-
         @Override
         public int hashCode() {
             return Arrays.hashCode(concreteNodes());

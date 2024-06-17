@@ -269,7 +269,7 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessIntegTestC
         int totalDocs = 0;
         int totalCustomDocs = 0;
         long sum = 0;
-        long pages = randomLongBetween(4, 8);
+        long pages = randomLongBetween(6, 8);
 
         assertThat("this function only works for 1 shard indices", getNumShards(indexName).numPrimaries, equalTo(1));
         var shard = findIndexShard(indexName);
@@ -291,7 +291,7 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessIntegTestC
                     bulkRequest.add(
                         new IndexRequest(indexName).source(
                             "field",
-                            randomUnicodeOfCodepointLengthBetween(1, 25),
+                            randomUnicodeOfCodepointLengthBetween(50, 100),
                             "number",
                             number,
                             "custom",
@@ -339,10 +339,11 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessIntegTestC
     }
 
     static SearchRequestBuilder prepareSearch(String indexName, TestSearchType testSearchType) {
+        // Set a large size to retrieve all documents to force reading all relevant search data
         return switch (testSearchType) {
-            case MATCH_ALL -> prepareSearch(indexName).setQuery(QueryBuilders.matchAllQuery());
-            case MATCH_CUSTOM -> prepareSearch(indexName).setQuery(QueryBuilders.termQuery("custom", "value"));
-            case SUM -> prepareSearch(indexName).addAggregation(sum("sum").field("number"));
+            case MATCH_ALL -> prepareSearch(indexName).setQuery(QueryBuilders.matchAllQuery()).setSize(10_000);
+            case MATCH_CUSTOM -> prepareSearch(indexName).setQuery(QueryBuilders.termQuery("custom", "value")).setSize(10_000);
+            case SUM -> prepareSearch(indexName).addAggregation(sum("sum").field("number")).setSize(10_000);
         };
     }
 

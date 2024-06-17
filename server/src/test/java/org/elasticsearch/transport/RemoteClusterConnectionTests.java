@@ -761,7 +761,7 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                                         .sendRequest(
                                             randomNonNegativeLong(),
                                             "arbitrary",
-                                            TransportRequest.Empty.INSTANCE,
+                                            new EmptyRequest(),
                                             TransportRequestOptions.of(null, type)
                                         )
                                 ).getMessage(),

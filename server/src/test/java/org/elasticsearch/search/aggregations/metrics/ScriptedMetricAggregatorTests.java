@@ -318,7 +318,7 @@ public class ScriptedMetricAggregatorTests extends AggregatorTestCase {
                 IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> {
                     searchAndReduce(indexReader, new AggTestConfig(aggregationBuilder));
                 });
-                assertEquals(exception.getMessage(), "[combineScript] must not be null: [scriptedMetric]");
+                assertEquals(exception.getMessage(), "[combine_script] must not be null: [scriptedMetric]");
             }
         }
     }
@@ -337,7 +337,7 @@ public class ScriptedMetricAggregatorTests extends AggregatorTestCase {
                 IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> {
                     searchAndReduce(indexReader, new AggTestConfig(aggregationBuilder));
                 });
-                assertEquals(exception.getMessage(), "[reduceScript] must not be null: [scriptedMetric]");
+                assertEquals(exception.getMessage(), "[reduce_script] must not be null: [scriptedMetric]");
             }
         }
     }

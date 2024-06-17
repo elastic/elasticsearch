@@ -644,7 +644,7 @@ public class ConnectorSyncJobIndexService {
      * Claims a {@link ConnectorSyncJob} for a worker.
      * This method sets the worker hostname and the sync cursor for the sync job.
      *
-     * @param connectorSyncJobId     The id of the connector sync job object.
+     * @param connectorSyncJobId     The id of the {@link ConnectorSyncJob} object.
      * @param workerHostname         The hostname of the worker claiming the sync job.
      * @param syncCursor             The sync cursor to set for the sync job.
      * @param listener               The action listener to invoke on response/failure.

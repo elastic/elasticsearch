@@ -18,6 +18,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.FormatNames;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
@@ -156,7 +157,7 @@ public class DownsampleActionIT extends ESRestTestCase {
         updateClusterSettings(client(), Settings.builder().put("indices.lifecycle.poll_interval", "5s").build());
     }
 
-    private void createIndex(String index, String alias, String policy, boolean isTimeSeries) throws IOException {
+    private void createIndex(String index, String alias, @Nullable String policy, boolean isTimeSeries) throws IOException {
         Settings.Builder settings = Settings.builder()
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0);

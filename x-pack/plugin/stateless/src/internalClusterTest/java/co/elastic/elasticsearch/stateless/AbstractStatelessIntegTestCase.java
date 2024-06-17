@@ -896,8 +896,7 @@ public abstract class AbstractStatelessIntegTestCase extends ESIntegTestCase {
     }
 
     protected static void assertNodeHasNoCurrentRecoveries(String nodeName) {
-        NodesStatsResponse nodesStatsResponse = clusterAdmin().prepareNodesStats()
-            .setNodesIds(nodeName)
+        NodesStatsResponse nodesStatsResponse = clusterAdmin().prepareNodesStats(nodeName)
             .clear()
             .setIndices(new CommonStatsFlags(CommonStatsFlags.Flag.Recovery))
             .get();

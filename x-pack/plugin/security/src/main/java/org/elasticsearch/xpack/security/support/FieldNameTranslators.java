@@ -41,6 +41,8 @@ import static org.elasticsearch.xpack.security.action.apikey.TransportQueryApiKe
 
 public final class FieldNameTranslators {
 
+    public static final String FLATTENED_METADATA_INDEX_FIELD_NAME = "metadata_flattened";
+
     public static final FieldNameTranslators API_KEY_FIELD_NAME_TRANSLATORS = new FieldNameTranslators(
         List.of(
             new SimpleFieldNameTranslator("creator.principal", "username"),
@@ -53,7 +55,7 @@ public final class FieldNameTranslators {
             new SimpleFieldNameTranslator("invalidation_time", "invalidation"),
             // allows querying on any non-wildcard sub-fields under the "metadata." prefix
             // also allows querying on the "metadata" field itself (including by specifying patterns)
-            new FlattenedFieldNameTranslator("metadata_flattened", "metadata")
+            new FlattenedFieldNameTranslator(FLATTENED_METADATA_INDEX_FIELD_NAME, "metadata")
         )
     );
 
@@ -77,7 +79,7 @@ public final class FieldNameTranslators {
             new SimpleFieldNameTranslator("applications.privileges", "applications.privilege"),
             // allows querying on any non-wildcard sub-fields under the "metadata." prefix
             // also allows querying on the "metadata" field itself (including by specifying patterns)
-            new FlattenedFieldNameTranslator("metadata_flattened", "metadata")
+            new FlattenedFieldNameTranslator(FLATTENED_METADATA_INDEX_FIELD_NAME, "metadata")
         )
     );
 

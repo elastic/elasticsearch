@@ -12,7 +12,9 @@ in the auditing output.
 
 NOTE: Certain audit events require the `security_config_change` event type to
 audit the related event action. The description of impacted audit events
-indicate whether that event type is required.
+indicate whether that event type is required. In such cases, `security_config_change` 
+needs to **_replace_** any related event actions in 
+<<xpack-sa-lf-events-include,`xpack.security.audit.logfile.events.include`>>.
 
 [[event-access-denied]]
 `access_denied`::

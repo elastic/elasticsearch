@@ -11,7 +11,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.core.plan.logical.UnaryPlan;
@@ -123,14 +122,11 @@ public class Lookup extends UnaryPlan {
     @Override
     public List<Attribute> output() {
         if (lazyOutput == null) {
-            List<Attribute> rightSide = localRelation != null
-                ? Join.makeNullable(Join.makeReference(localRelation.output()))
-                : Expressions.asAttributes(matchFields);
-            lazyOutput = Join.mergeOutput(child().output(), rightSide, matchFields);
+            if (localRelation == null) {
+                throw new IllegalStateException("Cannot determine output of LOOKUP with unresolved table");
+            }
+            lazyOutput = Join.computeOutput(child().output(), localRelation.output(), joinConfig());
         }
-        // TODO: this code path is seemingly not used; remove it, make it used, or at least fix+test it.
-        // This produces incorrect results w.r.t. variable shadowing. (Doesn't remove attributes from the child input that have name
-        // collisions with attributes obtained from the table.)
         return lazyOutput;
     }
 

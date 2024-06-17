@@ -71,24 +71,24 @@ public class Join extends BinaryPlan {
     @Override
     public List<Attribute> output() {
         if (lazyOutput == null) {
-            lazyOutput = computeOutput();
+            lazyOutput = computeOutput(left().output(), right().output(), config);
         }
         return lazyOutput;
     }
 
-    private List<Attribute> computeOutput() {
+    public static List<Attribute> computeOutput(List<Attribute> leftOutput, List<Attribute> rightOutput, JoinConfig config) {
         AttributeSet toBeRemoved = new AttributeSet(Expressions.references(config.conditions()));
         toBeRemoved.removeAll(config.matchFields());
         return switch (config.type()) {
             case LEFT -> {
                 // Right side becomes nullable.
                 List<Attribute> fieldsAddedFromRight = new ArrayList<>();
-                for (Attribute attribute : right().output()) {
+                for (Attribute attribute : rightOutput) {
                     if (toBeRemoved.contains(attribute) == false) {
                         fieldsAddedFromRight.add(makeReference(attribute).withNullability(Nullability.TRUE));
                     }
                 }
-                yield mergeOutputAttributes(makeReference(fieldsAddedFromRight), left().output());
+                yield mergeOutputAttributes(makeReference(fieldsAddedFromRight), leftOutput);
             }
             default -> throw new UnsupportedOperationException("Other JOINs than LEFT not supported");
         };

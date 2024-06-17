@@ -25,16 +25,7 @@ import static org.elasticsearch.xpack.security.support.FieldNameTranslators.ROLE
 public class RoleBoolQueryBuilder extends BoolQueryBuilder {
 
     // Field names allowed at the index level
-    private static final Set<String> ALLOWED_EXACT_INDEX_FIELD_NAMES = Set.of(
-        "_id",
-        "type",
-        "name",
-        "description",
-        "applications.application",
-        "applications.resources",
-        "applications.privileges",
-        "metadata_flattened"
-    );
+    private static final Set<String> FIELDS_ALLOWED_TO_QUERY = Set.of("_id", "type");
 
     private RoleBoolQueryBuilder() {}
 
@@ -79,6 +70,6 @@ public class RoleBoolQueryBuilder extends BoolQueryBuilder {
     }
 
     static boolean isIndexFieldNameAllowed(String fieldName) {
-        return ALLOWED_EXACT_INDEX_FIELD_NAMES.contains(fieldName) || fieldName.startsWith("metadata_flattened.");
+        return FIELDS_ALLOWED_TO_QUERY.contains(fieldName) || ROLE_FIELD_NAME_TRANSLATORS.isIndexFieldSupported(fieldName);
     }
 }

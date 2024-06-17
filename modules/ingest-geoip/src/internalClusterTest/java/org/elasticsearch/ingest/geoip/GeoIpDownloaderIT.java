@@ -810,10 +810,12 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
         assertBusy(() -> {
             GeoIpStatsAction.Response response = client().execute(GeoIpStatsAction.INSTANCE, new GeoIpStatsAction.Request()).actionGet();
             assertThat(response.getNodes(), not(empty()));
-            if (response.getNodes().size() != cluster().size()) {
-                throw new RuntimeException("The number of nodes returned in the GeoIpStatsAction is not equal to the number of nodes in " +
-                    "the cluster, implying that the transport action failed on one of the nodes. Turn on debug logging for " +
-                    "org.elasticsearch.action.support.nodes.TransportNodesAction to find and fix the problem.");
+            if (response.hasFailures()) {
+                throw new RuntimeException(
+                    "GeoIpStatsAction reported failures, implying that the transport action failed on one or "
+                        + "more of the nodes. Turn on debug logging for org.elasticsearch.action.support.nodes.TransportNodesAction to find and"
+                        + " fix the problem."
+                );
             }
             for (GeoIpStatsAction.NodeResponse nodeResponse : response.getNodes()) {
                 assertThat(nodeResponse.getConfigDatabases(), empty());

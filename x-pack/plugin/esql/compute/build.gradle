@@ -32,7 +32,7 @@ spotless {
     /*
      * Generated files go here.
      */
-    targetExclude "src/main/generated/**/*.java"
+    targetExclude "src/main/generated/**/*.java", "src/main/generated-src/**/*.java"
   }
 }
 

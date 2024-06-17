@@ -19,11 +19,10 @@
  *         </p>
  *     </li>
  *     <li>
- *         Run the csv tests (see {@code x-pack/plugin/esql/src/test/java/org/elasticsearch/xpack/esql/CsvTests.java})
- *         from within Intellij or, alternatively, via Gradle:
- *         {@code ./gradlew :x-pack:plugin:esql:test --tests "org.elasticsearch.xpack.esql.CsvTests"}
- *         IntelliJ will take a few minutes to compile everything but the test itself should take only a few seconds.
- *         This is a fast path to running ESQL's integration tests.
+ *         To learn the basics about making functions, check {@link org.elasticsearch.xpack.esql.expression.function.scalar}.
+ *         <p>
+ *             It has the guide to making a simple function, which should be a good base to start doing aggregations.
+ *         </p>
  *     </li>
  *     <li>
  *         Pick one of the csv-spec files in {@code x-pack/plugin/esql/qa/testFixtures/src/main/resources/}
@@ -54,10 +53,16 @@
  *         Fill the required methods in your new function. Check their JavaDoc for more information.
  *         Here are some of the important ones:
  *         <ul>
- *             <li>Constructor: Review the constructor annotations, and make sure to add the correct types and descriptions</li>
+ *             <li>
+ *                 Constructor: Review the constructor annotations, and make sure to add the correct types and descriptions.
+ *                 <ul>
+ *                     <li>{@link org.elasticsearch.xpack.esql.expression.function.FunctionInfo}, for the constructor itself</li>
+ *                     <li>{@link org.elasticsearch.xpack.esql.expression.function.Param}, for the function parameters</li>
+ *                 </ul>
+ *             </li>
  *             <li>
  *                 {@code resolveType}: Check the metadata of your function parameters.
- *                 This may include types, if they are foldable, or their possible values.
+ *                 This may include types, whether they are foldable or not, or their possible values.
  *             </li>
  *             <li>
  *                 {@code dataType}: This will return the datatype of your function.
@@ -85,10 +90,11 @@
  *             </li>
  *             <li>
  *                 Add it to {@link org.elasticsearch.xpack.esql.io.stream.PlanNamedTypes}.
- *                 Consider adding the {@code writeTo} and {@code readFrom} methods inside your function,
+ *                 Consider adding a {@code writeTo} method and a constructor/{@code readFrom} method inside your function,
  *                 to keep all the logic in one place.
  *                 <p>
- *                     You can find examples of other aggregations using this method.
+ *                     You can find examples of other aggregations using this method,
+ *                     like {@link org.elasticsearch.xpack.esql.expression.function.aggregate.TopValuesList#writeTo(PlanStreamOutput)}
  *                 </p>
  *             </li>
  *             <li>
@@ -158,11 +164,10 @@
  *         </p>
  *     </li>
  *     <li>
- *         After completing your template, run the generation with {@code ./gradlew :x-pack:plugin:esql:compute:stringTemplates}.
- *         <p>
- *             You may need to tweak some import orders per type so they don't raise warnings.
- *         </p>
+ *         After completing your template, run the generation with {@code ./gradlew :x-pack:plugin:esql:compute:compileJava}.
  *     </li>
  * </ol>
  */
 package org.elasticsearch.xpack.esql.expression.function.aggregate;
+
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;

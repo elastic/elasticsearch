@@ -16,6 +16,7 @@ import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRes
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
+import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
@@ -24,6 +25,7 @@ import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.snapshots.SnapshotException;
 import org.elasticsearch.snapshots.SnapshotInfo;
+import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicySecurityClient;
@@ -37,7 +39,9 @@ import org.elasticsearch.xpack.slm.history.SnapshotHistoryStore;
 import java.io.IOException;
 import java.time.Instant;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 
 import static org.elasticsearch.core.Strings.format;
@@ -93,6 +97,13 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
         String snapshotName = maybeMetadata.map(policyMetadata -> {
             // don't time out on this request to not produce failed SLM runs in case of a temporarily slow master node
             CreateSnapshotRequest request = policyMetadata.getPolicy().toRequest().masterNodeTimeout(TimeValue.MAX_VALUE);
+
+            submitUnbatchedTask(
+                clusterService,
+                "slm-pre-register-snapshot-" + policyMetadata.getPolicy().getId(),
+                new PreRegisterSLMRun(policyMetadata.getPolicy().getId(), request.snapshot())
+            );
+
             final LifecyclePolicySecurityClient clientWithHeaders = new LifecyclePolicySecurityClient(
                 client,
                 ClientHelper.INDEX_LIFECYCLE_ORIGIN,
@@ -204,6 +215,92 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
         }, ToXContent.EMPTY_PARAMS);
     }
 
+    private static long numPolicySnapshotsInProgress(String policyId, SnapshotsInProgress snapshots) {
+        long numInProgress = 0;
+        for (final List<SnapshotsInProgress.Entry> entriesForRepo : snapshots.entriesByRepo()) {
+            numInProgress += entriesForRepo.stream().map(SnapshotsInProgress.Entry::userMetadata)
+                .filter(Objects::nonNull)
+                .map(meta -> meta.get(SnapshotsService.POLICY_ID_METADATA_FIELD))
+                .filter(policyId::equals)
+                .count();
+        }
+        return numInProgress;
+    }
+
+    private static class PreRegisterSLMRun extends ClusterStateUpdateTask {
+        private final String policyName;
+        private final String snapshotName;
+
+        PreRegisterSLMRun(String policyName, String snapshotName) {
+            this.policyName = policyName;
+            this.snapshotName = snapshotName;
+        }
+
+        @Override
+        public ClusterState execute(ClusterState currentState) throws Exception {
+            SnapshotLifecycleMetadata snapMeta = currentState.metadata().custom(SnapshotLifecycleMetadata.TYPE);
+
+            assert snapMeta != null : "this should never be called while the snapshot lifecycle cluster metadata is null";
+            if (snapMeta == null) {
+                logger.error(
+                    "failed to pre-register snapshot [{}] in policy [{}]: snapshot lifecycle metadata is null",
+                    snapshotName,
+                    policyName
+                );
+                return currentState;
+            }
+
+            Map<String, SnapshotLifecyclePolicyMetadata> snapLifecycles = new HashMap<>(snapMeta.getSnapshotConfigurations());
+            SnapshotLifecyclePolicyMetadata policyMetadata = snapLifecycles.get(policyName);
+            if (policyMetadata == null) {
+                logger.warn(
+                    "failed to pre-register snapshot [{}] in policy [{}]: policy not found",
+                    snapshotName,
+                    policyName
+                );
+                return currentState;
+            }
+
+            long preRegisteredRuns = policyMetadata.getPreRegisteredRuns();
+            SnapshotsInProgress snapshots = currentState.custom(SnapshotsInProgress.TYPE);
+            final long numSnapshotsRunning = snapshots == null ? 0 : numPolicySnapshotsInProgress(policyName, snapshots);
+
+            SnapshotLifecyclePolicyMetadata.Builder newPolicyMetadata = SnapshotLifecyclePolicyMetadata.builder(policyMetadata);
+            if (preRegisteredRuns > numSnapshotsRunning) {
+                final long unrecordedFailures = preRegisteredRuns - numSnapshotsRunning;
+                newPolicyMetadata.setInvocationsSinceLastSuccess(policyMetadata.getInvocationsSinceLastSuccess() + unrecordedFailures);
+
+                // There are likely scenarios where inc/decrements to preRegisteredRuns can be lost, so lower bound to 1 before run.
+                long newPreRegisteredRuns = Math.min(1, preRegisteredRuns + 1 - unrecordedFailures);
+                newPolicyMetadata.setPreRegisteredRuns(newPreRegisteredRuns);
+            } else {
+                newPolicyMetadata.setPreRegisteredRuns(preRegisteredRuns + 1);
+            }
+
+            snapLifecycles.put(policyName, newPolicyMetadata.build());
+            SnapshotLifecycleMetadata lifecycleMetadata = new SnapshotLifecycleMetadata(
+                snapLifecycles,
+                currentSLMMode(currentState),
+                snapMeta.getStats()
+            );
+            Metadata currentMeta = currentState.metadata();
+            return ClusterState.builder(currentState)
+                .metadata(Metadata.builder(currentMeta).putCustom(SnapshotLifecycleMetadata.TYPE, lifecycleMetadata))
+                .build();
+        }
+
+        @Override
+        public void onFailure(Exception e) {
+            logger.error(
+                "failed to pre-register snapshot policy execution for snapshot [{}] in policy [{}]: {}",
+                snapshotName,
+                policyName,
+                e
+            );
+        }
+    }
+
+
     /**
      * A cluster state update task to write the result of a snapshot job to the cluster metadata for the associated policy.
      */
@@ -283,6 +380,11 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
                 newPolicyMetadata.setLastSuccess(new SnapshotInvocationRecord(snapshotName, snapshotStartTime, snapshotFinishTime, null));
                 newPolicyMetadata.setInvocationsSinceLastSuccess(0L);
             }
+
+            // There are likely scenarios where inc/decrements to preRegisteredRuns can be lost, so lower bound to 0 after run.
+            assert policyMetadata.getPreRegisteredRuns() > 0:
+                "PreRegisteredRuns should be greater than 0 until a success/failures is emitted to acquiesce it.";
+            newPolicyMetadata.setPreRegisteredRuns(Math.min(0, policyMetadata.getPreRegisteredRuns() - 1L));
 
             snapLifecycles.put(policyName, newPolicyMetadata.build());
             SnapshotLifecycleMetadata lifecycleMetadata = new SnapshotLifecycleMetadata(

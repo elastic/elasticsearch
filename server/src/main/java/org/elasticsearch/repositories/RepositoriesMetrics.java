@@ -52,7 +52,7 @@ public record RepositoriesMetrics(
             meterRegistry.registerLongHistogram(METRIC_CLIENT_EXCEPTIONS_HISTOGRAM, "repository client errors histogram", "unit"),
             meterRegistry.registerLongHistogram(
                 METRIC_THROTTLES_HISTOGRAM,
-                "repository request RequestedRangeNotSatisfiedException histogram",
+                "repository request throttle histogram",
                 "unit"
             ),
             meterRegistry.registerLongHistogram(

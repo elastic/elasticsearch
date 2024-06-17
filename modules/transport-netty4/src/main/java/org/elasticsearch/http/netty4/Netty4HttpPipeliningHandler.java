@@ -273,7 +273,7 @@ public class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
             finishingWrite.combiner().finish(finishingWrite.onDone());
         } else {
             final var threadContext = serverTransport.getThreadPool().getThreadContext();
-            assert threadContext.isDefaultContext();
+            assert Transports.assertDefaultThreadContext(threadContext);
             final var channel = finishingWrite.onDone().channel();
             ActionListener.run(
                 new ContextPreservingActionListener<>(
@@ -282,7 +282,7 @@ public class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
                         @Override
                         public void onResponse(ChunkedRestResponseBodyPart continuation) {
                             // always fork a fresh task to avoid stack overflow
-                            assert threadContext.isDefaultContext();
+                            assert Transports.assertDefaultThreadContext(threadContext);
                             channel.eventLoop()
                                 .execute(
                                     () -> channel.writeAndFlush(
@@ -295,7 +295,7 @@ public class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
 
                         @Override
                         public void onFailure(Exception e) {
-                            assert threadContext.isDefaultContext();
+                            assert Transports.assertDefaultThreadContext(threadContext);
                             logger.error(
                                 Strings.format("failed to get continuation of HTTP response body for [%s], closing connection", channel),
                                 e

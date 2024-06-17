@@ -26,6 +26,7 @@ import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.Index;
@@ -39,6 +40,7 @@ import org.elasticsearch.watcher.ResourceWatcherService;
 
 import java.io.BufferedInputStream;
 import java.io.Closeable;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.FileAlreadyExistsException;
@@ -506,23 +508,28 @@ public final class DatabaseNodeService implements GeoIpDatabaseProvider, Closeab
         Map<String, RetrievedDatabaseInfo> allDatabases = new HashMap<>();
         for (Map.Entry<String, DatabaseReaderLazyLoader> entry : configDatabases.getConfigDatabases().entrySet()) {
             DatabaseReaderLazyLoader databaseReaderLazyLoader = entry.getValue();
-            final Metadata metadata;
             try {
-                metadata = databaseReaderLazyLoader.getMetadata();
+                final Metadata metadata = databaseReaderLazyLoader.getMetadata();
+                allDatabases.put(
+                    entry.getKey(),
+                    new RetrievedDatabaseInfo(
+                        entry.getKey(),
+                        "config",
+                        databaseReaderLazyLoader.getArchiveMd5(),
+                        databaseReaderLazyLoader.getMd5(),
+                        metadata.getBuildDate().getTime(),
+                        metadata.getDatabaseType()
+                    )
+                );
+            } catch (FileNotFoundException e) {
+                /*
+                 * Since there is nothing to prevent a database from being deleted while this method is running, it is possible we get an
+                 * exception here because the file no longer exists. We just log it and move on -- it's preferable to synchronization.
+                 */
+                logger.trace(Strings.format("Unable to get metadata for config database %s", entry.getKey()), e);
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }
-            allDatabases.put(
-                entry.getKey(),
-                new RetrievedDatabaseInfo(
-                    entry.getKey(),
-                    "config",
-                    databaseReaderLazyLoader.getArchiveMd5(),
-                    databaseReaderLazyLoader.getMd5(),
-                    metadata.getBuildDate().getTime(),
-                    metadata.getDatabaseType()
-                )
-            );
         }
 
         for (Map.Entry<String, DatabaseReaderLazyLoader> entry : databases.entrySet()) {

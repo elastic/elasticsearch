@@ -45,7 +45,7 @@ teardown:
                   - '_index': 'test-index2'
                     '_id': 'id4'
 
-  - match: { result: 'created' }
+  - match: { result: 'TODO change me back to created' }
 
   - do:
       query_ruleset.get:

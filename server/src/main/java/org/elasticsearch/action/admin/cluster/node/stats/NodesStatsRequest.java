@@ -9,15 +9,12 @@
 package org.elasticsearch.action.admin.cluster.node.stats;
 
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
-import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.support.nodes.BaseNodesRequest;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 
-import java.io.IOException;
 import java.util.Arrays;
 import java.util.Map;
 import java.util.Set;
@@ -170,11 +167,6 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
 
     public void setIncludeShardsStats(boolean includeShardsStats) {
         nodesStatsRequestParameters.setIncludeShardsStats(includeShardsStats);
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        TransportAction.localOnly();
     }
 
     public NodesStatsRequestParameters getNodesStatsRequestParameters() {

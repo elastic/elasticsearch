@@ -8,11 +8,7 @@
 
 package org.elasticsearch.action.admin.cluster.node.usage;
 
-import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.support.nodes.BaseNodesRequest;
-import org.elasticsearch.common.io.stream.StreamOutput;
-
-import java.io.IOException;
 
 public class NodesUsageRequest extends BaseNodesRequest<NodesUsageRequest> {
 
@@ -72,10 +68,5 @@ public class NodesUsageRequest extends BaseNodesRequest<NodesUsageRequest> {
     public NodesUsageRequest aggregations(boolean aggregations) {
         this.aggregations = aggregations;
         return this;
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        TransportAction.localOnly();
     }
 }

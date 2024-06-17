@@ -415,8 +415,6 @@ public abstract class TransportWriteAction<
         private final boolean sync;
         private final AtomicInteger pendingOps = new AtomicInteger(1);
         private final AtomicBoolean refreshed = new AtomicBoolean(false);
-        // TODO: Temporary until we fail unpromotable shard
-        private final AtomicReference<Exception> refreshFailure = new AtomicReference<>(null);
         private final AtomicReference<Exception> syncFailure = new AtomicReference<>(null);
         private final RespondingWriteResult respond;
         private final IndexShard indexShard;
@@ -463,12 +461,7 @@ public abstract class TransportWriteAction<
                 if (syncFailure.get() != null) {
                     respond.onFailure(syncFailure.get());
                 } else {
-                    // TODO: Temporary until we fail unpromotable shard
-                    if (refreshFailure.get() != null) {
-                        respond.onFailure(refreshFailure.get());
-                    } else {
-                        respond.onSuccess(refreshed.get());
-                    }
+                    respond.onSuccess(refreshed.get());
                 }
             }
             assert numPending >= 0 && numPending <= 2 : "numPending must either 2, 1 or 0 but was " + numPending;
@@ -498,7 +491,7 @@ public abstract class TransportWriteAction<
 
                     @Override
                     public void onFailure(Exception e) {
-                        refreshFailure.set(e);
+                        refreshed.set(false);
                         maybeFinish();
                     }
                 };

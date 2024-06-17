@@ -82,7 +82,7 @@ public class IndexingMemoryControllerIT extends ESSingleNodeTestCase {
                 config.getRelativeTimeInNanosSupplier(),
                 config.getIndexCommitListener(),
                 config.isPromotableToPrimary(),
-                null
+                config.getMapperService()
             );
         }
 

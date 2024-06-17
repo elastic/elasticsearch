@@ -4821,7 +4821,7 @@ public class IndexShardTests extends IndexShardTestCase {
                 config.getRelativeTimeInNanosSupplier(),
                 config.getIndexCommitListener(),
                 config.isPromotableToPrimary(),
-                null
+                config.getMapperService()
             );
             return new InternalEngine(configWithWarmer);
         });

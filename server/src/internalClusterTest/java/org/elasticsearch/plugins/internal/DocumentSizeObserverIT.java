@@ -92,7 +92,6 @@ public class DocumentSizeObserverIT extends ESIntegTestCase {
         @Override
         public Collection<?> createComponents(PluginServices services) {
             documentParsingProvider = services.documentParsingProvider();
-
             return super.createComponents(services);
         }
 

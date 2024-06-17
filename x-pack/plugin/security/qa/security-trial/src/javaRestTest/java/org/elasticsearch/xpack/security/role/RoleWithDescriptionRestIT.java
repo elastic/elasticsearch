@@ -7,10 +7,7 @@
 
 package org.elasticsearch.xpack.security.role;
 
-import org.apache.http.client.methods.HttpPost;
-import org.apache.http.client.methods.HttpPut;
 import org.elasticsearch.client.Request;
-import org.elasticsearch.client.Response;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.support.Validation;
@@ -24,15 +21,13 @@ public class RoleWithDescriptionRestIT extends SecurityOnTrialLicenseRestTestCas
         final String roleName = "role_with_description";
         final String initialRoleDescription = randomAlphaOfLengthBetween(0, 10);
         {
-            Request createRoleRequest = new Request(HttpPut.METHOD_NAME, "/_security/role/" + roleName);
-            createRoleRequest.setJsonEntity(Strings.format("""
+            upsertRole(Strings.format("""
                 {
                   "description": "%s",
                   "cluster": ["all"],
                   "indices": [{"names": ["*"], "privileges": ["all"]}]
-                }""", initialRoleDescription));
-            Response createResponse = adminClient().performRequest(createRoleRequest);
-            assertOK(createResponse);
+                }""", initialRoleDescription), roleName);
+
             fetchRoleAndAssertEqualsExpected(
                 roleName,
                 new RoleDescriptor(
@@ -54,15 +49,12 @@ public class RoleWithDescriptionRestIT extends SecurityOnTrialLicenseRestTestCas
         }
         {
             final String newRoleDescription = randomValueOtherThan(initialRoleDescription, () -> randomAlphaOfLengthBetween(0, 10));
-            Request updateRoleRequest = new Request(HttpPost.METHOD_NAME, "/_security/role/" + roleName);
-            updateRoleRequest.setJsonEntity(Strings.format("""
+            upsertRole(Strings.format("""
                 {
                   "description": "%s",
                   "cluster": ["all"],
                   "indices": [{"names": ["index-*"], "privileges": ["all"]}]
-                }""", newRoleDescription));
-            Response updateResponse = adminClient().performRequest(updateRoleRequest);
-            assertOK(updateResponse);
+                }""", newRoleDescription), roleName);
 
             fetchRoleAndAssertEqualsExpected(
                 roleName,
@@ -86,7 +78,7 @@ public class RoleWithDescriptionRestIT extends SecurityOnTrialLicenseRestTestCas
     }
 
     public void testCreateRoleWithInvalidDescriptionFails() throws IOException {
-        Request createRoleRequest = roleRequest(Strings.format("""
+        Request request = roleRequest(Strings.format("""
             {
               "description": "%s",
               "cluster": ["all"],
@@ -94,7 +86,7 @@ public class RoleWithDescriptionRestIT extends SecurityOnTrialLicenseRestTestCas
             }""", randomAlphaOfLength(Validation.Roles.MAX_DESCRIPTION_LENGTH + randomIntBetween(1, 5))), "role_with_large_description");
 
         assertSendRequestThrowsError(
-            createRoleRequest,
+            request,
             "Role description must be less than " + Validation.Roles.MAX_DESCRIPTION_LENGTH + " characters."
         );
     }

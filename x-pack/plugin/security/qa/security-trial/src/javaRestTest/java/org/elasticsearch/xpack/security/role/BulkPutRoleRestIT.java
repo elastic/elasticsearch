@@ -219,7 +219,7 @@ public class BulkPutRoleRestIT extends SecurityOnTrialLicenseRestTestCase {
 
     protected Request rolesRequest(String roleDescriptorsByName) {
         Request rolesRequest;
-        rolesRequest = new Request(HttpPost.METHOD_NAME, "/_security/_bulk/role");
+        rolesRequest = new Request(HttpPost.METHOD_NAME, "/_security/role");
         rolesRequest.setJsonEntity(org.elasticsearch.core.Strings.format(roleDescriptorsByName));
         return rolesRequest;
     }

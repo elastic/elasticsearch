@@ -151,7 +151,7 @@ public abstract class SecurityOnTrialLicenseRestTestCase extends ESRestTestCase 
             createRoleRequest = new Request(randomFrom(HttpPut.METHOD_NAME, HttpPost.METHOD_NAME), "/_security/role/" + roleName);
             createRoleRequest.setJsonEntity(roleDescriptor);
         } else {
-            createRoleRequest = new Request(HttpPost.METHOD_NAME, "/_security/_bulk/role");
+            createRoleRequest = new Request(HttpPost.METHOD_NAME, "/_security/role");
             createRoleRequest.setJsonEntity(Strings.format("""
                 {"roles": {"%s": %s}}
                 """, roleName, roleDescriptor));
@@ -162,7 +162,7 @@ public abstract class SecurityOnTrialLicenseRestTestCase extends ESRestTestCase 
     @SuppressWarnings("unchecked")
     protected void assertSendRequestThrowsError(Request request, String expectedError) throws IOException {
         String errorMessage;
-        if (request.getEndpoint().contains("_bulk")) {
+        if (request.getEndpoint().endsWith("/role")) {
             Map<String, Object> response = responseAsMap(adminClient().performRequest(request));
             Map<String, Object> item = ((List<Map<String, Object>>) response.get("items")).get(0);
             assertEquals(item.get("result"), "failed");

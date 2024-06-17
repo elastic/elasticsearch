@@ -1,0 +1,7 @@
+pr: 109802
+summary: Do not fail bulk requests after a refresh failure preventing checkpoints
+  from advancing
+area: CRUD
+type: bug
+issues:
+ - 108190

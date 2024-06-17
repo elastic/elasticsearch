@@ -11,6 +11,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
@@ -24,11 +25,12 @@ import java.util.List;
  * @param matchFields fields that are merged from the left and right relations
  * @param conditions when these conditions are true the rows are joined
  */
-public record JoinConfig(JoinType type, List<NamedExpression> matchFields, List<Expression> conditions) implements Writeable {
+public record JoinConfig(JoinType type, List<Attribute> matchFields, List<Expression> conditions) implements Writeable {
+    @SuppressWarnings("unchecked")
     public JoinConfig(StreamInput in) throws IOException {
         this(
             JoinType.readFrom(in),
-            in.readNamedWriteableCollectionAsList(NamedExpression.class),
+            (List<Attribute>) (List) in.readNamedWriteableCollectionAsList(NamedExpression.class),
             in.readCollectionAsList(i -> ((PlanStreamInput) i).readExpression())
         );
     }

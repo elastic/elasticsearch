@@ -39,7 +39,7 @@ public class Lookup extends UnaryPlan {
     /**
      * References to the input fields to match against the {@link #localRelation}.
      */
-    private final List<NamedExpression> matchFields;
+    private final List<Attribute> matchFields;
     // initialized during the analysis phase for output and validation
     // afterward, it is converted into a Join (BinaryPlan) hence why here it is not a child
     private final LocalRelation localRelation;
@@ -49,7 +49,7 @@ public class Lookup extends UnaryPlan {
         Source source,
         LogicalPlan child,
         Expression tableName,
-        List<NamedExpression> matchFields,
+        List<Attribute> matchFields,
         @Nullable LocalRelation localRelation
     ) {
         super(source, child);
@@ -58,10 +58,11 @@ public class Lookup extends UnaryPlan {
         this.localRelation = localRelation;
     }
 
+    @SuppressWarnings("unchecked")
     public Lookup(PlanStreamInput in) throws IOException {
         super(Source.readFrom(in), in.readLogicalPlanNode());
         this.tableName = in.readExpression();
-        this.matchFields = in.readNamedWriteableCollectionAsList(NamedExpression.class);
+        this.matchFields = (List<Attribute>) (List) in.readNamedWriteableCollectionAsList(NamedExpression.class);
         this.localRelation = in.readBoolean() ? new LocalRelation(in) : null;
     }
 
@@ -82,7 +83,7 @@ public class Lookup extends UnaryPlan {
         return tableName;
     }
 
-    public List<NamedExpression> matchFields() {
+    public List<Attribute> matchFields() {
         return matchFields;
     }
 

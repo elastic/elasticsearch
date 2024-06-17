@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.plan.logical.join;
 
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
-import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.plan.logical.BinaryPlan;
@@ -91,7 +90,7 @@ public class Join extends BinaryPlan {
     public static List<Attribute> mergeOutput(
         List<? extends Attribute> lhs,
         List<? extends Attribute> rhs,
-        List<NamedExpression> matchFields
+        List<? extends Attribute> matchFields
     ) {
         List<Attribute> results = new ArrayList<>(lhs.size() + rhs.size());
 

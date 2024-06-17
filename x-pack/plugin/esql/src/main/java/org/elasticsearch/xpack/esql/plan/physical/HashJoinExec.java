@@ -24,7 +24,7 @@ import java.util.Set;
 
 public class HashJoinExec extends UnaryExec implements EstimatesRowSize {
     private final LocalSourceExec joinData;
-    private final List<NamedExpression> matchFields;
+    private final List<Attribute> matchFields;
     /**
      * Conditions that must match for rows to be joined. The {@link Equals#left()}
      * is always from the child and the {@link Equals#right()} is always from the
@@ -38,7 +38,7 @@ public class HashJoinExec extends UnaryExec implements EstimatesRowSize {
         Source source,
         PhysicalPlan child,
         LocalSourceExec hashData,
-        List<NamedExpression> matchFields,
+        List<Attribute> matchFields,
         List<Equals> conditions,
         List<Attribute> output
     ) {
@@ -49,10 +49,11 @@ public class HashJoinExec extends UnaryExec implements EstimatesRowSize {
         this.output = output;
     }
 
+    @SuppressWarnings("unchecked")
     public HashJoinExec(PlanStreamInput in) throws IOException {
         super(Source.readFrom(in), in.readPhysicalPlanNode());
         this.joinData = new LocalSourceExec(in);
-        this.matchFields = in.readNamedWriteableCollectionAsList(NamedExpression.class);
+        this.matchFields = (List<Attribute>) (List) in.readNamedWriteableCollectionAsList(NamedExpression.class);
         this.conditions = in.readCollectionAsList(i -> (Equals) PlanNamedTypes.readBinComparison(in, "equals"));
         this.output = in.readNamedWriteableCollectionAsList(Attribute.class);
     }
@@ -70,7 +71,7 @@ public class HashJoinExec extends UnaryExec implements EstimatesRowSize {
         return joinData;
     }
 
-    public List<NamedExpression> matchFields() {
+    public List<Attribute> matchFields() {
         return matchFields;
     }
 

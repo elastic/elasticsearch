@@ -50,11 +50,7 @@ public record RepositoriesMetrics(
             meterRegistry.registerLongCounter(METRIC_UNSUCCESSFUL_OPERATIONS_TOTAL, "repository unsuccessful operation counter", "unit"),
             meterRegistry.registerLongHistogram(METRIC_EXCEPTIONS_HISTOGRAM, "repository request exception histogram", "unit"),
             meterRegistry.registerLongHistogram(METRIC_CLIENT_EXCEPTIONS_HISTOGRAM, "repository client errors histogram", "unit"),
-            meterRegistry.registerLongHistogram(
-                METRIC_THROTTLES_HISTOGRAM,
-                "repository request throttle histogram",
-                "unit"
-            ),
+            meterRegistry.registerLongHistogram(METRIC_THROTTLES_HISTOGRAM, "repository request throttle histogram", "unit"),
             meterRegistry.registerLongHistogram(
                 HTTP_REQUEST_TIME_IN_MICROS_HISTOGRAM,
                 "HttpRequestTime in microseconds expressed as as a histogram",

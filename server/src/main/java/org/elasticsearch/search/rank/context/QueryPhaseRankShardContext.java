@@ -22,27 +22,27 @@ import java.util.List;
 public abstract class QueryPhaseRankShardContext {
 
     protected final List<Query> queries;
-    protected final int rankWindowSize;
+    protected final int windowSize;
 
-    public QueryPhaseRankShardContext(List<Query> queries, int rankWindowSize) {
+    public QueryPhaseRankShardContext(List<Query> queries, int windowSize) {
         this.queries = queries;
-        this.rankWindowSize = rankWindowSize;
+        this.windowSize = windowSize;
     }
 
     public List<Query> queries() {
         return queries;
     }
 
-    public int rankWindowSize() {
-        return rankWindowSize;
+    public int windowSize() {
+        return windowSize;
     }
 
     /**
      * This is used to reduce the number of required results that are serialized
-     * to the coordinating node. Normally we would have to serialize {@code queries * rank_window_size}
+     * to the coordinating node. Normally we would have to serialize {@code queries * window_size}
      * results, but we can infer that there will likely be overlap of document results. Given that we
      * know any searches that match the same document must be on the same shard, we can sort on the shard
-     * instead for a top rank_window_size set of results and reduce the amount of data we serialize.
+     * instead for a top window_size set of results and reduce the amount of data we serialize.
      */
     public abstract RankShardResult combineQueryPhaseResults(List<TopDocs> rankResults);
 }

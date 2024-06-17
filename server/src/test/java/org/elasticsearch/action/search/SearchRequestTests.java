@@ -400,7 +400,7 @@ public class SearchRequestTests extends AbstractSearchTestCase {
             assertNotNull(validationErrors);
             assertEquals(1, validationErrors.validationErrors().size());
             assertEquals(
-                "[rank] requires [rank_window_size: 1] be greater than or equal to [size: 2]",
+                "[rank] requires [window_size: 1] be greater than or equal to [size: 2]",
                 validationErrors.validationErrors().get(0)
             );
         }
@@ -437,7 +437,7 @@ public class SearchRequestTests extends AbstractSearchTestCase {
             assertNotNull(validationErrors);
             assertEquals(1, validationErrors.validationErrors().size());
             assertEquals(
-                "[rank] requires [rank_window_size: 9] be greater than or equal to [size: 10]",
+                "[rank] requires [window_size: 9] be greater than or equal to [size: 10]",
                 validationErrors.validationErrors().get(0)
             );
         }

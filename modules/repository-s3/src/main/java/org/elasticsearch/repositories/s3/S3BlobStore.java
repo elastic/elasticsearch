@@ -32,6 +32,7 @@ import org.elasticsearch.common.blobstore.BlobStoreException;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -180,20 +181,25 @@ class S3BlobStore implements BlobStore {
 
             if (exceptionCount > 0) {
                 final List<Object> statusCodes = awsRequestMetrics.getProperty(AWSRequestMetrics.Field.StatusCode);
-                final long requestRangeNotSatisfiedErrors = Objects.requireNonNullElse(statusCodes, List.of())
+                final long amountOfRequestRangeNotSatisfiedErrors = Objects.requireNonNullElse(statusCodes, List.of())
                     .stream()
                     .filter(e -> (Integer) e == REQUESTED_RANGE_NOT_SATISFIED.getStatus())
                     .count();
-                if (requestRangeNotSatisfiedErrors > 0) {
-                    // REQUESTED_RANGE_NOT_SATISFIED are expected errors due to RCO,
-                    // so we would like no to count them along with other S3 exceptions
-                    exceptionCount -= requestRangeNotSatisfiedErrors;
+                if (amountOfRequestRangeNotSatisfiedErrors > 0) {
+                    // REQUESTED_RANGE_NOT_SATISFIED errors are expected errors due to RCO, so we would like not to count them along with
+                    // the server side S3 exceptions and track them separately
+                    exceptionCount -= amountOfRequestRangeNotSatisfiedErrors;
+                    var clientErrorAttributes = Maps.copyMapWithAddedEntry(
+                        attributes,
+                        "error_code",
+                        REQUESTED_RANGE_NOT_SATISFIED.getStatus()
+                    );
                     s3RepositoriesMetrics.common()
-                        .requestRangeNotSatisfiedExceptionCounter()
-                        .incrementBy(requestRangeNotSatisfiedErrors, attributes);
+                        .clientExceptionCounter()
+                        .incrementBy(amountOfRequestRangeNotSatisfiedErrors, clientErrorAttributes);
                     s3RepositoriesMetrics.common()
-                        .requestRangeNotSatisfiedExceptionHistogram()
-                        .record(requestRangeNotSatisfiedErrors, attributes);
+                        .clientExceptionHistogram()
+                        .record(amountOfRequestRangeNotSatisfiedErrors, clientErrorAttributes);
                 }
             }
 

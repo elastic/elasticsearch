@@ -22,7 +22,6 @@ import java.io.IOException;
 import java.util.Set;
 import java.util.function.Consumer;
 
-import static org.elasticsearch.xpack.security.action.apikey.TransportQueryApiKeyAction.API_KEY_TYPE_RUNTIME_MAPPING_FIELD;
 import static org.elasticsearch.xpack.security.support.FieldNameTranslators.API_KEY_FIELD_NAME_TRANSLATORS;
 
 public final class ApiKeyBoolQueryBuilder extends BoolQueryBuilder {

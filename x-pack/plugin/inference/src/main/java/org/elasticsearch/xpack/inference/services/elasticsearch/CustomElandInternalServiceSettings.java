@@ -12,13 +12,13 @@ import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.inference.ModelConfigurations;
+import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.SimilarityMeasure;
+import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
-import org.elasticsearch.xpack.inference.services.ServiceUtils;
 
 import java.io.IOException;
 import java.util.EnumSet;
@@ -32,12 +32,73 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOpt
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalPositiveInteger;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractSimilarity;
 
-public class CustomElandInternalServiceSettings extends ElasticsearchInternalServiceSettings {
+public class CustomElandInternalServiceSettings implements ServiceSettings {
 
     public static final String NAME = "custom_eland_model_internal_service_settings";
 
-    private static final int FAILED_INT_PARSE_VALUE = -1;
+    /**
+     * Parse the CustomElandServiceSettings from map and validate the setting values.
+     *
+     * This method does not verify the model variant
+     *
+     * If required setting are missing or the values are invalid an
+     * {@link ValidationException} is thrown.
+     *
+     * @param map Source map containing the config
+     * @param context The parser context, whether it is from an HTTP request or from persistent storage
+     * @return The {@code CustomElandServiceSettings} builder
+     */
+    public static CustomElandInternalServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
+        return switch (context) {
+            case REQUEST -> fromRequestMap(map);
+            case PERSISTENT -> fromPersistentMap(map);
+        };
+    }
 
+    private static CustomElandInternalServiceSettings fromRequestMap(Map<String, Object> map) {
+        ValidationException validationException = new ValidationException();
+        var commonFields = commonFieldsFromMap(map, validationException);
+
+        if (validationException.validationErrors().isEmpty() == false) {
+            throw validationException;
+        }
+
+        return new CustomElandInternalServiceSettings(commonFields);
+    }
+
+    private static CustomElandInternalServiceSettings fromPersistentMap(Map<String, Object> map) {
+        var commonFields = commonFieldsFromMap(map);
+        Integer dims = extractOptionalPositiveInteger(map, DIMENSIONS, ModelConfigurations.SERVICE_SETTINGS, new ValidationException());
+
+        return new CustomElandInternalServiceSettings(commonFields, dims);
+    }
+
+    private record CommonFields(
+        ElasticsearchInternalServiceSettings internalServiceSettings,
+        SimilarityMeasure similarityMeasure,
+        DenseVectorFieldMapper.ElementType elementType
+    ) {}
+
+    private static CommonFields commonFieldsFromMap(Map<String, Object> map) {
+        return commonFieldsFromMap(map, new ValidationException());
+    }
+
+    private static CommonFields commonFieldsFromMap(Map<String, Object> map, ValidationException validationException) {
+        var internalSettings = ElasticsearchInternalServiceSettings.fromMap(map, validationException);
+        SimilarityMeasure similarity = extractSimilarity(map, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        DenseVectorFieldMapper.ElementType elementType = extractOptionalEnum(
+            map,
+            ELEMENT_TYPE,
+            ModelConfigurations.SERVICE_SETTINGS,
+            DenseVectorFieldMapper.ElementType::fromString,
+            EnumSet.of(DenseVectorFieldMapper.ElementType.BYTE, DenseVectorFieldMapper.ElementType.FLOAT),
+            validationException
+        );
+
+        return new CommonFields(internalSettings, similarity, elementType);
+    }
+
+    private final ElasticsearchInternalServiceSettings internalServiceSettings;
     private final Integer dimensions;
     private final SimilarityMeasure similarityMeasure;
     private final DenseVectorFieldMapper.ElementType elementType;
@@ -54,14 +115,14 @@ public class CustomElandInternalServiceSettings extends ElasticsearchInternalSer
         SimilarityMeasure similarityMeasure,
         DenseVectorFieldMapper.ElementType elementType
     ) {
-        super(numAllocations, numThreads, modelId);
+        internalServiceSettings = new ElasticsearchInternalServiceSettings(numAllocations, numThreads, modelId);
         this.dimensions = dimensions;
         this.similarityMeasure = similarityMeasure;
         this.elementType = elementType;
     }
 
     public CustomElandInternalServiceSettings(StreamInput in) throws IOException {
-        super(in.readVInt(), in.readVInt(), in.readString());
+        internalServiceSettings = new ElasticsearchInternalServiceSettings(in);
         if (in.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_ELAND_SETTINGS_ADDED)) {
             dimensions = in.readOptionalVInt();
             similarityMeasure = in.readOptionalEnum(SimilarityMeasure.class);
@@ -73,120 +134,37 @@ public class CustomElandInternalServiceSettings extends ElasticsearchInternalSer
         }
     }
 
-    /**
-     * Parse the CustomElandServiceSettings from map and validate the setting values.
-     *
-     * This method does not verify the model variant
-     *
-     * If required setting are missing or the values are invalid an
-     * {@link ValidationException} is thrown.
-     *
-     * @param map Source map containing the config
-     * @param context The parser context, whether it is from an HTTP request or from persistent storage
-     * @return The {@code CustomElandServiceSettings} builder
-     */
-    public static Builder fromMap(Map<String, Object> map, ConfigurationParseContext context) {
-        return switch (context) {
-            case REQUEST -> fromRequestMap(map);
-            case PERSISTENT -> fromPersistentMap(map);
-        };
+    private CustomElandInternalServiceSettings(CommonFields commonFields) {
+        this(commonFields, null);
     }
 
-    private static Builder fromRequestMap(Map<String, Object> map) {
-        ValidationException validationException = new ValidationException();
-        var commonFields = commonFieldsFromMap(map, validationException);
-
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
-
-        var defaultedCommonFields = new CommonFields(
-            commonFields.numAllocations,
-            commonFields.numThreads,
-            commonFields.modelId,
-            Objects.requireNonNullElse(commonFields.similarityMeasure, SimilarityMeasure.COSINE),
-            Objects.requireNonNullElse(commonFields.elementType, DenseVectorFieldMapper.ElementType.FLOAT)
-        );
-
-        return new ElandBuilder(defaultedCommonFields);
-    }
-
-    private static Builder fromPersistentMap(Map<String, Object> map) {
-        var commonFields = commonFieldsFromMap(map);
-        Integer dims = extractOptionalPositiveInteger(map, DIMENSIONS, ModelConfigurations.SERVICE_SETTINGS, new ValidationException());
-
-        return new ElandBuilder(commonFields, dims);
-    }
-
-    private record CommonFields(
-        int numAllocations,
-        int numThreads,
-        String modelId,
-        SimilarityMeasure similarityMeasure,
-        DenseVectorFieldMapper.ElementType elementType
-    ) {}
-
-    private static CommonFields commonFieldsFromMap(Map<String, Object> map) {
-        return commonFieldsFromMap(map, new ValidationException());
-    }
-
-    private static CommonFields commonFieldsFromMap(Map<String, Object> map, ValidationException validationException) {
-        Integer numAllocations = extractOptionalPositiveInteger(
-            map,
-            NUM_ALLOCATIONS,
-            ModelConfigurations.SERVICE_SETTINGS,
-            validationException
-        );
-        Integer numThreads = extractOptionalPositiveInteger(map, NUM_THREADS, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        validateParameters(numAllocations, validationException, numThreads);
-
-        String modelId = ServiceUtils.extractRequiredString(map, MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        SimilarityMeasure similarity = extractSimilarity(map, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        DenseVectorFieldMapper.ElementType elementType = extractOptionalEnum(
-            map,
-            ELEMENT_TYPE,
-            ModelConfigurations.SERVICE_SETTINGS,
-            DenseVectorFieldMapper.ElementType::fromString,
-            EnumSet.of(DenseVectorFieldMapper.ElementType.BYTE, DenseVectorFieldMapper.ElementType.FLOAT),
-            validationException
-        );
-
-        return new CommonFields(
-            // if an error occurred while parsing, we'll set these to an invalid value so we don't accidentally get a
-            // null pointer when doing unboxing
-            Objects.requireNonNullElse(numAllocations, FAILED_INT_PARSE_VALUE),
-            Objects.requireNonNullElse(numThreads, FAILED_INT_PARSE_VALUE),
-            modelId,
-            similarity,
-            elementType
-        );
+    private CustomElandInternalServiceSettings(CommonFields commonFields, Integer dimensions) {
+        internalServiceSettings = commonFields.internalServiceSettings;
+        this.dimensions = dimensions;
+        similarityMeasure = commonFields.similarityMeasure;
+        elementType = commonFields.elementType;
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
 
-        var superBuilder = toXContentFragment(builder, params);
+        internalServiceSettings.toXContentFragment(builder, params);
 
         if (dimensions != null) {
-            superBuilder.field(DIMENSIONS, dimensions);
+            builder.field(DIMENSIONS, dimensions);
         }
 
         if (similarityMeasure != null) {
-            superBuilder.field(SIMILARITY, similarityMeasure);
+            builder.field(SIMILARITY, similarityMeasure);
         }
 
         if (elementType != null) {
-            superBuilder.field(ELEMENT_TYPE, elementType);
+            builder.field(ELEMENT_TYPE, elementType);
         }
 
-        superBuilder.endObject();
-        return superBuilder;
-    }
-
-    @Override
-    public boolean isFragment() {
-        return super.isFragment();
+        builder.endObject();
+        return builder;
     }
 
     @Override
@@ -201,13 +179,17 @@ public class CustomElandInternalServiceSettings extends ElasticsearchInternalSer
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
+        internalServiceSettings.writeTo(out);
 
         if (out.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_ELAND_SETTINGS_ADDED)) {
             out.writeOptionalVInt(dimensions);
             out.writeOptionalEnum(similarityMeasure);
             out.writeOptionalEnum(elementType);
         }
+    }
+
+    public ElasticsearchInternalServiceSettings getElasticsearchInternalServiceSettings() {
+        return internalServiceSettings;
     }
 
     @Override
@@ -225,31 +207,25 @@ public class CustomElandInternalServiceSettings extends ElasticsearchInternalSer
         return dimensions;
     }
 
-    private static class ElandBuilder extends Builder {
-        private final Integer dimensions;
-        private final CommonFields commonFields;
-
-        private ElandBuilder(CommonFields commonFields) {
-            this(commonFields, null);
-        }
-
-        private ElandBuilder(CommonFields commonFields, @Nullable Integer dimensions) {
-            super(commonFields.numAllocations, commonFields.numThreads, commonFields.modelId);
-
-            this.dimensions = dimensions;
-            this.commonFields = commonFields;
-        }
-
-        @Override
-        public CustomElandInternalServiceSettings build() {
-            return new CustomElandInternalServiceSettings(
-                getNumAllocations(),
-                getNumThreads(),
-                getModelId(),
-                dimensions,
-                commonFields.similarityMeasure,
-                commonFields.elementType
-            );
-        }
+    @Override
+    public ToXContentObject getFilteredXContentObject() {
+        return this;
     }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        CustomElandInternalServiceSettings that = (CustomElandInternalServiceSettings) o;
+        return Objects.equals(internalServiceSettings, that.internalServiceSettings)
+            && Objects.equals(dimensions, that.dimensions)
+            && Objects.equals(similarityMeasure, that.similarityMeasure)
+            && Objects.equals(elementType, that.elementType);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(internalServiceSettings, dimensions, similarityMeasure, elementType);
+    }
+
 }

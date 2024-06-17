@@ -11,6 +11,7 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.Model;
+import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.core.ml.action.CreateTrainedModelAssignmentAction;
@@ -21,7 +22,7 @@ import java.util.Map;
 
 import static org.elasticsearch.xpack.core.ml.inference.assignment.AllocationStatus.State.STARTED;
 
-public class CustomElandModel extends ElasticsearchModel {
+public class CustomElandModel extends Model implements ElasticsearchModel {
 
     public static CustomElandModel build(
         String inferenceEntityId,
@@ -41,7 +42,7 @@ public class CustomElandModel extends ElasticsearchModel {
         String service,
         CustomElandInternalServiceSettings serviceSettings
     ) {
-        super(inferenceEntityId, taskType, service, serviceSettings);
+        super(new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings));
     }
 
     private CustomElandModel(
@@ -51,7 +52,7 @@ public class CustomElandModel extends ElasticsearchModel {
         CustomElandInternalServiceSettings serviceSettings,
         TaskSettings taskSettings
     ) {
-        super(inferenceEntityId, taskType, service, serviceSettings, taskSettings);
+        super(new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings));
     }
 
     @Override
@@ -59,21 +60,25 @@ public class CustomElandModel extends ElasticsearchModel {
         return (CustomElandInternalServiceSettings) super.getServiceSettings();
     }
 
+    public String getModelId() {
+        return getServiceSettings().getElasticsearchInternalServiceSettings().getModelId();
+    }
+
     @Override
-    StartTrainedModelDeploymentAction.Request getStartTrainedModelDeploymentActionRequest() {
+    public StartTrainedModelDeploymentAction.Request getStartTrainedModelDeploymentActionRequest() {
         var startRequest = new StartTrainedModelDeploymentAction.Request(
-            this.getServiceSettings().getModelId(),
+            this.getServiceSettings().getElasticsearchInternalServiceSettings().getModelId(),
             this.getInferenceEntityId()
         );
-        startRequest.setNumberOfAllocations(this.getServiceSettings().getNumAllocations());
-        startRequest.setThreadsPerAllocation(this.getServiceSettings().getNumThreads());
+        startRequest.setNumberOfAllocations(this.getServiceSettings().getElasticsearchInternalServiceSettings().getNumAllocations());
+        startRequest.setThreadsPerAllocation(this.getServiceSettings().getElasticsearchInternalServiceSettings().getNumThreads());
         startRequest.setWaitForState(STARTED);
 
         return startRequest;
     }
 
     @Override
-    ActionListener<CreateTrainedModelAssignmentAction.Response> getCreateTrainedModelAssignmentActionListener(
+    public ActionListener<CreateTrainedModelAssignmentAction.Response> getCreateTrainedModelAssignmentActionListener(
         Model model,
         ActionListener<Boolean> listener
     ) {
@@ -92,7 +97,7 @@ public class CustomElandModel extends ElasticsearchModel {
                             "Could not start the TextEmbeddingService service as the "
                                 + "custom eland model [{0}] for this platform cannot be found."
                                 + " Custom models need to be loaded into the cluster with eland before they can be started.",
-                            getServiceSettings().getModelId()
+                            getServiceSettings().getElasticsearchInternalServiceSettings().getModelId()
                         )
                     );
                     return;

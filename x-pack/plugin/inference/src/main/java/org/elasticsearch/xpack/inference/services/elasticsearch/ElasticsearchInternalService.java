@@ -16,6 +16,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.inference.ChunkedInferenceServiceResults;
 import org.elasticsearch.inference.ChunkingOptions;
 import org.elasticsearch.inference.InferenceResults;
@@ -25,6 +26,7 @@ import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
+import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.ClientHelper;
@@ -55,6 +57,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
 
@@ -129,10 +132,10 @@ public class ElasticsearchInternalService implements InferenceService {
                         + "]. You may need to load it into the cluster using eland."
                 );
             } else {
-                var customElandInternalServiceSettings = (CustomElandInternalServiceSettings) CustomElandInternalServiceSettings.fromMap(
+                var customElandInternalServiceSettings = CustomElandInternalServiceSettings.fromMap(
                     serviceSettingsMap,
                     ConfigurationParseContext.REQUEST
-                ).build();
+                );
                 throwIfNotEmptyMap(serviceSettingsMap, name());
 
                 var taskSettings = CustomElandModel.taskSettingsFromMap(taskType, taskSettingsMap);
@@ -190,7 +193,7 @@ public class ElasticsearchInternalService implements InferenceService {
     }
 
     @Override
-    public ElasticsearchModel parsePersistedConfigWithSecrets(
+    public Model parsePersistedConfigWithSecrets(
         String inferenceEntityId,
         TaskType taskType,
         Map<String, Object> config,
@@ -200,7 +203,7 @@ public class ElasticsearchInternalService implements InferenceService {
     }
 
     @Override
-    public ElasticsearchModel parsePersistedConfig(String inferenceEntityId, TaskType taskType, Map<String, Object> config) {
+    public Model parsePersistedConfig(String inferenceEntityId, TaskType taskType, Map<String, Object> config) {
         Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
         Map<String, Object> taskSettingsMap = removeFromMap(config, ModelConfigurations.TASK_SETTINGS);
 
@@ -217,10 +220,7 @@ public class ElasticsearchInternalService implements InferenceService {
                 (MultilingualE5SmallInternalServiceSettings) MultilingualE5SmallInternalServiceSettings.fromMap(serviceSettingsMap).build()
             );
         } else {
-            var serviceSettings = (CustomElandInternalServiceSettings) CustomElandInternalServiceSettings.fromMap(
-                serviceSettingsMap,
-                ConfigurationParseContext.PERSISTENT
-            ).build();
+            var serviceSettings = CustomElandInternalServiceSettings.fromMap(serviceSettingsMap, ConfigurationParseContext.PERSISTENT);
             var taskSettings = CustomElandModel.taskSettingsFromMap(taskType, taskSettingsMap);
 
             return CustomElandModel.build(inferenceEntityId, taskType, name(), serviceSettings, taskSettings);
@@ -253,12 +253,12 @@ public class ElasticsearchInternalService implements InferenceService {
 
     private static CustomElandModel updateModelWithEmbeddingDetails(CustomElandModel model, int embeddingSize) {
         CustomElandInternalServiceSettings serviceSettings = new CustomElandInternalServiceSettings(
-            model.getServiceSettings().getNumAllocations(),
-            model.getServiceSettings().getNumThreads(),
-            model.getServiceSettings().getModelId(),
+            model.getServiceSettings().getElasticsearchInternalServiceSettings().getNumAllocations(),
+            model.getServiceSettings().getElasticsearchInternalServiceSettings().getNumThreads(),
+            model.getServiceSettings().getElasticsearchInternalServiceSettings().getModelId(),
             embeddingSize,
-            model.getServiceSettings().similarity(),
-            model.getServiceSettings().elementType()
+            Objects.requireNonNullElse(model.getServiceSettings().similarity(), SimilarityMeasure.COSINE),
+            Objects.requireNonNullElse(model.getServiceSettings().elementType(), DenseVectorFieldMapper.ElementType.FLOAT)
         );
 
         return new CustomElandModel(

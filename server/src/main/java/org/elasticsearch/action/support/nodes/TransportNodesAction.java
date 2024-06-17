@@ -10,6 +10,7 @@ package org.elasticsearch.action.support.nodes;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.FailedNodeException;
@@ -21,14 +22,18 @@ import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestHandler;
@@ -248,6 +253,44 @@ public abstract class TransportNodesAction<
                 new ChannelActionListener<NodeResponse>(channel),
                 channelListener -> nodeOperationAsync(request, task, channelListener)
             );
+        }
+    }
+
+    /**
+     * Some {@link TransportNodesAction} implementations send the whole top-level request out to each individual node. However, the
+     * top-level request contains a lot of unnecessary junk, particularly the heavyweight {@link DiscoveryNode} instances, so we are
+     * migrating away from this practice. This method allows to skip over the unnecessary data received from an older node.
+     *
+     * @see <a href="https://github.com/elastic/elasticsearch/issues/100878">#100878</a>
+     * @param fixVersion    The {@link TransportVersion} in which the request representation was fixed, so no skipping is needed.
+     * @param in            The {@link StreamInput} in which to skip the unneeded data.
+     */
+    @UpdateForV9 // no longer necessary in v9
+    public static void skipLegacyNodesRequestHeader(TransportVersion fixVersion, StreamInput in) throws IOException {
+        if (in.getTransportVersion().before(fixVersion)) {
+            TaskId.readFromStream(in);
+            in.readStringArray();
+            in.readOptionalArray(DiscoveryNode::new, DiscoveryNode[]::new);
+            in.readOptionalTimeValue();
+        }
+    }
+
+    /**
+     * Some {@link TransportNodesAction} implementations send the whole top-level request out to each individual node. However, the
+     * top-level request contains a lot of unnecessary junk, particularly the heavyweight {@link DiscoveryNode} instances, so we are
+     * migrating away from this practice. This method allows to send a well-formed, but empty, header to older nodes that require it.
+     *
+     * @see <a href="https://github.com/elastic/elasticsearch/issues/100878">#100878</a>
+     * @param fixVersion    The {@link TransportVersion} in which the request representation was fixed, so no skipping is needed.
+     * @param out           The {@link StreamOutput} to which to send the dummy data.
+     */
+    @UpdateForV9 // no longer necessary in v9
+    public static void sendLegacyNodesRequestHeader(TransportVersion fixVersion, StreamOutput out) throws IOException {
+        if (out.getTransportVersion().before(fixVersion)) {
+            TaskId.EMPTY_TASK_ID.writeTo(out);
+            out.writeStringArray(Strings.EMPTY_ARRAY);
+            out.writeOptionalArray(null);
+            out.writeOptionalTimeValue(null);
         }
     }
 

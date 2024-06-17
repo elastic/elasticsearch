@@ -88,7 +88,7 @@ public class LazyRolloverDuringDisruptionIT extends ESIntegTestCase {
         // Wait for all the indexing requests to be processed successfully
         countDownLatch.await();
 
-        // Verify that the
+        // Verify that the rollover has happened once
         dataStream = getDataStream(dataStreamName);
         assertThat(dataStream.rolloverOnWrite(), equalTo(false));
         assertThat(dataStream.getBackingIndices().getIndices().size(), equalTo(2));

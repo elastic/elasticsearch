@@ -275,7 +275,7 @@ Closure commonPackageConfig(String type, boolean oss, boolean jdk, String archit
     configurationFile '/etc/init.d/elasticsearch'
     into('/etc/init.d') {
       filePermissions {
-        unix(0755)
+        unix(0750)
       }
       fileType CONFIG | NOREPLACE
       from "${packagingFiles}/init.d/elasticsearch"

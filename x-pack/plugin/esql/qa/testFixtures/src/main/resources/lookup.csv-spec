@@ -273,6 +273,28 @@ emp_no:integer | int:integer | name:keyword
          10001 |           1 | one
 ;
 
+lookupLeavesOrderOfExistingColumnsIntactFromRow
+ROW left = "left", int = 1, name = "foobar", right = "right"
+| LOOKUP int_number_names on int
+;
+
+left:keyword | int:integer | right:keyword | name:keyword
+left         |           1 | right         | one
+;
+
+lookupLeavesOrderOfExistingColumnsIntactFromIndex
+FROM employees
+| KEEP emp_no
+| WHERE emp_no == 10001
+| EVAL left = "left", name = 2, int = emp_no - 10000, right = "right"
+| LOOKUP int_number_names on int
+;
+
+emp_no:integer | left:keyword | int:integer | right:keyword | name:keyword
+         10001 | left         |           1 | right         | one
+;
+
+
 //
 // Make sure that the new LOOKUP syntax doesn't clash with any existing things
 // named "lookup"

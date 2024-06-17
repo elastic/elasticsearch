@@ -31,6 +31,16 @@ FROM sample_data
 median_duration:double | env:keyword
 ;
 
+// TODO: add more variants
+enrichLeavesOrderOfExistingColumnsIntactFromRowWith
+ROW left = "left", client_ip = "127.0.0.1", right = "right"
+| ENRICH clientip_policy ON client_ip WITH env
+| LIMIT 0
+;
+
+left:keyword | client_ip:keyword | right:keyword | env:keyword
+;
+
 simple
 required_capability: enrich_load
 

@@ -17,19 +17,10 @@
 
 package co.elastic.elasticsearch.stateless.metering.action;
 
-import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.support.nodes.BaseNodesRequest;
-import org.elasticsearch.common.io.stream.StreamOutput;
-
-import java.io.IOException;
 
 public class GetBlobStoreStatsNodesRequest extends BaseNodesRequest<GetBlobStoreStatsNodesRequest> {
     public GetBlobStoreStatsNodesRequest() {
         super((String[]) null);
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        TransportAction.localOnly();
     }
 }

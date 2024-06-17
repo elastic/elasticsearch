@@ -301,8 +301,7 @@ public class CorruptionIT extends AbstractStatelessIntegTestCase {
         var threads = new ArrayList<Thread>();
         threads.add(new Thread(updateAllocation));
         threads.add(new Thread(forceMerge));
-        // TODO: enable snapshot once ES-7909 is resolved
-        // threads.add(new Thread(snapshot));
+        threads.add(new Thread(snapshot));
         for (int i = 0; i < numberOfIndexers; i++) {
             threads.add(new Thread(indexer));
         }

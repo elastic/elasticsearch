@@ -24,6 +24,8 @@ import co.elastic.elasticsearch.stateless.commits.BlobLocation;
 import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
 import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
 import co.elastic.elasticsearch.stateless.commits.VirtualBatchedCompoundCommit;
+import co.elastic.elasticsearch.stateless.engine.IndexEngine;
+import co.elastic.elasticsearch.stateless.engine.PrimaryTermAndGeneration;
 import co.elastic.elasticsearch.stateless.engine.translog.TranslogReplicatorReader;
 import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
 import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreTestUtils;
@@ -97,6 +99,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -905,6 +908,29 @@ public abstract class AbstractStatelessIntegTestCase extends ESIntegTestCase {
         final RecoveryStats recoveryStats = nodeStats.getIndices().getRecoveryStats();
         assertThat(recoveryStats.currentAsSource(), equalTo(0));
         assertThat(recoveryStats.currentAsTarget(), equalTo(0));
+    }
+
+    protected static PrimaryTermAndGeneration getIndexingShardTermAndGeneration(String indexName, int shardId) {
+        final var indexShard = findIndexShard(resolveIndex(indexName), shardId);
+        final var engineOrNull = indexShard.getEngineOrNull();
+        assertThat(engineOrNull, notNullValue());
+        return new PrimaryTermAndGeneration(indexShard.getOperationPrimaryTerm(), ((IndexEngine) engineOrNull).getCurrentGeneration());
+    }
+
+    protected static Set<PrimaryTermAndGeneration> listBlobsTermAndGenerations(ShardId shardId) throws Exception {
+        Set<PrimaryTermAndGeneration> set = new HashSet<>();
+        var objectStoreService = internalCluster().getInstance(ObjectStoreService.class, internalCluster().getRandomNodeName());
+        var indexBlobContainer = objectStoreService.getBlobContainer(shardId);
+        for (var entry : indexBlobContainer.children(operationPurpose).entrySet()) {
+            var primaryTerm = Long.parseLong(entry.getKey());
+            Set<String> statelessCompoundCommits = entry.getValue().listBlobs(operationPurpose).keySet();
+            statelessCompoundCommits.forEach(
+                filename -> set.add(
+                    new PrimaryTermAndGeneration(primaryTerm, StatelessCompoundCommit.parseGenerationFromBlobName(filename))
+                )
+            );
+        }
+        return set;
     }
 
     protected static long[] getPrimaryTerms(Client client, String indexName) {

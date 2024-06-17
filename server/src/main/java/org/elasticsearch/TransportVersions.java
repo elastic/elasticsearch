@@ -193,7 +193,8 @@ public class TransportVersions {
     public static final TransportVersion MORE_LIGHTER_NODES_REQUESTS = def(8_684_00_0);
     public static final TransportVersion DROP_UNUSED_NODES_IDS = def(8_685_00_0);
     public static final TransportVersion DELETE_SNAPSHOTS_ASYNC_ADDED = def(8_686_00_0);
-    public static final TransportVersion GEOIP_ADDITIONAL_DATABASE_DOWNLOAD_STATS = def(8_687_00_0);
+    public static final TransportVersion VERSION_SUPPORTING_SPARSE_VECTOR_STATS = def(8_687_00_0);
+    public static final TransportVersion GEOIP_ADDITIONAL_DATABASE_DOWNLOAD_STATS = def(8_688_00_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,

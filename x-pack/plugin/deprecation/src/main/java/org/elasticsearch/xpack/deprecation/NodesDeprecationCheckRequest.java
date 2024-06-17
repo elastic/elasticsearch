@@ -7,9 +7,7 @@
 
 package org.elasticsearch.xpack.deprecation;
 
-import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.support.nodes.BaseNodesRequest;
-import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.util.Arrays;
 import java.util.Objects;
@@ -18,11 +16,6 @@ public class NodesDeprecationCheckRequest extends BaseNodesRequest<NodesDeprecat
 
     public NodesDeprecationCheckRequest(String... nodesIds) {
         super(nodesIds);
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) {
-        TransportAction.localOnly();
     }
 
     @Override

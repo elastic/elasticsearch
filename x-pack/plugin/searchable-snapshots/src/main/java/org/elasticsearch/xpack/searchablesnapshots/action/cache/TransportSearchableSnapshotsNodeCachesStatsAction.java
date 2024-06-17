@@ -149,14 +149,8 @@ public class TransportSearchableSnapshotsNodeCachesStatsAction extends Transport
     }
 
     public static final class NodesRequest extends BaseNodesRequest<NodesRequest> {
-
         public NodesRequest(String[] nodes) {
             super(nodes);
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) {
-            TransportAction.localOnly();
         }
     }
 

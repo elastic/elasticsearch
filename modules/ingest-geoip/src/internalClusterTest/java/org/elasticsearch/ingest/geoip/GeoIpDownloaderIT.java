@@ -180,11 +180,11 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
                     "MyCustomGeoLite2-City.mmdb",
                     "downloader",
                     "GeoLite2" + "-Country.mmdb",
-                    "config",
+                    "downloader",
                     "GeoLite2-City.mmdb",
                     "downloader",
                     "GeoLite2-ASN.mmdb",
-                    "config"
+                    "downloader"
                 );
                 Map<String, String> nonIngestNodeDatabaseNameToSourceMap = Map.of(
                     "GeoLite2" + "-Country.mmdb",

@@ -83,10 +83,9 @@ public final class LazyRolloverAction extends ActionType<RolloverResponse> {
                 metadataDataStreamsService,
                 dataStreamAutoShardingService
             );
-            // We use high priority to not block writes for too long
             this.lazyRolloverTaskQueue = clusterService.createTaskQueue(
                 "lazy-rollover",
-                Priority.HIGH,
+                Priority.NORMAL,
                 new LazyRolloverExecutor(clusterService, allocationService, rolloverService, threadPool)
             );
         }

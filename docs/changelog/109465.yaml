@@ -1,0 +1,30 @@
+pr: 109465
+summary: Change COMPAT locale references to CLDR
+area: Infra/Core
+type: upgrade
+issues:
+ - 109003
+highlight:
+  title: Change COMPAT locale references to CLDR
+  body: |-
+    The COMPAT locale data provider has been removed in JDK23 by
+    https://github.com/openjdk/jdk/pull/17991. This PR swaps out the old
+    COMPAT locale provider for the default CLDR provider.
+
+    As part of this, the differences between CLDR and COMPAT have been
+    encapsulated by the `CompatCalendarNameProvider` class, generated
+    manually (for now) between two diffs of the contents of each locale
+    provider, as given in the javadoc. This is applied by the SPI locale
+    provider, before CLDR is queried.
+
+    Although the JDK may have changed the locale behaviour, we still need to
+    maintain the existing behaviour for our customers across minor versions.
+    We can't just change how date formats work in a minor ES release,
+    despite them all actually coming from the JDK - they should work the
+    same regardless of the JDK version that ES runs on.
+
+    Deprecation and migration strategies for ESv9+ are still to be
+    determined.
+
+    This fixes #109003
+  notable: true

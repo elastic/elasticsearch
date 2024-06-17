@@ -2709,6 +2709,22 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             }, true);
             maybeWriteIndexLatest(newGen);
 
+            if (filteredRepositoryData.getUuid().equals(RepositoryData.MISSING_UUID) && SnapshotsService.includesUUIDs(version)) {
+                assert newRepositoryData.getUuid().equals(RepositoryData.MISSING_UUID) == false;
+                logger.info(
+                    Strings.format(
+                        "Generated new repository UUID [%s] for repository [%s] in generation [%d]",
+                        newRepositoryData.getUuid(),
+                        metadata.name(),
+                        newGen
+                    )
+                );
+            } else {
+                // repo UUID is not new
+                assert filteredRepositoryData.getUuid().equals(newRepositoryData.getUuid())
+                    : filteredRepositoryData.getUuid() + " vs " + newRepositoryData.getUuid();
+            }
+
             // Step 3: Update CS to reflect new repository generation.
             final String setSafeGenerationSource = "set safe repository generation [" + metadata.name() + "][" + newGen + "]";
             submitUnbatchedTask(setSafeGenerationSource, new ClusterStateUpdateTask() {

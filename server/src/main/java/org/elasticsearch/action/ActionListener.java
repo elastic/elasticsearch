@@ -18,6 +18,7 @@ import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.transport.LeakTracker;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -423,6 +424,16 @@ public interface ActionListener<Response> {
         } else {
             return delegate;
         }
+    }
+
+    /**
+     * @return A listener which (if assertions are enabled) wraps around the given delegate and asserts that it is called at least once.
+     */
+    static <Response> ActionListener<Response> assertAtLeastOnce(ActionListener<Response> delegate) {
+        if (Assertions.ENABLED) {
+            return new ActionListenerImplementations.RunBeforeActionListener<>(delegate, LeakTracker.INSTANCE.track(delegate)::close);
+        }
+        return delegate;
     }
 
     /**

@@ -35,6 +35,9 @@ import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.command.AllocationCommands;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
+import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.service.MasterService;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.logging.ESLogMessage;
@@ -557,6 +560,25 @@ public class AllocationService {
                 getAllocatorForShard(shardRouting, allocation).allocateUnassigned(shardRouting, allocation, replicaIterator);
             }
         }
+    }
+
+    /**
+     * Creates a cluster state listener that resets allocation failures. For example, reset when a new node joins a cluster. Resetting
+     * counter on new node join covers a variety of use cases, such as rolling update, version change, node restarts.
+     */
+    public void addAllocFailuresResetListenerTo(ClusterService clusterService) {
+        // batched cluster update executor, runs reroute once per batch
+        // set retryFailed=true to trigger failures reset during reroute
+        var taskQueue = clusterService.createTaskQueue("reset-allocation-failures", Priority.NORMAL, (batchCtx) -> {
+            batchCtx.taskContexts().forEach((taskCtx) -> taskCtx.success(() -> {}));
+            return reroute(batchCtx.initialState(), new AllocationCommands(), false, true, false, ActionListener.noop()).clusterState();
+        });
+
+        clusterService.addListener((changeEvent) -> {
+            if (changeEvent.nodesAdded() && changeEvent.state().getRoutingNodes().hasAllocationFailures()) {
+                taskQueue.submitTask("reset-allocation-failures", (e) -> { assert MasterService.isPublishFailureException(e); }, null);
+            }
+        });
     }
 
     private static void disassociateDeadNodes(RoutingAllocation allocation) {

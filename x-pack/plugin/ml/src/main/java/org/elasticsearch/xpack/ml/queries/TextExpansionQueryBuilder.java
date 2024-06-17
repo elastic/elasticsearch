@@ -15,6 +15,8 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.logging.DeprecationCategory;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -41,6 +43,10 @@ import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 import static org.elasticsearch.xpack.core.ml.search.WeightedTokensQueryBuilder.PRUNING_CONFIG;
 
+/**
+ * @deprecated Replaced by sparse_vector query
+ */
+@Deprecated
 public class TextExpansionQueryBuilder extends AbstractQueryBuilder<TextExpansionQueryBuilder> {
 
     public static final String NAME = "text_expansion";
@@ -52,6 +58,9 @@ public class TextExpansionQueryBuilder extends AbstractQueryBuilder<TextExpansio
     private final String modelId;
     private SetOnce<TextExpansionResults> weightedTokensSupplier;
     private final TokenPruningConfig tokenPruningConfig;
+
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(ParseField.class);
+    public static final String TEXT_EXPANSION_DEPRECATION_MESSAGE = NAME + " is deprecated. Use sparse_vector instead.";
 
     public TextExpansionQueryBuilder(String fieldName, String modelText, String modelId) {
         this(fieldName, modelText, modelId, null);
@@ -242,6 +251,9 @@ public class TextExpansionQueryBuilder extends AbstractQueryBuilder<TextExpansio
     }
 
     public static TextExpansionQueryBuilder fromXContent(XContentParser parser) throws IOException {
+
+        deprecationLogger.warn(DeprecationCategory.API, NAME, TEXT_EXPANSION_DEPRECATION_MESSAGE);
+
         String fieldName = null;
         String modelText = null;
         String modelId = null;

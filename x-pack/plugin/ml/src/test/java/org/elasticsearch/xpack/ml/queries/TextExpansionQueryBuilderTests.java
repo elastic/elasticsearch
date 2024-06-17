@@ -182,6 +182,30 @@ public class TextExpansionQueryBuilderTests extends AbstractQueryTestCase<TextEx
         }
     }
 
+    @Override
+    public void testFromXContent() throws IOException {
+        super.testFromXContent();
+        assertCriticalWarnings(TextExpansionQueryBuilder.TEXT_EXPANSION_DEPRECATION_MESSAGE);
+    }
+
+    @Override
+    public void testUnknownField() throws IOException {
+        super.testUnknownField();
+        assertCriticalWarnings(TextExpansionQueryBuilder.TEXT_EXPANSION_DEPRECATION_MESSAGE);
+    }
+
+    @Override
+    public void testUnknownObjectException() throws IOException {
+        super.testUnknownObjectException();
+        assertCriticalWarnings(TextExpansionQueryBuilder.TEXT_EXPANSION_DEPRECATION_MESSAGE);
+    }
+
+    @Override
+    public void testValidOutput() throws IOException {
+        super.testValidOutput();
+        assertCriticalWarnings(TextExpansionQueryBuilder.TEXT_EXPANSION_DEPRECATION_MESSAGE);
+    }
+
     public void testIllegalValues() {
         {
             IllegalArgumentException e = expectThrows(

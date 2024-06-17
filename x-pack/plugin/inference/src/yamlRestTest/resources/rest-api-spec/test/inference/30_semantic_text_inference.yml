@@ -52,27 +52,27 @@ setup:
 
 ---
 "Calculates text expansion and embedding results for new documents":
-    - do:
-        index:
-          index: test-index
-          id: doc_1
-          body:
-            sparse_field: "inference test"
-            dense_field: "another inference test"
-            non_inference_field: "non inference test"
+  - do:
+      index:
+        index: test-index
+        id: doc_1
+        body:
+          sparse_field: "inference test"
+          dense_field: "another inference test"
+          non_inference_field: "non inference test"
 
-    - do:
-        get:
-          index: test-index
-          id: doc_1
+  - do:
+      get:
+        index: test-index
+        id: doc_1
 
-    - match: { _source.sparse_field.text: "inference test" }
-    - exists: _source.sparse_field.inference.chunks.0.embeddings
-    - match: { _source.sparse_field.inference.chunks.0.text: "inference test" }
-    - match: { _source.dense_field.text: "another inference test" }
-    - exists: _source.dense_field.inference.chunks.0.embeddings
-    - match: { _source.dense_field.inference.chunks.0.text: "another inference test" }
-    - match: { _source.non_inference_field: "non inference test" }
+  - match: { _source.sparse_field.text: "inference test" }
+  - exists: _source.sparse_field.inference.chunks.0.embeddings
+  - match: { _source.sparse_field.inference.chunks.0.text: "inference test" }
+  - match: { _source.dense_field.text: "another inference test" }
+  - exists: _source.dense_field.inference.chunks.0.embeddings
+  - match: { _source.dense_field.inference.chunks.0.text: "another inference test" }
+  - match: { _source.non_inference_field: "non inference test" }
 
 ---
 "Inference fields do not create new mappings":
@@ -89,10 +89,10 @@ setup:
       indices.get_mapping:
         index: test-index
 
-  - match: {test-index.mappings.properties.sparse_field.type: semantic_text}
-  - match: {test-index.mappings.properties.dense_field.type: semantic_text}
-  - match: {test-index.mappings.properties.non_inference_field.type: text}
-  - length: {test-index.mappings.properties: 3}
+  - match: { test-index.mappings.properties.sparse_field.type: semantic_text }
+  - match: { test-index.mappings.properties.dense_field.type: semantic_text }
+  - match: { test-index.mappings.properties.non_inference_field.type: text }
+  - length: { test-index.mappings.properties: 3 }
 
 ---
 "Sparse vector results are indexed as nested chunks and searchable":
@@ -114,13 +114,13 @@ setup:
             nested:
               path: sparse_field.inference.chunks
               query:
-                text_expansion:
-                  sparse_field.inference.chunks.embeddings:
-                    model_id: sparse-inference-id
-                    model_text: "you know, for testing"
+                sparse_vector:
+                  field: sparse_field.inference.chunks.embeddings
+                  inference_id: sparse-inference-id
+                  query: "you know, for testing"
 
-  - match:  { hits.total.value: 2 }
-  - match:  { hits.total.relation: eq }
+  - match: { hits.total.value: 2 }
+  - match: { hits.total.relation: eq }
   - length: { hits.hits.0._source.sparse_field.inference.chunks: 2 }
   - length: { hits.hits.1._source.sparse_field.inference.chunks: 2 }
 
@@ -135,17 +135,17 @@ setup:
               path: sparse_field.inference.chunks
               inner_hits:
                 _source: false
-                fields: [sparse_field.inference.chunks.text]
+                fields: [ sparse_field.inference.chunks.text ]
               query:
-                text_expansion:
-                  sparse_field.inference.chunks.embeddings:
-                    model_id: sparse-inference-id
-                    model_text: "you know, for testing"
+                sparse_vector:
+                  field: sparse_field.inference.chunks.embeddings
+                  inference_id: sparse-inference-id
+                  query: "you know, for testing"
 
-  - match:  { hits.total.value: 2 }
-  - match:  { hits.total.relation: eq }
-  - match:  { hits.hits.0.inner_hits.sparse_field\.inference\.chunks.hits.total.value: 2 }
-  - match:  { hits.hits.0.inner_hits.sparse_field\.inference\.chunks.hits.total.relation: eq }
+  - match: { hits.total.value: 2 }
+  - match: { hits.total.relation: eq }
+  - match: { hits.hits.0.inner_hits.sparse_field\.inference\.chunks.hits.total.value: 2 }
+  - match: { hits.hits.0.inner_hits.sparse_field\.inference\.chunks.hits.total.relation: eq }
 
   - length: { hits.hits.0.inner_hits.sparse_field\.inference\.chunks.hits.hits.0.fields.sparse_field\.inference\.chunks.0.text: 1 }
   - length: { hits.hits.0.inner_hits.sparse_field\.inference\.chunks.hits.hits.1.fields.sparse_field\.inference\.chunks.0.text: 1 }
@@ -180,8 +180,8 @@ setup:
                       model_id: dense-inference-id
                       model_text: "you know, for testing"
 
-  - match:  { hits.total.value: 2 }
-  - match:  { hits.total.relation: eq }
+  - match: { hits.total.value: 2 }
+  - match: { hits.total.relation: eq }
   - length: { hits.hits.0._source.dense_field.inference.chunks: 2 }
   - length: { hits.hits.1._source.dense_field.inference.chunks: 2 }
 
@@ -196,7 +196,7 @@ setup:
               path: dense_field.inference.chunks
               inner_hits:
                 _source: false
-                fields: [dense_field.inference.chunks.text]
+                fields: [ dense_field.inference.chunks.text ]
               query:
                 knn:
                   field: dense_field.inference.chunks.embeddings
@@ -205,10 +205,10 @@ setup:
                       model_id: dense-inference-id
                       model_text: "you know, for testing"
 
-  - match:  { hits.total.value: 2 }
-  - match:  { hits.total.relation: eq }
-  - match:  { hits.hits.0.inner_hits.dense_field\.inference\.chunks.hits.total.value: 2 }
-  - match:  { hits.hits.0.inner_hits.dense_field\.inference\.chunks.hits.total.relation: eq }
+  - match: { hits.total.value: 2 }
+  - match: { hits.total.relation: eq }
+  - match: { hits.hits.0.inner_hits.dense_field\.inference\.chunks.hits.total.value: 2 }
+  - match: { hits.hits.0.inner_hits.dense_field\.inference\.chunks.hits.total.relation: eq }
 
   - length: { hits.hits.0.inner_hits.dense_field\.inference\.chunks.hits.hits.0.fields.dense_field\.inference\.chunks.0.text: 1 }
   - length: { hits.hits.0.inner_hits.dense_field\.inference\.chunks.hits.hits.1.fields.dense_field\.inference\.chunks.0.text: 1 }
@@ -265,13 +265,13 @@ setup:
         index: destination-index
         id: doc_1
 
-  - match:  { _source.sparse_field.text: "inference test" }
-  - match:  { _source.sparse_field.inference.chunks.0.text: "inference test" }
-  - match:  { _source.sparse_field.inference.chunks.0.embeddings: $sparse_field_embedding }
-  - match:  { _source.dense_field.text: "another inference test" }
+  - match: { _source.sparse_field.text: "inference test" }
+  - match: { _source.sparse_field.inference.chunks.0.text: "inference test" }
+  - match: { _source.sparse_field.inference.chunks.0.embeddings: $sparse_field_embedding }
+  - match: { _source.dense_field.text: "another inference test" }
   - match: { _source.dense_field.inference.chunks.0.text: "another inference test" }
   - match: { _source.dense_field.inference.chunks.0.embeddings: $dense_field_embedding }
-  - match:  { _source.non_inference_field: "non inference test" }
+  - match: { _source.non_inference_field: "non inference test" }
 
 ---
 "Fails for non-existent inference":
@@ -338,14 +338,14 @@ setup:
         index: test-copy-to-index
         id: doc_1
 
-  - match:  { _source.sparse_field.text: "inference test" }
+  - match: { _source.sparse_field.text: "inference test" }
   - length: { _source.sparse_field.inference.chunks: 3 }
-  - match:  { _source.sparse_field.inference.chunks.0.text: "another copy_to inference test" }
-  - exists:   _source.sparse_field.inference.chunks.0.embeddings
-  - match:  { _source.sparse_field.inference.chunks.1.text: "copy_to inference test" }
-  - exists:   _source.sparse_field.inference.chunks.1.embeddings
-  - match:  { _source.sparse_field.inference.chunks.2.text: "inference test" }
-  - exists:   _source.sparse_field.inference.chunks.2.embeddings
+  - match: { _source.sparse_field.inference.chunks.0.text: "another copy_to inference test" }
+  - exists: _source.sparse_field.inference.chunks.0.embeddings
+  - match: { _source.sparse_field.inference.chunks.1.text: "copy_to inference test" }
+  - exists: _source.sparse_field.inference.chunks.1.embeddings
+  - match: { _source.sparse_field.inference.chunks.2.text: "inference test" }
+  - exists: _source.sparse_field.inference.chunks.2.embeddings
 
 ---
 "Calculates embeddings for bulk operations - index":
@@ -455,8 +455,8 @@ setup:
         id: doc_1
 
   - match: { _source.sparse_field.text: "updated inference test" }
-  - match:  { _source.sparse_field.inference.chunks.0.text: "updated inference test" }
+  - match: { _source.sparse_field.inference.chunks.0.text: "updated inference test" }
   - exists: _source.sparse_field.inference.chunks.0.embeddings
-  - match:  { _source.dense_field.text: "another updated inference test" }
-  - match:  { _source.dense_field.inference.chunks.0.text: "another updated inference test" }
+  - match: { _source.dense_field.text: "another updated inference test" }
+  - match: { _source.dense_field.inference.chunks.0.text: "another updated inference test" }
   - exists: _source.dense_field.inference.chunks.0.embeddings

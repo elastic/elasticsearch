@@ -36,7 +36,9 @@ setup:
           name: cow.jpg
           vector: [230.0, 300.33, -34.8988, 15.555]
           another_vector: [130.0, 115.0, -1.02, 15.555]
-
+  # Flush in order to provoke a merge later & ensure replicas have same doc order
+  - do:
+      indices.flush: { }
   - do:
       index:
         index: int4_flat
@@ -45,7 +47,9 @@ setup:
           name: moose.jpg
           vector: [-0.5, 100.0, -13, 14.8]
           another_vector: [-0.5, 50.0, -1, 1]
-
+  # Flush in order to provoke a merge later & ensure replicas have same doc order
+  - do:
+      indices.flush: { }
   - do:
       index:
         index: int4_flat

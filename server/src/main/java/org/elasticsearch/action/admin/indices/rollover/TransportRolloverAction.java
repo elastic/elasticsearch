@@ -400,25 +400,12 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
         }
     }
 
-    static class RolloverExecutor implements ClusterStateTaskExecutor<RolloverTask> {
-
-        private final ClusterService clusterService;
-        private final AllocationService allocationService;
-        private final MetadataRolloverService rolloverService;
-        private final ThreadPool threadPool;
-
-        RolloverExecutor(
-            ClusterService clusterService,
-            AllocationService allocationService,
-            MetadataRolloverService rolloverService,
-            ThreadPool threadPool
-        ) {
-            this.clusterService = clusterService;
-            this.allocationService = allocationService;
-            this.rolloverService = rolloverService;
-            this.threadPool = threadPool;
-        }
-
+    record RolloverExecutor(
+        ClusterService clusterService,
+        AllocationService allocationService,
+        MetadataRolloverService rolloverService,
+        ThreadPool threadPool
+    ) implements ClusterStateTaskExecutor<RolloverTask> {
         @Override
         public ClusterState execute(BatchExecutionContext<RolloverTask> batchExecutionContext) {
             final var listener = new AllocationActionMultiListener<RolloverResponse>(threadPool.getThreadContext());

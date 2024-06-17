@@ -53,6 +53,7 @@ import java.nio.file.attribute.BasicFileAttributes;
 import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
@@ -497,7 +498,12 @@ public final class DatabaseNodeService implements GeoIpDatabaseProvider, Closeab
     }
 
     public Set<RetrievedDatabaseInfo> getAvailableDatabases() {
-        Set<RetrievedDatabaseInfo> allDatabases = new HashSet<>();
+        /*
+         * We return all databases that exist on the node, including manually-configured databases and downloader databases. There will
+         * not be more than one entry per database name. If more than one exist, only the active one will be returned. Downloader
+         * databases take priority over manually-configured databases.
+         */
+        Map<String, RetrievedDatabaseInfo> allDatabases = new HashMap<>();
         for (Map.Entry<String, DatabaseReaderLazyLoader> entry : configDatabases.getConfigDatabases().entrySet()) {
             DatabaseReaderLazyLoader databaseReaderLazyLoader = entry.getValue();
             final Metadata metadata;
@@ -506,7 +512,8 @@ public final class DatabaseNodeService implements GeoIpDatabaseProvider, Closeab
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }
-            allDatabases.add(
+            allDatabases.put(
+                entry.getKey(),
                 new RetrievedDatabaseInfo(
                     entry.getKey(),
                     "config",
@@ -526,7 +533,8 @@ public final class DatabaseNodeService implements GeoIpDatabaseProvider, Closeab
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }
-            allDatabases.add(
+            allDatabases.put(
+                entry.getKey(),
                 new RetrievedDatabaseInfo(
                     entry.getKey(),
                     "downloader",
@@ -537,7 +545,7 @@ public final class DatabaseNodeService implements GeoIpDatabaseProvider, Closeab
                 )
             );
         }
-        return allDatabases;
+        return new HashSet<>(allDatabases.values());
     }
 
     public Set<String> getConfigDatabases() {

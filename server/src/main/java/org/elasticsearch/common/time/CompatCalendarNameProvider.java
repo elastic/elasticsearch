@@ -130,6 +130,95 @@ public class CompatCalendarNameProvider extends CalendarNameProvider {
             addLocaleData(rootData, 9, 4, List.of("a", "p"));
             return rootData;
         }));
+        LOCALE_DATA.put(new Locale("ar"), memoized(() -> {
+            // ar is RTL, escape it to make sure its correctly encoded
+            Map<Integer, Map<Integer, List<String>>> arData = new HashMap<>();
+            addLocaleData(arData, 0, 32770, List.of("\u0642\u002E\u0645", "\u0645"));
+            addLocaleData(arData, 0, 4, List.of("B", "A"));
+            addLocaleData(
+                arData,
+                2,
+                1,
+                List.of(
+                    "\u064A\u0646\u0627",
+                    "\u0641\u0628\u0631",
+                    "\u0645\u0627\u0631",
+                    "\u0623\u0628\u0631",
+                    "\u0645\u0627\u064A",
+                    "\u064A\u0648\u0646",
+                    "\u064A\u0648\u0644",
+                    "\u0623\u063A\u0633",
+                    "\u0633\u0628\u062A",
+                    "\u0623\u0643\u062A",
+                    "\u0646\u0648\u0641",
+                    "\u062F\u064A\u0633"
+                )
+            );
+            addLocaleData(arData, 7, 1, List.of("\u062D", "\u0646", "\u062B", "\u0631", "\u062E", "\u062C", "\u0633"), false);
+            addLocaleData(arData, 9, 4, List.of("a", "p"));
+            return arData;
+        }));
+        LOCALE_DATA.put(new Locale("be"), memoized(() -> {
+            Map<Integer, Map<Integer, List<String>>> beData = new HashMap<>();
+            addLocaleData(beData, 0, 2, List.of("да н.е.", "н.е."));
+            addLocaleData(beData, 0, 4, List.of("B", "A"));
+            addLocaleData(
+                beData,
+                2,
+                2,
+                List.of(
+                    "студзеня",
+                    "лютага",
+                    "сакавіка",
+                    "красавіка",
+                    "мая",
+                    "чрвеня",
+                    "ліпеня",
+                    "жніўня",
+                    "верасня",
+                    "кастрычніка",
+                    "лістапада",
+                    "снежня"
+                )
+            );
+            addLocaleData(beData, 2, 1, List.of("стд", "лют", "скв", "крс", "май", "чрв", "лпн", "жнв", "врс", "кст", "ліс", "снж"));
+            addLocaleData(beData, 2, 4, List.of("1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12"));
+            addLocaleData(beData, 7, 1, List.of("нд", "пн", "ат", "ср", "чц", "пт", "сб"));
+            addLocaleData(beData, 9, 4, List.of("a", "p"));
+            return beData;
+        }));
+        LOCALE_DATA.put(new Locale("bg"), memoized(() -> {
+            Map<Integer, Map<Integer, List<String>>> bgData = new HashMap<>();
+            addLocaleData(bgData, 0, 2, List.of("пр.н.е.", "н.е."));
+            addLocaleData(bgData, 0, 1, List.of("пр. н. е.", "от н. е."));
+            addLocaleData(bgData, 0, 4, List.of("B", "A"));
+            addLocaleData(
+                bgData,
+                2,
+                2,
+                List.of(
+                    "Януари",
+                    "Февруари",
+                    "Март",
+                    "Април",
+                    "Май",
+                    "Юни",
+                    "Юли",
+                    "Август",
+                    "Септември",
+                    "Октомври",
+                    "Ноември",
+                    "Декември"
+                )
+            );
+            addLocaleData(bgData, 2, 1, List.of("I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X", "XI", "XII"));
+            addLocaleData(bgData, 7, 2, List.of("Неделя", "Понеделник", "Вторник", "Сряда", "Четвъртък", "Петък", "Събота"));
+            addLocaleData(bgData, 7, 1, List.of("Нд", "Пн", "Вт", "Ср", "Чт", "Пт", "Сб"));
+            addLocaleData(bgData, 9, 2, List.of("AM", "PM"));
+            addLocaleData(bgData, 9, 1, List.of("AM", "PM"));
+            addLocaleData(bgData, 9, 4, List.of("a", "p"));
+            return bgData;
+        }));
         LOCALE_DATA.put(new Locale("ca"), memoized(() -> {
             Map<Integer, Map<Integer, List<String>>> caData = new HashMap<>();
             addLocaleData(caData, 0, 2, List.of("BC", "AD"));
@@ -174,6 +263,35 @@ public class CompatCalendarNameProvider extends CalendarNameProvider {
             addLocaleData(deData, 7, 1, List.of("So", "Mo", "Di", "Mi", "Do", "Fr", "Sa"));
             addLocaleData(deData, 9, 4, List.of("a", "p"));
             return deData;
+        }));
+        LOCALE_DATA.put(new Locale("el"), memoized(() -> {
+            Map<Integer, Map<Integer, List<String>>> elData = new HashMap<>();
+            addLocaleData(elData, 0, 2, List.of("BC", "AD"));
+            addLocaleData(elData, 0, 4, List.of("B", "A"));
+            addLocaleData(
+                elData,
+                2,
+                32770,
+                List.of(
+                    "Ιανουάριος",
+                    "Φεβρουάριος",
+                    "Μάρτιος",
+                    "Απρίλιος",
+                    "Μάϊος",
+                    "Ιούνιος",
+                    "Ιούλιος",
+                    "Αύγουστος",
+                    "Σεπτέμβριος",
+                    "Οκτώβριος",
+                    "Νοέμβριος",
+                    "Δεκέμβριος"
+                )
+            );
+            addLocaleData(elData, 2, 1, List.of("Ιαν", "Φεβ", "Μαρ", "Απρ", "Μαϊ", "Ιουν", "Ιουλ", "Αυγ", "Σεπ", "Οκτ", "Νοε", "Δεκ"));
+            addLocaleData(elData, 7, 1, List.of("Κυρ", "Δευ", "Τρι", "Τετ", "Πεμ", "Παρ", "Σαβ"));
+            addLocaleData(elData, 9, 2, List.of("πμ", "μμ"));
+            addLocaleData(elData, 9, 4, List.of("a", "p"));
+            return elData;
         }));
         LOCALE_DATA.put(new Locale("en"), memoized(() -> {
             Map<Integer, Map<Integer, List<String>>> enData = new HashMap<>();
@@ -236,7 +354,7 @@ public class CompatCalendarNameProvider extends CalendarNameProvider {
             addLocaleData(frData, 9, 4, List.of("a", "p"));
             return frData;
         }));
-        LOCALE_DATA.put(new Locale("fr"), memoized(() -> {
+        LOCALE_DATA.put(new Locale("ga"), memoized(() -> {
             Map<Integer, Map<Integer, List<String>>> gaData = new HashMap<>();
             addLocaleData(gaData, 0, 32770, List.of("RC", "AD"));
             addLocaleData(gaData, 0, 4, List.of("B", "A"));
@@ -244,6 +362,106 @@ public class CompatCalendarNameProvider extends CalendarNameProvider {
             addLocaleData(gaData, 9, 1, List.of("a.m.", "p.m."));
             addLocaleData(gaData, 9, 4, List.of("a", "p"));
             return gaData;
+        }));
+        LOCALE_DATA.put(new Locale("he"), memoized(() -> {
+            // he is RTL, escape it to make sure its correctly encoded
+            Map<Integer, Map<Integer, List<String>>> heData = new HashMap<>();
+            // the embedded " come straight from the locale output
+            addLocaleData(heData, 0, 2, List.of("\u05DC\u05E1\u05D4\"\u05E0", "\u05DC\u05E4\u05E1\u05D4\"\u05E0"));
+            addLocaleData(heData, 0, 1, List.of("\u05DC\u05E4\u05E0\u05D4\u05F4\u05E1", "\u05DC\u05E1\u05D4\u05F4\u05E0"));
+            addLocaleData(heData, 0, 4, List.of("B", "A"));
+            addLocaleData(
+                heData,
+                2,
+                1,
+                List.of(
+                    "\u05D9\u05E0\u05D5",
+                    "\u05E4\u05D1\u05E8",
+                    "\u05DE\u05E8\u05E5",
+                    "\u05D0\u05E4\u05E8",
+                    "\u05DE\u05D0\u05D9",
+                    "\u05D9\u05D5\u05E0",
+                    "\u05D9\u05D5\u05DC",
+                    "\u05D0\u05D5\u05D2",
+                    "\u05E1\u05E4\u05D8",
+                    "\u05D0\u05D5\u05E7",
+                    "\u05E0\u05D5\u05D1",
+                    "\u05D3\u05E6\u05DE"
+                )
+            );
+            addLocaleData(
+                heData,
+                2,
+                32769,
+                List.of(
+                    "\u05D9\u05E0\u05D5\u05F3",
+                    "\u05E4\u05D1\u05E8\u05F3",
+                    "\u05DE\u05E8\u05E5",
+                    "\u05D0\u05E4\u05E8\u05F3",
+                    "\u05DE\u05D0\u05D9",
+                    "\u05D9\u05D5\u05E0\u05F3",
+                    "\u05D9\u05D5\u05DC\u05F3",
+                    "\u05D0\u05D5\u05D2\u05F3",
+                    "\u05E1\u05E4\u05D8\u05F3",
+                    "\u05D0\u05D5\u05E7\u05F3",
+                    "\u05E0\u05D5\u05D1\u05F3",
+                    "\u05D3\u05E6\u05DE\u05F3"
+                )
+            );
+            addLocaleData(
+                heData,
+                7,
+                2,
+                List.of(
+                    "\u05D9\u05D5\u05DD\u0020\u05E8\u05D0\u05E9\u05D5\u05DF",
+                    "\u05D9\u05D5\u05DD\u0020\u05E9\u05E0\u05D9",
+                    "\u05D9\u05D5\u05DD\u0020\u05E9\u05DC\u05D9\u05E9\u05D9",
+                    "\u05D9\u05D5\u05DD\u0020\u05E8\u05D1\u05D9\u05E2\u05D9",
+                    "\u05D9\u05D5\u05DD\u0020\u05D7\u05DE\u05D9\u05E9\u05D9",
+                    "\u05D9\u05D5\u05DD\u0020\u05E9\u05D9\u05E9\u05D9",
+                    "\u05E9\u05D1\u05EA"
+                )
+            );
+            addLocaleData(heData, 7, 1, List.of("\u05D0", "\u05D1", "\u05D2", "\u05D3", "\u05D4", "\u05D5", "\u05E9"));
+            addLocaleData(heData, 7, 4, List.of("\u05D0", "\u05D1", "\u05D2", "\u05D3", "\u05D4", "\u05D5", "\u05E9"));
+            addLocaleData(heData, 9, 2, List.of("AM", "PM"));
+            addLocaleData(heData, 9, 1, List.of("AM", "PM"));
+            addLocaleData(heData, 9, 4, List.of("a", "p"));
+            return heData;
+        }));
+        LOCALE_DATA.put(new Locale("hi"), memoized(() -> {
+            // hi just uses the root locale data (even though its provided by COMPAT)
+            Map<Integer, Map<Integer, List<String>>> hiData = new HashMap<>();
+            addLocaleData(hiData, 0, 2, List.of("BC", "AD"));
+            addLocaleData(hiData, 0, 1, List.of("BC", "AD"));
+            addLocaleData(hiData, 0, 4, List.of("B", "A"));
+            addLocaleData(
+                hiData,
+                2,
+                2,
+                List.of(
+                    "January",
+                    "February",
+                    "March",
+                    "April",
+                    "May",
+                    "June",
+                    "July",
+                    "August",
+                    "September",
+                    "October",
+                    "November",
+                    "December"
+                )
+            );
+            addLocaleData(hiData, 2, 1, List.of("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"));
+            addLocaleData(hiData, 2, 4, List.of("1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12"));
+            addLocaleData(hiData, 7, 2, List.of("Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"));
+            addLocaleData(hiData, 7, 1, List.of("Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"));
+            addLocaleData(hiData, 9, 2, List.of("AM", "PM"));
+            addLocaleData(hiData, 9, 1, List.of("AM", "PM"));
+            addLocaleData(hiData, 9, 4, List.of("a", "p"));
+            return hiData;
         }));
         LOCALE_DATA.put(new Locale("hr"), memoized(() -> {
             Map<Integer, Map<Integer, List<String>>> hrData = new HashMap<>();
@@ -316,6 +534,13 @@ public class CompatCalendarNameProvider extends CalendarNameProvider {
             addLocaleData(jaData, 2, 1, List.of("1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12"));
             addLocaleData(jaData, 9, 4, List.of("a", "p"));
             return jaData;
+        }));
+        LOCALE_DATA.put(new Locale("ko"), memoized(() -> {
+            Map<Integer, Map<Integer, List<String>>> koData = new HashMap<>();
+            addLocaleData(koData, 0, 2, List.of("\uAE30\uC6D0\uC804", "\uC11C\uAE30"));
+            addLocaleData(koData, 0, 4, List.of("B", "A"));
+            addLocaleData(koData, 9, 4, List.of("a", "p"));
+            return koData;
         }));
         LOCALE_DATA.put(new Locale("lt"), memoized(() -> {
             Map<Integer, Map<Integer, List<String>>> ltData = new HashMap<>();
@@ -396,6 +621,23 @@ public class CompatCalendarNameProvider extends CalendarNameProvider {
             addLocaleData(lvData, 9, 1, List.of("AM", "PM"));
             addLocaleData(lvData, 9, 4, List.of("a", "p"));
             return lvData;
+        }));
+        LOCALE_DATA.put(new Locale("mk"), memoized(() -> {
+            Map<Integer, Map<Integer, List<String>>> mkData = new HashMap<>();
+            addLocaleData(mkData, 0, 2, List.of("пр.н.е.", "ае."));
+            addLocaleData(mkData, 0, 1, List.of("BC", "AD"));
+            addLocaleData(mkData, 0, 4, List.of("B", "A"));
+            addLocaleData(
+                mkData,
+                2,
+                1,
+                List.of("јан.", "фев.", "мар.", "апр.", "мај.", "јун.", "јул.", "авг.", "септ.", "окт.", "ноем.", "декем.")
+            );
+            addLocaleData(mkData, 7, 1, List.of("нед.", "пон.", "вт.", "сре.", "чет.", "пет.", "саб."));
+            addLocaleData(mkData, 9, 2, List.of("AM", "PM"));
+            addLocaleData(mkData, 9, 1, List.of("AM", "PM"));
+            addLocaleData(mkData, 9, 4, List.of("a", "p"));
+            return mkData;
         }));
         LOCALE_DATA.put(new Locale("ms"), memoized(() -> {
             Map<Integer, Map<Integer, List<String>>> msData = new HashMap<>();
@@ -509,6 +751,29 @@ public class CompatCalendarNameProvider extends CalendarNameProvider {
             addLocaleData(roData, 9, 4, List.of("a", "p"));
             return roData;
         }));
+        LOCALE_DATA.put(new Locale("ru"), memoized(() -> {
+            Map<Integer, Map<Integer, List<String>>> ruData = new HashMap<>();
+            addLocaleData(ruData, 0, 2, List.of("до н.э.", "н.э."));
+            addLocaleData(ruData, 0, 1, List.of("BC", "AD"));
+            addLocaleData(ruData, 0, 4, List.of("B", "A"));
+            addLocaleData(
+                ruData,
+                2,
+                32770,
+                List.of("Январь", "Февраль", "Март", "Апрель", "Май", "Июнь", "Июль", "Август", "Сентябрь", "Октябрь", "Ноябрь", "Декабрь")
+            );
+            addLocaleData(ruData, 2, 1, List.of("янв", "фев", "мар", "апр", "мая", "июн", "июл", "авг", "сен", "окт", "ноя", "дек"));
+            addLocaleData(
+                ruData,
+                2,
+                32769,
+                List.of("Янв.", "Февр.", "Март", "Апр.", "Май", "Июнь", "Июль", "Авг.", "Сент.", "Окт.", "Нояб.", "Дек.")
+            );
+            addLocaleData(ruData, 7, 32770, List.of("Воскресенье", "Понедельник", "Вторник", "Среда", "Четверг", "Пятница", "Суббота"));
+            addLocaleData(ruData, 7, 1, List.of("Вс", "Пн", "Вт", "Ср", "Чт", "Пт", "Сб"));
+            addLocaleData(ruData, 9, 4, List.of("a", "p"));
+            return ruData;
+        }));
         LOCALE_DATA.put(new Locale("sk"), memoized(() -> {
             Map<Integer, Map<Integer, List<String>>> skData = new HashMap<>();
             addLocaleData(skData, 0, 2, List.of("pred n.l.", "n.l."));
@@ -560,6 +825,39 @@ public class CompatCalendarNameProvider extends CalendarNameProvider {
             addLocaleData(svData, 9, 4, List.of("f", "e"));
             return svData;
         }));
+        LOCALE_DATA.put(new Locale("th"), memoized(() -> {
+            Map<Integer, Map<Integer, List<String>>> thData = new HashMap<>();
+            addLocaleData(
+                thData,
+                0,
+                2,
+                List.of(
+                    "\u0E1B\u0E35\u0E01\u0E48\u0E2D\u0E19\u0E04\u0E23\u0E34\u0E2A\u0E15\u0E4C\u0E01\u0E32\u0E25\u0E17\u0E35\u0E48",
+                    "\u0E04\u002E\u0E28\u002E"
+                )
+            );
+            addLocaleData(
+                thData,
+                2,
+                4,
+                List.of(
+                    "\u0E21\u002E\u0E04\u002E",
+                    "\u0E01\u002E\u0E1E\u002E",
+                    "\u0E21\u0E35\u002E\u0E04\u002E",
+                    "\u0E40\u0E21\u002E\u0E22\u002E",
+                    "\u0E1E\u002E\u0E04\u002E",
+                    "\u0E21\u0E34\u002E\u0E22",
+                    "\u0E01\u002E\u0E04\u002E",
+                    "\u0E2A\u002E\u0E04\u002E",
+                    "\u0E01\u002E\u0E22\u002E",
+                    "\u0E15\u002E\u0E04\u002E",
+                    "\u0E1E\u002E\u0E22\u002E",
+                    "\u0E18\u002E\u0E04\u002E"
+                ),
+                false
+            );
+            return thData;
+        }));
         LOCALE_DATA.put(new Locale("tr"), memoized(() -> {
             Map<Integer, Map<Integer, List<String>>> trData = new HashMap<>();
             addLocaleData(trData, 0, 32770, List.of("MÖ", "MS"));
@@ -569,6 +867,42 @@ public class CompatCalendarNameProvider extends CalendarNameProvider {
             addLocaleData(trData, 9, 1, List.of("AM", "PM"));
             addLocaleData(trData, 9, 4, List.of("a", "p"));
             return trData;
+        }));
+        LOCALE_DATA.put(new Locale("uk"), memoized(() -> {
+            Map<Integer, Map<Integer, List<String>>> ukData = new HashMap<>();
+            addLocaleData(ukData, 0, 2, List.of("до н.е.", "після н.е."));
+            addLocaleData(ukData, 0, 1, List.of("BC", "AD"));
+            addLocaleData(ukData, 0, 4, List.of("B", "A"));
+            addLocaleData(
+                ukData,
+                2,
+                32770,
+                List.of(
+                    "Січень",
+                    "Лютий",
+                    "Березень",
+                    "Квітень",
+                    "Травень",
+                    "Червень",
+                    "Липень",
+                    "Серпень",
+                    "Вересень",
+                    "Жовтень",
+                    "Листопад",
+                    "Грудень"
+                )
+            );
+            addLocaleData(
+                ukData,
+                2,
+                32769,
+                List.of("січ", "лют", "бер", "квіт", "трав", "черв", "лип", "серп", "вер", "жовт", "лист", "груд")
+            );
+            addLocaleData(ukData, 7, 2, List.of("неділя", "понеділок", "вівторок", "середа", "четвер", "п'ятниця", "субота"));
+            addLocaleData(ukData, 9, 2, List.of("AM", "PM"));
+            addLocaleData(ukData, 9, 1, List.of("AM", "PM"));
+            addLocaleData(ukData, 9, 4, List.of("a", "p"));
+            return ukData;
         }));
         LOCALE_DATA.put(new Locale("vi"), memoized(() -> {
             Map<Integer, Map<Integer, List<String>>> viData = new HashMap<>();
@@ -601,6 +935,65 @@ public class CompatCalendarNameProvider extends CalendarNameProvider {
             addLocaleData(viData, 7, 2, List.of("Chủ nhật", "Thứ hai", "Thứ ba", "Thứ tư", "Thứ năm", "Thứ sáu", "Thứ bảy"));
             addLocaleData(viData, 9, 4, List.of("a", "p"));
             return viData;
+        }));
+        LOCALE_DATA.put(new Locale("zh"), memoized(() -> {
+            Map<Integer, Map<Integer, List<String>>> zhData = new HashMap<>();
+            addLocaleData(zhData, 0, 4, List.of("B", "A"));
+            addLocaleData(
+                zhData,
+                2,
+                1,
+                List.of(
+                    "\u4E00\u6708",
+                    "\u4E8C\u6708",
+                    "\u4E09\u6708",
+                    "\u56DB\u6708",
+                    "\u4E94\u6708",
+                    "\u516D\u6708",
+                    "\u4E03\u6708",
+                    "\u516B\u6708",
+                    "\u4E5D\u6708",
+                    "\u5341\u6708",
+                    "\u5341\u4E00\u6708",
+                    "\u5341\u4E8C\u6708"
+                )
+            );
+            addLocaleData(
+                zhData,
+                2,
+                32772,
+                List.of(
+                    "\u0031\u6708",
+                    "\u0032\u6708",
+                    "\u0033\u6708",
+                    "\u0034\u6708",
+                    "\u0035\u6708",
+                    "\u0036\u6708",
+                    "\u0037\u6708",
+                    "\u0038\u6708",
+                    "\u0039\u6708",
+                    "\u0031\u0030\u6708",
+                    "\u0031\u0031\u6708",
+                    "\u0031\u0032\u6708"
+                )
+            );
+            addLocaleData(
+                zhData,
+                7,
+                1,
+                List.of(
+                    "\u661F\u671F\u65E5",
+                    "\u661F\u671F\u4E00",
+                    "\u661F\u671F\u4E8C",
+                    "\u661F\u671F\u4E09",
+                    "\u661F\u671F\u56DB",
+                    "\u661F\u671F\u4E94",
+                    "\u661F\u671F\u516D"
+                ),
+                false
+            );
+            addLocaleData(zhData, 9, 4, List.of("a", "p"));
+            return zhData;
         }));
     }
 

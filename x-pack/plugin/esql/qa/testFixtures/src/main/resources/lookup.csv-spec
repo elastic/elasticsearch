@@ -253,6 +253,7 @@ languages:keyword | emp_no:integer
 // the language
 //
 lookupColumnShadowsExistingColumnWithSameTypeFromRow
+required_capability: lookup_command
 ROW int = 1, name = "foobar"
 | LOOKUP int_number_names on int
 ;
@@ -262,6 +263,7 @@ int:integer | name:keyword
 ;
 
 lookupColumnShadowsExistingColumnFromIndex
+required_capability: lookup_command
 FROM employees
 | KEEP emp_no
 | WHERE emp_no == 10001
@@ -274,6 +276,7 @@ emp_no:integer | int:integer | name:keyword
 ;
 
 lookupLeavesOrderOfExistingColumnsIntactFromRow
+required_capability: lookup_command
 ROW left = "left", int = 1, name = "foobar", right = "right"
 | LOOKUP int_number_names on int
 ;
@@ -283,6 +286,7 @@ left         |           1 | right         | one
 ;
 
 lookupLeavesOrderOfExistingColumnsIntactFromIndex
+required_capability: lookup_command
 FROM employees
 | KEEP emp_no
 | WHERE emp_no == 10001

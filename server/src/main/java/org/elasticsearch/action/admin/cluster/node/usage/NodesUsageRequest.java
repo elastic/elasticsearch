@@ -8,8 +8,8 @@
 
 package org.elasticsearch.action.admin.cluster.node.usage;
 
+import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.support.nodes.BaseNodesRequest;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
@@ -18,12 +18,6 @@ public class NodesUsageRequest extends BaseNodesRequest<NodesUsageRequest> {
 
     private boolean restActions;
     private boolean aggregations;
-
-    public NodesUsageRequest(StreamInput in) throws IOException {
-        super(in);
-        this.restActions = in.readBoolean();
-        this.aggregations = in.readBoolean();
-    }
 
     /**
      * Get usage from nodes based on the nodes ids specified. If none are
@@ -82,8 +76,6 @@ public class NodesUsageRequest extends BaseNodesRequest<NodesUsageRequest> {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        out.writeBoolean(restActions);
-        out.writeBoolean(aggregations);
+        TransportAction.localOnly();
     }
 }

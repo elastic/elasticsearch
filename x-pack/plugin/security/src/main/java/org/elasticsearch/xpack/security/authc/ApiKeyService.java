@@ -343,9 +343,21 @@ public class ApiKeyService implements Closeable {
         ActionListener<CreateApiKeyResponse> listener
     ) {
         assert request.getType() != ApiKey.Type.CROSS_CLUSTER || false == authentication.isApiKey()
-            : "cannot create derived cross-cluster API keys";
+            : "cannot create derived cross-cluster API keys (name=["
+                + request.getName()
+                + "], type=["
+                + request.getType()
+                + "], auth=["
+                + authentication
+                + "])";
         assert request.getType() != ApiKey.Type.CROSS_CLUSTER || userRoleDescriptors.isEmpty()
-            : "owner user role descriptor must be empty for cross-cluster API keys";
+            : "owner user role descriptor must be empty for cross-cluster API keys (name=["
+                + request.getName()
+                + "], type=["
+                + request.getType()
+                + "], roles=["
+                + userRoleDescriptors
+                + "])";
         ensureEnabled();
         if (authentication == null) {
             listener.onFailure(new IllegalArgumentException("authentication must be provided"));
@@ -492,7 +504,8 @@ public class ApiKeyService implements Closeable {
         final Instant created = clock.instant();
         final Instant expiration = getApiKeyExpiration(created, request.getExpiration());
         final SecureString apiKey = UUIDs.randomBase64UUIDSecureString();
-        assert ApiKey.Type.CROSS_CLUSTER != request.getType() || API_KEY_SECRET_LENGTH == apiKey.length();
+        assert ApiKey.Type.CROSS_CLUSTER != request.getType() || API_KEY_SECRET_LENGTH == apiKey.length()
+            : "Invalid API key (name=[" + request.getName() + "], type=[" + request.getType() + "], length=[" + apiKey.length() + "])";
 
         computeHashForApiKey(apiKey, listener.delegateFailure((l, apiKeyHashChars) -> {
             try (
@@ -528,8 +541,16 @@ public class ApiKeyService implements Closeable {
                         TransportBulkAction.TYPE,
                         bulkRequest,
                         TransportBulkAction.<IndexResponse>unwrappingSingleItemBulkResponse(ActionListener.wrap(indexResponse -> {
-                            assert request.getId().equals(indexResponse.getId());
-                            assert indexResponse.getResult() == DocWriteResponse.Result.CREATED;
+                            assert request.getId().equals(indexResponse.getId())
+                                : "Mismatched API key (request=["
+                                    + request.getId()
+                                    + "](name=["
+                                    + request.getName()
+                                    + "]) index=["
+                                    + indexResponse.getId()
+                                    + "])";
+                            assert indexResponse.getResult() == DocWriteResponse.Result.CREATED
+                                : "Index response was [" + indexResponse.getResult() + "]";
                             final ListenableFuture<CachedApiKeyHashResult> listenableFuture = new ListenableFuture<>();
                             listenableFuture.onResponse(new CachedApiKeyHashResult(true, apiKey));
                             apiKeyAuthCache.put(request.getId(), listenableFuture);
@@ -552,7 +573,15 @@ public class ApiKeyService implements Closeable {
         final ActionListener<BulkUpdateApiKeyResponse> listener
     ) {
         assert request.getType() != ApiKey.Type.CROSS_CLUSTER || userRoleDescriptors.isEmpty()
-            : "owner user role descriptor must be empty for cross-cluster API keys";
+            : "owner user role descriptor must be empty for cross-cluster API keys (ids=["
+                + (request.getIds().size() <= 10
+                    ? request.getIds()
+                    : (request.getIds().size() + " including " + request.getIds().subList(0, 10)))
+                + "], type=["
+                + request.getType()
+                + "], roles=["
+                + userRoleDescriptors
+                + "])";
         ensureEnabled();
         if (authentication == null) {
             listener.onFailure(new IllegalArgumentException("authentication must be provided"));
@@ -628,10 +657,11 @@ public class ApiKeyService implements Closeable {
     ) {
         logger.trace("Found [{}] API keys of [{}] requested for update", targetVersionedDocs.size(), request.getIds().size());
         assert targetVersionedDocs.size() <= request.getIds().size()
-            : "more docs were found for update than were requested. found: "
+            : "more docs were found for update than were requested. found ["
                 + targetVersionedDocs.size()
-                + " requested: "
-                + request.getIds().size();
+                + "] requested ["
+                + request.getIds().size()
+                + "]";
 
         final BulkUpdateApiKeyResponse.Builder responseBuilder = BulkUpdateApiKeyResponse.builder();
         final BulkRequestBuilder bulkRequestBuilder = client.prepareBulk();
@@ -682,7 +712,14 @@ public class ApiKeyService implements Closeable {
         final Authentication authentication,
         final ApiKeyDoc apiKeyDoc
     ) {
-        assert authentication.getEffectiveSubject().getUser().principal().equals(apiKeyDoc.creator.get("principal"));
+        assert authentication.getEffectiveSubject().getUser().principal().equals(apiKeyDoc.creator.get("principal"))
+            : "Authenticated user should be owner (authentication=["
+                + authentication
+                + "], owner=["
+                + apiKeyDoc.creator
+                + "], id=["
+                + apiKeyId
+                + "])";
 
         if (apiKeyDoc.invalidated) {
             throw new IllegalArgumentException("cannot update invalidated API key [" + apiKeyId + "]");
@@ -862,7 +899,14 @@ public class ApiKeyService implements Closeable {
         final Set<RoleDescriptor> userRoleDescriptors,
         final Clock clock
     ) throws IOException {
-        assert currentApiKeyDoc.type == request.getType();
+        assert currentApiKeyDoc.type == request.getType()
+            : "API Key doc does not match request type (key-id=["
+                + apiKeyId
+                + "], doc=["
+                + currentApiKeyDoc.type
+                + "], request=["
+                + request.getType()
+                + "])";
         if (isNoop(apiKeyId, currentApiKeyDoc, targetDocVersion, authentication, request, userRoleDescriptors)) {
             return null;
         }
@@ -888,7 +932,7 @@ public class ApiKeyService implements Closeable {
             logger.trace(() -> format("Building API key doc with updated role descriptors [%s]", keyRoles));
             addRoleDescriptors(builder, keyRoles);
         } else {
-            assert currentApiKeyDoc.roleDescriptorsBytes != null;
+            assert currentApiKeyDoc.roleDescriptorsBytes != null : "Role descriptors for [" + apiKeyId + "] are null";
             builder.rawField("role_descriptors", currentApiKeyDoc.roleDescriptorsBytes.streamInput(), XContentType.JSON);
         }
 
@@ -899,7 +943,7 @@ public class ApiKeyService implements Closeable {
         assert currentApiKeyDoc.metadataFlattened == null
             || MetadataUtils.containsReservedMetadata(
                 XContentHelper.convertToMap(currentApiKeyDoc.metadataFlattened, false, XContentType.JSON).v2()
-            ) == false : "API key doc to be updated contains reserved metadata";
+            ) == false : "API key doc [" + apiKeyId + "] to be updated contains reserved metadata";
         final Map<String, Object> metadata = request.getMetadata();
         if (metadata != null) {
             logger.trace(() -> format("Building API key doc with updated metadata [%s]", metadata));
@@ -999,7 +1043,7 @@ public class ApiKeyService implements Closeable {
             }
         }
 
-        assert userRoleDescriptors != null;
+        assert userRoleDescriptors != null : "API Key [" + apiKeyId + "] has null role descriptors";
         final List<RoleDescriptor> currentLimitedByRoleDescriptors = parseRoleDescriptorsBytes(
             apiKeyId,
             apiKeyDoc.limitedByRoleDescriptorsBytes,
@@ -1456,8 +1500,15 @@ public class ApiKeyService implements Closeable {
             findApiKeys(boolQuery, true, true, this::convertSearchHitToApiKeyInfo, ActionListener.wrap(apiKeyInfos -> {
                 int ccsKeys = 0, ccrKeys = 0, ccsCcrKeys = 0;
                 for (ApiKey apiKeyInfo : apiKeyInfos) {
-                    assert apiKeyInfo.getType() == ApiKey.Type.CROSS_CLUSTER;
-                    assert apiKeyInfo.getRoleDescriptors().size() == 1;
+                    assert apiKeyInfo.getType() == ApiKey.Type.CROSS_CLUSTER
+                        : "Incorrect API Key type for [" + apiKeyInfo + "] should be [" + ApiKey.Type.CROSS_CLUSTER + "]";
+                    assert apiKeyInfo.getRoleDescriptors().size() == 1
+                        : "API Key ["
+                            + apiKeyInfo
+                            + "] has ["
+                            + apiKeyInfo.getRoleDescriptors().size()
+                            + "] role descriptors, but should be 1";
+
                     final List<String> clusterPrivileges = Arrays.asList(
                         apiKeyInfo.getRoleDescriptors().iterator().next().getClusterPrivileges()
                     );
@@ -1614,7 +1665,14 @@ public class ApiKeyService implements Closeable {
         }
         final var targetDocVersion = ApiKey.CURRENT_API_KEY_VERSION;
         final var currentDocVersion = new ApiKey.Version(currentVersionedDoc.doc().version);
-        assert currentDocVersion.onOrBefore(targetDocVersion) : "current API key doc version must be on or before target version";
+        assert currentDocVersion.onOrBefore(targetDocVersion)
+            : "API key ["
+                + currentVersionedDoc.id()
+                + "] has version ["
+                + currentDocVersion
+                + " which is greater than current version ["
+                + ApiKey.CURRENT_API_KEY_VERSION
+                + "]";
         if (logger.isDebugEnabled() && currentDocVersion.before(targetDocVersion)) {
             logger.debug(
                 "API key update for [{}] will update version from [{}] to [{}]",
@@ -1769,7 +1827,7 @@ public class ApiKeyService implements Closeable {
         final String[] apiKeyIds,
         final ActionListener<Collection<VersionedApiKeyDoc>> listener
     ) {
-        assert authentication.isApiKey() == false;
+        assert authentication.isApiKey() == false : "Authentication [" + authentication + "] is an API key, but should not be";
         findApiKeysForUserRealmApiKeyIdAndNameCombination(
             getOwnersRealmNames(authentication),
             authentication.getEffectiveSubject().getUser().principal(),
@@ -1859,12 +1917,28 @@ public class ApiKeyService implements Closeable {
                     apiKeyIdsToInvalidate.add(apiKeyId);
                 }
             }
-            assert false == apiKeyIdsToInvalidate.isEmpty() || false == crossClusterApiKeyIdsToSkip.isEmpty();
+
+            // noinspection ConstantValue
+            assert false == apiKeyIdsToInvalidate.isEmpty() || false == crossClusterApiKeyIdsToSkip.isEmpty()
+                : "There are no API keys but that should never happen, original=["
+                    + (apiKeys.size() > 10 ? ("size=" + apiKeys.size() + " including " + apiKeys.iterator().next()) : apiKeys)
+                    + "], to-invalidate=["
+                    + apiKeyIdsToInvalidate
+                    + "], to-skip=["
+                    + crossClusterApiKeyIdsToSkip
+                    + "]";
+
             if (apiKeyIdsToInvalidate.isEmpty()) {
                 listener.onResponse(new InvalidateApiKeyResponse(Collections.emptyList(), Collections.emptyList(), failedRequestResponses));
                 return;
             }
-            assert bulkRequestBuilder.numberOfActions() > 0;
+            assert bulkRequestBuilder.numberOfActions() > 0
+                : "Bulk request has ["
+                    + bulkRequestBuilder.numberOfActions()
+                    + "] actions, but there are ["
+                    + apiKeyIdsToInvalidate.size()
+                    + "] api keys to invalidate";
+
             bulkRequestBuilder.setRefreshPolicy(defaultCreateDocRefreshPolicy(settings));
             securityIndex.prepareIndexIfNeededThenExecute(
                 ex -> listener.onFailure(traceLog("prepare security index", ex)),
@@ -1932,7 +2006,14 @@ public class ApiKeyService implements Closeable {
                 );
             } else {
                 // Since we made an index request against an existing document, we can't get a NOOP or CREATED here
-                assert bulkItemResponse.getResponse().getResult() == DocWriteResponse.Result.UPDATED;
+                assert bulkItemResponse.getResponse().getResult() == DocWriteResponse.Result.UPDATED
+                    : "Bulk Item ["
+                        + bulkItemResponse.getId()
+                        + "] is ["
+                        + bulkItemResponse.getResponse().getResult()
+                        + "] but should be ["
+                        + DocWriteResponse.Result.UPDATED
+                        + "]";
                 responseBuilder.updated(apiKeyId);
             }
         }
@@ -2279,7 +2360,9 @@ public class ApiKeyService implements Closeable {
             // is no owner information to return here
             if (effectiveSubjectRealm == null) {
                 final var message =
-                    "Cannot determine owner realms without an effective subject realm for non-API key authentication object";
+                    "Cannot determine owner realms without an effective subject realm for non-API key authentication object ["
+                        + authentication
+                        + "]";
                 assert false : message;
                 throw new IllegalArgumentException(message);
             }

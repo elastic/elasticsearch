@@ -116,6 +116,7 @@ public class VectorBuilderTests extends ESTestCase {
             case NULL, DOC, COMPOSITE, UNKNOWN -> throw new UnsupportedOperationException();
             case BOOLEAN -> blockFactory.newBooleanVectorBuilder(estimatedSize);
             case BYTES_REF -> blockFactory.newBytesRefVectorBuilder(estimatedSize);
+            case FLOAT -> blockFactory.newFloatVectorBuilder(estimatedSize);
             case DOUBLE -> blockFactory.newDoubleVectorBuilder(estimatedSize);
             case INT -> blockFactory.newIntVectorBuilder(estimatedSize);
             case LONG -> blockFactory.newLongVectorBuilder(estimatedSize);
@@ -133,6 +134,11 @@ public class VectorBuilderTests extends ESTestCase {
             case BYTES_REF -> {
                 for (int p = 0; p < from.getPositionCount(); p++) {
                     ((BytesRefVector.Builder) builder).appendBytesRef(((BytesRefVector) from).getBytesRef(p, new BytesRef()));
+                }
+            }
+            case FLOAT -> {
+                for (int p = 0; p < from.getPositionCount(); p++) {
+                    ((FloatVector.Builder) builder).appendFloat(((FloatVector) from).getFloat(p));
                 }
             }
             case DOUBLE -> {

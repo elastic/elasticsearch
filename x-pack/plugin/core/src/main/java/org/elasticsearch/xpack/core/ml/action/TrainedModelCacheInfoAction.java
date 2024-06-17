@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.FailedNodeException;
+import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
 import org.elasticsearch.action.support.nodes.BaseNodesRequest;
 import org.elasticsearch.action.support.nodes.BaseNodesResponse;
@@ -39,13 +40,9 @@ public class TrainedModelCacheInfoAction extends ActionType<TrainedModelCacheInf
             super(concreteNodes);
         }
 
-        public Request(StreamInput in) throws IOException {
-            super(in);
-        }
-
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
+            TransportAction.localOnly();
         }
 
         @Override

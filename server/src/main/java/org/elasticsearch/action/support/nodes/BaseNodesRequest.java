@@ -12,7 +12,6 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.TimeValue;
 
@@ -38,15 +37,6 @@ public abstract class BaseNodesRequest<Request extends BaseNodesRequest<Request>
     private DiscoveryNode[] concreteNodes;
 
     private TimeValue timeout;
-
-    protected BaseNodesRequest(StreamInput in) throws IOException {
-        // A bare `BaseNodesRequest` is never sent over the wire, but several implementations send the full top-level request to each node
-        // (wrapped up in another request). They shouldn't, but until we fix that we must keep this. See #100878.
-        super(in);
-        nodesIds = in.readStringArray();
-        concreteNodes = in.readOptionalArray(DiscoveryNode::new, DiscoveryNode[]::new);
-        timeout = in.readOptionalTimeValue();
-    }
 
     protected BaseNodesRequest(String... nodesIds) {
         this.nodesIds = nodesIds;

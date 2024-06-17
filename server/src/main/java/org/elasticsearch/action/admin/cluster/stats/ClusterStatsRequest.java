@@ -8,8 +8,8 @@
 
 package org.elasticsearch.action.admin.cluster.stats;
 
+import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.support.nodes.BaseNodesRequest;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
@@ -22,11 +22,6 @@ import java.util.Map;
  * A request to get cluster level stats.
  */
 public class ClusterStatsRequest extends BaseNodesRequest<ClusterStatsRequest> {
-
-    public ClusterStatsRequest(StreamInput in) throws IOException {
-        super(in);
-    }
-
     /**
      * Get stats from nodes based on the nodes ids specified. If none are passed, stats
      * based on all nodes will be returned.
@@ -42,7 +37,7 @@ public class ClusterStatsRequest extends BaseNodesRequest<ClusterStatsRequest> {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
+        TransportAction.localOnly();
     }
 
 }

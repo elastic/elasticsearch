@@ -532,7 +532,7 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
 
     private ActionListener<Void> slowShardOperationListener(IndexShard indexShard, TimeValue timeout, String label) {
         final var threadDumpListener = new SubscribableListener<Void>();
-        if (logger.isDebugEnabled()) {
+        if (logger.isInfoEnabled()) {
             final var threadPool = indexShard.getThreadPool();
             threadDumpListener.addTimeout(timeout, threadPool, threadPool.generic());
             threadDumpListener.addListener(new ActionListener<>() {
@@ -541,7 +541,7 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
 
                 @Override
                 public void onFailure(Exception e) {
-                    HotThreads.logLocalHotThreads(logger, Level.DEBUG, indexShard.shardId() + ": " + label, ReferenceDocs.LOGGING);
+                    HotThreads.logLocalHotThreads(logger, Level.INFO, indexShard.shardId() + ": " + label, ReferenceDocs.LOGGING);
                 }
             });
         }

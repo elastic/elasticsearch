@@ -269,7 +269,7 @@ public abstract class EngineTestCase extends ESTestCase {
             config.getRelativeTimeInNanosSupplier(),
             config.getIndexCommitListener(),
             config.isPromotableToPrimary(),
-            null
+            config.getMapperService()
         );
     }
 
@@ -301,7 +301,7 @@ public abstract class EngineTestCase extends ESTestCase {
             config.getRelativeTimeInNanosSupplier(),
             config.getIndexCommitListener(),
             config.isPromotableToPrimary(),
-            null
+            config.getMapperService()
         );
     }
 
@@ -333,7 +333,7 @@ public abstract class EngineTestCase extends ESTestCase {
             config.getRelativeTimeInNanosSupplier(),
             config.getIndexCommitListener(),
             config.isPromotableToPrimary(),
-            null
+            config.getMapperService()
         );
     }
 
@@ -898,7 +898,7 @@ public abstract class EngineTestCase extends ESTestCase {
             config.getRelativeTimeInNanosSupplier(),
             config.getIndexCommitListener(),
             config.isPromotableToPrimary(),
-            null
+            config.getMapperService()
         );
     }
 

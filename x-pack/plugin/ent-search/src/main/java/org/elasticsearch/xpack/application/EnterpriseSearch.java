@@ -123,12 +123,14 @@ import org.elasticsearch.xpack.application.connector.secrets.action.TransportPos
 import org.elasticsearch.xpack.application.connector.secrets.action.TransportPutConnectorSecretAction;
 import org.elasticsearch.xpack.application.connector.syncjob.action.CancelConnectorSyncJobAction;
 import org.elasticsearch.xpack.application.connector.syncjob.action.CheckInConnectorSyncJobAction;
+import org.elasticsearch.xpack.application.connector.syncjob.action.ClaimConnectorSyncJobAction;
 import org.elasticsearch.xpack.application.connector.syncjob.action.DeleteConnectorSyncJobAction;
 import org.elasticsearch.xpack.application.connector.syncjob.action.GetConnectorSyncJobAction;
 import org.elasticsearch.xpack.application.connector.syncjob.action.ListConnectorSyncJobsAction;
 import org.elasticsearch.xpack.application.connector.syncjob.action.PostConnectorSyncJobAction;
 import org.elasticsearch.xpack.application.connector.syncjob.action.RestCancelConnectorSyncJobAction;
 import org.elasticsearch.xpack.application.connector.syncjob.action.RestCheckInConnectorSyncJobAction;
+import org.elasticsearch.xpack.application.connector.syncjob.action.RestClaimConnectorSyncJobAction;
 import org.elasticsearch.xpack.application.connector.syncjob.action.RestDeleteConnectorSyncJobAction;
 import org.elasticsearch.xpack.application.connector.syncjob.action.RestGetConnectorSyncJobAction;
 import org.elasticsearch.xpack.application.connector.syncjob.action.RestListConnectorSyncJobsAction;
@@ -137,6 +139,7 @@ import org.elasticsearch.xpack.application.connector.syncjob.action.RestUpdateCo
 import org.elasticsearch.xpack.application.connector.syncjob.action.RestUpdateConnectorSyncJobIngestionStatsAction;
 import org.elasticsearch.xpack.application.connector.syncjob.action.TransportCancelConnectorSyncJobAction;
 import org.elasticsearch.xpack.application.connector.syncjob.action.TransportCheckInConnectorSyncJobAction;
+import org.elasticsearch.xpack.application.connector.syncjob.action.TransportClaimConnectorSyncJobAction;
 import org.elasticsearch.xpack.application.connector.syncjob.action.TransportDeleteConnectorSyncJobAction;
 import org.elasticsearch.xpack.application.connector.syncjob.action.TransportGetConnectorSyncJobAction;
 import org.elasticsearch.xpack.application.connector.syncjob.action.TransportListConnectorSyncJobsAction;
@@ -310,7 +313,8 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
                     new ActionHandler<>(
                         UpdateConnectorSyncJobIngestionStatsAction.INSTANCE,
                         TransportUpdateConnectorSyncJobIngestionStatsAction.class
-                    )
+                    ),
+                    new ActionHandler<>(ClaimConnectorSyncJobAction.INSTANCE, TransportClaimConnectorSyncJobAction.class)
                 )
             );
         }
@@ -408,7 +412,8 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
                     new RestCheckInConnectorSyncJobAction(),
                     new RestListConnectorSyncJobsAction(),
                     new RestUpdateConnectorSyncJobErrorAction(),
-                    new RestUpdateConnectorSyncJobIngestionStatsAction()
+                    new RestUpdateConnectorSyncJobIngestionStatsAction(),
+                    new RestClaimConnectorSyncJobAction()
                 )
             );
         }

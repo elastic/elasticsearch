@@ -231,15 +231,6 @@ public class TestTaskPlugin extends Plugin implements ActionPlugin, NetworkPlugi
         }
 
         @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            out.writeString(requestName);
-            out.writeBoolean(shouldStoreResult);
-            out.writeBoolean(shouldBlock);
-            out.writeBoolean(shouldFail);
-        }
-
-        @Override
         public String getDescription() {
             return "NodesRequest[" + requestName + "]";
         }

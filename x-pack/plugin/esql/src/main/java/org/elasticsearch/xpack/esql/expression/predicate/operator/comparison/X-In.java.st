@@ -50,8 +50,12 @@ public class In$Type$Evaluator implements EvalOperator.ExpressionEvaluator {
 
     private final DriverContext driverContext;
 
-    public In$Type$Evaluator(Source source, EvalOperator.ExpressionEvaluator lhs,
-        EvalOperator.ExpressionEvaluator[] rhs, DriverContext driverContext) {
+    public In$Type$Evaluator(
+        Source source,
+        EvalOperator.ExpressionEvaluator lhs,
+        EvalOperator.ExpressionEvaluator[] rhs,
+        DriverContext driverContext
+    ) {
         this.lhs = lhs;
         this.rhs = rhs;
         this.driverContext = driverContext;
@@ -64,7 +68,7 @@ public class In$Type$Evaluator implements EvalOperator.ExpressionEvaluator {
             $Type$Block[] rhsBlocks = new $Type$Block[rhs.length];
             try (Releasable rhsRelease = Releasables.wrap(rhsBlocks)) {
                 for (int i = 0; i < rhsBlocks.length; i++) {
-                    rhsBlocks[i] = ($Type$Block)rhs[i].eval(page);
+                    rhsBlocks[i] = ($Type$Block) rhs[i].eval(page);
                 }
                 $Type$Vector lhsVector = lhsBlock.asVector();
                 if (lhsVector == null) {
@@ -81,7 +85,6 @@ public class In$Type$Evaluator implements EvalOperator.ExpressionEvaluator {
             }
         }
     }
-
 
     public BooleanBlock eval(int positionCount, $Type$Block lhsBlock, $Type$Block[] rhsBlocks) {
         try (BooleanBlock.Builder result = driverContext.blockFactory().newBooleanBlockBuilder(positionCount)) {
@@ -110,8 +113,7 @@ $endif$
                 }
                 if (lhsBlock.getValueCount(p) != 1) {
                     if (lhsBlock.getValueCount(p) > 1) {
-                        warnings.registerException(
-                            new IllegalArgumentException("single-value function encountered multi-value"));
+                        warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
                     }
                     result.appendNull();
                     continue;
@@ -126,8 +128,7 @@ $endif$
                     }
                     if (rhsBlocks[i].getValueCount(p) > 1) {
                         mvs.set(i);
-                        warnings.registerException(
-                            new IllegalArgumentException("single-value function encountered multi-value"));
+                        warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
                         continue;
                     }
                     int o = rhsBlocks[i].getFirstValueIndex(p);
@@ -213,8 +214,7 @@ $endif$
         private final EvalOperator.ExpressionEvaluator.Factory lhs;
         private final EvalOperator.ExpressionEvaluator.Factory[] rhs;
 
-        Factory(Source source, EvalOperator.ExpressionEvaluator.Factory lhs,
-            EvalOperator.ExpressionEvaluator.Factory[] rhs) {
+        Factory(Source source, EvalOperator.ExpressionEvaluator.Factory lhs, EvalOperator.ExpressionEvaluator.Factory[] rhs) {
             this.source = source;
             this.lhs = lhs;
             this.rhs = rhs;
@@ -222,9 +222,10 @@ $endif$
 
         @Override
         public In$Type$Evaluator get(DriverContext context) {
-          EvalOperator.ExpressionEvaluator[] rhs =
-              Arrays.stream(this.rhs).map(a -> a.get(context)).toArray(EvalOperator.ExpressionEvaluator[]::new);
-          return new In$Type$Evaluator(source, lhs.get(context), rhs, context);
+            EvalOperator.ExpressionEvaluator[] rhs = Arrays.stream(this.rhs)
+                .map(a -> a.get(context))
+                .toArray(EvalOperator.ExpressionEvaluator[]::new);
+            return new In$Type$Evaluator(source, lhs.get(context), rhs, context);
         }
 
         @Override

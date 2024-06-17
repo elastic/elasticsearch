@@ -30,6 +30,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.ToLongFunction;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
@@ -192,11 +193,11 @@ public class ScriptedMetricAggregationBuilder extends AbstractAggregationBuilder
         validateScript(REDUCE_SCRIPT_FIELD.getPreferredName(), name, reduceScript, settings);
 
         if (combineScript == null) {
-            throw new IllegalArgumentException("[combineScript] must not be null: [" + name + "]");
+            throw new IllegalArgumentException("[" + COMBINE_SCRIPT_FIELD.getPreferredName() + "] must not be null: [" + name + "]");
         }
 
         if (reduceScript == null) {
-            throw new IllegalArgumentException("[reduceScript] must not be null: [" + name + "]");
+            throw new IllegalArgumentException("[" + REDUCE_SCRIPT_FIELD.getPreferredName() + "] must not be null: [" + name + "]");
         }
 
         // Extract params from scripts and pass them along to ScriptedMetricAggregatorFactory, since it won't have
@@ -290,6 +291,11 @@ public class ScriptedMetricAggregationBuilder extends AbstractAggregationBuilder
     @Override
     public TransportVersion getMinimalSupportedVersion() {
         return TransportVersions.ZERO;
+    }
+
+    @Override
+    public boolean supportsParallelCollection(ToLongFunction<String> fieldCardinalityResolver) {
+        return false;
     }
 
     @Override

@@ -813,8 +813,8 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
             if (response.hasFailures()) {
                 throw new RuntimeException(
                     "GeoIpStatsAction reported failures, implying that the transport action failed on one or "
-                        + "more of the nodes. Turn on debug logging for org.elasticsearch.action.support.nodes.TransportNodesAction to find and"
-                        + " fix the problem."
+                        + "more of the nodes. Turn on debug logging for org.elasticsearch.action.support.nodes.TransportNodesAction to "
+                        + "find and fix the problem."
                 );
             }
             for (GeoIpStatsAction.NodeResponse nodeResponse : response.getNodes()) {

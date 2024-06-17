@@ -463,7 +463,6 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
         assert NativeRealmValidationUtil.validateRoleName(role.getName(), false) == null
             : "Role name was invalid or reserved: " + role.getName();
         assert false == role.hasRestriction() : "restriction is not supported for native roles";
-        final XContentBuilder xContentBuilder;
         return role.toXContent(
             jsonBuilder(),
             ToXContent.EMPTY_PARAMS,

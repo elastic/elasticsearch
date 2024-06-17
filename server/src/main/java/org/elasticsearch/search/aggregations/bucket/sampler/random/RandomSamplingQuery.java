@@ -8,6 +8,8 @@
 
 package org.elasticsearch.search.aggregations.bucket.sampler.random;
 
+import com.carrotsearch.hppc.BitMixer;
+
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.ConstantScoreScorer;
 import org.apache.lucene.search.DocIdSetIterator;
@@ -18,7 +20,6 @@ import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
-import org.apache.lucene.util.hppc.BitMixer;
 
 import java.io.IOException;
 import java.util.Objects;

@@ -611,7 +611,7 @@ public class RelocationIT extends ESIntegTestCase {
         logger.info("--> relocate the shard from node1 to node2");
         ActionFuture<ClusterRerouteResponse> relocationListener = client().execute(
             TransportClusterRerouteAction.TYPE,
-            new ClusterRerouteRequest().add(new MoveAllocationCommand("test", 0, node1, node2))
+            new ClusterRerouteRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).add(new MoveAllocationCommand("test", 0, node1, node2))
         );
         logger.info("--> index 100 docs while relocating");
         for (int i = 20; i < 120; i++) {

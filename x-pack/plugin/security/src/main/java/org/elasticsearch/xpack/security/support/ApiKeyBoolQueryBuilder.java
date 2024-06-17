@@ -25,23 +25,9 @@ import java.util.function.Consumer;
 import static org.elasticsearch.xpack.security.action.apikey.TransportQueryApiKeyAction.API_KEY_TYPE_RUNTIME_MAPPING_FIELD;
 import static org.elasticsearch.xpack.security.support.FieldNameTranslators.API_KEY_FIELD_NAME_TRANSLATORS;
 
-public class ApiKeyBoolQueryBuilder extends BoolQueryBuilder {
+public final class ApiKeyBoolQueryBuilder extends BoolQueryBuilder {
 
-    // Field names allowed at the index level
-    private static final Set<String> ALLOWED_EXACT_INDEX_FIELD_NAMES = Set.of(
-        "_id",
-        "doc_type",
-        "name",
-        "type",
-        API_KEY_TYPE_RUNTIME_MAPPING_FIELD,
-        "api_key_invalidated",
-        "invalidation_time",
-        "creation_time",
-        "expiration_time",
-        "metadata_flattened",
-        "creator.principal",
-        "creator.realm"
-    );
+    private static final Set<String> FIELDS_ALLOWED_TO_QUERY = Set.of("_id", "doc_type", "type");
 
     private ApiKeyBoolQueryBuilder() {}
 
@@ -110,6 +96,6 @@ public class ApiKeyBoolQueryBuilder extends BoolQueryBuilder {
     }
 
     static boolean isIndexFieldNameAllowed(String fieldName) {
-        return ALLOWED_EXACT_INDEX_FIELD_NAMES.contains(fieldName) || fieldName.startsWith("metadata_flattened.");
+        return FIELDS_ALLOWED_TO_QUERY.contains(fieldName) || API_KEY_FIELD_NAME_TRANSLATORS.isIndexFieldSupported(fieldName);
     }
 }

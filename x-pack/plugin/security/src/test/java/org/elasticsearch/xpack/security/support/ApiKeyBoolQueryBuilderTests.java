@@ -612,7 +612,7 @@ public class ApiKeyBoolQueryBuilderTests extends ESTestCase {
         final Authentication authentication = randomBoolean() ? AuthenticationTests.randomAuthentication(null, null) : null;
 
         final String randomFieldName = randomValueOtherThanMany(
-            s -> API_KEY_FIELD_NAME_TRANSLATORS.fieldNameTranslators.stream().anyMatch(t -> t.supports(s)),
+            API_KEY_FIELD_NAME_TRANSLATORS::isQueryFieldSupported,
             () -> randomAlphaOfLengthBetween(3, 20)
         );
         final String fieldName = randomFrom(

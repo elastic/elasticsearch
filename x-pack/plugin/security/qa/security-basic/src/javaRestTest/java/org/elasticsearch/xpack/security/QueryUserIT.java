@@ -323,8 +323,8 @@ public class QueryUserIT extends SecurityInBasicRestTestCase {
         assertQueryError(
             READ_USERS_USER_AUTH_HEADER,
             400,
-            String.format("{\"sort\":[\"%s\"]}", invalidSortName),
-            String.format("sorting is not supported for field [%s] in User query", invalidSortName)
+            Strings.format("{\"sort\":[\"%s\"]}", invalidSortName),
+            Strings.format("sorting is not supported for field [%s]", invalidSortName)
         );
     }
 

@@ -65,10 +65,10 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class TransportQueryUserActionTests extends ESTestCase {
-    private static final String[] allowedQueryFieldNames = new String[] { "username", "roles", "enabled" };
+    private static final String[] allowedIndexFieldNames = new String[] { "username", "roles", "enabled" };
 
     public void testTranslateFieldSortBuilders() {
-        final List<String> fieldNames = List.of(allowedQueryFieldNames);
+        final List<String> fieldNames = List.of(allowedIndexFieldNames);
 
         final List<FieldSortBuilder> originals = fieldNames.stream().map(this::randomFieldSortBuilderWithName).toList();
 

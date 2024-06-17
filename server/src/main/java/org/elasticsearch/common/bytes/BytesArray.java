@@ -59,6 +59,7 @@ public final class BytesArray extends AbstractBytesReference {
     @Override
     public int indexOf(byte marker, int from) {
         final int len = length - from;
+        // cache object fields (even when final this is a valid optimization, see https://openjdk.org/jeps/8132243)
         final int offsetAsLocal = offset;
         int off = offsetAsLocal + from;
         final int toIndex = offsetAsLocal + length;

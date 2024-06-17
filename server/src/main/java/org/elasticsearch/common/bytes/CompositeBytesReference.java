@@ -116,6 +116,7 @@ public final class CompositeBytesReference extends AbstractBytesReference {
         }
 
         final int firstReferenceIndex = getOffsetIndex(from);
+        // cache object fields (even when final this is a valid optimization, see https://openjdk.org/jeps/8132243)
         final BytesReference[] referencesAsLocal = references;
         final int[] offsetsAsLocal = offsets;
         for (int i = firstReferenceIndex; i < referencesAsLocal.length; ++i) {

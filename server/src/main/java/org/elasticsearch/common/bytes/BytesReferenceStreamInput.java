@@ -56,6 +56,7 @@ class BytesReferenceStreamInput extends StreamInput {
 
     @Override
     public short readShort() throws IOException {
+        // cache object fields (even when final this is a valid optimization, see https://openjdk.org/jeps/8132243)
         final ByteBuffer slice = this.slice;
         if (slice.remaining() >= 2) {
             return slice.getShort();
@@ -67,6 +68,7 @@ class BytesReferenceStreamInput extends StreamInput {
 
     @Override
     public int readInt() throws IOException {
+        // cache object fields (even when final this is a valid optimization, see https://openjdk.org/jeps/8132243)
         final ByteBuffer slice = this.slice;
         if (slice.remaining() >= 4) {
             return slice.getInt();
@@ -78,6 +80,7 @@ class BytesReferenceStreamInput extends StreamInput {
 
     @Override
     public long readLong() throws IOException {
+        // cache object fields (even when final this is a valid optimization, see https://openjdk.org/jeps/8132243)
         final ByteBuffer slice = this.slice;
         if (slice.remaining() >= 8) {
             return slice.getLong();
@@ -90,6 +93,7 @@ class BytesReferenceStreamInput extends StreamInput {
     @Override
     public String readString() throws IOException {
         final int chars = readArraySize();
+        // cache object fields (even when final this is a valid optimization, see https://openjdk.org/jeps/8132243)
         final ByteBuffer slice = this.slice;
         if (slice.hasArray()) {
             // attempt reading bytes directly into a string to minimize copying
@@ -108,6 +112,7 @@ class BytesReferenceStreamInput extends StreamInput {
 
     @Override
     public int readVInt() throws IOException {
+        // cache object fields (even when final this is a valid optimization, see https://openjdk.org/jeps/8132243)
         final ByteBuffer slice = this.slice;
         if (slice.remaining() >= 5) {
             return ByteBufferStreamInput.readVInt(slice);
@@ -117,6 +122,7 @@ class BytesReferenceStreamInput extends StreamInput {
 
     @Override
     public long readVLong() throws IOException {
+        // cache object fields (even when final this is a valid optimization, see https://openjdk.org/jeps/8132243)
         final ByteBuffer slice = this.slice;
         if (slice.remaining() >= 10) {
             return ByteBufferStreamInput.readVLong(slice);
@@ -167,6 +173,7 @@ class BytesReferenceStreamInput extends StreamInput {
 
     @Override
     public int read(final byte[] b, final int bOffset, final int len) throws IOException {
+        // cache object fields (even when final this is a valid optimization, see https://openjdk.org/jeps/8132243)
         final ByteBuffer slice = this.slice;
         if (slice.remaining() >= len) {
             slice.get(b, bOffset, len);
@@ -233,6 +240,7 @@ class BytesReferenceStreamInput extends StreamInput {
         int remaining = numBytesSkipped;
         while (remaining > 0) {
             maybeNextSlice();
+            // cache object fields (even when final this is a valid optimization, see https://openjdk.org/jeps/8132243)
             final ByteBuffer slice = this.slice;
             int currentLen = Math.min(remaining, slice.remaining());
             remaining -= currentLen;

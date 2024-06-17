@@ -63,6 +63,7 @@ class KibanaOwnedReservedRoleDescriptors {
             name,
             new String[] {
                 "monitor",
+                "monitor_inference",
                 "manage_index_templates",
                 MonitoringBulkAction.NAME,
                 "manage_saml",

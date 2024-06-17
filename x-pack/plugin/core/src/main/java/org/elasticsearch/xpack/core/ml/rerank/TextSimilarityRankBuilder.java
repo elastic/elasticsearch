@@ -58,7 +58,7 @@ public class TextSimilarityRankBuilder extends RankBuilder {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_8_11_X;
+        return TransportVersions.TEXT_SIMILARITY_RERANKER_RETRIEVER;
     }
 
     @Override

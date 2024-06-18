@@ -35,8 +35,6 @@ public class TextSimilarityRankRetrieverBuilder extends RetrieverBuilder {
     public static final ParseField INFERENCE_TEXT_FIELD = new ParseField("inference_text");
     public static final ParseField MIN_SCORE_FIELD = new ParseField("min_score");
 
-    public static final float DEFAULT_MIN_SCORE = Float.NEGATIVE_INFINITY;
-
     public static final ObjectParser<TextSimilarityRankRetrieverBuilder, RetrieverParserContext> PARSER = new ObjectParser<>(
         XPackField.TEXT_SIMILARITY_RERANKER,
         TextSimilarityRankRetrieverBuilder::new
@@ -95,11 +93,10 @@ public class TextSimilarityRankRetrieverBuilder extends RetrieverBuilder {
     private int rankWindowSize;
     private String inferenceId;
     private String inferenceText;
-    private float minScore;
+    private Float minScore;
 
     public TextSimilarityRankRetrieverBuilder() {
         this.rankWindowSize = DEFAULT_RANK_WINDOW_SIZE;
-        this.minScore = DEFAULT_MIN_SCORE;
     }
 
     @Override

@@ -27,7 +27,7 @@ public class TextSimilarityRankFeaturePhaseRankCoordinatorContext extends RankFe
     protected final Client client;
     protected final String inferenceId;
     protected final String inferenceText;
-    protected final float minScore;
+    protected final Float minScore;
 
     public TextSimilarityRankFeaturePhaseRankCoordinatorContext(
         int size,
@@ -36,7 +36,7 @@ public class TextSimilarityRankFeaturePhaseRankCoordinatorContext extends RankFe
         Client client,
         String inferenceId,
         String inferenceText,
-        float minScore
+        Float minScore
     ) {
         super(size, from, rankWindowSize);
         this.client = client;
@@ -92,6 +92,6 @@ public class TextSimilarityRankFeaturePhaseRankCoordinatorContext extends RankFe
 
     @Override
     protected boolean keepRankFeatureDoc(RankFeatureDoc doc) {
-        return doc.score >= minScore;
+        return minScore == null || doc.score >= minScore;
     }
 }

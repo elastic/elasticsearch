@@ -41,9 +41,9 @@ public class TextSimilarityRankBuilder extends RankBuilder {
     private final String inferenceId;
     private final String inferenceText;
     private final String field;
-    private final float minScore;
+    private final Float minScore;
 
-    public TextSimilarityRankBuilder(String field, String inferenceId, String inferenceText, int rankWindowSize, float minScore) {
+    public TextSimilarityRankBuilder(String field, String inferenceId, String inferenceText, int rankWindowSize, Float minScore) {
         super(rankWindowSize);
         this.inferenceId = inferenceId;
         this.inferenceText = inferenceText;
@@ -56,7 +56,7 @@ public class TextSimilarityRankBuilder extends RankBuilder {
         this.inferenceId = in.readString();
         this.inferenceText = in.readString();
         this.field = in.readString();
-        this.minScore = in.readFloat();
+        this.minScore = in.readOptionalFloat();
     }
 
     @Override
@@ -74,7 +74,7 @@ public class TextSimilarityRankBuilder extends RankBuilder {
         out.writeString(inferenceId);
         out.writeString(inferenceText);
         out.writeString(field);
-        out.writeFloat(minScore);
+        out.writeOptionalFloat(minScore);
     }
 
     @Override
@@ -82,7 +82,9 @@ public class TextSimilarityRankBuilder extends RankBuilder {
         builder.field(INFERENCE_ID_FIELD.getPreferredName(), inferenceId);
         builder.field(INFERENCE_TEXT_FIELD.getPreferredName(), inferenceText);
         builder.field(FIELD_FIELD.getPreferredName(), field);
-        builder.field(MIN_SCORE_FIELD.getPreferredName(), minScore);
+        if (minScore != null) {
+            builder.field(MIN_SCORE_FIELD.getPreferredName(), minScore);
+        }
     }
 
     @Override

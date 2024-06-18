@@ -12,6 +12,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionFuture;
+import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteUtils;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
@@ -579,8 +580,8 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
             .build();
 
         Consumer<UnassignedInfo> checkUnassignedInfo = unassignedInfo -> {
-            assertThat(unassignedInfo.getReason(), equalTo(UnassignedInfo.Reason.ALLOCATION_FAILED));
-            assertThat(unassignedInfo.getNumFailedAllocations(), anyOf(equalTo(maxRetries), equalTo(1)));
+            assertThat(unassignedInfo.reason(), equalTo(UnassignedInfo.Reason.ALLOCATION_FAILED));
+            assertThat(unassignedInfo.failedAllocations(), anyOf(equalTo(maxRetries), equalTo(1)));
         };
 
         unrestorableUseCase(indexName, createIndexSettings, repositorySettings, Settings.EMPTY, checkUnassignedInfo, () -> {});
@@ -597,7 +598,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         Runnable fixupAction = () -> {
             // remove the shard allocation filtering settings and use the Reroute API to retry the failed shards
             updateIndexSettings(Settings.builder().putNull("index.routing.allocation.include._name"), indexName);
-            assertAcked(clusterAdmin().prepareReroute().setRetryFailed(true));
+            ClusterRerouteUtils.rerouteRetryFailed(client());
         };
 
         unrestorableUseCase(
@@ -605,7 +606,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
             Settings.EMPTY,
             Settings.EMPTY,
             restoreIndexSettings,
-            unassignedInfo -> assertThat(unassignedInfo.getReason(), equalTo(UnassignedInfo.Reason.NEW_INDEX_RESTORED)),
+            unassignedInfo -> assertThat(unassignedInfo.reason(), equalTo(UnassignedInfo.Reason.NEW_INDEX_RESTORED)),
             fixupAction
         );
     }
@@ -670,7 +671,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
             if (shard.primary()) {
                 assertThat(shard.state(), equalTo(ShardRoutingState.UNASSIGNED));
                 assertThat(shard.recoverySource().getType(), equalTo(RecoverySource.Type.SNAPSHOT));
-                assertThat(shard.unassignedInfo().getLastAllocationStatus(), equalTo(UnassignedInfo.AllocationStatus.DECIDERS_NO));
+                assertThat(shard.unassignedInfo().lastAllocationStatus(), equalTo(UnassignedInfo.AllocationStatus.DECIDERS_NO));
                 checkUnassignedInfo.accept(shard.unassignedInfo());
             }
         }

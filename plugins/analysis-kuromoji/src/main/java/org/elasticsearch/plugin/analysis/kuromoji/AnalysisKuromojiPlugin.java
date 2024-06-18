@@ -38,6 +38,8 @@ public class AnalysisKuromojiPlugin extends Plugin implements AnalysisPlugin {
         extra.put("ja_stop", JapaneseStopTokenFilterFactory::new);
         extra.put("kuromoji_number", KuromojiNumberFilterFactory::new);
         extra.put("kuromoji_completion", KuromojiCompletionFilterFactory::new);
+        extra.put("hiragana_uppercase", HiraganaUppercaseFilterFactory::new);
+        extra.put("katakana_uppercase", KatakanaUppercaseFilterFactory::new);
         return extra;
     }
 

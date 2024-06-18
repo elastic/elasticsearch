@@ -37,6 +37,7 @@ import static org.elasticsearch.rest.RestController.ELASTIC_PRODUCT_HTTP_HEADER;
 public final class RestResponse implements Releasable {
 
     public static final String TEXT_CONTENT_TYPE = "text/plain; charset=UTF-8";
+    public static final Set<String> RESPONSE_PARAMS = Set.of("error_trace");
 
     static final String STATUS = "status";
 

@@ -79,7 +79,7 @@ public class GoogleAiStudioEmbeddingsActionTests extends ESTestCase {
         var input = "input";
         var senderFactory = new HttpRequestSender.Factory(createWithEmptySettings(threadPool), clientManager, mockClusterServiceEmpty());
 
-        try (var sender = senderFactory.createSender("test_service")) {
+        try (var sender = senderFactory.createSender()) {
             sender.start();
 
             String responseJson = """

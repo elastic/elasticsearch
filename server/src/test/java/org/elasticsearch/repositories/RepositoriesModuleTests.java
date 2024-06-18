@@ -8,6 +8,7 @@
 
 package org.elasticsearch.repositories;
 
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.MockBigArrays;
@@ -33,6 +34,7 @@ public class RepositoriesModuleTests extends ESTestCase {
 
     private Environment environment;
     private NamedXContentRegistry contentRegistry;
+    private ThreadPool threadPool;
     private List<RepositoryPlugin> repoPlugins = new ArrayList<>();
     private RepositoryPlugin plugin1;
     private RepositoryPlugin plugin2;
@@ -40,13 +42,14 @@ public class RepositoriesModuleTests extends ESTestCase {
     private TransportService transportService;
     private ClusterService clusterService;
     private RecoverySettings recoverySettings;
+    private NodeClient nodeClient;
 
     @Override
     public void setUp() throws Exception {
         super.setUp();
         environment = mock(Environment.class);
         contentRegistry = mock(NamedXContentRegistry.class);
-        ThreadPool threadPool = mock(ThreadPool.class);
+        threadPool = mock(ThreadPool.class);
         transportService = mock(TransportService.class);
         when(transportService.getThreadPool()).thenReturn(threadPool);
         clusterService = mock(ClusterService.class);
@@ -57,6 +60,7 @@ public class RepositoriesModuleTests extends ESTestCase {
         repoPlugins.add(plugin1);
         repoPlugins.add(plugin2);
         when(environment.settings()).thenReturn(Settings.EMPTY);
+        nodeClient = mock(NodeClient.class);
     }
 
     public void testCanRegisterTwoRepositoriesWithDifferentTypes() {
@@ -73,7 +77,8 @@ public class RepositoriesModuleTests extends ESTestCase {
         new RepositoriesModule(
             environment,
             repoPlugins,
-            transportService,
+            nodeClient,
+            threadPool,
             mock(ClusterService.class),
             MockBigArrays.NON_RECYCLING_INSTANCE,
             contentRegistry,
@@ -95,7 +100,8 @@ public class RepositoriesModuleTests extends ESTestCase {
             () -> new RepositoriesModule(
                 environment,
                 repoPlugins,
-                transportService,
+                nodeClient,
+                threadPool,
                 clusterService,
                 MockBigArrays.NON_RECYCLING_INSTANCE,
                 contentRegistry,
@@ -118,7 +124,8 @@ public class RepositoriesModuleTests extends ESTestCase {
             () -> new RepositoriesModule(
                 environment,
                 repoPlugins,
-                mock(TransportService.class),
+                nodeClient,
+                threadPool,
                 clusterService,
                 MockBigArrays.NON_RECYCLING_INSTANCE,
                 contentRegistry,
@@ -142,7 +149,8 @@ public class RepositoriesModuleTests extends ESTestCase {
             () -> new RepositoriesModule(
                 environment,
                 repoPlugins,
-                mock(TransportService.class),
+                nodeClient,
+                threadPool,
                 clusterService,
                 MockBigArrays.NON_RECYCLING_INSTANCE,
                 contentRegistry,

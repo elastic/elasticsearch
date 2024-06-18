@@ -8,7 +8,8 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
-import org.apache.lucene.util.hppc.BitMixer;
+import com.carrotsearch.hppc.BitMixer;
+
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.MockBigArrays;

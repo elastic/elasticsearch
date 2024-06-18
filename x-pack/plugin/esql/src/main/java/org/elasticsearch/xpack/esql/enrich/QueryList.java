@@ -15,6 +15,7 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.FloatBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.core.Nullable;
@@ -33,8 +34,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.function.IntFunction;
 
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.DATETIME;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.IP;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
+import static org.elasticsearch.xpack.esql.core.type.DataType.IP;
 
 /**
  * Generates a list of Lucene queries based on the input block.
@@ -142,6 +143,10 @@ abstract class QueryList {
                 case DOUBLE -> {
                     DoubleBlock doubleBlock = ((DoubleBlock) block);
                     yield doubleBlock::getDouble;
+                }
+                case FLOAT -> {
+                    FloatBlock floatBlock = ((FloatBlock) block);
+                    yield floatBlock::getFloat;
                 }
                 case INT -> {
                     IntBlock intBlock = (IntBlock) block;

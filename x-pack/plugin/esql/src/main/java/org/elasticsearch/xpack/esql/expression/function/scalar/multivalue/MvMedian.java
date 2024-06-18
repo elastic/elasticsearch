@@ -17,7 +17,7 @@ import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.DataTypes;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
@@ -70,7 +70,7 @@ public class MvMedian extends AbstractMultivalueFunction {
         return switch (PlannerUtils.toElementType(field().dataType())) {
             case DOUBLE -> new MvMedianDoubleEvaluator.Factory(fieldEval);
             case INT -> new MvMedianIntEvaluator.Factory(fieldEval);
-            case LONG -> field().dataType() == DataTypes.UNSIGNED_LONG
+            case LONG -> field().dataType() == DataType.UNSIGNED_LONG
                 ? new MvMedianUnsignedLongEvaluator.Factory(fieldEval)
                 : new MvMedianLongEvaluator.Factory(fieldEval);
             default -> throw EsqlIllegalArgumentException.illegalDataType(field.dataType());

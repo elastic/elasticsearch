@@ -20,7 +20,6 @@ import org.apache.lucene.search.TopDocsCollector;
 import org.apache.lucene.search.TopFieldCollector;
 import org.apache.lucene.search.TopFieldDocs;
 import org.apache.lucene.search.TopScoreDocCollector;
-import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.search.MaxScoreCollector;
 import org.elasticsearch.common.lucene.Lucene;
@@ -225,7 +224,7 @@ class TopHitsAggregator extends MetricsAggregator {
                 return searchExecutionContext;
             }
         };
-        fetchSubSearchContext.fetchPhase().execute(fetchSubSearchContext, docIdsToLoad);
+        fetchSubSearchContext.fetchPhase().execute(fetchSubSearchContext, docIdsToLoad, null);
         return fetchSubSearchContext.fetchResult();
     }
 
@@ -233,11 +232,7 @@ class TopHitsAggregator extends MetricsAggregator {
     public InternalTopHits buildEmptyAggregation() {
         TopDocs topDocs;
         if (subSearchContext.sort() != null) {
-            topDocs = new TopFieldDocs(
-                new TotalHits(0, TotalHits.Relation.EQUAL_TO),
-                new FieldDoc[0],
-                subSearchContext.sort().sort.getSort()
-            );
+            topDocs = new TopFieldDocs(Lucene.TOTAL_HITS_EQUAL_TO_ZERO, new FieldDoc[0], subSearchContext.sort().sort.getSort());
         } else {
             topDocs = Lucene.EMPTY_TOP_DOCS;
         }

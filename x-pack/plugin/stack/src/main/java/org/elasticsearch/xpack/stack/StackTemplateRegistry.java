@@ -47,7 +47,7 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
 
     // The stack template registry version. This number must be incremented when we make changes
     // to built-in templates.
-    public static final int REGISTRY_VERSION = 10;
+    public static final int REGISTRY_VERSION = 11;
 
     public static final String TEMPLATE_VERSION_VARIABLE = "xpack.stack.template.version";
     public static final Setting<Boolean> STACK_TEMPLATES_ENABLED = Setting.boolSetting(
@@ -57,9 +57,20 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
         Setting.Property.Dynamic
     );
 
+    /**
+     * if index.mode "logs" is applied by default in logs@settings for 'logs-*-*'
+     */
+    public static final Setting<Boolean> CLUSTER_LOGSDB_ENABLED = Setting.boolSetting(
+        "cluster.logsdb.enabled",
+        false,
+        Setting.Property.NodeScope
+    );
+
     private final ClusterService clusterService;
     private final FeatureService featureService;
     private volatile boolean stackTemplateEnabled;
+
+    private final boolean logsIndexModeTemplateEnabled;
 
     public static final Map<String, String> ADDITIONAL_TEMPLATE_VARIABLES = Map.of("xpack.stack.template.deprecated", "false");
 
@@ -121,6 +132,7 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
         this.clusterService = clusterService;
         this.featureService = featureService;
         this.stackTemplateEnabled = STACK_TEMPLATES_ENABLED.get(nodeSettings);
+        this.logsIndexModeTemplateEnabled = CLUSTER_LOGSDB_ENABLED.get(nodeSettings);
     }
 
     @Override
@@ -164,6 +176,7 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
     }
 
     private static final Map<String, ComponentTemplate> COMPONENT_TEMPLATE_CONFIGS;
+    private static final Map<String, ComponentTemplate> LOGSDB_COMPONENT_TEMPLATE_CONFIGS;
 
     static {
         final Map<String, ComponentTemplate> componentTemplates = new HashMap<>();
@@ -249,10 +262,97 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
             }
         }
         COMPONENT_TEMPLATE_CONFIGS = Map.copyOf(componentTemplates);
+
+        final Map<String, ComponentTemplate> logsdbComponentTemplates = new HashMap<>();
+        for (IndexTemplateConfig config : List.of(
+            new IndexTemplateConfig(
+                DATA_STREAMS_MAPPINGS_COMPONENT_TEMPLATE_NAME,
+                "/data-streams@mappings.json",
+                REGISTRY_VERSION,
+                TEMPLATE_VERSION_VARIABLE,
+                ADDITIONAL_TEMPLATE_VARIABLES
+            ),
+            new IndexTemplateConfig(
+                LOGS_MAPPINGS_COMPONENT_TEMPLATE_NAME,
+                "/logs@mappings-logsdb.json",
+                REGISTRY_VERSION,
+                TEMPLATE_VERSION_VARIABLE,
+                ADDITIONAL_TEMPLATE_VARIABLES
+            ),
+            new IndexTemplateConfig(
+                ECS_DYNAMIC_MAPPINGS_COMPONENT_TEMPLATE_NAME,
+                "/ecs@mappings.json",
+                REGISTRY_VERSION,
+                TEMPLATE_VERSION_VARIABLE,
+                ADDITIONAL_TEMPLATE_VARIABLES
+            ),
+            new IndexTemplateConfig(
+                LOGS_SETTINGS_COMPONENT_TEMPLATE_NAME,
+                "/logs@settings-logsdb.json",
+                REGISTRY_VERSION,
+                TEMPLATE_VERSION_VARIABLE,
+                ADDITIONAL_TEMPLATE_VARIABLES
+            ),
+            new IndexTemplateConfig(
+                METRICS_MAPPINGS_COMPONENT_TEMPLATE_NAME,
+                "/metrics@mappings.json",
+                REGISTRY_VERSION,
+                TEMPLATE_VERSION_VARIABLE,
+                ADDITIONAL_TEMPLATE_VARIABLES
+            ),
+            new IndexTemplateConfig(
+                METRICS_SETTINGS_COMPONENT_TEMPLATE_NAME,
+                "/metrics@settings.json",
+                REGISTRY_VERSION,
+                TEMPLATE_VERSION_VARIABLE,
+                ADDITIONAL_TEMPLATE_VARIABLES
+            ),
+            new IndexTemplateConfig(
+                METRICS_TSDB_SETTINGS_COMPONENT_TEMPLATE_NAME,
+                "/metrics@tsdb-settings.json",
+                REGISTRY_VERSION,
+                TEMPLATE_VERSION_VARIABLE,
+                ADDITIONAL_TEMPLATE_VARIABLES
+            ),
+            new IndexTemplateConfig(
+                SYNTHETICS_MAPPINGS_COMPONENT_TEMPLATE_NAME,
+                "/synthetics@mappings.json",
+                REGISTRY_VERSION,
+                TEMPLATE_VERSION_VARIABLE,
+                ADDITIONAL_TEMPLATE_VARIABLES
+            ),
+            new IndexTemplateConfig(
+                SYNTHETICS_SETTINGS_COMPONENT_TEMPLATE_NAME,
+                "/synthetics@settings.json",
+                REGISTRY_VERSION,
+                TEMPLATE_VERSION_VARIABLE,
+                ADDITIONAL_TEMPLATE_VARIABLES
+            ),
+            new IndexTemplateConfig(
+                KIBANA_REPORTING_COMPONENT_TEMPLATE_NAME,
+                "/kibana-reporting@settings.json",
+                REGISTRY_VERSION,
+                TEMPLATE_VERSION_VARIABLE,
+                ADDITIONAL_TEMPLATE_VARIABLES
+            )
+        )) {
+            try {
+                logsdbComponentTemplates.put(
+                    config.getTemplateName(),
+                    ComponentTemplate.parse(JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, config.loadBytes()))
+                );
+            } catch (IOException e) {
+                throw new AssertionError(e);
+            }
+        }
+        LOGSDB_COMPONENT_TEMPLATE_CONFIGS = Map.copyOf(logsdbComponentTemplates);
     }
 
     @Override
     protected Map<String, ComponentTemplate> getComponentTemplateConfigs() {
+        if (logsIndexModeTemplateEnabled) {
+            return LOGSDB_COMPONENT_TEMPLATE_CONFIGS;
+        }
         return COMPONENT_TEMPLATE_CONFIGS;
     }
 

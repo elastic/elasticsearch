@@ -11,6 +11,7 @@ import joptsimple.internal.Strings;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.Vector;
@@ -22,11 +23,12 @@ import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.type.DataTypes;
 import org.elasticsearch.xpack.esql.expression.function.Warnings;
 import org.elasticsearch.xpack.esql.expression.function.scalar.UnaryScalarFunction;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -39,20 +41,23 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTyp
 
 /**
  * Base class for functions that converts a field into a function-specific type.
+ * <p>
+ *     We have a guide for writing these in the javadoc for
+ *     {@link org.elasticsearch.xpack.esql.expression.function.scalar}.
+ * </p>
  */
 public abstract class AbstractConvertFunction extends UnaryScalarFunction {
 
     // the numeric types convert functions need to handle; the other numeric types are converted upstream to one of these
-    private static final List<DataType> NUMERIC_TYPES = List.of(
-        DataTypes.INTEGER,
-        DataTypes.LONG,
-        DataTypes.UNSIGNED_LONG,
-        DataTypes.DOUBLE
-    );
-    public static final List<DataType> STRING_TYPES = DataTypes.types().stream().filter(EsqlDataTypes::isString).toList();
+    private static final List<DataType> NUMERIC_TYPES = List.of(DataType.INTEGER, DataType.LONG, DataType.UNSIGNED_LONG, DataType.DOUBLE);
+    public static final List<DataType> STRING_TYPES = DataType.types().stream().filter(EsqlDataTypes::isString).toList();
 
     protected AbstractConvertFunction(Source source, Expression field) {
         super(source, field);
+    }
+
+    protected AbstractConvertFunction(StreamInput in) throws IOException {
+        this(Source.readFrom((PlanStreamInput) in), ((PlanStreamInput) in).readExpression());
     }
 
     /**
@@ -88,7 +93,7 @@ public abstract class AbstractConvertFunction extends UnaryScalarFunction {
             STRING_TYPES.forEach(supportTypes::remove);
         }
 
-        supportTypes.forEach(t -> supportedTypesNames.add(t.name().toLowerCase(Locale.ROOT)));
+        supportTypes.forEach(t -> supportedTypesNames.add(t.nameUpper().toLowerCase(Locale.ROOT)));
         supportedTypesNames.sort(String::compareTo);
         return Strings.join(supportedTypesNames, " or ");
     }

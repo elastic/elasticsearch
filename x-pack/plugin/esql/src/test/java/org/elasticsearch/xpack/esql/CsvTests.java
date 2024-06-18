@@ -108,10 +108,10 @@ import static org.elasticsearch.xpack.esql.CsvTestUtils.loadCsvSpecValues;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.loadPageFromCsv;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.CSV_DATASET_MAP;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.classpathResources;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.cap;
 import static org.elasticsearch.xpack.esql.core.CsvSpecReader.specParser;
-import static org.elasticsearch.xpack.esql.core.TestUtils.classpathResources;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.greaterThan;
@@ -403,7 +403,7 @@ public class CsvTests extends ESTestCase {
         List<Type> columnTypes = coordinatorPlan.output()
             .stream()
             .peek(o -> dataTypes.add(EsqlDataTypes.outputType(o.dataType())))
-            .map(o -> Type.asType(o.dataType().name()))
+            .map(o -> Type.asType(o.dataType().nameUpper()))
             .toList();
 
         List<Driver> drivers = new ArrayList<>();

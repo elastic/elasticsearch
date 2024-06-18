@@ -69,9 +69,6 @@ tests:
   method: "testShutdownReadinessService"
 - class: "org.elasticsearch.packaging.test.PackageTests"
   issue: "https://github.com/elastic/elasticsearch/issues/109852"
-- class: "org.elasticsearch.cluster.PrevalidateShardPathIT"
-  issue: "https://github.com/elastic/elasticsearch/issues/104807"
-  method: "testCheckShards"
 
 # Examples:
 #

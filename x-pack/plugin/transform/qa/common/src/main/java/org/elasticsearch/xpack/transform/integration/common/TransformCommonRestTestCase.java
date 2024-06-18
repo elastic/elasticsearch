@@ -70,7 +70,6 @@ public abstract class TransformCommonRestTestCase extends ESRestTestCase {
         List<Map<String, Object>> tasks = (List<Map<String, Object>>) XContentMapValues.extractValue(
             response,
             "metadata",
-            "project",
             "persistent_tasks",
             "tasks"
         );

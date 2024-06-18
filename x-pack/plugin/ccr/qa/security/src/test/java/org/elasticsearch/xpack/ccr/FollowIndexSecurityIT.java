@@ -340,7 +340,7 @@ public class FollowIndexSecurityIT extends ESCCRRestTestCase {
 
     private static void assertNoPendingPersistentTasks() throws IOException {
         Map<String, Object> clusterState = toMap(adminClient().performRequest(new Request("GET", "/_cluster/state")));
-        List<?> tasks = (List<?>) XContentMapValues.extractValue("metadata.project.persistent_tasks.tasks", clusterState);
+        List<?> tasks = (List<?>) XContentMapValues.extractValue("metadata.persistent_tasks.tasks", clusterState);
         assertThat("Could not retrieve tasks from cluster state", tasks, notNullValue());
         tasks = tasks.stream()
             .filter(

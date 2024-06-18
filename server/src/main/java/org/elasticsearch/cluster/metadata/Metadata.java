@@ -1594,6 +1594,12 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
             ? ChunkedToXContentHelper.wrapWithObject("indices", indices().values().iterator())
             : Collections.emptyIterator();
 
+        final Iterator<ToXContent> projectCustoms = Iterators.flatMap(
+            this.projectCustoms.entrySet().iterator(),
+            entry -> entry.getValue().context().contains(context)
+                ? ChunkedToXContentHelper.wrapWithObject(entry.getKey(), entry.getValue().toXContentChunked(p))
+                : Collections.emptyIterator()
+        );
         return Iterators.concat(start, Iterators.single((builder, params) -> {
             builder.field("cluster_uuid", clusterUUID);
             builder.field("cluster_uuid_committed", clusterUUIDCommitted);
@@ -1616,15 +1622,8 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
                     ? ChunkedToXContentHelper.wrapWithObject(entry.getKey(), entry.getValue().toXContentChunked(p))
                     : Collections.emptyIterator()
             ),
-            ChunkedToXContentHelper.wrapWithObject(
-                "project",
-                Iterators.flatMap(
-                    projectCustoms.entrySet().iterator(),
-                    entry -> entry.getValue().context().contains(context)
-                        ? ChunkedToXContentHelper.wrapWithObject(entry.getKey(), entry.getValue().toXContentChunked(p))
-                        : Collections.emptyIterator()
-                )
-            ),
+            // For BWC, the API does not have an embedded "project:", but other contexts do
+            context == XContentContext.API ? projectCustoms : ChunkedToXContentHelper.wrapWithObject("project", projectCustoms),
             ChunkedToXContentHelper.wrapWithObject("reserved_state", reservedStateMetadata().values().iterator()),
             ChunkedToXContentHelper.endObject()
         );

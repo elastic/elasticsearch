@@ -2434,7 +2434,9 @@ public class MetadataTests extends ESTestCase {
                 );
             }
         }
-        chunkCount += 2; // start/end "project":{}
+        if (context != Metadata.XContentContext.API) {
+            chunkCount += 2; // start/end "project":{}
+        }
         for (Metadata.ProjectCustom custom : metadata.projectCustoms().values()) {
             chunkCount += 2;
             if (custom instanceof ComponentTemplateMetadata componentTemplateMetadata) {

@@ -46,7 +46,6 @@ import java.util.Base64;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
@@ -901,13 +900,7 @@ public class FullClusterRestartIT extends AbstractXpackFullClusterRestartTestCas
         // check that the rollup job is started using the Cluster State API
         final Request clusterStateRequest = new Request("GET", "_cluster/state/metadata");
         Map<String, Object> clusterStateResponse = entityAsMap(client().performRequest(clusterStateRequest));
-        // Depending on which version we're testing against the persistent_tasks might be at the root of the metadata
-        // or they might be under "project"
-        List<Map<String, Object>> rollupJobTasks = isRunningAgainstOldCluster()
-            ? Optional.<List<Map<String, Object>>>ofNullable(ObjectPath.eval("metadata.persistent_tasks.tasks", clusterStateResponse))
-                .or(() -> Optional.ofNullable(ObjectPath.eval("metadata.project.persistent_tasks.tasks", clusterStateResponse)))
-                .orElse(null)
-            : ObjectPath.eval("metadata.project.persistent_tasks.tasks", clusterStateResponse);
+        List<Map<String, Object>> rollupJobTasks = ObjectPath.eval("metadata.persistent_tasks.tasks", clusterStateResponse);
         assertThat(rollupJobTasks, notNullValue());
 
         boolean hasRollupTask = false;

@@ -124,7 +124,7 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
         Request getTaskState = new Request("GET", "/_cluster/state");
         ObjectPath state = ObjectPath.createFromResponse(client().performRequest(getTaskState));
 
-        List<?> tasks = state.evaluate("metadata.project.persistent_tasks.tasks");
+        List<?> tasks = state.evaluate("metadata.persistent_tasks.tasks");
         // Short-circuit to avoid using steams if the list is empty
         if (tasks.isEmpty()) {
             fail("No persistent tasks found in cluster metadata");

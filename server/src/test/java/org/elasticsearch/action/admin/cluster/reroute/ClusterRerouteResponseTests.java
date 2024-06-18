@@ -192,10 +192,8 @@ public class ClusterRerouteResponseTests extends ESTestCase {
                               }
                             }
                           },
-                          "project": {
-                              "index-graveyard": {
-                                "tombstones": []
-                              }
+                          "index-graveyard": {
+                            "tombstones": []
                           },
                           "reserved_state":{}
                         },
@@ -273,10 +271,8 @@ public class ClusterRerouteResponseTests extends ESTestCase {
                           }
                         }
                       },
-                      "project": {
-                          "index-graveyard" : {
-                            "tombstones" : [ ]
-                          }
+                      "index-graveyard" : {
+                        "tombstones" : [ ]
                       },
                       "reserved_state":{}
                     }

@@ -387,7 +387,7 @@ public abstract class PyTorchModelRestTestCase extends ESRestTestCase {
     protected void assertThatTrainedModelAssignmentMetadataIsEmpty() throws IOException {
         Request getTrainedModelAssignmentMetadataRequest = new Request(
             "GET",
-            "_cluster/state?filter_path=metadata.project.trained_model_assignment"
+            "_cluster/state?filter_path=metadata.trained_model_assignment"
         );
         Response getTrainedModelAssignmentMetadataResponse = client().performRequest(getTrainedModelAssignmentMetadataRequest);
         assertThat(
@@ -395,10 +395,7 @@ public abstract class PyTorchModelRestTestCase extends ESRestTestCase {
             containsString("\"trained_model_assignment\":{}")
         );
 
-        getTrainedModelAssignmentMetadataRequest = new Request(
-            "GET",
-            "_cluster/state?filter_path=metadata.project.trained_model_allocation"
-        );
+        getTrainedModelAssignmentMetadataRequest = new Request("GET", "_cluster/state?filter_path=metadata.trained_model_allocation");
         getTrainedModelAssignmentMetadataResponse = client().performRequest(getTrainedModelAssignmentMetadataRequest);
         assertThat(EntityUtils.toString(getTrainedModelAssignmentMetadataResponse.getEntity()), equalTo("{}"));
     }

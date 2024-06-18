@@ -35,6 +35,7 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.RecoveryCommitTooNewException;
@@ -118,9 +119,7 @@ public class TransportSendRecoveryCommitRegistrationAction extends HandledTransp
     ) {
         try {
             var shardId = request.getShardId();
-            IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
-            IndexShard indexShard = indexService.getShard(shardId.id());
-            assert indexShard.routingEntry().isPromotableToPrimary() == false
+            assert localShardIsUnpromotableOrNull(shardId)
                 : "TransportSendRecoveryCommitRegistrationAction can only be executed on a search shard";
             // Forward the request to the indexing shard
             var shardRoutingTable = state.routingTable().shardRoutingTable(shardId);
@@ -147,5 +146,21 @@ public class TransportSendRecoveryCommitRegistrationAction extends HandledTransp
         } catch (Exception e) {
             listener.onFailure(e);
         }
+    }
+
+    private boolean localShardIsUnpromotableOrNull(ShardId shardId) {
+        // It is OK if the index or the shard is concurrently removed when performing this check.
+        // We do _not_ want to retry on this ShardNotFoundException.
+        // The commit registration will proceed and ultimately fail inside PeerRecoveryTargetService
+        // which in turn allows a new allocation to happen.
+        IndexService indexService = indicesService.indexService(shardId.getIndex());
+        if (indexService == null) {
+            return true;
+        }
+        final IndexShard indexShard = indexService.getShardOrNull(shardId.id());
+        if (indexShard == null) {
+            return true;
+        }
+        return indexShard.routingEntry().isPromotableToPrimary() == false;
     }
 }

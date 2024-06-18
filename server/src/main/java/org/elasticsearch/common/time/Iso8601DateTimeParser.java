@@ -28,9 +28,10 @@ class Iso8601DateTimeParser implements DateTimeParser {
         Set<ChronoField> mandatoryFields,
         boolean optionalTime,
         ChronoField maxAllowedField,
+        DecimalSeparator decimalSeparator,
         TimezonePresence timezonePresence
     ) {
-        parser = new Iso8601Parser(mandatoryFields, optionalTime, maxAllowedField, timezonePresence, Map.of());
+        parser = new Iso8601Parser(mandatoryFields, optionalTime, maxAllowedField, decimalSeparator, timezonePresence, Map.of());
         timezone = null;
         locale = null;
     }
@@ -67,6 +68,7 @@ class Iso8601DateTimeParser implements DateTimeParser {
                 parser.mandatoryFields(),
                 parser.optionalTime(),
                 parser.maxAllowedField(),
+                parser.decimalSeparator(),
                 parser.timezonePresence(),
                 defaults
             ),

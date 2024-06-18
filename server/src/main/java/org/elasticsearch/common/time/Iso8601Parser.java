@@ -13,6 +13,7 @@ import org.elasticsearch.core.Nullable;
 import java.time.DateTimeException;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoField;
 import java.util.EnumMap;
 import java.util.EnumSet;
@@ -23,7 +24,7 @@ import java.util.Set;
 /**
  * Parses datetimes in ISO8601 format (and subsequences thereof).
  * <p>
- * This is faster than the generic parsing in {@link java.time.format.DateTimeFormatter}, as this is hard-coded and specific to ISO-8601.
+ * This is faster than the generic parsing in {@link DateTimeFormatter}, as this is hard-coded and specific to ISO-8601.
  * Various public libraries provide their own variant of this mechanism. We use our own for a few reasons:
  * <ul>
  *     <li>
@@ -61,31 +62,34 @@ class Iso8601Parser {
     private final boolean optionalTime;
     @Nullable
     private final ChronoField maxAllowedField;
+    private final DecimalSeparator decimalSeparator;
     private final TimezonePresence timezonePresence;
     private final Map<ChronoField, Integer> defaults;
 
     /**
      * Constructs a new {@code Iso8601Parser} object
      *
-     * @param mandatoryFields   The set of fields that must be present for a valid parse. These should be specified in field order
-     *                          (eg if {@link ChronoField#DAY_OF_MONTH} is specified,
-     *                          {@link ChronoField#MONTH_OF_YEAR} should also be specified).
-     *                          {@link ChronoField#YEAR} is always mandatory.
-     * @param optionalTime      {@code false} if the presence of time fields follows {@code mandatoryFields},
-     *                          {@code true} if a time component is always optional,
-     *                          despite the presence of time fields in {@code mandatoryFields}.
-     *                          This makes it possible to specify 'time is optional, but if it is present, it must have these fields'
-     *                          by settings {@code optionalTime = true} and putting time fields such as {@link ChronoField#HOUR_OF_DAY}
-     *                          and {@link ChronoField#MINUTE_OF_HOUR} in {@code mandatoryFields}.
-     * @param maxAllowedField   The most-specific field allowed in the parsed string,
-     *                          or {@code null} if everything up to nanoseconds is allowed.
-     * @param timezonePresence  Specifies if the timezone is optional, mandatory, or forbidden.
-     * @param defaults          Map of default field values, if they are not present in the parsed string.
+     * @param mandatoryFields  The set of fields that must be present for a valid parse. These should be specified in field order
+     *                         (eg if {@link ChronoField#DAY_OF_MONTH} is specified,
+     *                         {@link ChronoField#MONTH_OF_YEAR} should also be specified).
+     *                         {@link ChronoField#YEAR} is always mandatory.
+     * @param optionalTime     {@code false} if the presence of time fields follows {@code mandatoryFields},
+     *                         {@code true} if a time component is always optional,
+     *                         despite the presence of time fields in {@code mandatoryFields}.
+     *                         This makes it possible to specify 'time is optional, but if it is present, it must have these fields'
+     *                         by settings {@code optionalTime = true} and putting time fields such as {@link ChronoField#HOUR_OF_DAY}
+     *                         and {@link ChronoField#MINUTE_OF_HOUR} in {@code mandatoryFields}.
+     * @param maxAllowedField  The most-specific field allowed in the parsed string,
+     *                         or {@code null} if everything up to nanoseconds is allowed.
+     * @param decimalSeparator The decimal separator that is allowed.
+     * @param timezonePresence Specifies if the timezone is optional, mandatory, or forbidden.
+     * @param defaults         Map of default field values, if they are not present in the parsed string.
      */
     Iso8601Parser(
         Set<ChronoField> mandatoryFields,
         boolean optionalTime,
         @Nullable ChronoField maxAllowedField,
+        DecimalSeparator decimalSeparator,
         TimezonePresence timezonePresence,
         Map<ChronoField, Integer> defaults
     ) {
@@ -99,6 +103,7 @@ class Iso8601Parser {
         this.mandatoryFields.addAll(mandatoryFields);
         this.optionalTime = optionalTime;
         this.maxAllowedField = maxAllowedField;
+        this.decimalSeparator = Objects.requireNonNull(decimalSeparator);
         this.timezonePresence = Objects.requireNonNull(timezonePresence);
         this.defaults = defaults.isEmpty() ? Map.of() : new EnumMap<>(defaults);
     }
@@ -123,6 +128,10 @@ class Iso8601Parser {
 
     ChronoField maxAllowedField() {
         return maxAllowedField;
+    }
+
+    DecimalSeparator decimalSeparator() {
+        return decimalSeparator;
     }
 
     TimezonePresence timezonePresence() {
@@ -371,8 +380,7 @@ class Iso8601Parser {
                 : ParseResult.error(19);
         }
 
-        char decSeparator = str.charAt(19);
-        if ((decSeparator != '.' && decSeparator != ',') || maxAllowedField == ChronoField.SECOND_OF_MINUTE) return ParseResult.error(19);
+        if (checkDecimalSeparator(str.charAt(19)) == false || maxAllowedField == ChronoField.SECOND_OF_MINUTE) return ParseResult.error(19);
 
         // NANOS + timezone
         // the last number could be millis or nanos, or any combination in the middle
@@ -406,6 +414,16 @@ class Iso8601Parser {
         return ParseResult.error(pos);
     }
 
+    private boolean checkDecimalSeparator(char separator) {
+        boolean isDot = separator == '.';
+        boolean isComma = separator == ',';
+        return switch (decimalSeparator) {
+            case DOT -> isDot;
+            case COMMA -> isComma;
+            case BOTH -> isDot || isComma;
+        };
+    }
+
     private static boolean isZoneId(CharSequence str, int pos) {
         // all region zoneIds must start with [A-Za-z] (see ZoneId#of)
         // this also covers Z and UT/UTC/GMT zone variants
@@ -414,7 +432,7 @@ class Iso8601Parser {
     }
 
     /**
-     * This parses the zone offset, which is of the format accepted by {@link java.time.ZoneId#of(String)}.
+     * This parses the zone offset, which is of the format accepted by {@link ZoneId#of(String)}.
      * It has fast paths for numerical offsets, but falls back on {@code ZoneId.of} for non-trivial zone ids.
      */
     private ZoneId parseZoneId(CharSequence str, int pos) {

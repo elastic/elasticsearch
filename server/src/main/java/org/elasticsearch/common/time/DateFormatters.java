@@ -204,7 +204,9 @@ public class DateFormatters {
             JAVA_TIME_PARSERS_ONLY
                 ? new DateTimeParser[] { javaTimeParser }
                 : new DateTimeParser[] {
-                    new Iso8601DateTimeParser(Set.of(), false, null, TimezonePresence.OPTIONAL).withLocale(Locale.ROOT),
+                    new Iso8601DateTimeParser(Set.of(), false, null, DecimalSeparator.BOTH, TimezonePresence.OPTIONAL).withLocale(
+                        Locale.ROOT
+                    ),
                     javaTimeParser }
         );
     }
@@ -269,8 +271,13 @@ public class DateFormatters {
             JAVA_TIME_PARSERS_ONLY
                 ? new DateTimeParser[] { javaTimeParser }
                 : new DateTimeParser[] {
-                    new Iso8601DateTimeParser(Set.of(HOUR_OF_DAY, MINUTE_OF_HOUR, SECOND_OF_MINUTE), true, null, TimezonePresence.OPTIONAL)
-                        .withLocale(Locale.ROOT),
+                    new Iso8601DateTimeParser(
+                        Set.of(HOUR_OF_DAY, MINUTE_OF_HOUR, SECOND_OF_MINUTE),
+                        true,
+                        null,
+                        DecimalSeparator.BOTH,
+                        TimezonePresence.OPTIONAL
+                    ).withLocale(Locale.ROOT),
                     javaTimeParser }
         );
     }
@@ -321,7 +328,9 @@ public class DateFormatters {
             JAVA_TIME_PARSERS_ONLY
                 ? new DateTimeParser[] { javaTimeParser }
                 : new DateTimeParser[] {
-                    new Iso8601DateTimeParser(Set.of(), false, null, TimezonePresence.OPTIONAL).withLocale(Locale.ROOT),
+                    new Iso8601DateTimeParser(Set.of(), false, null, DecimalSeparator.BOTH, TimezonePresence.OPTIONAL).withLocale(
+                        Locale.ROOT
+                    ),
                     javaTimeParser }
         );
     }
@@ -760,9 +769,13 @@ public class DateFormatters {
             JAVA_TIME_PARSERS_ONLY
                 ? new DateTimeParser[] { javaTimeParser }
                 : new DateTimeParser[] {
-                    new Iso8601DateTimeParser(Set.of(MONTH_OF_YEAR), false, MONTH_OF_YEAR, TimezonePresence.FORBIDDEN).withLocale(
-                        Locale.ROOT
-                    ),
+                    new Iso8601DateTimeParser(
+                        Set.of(MONTH_OF_YEAR),
+                        false,
+                        MONTH_OF_YEAR,
+                        DecimalSeparator.BOTH,
+                        TimezonePresence.FORBIDDEN
+                    ).withLocale(Locale.ROOT),
                     javaTimeParser }
         );
     }
@@ -783,7 +796,8 @@ public class DateFormatters {
             JAVA_TIME_PARSERS_ONLY
                 ? new DateTimeParser[] { javaTimeParser }
                 : new DateTimeParser[] {
-                    new Iso8601DateTimeParser(Set.of(), false, ChronoField.YEAR, TimezonePresence.FORBIDDEN).withLocale(Locale.ROOT),
+                    new Iso8601DateTimeParser(Set.of(), false, ChronoField.YEAR, DecimalSeparator.BOTH, TimezonePresence.FORBIDDEN)
+                        .withLocale(Locale.ROOT),
                     javaTimeParser }
         );
     }
@@ -843,6 +857,7 @@ public class DateFormatters {
                         Set.of(MONTH_OF_YEAR, DAY_OF_MONTH, HOUR_OF_DAY, MINUTE_OF_HOUR, SECOND_OF_MINUTE),
                         false,
                         null,
+                        DecimalSeparator.DOT,
                         TimezonePresence.MANDATORY
                     ).withLocale(Locale.ROOT),
                     javaTimeParsers
@@ -922,6 +937,7 @@ public class DateFormatters {
                         Set.of(MONTH_OF_YEAR, DAY_OF_MONTH, HOUR_OF_DAY, MINUTE_OF_HOUR, SECOND_OF_MINUTE),
                         false,
                         SECOND_OF_MINUTE,
+                        DecimalSeparator.BOTH,
                         TimezonePresence.MANDATORY
                     ).withLocale(Locale.ROOT),
                     javaTimeParsers
@@ -991,6 +1007,7 @@ public class DateFormatters {
                         Set.of(MONTH_OF_YEAR, DAY_OF_MONTH, HOUR_OF_DAY, MINUTE_OF_HOUR, SECOND_OF_MINUTE, NANO_OF_SECOND),
                         false,
                         null,
+                        DecimalSeparator.DOT,
                         TimezonePresence.FORBIDDEN
                     ).withLocale(Locale.ROOT),
                     javaTimeParser }
@@ -1025,6 +1042,7 @@ public class DateFormatters {
                         Set.of(MONTH_OF_YEAR, DAY_OF_MONTH, HOUR_OF_DAY, MINUTE_OF_HOUR, SECOND_OF_MINUTE, NANO_OF_SECOND),
                         false,
                         null,
+                        DecimalSeparator.DOT,
                         TimezonePresence.FORBIDDEN
                     ).withLocale(Locale.ROOT),
                     javaTimeParser }
@@ -1358,6 +1376,7 @@ public class DateFormatters {
                         Set.of(MONTH_OF_YEAR, DAY_OF_MONTH, HOUR_OF_DAY, MINUTE_OF_HOUR, SECOND_OF_MINUTE),
                         false,
                         SECOND_OF_MINUTE,
+                        DecimalSeparator.BOTH,
                         TimezonePresence.FORBIDDEN
                     ).withLocale(Locale.ROOT),
                     javaTimeParser }

@@ -378,7 +378,7 @@ public class SearchMetricsServiceTests extends ESTestCase {
                         Level.WARN,
                         Strings.format(
                             "Storage metrics are stale for shard: %s, ShardMetrics{timestamp=1, shardSize=[interactive_in_bytes=*, "
-                                + "non-interactive_in_bytes=*][primary term=0, generation=0]}",
+                                + "non-interactive_in_bytes=*][term=0, gen=0]}",
                             new ShardId(indexMetadata.getIndex(), i)
                         )
                     )

@@ -56,7 +56,6 @@ import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -552,7 +551,7 @@ public final class DatabaseNodeService implements GeoIpDatabaseProvider, Closeab
                 )
             );
         }
-        return new HashSet<>(allDatabases.values());
+        return Set.copyOf(allDatabases.values());
     }
 
     public Set<String> getConfigDatabases() {

@@ -47,7 +47,6 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.util.Collection;
 import java.util.concurrent.Semaphore;
-import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.is;
 
@@ -241,13 +240,7 @@ public class StatelessStateNotRecoveredFileDeletionIT extends AbstractStatelessI
         }
 
         public Releasable block() {
-            try {
-                blocker.tryAcquire(Integer.MAX_VALUE, SAFE_AWAIT_TIMEOUT.seconds(), TimeUnit.SECONDS);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                fail(e, "unable to acquire all permits");
-            }
-
+            safeAcquire(Integer.MAX_VALUE, blocker);
             return () -> {
                 if (blocker.availablePermits() == 0) {
                     unblock();

@@ -44,7 +44,11 @@ public class ToTimeDuration extends AbstractConvertFunction {
     @FunctionInfo(
         returnType = "time_duration",
         description = "Converts an input value into a time_duration value.",
-        examples = { @Example(description = "Converts an input value into a time_duration", file = "convert", tag = "castToTimeDuration") }
+        examples = @Example(
+            description = "Converts an input value into a time_duration value.",
+            file = "convert",
+            tag = "castToTimeDuration"
+        )
     )
     public ToTimeDuration(
         Source source,

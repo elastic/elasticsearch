@@ -44,7 +44,7 @@ public class ToDatePeriod extends AbstractConvertFunction {
     @FunctionInfo(
         returnType = "date_period",
         description = "Converts an input value into a date_period value.",
-        examples = { @Example(description = "Converts an input value into a date_period", file = "convert", tag = "castToDatePeriod") }
+        examples = @Example(description = "Converts an input value into a date_period value.", file = "convert", tag = "castToDatePeriod")
     )
     public ToDatePeriod(
         Source source,

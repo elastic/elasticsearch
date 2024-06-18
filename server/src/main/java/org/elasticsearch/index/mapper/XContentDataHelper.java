@@ -46,6 +46,13 @@ public final class XContentDataHelper {
     }
 
     /**
+     * Build a {@link StoredField} for the value provided in a {@link XContentBuilder}.
+     */
+    static StoredField storedField(String name, XContentBuilder builder) throws IOException {
+        return new StoredField(name, TypeUtils.encode(builder));
+    }
+
+    /**
      * Build a {@link BytesRef} wrapping a byte array containing an encoded form
      * the value on which the parser is currently positioned.
      */

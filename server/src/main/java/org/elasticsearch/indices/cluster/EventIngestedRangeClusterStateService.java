@@ -13,6 +13,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -28,7 +29,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.shard.IndexLongFieldRange;
-import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardLongFieldRange;
 import org.elasticsearch.indices.IndicesService;
@@ -81,18 +81,31 @@ public class EventIngestedRangeClusterStateService extends AbstractLifecycleComp
     private final TransportService transportService;
     private final IndicesService indicesService;
 
+    // if true, attempt to lookup event.ingested ranges from searchable snapshots
+    private boolean attemptEventIngestedRangeLookup;
+
     public EventIngestedRangeClusterStateService(
         Settings settings,
         ClusterService clusterService,
         TransportService transportService,
         IndicesService indicesService
     ) {
+        this(settings, clusterService, transportService, indicesService, false);
+        logger.warn("XXX EventIngestedRangeClusterStateService constructor");
+    }
+
+    EventIngestedRangeClusterStateService(
+        Settings settings,
+        ClusterService clusterService,
+        TransportService transportService,
+        IndicesService indicesService,
+        boolean attemptEventIngestedRangeLookup
+    ) {
         this.settings = settings;
         this.clusterService = clusterService;
         this.transportService = transportService;
         this.indicesService = indicesService;
-
-        logger.warn("XXX EventIngestedRangeClusterStateService constructor");
+        this.attemptEventIngestedRangeLookup = attemptEventIngestedRangeLookup;
     }
 
     @Override
@@ -124,6 +137,8 @@ public class EventIngestedRangeClusterStateService extends AbstractLifecycleComp
     @Override
     protected void doClose() throws IOException {}
 
+    // TODO: does this method need to be thread safe? Or is it guaranteed to be called serially
+    // with a single thread as each ClusterChangedEvent occurs
     /**
      * Runs on data nodes.
      * If a cluster version upgrade is detected (e.g., moving from 8.15.0 to 8.16.0), then a Task
@@ -133,26 +148,26 @@ public class EventIngestedRangeClusterStateService extends AbstractLifecycleComp
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
         /// MP TODO ALT LOOPING MODEL -- start
-        for (Map.Entry<String, IndexMetadata> entry : event.state().getMetadata().indices().entrySet()) {
-            String indexName = entry.getKey();
-            IndexMetadata indexMetadata = entry.getValue();
-            Index index = entry.getValue().getIndex();
-
-            if (isFrozenIndex(indexMetadata.getSettings())) {
-                IndexService indexService = indicesService.indexService(index);
-                for (Integer shardId : indexService.shardIds()) {
-                    IndexShard shard = indexService.getShard(shardId);
-                    ShardLongFieldRange eventIngestedRange = shard.getEventIngestedRange();
-                    // TODO: add this range to map like below if we go this route
-                }
-
-            }
-        }
+        // for (Map.Entry<String, IndexMetadata> entry : event.state().getMetadata().indices().entrySet()) {
+        // String indexName = entry.getKey();
+        // IndexMetadata indexMetadata = entry.getValue();
+        // Index index = entry.getValue().getIndex();
+        //
+        // if (isFrozenIndex(indexMetadata.getSettings())) {
+        // IndexService indexService = indicesService.indexService(index);
+        // for (Integer shardId : indexService.shardIds()) {
+        // IndexShard shard = indexService.getShard(shardId);
+        // ShardLongFieldRange eventIngestedRange = shard.getEventIngestedRange();
+        // // TODO: add this range to map like below if we go this route
+        // }
+        //
+        // }
+        // }
         /// MP TODO ALT LOOPING MODEL -- end
 
         // only run this task when a cluster has upgraded to a new version
         // TODO: how is this going to work in serverless? will event.state().nodes().getMinNodeVersion() return useful info?
-        if (clusterVersionUpgrade(event)) {
+        if (clusterVersionUpgrade(event) || attemptEventIngestedRangeLookup) {
             Iterator<ShardRouting> shardRoutingIterator = event.state()
                 .getRoutingNodes()
                 .node(event.state().nodes().getLocalNodeId())
@@ -215,13 +230,12 @@ public class EventIngestedRangeClusterStateService extends AbstractLifecycleComp
             }
 
             if (eventIngestedRangeMap.isEmpty() == false) {
-
                 UpdateEventIngestedRangeRequest request = new UpdateEventIngestedRangeRequest(eventIngestedRangeMap);
-
                 ActionListener<ActionResponse.Empty> execListener = new ActionListener<>() {
                     @Override
                     public void onResponse(ActionResponse.Empty response) {
                         try {
+                            attemptEventIngestedRangeLookup = false;  // MP TODO: is this the right place to set this?
                             logger.warn("XXX YYY TaskExecutor.ActionListener onResponse: {}", response);
                         } catch (Exception e) {
                             onFailure(e);
@@ -232,6 +246,8 @@ public class EventIngestedRangeClusterStateService extends AbstractLifecycleComp
                     // TODO: clusterChanged is called to try again regardless of whether there was a cluster version upgrade?
                     @Override
                     public void onFailure(Exception e) {
+                        // attempt failed, so set a flag to retry on the next ClusterChangedEvent
+                        attemptEventIngestedRangeLookup = true;
                         logger.warn("XXX YYY TaskExecutor.ActionListener onFailure: {}", e.getMessage());
                     }
 
@@ -252,10 +268,9 @@ public class EventIngestedRangeClusterStateService extends AbstractLifecycleComp
                     UpdateEventIngestedRangeTransportAction.UPDATE_EVENT_INGESTED_RANGE_ACTION_NAME,
                     request,
                     // TODO: do I need something better than this response handler?
-                    // TODO: is it useful if all I'm getting is an ack that doesn't guarantee that cluster state was updated?
                     new ActionListenerResponseHandler<>(
-                        execListener.safeMap(r -> null),
-                        in -> ActionResponse.Empty.INSTANCE,  // TODO: there is a way to wait for the TaskExecutor to finish
+                        execListener.safeMap(r -> null),  // TODO: I think this will call my onResponse and onFailure above?
+                        AcknowledgedResponse::readFrom,
                         TransportResponseHandler.TRANSPORT_WORKER
                     )
                 );

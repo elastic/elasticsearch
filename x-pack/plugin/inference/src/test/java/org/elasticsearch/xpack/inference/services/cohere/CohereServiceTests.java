@@ -58,6 +58,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.xpack.inference.Utils.*;
 import static org.elasticsearch.xpack.inference.Utils.getInvalidModel;
 import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityPool;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
@@ -421,7 +422,7 @@ public class CohereServiceTests extends ESTestCase {
                 getTaskSettingsMap(null, null),
                 getSecretSettingsMap("secret")
             );
-            persistedConfig.secrets.put("extra_key", "value");
+            persistedConfig.secrets().put("extra_key", "value");
 
             var model = service.parsePersistedConfigWithSecrets(
                 "id",
@@ -1394,6 +1395,4 @@ public class CohereServiceTests extends ESTestCase {
             null
         );
     }
-
-    private record PersistedConfig(Map<String, Object> config, Map<String, Object> secrets) {}
 }

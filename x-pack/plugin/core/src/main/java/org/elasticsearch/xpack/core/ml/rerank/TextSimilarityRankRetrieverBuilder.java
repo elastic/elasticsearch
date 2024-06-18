@@ -19,6 +19,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.XPackField;
 
 import java.io.IOException;
+import java.util.Objects;
 
 import static org.elasticsearch.search.rank.RankBuilder.DEFAULT_RANK_WINDOW_SIZE;
 
@@ -118,15 +119,24 @@ public class TextSimilarityRankRetrieverBuilder extends RetrieverBuilder {
     }
 
     @Override
-    protected void doToXContent(XContentBuilder builder, Params params) {}
+    protected void doToXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.field(RETRIEVER_FIELD.getPreferredName(), retrieverBuilder);
+        builder.field(FIELD_FIELD.getPreferredName(), field);
+        builder.field(RANK_WINDOW_SIZE_FIELD.getPreferredName(), rankWindowSize);
+        builder.field(MIN_SCORE_FIELD.getPreferredName(), minScore);
+    }
 
     @Override
-    protected boolean doEquals(Object o) {
-        return false;
+    protected boolean doEquals(Object other) {
+        TextSimilarityRankRetrieverBuilder that = (TextSimilarityRankRetrieverBuilder) other;
+        return Objects.equals(retrieverBuilder, that.retrieverBuilder)
+            && Objects.equals(field, that.field)
+            && Objects.equals(rankWindowSize, that.rankWindowSize)
+            && Objects.equals(minScore, that.minScore);
     }
 
     @Override
     protected int doHashCode() {
-        return 0;
+        return Objects.hash(retrieverBuilder, field, rankWindowSize, minScore);
     }
 }

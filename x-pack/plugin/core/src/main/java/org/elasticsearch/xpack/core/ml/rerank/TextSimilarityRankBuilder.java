@@ -27,8 +27,16 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Objects;
+
+import static org.elasticsearch.xpack.core.ml.rerank.TextSimilarityRankRetrieverBuilder.FIELD_FIELD;
+import static org.elasticsearch.xpack.core.ml.rerank.TextSimilarityRankRetrieverBuilder.INFERENCE_ID_FIELD;
+import static org.elasticsearch.xpack.core.ml.rerank.TextSimilarityRankRetrieverBuilder.INFERENCE_TEXT_FIELD;
+import static org.elasticsearch.xpack.core.ml.rerank.TextSimilarityRankRetrieverBuilder.MIN_SCORE_FIELD;
 
 public class TextSimilarityRankBuilder extends RankBuilder {
+
+    public static final String NAME = "text_similarity_rank_builder";
 
     private final String inferenceId;
     private final String inferenceText;
@@ -53,7 +61,7 @@ public class TextSimilarityRankBuilder extends RankBuilder {
 
     @Override
     public String getWriteableName() {
-        return "text_similarity_rank_builder";
+        return NAME;
     }
 
     @Override
@@ -71,7 +79,10 @@ public class TextSimilarityRankBuilder extends RankBuilder {
 
     @Override
     public void doXContent(XContentBuilder builder, Params params) throws IOException {
-        throw new UnsupportedOperationException("not supported");
+        builder.field(INFERENCE_ID_FIELD.getPreferredName(), inferenceId);
+        builder.field(INFERENCE_TEXT_FIELD.getPreferredName(), inferenceText);
+        builder.field(FIELD_FIELD.getPreferredName(), field);
+        builder.field(MIN_SCORE_FIELD.getPreferredName(), minScore);
     }
 
     @Override
@@ -114,12 +125,15 @@ public class TextSimilarityRankBuilder extends RankBuilder {
 
     @Override
     protected boolean doEquals(RankBuilder other) {
-        return false;
-    }
+        TextSimilarityRankBuilder that = (TextSimilarityRankBuilder) other;
+        return Objects.equals(inferenceId, that.inferenceId)
+            && Objects.equals(inferenceText, that.inferenceText)
+            && Objects.equals(field, that.field)
+            && Objects.equals(minScore, that.minScore);
+   }
 
     @Override
     protected int doHashCode() {
-        return 0;
+        return Objects.hash(inferenceId, inferenceText, field, minScore);
     }
-
 }

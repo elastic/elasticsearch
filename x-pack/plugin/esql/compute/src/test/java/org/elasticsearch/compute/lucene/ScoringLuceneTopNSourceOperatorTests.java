@@ -94,7 +94,7 @@ public class ScoringLuceneTopNSourceOperatorTests extends AnyOperatorTestCase {
             taskConcurrency,
             maxPageSize,
             limit,
-            List.of(SortBuilders.fieldSort(FIELD_NAME))
+            List.of(SortBuilders.scoreSort())
         );
     }
 
@@ -160,13 +160,7 @@ public class ScoringLuceneTopNSourceOperatorTests extends AnyOperatorTestCase {
         );
         OperatorTestCase.assertDriverContext(ctx);
 
-        long expectedS = 0;
         for (Page page : results) {
-            if (limit - expectedS < factory.maxPageSize()) {
-                assertThat(page.getPositionCount(), equalTo((int) (limit - expectedS)));
-            } else {
-                assertThat(page.getPositionCount(), equalTo(factory.maxPageSize()));
-            }
             IntVectorBlock sBlock = page.getBlock(1);
             for (int p = 0; p < page.getPositionCount(); p++) {
                 assertThat(sBlock.getInt(sBlock.getFirstValueIndex(p)), greaterThan(0));

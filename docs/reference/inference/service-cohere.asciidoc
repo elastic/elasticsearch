@@ -1,15 +1,15 @@
 [[infer-service-cohere]]
-==== Cohere {infer} `service`
+=== Cohere {infer} `service`
 
 [discrete]
 [[infer-service-cohere-api-request]]
-===== {api-request-title}
+==== {api-request-title}
 
 `PUT /_inference/<task_type>/<inference_id>`
 
 [discrete]
 [[infer-service-cohere-api-path-params]]
-===== {api-path-parms-title}
+==== {api-path-parms-title}
 
 `<inference_id>`::
 (Required, string)
@@ -28,7 +28,7 @@ Available task types:
 
 [discrete]
 [[infer-service-cohere-api-request-body]]
-===== {api-request-body-title}
+==== {api-request-body-title}
 
 `service`::
 (Required, string)
@@ -131,7 +131,7 @@ Valid values are:
 
 [discrete]
 [[inference-example-cohere]]
-===== Cohere service examples
+==== Cohere service examples
 
 The following example shows how to create an {infer} endpoint called
 `cohere-embeddings` to perform a `text_embedding` task type.

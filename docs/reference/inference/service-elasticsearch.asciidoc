@@ -1,15 +1,15 @@
 [[infer-service-elasticsearch]]
-==== Elasticsearch {infer} `service`
+=== Elasticsearch {infer} `service`
 
 [discrete]
 [[infer-service-elasticsearch-api-request]]
-===== {api-request-title}
+==== {api-request-title}
 
 `PUT /_inference/<task_type>/<inference_id>`
 
 [discrete]
 [[infer-service-elasticsearch-api-path-params]]
-===== {api-path-parms-title}
+==== {api-path-parms-title}
 
 `<inference_id>`::
 (Required, string)
@@ -26,7 +26,7 @@ Available task types:
 
 [discrete]
 [[infer-service-elasticsearch-api-request-body]]
-===== {api-request-body-title}
+==== {api-request-body-title}
 
 `service`::
 (Required, string)
@@ -63,7 +63,7 @@ include::inference-shared.asciidoc[tag=task-settings]
 
 [discrete]
 [[inference-example-elasticsearch]]
-===== E5 via the `elasticsearch` service
+==== E5 via the `elasticsearch` service
 
 The following example shows how to create an {infer} endpoint called
 `my-e5-model` to perform a `text_embedding` task type.
@@ -87,7 +87,7 @@ For further details, refer to the {ml-docs}/ml-nlp-e5.html[E5 model documentatio
 
 [discrete]
 [[inference-example-eland]]
-===== Models uploaded by Eland via the elasticsearch service
+==== Models uploaded by Eland via the elasticsearch service
 
 The following example shows how to create an {infer} endpoint called
 `my-msmarco-minilm-model` to perform a `text_embedding` task type.

@@ -1,15 +1,15 @@
 [[infer-service-hugging-face]]
-==== HuggingFace {infer} `service`
+=== HuggingFace {infer} `service`
 
 [discrete]
 [[infer-service-hugging-face-api-request]]
-===== {api-request-title}
+==== {api-request-title}
 
 `PUT /_inference/<task_type>/<inference_id>`
 
 [discrete]
 [[infer-service-hugging-face-api-path-params]]
-===== {api-path-parms-title}
+==== {api-path-parms-title}
 
 `<inference_id>`::
 (Required, string)
@@ -26,7 +26,7 @@ Available task types:
 
 [discrete]
 [[infer-service-hugging-face-api-request-body]]
-===== {api-request-body-title}
+==== {api-request-body-title}
 
 `service`::
 (Required, string)
@@ -71,7 +71,7 @@ include::inference-shared.asciidoc[tag=task-settings]
 
 [discrete]
 [[inference-example-hugging-face]]
-===== Hugging Face service example
+==== Hugging Face service example
 
 The following example shows how to create an {infer} endpoint called
 `hugging-face-embeddings` to perform a `text_embedding` task type.

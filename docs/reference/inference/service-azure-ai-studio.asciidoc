@@ -1,15 +1,15 @@
 [[infer-service-azure-ai-studio]]
-==== Azure AI studio {infer} `service`
+=== Azure AI studio {infer} `service`
 
 [discrete]
 [[infer-service-azure-ai-studio-api-request]]
-===== {api-request-title}
+==== {api-request-title}
 
 `PUT /_inference/<task_type>/<inference_id>`
 
 [discrete]
 [[infer-service-azure-ai-studio-api-path-params]]
-===== {api-path-parms-title}
+==== {api-path-parms-title}
 
 `<inference_id>`::
 (Required, string)
@@ -27,7 +27,7 @@ Available task types:
 
 [discrete]
 [[infer-service-azure-ai-studio-api-request-body]]
-===== {api-request-body-title}
+==== {api-request-body-title}
 
 `service`::
 (Required, string)
@@ -127,7 +127,7 @@ Specifies the user issuing the request, which can be used for abuse detection.
 
 [discrete]
 [[inference-example-azureaistudio]]
-===== Azure AI Studio service example
+==== Azure AI Studio service example
 
 The following example shows how to create an {infer} endpoint called `azure_ai_studio_embeddings` to perform a `text_embedding` task type.
 Note that we do not specify a model here, as it is defined already via our Azure AI Studio deployment.

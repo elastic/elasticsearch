@@ -1,15 +1,15 @@
 [[infer-service-openai]]
-==== OpenAI {infer} `service`
+=== OpenAI {infer} `service`
 
 [discrete]
 [[infer-service-openai-api-request]]
-===== {api-request-title}
+==== {api-request-title}
 
 `PUT /_inference/<task_type>/<inference_id>`
 
 [discrete]
 [[infer-service-openai-api-path-params]]
-===== {api-path-parms-title}
+==== {api-path-parms-title}
 
 `<inference_id>`::
 (Required, string)
@@ -27,7 +27,7 @@ Available task types:
 
 [discrete]
 [[infer-service-openai-api-request-body]]
-===== {api-request-body-title}
+==== {api-request-body-title}
 
 `service`::
 (Required, string)
@@ -109,7 +109,7 @@ Specifies the user issuing the request, which can be used for abuse detection.
 
 [discrete]
 [[inference-example-openai]]
-===== OpenAI service example
+==== OpenAI service example
 
 The following example shows how to create an {infer} endpoint called
 `openai-embeddings` to perform a `text_embedding` task type.

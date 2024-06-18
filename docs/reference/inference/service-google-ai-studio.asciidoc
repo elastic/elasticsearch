@@ -1,15 +1,15 @@
 [[infer-service-google-ai-studio]]
-==== Google AI Studio {infer} `service`
+=== Google AI Studio {infer} `service`
 
 [discrete]
 [[infer-service-google-ai-studio-api-request]]
-===== {api-request-title}
+==== {api-request-title}
 
 `PUT /_inference/<task_type>/<inference_id>`
 
 [discrete]
 [[infer-service-google-ai-studio-api-path-params]]
-===== {api-path-parms-title}
+==== {api-path-parms-title}
 
 `<inference_id>`::
 (Required, string)
@@ -27,7 +27,7 @@ Available task types:
 
 [discrete]
 [[infer-service-google-ai-studio-api-request-body]]
-===== {api-request-body-title}
+==== {api-request-body-title}
 
 `service`::
 (Required, string)
@@ -68,7 +68,7 @@ include::inference-shared.asciidoc[tag=task-settings]
 
 [discrete]
 [[inference-example-google-ai-studio]]
-===== Google AI Studio service example
+==== Google AI Studio service example
 
 The following example shows how to create an {infer} endpoint called
 `google_ai_studio_completion` to perform a `completion` task type.

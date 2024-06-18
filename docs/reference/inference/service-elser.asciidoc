@@ -1,15 +1,15 @@
 [[infer-service-elser]]
-==== ELSER {infer} `service`
+=== ELSER {infer} `service`
 
 [discrete]
 [[infer-service-elser-api-request]]
-===== {api-request-title}
+==== {api-request-title}
 
 `PUT /_inference/<task_type>/<inference_id>`
 
 [discrete]
 [[infer-service-elser-api-path-params]]
-===== {api-path-parms-title}
+==== {api-path-parms-title}
 
 `<inference_id>`::
 (Required, string)
@@ -26,7 +26,7 @@ Available task types:
 
 [discrete]
 [[infer-service-elser-api-request-body]]
-===== {api-request-body-title}
+==== {api-request-body-title}
 
 `service`::
 (Required, string)
@@ -57,7 +57,7 @@ include::inference-shared.asciidoc[tag=task-settings]
 
 [discrete]
 [[inference-example-elser]]
-===== ELSER service example
+==== ELSER service example
 
 The following example shows how to create an {infer} endpoint called
 `my-elser-model` to perform a `sparse_embedding` task type.

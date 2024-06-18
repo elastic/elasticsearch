@@ -1,30 +1,17 @@
 pr: 109465
-summary: Change COMPAT locale references to CLDR
+summary: Switch to the CLDR locale database
 area: Infra/Core
 type: upgrade
 issues:
  - 109003
 highlight:
-  title: Change COMPAT locale references to CLDR
+  title: Switch to the CLDR locale database
   body: |-
-    The COMPAT locale data provider has been removed in JDK23 by
-    https://github.com/openjdk/jdk/pull/17991. This PR swaps out the old
-    COMPAT locale provider for the default CLDR provider.
+    The COMPAT locale data provider has been removed in JDK23. This means Elasticsearch
+    needs to switch to the JDK-provided CLDR locale database. For consistency, this PR changes
+    the locale database for all JDK versions.
 
-    As part of this, the differences between CLDR and COMPAT have been
-    encapsulated by the `CompatCalendarNameProvider` class, generated
-    manually (for now) between two diffs of the contents of each locale
-    provider, as given in the javadoc. This is applied by the SPI locale
-    provider, before CLDR is queried.
-
-    Although the JDK may have changed the locale behaviour, we still need to
-    maintain the existing behaviour for our customers across minor versions.
-    We can't just change how date formats work in a minor ES release,
-    despite them all actually coming from the JDK - they should work the
-    same regardless of the JDK version that ES runs on.
-
-    Deprecation and migration strategies for ESv9+ are still to be
-    determined.
-
-    This fixes #109003
-  notable: true
+    There are several significant differences between the COMPAT locale database and CLDR.
+    To ease migration, a shim has been added to maintain the existing era, day-of-week, month,
+    and am/pm names from COMPAT, where they differ from CLDR.
+  notable: false

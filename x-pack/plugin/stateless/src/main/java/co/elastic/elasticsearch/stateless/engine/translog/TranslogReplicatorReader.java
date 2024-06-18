@@ -34,7 +34,6 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.BufferedChecksumStreamInput;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogCorruptedException;
-import org.elasticsearch.indices.recovery.RecoveryState;
 
 import java.io.IOException;
 import java.nio.file.NoSuchFileException;
@@ -180,22 +179,18 @@ public class TranslogReplicatorReader implements Translog.Snapshot {
                 CompoundTranslogHeader translogHeader = CompoundTranslogHeader.readFromStore(blobMetadata.name(), streamInput);
                 TranslogMetadata metadata = translogHeader.metadata().get(shardId);
                 if (metadata != null) {
-                    // If the directory is null then we are hit translog file from a version before the directory was added
-                    if (metadata.directory() == null) {
-                        return new RecoveryPlan(RecoveryState.Translog.UNKNOWN, sorted);
-                    } else {
-                        ArrayList<Long> referenced = new ArrayList<>();
-                        for (int offset : metadata.directory().referencedTranslogFileOffsets()) {
-                            long absolute = translogGeneration - offset;
-                            if (absolute >= translogRecoveryStartFile) {
-                                referenced.add(absolute);
-                            }
+                    assert metadata.directory() != null;
+                    ArrayList<Long> referenced = new ArrayList<>();
+                    for (int offset : metadata.directory().referencedTranslogFileOffsets()) {
+                        long absolute = translogGeneration - offset;
+                        if (absolute >= translogRecoveryStartFile) {
+                            referenced.add(absolute);
                         }
-                        if (metadata.totalOps() > 0) {
-                            referenced.add(translogGeneration);
-                        }
-                        return new RecoveryPlan(Math.toIntExact(metadata.directory().estimatedOperationsToRecover()), referenced);
                     }
+                    if (metadata.totalOps() > 0) {
+                        referenced.add(translogGeneration);
+                    }
+                    return new RecoveryPlan(Math.toIntExact(metadata.directory().estimatedOperationsToRecover()), referenced);
                 }
             } catch (NoSuchFileException e) {
                 // It is possible for an indexing shard to delete a file since we listed files. This is valid as it is possible this file

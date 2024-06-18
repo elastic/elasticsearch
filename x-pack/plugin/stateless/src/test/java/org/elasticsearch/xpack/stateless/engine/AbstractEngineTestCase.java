@@ -63,6 +63,7 @@ import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.mapper.LuceneDocument;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
@@ -233,6 +234,11 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
         return indexEngine;
     }
 
+    protected EngineConfig indexConfig(MapperService mapperService) throws IOException {
+        var primaryTerm = new AtomicLong(1L);
+        return indexConfig(Settings.EMPTY, Settings.EMPTY, primaryTerm::get, newMergePolicy(), mapperService);
+    }
+
     protected EngineConfig indexConfig() throws IOException {
         return indexConfig(Settings.EMPTY);
     }
@@ -252,6 +258,17 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
 
     protected EngineConfig indexConfig(Settings settings, Settings nodeSettings, LongSupplier primaryTermSupplier, MergePolicy mergePolicy)
         throws IOException {
+        return indexConfig(settings, nodeSettings, primaryTermSupplier, mergePolicy, null);
+    }
+
+    protected EngineConfig indexConfig(
+        Settings settings,
+        Settings nodeSettings,
+        LongSupplier primaryTermSupplier,
+        MergePolicy mergePolicy,
+        MapperService mapperService
+    ) throws IOException {
+
         var shardId = new ShardId(new Index(randomAlphaOfLengthBetween(5, 10), UUIDs.randomBase64UUID(random())), randomInt(10));
         var indexSettings = IndexSettingsModule.newIndexSettings(shardId.getIndex(), settings, nodeSettings);
         var translogConfig = new TranslogConfig(shardId, createTempDir(), indexSettings, BigArrays.NON_RECYCLING_INSTANCE);
@@ -297,7 +314,8 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
             null,
             threadPool::relativeTimeInNanos,
             new CapturingIndexCommitListener(),
-            true
+            true,
+            mapperService
         );
     }
 
@@ -368,7 +386,8 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
             null,
             null,
             null,
-            false
+            false,
+            null
         );
         return new SearchEngine(searchConfig, new ClosedShardService()) {
             @Override
@@ -438,7 +457,8 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
             null,
             null,
             null,
-            false
+            false,
+            null
         );
     }
 

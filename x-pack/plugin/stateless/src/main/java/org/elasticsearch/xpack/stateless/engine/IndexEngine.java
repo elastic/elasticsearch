@@ -88,8 +88,8 @@ public class IndexEngine extends InternalEngine {
     private final RefreshThrottler refreshThrottler;
     private final IndexEngineLocalReaderListener localReaderListener;
     private final CommitBCCResolver commitBCCResolver;
-    private final DocumentParsingProvider documentParsingProvider;
     private final DocumentSizeAccumulator documentSizeAccumulator;
+    private final DocumentSizeReporter documentParsingReporter;
     // This is written and then accessed on the same thread under the flush lock. So not need for volatile
     private long translogStartFileForNextCommit = 0;
 
@@ -117,8 +117,12 @@ public class IndexEngine extends InternalEngine {
         this.refreshThrottler = refreshThrottlerFactory.create(this::doExternalRefresh);
         this.localReaderListener = localReaderListener;
         this.commitBCCResolver = commitBCCResolver;
-        this.documentParsingProvider = documentParsingProvider;
         this.documentSizeAccumulator = documentParsingProvider.createDocumentSizeAccumulator();
+        this.documentParsingReporter = documentParsingProvider.newDocumentSizeReporter(
+            shardId.getIndexName(),
+            engineConfig.getMapperService(),
+            documentSizeAccumulator
+        );
         // We have to track the initial BCC references held by local readers at this point instead of doing it in
         // #createInternalReaderManager because that method is called from the super constructor and at that point,
         // commitBCCResolver field is not set yet.
@@ -278,11 +282,6 @@ public class IndexEngine extends InternalEngine {
     @Override
     public IndexResult index(Index index) throws IOException {
 
-        DocumentSizeReporter documentParsingReporter = documentParsingProvider.newDocumentSizeReporter(
-            shardId.getIndexName(),
-            engineConfig.getIndexSettings().getMode(),
-            documentSizeAccumulator
-        );
         ParsedDocument parsedDocument = index.parsedDoc();
 
         documentParsingReporter.onParsingCompleted(parsedDocument);

@@ -87,7 +87,8 @@ public class IndexReplicationRankerTests extends ESTestCase {
         assertEquals(0, getRankedIndicesBelowThreshold(Collections.emptyList(), randomLong()).size());
 
         long now = System.currentTimeMillis();
-        IndexRankingProperties systemIndex = createSystemIndex(0, randomLong());
+        IndexRankingProperties systemIndexNonInteractive = createSystemIndex(0, randomLong());
+        IndexRankingProperties systemIndexInteractive = createSystemIndex(1000, randomLong());
         IndexRankingProperties index1 = createRegularIndex(1000, now);
         IndexRankingProperties index2 = createRegularIndex(2000, now);
         IndexRankingProperties ds1backing1 = createDataStream(0, now - 1000);
@@ -96,7 +97,8 @@ public class IndexReplicationRankerTests extends ESTestCase {
         IndexRankingProperties ds2backing2 = createDataStream(1500, now);
 
         Collection<IndexRankingProperties> indices = List.of(
-            systemIndex,
+            systemIndexInteractive,
+            systemIndexNonInteractive,
             index1,
             index2,
             ds1backing1,
@@ -107,13 +109,20 @@ public class IndexReplicationRankerTests extends ESTestCase {
         Collection<IndexRankingProperties> copyOfOriginal = new ArrayList<>(indices);
         Set<String> rankedIndicesBelowThreshold = getRankedIndicesBelowThreshold(indices, Long.MAX_VALUE);
         assertEquals("ranking should not affect the input", copyOfOriginal, indices);
-        assertTrue("ranking should not remove system indices", rankedIndicesBelowThreshold.contains(systemIndex.indexProperties().name()));
-        assertEquals("ranking should remove indices with 0 interactiveSize", indices.size() - 1, rankedIndicesBelowThreshold.size());
+        assertTrue(
+            "ranking should not remove system indices",
+            rankedIndicesBelowThreshold.contains(systemIndexInteractive.indexProperties().name())
+        );
+        assertFalse(
+            "ranking should remove non interactive system indices",
+            rankedIndicesBelowThreshold.contains(systemIndexNonInteractive.indexProperties().name())
+        );
+        assertEquals("ranking should remove indices with 0 interactiveSize", indices.size() - 2, rankedIndicesBelowThreshold.size());
         assertFalse(rankedIndicesBelowThreshold.contains(ds1backing1.indexProperties().name()));
         assertThat(
             rankedIndicesBelowThreshold,
             Matchers.containsInAnyOrder(
-                systemIndex.indexProperties().name(),
+                systemIndexInteractive.indexProperties().name(),
                 index2.indexProperties().name(),
                 index1.indexProperties().name(),
                 ds2backing2.indexProperties().name(),
@@ -122,17 +131,18 @@ public class IndexReplicationRankerTests extends ESTestCase {
             )
         );
 
-        // check ordering by increasing threshold, total_interactive_bytes = 6500
-        assertEquals(1, getRankedIndicesBelowThreshold(indices, 0).size());
-        assertTrue(getRankedIndicesBelowThreshold(indices, 0).contains(systemIndex.indexProperties().name()));
-        assertEquals(2, getRankedIndicesBelowThreshold(indices, 2000).size());
-        assertTrue(getRankedIndicesBelowThreshold(indices, 2000).contains(index2.indexProperties().name()));
-        assertEquals(3, getRankedIndicesBelowThreshold(indices, 3000).size());
-        assertTrue(getRankedIndicesBelowThreshold(indices, 3000).contains(index1.indexProperties().name()));
-        assertEquals(4, getRankedIndicesBelowThreshold(indices, 4500).size());
-        assertTrue(getRankedIndicesBelowThreshold(indices, 4500).contains(ds2backing2.indexProperties().name()));
-        assertEquals(5, getRankedIndicesBelowThreshold(indices, 5500).size());
-        assertTrue(getRankedIndicesBelowThreshold(indices, 5500).contains(ds1backing2.indexProperties().name()));
-        assertEquals(6, getRankedIndicesBelowThreshold(indices, 6500).size());
+        // check ordering by increasing threshold, total_interactive_bytes = 7500
+        assertEquals(0, getRankedIndicesBelowThreshold(indices, 0).size());
+        assertEquals(1, getRankedIndicesBelowThreshold(indices, 1000).size());
+        assertTrue(getRankedIndicesBelowThreshold(indices, 1000).contains(systemIndexInteractive.indexProperties().name()));
+        assertEquals(2, getRankedIndicesBelowThreshold(indices, 3000).size());
+        assertTrue(getRankedIndicesBelowThreshold(indices, 3000).contains(index2.indexProperties().name()));
+        assertEquals(3, getRankedIndicesBelowThreshold(indices, 4000).size());
+        assertTrue(getRankedIndicesBelowThreshold(indices, 4000).contains(index1.indexProperties().name()));
+        assertEquals(4, getRankedIndicesBelowThreshold(indices, 5500).size());
+        assertTrue(getRankedIndicesBelowThreshold(indices, 5500).contains(ds2backing2.indexProperties().name()));
+        assertEquals(5, getRankedIndicesBelowThreshold(indices, 6500).size());
+        assertTrue(getRankedIndicesBelowThreshold(indices, 6500).contains(ds1backing2.indexProperties().name()));
+        assertEquals(6, getRankedIndicesBelowThreshold(indices, 7500).size());
     }
 }

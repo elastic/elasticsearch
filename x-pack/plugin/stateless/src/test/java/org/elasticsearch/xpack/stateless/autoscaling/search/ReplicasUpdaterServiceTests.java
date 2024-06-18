@@ -53,7 +53,6 @@ import org.elasticsearch.test.client.NoOpNodeClient;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.junit.After;
 
-import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -72,7 +71,6 @@ import java.util.concurrent.atomic.AtomicLong;
 import static co.elastic.elasticsearch.stateless.autoscaling.search.ReplicasUpdaterService.REPLICA_UPDATER_SCALEDOWN_REPETITIONS;
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.newInstance;
 import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
-import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -184,7 +182,10 @@ public class ReplicasUpdaterServiceTests extends ESTestCase {
         Metadata.Builder clusterMetadata = Metadata.builder();
         var index1 = createIndex(1, initialReplicas, clusterMetadata);
         var index2 = createIndex(1, initialReplicas, clusterMetadata);
-        var systemIndex = createIndex(1, initialReplicas, clusterMetadata);
+        var systemIndexNonInteractive = createSystemIndex(1);
+        clusterMetadata.put(systemIndexNonInteractive, false);
+        var systemIndexInteractive = createSystemIndex(1);
+        clusterMetadata.put(systemIndexInteractive, false);
 
         String dataStream1Name = "ds1";
         IndexMetadata ds1BackingIndex1 = createBackingIndex(dataStream1Name, 1, initialReplicas, 1714000000000L).build();
@@ -208,7 +209,8 @@ public class ReplicasUpdaterServiceTests extends ESTestCase {
         Map<ShardId, ShardSize> shards = new HashMap<>();
         addShard(shards, index1, 0, 1400, 0);
         addShard(shards, index2, 0, 1000, 0);
-        addShard(shards, systemIndex, 0, 1600, 0);
+        addShard(shards, systemIndexNonInteractive, 0, 0, 256);
+        addShard(shards, systemIndexInteractive, 0, 1600, 0);
         addShard(shards, ds1BackingIndex1, 0, 500, 500);
         addShard(shards, ds1BackingIndex2, 0, 750, 500);
         addShard(shards, ds2BackingIndex1, 0, 500, 500);
@@ -216,13 +218,11 @@ public class ReplicasUpdaterServiceTests extends ESTestCase {
         searchMetricsService.processShardSizesRequest(new PublishShardSizesRequest("search_node_1", shards));
 
         replicasUpdaterService.updateSearchPower(100);
-
         assertEquals(Collections.emptyMap(), replicasUpdaterService.getRecommendedReplicaChanges());
-        replicasUpdaterService.updateSearchPowerMin(100);
         mockClient.assertNoUpdate();
 
         List<SearchPowerSteps> steps = List.of(
-            new SearchPowerSteps(140, systemIndex),
+            new SearchPowerSteps(140, systemIndexInteractive),
             new SearchPowerSteps(175, index1),
             new SearchPowerSteps(200, index2),
             new SearchPowerSteps(220, ds1BackingIndex2),
@@ -233,14 +233,9 @@ public class ReplicasUpdaterServiceTests extends ESTestCase {
 
         Set<String> indices = new HashSet<>();
         steps.forEach(step -> {
-            replicasUpdaterService.updateSearchPower(step.sp);
-            indices.add(step.expectedAdditionalIndex.getIndex().getName());
-            assertEquals(1, replicasUpdaterService.getRecommendedReplicaChanges().size());
-            Set<String> twoReplicasIndices = replicasUpdaterService.getRecommendedReplicaChanges().get(2);
-            assertThat("Searchpower " + step.sp, indices, containsInAnyOrder(twoReplicasIndices.toArray(new String[0])));
             replicasUpdaterService.updateSearchPowerMin(step.sp);
             indices.add(step.expectedAdditionalIndex.getIndex().getName());
-            mockClient.assertUpdates(Map.of(2, indices));
+            mockClient.assertUpdates("SPmin: " + step.sp, Map.of(2, indices));
         });
 
         // check that size changes affect the ranking.
@@ -255,7 +250,7 @@ public class ReplicasUpdaterServiceTests extends ESTestCase {
         searchMetricsService.processShardSizesRequest(new PublishShardSizesRequest("search_node_1", shards));
 
         steps = List.of(
-            new SearchPowerSteps(140, systemIndex),
+            new SearchPowerSteps(140, systemIndexInteractive),
             new SearchPowerSteps(175, index2),
             new SearchPowerSteps(200, index1),
             new SearchPowerSteps(220, ds2BackingIndex2),
@@ -266,13 +261,9 @@ public class ReplicasUpdaterServiceTests extends ESTestCase {
 
         indices.clear();
         steps.forEach(step -> {
-            replicasUpdaterService.updateSearchPower(step.sp);
-            indices.add(step.expectedAdditionalIndex.getIndex().getName());
-            Set<String> twoReplicasIndices = replicasUpdaterService.getRecommendedReplicaChanges().get(2);
-            assertThat("Searchpower " + step.sp, indices, containsInAnyOrder(twoReplicasIndices.toArray(new String[0])));
             replicasUpdaterService.updateSearchPowerMin(step.sp);
             indices.add(step.expectedAdditionalIndex.getIndex().getName());
-            mockClient.assertUpdates(Map.of(2, indices));
+            mockClient.assertUpdates("SPmin: " + step.sp, Map.of(2, indices));
         });
     }
 
@@ -286,7 +277,7 @@ public class ReplicasUpdaterServiceTests extends ESTestCase {
         Metadata.Builder clusterMetadata = Metadata.builder();
         var index1 = createIndex(1, initialReplicas, clusterMetadata);
         var index2 = createIndex(1, initialReplicas, clusterMetadata);
-        var systemIndex = createIndex(1, initialReplicas, clusterMetadata);
+        var systemIndexInteractive = createIndex(1, initialReplicas, clusterMetadata);
 
         String dataStream1Name = "ds1";
         IndexMetadata ds1BackingIndex1 = createBackingIndex(dataStream1Name, 1, initialReplicas, 1714000000000L).build();
@@ -310,7 +301,7 @@ public class ReplicasUpdaterServiceTests extends ESTestCase {
         Map<ShardId, ShardSize> shards = new HashMap<>();
         addShard(shards, index1, 0, 1100, 0);
         addShard(shards, index2, 0, 1000, 0);
-        addShard(shards, systemIndex, 0, 1900, 0);
+        addShard(shards, systemIndexInteractive, 0, 1900, 0);
         addShard(shards, ds1BackingIndex1, 0, 500, 500);
         addShard(shards, ds1BackingIndex2, 0, 750, 500);
         addShard(shards, ds2BackingIndex1, 0, 500, 500);
@@ -324,7 +315,7 @@ public class ReplicasUpdaterServiceTests extends ESTestCase {
             new SearchPowerSteps(200, ds1BackingIndex2),
             new SearchPowerSteps(175, index2),
             new SearchPowerSteps(150, index1),
-            new SearchPowerSteps(100, systemIndex)
+            new SearchPowerSteps(100, systemIndexInteractive)
         );
         replicasUpdaterService.updateSearchPowerMin(250);
         mockClient.assertNoUpdate();
@@ -337,7 +328,7 @@ public class ReplicasUpdaterServiceTests extends ESTestCase {
                 this.replicasUpdaterService::performReplicaUpdates
             );
             indices.add(step.expectedAdditionalIndex.getIndex().getName());
-            mockClient.assertUpdates(Map.of(1, indices));
+            mockClient.assertUpdates("SPmin: " + step.sp, Map.of(1, indices));
         });
     }
 
@@ -383,7 +374,7 @@ public class ReplicasUpdaterServiceTests extends ESTestCase {
 
         replicasUpdaterService.updateSearchPowerMax(randomIntBetween(spMin, 1500));
         replicasUpdaterService.updateSearchPowerMin(spMin);
-        mockClient.assertUpdates(Map.of(2, Set.of(withinBoostWindowMetadata.getIndex().getName())));
+        mockClient.assertUpdates("SPmin: " + spMin, Map.of(2, Set.of(withinBoostWindowMetadata.getIndex().getName())));
 
         state = updateIndexMetadata(state, withinBoostWindowMetadata, 3, 2);
         assertEquals(2, searchMetricsService.getSearchTierMetrics().getMaxShardCopies().maxCopies());
@@ -400,7 +391,7 @@ public class ReplicasUpdaterServiceTests extends ESTestCase {
                 this.replicasUpdaterService::performReplicaUpdates
             );
         }
-        mockClient.assertUpdates(Map.of(1, Set.of(withinBoostWindowMetadata.getIndex().getName())));
+        mockClient.assertUpdates("SPmin: " + spMin, Map.of(1, Set.of(withinBoostWindowMetadata.getIndex().getName())));
         updateIndexMetadata(state, withinBoostWindowMetadata, 3, 1);
         assertEquals(1, searchMetricsService.getSearchTierMetrics().getMaxShardCopies().maxCopies());
     }
@@ -448,10 +439,16 @@ public class ReplicasUpdaterServiceTests extends ESTestCase {
         mockClient.assertNoUpdate();
         IndexMetadata outsideBoostWindowMetadata = createIndex(1, 1);
         IndexMetadata withinBoostWindowMetadata = createIndex(3, 1);
+        IndexMetadata systemIndexInteractive = createSystemIndex(1);
 
         var state = ClusterState.builder(ClusterState.EMPTY_STATE)
             .nodes(createNodes(1))
-            .metadata(Metadata.builder().put(withinBoostWindowMetadata, false).put(outsideBoostWindowMetadata, false))
+            .metadata(
+                Metadata.builder()
+                    .put(withinBoostWindowMetadata, false)
+                    .put(outsideBoostWindowMetadata, false)
+                    .put(systemIndexInteractive, false)
+            )
             .build();
 
         searchMetricsService.clusterChanged(new ClusterChangedEvent("test", state, ClusterState.EMPTY_STATE));
@@ -475,17 +472,23 @@ public class ReplicasUpdaterServiceTests extends ESTestCase {
                     new ShardId(withinBoostWindowMetadata.getIndex(), 1),
                     new ShardSize(numShardsWithinBoostWindow > 1 ? 1024 : 0, randomBoolean() ? 1024 : 0, PrimaryTermAndGeneration.ZERO),
                     new ShardId(withinBoostWindowMetadata.getIndex(), 2),
-                    new ShardSize(numShardsWithinBoostWindow > 2 ? 1024 : 0, randomBoolean() ? 1024 : 0, PrimaryTermAndGeneration.ZERO)
+                    new ShardSize(numShardsWithinBoostWindow > 2 ? 1024 : 0, randomBoolean() ? 1024 : 0, PrimaryTermAndGeneration.ZERO),
+                    new ShardId(systemIndexInteractive.getIndex(), 0),
+                    new ShardSize(1024, randomBoolean() ? 1024 : 0, PrimaryTermAndGeneration.ZERO)
                 )
             )
         );
         {
             Map<Integer, Set<String>> numberOfReplicaChanges = replicasUpdaterService.getRecommendedReplicaChanges();
             assertEquals(1, numberOfReplicaChanges.size());
-            assertEquals(Set.of(withinBoostWindowMetadata.getIndex().getName()), numberOfReplicaChanges.get(2));
+            assertEquals(
+                Set.of(withinBoostWindowMetadata.getIndex().getName(), systemIndexInteractive.getIndex().getName()),
+                numberOfReplicaChanges.get(2)
+            );
         }
 
         state = updateIndexMetadata(state, withinBoostWindowMetadata, 3, 2);
+        state = updateIndexMetadata(state, systemIndexInteractive, 1, 2);
         assertEquals(2, searchMetricsService.getSearchTierMetrics().getMaxShardCopies().maxCopies());
 
         // simulate the index falling out of the boost window
@@ -506,7 +509,22 @@ public class ReplicasUpdaterServiceTests extends ESTestCase {
             Map<Integer, Set<String>> numberOfReplicaChanges = replicasUpdaterService.getRecommendedReplicaChanges();
             assertEquals(1, numberOfReplicaChanges.size());
             assertEquals(Set.of(withinBoostWindowMetadata.getIndex().getName()), numberOfReplicaChanges.get(1));
-            updateIndexMetadata(state, withinBoostWindowMetadata, 3, 1);
+            state = updateIndexMetadata(state, withinBoostWindowMetadata, 3, 1);
+            assertEquals(2, searchMetricsService.getSearchTierMetrics().getMaxShardCopies().maxCopies());
+        }
+
+        // simulate the system index falling out of the boost window
+        searchMetricsService.processShardSizesRequest(
+            new PublishShardSizesRequest(
+                "search_node_1",
+                Map.of(new ShardId(systemIndexInteractive.getIndex(), 0), new ShardSize(0, 1024, PrimaryTermAndGeneration.ZERO))
+            )
+        );
+        {
+            Map<Integer, Set<String>> numberOfReplicaChanges = replicasUpdaterService.getRecommendedReplicaChanges();
+            assertEquals(1, numberOfReplicaChanges.size());
+            assertEquals(Set.of(systemIndexInteractive.getIndex().getName()), numberOfReplicaChanges.get(1));
+            state = updateIndexMetadata(state, systemIndexInteractive, 1, 1);
             assertEquals(1, searchMetricsService.getSearchTierMetrics().getMaxShardCopies().maxCopies());
         }
     }
@@ -518,7 +536,7 @@ public class ReplicasUpdaterServiceTests extends ESTestCase {
         var index1 = createIndex(3, initialReplicas, clusterMetadata);
         var index2 = createIndex(5, initialReplicas, clusterMetadata);
         var index3 = createIndex(1, 1, clusterMetadata);
-        var systemIndex = createIndex(1, initialReplicas, clusterMetadata);
+        var systemIndexInteractive = createIndex(1, initialReplicas, clusterMetadata);
         String dataStream1Name = "ds1";
         IndexMetadata ds1BackingIndex1 = createBackingIndex(dataStream1Name, 1, initialReplicas, 1714000000000L).build();
         clusterMetadata.put(ds1BackingIndex1, false);
@@ -532,7 +550,7 @@ public class ReplicasUpdaterServiceTests extends ESTestCase {
         addShard(shards, index1, 0, 2000, 0);
         addShard(shards, index2, 0, 1000, 0);
         addShard(shards, index3, 0, 1000, 0);
-        addShard(shards, systemIndex, 0, 1000, 0);
+        addShard(shards, systemIndexInteractive, 0, 1000, 0);
         addShard(shards, ds1BackingIndex1, 0, 500, 500);
         addShard(shards, ds1BackingIndex2, 0, 750, 500);
         searchMetricsService.processShardSizesRequest(new PublishShardSizesRequest("search_node_1", shards));
@@ -544,12 +562,13 @@ public class ReplicasUpdaterServiceTests extends ESTestCase {
             // run the main loop manually once to trigger the update
             replicasUpdaterService.performReplicaUpdates();
             mockClient.assertUpdates(
+                "service disabled",
                 Map.of(
                     1,
                     Set.of(
                         index1.getIndex().getName(),
                         index2.getIndex().getName(),
-                        systemIndex.getIndex().getName(),
+                        systemIndexInteractive.getIndex().getName(),
                         ds1BackingIndex1.getIndex().getName(),
                         ds1BackingIndex2.getIndex().getName()
                     )
@@ -557,7 +576,7 @@ public class ReplicasUpdaterServiceTests extends ESTestCase {
             );
             state1 = updateIndexMetadata(state1, index1, 3, 1);
             state1 = updateIndexMetadata(state1, index2, 5, 1);
-            state1 = updateIndexMetadata(state1, systemIndex, 1, 1);
+            state1 = updateIndexMetadata(state1, systemIndexInteractive, 1, 1);
             state1 = updateIndexMetadata(state1, ds1BackingIndex1, 1, 1);
             state1 = updateIndexMetadata(state1, ds1BackingIndex2, 1, 1);
             assertEquals(1, searchMetricsService.getSearchTierMetrics().getMaxShardCopies().maxCopies());
@@ -571,13 +590,14 @@ public class ReplicasUpdaterServiceTests extends ESTestCase {
             replicasUpdaterService.updateEnableReplicasForInstantFailover(true);
             replicasUpdaterService.performReplicaUpdates();
             mockClient.assertUpdates(
+                "service enabled",
                 Map.of(
                     2,
                     Set.of(
                         index1.getIndex().getName(),
                         index2.getIndex().getName(),
                         index3.getIndex().getName(),
-                        systemIndex.getIndex().getName(),
+                        systemIndexInteractive.getIndex().getName(),
                         ds1BackingIndex1.getIndex().getName(),
                         ds1BackingIndex2.getIndex().getName()
                     )
@@ -591,12 +611,13 @@ public class ReplicasUpdaterServiceTests extends ESTestCase {
     /**
      * Check repeating scale down suggestion triggers update only after certain number of repetitions
      */
-    public void testNumberOfRepetitionsScaleDown() throws IOException {
+    public void testNumberOfRepetitionsScaleDown() {
         // disable scheduled task so we can trigger it manually
         replicasUpdaterService.setInterval(TimeValue.timeValueMinutes(100));
 
-        // case 100 <= SP < 250
-        replicasUpdaterService.updateSearchPower(randomIntBetween(100, 249));
+        // case 100 <= SPmin < 250
+        int spMin = randomIntBetween(100, 249);
+        replicasUpdaterService.updateSearchPower(spMin);
 
         Index index1 = new Index("index1", "uuid");
         when(searchMetricsService.getIndices()).thenReturn(
@@ -609,20 +630,22 @@ public class ReplicasUpdaterServiceTests extends ESTestCase {
         int repetitionsNeeded = REPLICA_UPDATER_SCALEDOWN_REPETITIONS.getDefault(Settings.EMPTY);
         assertNoUpdateAfterRepeats(repetitionsNeeded - 1, this.replicasUpdaterService::performReplicaUpdates);
         replicasUpdaterService.performReplicaUpdates();
-        mockClient.assertUpdates(Map.of(1, Set.of("index1")));
+        mockClient.assertUpdates("SPmin: " + spMin, Map.of(1, Set.of("index1")));
 
         // case SP >= 250
-        replicasUpdaterService.updateSearchPower(randomIntBetween(250, 400));
+        spMin = randomIntBetween(250, 400);
+        replicasUpdaterService.updateSearchPower(spMin);
         // report index shard size as non-interactive so this gets scale down decision even with SP >= 250
         shardMetrics1.shardSize = new ShardSize(0, 1000, null);
         when(searchMetricsService.getShardMetrics()).thenReturn(new ConcurrentHashMap<>(Map.of(new ShardId(index1, 0), shardMetrics1)));
 
         assertNoUpdateAfterRepeats(repetitionsNeeded - 1, this.replicasUpdaterService::performReplicaUpdates);
         replicasUpdaterService.performReplicaUpdates();
-        mockClient.assertUpdates(Map.of(1, Set.of("index1")));
+        mockClient.assertUpdates("SPmin: " + spMin, Map.of(1, Set.of("index1")));
 
         // check for SP < 100 update is immediate
-        replicasUpdaterService.updateSearchPower(randomIntBetween(0, 99));
+        spMin = randomIntBetween(0, 99);
+        replicasUpdaterService.updateSearchPower(spMin);
 
         when(searchMetricsService.getIndices()).thenReturn(
             new ConcurrentHashMap<>(
@@ -630,15 +653,16 @@ public class ReplicasUpdaterServiceTests extends ESTestCase {
             )
         );
         replicasUpdaterService.performReplicaUpdates();
-        mockClient.assertUpdates(Map.of(1, Set.of("index2")));
+        mockClient.assertUpdates("SPmin: " + spMin, Map.of(1, Set.of("index2")));
     }
 
-    public void testScaleUpIsImmediateSP100To250() throws IOException {
+    public void testScaleUpIsImmediateSP100To250() {
 
         // disable scheduled task so we can trigger it manually
         replicasUpdaterService.setInterval(TimeValue.timeValueMinutes(60));
         // we need at least 200 SP to fit the very small system index1 in
-        replicasUpdaterService.updateSearchPower(randomIntBetween(200, 249));
+        int spMin = randomIntBetween(200, 249);
+        replicasUpdaterService.updateSearchPower(spMin);
 
         Index index1 = new Index("index1", "uuid");
         Index index2 = new Index("index2", "uuid");
@@ -660,13 +684,14 @@ public class ReplicasUpdaterServiceTests extends ESTestCase {
             new ConcurrentHashMap<>(Map.of(new ShardId(index1, 0), shardMetrics1, new ShardId(index2, 0), shardMetrics2))
         );
         replicasUpdaterService.performReplicaUpdates();
-        mockClient.assertUpdates(Map.of(2, Set.of("index1")));
+        mockClient.assertUpdates("SPmin: " + spMin, Map.of(2, Set.of("index1")));
     }
 
-    public void testScaleUpIsImmediateSPGreater250() throws IOException {
+    public void testScaleUpIsImmediateSPGreater250() {
         // disable scheduled task so we can trigger it manually
         replicasUpdaterService.setInterval(TimeValue.timeValueMinutes(60));
-        replicasUpdaterService.updateSearchPower(randomIntBetween(250, 400));
+        int spMin = randomIntBetween(250, 400);
+        replicasUpdaterService.updateSearchPower(spMin);
 
         // index with 1 replica should get 2 replica with SPmin >= 250
         Index index1 = new Index("index1", "uuid");
@@ -677,16 +702,17 @@ public class ReplicasUpdaterServiceTests extends ESTestCase {
         shardMetrics1.shardSize = new ShardSize(1, 0, null);
         when(searchMetricsService.getShardMetrics()).thenReturn(new ConcurrentHashMap<>(Map.of(new ShardId(index1, 0), shardMetrics1)));
         replicasUpdaterService.performReplicaUpdates();
-        mockClient.assertUpdates(Map.of(2, Set.of("index1")));
+        mockClient.assertUpdates("SPmin: " + spMin, Map.of(2, Set.of("index1")));
     }
 
     /**
      * Check that a missing update resets the repetition counter for scaling down decisions
      */
-    public void testNumberOfRepetitionsMissingUpdateClearsCounter() throws IOException {
+    public void testNumberOfRepetitionsMissingUpdateClearsCounter() {
         // disable scheduled task so we can trigger it manually
         replicasUpdaterService.setInterval(TimeValue.timeValueMinutes(60));
-        replicasUpdaterService.updateSearchPower(randomIntBetween(100, 400));
+        int spMin = randomIntBetween(100, 400);
+        replicasUpdaterService.updateSearchPower(spMin);
 
         Index index1 = new Index("index1", "uuid");
         when(searchMetricsService.getIndices()).thenReturn(
@@ -708,7 +734,7 @@ public class ReplicasUpdaterServiceTests extends ESTestCase {
         );
         assertNoUpdateAfterRepeats(repetitionsNeeded - 1, this.replicasUpdaterService::performReplicaUpdates);
         replicasUpdaterService.performReplicaUpdates();
-        mockClient.assertUpdates(Map.of(1, Set.of("index1")));
+        mockClient.assertUpdates("SPmin: " + spMin, Map.of(1, Set.of("index1")));
     }
 
     private void assertNoUpdateAfterRepeats(int repetitions, Runnable call) {
@@ -724,22 +750,20 @@ public class ReplicasUpdaterServiceTests extends ESTestCase {
         }
     }
 
-    private static IndexMetadata createIndex(int shards, int replicas, Metadata.Builder clusterMetadataBuilder) {
-        return createIndex(shards, replicas, false, clusterMetadataBuilder);
-    }
-
     private static IndexMetadata createIndex(int shards, int replicas) {
-        return createIndex(shards, replicas, false, null);
+        return createIndex(shards, replicas, null);
     }
 
-    private static IndexMetadata createSystemIndex(int shards, int replicas, Metadata.Builder clusterMetadataBuilder) {
-        return createIndex(shards, replicas, true, clusterMetadataBuilder);
+    private static IndexMetadata createSystemIndex(int shards) {
+        Settings indexSettings = indexSettings(shards, 0).put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
+            .put("index.version.created", Version.CURRENT)
+            .build();
+        return IndexMetadata.builder(randomIdentifier()).system(true).settings(indexSettings).build();
     }
 
-    private static IndexMetadata createIndex(int shards, int replicas, boolean system, Metadata.Builder clusterMetadataBuilder) {
+    private static IndexMetadata createIndex(int shards, int replicas, Metadata.Builder clusterMetadataBuilder) {
         IndexMetadata indexMetadata = IndexMetadata.builder(randomIdentifier())
             .settings(indexSettings(shards, replicas).put("index.version.created", Version.CURRENT))
-            .system(system)
             .build();
         if (clusterMetadataBuilder != null) {
             clusterMetadataBuilder.put(indexMetadata, false);
@@ -839,9 +863,9 @@ public class ReplicasUpdaterServiceTests extends ESTestCase {
             return super.executeLocally(action, request, listener);
         }
 
-        void assertUpdates(Map<Integer, Set<String>> expectedUpdates) {
+        void assertUpdates(String message, Map<Integer, Set<String>> expectedUpdates) {
             assertTrue("update settings not yet called", updateSettingsToBeVerified);
-            assertEquals(expectedUpdates, updates);
+            assertEquals(message, expectedUpdates, updates);
             updates.clear();
             updateSettingsToBeVerified = false;
         }

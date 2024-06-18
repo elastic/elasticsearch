@@ -47,7 +47,6 @@ import static org.hamcrest.core.Is.is;
 import static org.junit.Assume.assumeThat;
 import static org.junit.Assume.assumeTrue;
 
-@PackagingTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/109852")
 public class PackageTests extends PackagingTestCase {
 
     @BeforeClass

@@ -21,16 +21,23 @@ import co.elastic.elasticsearch.stateless.AbstractStatelessIntegTestCase;
 import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
 
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteUtils;
+import org.elasticsearch.action.bulk.BulkRequestBuilder;
+import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.coordination.Coordinator;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
+import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.RecoveryCommitTooNewException;
 import org.elasticsearch.test.transport.MockTransportService;
 
@@ -38,9 +45,11 @@ import java.util.Locale;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider.INDEX_ROUTING_REBALANCE_ENABLE_SETTING;
 import static org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider.SETTING_ALLOCATION_MAX_RETRY;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
@@ -248,5 +257,77 @@ public class RecoveryCommitRegistrationIT extends AbstractStatelessIntegTestCase
         }
         assertThat(thread.isAlive(), is(false));
         assertNull(rethrow.get());
+    }
+
+    public void testSearchShardCloseDuringCommitRegistration() throws Exception {
+        final String indexNodeA = startMasterAndIndexNode();
+        final String searchNodeA = startSearchNode();
+        ensureStableCluster(2);
+        final var indexName = randomIdentifier();
+        // Create an index with 2 primary shards to get ShardNotFoundException instead of IndexNotFoundException in the test
+        createIndex(
+            indexName,
+            indexSettings(2, 1).put(INDEX_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), EnableAllocationDecider.Rebalance.NONE).build()
+        );
+        ensureGreen(indexName);
+        indexDocs(indexName, randomIntBetween(1, 50));
+        flush(indexName);
+
+        final IndicesService indexNodeAIndicesService = internalCluster().getInstance(IndicesService.class, indexNodeA);
+        final IndexService indexNodeAIndexService = indexNodeAIndicesService.iterator().next();
+        final IndexShard indexShard = indexNodeAIndexService.getShard(0);
+
+        final String indexNodeB = startMasterAndIndexNode();
+        final String searchNodeB = startSearchNode();
+        ensureStableCluster(4);
+
+        final CyclicBarrier commitRegistrationBarrier = new CyclicBarrier(2);
+        final AtomicBoolean blockedOnce = new AtomicBoolean(false);
+        final MockTransportService indexNodeATransportService = MockTransportService.getInstance(indexNodeA);
+        indexNodeATransportService.addRequestHandlingBehavior(
+            TransportRegisterCommitForRecoveryAction.NAME,
+            (handler, request, channel, task) -> {
+                final RegisterCommitRequest registerCommitRequest = (RegisterCommitRequest) request;
+                if (registerCommitRequest.getShardId().getId() == 0 && blockedOnce.compareAndSet(false, true)) {
+                    safeAwait(commitRegistrationBarrier);
+                    safeAwait(commitRegistrationBarrier);
+                }
+                handler.messageReceived(request, channel, task);
+            }
+        );
+
+        // Start search shard recovery on searchNodeB and wait it stuck at commit registration
+        // 2 replica shard so that the one good copy is able to trigger refresh requests
+        logger.info("--> updating number_of_replicas to 2");
+        updateIndexSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 2));
+        safeAwait(commitRegistrationBarrier);
+
+        // Fail the indexing shard which should in turn fails the recovery
+        logger.info("--> failing indexing shard");
+        indexShard.failShard("broken", new RuntimeException("boom"));
+        logger.info("--> wait for indexing shard to disappear");
+        assertBusy(() -> assertThat(indexNodeAIndexService.hasShard(0), is(false)));
+
+        logger.info("--> continue commit registration");
+        // Let commit registration continue and it should fail but keep waiting
+        safeAwait(commitRegistrationBarrier);
+
+        // indexing shard should recover on indexNodeB
+        ensureYellow(indexName);
+
+        logger.info("--> start indexing");
+        // indexing
+        for (int i = 0; i < 10; i++) {
+            final BulkRequestBuilder bulkRequestBuilder = client(indexNodeB).prepareBulk();
+            for (int j = 0; j < 20; j++) {
+                bulkRequestBuilder.add(client(indexNodeB).prepareIndex(indexName).setSource("field", randomAlphaOfLengthBetween(20, 50)));
+            }
+            bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+            final BulkResponse bulkResponse = bulkRequestBuilder.get(TEST_REQUEST_TIMEOUT);
+            safeSleep(randomLongBetween(1, 100));
+        }
+
+        logger.info("--> waiting for index to be green");
+        ensureGreen(indexName);
     }
 }

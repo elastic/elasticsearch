@@ -117,12 +117,10 @@ public class LogsDataStreamRestIT extends ESRestTestCase {
                     "type": "date"
                 },
                 "host.name": {
-                  "type": "keyword",
-                  "time_series_dimension": "true"
+                  "type": "keyword"
                 },
                 "pid": {
-                  "type": "long",
-                  "time_series_dimension": "true"
+                  "type": "long"
                 },
                 "method": {
                   "type": "keyword"
@@ -135,14 +133,66 @@ public class LogsDataStreamRestIT extends ESRestTestCase {
           }
         }""";
 
+    private static final String TIME_SERIES_TEMPLATE = """
+        {
+            "index_patterns": [ "logs-*-*" ],
+            "data_stream": {},
+            "priority": 201,
+            "template": {
+              "settings": {
+                "index": {
+                  "mode": "time_series",
+                  "look_ahead_time": "5m"
+                }
+              },
+              "mappings": {
+                "properties": {
+                  "@timestamp" : {
+                    "type": "date"
+                },
+                "hostname": {
+                  "type": "keyword",
+                  "time_series_dimension": "true"
+                },
+                "pid": {
+                  "type": "long",
+                  "time_series_dimension": "true"
+                },
+                "method": {
+                  "type": "keyword"
+                },
+                "ip_address": {
+                  "type": "ip"
+                },
+                "memory_usage_bytes": {
+                    "type": "long",
+                    "time_series_metric": "gauge"
+                }
+              }
+            }
+          }
+        }""";
+
     private static final String DOC_TEMPLATE = """
         {
             "@timestamp": "%s",
-            "host.name": "%s",
+            "hostname": "%s",
             "pid": "%d",
             "method": "%s",
             "message": "%s",
             "ip_address": "%s"
+        }
+        """;
+
+    private static final String TIME_SERIES_DOC_TEMPLATE = """
+        {
+            "@timestamp": "%s",
+            "hostname": "%s",
+            "pid": "%d",
+            "method": "%s",
+            "message": "%s",
+            "ip_address": "%s",
+            "memory_usage_bytes": "%d"
         }
         """;
 
@@ -228,6 +278,57 @@ public class LogsDataStreamRestIT extends ESRestTestCase {
         assertDataStreamBackingIndexMode("logs", 2);
     }
 
+    public void testLogsTimeSeriesIndexModeSwitch() throws IOException {
+        putTemplate(client, "custom-template", LOGS_TEMPLATE);
+        createDataStream(client, DATA_STREAM_NAME);
+        indexDocument(
+            client,
+            DATA_STREAM_NAME,
+            document(
+                Instant.now(),
+                randomAlphaOfLength(10),
+                randomNonNegativeLong(),
+                randomFrom("PUT", "POST", "GET"),
+                randomAlphaOfLength(32),
+                randomIp(randomBoolean())
+            )
+        );
+        assertDataStreamBackingIndexMode("logs", 0);
+
+        putTemplate(client, "custom-template", TIME_SERIES_TEMPLATE);
+        rolloverDataStream(client, DATA_STREAM_NAME);
+        indexDocument(
+            client,
+            DATA_STREAM_NAME,
+            timeSeriesDocument(
+                Instant.now().plusSeconds(10),
+                randomAlphaOfLength(10),
+                randomNonNegativeLong(),
+                randomFrom("PUT", "POST", "GET"),
+                randomAlphaOfLength(64),
+                randomIp(randomBoolean()),
+                randomLongBetween(1_000_000L, 2_000_000L)
+            )
+        );
+        assertDataStreamBackingIndexMode("time_series", 1);
+
+        putTemplate(client, "custom-template", LOGS_TEMPLATE);
+        rolloverDataStream(client, DATA_STREAM_NAME);
+        indexDocument(
+            client,
+            DATA_STREAM_NAME,
+            document(
+                Instant.now().plusSeconds(320),
+                randomAlphaOfLength(10),
+                randomNonNegativeLong(),
+                randomFrom("PUT", "POST", "GET"),
+                randomAlphaOfLength(32),
+                randomIp(randomBoolean())
+            )
+        );
+        assertDataStreamBackingIndexMode("logs", 2);
+    }
+
     private void assertDataStreamBackingIndexMode(final String indexMode, int backingIndex) throws IOException {
         assertThat(getSettings(client, getWriteBackingIndex(client, DATA_STREAM_NAME, backingIndex)).get("index.mode"), is(indexMode));
     }
@@ -249,6 +350,28 @@ public class LogsDataStreamRestIT extends ESRestTestCase {
             method,
             message,
             InetAddresses.toAddrString(ipAddress)
+        );
+    }
+
+    private String timeSeriesDocument(
+        final Instant timestamp,
+        final String hostname,
+        long pid,
+        final String method,
+        final String message,
+        final InetAddress ipAddress,
+        long memoryUsageBytes
+    ) {
+        return String.format(
+            Locale.ROOT,
+            TIME_SERIES_DOC_TEMPLATE,
+            DateFormatter.forPattern(FormatNames.DATE.getName()).format(timestamp),
+            hostname,
+            pid,
+            method,
+            message,
+            InetAddresses.toAddrString(ipAddress),
+            memoryUsageBytes
         );
     }
 

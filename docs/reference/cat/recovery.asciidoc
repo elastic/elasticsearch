@@ -39,7 +39,7 @@ The cat recovery API returns information about shard recoveries, both
 ongoing and completed. It is a more compact view of the JSON
 <<indices-recovery,index recovery>> API.
 
-include::{es-ref-dir}/indices/recovery.asciidoc[tag=shard-recovery-desc]
+include::{es-ref-dir}/modules/shard-recovery-desc.asciidoc[]
 
 
 [[cat-recovery-path-params]]

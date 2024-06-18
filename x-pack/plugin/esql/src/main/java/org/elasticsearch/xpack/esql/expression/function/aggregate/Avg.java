@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.expression.function.aggregate;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -73,6 +74,16 @@ public class Avg extends AggregateFunction implements SurrogateExpression {
         var s = source();
         var field = field();
 
-        return field().foldable() ? new MvAvg(s, field) : new Div(s, new Sum(s, field), new Count(s, field), dataType());
+        final Sum sum;
+        final Count count;
+        if (field instanceof FieldAttribute fieldAttribute) {
+            sum = new Sum(s, fieldAttribute.withAggregateHint(fieldAttribute, "sum"));
+            count = new Count(s, fieldAttribute.withAggregateHint(fieldAttribute, "count"));
+        } else {
+            sum = new Sum(s, field);
+            count = new Count(s, field);
+        }
+
+        return field().foldable() ? new MvAvg(s, field) : new Div(s, sum, count, dataType());
     }
 }

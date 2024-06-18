@@ -14,6 +14,7 @@ import org.elasticsearch.compute.aggregation.MinDoubleAggregatorFunctionSupplier
 import org.elasticsearch.compute.aggregation.MinIntAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.MinLongAggregatorFunctionSupplier;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -53,7 +54,11 @@ public class Min extends NumericAggregate implements SurrogateExpression {
 
     @Override
     public Min replaceChildren(List<Expression> newChildren) {
-        return new Min(source(), newChildren.get(0));
+        Expression newChild = newChildren.get(0);
+        if (newChild instanceof FieldAttribute fieldAttribute) {
+            newChild = fieldAttribute.withAggregateHint(fieldAttribute, "min");
+        }
+        return new Min(source(), newChild);
     }
 
     @Override

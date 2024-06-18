@@ -12,6 +12,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.CountAggregatorFunction;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -76,7 +77,11 @@ public class Count extends AggregateFunction implements EnclosedAgg, ToAggregato
 
     @Override
     public Count replaceChildren(List<Expression> newChildren) {
-        return new Count(source(), newChildren.get(0));
+        Expression newChild = newChildren.get(0);
+        if (newChild instanceof FieldAttribute fieldAttribute) {
+            newChild = fieldAttribute.withAggregateHint(fieldAttribute, "count");
+        }
+        return new Count(source(), newChild);
     }
 
     @Override

@@ -38,6 +38,7 @@ public class FieldAttribute extends TypedAttribute {
     private final FieldAttribute parent;
     private final String path;
     private final EsField field;
+    private final String aggregateHint;
 
     public FieldAttribute(Source source, String name, EsField field) {
         this(source, null, name, field);
@@ -75,6 +76,26 @@ public class FieldAttribute extends TypedAttribute {
         this.path = parent != null ? parent.name() : StringUtils.EMPTY;
         this.parent = parent;
         this.field = field;
+        this.aggregateHint = null;
+    }
+
+    public FieldAttribute(
+        Source source,
+        FieldAttribute parent,
+        String name,
+        DataType type,
+        EsField field,
+        String qualifier,
+        Nullability nullability,
+        NameId id,
+        boolean synthetic,
+        String aggregateHint
+    ) {
+        super(source, name, type, qualifier, nullability, id, synthetic);
+        this.path = parent != null ? parent.name() : StringUtils.EMPTY;
+        this.parent = parent;
+        this.field = field;
+        this.aggregateHint = aggregateHint;
     }
 
     @SuppressWarnings("unchecked")
@@ -96,7 +117,8 @@ public class FieldAttribute extends TypedAttribute {
             in.readOptionalString(),
             in.readEnum(Nullability.class),
             NameId.readFrom((StreamInput & PlanStreamInput) in),
-            in.readBoolean()
+            in.readBoolean(),
+            in.readOptionalString()
         );
     }
 
@@ -111,6 +133,7 @@ public class FieldAttribute extends TypedAttribute {
         out.writeEnum(nullable());
         id().writeTo(out);
         out.writeBoolean(synthetic());
+        out.writeOptionalString(aggregateHint);
     }
 
     @Override
@@ -168,14 +191,15 @@ public class FieldAttribute extends TypedAttribute {
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), path, field);
+        return Objects.hash(super.hashCode(), path, field, aggregateHint);
     }
 
     @Override
     public boolean equals(Object obj) {
         return super.equals(obj)
             && Objects.equals(path, ((FieldAttribute) obj).path)
-            && Objects.equals(field, ((FieldAttribute) obj).field);
+            && Objects.equals(field, ((FieldAttribute) obj).field)
+            && Objects.equals(aggregateHint, ((FieldAttribute) obj).aggregateHint);
     }
 
     @Override
@@ -185,5 +209,24 @@ public class FieldAttribute extends TypedAttribute {
 
     public EsField field() {
         return field;
+    }
+
+    public String getAggregateHint() {
+        return aggregateHint;
+    }
+
+    public FieldAttribute withAggregateHint(FieldAttribute original, String aggregateHint) {
+        return new FieldAttribute(
+            original.source(),
+            original.parent(),
+            original.name(),
+            original.dataType(),
+            original.field(),
+            original.qualifier(),
+            original.nullable(),
+            original.id(),
+            original.synthetic(),
+            aggregateHint
+        );
     }
 }

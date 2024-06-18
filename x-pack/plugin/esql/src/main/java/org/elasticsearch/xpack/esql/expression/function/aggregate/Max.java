@@ -14,6 +14,7 @@ import org.elasticsearch.compute.aggregation.MaxDoubleAggregatorFunctionSupplier
 import org.elasticsearch.compute.aggregation.MaxIntAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.MaxLongAggregatorFunctionSupplier;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -53,7 +54,11 @@ public class Max extends NumericAggregate implements SurrogateExpression {
 
     @Override
     public Max replaceChildren(List<Expression> newChildren) {
-        return new Max(source(), newChildren.get(0));
+        Expression newChild = newChildren.get(0);
+        if (newChild instanceof FieldAttribute fieldAttribute) {
+            newChild = fieldAttribute.withAggregateHint(fieldAttribute, "max");
+        }
+        return new Max(source(), newChild);
     }
 
     @Override

@@ -260,7 +260,7 @@ final class AggregateMapper {
             return "Int";
         } else if (type.equals(DataType.LONG) || type.equals(DataType.DATETIME) || type.equals(DataType.COUNTER_LONG)) {
             return "Long";
-        } else if (type.equals(DataType.DOUBLE) || type.equals(DataType.COUNTER_DOUBLE)) {
+        } else if (type.equals(DataType.DOUBLE) || type.equals(DataType.COUNTER_DOUBLE) || type.equals(DataType.AGGREGATE_DOUBLE_METRIC)) {
             return "Double";
         } else if (type.equals(DataType.KEYWORD)
             || type.equals(DataType.IP)

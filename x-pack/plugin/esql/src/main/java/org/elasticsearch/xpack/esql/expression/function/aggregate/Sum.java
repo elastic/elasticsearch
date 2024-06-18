@@ -13,6 +13,7 @@ import org.elasticsearch.compute.aggregation.SumDoubleAggregatorFunctionSupplier
 import org.elasticsearch.compute.aggregation.SumIntAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.SumLongAggregatorFunctionSupplier;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -58,7 +59,11 @@ public class Sum extends NumericAggregate implements SurrogateExpression {
 
     @Override
     public Sum replaceChildren(List<Expression> newChildren) {
-        return new Sum(source(), newChildren.get(0));
+        Expression newChild = newChildren.get(0);
+        if (newChild instanceof FieldAttribute fieldAttribute) {
+            newChild = fieldAttribute.withAggregateHint(fieldAttribute, "sum");
+        }
+        return new Sum(source(), newChild);
     }
 
     @Override

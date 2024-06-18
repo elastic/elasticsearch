@@ -99,7 +99,7 @@ public abstract class NumericAggregate extends AggregateFunction implements ToAg
         if (type == DataType.INTEGER) {
             return intSupplier(inputChannels);
         }
-        if (type == DataType.DOUBLE) {
+        if (type == DataType.DOUBLE || type == DataType.AGGREGATE_DOUBLE_METRIC) {
             return doubleSupplier(inputChannels);
         }
         throw EsqlIllegalArgumentException.illegalDataType(type);

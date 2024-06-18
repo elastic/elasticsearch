@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.Order;
 import org.elasticsearch.xpack.esql.core.expression.function.scalar.ScalarFunction;
+import org.elasticsearch.xpack.esql.core.expression.predicate.fulltext.FullTextPredicate;
 import org.elasticsearch.xpack.esql.core.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.core.expression.predicate.logical.BinaryLogic;
 import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Not;
@@ -334,6 +335,7 @@ public final class PlanNamedTypes {
         for (List<NamedWriteableRegistry.Entry> ee : List.of(
             EsqlArithmeticOperation.getNamedWriteables(),
             EsqlBinaryComparison.getNamedWriteables(),
+            FullTextPredicate.getNamedWriteables(),
             NamedExpression.getNamedWriteables(),
             UnaryScalarFunction.getNamedWriteables(),
             List.of(UnsupportedAttribute.ENTRY, InsensitiveEquals.ENTRY, Literal.ENTRY, org.elasticsearch.xpack.esql.expression.Order.ENTRY)

@@ -56,7 +56,7 @@ public final class RestQueryRoleAction extends NativeRoleBaseRestHandler {
                 XContentParserUtils.ensureExpectedToken(XContentParser.Token.END_OBJECT, p.nextToken(), p);
                 return fieldSortBuilder;
             } else {
-                throw new IllegalArgumentException("mal-formatted sort object");
+                throw new IllegalArgumentException("malformed sort object");
             }
         }, new ParseField("sort"));
         PARSER.declareField(

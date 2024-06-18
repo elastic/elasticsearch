@@ -48,6 +48,7 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardNotStartedException;
@@ -114,6 +115,7 @@ public class TransportGetVirtualBatchedCompoundCommitChunkAction extends Transpo
             if (task != null) {
                 request.setParentTask(clusterService.localNode().getId(), task.getId());
             }
+
             final RetryableAction<GetVirtualBatchedCompoundCommitChunkResponse> retryableAction = new RetryableAction<>(
                 logger,
                 transportService.getThreadPool(),
@@ -130,13 +132,22 @@ public class TransportGetVirtualBatchedCompoundCommitChunkAction extends Transpo
 
                 @Override
                 public boolean shouldRetry(Exception e) {
-                    return ExceptionsHelper.unwrap(
-                        e,
-                        ConnectTransportException.class,
-                        CircuitBreakingException.class,
-                        NodeClosedException.class,
-                        IndexShardNotStartedException.class
-                    ) != null;
+                    // The search shard may get concurrently closed during recovery. The initial closing shard is done on the
+                    // cluster applier thread which needs to obtain the engineMutex. But opening the engine (as part of the recovery)
+                    // holds the engineMutex which prevents the indexShard from being closed and in turn cluster state update.
+                    // Hence, we skip retry if the search index/shard is already removed since it cannot be successful.
+                    // It also blocks the applier thread and leads to the node lagging on cluster state update.
+                    final IndexService indexService = indicesService.indexService(request.getShardId().getIndex());
+                    final boolean shouldRetry = indexService != null && indexService.hasShard(request.getShardId().id());
+
+                    return shouldRetry
+                        && ExceptionsHelper.unwrap(
+                            e,
+                            ConnectTransportException.class,
+                            CircuitBreakingException.class,
+                            NodeClosedException.class,
+                            IndexShardNotStartedException.class
+                        ) != null;
                 }
             };
             retryableAction.run();

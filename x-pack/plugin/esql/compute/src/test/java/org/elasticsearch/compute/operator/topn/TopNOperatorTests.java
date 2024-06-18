@@ -65,7 +65,9 @@ import static org.elasticsearch.compute.data.BlockTestUtils.readInto;
 import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
 import static org.elasticsearch.compute.data.ElementType.BOOLEAN;
 import static org.elasticsearch.compute.data.ElementType.BYTES_REF;
+import static org.elasticsearch.compute.data.ElementType.COMPOSITE;
 import static org.elasticsearch.compute.data.ElementType.DOUBLE;
+import static org.elasticsearch.compute.data.ElementType.FLOAT;
 import static org.elasticsearch.compute.data.ElementType.INT;
 import static org.elasticsearch.compute.data.ElementType.LONG;
 import static org.elasticsearch.compute.operator.topn.TopNEncoder.DEFAULT_SORTABLE;
@@ -503,7 +505,7 @@ public class TopNOperatorTests extends OperatorTestCase {
         encoders.add(DEFAULT_SORTABLE);
 
         for (ElementType e : ElementType.values()) {
-            if (e == ElementType.UNKNOWN) {
+            if (e == ElementType.UNKNOWN || e == COMPOSITE || e == FLOAT) {
                 continue;
             }
             elementTypes.add(e);
@@ -575,7 +577,7 @@ public class TopNOperatorTests extends OperatorTestCase {
 
         for (int type = 0; type < blocksCount; type++) {
             ElementType e = randomFrom(ElementType.values());
-            if (e == ElementType.UNKNOWN) {
+            if (e == ElementType.UNKNOWN || e == COMPOSITE || e == FLOAT) {
                 continue;
             }
             elementTypes.add(e);
@@ -963,7 +965,7 @@ public class TopNOperatorTests extends OperatorTestCase {
 
         for (int type = 0; type < blocksCount; type++) {
             ElementType e = randomValueOtherThanMany(
-                t -> t == ElementType.UNKNOWN || t == ElementType.DOC,
+                t -> t == ElementType.UNKNOWN || t == ElementType.DOC || t == COMPOSITE || t == FLOAT,
                 () -> randomFrom(ElementType.values())
             );
             elementTypes.add(e);

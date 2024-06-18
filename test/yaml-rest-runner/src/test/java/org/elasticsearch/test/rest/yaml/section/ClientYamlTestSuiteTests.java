@@ -40,13 +40,15 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
             ---
             setup:
               - skip:
-                  version: "8.7.00 - 8.9.99"
-                  reason: "Synthetic source shows up in the mapping in 8.10 and on, may trigger assert failures in mixed cluster tests"
+                  known_issues:
+                    - cluster_feature: "feature_a"
+                      fixed_by: "feature_a_fix"
+                  reason: "Bug introduced with feature a, fixed with feature a fix"
 
             ---
             date:
               - skip:
-                  version: " - 8.1.99"
+                  cluster_features: "tsdb_indexing"
                   reason: tsdb indexing changed in 8.2.0
               - do:
                   indices.get_mapping:
@@ -117,7 +119,7 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
             "Get type mapping - pre 6.0":
 
               - skip:
-                  version:     "6.0.0 - "
+                  cluster_features: "feature_in_6.0"
                   reason:      "for newer versions the index name is always returned"
 
               - do:

@@ -14,7 +14,7 @@ synopsis:keyword
 "double cbrt(number:double|integer|long|unsigned_long)"
 "double|integer|long|unsigned_long ceil(number:double|integer|long|unsigned_long)"
 "boolean cidr_match(ip:ip, blockX...:keyword|text)"
-"boolean|text|integer|keyword|long coalesce(first:boolean|text|integer|keyword|long, ?rest...:boolean|text|integer|keyword|long)"
+"boolean|cartesian_point|cartesian_shape|date|geo_point|geo_shape|integer|ip|keyword|long|text|version coalesce(first:boolean|cartesian_point|cartesian_shape|date|geo_point|geo_shape|integer|ip|keyword|long|text|version, ?rest...:boolean|cartesian_point|cartesian_shape|date|geo_point|geo_shape|integer|ip|keyword|long|text|version)"
 "keyword concat(string1:keyword|text, string2...:keyword|text)"
 "double cos(angle:double|integer|long|unsigned_long)"
 "double cosh(angle:double|integer|long|unsigned_long)"
@@ -30,6 +30,7 @@ double e()
 "double|integer|long|unsigned_long floor(number:double|integer|long|unsigned_long)"
 "keyword from_base64(string:keyword|text)"
 "boolean|double|integer|ip|keyword|long|text|version greatest(first:boolean|double|integer|ip|keyword|long|text|version, ?rest...:boolean|double|integer|ip|keyword|long|text|version)"
+"ip ip_prefix(ip:ip, prefixLengthV4:integer, prefixLengthV6:integer)"
 "boolean|double|integer|ip|keyword|long|text|version least(first:boolean|double|integer|ip|keyword|long|text|version, ?rest...:boolean|double|integer|ip|keyword|long|text|version)"
 "keyword left(string:keyword|text, length:integer)"
 "integer length(string:keyword|text)"
@@ -41,10 +42,11 @@ double e()
 "double|integer|long median(number:double|integer|long)"
 "double|integer|long median_absolute_deviation(number:double|integer|long)"
 "double|integer|long min(number:double|integer|long)"
+"boolean|cartesian_point|cartesian_shape|date|double|geo_point|geo_shape|integer|ip|keyword|long|text|version mv_append(field1:boolean|cartesian_point|cartesian_shape|date|double|geo_point|geo_shape|integer|ip|keyword|long|text|version, field2:boolean|cartesian_point|cartesian_shape|date|double|geo_point|geo_shape|integer|ip|keyword|long|text|version)"
 "double mv_avg(number:double|integer|long|unsigned_long)"
 "keyword mv_concat(string:text|keyword, delim:text|keyword)"
 "integer mv_count(field:boolean|cartesian_point|cartesian_shape|date|double|geo_point|geo_shape|integer|ip|keyword|long|text|unsigned_long|version)"
-"boolean|date|double|integer|ip|keyword|long|text|version mv_dedupe(field:boolean|date|double|integer|ip|keyword|long|text|version)"
+"boolean|cartesian_point|cartesian_shape|date|double|geo_point|geo_shape|integer|ip|keyword|long|text|version mv_dedupe(field:boolean|cartesian_point|cartesian_shape|date|double|geo_point|geo_shape|integer|ip|keyword|long|text|version)"
 "boolean|cartesian_point|cartesian_shape|date|double|geo_point|geo_shape|integer|ip|keyword|long|text|unsigned_long|version mv_first(field:boolean|cartesian_point|cartesian_shape|date|double|geo_point|geo_shape|integer|ip|keyword|long|text|unsigned_long|version)"
 "boolean|cartesian_point|cartesian_shape|date|double|geo_point|geo_shape|integer|ip|keyword|long|text|unsigned_long|version mv_last(field:boolean|cartesian_point|cartesian_shape|date|double|geo_point|geo_shape|integer|ip|keyword|long|text|unsigned_long|version)"
 "boolean|date|double|integer|ip|keyword|long|text|unsigned_long|version mv_max(field:boolean|date|double|integer|ip|keyword|long|text|unsigned_long|version)"
@@ -58,6 +60,7 @@ date now()
 "double|integer|long percentile(number:double|integer|long, percentile:double|integer|long)"
 double pi()
 "double pow(base:double|integer|long|unsigned_long, exponent:double|integer|long|unsigned_long)"
+"keyword repeat(string:keyword|text, number:integer)"
 "keyword replace(string:keyword|text, regex:keyword|text, newString:keyword|text)"
 "keyword right(string:keyword|text, length:integer)"
 "double|integer|long|unsigned_long round(number:double|integer|long|unsigned_long, ?decimals:integer)"
@@ -128,7 +131,7 @@ case          |[condition, trueValue]              |[boolean, "boolean|cartesian
 cbrt          |number                              |"double|integer|long|unsigned_long"                                                                                               |"Numeric expression. If `null`, the function returns `null`."
 ceil          |number                              |"double|integer|long|unsigned_long"                                                                                               |Numeric expression. If `null`, the function returns `null`.
 cidr_match    |[ip, blockX]                        |[ip, "keyword|text"]                                                                                                              |[IP address of type `ip` (both IPv4 and IPv6 are supported)., CIDR block to test the IP against.]
-coalesce      |first                               |"boolean|text|integer|keyword|long"                                                                                               |Expression to evaluate.
+coalesce      |first                               |"boolean|cartesian_point|cartesian_shape|date|geo_point|geo_shape|integer|ip|keyword|long|text|version"                                   |Expression to evaluate.
 concat        |[string1, string2]                  |["keyword|text", "keyword|text"]                                                                                                  |[Strings to concatenate., Strings to concatenate.]
 cos           |angle                               |"double|integer|long|unsigned_long"                                                                                               |An angle, in radians. If `null`, the function returns `null`.
 cosh          |angle                               |"double|integer|long|unsigned_long"                                                                                               |An angle, in radians. If `null`, the function returns `null`.
@@ -144,6 +147,7 @@ ends_with     |[str, suffix]                       |["keyword|text", "keyword|te
 floor         |number                              |"double|integer|long|unsigned_long"                                                                                               |Numeric expression. If `null`, the function returns `null`.
 from_base64   |string                              |"keyword|text"                                                                                                                    |A base64 string.
 greatest      |first                               |"boolean|double|integer|ip|keyword|long|text|version"                                                                             |First of the columns to evaluate.
+ip_prefix     |[ip, prefixLengthV4, prefixLengthV6]|[ip, integer, integer]                                                                                                            |[IP address of type `ip` (both IPv4 and IPv6 are supported)., Prefix length for IPv4 addresses., Prefix length for IPv6 addresses.]
 least         |first                               |"boolean|double|integer|ip|keyword|long|text|version"                                                                             |First of the columns to evaluate.
 left          |[string, length]                    |["keyword|text", integer]                                                                                                         |[The string from which to return a substring., The number of characters to return.]
 length        |string                              |"keyword|text"                                                                                                                    |String expression. If `null`, the function returns `null`.
@@ -155,10 +159,11 @@ max           |number                              |"double|integer|long"       
 median        |number                              |"double|integer|long"                                                                                                             |[""]
 median_absolut|number                              |"double|integer|long"                                                                                                             |[""]
 min           |number                              |"double|integer|long"                                                                                                             |[""]
+mv_append     |[field1, field2]                    |["boolean|cartesian_point|cartesian_shape|date|double|geo_point|geo_shape|integer|ip|keyword|long|text|version", "boolean|cartesian_point|cartesian_shape|date|double|geo_point|geo_shape|integer|ip|keyword|long|text|version"]                 | ["", ""]
 mv_avg        |number                              |"double|integer|long|unsigned_long"                                                                                               |Multivalue expression.
 mv_concat     |[string, delim]                     |["text|keyword", "text|keyword"]                                                                                                  |[Multivalue expression., Delimiter.]
 mv_count      |field                               |"boolean|cartesian_point|cartesian_shape|date|double|geo_point|geo_shape|integer|ip|keyword|long|text|unsigned_long|version"      |Multivalue expression.
-mv_dedupe     |field                               |"boolean|date|double|integer|ip|keyword|long|text|version"                                                                        |Multivalue expression.
+mv_dedupe     |field                               |"boolean|cartesian_point|cartesian_shape|date|double|geo_point|geo_shape|integer|ip|keyword|long|text|version"                    |Multivalue expression.
 mv_first      |field                               |"boolean|cartesian_point|cartesian_shape|date|double|geo_point|geo_shape|integer|ip|keyword|long|text|unsigned_long|version"      |Multivalue expression.
 mv_last       |field                               |"boolean|cartesian_point|cartesian_shape|date|double|geo_point|geo_shape|integer|ip|keyword|long|text|unsigned_long|version"      |Multivalue expression.
 mv_max        |field                               |"boolean|date|double|integer|ip|keyword|long|text|unsigned_long|version"                                                          |Multivalue expression.
@@ -172,6 +177,7 @@ now           |null                                |null                        
 percentile    |[number, percentile]                |["double|integer|long", "double|integer|long"]                                                                                    |[, ]
 pi            |null                                |null                                                                                                                              |null
 pow           |[base, exponent]                    |["double|integer|long|unsigned_long", "double|integer|long|unsigned_long"]                                                        |["Numeric expression for the base. If `null`\, the function returns `null`.", "Numeric expression for the exponent. If `null`\, the function returns `null`."]
+repeat        |[string, number]                    |["keyword|text", integer]                                                                                                         |[String expression., Number times to repeat.]
 replace       |[string, regex, newString]          |["keyword|text", "keyword|text", "keyword|text"]                                                                                  |[String expression., Regular expression., Replacement string.]
 right         |[string, length]                    |["keyword|text", integer]                                                                                                         |[The string from which to returns a substring., The number of characters to return.]
 round         |[number, decimals]                  |["double|integer|long|unsigned_long", integer]                                                                                    |["The numeric value to round. If `null`\, the function returns `null`.", "The number of decimal places to round to. Defaults to 0. If `null`\, the function returns `null`."]
@@ -259,6 +265,7 @@ ends_with     |Returns a boolean that indicates whether a keyword string ends wi
 floor         |Round a number down to the nearest integer.
 from_base64   |Decode a base64 string.
 greatest      |Returns the maximum value from multiple columns. This is similar to <<esql-mv_max>> except it is intended to run on multiple columns at once.
+ip_prefix     |Truncates an IP to a given prefix length.
 least         |Returns the minimum value from multiple columns. This is similar to <<esql-mv_min>> except it is intended to run on multiple columns at once.
 left          |Returns the substring that extracts 'length' chars from 'string' starting from the left.
 length        |Returns the character length of a string.
@@ -270,6 +277,7 @@ max           |The maximum value of a numeric field.
 median        |The value that is greater than half of all values and less than half of all values.
 median_absolut|The median absolute deviation, a measure of variability.
 min           |The minimum value of a numeric field.
+mv_append     |Concatenates values of two multi-value fields.
 mv_avg        |Converts a multivalued field into a single valued field containing the average of all of the values.
 mv_concat     |Converts a multivalued string expression into a single valued column containing the concatenation of all values separated by a delimiter.
 mv_count      |Converts a multivalued expression into a single valued column containing a count of the number of values.
@@ -287,6 +295,7 @@ now           |Returns current date and time.
 percentile    |The value at which a certain percentage of observed values occur.
 pi            |Returns {wikipedia}/Pi[Pi], the ratio of a circle's circumference to its diameter.
 pow           |Returns the value of `base` raised to the power of `exponent`.
+repeat        |Returns a string constructed by concatenating `string` with itself the specified `number` of times.
 replace       |The function substitutes in the string `str` any match of the regular expression `regex` with the replacement string `newStr`.
 right         |Return the substring that extracts 'length' chars from 'str' starting from the right.
 round         |Rounds a number to the specified number of decimal places. Defaults to 0, which returns the nearest integer. If the precision is a negative number, rounds to the number of digits left of the decimal point.
@@ -359,7 +368,7 @@ case          |"boolean|cartesian_point|date|double|geo_point|integer|ip|keyword
 cbrt          |double                                                                                                                      |false                       |false           |false
 ceil          |"double|integer|long|unsigned_long"                                                                                         |false                       |false           |false
 cidr_match    |boolean                                                                                                                     |[false, false]              |true            |false
-coalesce      |"boolean|text|integer|keyword|long"                                                                                         |false                       |true            |false
+coalesce      |"boolean|cartesian_point|cartesian_shape|date|geo_point|geo_shape|integer|ip|keyword|long|text|version"                     |false                       |true            |false
 concat        |keyword                                                                                                                     |[false, false]              |true            |false
 cos           |double                                                                                                                      |false                       |false           |false
 cosh          |double                                                                                                                      |false                       |false           |false
@@ -375,6 +384,7 @@ ends_with     |boolean                                                          
 floor         |"double|integer|long|unsigned_long"                                                                                         |false                       |false           |false
 from_base64   |keyword                                                                                                                     |false                       |false           |false
 greatest      |"boolean|double|integer|ip|keyword|long|text|version"                                                                       |false                       |true            |false
+ip_prefix     |ip                                                                                                                          |[false, false, false]       |false           |false
 least         |"boolean|double|integer|ip|keyword|long|text|version"                                                                       |false                       |true            |false
 left          |keyword                                                                                                                     |[false, false]              |false           |false
 length        |integer                                                                                                                     |false                       |false           |false
@@ -386,10 +396,11 @@ max           |"double|integer|long"                                            
 median        |"double|integer|long"                                                                                                       |false                       |false           |true
 median_absolut|"double|integer|long"                                                                                                       |false                       |false           |true
 min           |"double|integer|long"                                                                                                       |false                       |false           |true
+mv_append     |"boolean|cartesian_point|cartesian_shape|date|double|geo_point|geo_shape|integer|ip|keyword|long|text|version"              |[false, false]              |false 		     |false
 mv_avg        |double                                                                                                                      |false                       |false           |false
 mv_concat     |keyword                                                                                                                     |[false, false]              |false           |false
 mv_count      |integer                                                                                                                     |false                       |false           |false
-mv_dedupe     |"boolean|date|double|integer|ip|keyword|long|text|version"                                                                  |false                       |false           |false
+mv_dedupe     |"boolean|cartesian_point|cartesian_shape|date|double|geo_point|geo_shape|integer|ip|keyword|long|text|version"              |false                       |false           |false
 mv_first      |"boolean|cartesian_point|cartesian_shape|date|double|geo_point|geo_shape|integer|ip|keyword|long|text|unsigned_long|version"|false                       |false           |false
 mv_last       |"boolean|cartesian_point|cartesian_shape|date|double|geo_point|geo_shape|integer|ip|keyword|long|text|unsigned_long|version"|false                       |false           |false
 mv_max        |"boolean|date|double|integer|ip|keyword|long|text|unsigned_long|version"                                                    |false                       |false           |false
@@ -403,6 +414,7 @@ now           |date                                                             
 percentile    |"double|integer|long"                                                                                                       |[false, false]              |false           |true
 pi            |double                                                                                                                      |null                        |false           |false
 pow           |double                                                                                                                      |[false, false]              |false           |false
+repeat        |keyword                                                                                                                     |[false, false]              |false           |false
 replace       |keyword                                                                                                                     |[false, false, false]       |false           |false
 right         |keyword                                                                                                                     |[false, false]              |false           |false
 round         |"double|integer|long|unsigned_long"                                                                                         |[false, true]               |false           |false
@@ -471,5 +483,5 @@ countFunctions#[skip:-8.14.99, reason:BIN added]
 meta functions |  stats  a = count(*), b = count(*), c = count(*) |  mv_expand c;
 
 a:long | b:long | c:long
-106    | 106    | 106
+109    | 109    | 109
 ;

@@ -7,21 +7,21 @@
 
 package org.elasticsearch.xpack.esql.expression;
 
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.tree.NodeInfo;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataTypes;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 
 import java.util.List;
 
-public class Order extends org.elasticsearch.xpack.ql.expression.Order {
+public class Order extends org.elasticsearch.xpack.esql.core.expression.Order {
     public Order(Source source, Expression child, OrderDirection direction, NullsPosition nulls) {
         super(source, child, direction, nulls);
     }
 
     @Override
     protected TypeResolution resolveType() {
-        if (DataTypes.isString(child().dataType())) {
+        if (DataType.isString(child().dataType())) {
             return TypeResolution.TYPE_RESOLVED;
         }
         return super.resolveType();
@@ -33,7 +33,7 @@ public class Order extends org.elasticsearch.xpack.ql.expression.Order {
     }
 
     @Override
-    protected NodeInfo<org.elasticsearch.xpack.ql.expression.Order> info() {
+    protected NodeInfo<org.elasticsearch.xpack.esql.core.expression.Order> info() {
         return NodeInfo.create(this, Order::new, child(), direction(), nullsPosition());
     }
 

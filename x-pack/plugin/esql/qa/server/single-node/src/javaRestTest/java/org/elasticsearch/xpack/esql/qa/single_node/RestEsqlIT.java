@@ -256,6 +256,23 @@ public class RestEsqlIT extends RestEsqlTestCase {
         assertThat(deleteIndex("index2").isAcknowledged(), Matchers.is(true));
     }
 
+    public void testTableDuplicateNames() throws IOException {
+        Request request = new Request("POST", "/_query");
+        request.setJsonEntity("""
+            {
+              "query": "FROM a=1",
+              "tables": {
+                "t": {
+                  "a": {"integer": [1]},
+                  "a": {"integer": [1]}
+                }
+              }
+            }""");
+        ResponseException re = expectThrows(ResponseException.class, () -> client().performRequest(request));
+        assertThat(re.getResponse().getStatusLine().getStatusCode(), equalTo(400));
+        assertThat(re.getMessage(), containsString("[6:10] Duplicate field 'a'"));
+    }
+
     private void assertException(String query, String... errorMessages) throws IOException {
         ResponseException re = expectThrows(ResponseException.class, () -> runEsqlSync(requestObjectBuilder().query(query)));
         assertThat(re.getResponse().getStatusLine().getStatusCode(), equalTo(400));

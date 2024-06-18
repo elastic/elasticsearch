@@ -24,7 +24,7 @@ import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.CapturingTransport;
 import org.elasticsearch.test.transport.CapturingTransport.CapturedRequest;
@@ -808,9 +808,9 @@ public class PeerFinderTests extends ESTestCase {
         final long endTime = deterministicTaskQueue.getCurrentTimeMillis() + VERBOSITY_INCREASE_TIMEOUT_SETTING.get(Settings.EMPTY)
             .millis();
 
-        try (var appender = MockLogAppender.capture(PeerFinder.class)) {
-            appender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+        try (var mockLog = MockLog.capture(PeerFinder.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
                     "discovery result",
                     "org.elasticsearch.discovery.PeerFinder",
                     Level.WARN,
@@ -826,7 +826,7 @@ public class PeerFinderTests extends ESTestCase {
                 deterministicTaskQueue.advanceTime();
                 runAllRunnableTasks();
             }
-            appender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
         }
     }
 
@@ -841,9 +841,9 @@ public class PeerFinderTests extends ESTestCase {
         final long endTime = deterministicTaskQueue.getCurrentTimeMillis() + VERBOSITY_INCREASE_TIMEOUT_SETTING.get(Settings.EMPTY)
             .millis();
 
-        try (var appender = MockLogAppender.capture(PeerFinder.class)) {
-            appender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+        try (var mockLog = MockLog.capture(PeerFinder.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
                     "discovery result",
                     "org.elasticsearch.discovery.PeerFinder",
                     Level.DEBUG,
@@ -858,10 +858,10 @@ public class PeerFinderTests extends ESTestCase {
 
             deterministicTaskQueue.advanceTime();
             runAllRunnableTasks();
-            appender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
 
-            appender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
                     "discovery result",
                     "org.elasticsearch.discovery.PeerFinder",
                     Level.WARN,
@@ -877,7 +877,7 @@ public class PeerFinderTests extends ESTestCase {
                 deterministicTaskQueue.advanceTime();
                 runAllRunnableTasks();
             }
-            appender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
         }
     }
 
@@ -897,7 +897,7 @@ public class PeerFinderTests extends ESTestCase {
         final DiscoveryNode unreachableMaster = newDiscoveryNode("unreachable-master");
         transportAddressConnector.unreachableAddresses.add(unreachableMaster.getAddress());
 
-        MockLogAppender.assertThatLogger(() -> {
+        MockLog.assertThatLogger(() -> {
             while (deterministicTaskQueue.getCurrentTimeMillis() <= endTime) {
                 deterministicTaskQueue.advanceTime();
                 runAllRunnableTasks();
@@ -908,7 +908,7 @@ public class PeerFinderTests extends ESTestCase {
             }
         },
             PeerFinder.class,
-            new MockLogAppender.SeenEventExpectation(
+            new MockLog.SeenEventExpectation(
                 "discovery result",
                 "org.elasticsearch.discovery.PeerFinder",
                 Level.WARN,

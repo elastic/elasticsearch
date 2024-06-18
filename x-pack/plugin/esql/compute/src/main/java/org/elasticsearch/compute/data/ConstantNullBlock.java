@@ -25,6 +25,7 @@ final class ConstantNullBlock extends AbstractNonThreadSafeRefCounted
         BooleanBlock,
         IntBlock,
         LongBlock,
+        FloatBlock,
         DoubleBlock,
         BytesRefBlock {
 
@@ -50,11 +51,6 @@ final class ConstantNullBlock extends AbstractNonThreadSafeRefCounted
     @Override
     public boolean isNull(int position) {
         return true;
-    }
-
-    @Override
-    public int nullValuesCount() {
-        return getPositionCount();
     }
 
     @Override
@@ -222,6 +218,12 @@ final class ConstantNullBlock extends AbstractNonThreadSafeRefCounted
 
     @Override
     public BytesRef getBytesRef(int valueIndex, BytesRef dest) {
+        assert false : "null block";
+        throw new UnsupportedOperationException("null block");
+    }
+
+    @Override
+    public float getFloat(int valueIndex) {
         assert false : "null block";
         throw new UnsupportedOperationException("null block");
     }

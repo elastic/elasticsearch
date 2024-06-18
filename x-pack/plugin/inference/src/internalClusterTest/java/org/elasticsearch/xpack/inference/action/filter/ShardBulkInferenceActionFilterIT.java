@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.inference.action.filter;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
@@ -17,33 +16,23 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.update.UpdateRequestBuilder;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.inference.InferenceServiceExtension;
-import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.xpack.inference.InferencePlugin;
+import org.elasticsearch.xpack.inference.Utils;
 import org.elasticsearch.xpack.inference.mock.TestDenseInferenceServiceExtension;
 import org.elasticsearch.xpack.inference.mock.TestSparseInferenceServiceExtension;
-import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 import org.junit.Before;
 
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Consumer;
 
-import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.nullValue;
 
 public class ShardBulkInferenceActionFilterIT extends ESIntegTestCase {
 
@@ -51,13 +40,18 @@ public class ShardBulkInferenceActionFilterIT extends ESIntegTestCase {
 
     @Before
     public void setup() throws Exception {
-        storeSparseModel();
-        storeDenseModel();
+        Utils.storeSparseModel(client());
+        Utils.storeDenseModel(
+            client(),
+            randomIntBetween(1, 100),
+            // dot product means that we need normalized vectors; it's not worth doing that in this test
+            randomValueOtherThan(SimilarityMeasure.DOT_PRODUCT, () -> randomFrom(SimilarityMeasure.values()))
+        );
     }
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(TestInferencePlugin.class);
+        return Arrays.asList(Utils.TestInferencePlugin.class);
     }
 
     public void testBulkOperations() throws Exception {
@@ -143,66 +137,4 @@ public class ShardBulkInferenceActionFilterIT extends ESIntegTestCase {
         }
     }
 
-    private void storeSparseModel() throws Exception {
-        Model model = new TestSparseInferenceServiceExtension.TestSparseModel(
-            TestSparseInferenceServiceExtension.TestInferenceService.NAME,
-            new TestSparseInferenceServiceExtension.TestServiceSettings("sparse_model", null, false)
-        );
-        storeModel(model);
-    }
-
-    private void storeDenseModel() throws Exception {
-        Model model = new TestDenseInferenceServiceExtension.TestDenseModel(
-            TestDenseInferenceServiceExtension.TestInferenceService.NAME,
-            new TestDenseInferenceServiceExtension.TestServiceSettings(
-                "dense_model",
-                randomIntBetween(1, 100),
-                // dot product means that we need normalized vectors; it's not worth doing that in this test
-                randomValueOtherThan(SimilarityMeasure.DOT_PRODUCT, () -> randomFrom(SimilarityMeasure.values()))
-            )
-        );
-
-        storeModel(model);
-    }
-
-    private void storeModel(Model model) throws Exception {
-        ModelRegistry modelRegistry = new ModelRegistry(client());
-
-        AtomicReference<Boolean> storeModelHolder = new AtomicReference<>();
-        AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
-
-        blockingCall(listener -> modelRegistry.storeModel(model, listener), storeModelHolder, exceptionHolder);
-
-        assertThat(storeModelHolder.get(), is(true));
-        assertThat(exceptionHolder.get(), is(nullValue()));
-    }
-
-    private <T> void blockingCall(Consumer<ActionListener<T>> function, AtomicReference<T> response, AtomicReference<Exception> error)
-        throws InterruptedException {
-        CountDownLatch latch = new CountDownLatch(1);
-        ActionListener<T> listener = ActionListener.wrap(r -> {
-            response.set(r);
-            latch.countDown();
-        }, e -> {
-            error.set(e);
-            latch.countDown();
-        });
-
-        function.accept(listener);
-        latch.await();
-    }
-
-    public static class TestInferencePlugin extends InferencePlugin {
-        public TestInferencePlugin(Settings settings) {
-            super(settings);
-        }
-
-        @Override
-        public List<InferenceServiceExtension.Factory> getInferenceServiceFactories() {
-            return List.of(
-                TestSparseInferenceServiceExtension.TestInferenceService::new,
-                TestDenseInferenceServiceExtension.TestInferenceService::new
-            );
-        }
-    }
 }

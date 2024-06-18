@@ -10,6 +10,7 @@ package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.features.FeatureSpecification;
 import org.elasticsearch.features.NodeFeature;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 
 import java.util.Set;
 
@@ -22,7 +23,9 @@ public class MapperFeatures implements FeatureSpecification {
         return Set.of(
             IgnoredSourceFieldMapper.TRACK_IGNORED_SOURCE,
             PassThroughObjectMapper.PASS_THROUGH_PRIORITY,
-            RangeFieldMapper.NULL_VALUES_OFF_BY_ONE_FIX
+            RangeFieldMapper.NULL_VALUES_OFF_BY_ONE_FIX,
+            SourceFieldMapper.SYNTHETIC_SOURCE_FALLBACK,
+            DenseVectorFieldMapper.INT4_QUANTIZATION
         );
     }
 }

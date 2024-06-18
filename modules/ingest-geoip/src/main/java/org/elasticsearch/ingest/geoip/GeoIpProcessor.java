@@ -234,6 +234,12 @@ public final class GeoIpProcessor extends AbstractProcessor {
                         geoData.put("country_name", countryName);
                     }
                 }
+                case CONTINENT_CODE -> {
+                    String continentCode = continent.getCode();
+                    if (continentCode != null) {
+                        geoData.put("continent_code", continentCode);
+                    }
+                }
                 case CONTINENT_NAME -> {
                     String continentName = continent.getName();
                     if (continentName != null) {
@@ -305,6 +311,12 @@ public final class GeoIpProcessor extends AbstractProcessor {
                     String countryName = country.getName();
                     if (countryName != null) {
                         geoData.put("country_name", countryName);
+                    }
+                }
+                case CONTINENT_CODE -> {
+                    String continentCode = continent.getCode();
+                    if (continentCode != null) {
+                        geoData.put("continent_code", continentCode);
                     }
                 }
                 case CONTINENT_NAME -> {
@@ -483,6 +495,12 @@ public final class GeoIpProcessor extends AbstractProcessor {
                     String countryName = country.getName();
                     if (countryName != null) {
                         geoData.put("country_name", countryName);
+                    }
+                }
+                case CONTINENT_CODE -> {
+                    String continentCode = continent.getCode();
+                    if (continentCode != null) {
+                        geoData.put("continent_code", continentCode);
                     }
                 }
                 case CONTINENT_NAME -> {

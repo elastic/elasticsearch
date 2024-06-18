@@ -9,6 +9,7 @@
 package org.elasticsearch.plugins.internal;
 
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.engine.InternalEngine;
@@ -101,7 +102,11 @@ public class DocumentSizeObserverIT extends ESIntegTestCase {
                 public IndexResult index(Index index) throws IOException {
                     IndexResult result = super.index(index);
 
-                    DocumentSizeReporter documentParsingReporter = documentParsingProvider.newDocumentSizeReporter(shardId.getIndexName());
+                    DocumentSizeReporter documentParsingReporter = documentParsingProvider.newDocumentSizeReporter(
+                        shardId.getIndexName(),
+                        IndexMode.STANDARD,
+                        DocumentSizeAccumulator.EMPTY_INSTANCE
+                    );
                     documentParsingReporter.onIndexingCompleted(index.parsedDoc());
 
                     return result;
@@ -129,7 +134,11 @@ public class DocumentSizeObserverIT extends ESIntegTestCase {
                 }
 
                 @Override
-                public DocumentSizeReporter newDocumentSizeReporter(String indexName) {
+                public DocumentSizeReporter newDocumentSizeReporter(
+                    String indexName,
+                    IndexMode indexMode,
+                    DocumentSizeAccumulator documentSizeAccumulator
+                ) {
                     return new TestDocumentSizeReporter(indexName);
                 }
             };

@@ -794,7 +794,8 @@ public abstract class ESTestCase extends LuceneTestCase {
      */
     protected static void assertLeakDetected() {
         synchronized (loggedLeaks) {
-            assertTrue("No leaks have been detected", loggedLeaks.removeIf(leakText -> true));
+            assertFalse("No leaks have been detected", loggedLeaks.isEmpty());
+            loggedLeaks.clear();
         }
     }
 

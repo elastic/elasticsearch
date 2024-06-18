@@ -176,8 +176,7 @@ public class TransportVersions {
     public static final TransportVersion ML_INFERENCE_AZURE_OPENAI_EMBEDDINGS = def(8_634_00_0);
     public static final TransportVersion ILM_SHRINK_ENABLE_WRITE = def(8_635_00_0);
     public static final TransportVersion GEOIP_CACHE_STATS = def(8_636_00_0);
-    public static final TransportVersion SHUTDOWN_REQUEST_TIMEOUTS_FIX_8_14 = def(8_637_00_1);
-    public static final TransportVersion ML_AD_OUTPUT_MEMORY_ALLOCATOR_FIELD = def(8_638_00_0);
+    public static final TransportVersion SHUTDOWN_REQUEST_TIMEOUTS_FIX_8_14 = def(8_636_00_1);
 
     /*
      * STOP! READ THIS FIRST! No, really,

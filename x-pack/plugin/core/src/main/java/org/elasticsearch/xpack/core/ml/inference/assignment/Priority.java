@@ -11,8 +11,7 @@ import java.util.Locale;
 
 public enum Priority {
     LOW,
-    NORMAL,
-    DEFAULT;
+    NORMAL;
 
     public static Priority fromString(String value) {
         return valueOf(value.toUpperCase(Locale.ROOT));

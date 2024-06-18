@@ -21,7 +21,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
-public class InferenceChunkedTextExpansionResults extends ChunkedNlpInferenceResults {
+public class MlChunkedTextExpansionResults extends ChunkedNlpInferenceResults {
     public static final String NAME = "chunked_text_expansion_result";
 
     public record ChunkedResult(String matchedText, List<WeightedToken> weightedTokens) implements Writeable, ToXContentObject {
@@ -60,13 +60,13 @@ public class InferenceChunkedTextExpansionResults extends ChunkedNlpInferenceRes
     private final String resultsField;
     private final List<ChunkedResult> chunks;
 
-    public InferenceChunkedTextExpansionResults(String resultField, List<ChunkedResult> chunks, boolean isTruncated) {
+    public MlChunkedTextExpansionResults(String resultField, List<ChunkedResult> chunks, boolean isTruncated) {
         super(isTruncated);
         this.resultsField = resultField;
         this.chunks = chunks;
     }
 
-    public InferenceChunkedTextExpansionResults(StreamInput in) throws IOException {
+    public MlChunkedTextExpansionResults(StreamInput in) throws IOException {
         super(in);
         this.resultsField = in.readString();
         this.chunks = in.readCollectionAsList(ChunkedResult::new);
@@ -104,7 +104,7 @@ public class InferenceChunkedTextExpansionResults extends ChunkedNlpInferenceRes
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         if (super.equals(o) == false) return false;
-        InferenceChunkedTextExpansionResults that = (InferenceChunkedTextExpansionResults) o;
+        MlChunkedTextExpansionResults that = (MlChunkedTextExpansionResults) o;
         return Objects.equals(resultsField, that.resultsField) && Objects.equals(chunks, that.chunks);
     }
 

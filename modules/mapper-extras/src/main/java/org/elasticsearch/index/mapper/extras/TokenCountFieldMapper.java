@@ -215,9 +215,4 @@ public class TokenCountFieldMapper extends FieldMapper {
     public FieldMapper.Builder getMergeBuilder() {
         return new Builder(simpleName()).init(this);
     }
-
-    @Override
-    protected SyntheticSourceMode syntheticSourceMode() {
-        return SyntheticSourceMode.FALLBACK;
-    }
 }

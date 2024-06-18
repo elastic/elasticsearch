@@ -132,16 +132,10 @@ public class ElasticsearchInternalService implements InferenceService {
                 ).build();
                 throwIfNotEmptyMap(serviceSettingsMap, name());
 
-                var taskSettings = CustomElandModel.taskSettingsFromMap(TaskType.RERANK, taskSettingsMap);
+                var taskSettings = CustomElandModel.taskSettingsFromMap(taskType, taskSettingsMap);
                 throwIfNotEmptyMap(taskSettingsMap, name());
 
-                var model = CustomElandModel.build(
-                    inferenceEntityId,
-                    TaskType.RERANK,
-                    name(),
-                    customElandInternalServiceSettings,
-                    taskSettings
-                );
+                var model = CustomElandModel.build(inferenceEntityId, taskType, name(), customElandInternalServiceSettings, taskSettings);
                 delegate.onResponse(model);
             }
         });
@@ -418,9 +412,8 @@ public class ElasticsearchInternalService implements InferenceService {
             return;
         } else if (model instanceof MultilingualE5SmallModel e5Model) {
             String modelId = e5Model.getServiceSettings().getModelId();
-            var fieldNames = List.<String>of();
-            var input = new TrainedModelInput(fieldNames);
-            var config = TrainedModelConfig.builder().setInput(input).setModelId(modelId).build();
+            var input = new TrainedModelInput(List.<String>of("text_field")); // by convention text_field is used
+            var config = TrainedModelConfig.builder().setInput(input).setModelId(modelId).validate(true).build();
             PutTrainedModelAction.Request putRequest = new PutTrainedModelAction.Request(config, false, true);
             executeAsyncWithOrigin(
                 client,

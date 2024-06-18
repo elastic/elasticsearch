@@ -10,8 +10,10 @@ package org.elasticsearch.repositories;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
+import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -20,6 +22,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
@@ -54,6 +57,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.function.BooleanSupplier;
 
@@ -82,8 +86,21 @@ public class RepositoriesServiceTests extends ESTestCase {
             null,
             Collections.emptySet()
         );
-
         clusterService = ClusterServiceUtils.createClusterService(threadPool);
+
+        DiscoveryNode localNode = DiscoveryNodeUtils.builder("local").name("local").roles(Set.of(DiscoveryNodeRole.MASTER_ROLE)).build();
+        NodeClient client = new NodeClient(Settings.EMPTY, threadPool);
+        var actionFilters = new ActionFilters(Set.of());
+        client.initialize(
+            Map.of(
+                VerifyNodeRepositoryCoordinationAction.TYPE,
+                new VerifyNodeRepositoryCoordinationAction.LocalAction(actionFilters, transportService, clusterService, client)
+            ),
+            transportService.getTaskManager(),
+            localNode::getId,
+            transportService.getLocalNodeConnection(),
+            null
+        );
 
         // cluster utils publisher does not call AckListener, making some method calls hang indefinitely
         // in this test we have a single master node, and it acknowledges cluster state immediately
@@ -109,10 +126,10 @@ public class RepositoriesServiceTests extends ESTestCase {
         repositoriesService = new RepositoriesService(
             Settings.EMPTY,
             clusterService,
-            transportService,
             typesRegistry,
             typesRegistry,
             threadPool,
+            client,
             List.of()
         );
 

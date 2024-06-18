@@ -20,6 +20,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.seqno.ReplicationTracker;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.DocsStats;
@@ -117,7 +118,7 @@ public class NoOpEngineTests extends EngineTestCase {
                 for (int i = 0; i < numDocs; i++) {
                     if (randomBoolean()) {
                         String delId = Integer.toString(i);
-                        Engine.DeleteResult result = engine.delete(new Engine.Delete(delId, newUid(delId), primaryTerm.get()));
+                        Engine.DeleteResult result = engine.delete(new Engine.Delete(delId, Uid.encodeId(delId), primaryTerm.get()));
                         assertTrue(result.isFound());
                         engine.syncTranslog(); // advance persisted local checkpoint
                         globalCheckpoint.set(engine.getPersistedLocalCheckpoint());

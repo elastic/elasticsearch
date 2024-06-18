@@ -20,6 +20,7 @@ package co.elastic.elasticsearch.stateless.engine.translog;
 import junit.framework.AssertionFailedError;
 
 import org.apache.lucene.codecs.CodecUtil;
+import org.apache.lucene.index.IndexFormatTooOldException;
 import org.apache.lucene.store.OutputStreamDataOutput;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
@@ -198,141 +199,27 @@ public class CompoundTranslogHeaderTests extends AbstractWireSerializingTestCase
         }
     }
 
-    public void testReadPreCodecVersion() throws Exception {
-        CompoundTranslogHeader testInstance = createTestInstance(false, false).compoundTranslogHeader();
+    public void testReadOldUnsupportedVersionFails() throws Exception {
+        CompoundTranslogHeader testInstance = createTestInstance(false, true).compoundTranslogHeader();
         try (
             BytesStreamOutput output = new BytesStreamOutput();
-            BufferedChecksumStreamOutput out = new BufferedChecksumStreamOutput(output)
+            BufferedChecksumStreamOutput streamOutput = new BufferedChecksumStreamOutput(output)
         ) {
-            // Serialize in old version
-            out.writeMap(testInstance.metadata(), StreamOutput::writeWriteable, (out1, value) -> {
-                out1.writeLong(value.offset());
-                out1.writeLong(value.size());
-                out1.writeLong(value.minSeqNo());
-                out1.writeLong(value.maxSeqNo());
-                out1.writeLong(value.totalOps());
-            });
-            out.writeLong(out.getChecksum());
-            long data = randomLong();
-            out.writeLong(data);
+            streamOutput.setTransportVersion(PINNED_TRANSPORT_VERSION);
+            BufferedChecksumStreamOutput out = new BufferedChecksumStreamOutput(streamOutput);
+            CodecUtil.writeHeader(
+                new OutputStreamDataOutput(out),
+                CompoundTranslogHeader.TRANSLOG_REPLICATOR_CODEC,
+                CompoundTranslogHeader.MINIMUM_VERSION - 1
+            );
+            // Write random data which will not be read
+            out.write(randomByteArrayOfLength(1024));
             out.flush();
 
             expectThrows(
-                CompoundTranslogHeader.NoVersionCodecException.class,
+                IndexFormatTooOldException.class,
                 () -> CompoundTranslogHeader.readFromStore("test", output.bytes().streamInput())
             );
-            StreamInput oldStreamInput = output.bytes().streamInput();
-            CompoundTranslogHeader compoundTranslogHeader = CompoundTranslogHeader.readFromStoreOld("test", oldStreamInput);
-            assertEquals(testInstance.metadata(), compoundTranslogHeader.metadata());
-            // Test that the stream is at the correct place to read follow-up data
-            assertEquals(data, oldStreamInput.readLong());
-        }
-    }
-
-    public void testReadPreShardGenerationVersion() throws Exception {
-        CompoundTranslogHeader testInstance = createTestInstance(false, false).compoundTranslogHeader();
-        try (
-            BytesStreamOutput output = new BytesStreamOutput();
-            BufferedChecksumStreamOutput streamOutput = new BufferedChecksumStreamOutput(output)
-        ) {
-            streamOutput.setTransportVersion(PINNED_TRANSPORT_VERSION);
-            BufferedChecksumStreamOutput out = new BufferedChecksumStreamOutput(streamOutput);
-            CodecUtil.writeHeader(
-                new OutputStreamDataOutput(out),
-                CompoundTranslogHeader.TRANSLOG_REPLICATOR_CODEC,
-                CompoundTranslogHeader.VERSION_WITH_TRANSPORT_VERSION
-            );
-            // Serialize in old version
-            out.writeMap(testInstance.metadata(), StreamOutput::writeWriteable, (out1, value) -> {
-                out1.writeLong(value.offset());
-                out1.writeLong(value.size());
-                out1.writeLong(value.minSeqNo());
-                out1.writeLong(value.maxSeqNo());
-                out1.writeLong(value.totalOps());
-            });
-            out.writeInt((int) out.getChecksum());
-            long data = randomLong();
-            out.writeLong(data);
-            out.flush();
-
-            StreamInput oldStreamInput = output.bytes().streamInput();
-            CompoundTranslogHeader compoundTranslogHeader = CompoundTranslogHeader.readFromStore("test", oldStreamInput);
-            assertEquals(testInstance.metadata(), compoundTranslogHeader.metadata());
-            // Test that the stream is at the correct place to read follow-up data
-            assertEquals(data, oldStreamInput.readLong());
-        }
-    }
-
-    public void testReadPreDirectoryVersion() throws Exception {
-        CompoundTranslogHeader testInstance = createTestInstance(false, false).compoundTranslogHeader();
-        try (
-            BytesStreamOutput output = new BytesStreamOutput();
-            BufferedChecksumStreamOutput streamOutput = new BufferedChecksumStreamOutput(output)
-        ) {
-            streamOutput.setTransportVersion(PINNED_TRANSPORT_VERSION);
-            BufferedChecksumStreamOutput out = new BufferedChecksumStreamOutput(streamOutput);
-            CodecUtil.writeHeader(
-                new OutputStreamDataOutput(out),
-                CompoundTranslogHeader.TRANSLOG_REPLICATOR_CODEC,
-                CompoundTranslogHeader.VERSION_WITH_SHARD_TRANSLOG_GENERATION
-            );
-            // Serialize in old version
-            out.writeMap(testInstance.metadata(), StreamOutput::writeWriteable, (out1, value) -> {
-                out1.writeLong(value.offset());
-                out1.writeLong(value.size());
-                out1.writeLong(value.minSeqNo());
-                out1.writeLong(value.maxSeqNo());
-                out1.writeLong(value.totalOps());
-                out1.writeLong(-1L);
-            });
-            out.writeInt((int) out.getChecksum());
-            long data = randomLong();
-            out.writeLong(data);
-            out.flush();
-
-            StreamInput oldStreamInput = output.bytes().streamInput();
-            CompoundTranslogHeader compoundTranslogHeader = CompoundTranslogHeader.readFromStore("test", oldStreamInput);
-            assertEquals(testInstance.metadata(), compoundTranslogHeader.metadata());
-            // Test that the stream is at the correct place to read follow-up data
-            assertEquals(data, oldStreamInput.readLong());
-        }
-    }
-
-    public void testReadBrokenDirectoryVersion() throws Exception {
-        CompoundTranslogHeader testInstance = createTestInstance(false, false).compoundTranslogHeader();
-        try (
-            BytesStreamOutput output = new BytesStreamOutput();
-            BufferedChecksumStreamOutput streamOutput = new BufferedChecksumStreamOutput(output)
-        ) {
-            streamOutput.setTransportVersion(PINNED_TRANSPORT_VERSION);
-            BufferedChecksumStreamOutput out = new BufferedChecksumStreamOutput(streamOutput);
-            CodecUtil.writeHeader(
-                new OutputStreamDataOutput(out),
-                CompoundTranslogHeader.TRANSLOG_REPLICATOR_CODEC,
-                CompoundTranslogHeader.VERSION_WITH_BROKEN_DIRECTORY
-            );
-            // Serialize in old version
-            out.writeMap(testInstance.metadata(), StreamOutput::writeWriteable, (out1, value) -> {
-                out1.writeLong(value.offset());
-                out1.writeLong(value.size());
-                out1.writeLong(value.minSeqNo());
-                out1.writeLong(value.maxSeqNo());
-                out1.writeLong(value.totalOps());
-                out1.writeLong(-1L);
-                // Serialize a random directory to test it will not be read on deserialization
-                new TranslogMetadata.Directory(10, new int[] { 10, 8, 4 }).writeTo(out1);
-            });
-
-            out.writeInt((int) out.getChecksum());
-            long data = randomLong();
-            out.writeLong(data);
-            out.flush();
-
-            StreamInput oldStreamInput = output.bytes().streamInput();
-            CompoundTranslogHeader compoundTranslogHeader = CompoundTranslogHeader.readFromStore("test", oldStreamInput);
-            assertEquals(testInstance.metadata(), compoundTranslogHeader.metadata());
-            // Test that the stream is at the correct place to read follow-up data
-            assertEquals(data, oldStreamInput.readLong());
         }
     }
 

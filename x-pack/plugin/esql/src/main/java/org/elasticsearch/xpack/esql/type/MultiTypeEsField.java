@@ -7,11 +7,16 @@
 
 package org.elasticsearch.xpack.esql.type;
 
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
+import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
@@ -27,11 +32,40 @@ import java.util.Set;
  * type conversion is done at the data node level.
  */
 public class MultiTypeEsField extends EsField {
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
+        EsField.class,
+        "MultiTypeEsField",
+        MultiTypeEsField::new
+    );
+
     private final Map<String, Expression> indexToConversionExpressions;
 
     public MultiTypeEsField(String name, DataType dataType, boolean aggregatable, Map<String, Expression> indexToConversionExpressions) {
         super(name, dataType, Map.of(), aggregatable);
         this.indexToConversionExpressions = indexToConversionExpressions;
+    }
+
+    public MultiTypeEsField(StreamInput in) throws IOException {
+        // TODO: Change the conversion expression serialization to i.readNamedWriteable(Expression.class) once Expression is fully supported
+        this(
+            in.readString(),
+            DataType.readFrom(in),
+            in.readBoolean(),
+            in.readImmutableMap(StreamInput::readString, i -> ((PlanStreamInput) i).readExpression())
+        );
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeString(getName());
+        out.writeString(getDataType().typeName());
+        out.writeBoolean(isAggregatable());
+        out.writeMap(getIndexToConversionExpressions(), (o, v) -> out.writeNamedWriteable(v));
+    }
+
+    @Override
+    public String getWriteableName() {
+        return ENTRY.name;
     }
 
     public Map<String, Expression> getIndexToConversionExpressions() {
@@ -78,5 +112,10 @@ public class MultiTypeEsField extends EsField {
     @Override
     public int hashCode() {
         return Objects.hash(super.hashCode(), indexToConversionExpressions);
+    }
+
+    @Override
+    public String toString() {
+        return super.toString() + " (" + indexToConversionExpressions + ")";
     }
 }

@@ -65,6 +65,7 @@ import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
 import org.elasticsearch.xpack.esql.session.EsqlIndexResolver;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeRegistry;
+import org.elasticsearch.xpack.esql.type.MultiTypeEsField;
 
 import java.lang.invoke.MethodHandles;
 import java.util.ArrayList;
@@ -198,6 +199,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin {
         entries.add(UnsupportedAttribute.ENTRY);  // TODO combine with above once these are in the same project
         entries.addAll(NamedExpression.getNamedWriteables());
         entries.add(UnsupportedAttribute.NAMED_EXPRESSION_ENTRY); // TODO combine with above once these are in the same project
+        entries.add(MultiTypeEsField.ENTRY); // TODO combine with EsField.getNamedWriteables() once these are in the same module
         return entries;
     }
 

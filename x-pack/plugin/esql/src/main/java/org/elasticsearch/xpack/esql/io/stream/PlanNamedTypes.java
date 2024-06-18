@@ -168,7 +168,6 @@ import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.plan.physical.RowExec;
 import org.elasticsearch.xpack.esql.plan.physical.ShowExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
-import org.elasticsearch.xpack.esql.type.MultiTypeEsField;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -268,8 +267,6 @@ public final class PlanNamedTypes {
             of(LogicalPlan.class, OrderBy.class, PlanNamedTypes::writeOrderBy, PlanNamedTypes::readOrderBy),
             of(LogicalPlan.class, Project.class, PlanNamedTypes::writeProject, PlanNamedTypes::readProject),
             of(LogicalPlan.class, TopN.class, PlanNamedTypes::writeTopN, PlanNamedTypes::readTopN),
-            // EsField
-            of(EsField.class, MultiTypeEsField.class, PlanNamedTypes::writeMultiTypeEsField, PlanNamedTypes::readMultiTypeEsField),
             // BinaryComparison
             of(EsqlBinaryComparison.class, Equals.class, PlanNamedTypes::writeBinComparison, PlanNamedTypes::readBinComparison),
             of(EsqlBinaryComparison.class, NotEquals.class, PlanNamedTypes::writeBinComparison, PlanNamedTypes::readBinComparison),
@@ -1006,22 +1003,6 @@ public final class PlanNamedTypes {
         out.writeLogicalPlanNode(topN.child());
         out.writeCollection(topN.order(), writerFromPlanWriter(PlanNamedTypes::writeOrder));
         out.writeExpression(topN.limit());
-    }
-
-    static MultiTypeEsField readMultiTypeEsField(PlanStreamInput in) throws IOException {
-        return new MultiTypeEsField(
-            in.readString(),
-            DataType.readFrom(in),
-            in.readBoolean(),
-            in.readImmutableMap(StreamInput::readString, readerFromPlanReader(PlanStreamInput::readExpression))
-        );
-    }
-
-    static void writeMultiTypeEsField(PlanStreamOutput out, MultiTypeEsField field) throws IOException {
-        out.writeString(field.getName());
-        out.writeString(field.getDataType().typeName());
-        out.writeBoolean(field.isAggregatable());
-        out.writeMap(field.getIndexToConversionExpressions(), (o, v) -> out.writeNamed(Expression.class, v));
     }
 
     // -- BinaryComparison

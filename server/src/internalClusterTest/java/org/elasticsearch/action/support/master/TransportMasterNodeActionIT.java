@@ -124,14 +124,11 @@ public class TransportMasterNodeActionIT extends ESIntegTestCase {
              * new master
              */
             final var stateApplierBarrier = new CyclicBarrier(2);
-            final var blockingStateApplier = new AtomicBoolean(true);
             internalCluster().getInstance(ClusterService.class, newMaster).getClusterApplierService().onNewClusterState("test", () -> {
-                if (blockingStateApplier.get()) {
-                    // Meet to signify application is blocked
-                    safeAwait(stateApplierBarrier);
-                    // Wait for the signal to unblock
-                    safeAwait(stateApplierBarrier);
-                }
+                // Meet to signify application is blocked
+                safeAwait(stateApplierBarrier);
+                // Wait for the signal to unblock
+                safeAwait(stateApplierBarrier);
                 return null;
             }, ActionListener.noop());
 
@@ -163,7 +160,6 @@ public class TransportMasterNodeActionIT extends ESIntegTestCase {
             safeAwait(newMasterReceivedReroutedMessageLatch);
 
             // Unblock state application on new master, allow it to know of its election win
-            blockingStateApplier.set(false);
             safeAwait(stateApplierBarrier);
 
             assertFalse(stateFuture.isDone());

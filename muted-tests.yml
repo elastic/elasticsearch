@@ -7,6 +7,9 @@ tests:
   method: test {p0=ml/inference_crud/Test force delete given model with alias referenced
     by pipeline}
   issue: https://github.com/elastic/elasticsearch/issues/107505
+- class: "org.elasticsearch.packaging.test.PackageTests"
+  issue: "https://github.com/elastic/elasticsearch/issues/109897"
+  method: "test60Reinstall"
 
 # Examples:
 #

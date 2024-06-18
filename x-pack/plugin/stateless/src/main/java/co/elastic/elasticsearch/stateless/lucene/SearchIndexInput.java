@@ -194,17 +194,7 @@ public final class SearchIndexInput extends BlobCacheBufferedIndexInput {
                             streamStartPosition + len,
                             cacheBlobReader.getClass().getSimpleName()
                         );
-                        var bytesCopied = SharedBytes.copyToCacheFileAligned(
-                            channel,
-                            in,
-                            channelPos,
-                            progressUpdater,
-                            writeBuffer.get().clear()
-                        );
-                        if (bytesCopied < len) {
-                            // TODO we should remove this and allow gap completion in SparseFileTracker even if progress < range end
-                            progressUpdater.accept(len);
-                        }
+                        SharedBytes.copyToCacheFileAligned(channel, in, channelPos, progressUpdater, writeBuffer.get().clear());
                     } catch (NoSuchFileException ex) {
                         logger.warn(() -> this + " did not find file", ex); // includes the file name of the SearchIndexInput
                         throw ex;

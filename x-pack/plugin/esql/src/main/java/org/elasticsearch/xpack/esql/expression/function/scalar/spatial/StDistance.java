@@ -38,7 +38,7 @@ import static org.elasticsearch.xpack.esql.expression.function.scalar.spatial.Sp
 /**
  * Computes the distance between two points.
  * For cartesian geometries, this is the pythagorean distance in the same units as the original coordinates.
- * For geographic geometries, this is the circular distance along the grand circle in meters.
+ * For geographic geometries, this is the circular distance along the great circle in meters.
  * The function `st_distance` is defined in the <a href="https://www.ogc.org/standard/sfs/">OGC Simple Feature Access</a> standard.
  * Alternatively it is described in PostGIS documentation at <a href="https://postgis.net/docs/ST_Distance.html">PostGIS:ST_Distance</a>.
  */
@@ -112,7 +112,7 @@ public class StDistance extends BinarySpatialFunction implements EvaluatorMapper
         description = """
             Computes the distance between two points.
             For cartesian geometries, this is the pythagorean distance in the same units as the original coordinates.
-            For geographic geometries, this is the circular distance along the grand circle in meters.""",
+            For geographic geometries, this is the circular distance along the great circle in meters.""",
         examples = @Example(file = "spatial", tag = "st_distance-airports")
     )
     public StDistance(
@@ -129,7 +129,7 @@ public class StDistance extends BinarySpatialFunction implements EvaluatorMapper
         super(source, left, right, false, false);
     }
 
-    private StDistance(Source source, Expression left, Expression right, boolean leftDocValues, boolean rightDocValues) {
+    protected StDistance(Source source, Expression left, Expression right, boolean leftDocValues, boolean rightDocValues) {
         super(source, left, right, leftDocValues, rightDocValues);
     }
 
@@ -176,26 +176,68 @@ public class StDistance extends BinarySpatialFunction implements EvaluatorMapper
     public EvalOperator.ExpressionEvaluator.Factory toEvaluator(
         Function<Expression, EvalOperator.ExpressionEvaluator.Factory> toEvaluator
     ) {
-        EvalOperator.ExpressionEvaluator.Factory leftE = toEvaluator.apply(left());
-        EvalOperator.ExpressionEvaluator.Factory rightE = toEvaluator.apply(right());
-        if (crsType == SpatialCrsType.GEO) {
-            if (leftDocValues) {
-                return new StDistanceGeoPointDocValuesAndSourceEvaluator.Factory(source(), leftE, rightE);
-            } else if (rightDocValues) {
-                return new StDistanceGeoPointDocValuesAndSourceEvaluator.Factory(source(), rightE, leftE);
-            } else {
-                return new StDistanceGeoSourceAndSourceEvaluator.Factory(source(), leftE, rightE);
-            }
-        } else if (crsType == SpatialCrsType.CARTESIAN) {
-            if (leftDocValues) {
-                return new StDistanceCartesianPointDocValuesAndSourceEvaluator.Factory(source(), leftE, rightE);
-            } else if (rightDocValues) {
-                return new StDistanceCartesianPointDocValuesAndSourceEvaluator.Factory(source(), rightE, leftE);
-            } else {
-                return new StDistanceCartesianSourceAndSourceEvaluator.Factory(source(), leftE, rightE);
+        if (right().foldable()) {
+            return toEvaluator(toEvaluator, left(), makeGeometryFromLiteral(right()), leftDocValues);
+        } else if (left().foldable()) {
+            return toEvaluator(toEvaluator, right(), makeGeometryFromLiteral(left()), rightDocValues);
+        } else {
+            EvalOperator.ExpressionEvaluator.Factory leftE = toEvaluator.apply(left());
+            EvalOperator.ExpressionEvaluator.Factory rightE = toEvaluator.apply(right());
+            if (crsType() == SpatialCrsType.GEO) {
+                if (leftDocValues) {
+                    return new StDistanceGeoPointDocValuesAndSourceEvaluator.Factory(source(), leftE, rightE);
+                } else if (rightDocValues) {
+                    return new StDistanceGeoPointDocValuesAndSourceEvaluator.Factory(source(), rightE, leftE);
+                } else {
+                    return new StDistanceGeoSourceAndSourceEvaluator.Factory(source(), leftE, rightE);
+                }
+            } else if (crsType() == SpatialCrsType.CARTESIAN) {
+                if (leftDocValues) {
+                    return new StDistanceCartesianPointDocValuesAndSourceEvaluator.Factory(source(), leftE, rightE);
+                } else if (rightDocValues) {
+                    return new StDistanceCartesianPointDocValuesAndSourceEvaluator.Factory(source(), rightE, leftE);
+                } else {
+                    return new StDistanceCartesianSourceAndSourceEvaluator.Factory(source(), leftE, rightE);
+                }
             }
         }
-        throw EsqlIllegalArgumentException.illegalDataType(crsType.name());
+        throw EsqlIllegalArgumentException.illegalDataType(crsType().name());
+    }
+
+    private EvalOperator.ExpressionEvaluator.Factory toEvaluator(
+        Function<Expression, EvalOperator.ExpressionEvaluator.Factory> toEvaluator,
+        Expression field,
+        Geometry geometry,
+        boolean docValues
+    ) {
+        if (geometry instanceof Point point) {
+            return toEvaluator(toEvaluator, field, point, docValues);
+        } else {
+            throw new IllegalArgumentException("Unsupported geometry type for ST_DISTANCE: " + geometry.type().name());
+        }
+    }
+
+    private EvalOperator.ExpressionEvaluator.Factory toEvaluator(
+        Function<Expression, EvalOperator.ExpressionEvaluator.Factory> toEvaluator,
+        Expression field,
+        Point point,
+        boolean docValues
+    ) {
+        EvalOperator.ExpressionEvaluator.Factory fieldEvaluator = toEvaluator.apply(field);
+        if (crsType() == SpatialCrsType.GEO) {
+            if (docValues) {
+                return new StDistanceGeoPointDocValuesAndConstantEvaluator.Factory(source(), fieldEvaluator, point);
+            } else {
+                return new StDistanceGeoSourceAndConstantEvaluator.Factory(source(), fieldEvaluator, point);
+            }
+        } else if (crsType() == SpatialCrsType.CARTESIAN) {
+            if (docValues) {
+                return new StDistanceCartesianPointDocValuesAndConstantEvaluator.Factory(source(), fieldEvaluator, point);
+            } else {
+                return new StDistanceCartesianSourceAndConstantEvaluator.Factory(source(), fieldEvaluator, point);
+            }
+        }
+        throw EsqlIllegalArgumentException.illegalDataType(crsType().name());
     }
 
     @Evaluator(extraName = "GeoSourceAndConstant", warnExceptions = { IllegalArgumentException.class, IOException.class })

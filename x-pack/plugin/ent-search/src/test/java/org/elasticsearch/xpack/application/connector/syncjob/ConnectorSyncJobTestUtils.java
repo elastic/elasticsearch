@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.application.EnterpriseSearchModuleTestUtils;
 import org.elasticsearch.xpack.application.connector.ConnectorTestUtils;
 import org.elasticsearch.xpack.application.connector.syncjob.action.CancelConnectorSyncJobAction;
 import org.elasticsearch.xpack.application.connector.syncjob.action.CheckInConnectorSyncJobAction;
+import org.elasticsearch.xpack.application.connector.syncjob.action.ClaimConnectorSyncJobAction;
 import org.elasticsearch.xpack.application.connector.syncjob.action.DeleteConnectorSyncJobAction;
 import org.elasticsearch.xpack.application.connector.syncjob.action.GetConnectorSyncJobAction;
 import org.elasticsearch.xpack.application.connector.syncjob.action.ListConnectorSyncJobsAction;
@@ -29,6 +30,7 @@ import java.util.Map;
 
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLength;
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLengthBetween;
+import static org.elasticsearch.test.ESTestCase.randomBoolean;
 import static org.elasticsearch.test.ESTestCase.randomFrom;
 import static org.elasticsearch.test.ESTestCase.randomInstantBetween;
 import static org.elasticsearch.test.ESTestCase.randomInt;
@@ -192,6 +194,14 @@ public class ConnectorSyncJobTestUtils {
             randomAlphaOfLength(10),
             ConnectorTestUtils.getRandomSyncStatus(),
             Collections.singletonList(ConnectorTestUtils.getRandomSyncJobType())
+        );
+    }
+
+    public static ClaimConnectorSyncJobAction.Request getRandomClaimConnectorSyncJobActionRequest() {
+        return new ClaimConnectorSyncJobAction.Request(
+            randomAlphaOfLength(10),
+            randomAlphaOfLengthBetween(10, 100),
+            randomBoolean() ? Map.of("test", "123") : null
         );
     }
 }

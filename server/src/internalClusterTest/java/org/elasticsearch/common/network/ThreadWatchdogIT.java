@@ -35,7 +35,7 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
-import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.EmptyRequest;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
 
@@ -137,7 +137,7 @@ public class ThreadWatchdogIT extends ESIntegTestCase {
         targetTransportService.registerRequestHandler(
             "internal:slow",
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
-            TransportRequest.Empty::new,
+            EmptyRequest::new,
             (request, channel, task) -> {
                 blockAndWaitForWatchdogLogs();
                 channel.sendResponse(TransportResponse.Empty.INSTANCE);
@@ -149,7 +149,7 @@ public class ThreadWatchdogIT extends ESIntegTestCase {
                 l -> sourceTransportService.sendRequest(
                     targetTransportService.getLocalNode(),
                     "internal:slow",
-                    new TransportRequest.Empty(),
+                    new EmptyRequest(),
                     new ActionListenerResponseHandler<TransportResponse>(
                         l,
                         in -> TransportResponse.Empty.INSTANCE,

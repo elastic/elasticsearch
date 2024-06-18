@@ -991,7 +991,8 @@ public class Stateless extends Plugin
                     config.getLeafSorter(),
                     config.getRelativeTimeInNanosSupplier(),
                     config.getIndexCommitListener(),
-                    config.isPromotableToPrimary()
+                    config.isPromotableToPrimary(),
+                    config.getMapperService()
                 );
                 return newIndexEngine(
                     newConfig,

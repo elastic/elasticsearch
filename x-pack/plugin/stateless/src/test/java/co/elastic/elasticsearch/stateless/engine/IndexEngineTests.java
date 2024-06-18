@@ -32,15 +32,16 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineConfig;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.plugins.internal.DocumentParsingProvider;
 import org.elasticsearch.plugins.internal.DocumentSizeAccumulator;
 import org.elasticsearch.plugins.internal.DocumentSizeReporter;
+import org.mockito.Mockito;
 import org.mockito.stubbing.Answer;
 
 import java.io.IOException;
@@ -458,8 +459,16 @@ public class IndexEngineTests extends AbstractEngineTestCase {
         StatelessCommitService mockCommitService = mockCommitService(Settings.EMPTY);
         DocumentParsingProvider documentParsingProvider = mock(DocumentParsingProvider.class);
         when(documentParsingProvider.createDocumentSizeAccumulator()).thenReturn(DocumentSizeAccumulator.EMPTY_INSTANCE);
-
-        EngineConfig indexConfig = indexConfig();
+        MapperService mapperService = mock(MapperService.class);
+        EngineConfig indexConfig = indexConfig(mapperService);
+        DocumentSizeReporter documentSizeReporter = mock(DocumentSizeReporter.class);
+        when(
+            documentParsingProvider.newDocumentSizeReporter(
+                eq(indexConfig.getShardId().getIndexName()),
+                eq(mapperService),
+                any(DocumentSizeAccumulator.class)
+            )
+        ).thenReturn(documentSizeReporter);
         try (
             var engine = newIndexEngine(
                 indexConfig,
@@ -470,14 +479,6 @@ public class IndexEngineTests extends AbstractEngineTestCase {
             )
         ) {
             Engine.Index index = randomDoc("id");
-            DocumentSizeReporter documentSizeReporter = mock(DocumentSizeReporter.class);
-            when(
-                documentParsingProvider.newDocumentSizeReporter(
-                    eq(indexConfig.getShardId().getIndexName()),
-                    eq(IndexMode.STANDARD),
-                    any(DocumentSizeAccumulator.class)
-                )
-            ).thenReturn(documentSizeReporter);
 
             Engine.IndexResult result = engine.index(index);
             assertThat(result.getResultType(), equalTo(Engine.Result.Type.SUCCESS));
@@ -504,7 +505,17 @@ public class IndexEngineTests extends AbstractEngineTestCase {
         when(documentSizeAccumulator.getAsCommitUserData(any(SegmentInfos.class))).thenReturn(Map.of("accumulator_field", "123"));
         when(documentParsingProvider.createDocumentSizeAccumulator()).thenReturn(documentSizeAccumulator);
 
-        EngineConfig indexConfig = indexConfig();
+        MapperService mapperService = Mockito.mock(MapperService.class);
+        EngineConfig indexConfig = indexConfig(mapperService);
+        DocumentSizeReporter documentSizeReporter = mock(DocumentSizeReporter.class);
+        when(
+            documentParsingProvider.newDocumentSizeReporter(
+                eq(indexConfig.getShardId().getIndexName()),
+                eq(mapperService),
+                eq(documentSizeAccumulator)
+            )
+        ).thenReturn(documentSizeReporter);
+
         try (
             var engine = newIndexEngine(
                 indexConfig,
@@ -514,15 +525,6 @@ public class IndexEngineTests extends AbstractEngineTestCase {
                 documentParsingProvider
             )
         ) {
-            DocumentSizeReporter documentSizeReporter = mock(DocumentSizeReporter.class);
-            when(
-                documentParsingProvider.newDocumentSizeReporter(
-                    eq(indexConfig.getShardId().getIndexName()),
-                    eq(IndexMode.STANDARD),
-                    eq(documentSizeAccumulator)
-                )
-            ).thenReturn(documentSizeReporter);
-
             engine.index(randomDoc(String.valueOf(0)));
             engine.flush();
 

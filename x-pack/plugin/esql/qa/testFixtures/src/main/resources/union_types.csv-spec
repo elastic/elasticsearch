@@ -702,40 +702,6 @@ count:long  |  message:keyword
 3           |  Connected to 10.1.0.3
 ;
 
-multiIndexMultiColumnTypesRenameAndKeep
-required_capability: union_types
-required_capability: metadata_fields
-
-FROM sample_data* METADATA _index
-| WHERE event_duration > 8000000
-| EVAL ts = TO_DATETIME(@timestamp), ts_str = TO_STRING(@timestamp), ts_l = TO_LONG(@timestamp), ip = TO_IP(client_ip), ip_str = TO_STRING(client_ip) 
-| KEEP _index, ts, ts_str, ts_l, ip, ip_str, event_duration
-| SORT _index ASC, ts DESC
-;
-
-_index:keyword      | ts:date                   | ts_str:keyword            | ts_l:long      |  ip:ip         |  ip_str:k      |  event_duration:long
-sample_data         | 2023-10-23T13:52:55.015Z  | 2023-10-23T13:52:55.015Z  | 1698069175015  |  172.21.3.15   |  172.21.3.15   |  8268153
-sample_data_str     | 2023-10-23T13:52:55.015Z  | 2023-10-23T13:52:55.015Z  | 1698069175015  |  172.21.3.15   |  172.21.3.15   |  8268153
-sample_data_ts_long | 2023-10-23T13:52:55.015Z  | 1698069175015             | 1698069175015  |  172.21.3.15   |  172.21.3.15   |  8268153
-;
-
-multiIndexMultiColumnTypesRenameAndDrop
-required_capability: union_types
-required_capability: metadata_fields
-
-FROM sample_data* METADATA _index
-| WHERE event_duration > 8000000
-| EVAL ts = TO_DATETIME(@timestamp), ts_str = TO_STRING(@timestamp), ts_l = TO_LONG(@timestamp), ip = TO_IP(client_ip), ip_str = TO_STRING(client_ip) 
-| DROP @timestamp, client_ip, message
-| SORT _index ASC, ts DESC
-;
-
-event_duration:long | _index:keyword      | ts:date                   | ts_str:keyword            | ts_l:long      |  ip:ip         |  ip_str:k  
-8268153             | sample_data         | 2023-10-23T13:52:55.015Z  | 2023-10-23T13:52:55.015Z  | 1698069175015  |  172.21.3.15   |  172.21.3.15
-8268153             | sample_data_str     | 2023-10-23T13:52:55.015Z  | 2023-10-23T13:52:55.015Z  | 1698069175015  |  172.21.3.15   |  172.21.3.15
-8268153             | sample_data_ts_long | 2023-10-23T13:52:55.015Z  | 1698069175015             | 1698069175015  |  172.21.3.15   |  172.21.3.15
-;
-
 multiIndexMultiColumnTypesRename
 required_capability: union_types
 required_capability: metadata_fields

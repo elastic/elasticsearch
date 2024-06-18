@@ -85,3 +85,10 @@ tests:
 #  - class: org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToIPTests
 #    method: testCrankyEvaluateBlockWithoutNulls
 #    issue: https://github.com/elastic/elasticsearch/...
+#
+#  Mute a single test in an ES|QL csv-spec test file:
+#  - class: "org.elasticsearch.xpack.esql.CsvTests"
+#    method: "test {union_types.MultiIndexIpStringStatsInline}"
+#    issue: "https://github.com/elastic/elasticsearch/..."
+#  Note that this mutes for the unit-test-like CsvTests only.
+#  Muting for the integration tests needs to be done for each IT class individually.

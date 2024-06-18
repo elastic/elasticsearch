@@ -290,27 +290,6 @@
   - match:  { tokens.5.token: ac }
   - match:  { tokens.5.position: 3 }
 
-  - do:
-      warnings:
-        - "The setting [correct_position_increment] is deprecated and enabled by default. It will be removed in a future version."
-      indices.analyze:
-        body:
-          text:      "los angeles leadership academy"
-          tokenizer: whitespace
-          filter:    [{type: "edge_ngram", "max_gram": 2}, {type: "unique", "correct_position_increment": false}]
-  - length: { tokens: 6 }
-  - match:  { tokens.0.token: l }
-  - match:  { tokens.0.position: 0 }
-  - match:  { tokens.1.token: lo }
-  - match:  { tokens.1.position: 0 }
-  - match:  { tokens.2.token: a }
-  - match:  { tokens.2.position: 1 }
-  - match:  { tokens.3.token: an }
-  - match:  { tokens.3.position: 1 }
-  - match:  { tokens.4.token: le }
-  - match:  { tokens.4.position: 1 }
-  - match:  { tokens.5.token: ac }
-  - match:  { tokens.5.position: 1 }
 ---
 "synonym":
     - do:

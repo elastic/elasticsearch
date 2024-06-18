@@ -197,7 +197,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin {
         entries.addAll(Attribute.getNamedWriteables());
         entries.add(UnsupportedAttribute.ENTRY);  // TODO combine with above once these are in the same project
         entries.addAll(NamedExpression.getNamedWriteables());
-        entries.add(UnsupportedAttribute.NAMED_EXPRESSION_ENTRY);
+        entries.add(UnsupportedAttribute.NAMED_EXPRESSION_ENTRY); // TODO combine with above once these are in the same project
         return entries;
     }
 

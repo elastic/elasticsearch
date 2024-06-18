@@ -28,8 +28,8 @@ public class GeoIpDownloaderStatsSerializingTests extends AbstractXContentSerial
             (long) a[2],
             (int) a[3],
             (int) a[4],
-            a[5] == null ? 0 : (int) a[5],
-            a[6] == null ? null : (List<DownloadedDatabaseInfo>) a[6]
+            (int) a[5],
+            (List<DownloadedDatabaseInfo>) a[6]
         )
     );
 

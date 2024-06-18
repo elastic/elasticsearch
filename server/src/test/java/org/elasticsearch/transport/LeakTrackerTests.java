@@ -55,11 +55,12 @@ public class LeakTrackerTests extends ESTestCase {
         ).map(i -> new Object[] { i }).toList();
     }
 
+    @SuppressWarnings("resource")
     public void testWillLogErrorWhenTrackedObjectIsNotClosed() throws Exception {
         // Let it go out of scope without closing
         trackedObjectLifecycle.createAndTrack(reachabilityChecker);
         reachabilityChecker.ensureUnreachable();
-        assertBusy(() -> assertLeakDetected("LEAK: resource was not cleaned up before it was garbage-collected\\.(.*|\\s)*"));
+        assertBusy(ESTestCase::assertLeakDetected);
     }
 
     public void testWillNotLogErrorWhenTrackedObjectIsClosed() throws IOException {

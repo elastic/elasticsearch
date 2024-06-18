@@ -360,6 +360,7 @@ public class PlanNamedTypesTests extends ESTestCase {
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(orig, unused -> deser);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/109884")
     public void testMvExpand() throws IOException {
         var esRelation = new EsRelation(
             Source.EMPTY,

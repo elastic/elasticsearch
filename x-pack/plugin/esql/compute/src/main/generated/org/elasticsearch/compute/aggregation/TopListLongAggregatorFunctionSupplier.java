@@ -11,17 +11,17 @@ import java.util.List;
 import org.elasticsearch.compute.operator.DriverContext;
 
 /**
- * {@link AggregatorFunctionSupplier} implementation for {@link TopValuesListIntAggregator}.
+ * {@link AggregatorFunctionSupplier} implementation for {@link TopListLongAggregator}.
  * This class is generated. Do not edit it.
  */
-public final class TopValuesListIntAggregatorFunctionSupplier implements AggregatorFunctionSupplier {
+public final class TopListLongAggregatorFunctionSupplier implements AggregatorFunctionSupplier {
   private final List<Integer> channels;
 
   private final int limit;
 
   private final boolean ascending;
 
-  public TopValuesListIntAggregatorFunctionSupplier(List<Integer> channels, int limit,
+  public TopListLongAggregatorFunctionSupplier(List<Integer> channels, int limit,
       boolean ascending) {
     this.channels = channels;
     this.limit = limit;
@@ -29,18 +29,17 @@ public final class TopValuesListIntAggregatorFunctionSupplier implements Aggrega
   }
 
   @Override
-  public TopValuesListIntAggregatorFunction aggregator(DriverContext driverContext) {
-    return TopValuesListIntAggregatorFunction.create(driverContext, channels, limit, ascending);
+  public TopListLongAggregatorFunction aggregator(DriverContext driverContext) {
+    return TopListLongAggregatorFunction.create(driverContext, channels, limit, ascending);
   }
 
   @Override
-  public TopValuesListIntGroupingAggregatorFunction groupingAggregator(
-      DriverContext driverContext) {
-    return TopValuesListIntGroupingAggregatorFunction.create(channels, driverContext, limit, ascending);
+  public TopListLongGroupingAggregatorFunction groupingAggregator(DriverContext driverContext) {
+    return TopListLongGroupingAggregatorFunction.create(channels, driverContext, limit, ascending);
   }
 
   @Override
   public String describe() {
-    return "top_values_list of ints";
+    return "top_list of longs";
   }
 }

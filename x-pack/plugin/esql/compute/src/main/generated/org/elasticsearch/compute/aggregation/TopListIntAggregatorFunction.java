@@ -10,23 +10,23 @@ import java.lang.String;
 import java.lang.StringBuilder;
 import java.util.List;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.DoubleBlock;
-import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.compute.data.IntBlock;
+import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 
 /**
- * {@link AggregatorFunction} implementation for {@link TopValuesListDoubleAggregator}.
+ * {@link AggregatorFunction} implementation for {@link TopListIntAggregator}.
  * This class is generated. Do not edit it.
  */
-public final class TopValuesListDoubleAggregatorFunction implements AggregatorFunction {
+public final class TopListIntAggregatorFunction implements AggregatorFunction {
   private static final List<IntermediateStateDesc> INTERMEDIATE_STATE_DESC = List.of(
-      new IntermediateStateDesc("topValuesList", ElementType.DOUBLE)  );
+      new IntermediateStateDesc("topList", ElementType.INT)  );
 
   private final DriverContext driverContext;
 
-  private final TopValuesListDoubleAggregator.SingleState state;
+  private final TopListIntAggregator.SingleState state;
 
   private final List<Integer> channels;
 
@@ -34,8 +34,8 @@ public final class TopValuesListDoubleAggregatorFunction implements AggregatorFu
 
   private final boolean ascending;
 
-  public TopValuesListDoubleAggregatorFunction(DriverContext driverContext, List<Integer> channels,
-      TopValuesListDoubleAggregator.SingleState state, int limit, boolean ascending) {
+  public TopListIntAggregatorFunction(DriverContext driverContext, List<Integer> channels,
+      TopListIntAggregator.SingleState state, int limit, boolean ascending) {
     this.driverContext = driverContext;
     this.channels = channels;
     this.state = state;
@@ -43,9 +43,9 @@ public final class TopValuesListDoubleAggregatorFunction implements AggregatorFu
     this.ascending = ascending;
   }
 
-  public static TopValuesListDoubleAggregatorFunction create(DriverContext driverContext,
+  public static TopListIntAggregatorFunction create(DriverContext driverContext,
       List<Integer> channels, int limit, boolean ascending) {
-    return new TopValuesListDoubleAggregatorFunction(driverContext, channels, TopValuesListDoubleAggregator.initSingle(driverContext.bigArrays(), limit, ascending), limit, ascending);
+    return new TopListIntAggregatorFunction(driverContext, channels, TopListIntAggregator.initSingle(driverContext.bigArrays(), limit, ascending), limit, ascending);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -59,8 +59,8 @@ public final class TopValuesListDoubleAggregatorFunction implements AggregatorFu
 
   @Override
   public void addRawInput(Page page) {
-    DoubleBlock block = page.getBlock(channels.get(0));
-    DoubleVector vector = block.asVector();
+    IntBlock block = page.getBlock(channels.get(0));
+    IntVector vector = block.asVector();
     if (vector != null) {
       addRawVector(vector);
     } else {
@@ -68,13 +68,13 @@ public final class TopValuesListDoubleAggregatorFunction implements AggregatorFu
     }
   }
 
-  private void addRawVector(DoubleVector vector) {
+  private void addRawVector(IntVector vector) {
     for (int i = 0; i < vector.getPositionCount(); i++) {
-      TopValuesListDoubleAggregator.combine(state, vector.getDouble(i));
+      TopListIntAggregator.combine(state, vector.getInt(i));
     }
   }
 
-  private void addRawBlock(DoubleBlock block) {
+  private void addRawBlock(IntBlock block) {
     for (int p = 0; p < block.getPositionCount(); p++) {
       if (block.isNull(p)) {
         continue;
@@ -82,7 +82,7 @@ public final class TopValuesListDoubleAggregatorFunction implements AggregatorFu
       int start = block.getFirstValueIndex(p);
       int end = start + block.getValueCount(p);
       for (int i = start; i < end; i++) {
-        TopValuesListDoubleAggregator.combine(state, block.getDouble(i));
+        TopListIntAggregator.combine(state, block.getInt(i));
       }
     }
   }
@@ -91,13 +91,13 @@ public final class TopValuesListDoubleAggregatorFunction implements AggregatorFu
   public void addIntermediateInput(Page page) {
     assert channels.size() == intermediateBlockCount();
     assert page.getBlockCount() >= channels.get(0) + intermediateStateDesc().size();
-    Block topValuesListUncast = page.getBlock(channels.get(0));
-    if (topValuesListUncast.areAllValuesNull()) {
+    Block topListUncast = page.getBlock(channels.get(0));
+    if (topListUncast.areAllValuesNull()) {
       return;
     }
-    DoubleBlock topValuesList = (DoubleBlock) topValuesListUncast;
-    assert topValuesList.getPositionCount() == 1;
-    TopValuesListDoubleAggregator.combineIntermediate(state, topValuesList);
+    IntBlock topList = (IntBlock) topListUncast;
+    assert topList.getPositionCount() == 1;
+    TopListIntAggregator.combineIntermediate(state, topList);
   }
 
   @Override
@@ -107,7 +107,7 @@ public final class TopValuesListDoubleAggregatorFunction implements AggregatorFu
 
   @Override
   public void evaluateFinal(Block[] blocks, int offset, DriverContext driverContext) {
-    blocks[offset] = TopValuesListDoubleAggregator.evaluateFinal(state, driverContext);
+    blocks[offset] = TopListIntAggregator.evaluateFinal(state, driverContext);
   }
 
   @Override

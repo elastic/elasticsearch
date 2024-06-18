@@ -17,16 +17,16 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 
 /**
- * {@link AggregatorFunction} implementation for {@link TopValuesListLongAggregator}.
+ * {@link AggregatorFunction} implementation for {@link TopListLongAggregator}.
  * This class is generated. Do not edit it.
  */
-public final class TopValuesListLongAggregatorFunction implements AggregatorFunction {
+public final class TopListLongAggregatorFunction implements AggregatorFunction {
   private static final List<IntermediateStateDesc> INTERMEDIATE_STATE_DESC = List.of(
-      new IntermediateStateDesc("topValuesList", ElementType.LONG)  );
+      new IntermediateStateDesc("topList", ElementType.LONG)  );
 
   private final DriverContext driverContext;
 
-  private final TopValuesListLongAggregator.SingleState state;
+  private final TopListLongAggregator.SingleState state;
 
   private final List<Integer> channels;
 
@@ -34,8 +34,8 @@ public final class TopValuesListLongAggregatorFunction implements AggregatorFunc
 
   private final boolean ascending;
 
-  public TopValuesListLongAggregatorFunction(DriverContext driverContext, List<Integer> channels,
-      TopValuesListLongAggregator.SingleState state, int limit, boolean ascending) {
+  public TopListLongAggregatorFunction(DriverContext driverContext, List<Integer> channels,
+      TopListLongAggregator.SingleState state, int limit, boolean ascending) {
     this.driverContext = driverContext;
     this.channels = channels;
     this.state = state;
@@ -43,9 +43,9 @@ public final class TopValuesListLongAggregatorFunction implements AggregatorFunc
     this.ascending = ascending;
   }
 
-  public static TopValuesListLongAggregatorFunction create(DriverContext driverContext,
+  public static TopListLongAggregatorFunction create(DriverContext driverContext,
       List<Integer> channels, int limit, boolean ascending) {
-    return new TopValuesListLongAggregatorFunction(driverContext, channels, TopValuesListLongAggregator.initSingle(driverContext.bigArrays(), limit, ascending), limit, ascending);
+    return new TopListLongAggregatorFunction(driverContext, channels, TopListLongAggregator.initSingle(driverContext.bigArrays(), limit, ascending), limit, ascending);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -70,7 +70,7 @@ public final class TopValuesListLongAggregatorFunction implements AggregatorFunc
 
   private void addRawVector(LongVector vector) {
     for (int i = 0; i < vector.getPositionCount(); i++) {
-      TopValuesListLongAggregator.combine(state, vector.getLong(i));
+      TopListLongAggregator.combine(state, vector.getLong(i));
     }
   }
 
@@ -82,7 +82,7 @@ public final class TopValuesListLongAggregatorFunction implements AggregatorFunc
       int start = block.getFirstValueIndex(p);
       int end = start + block.getValueCount(p);
       for (int i = start; i < end; i++) {
-        TopValuesListLongAggregator.combine(state, block.getLong(i));
+        TopListLongAggregator.combine(state, block.getLong(i));
       }
     }
   }
@@ -91,13 +91,13 @@ public final class TopValuesListLongAggregatorFunction implements AggregatorFunc
   public void addIntermediateInput(Page page) {
     assert channels.size() == intermediateBlockCount();
     assert page.getBlockCount() >= channels.get(0) + intermediateStateDesc().size();
-    Block topValuesListUncast = page.getBlock(channels.get(0));
-    if (topValuesListUncast.areAllValuesNull()) {
+    Block topListUncast = page.getBlock(channels.get(0));
+    if (topListUncast.areAllValuesNull()) {
       return;
     }
-    LongBlock topValuesList = (LongBlock) topValuesListUncast;
-    assert topValuesList.getPositionCount() == 1;
-    TopValuesListLongAggregator.combineIntermediate(state, topValuesList);
+    LongBlock topList = (LongBlock) topListUncast;
+    assert topList.getPositionCount() == 1;
+    TopListLongAggregator.combineIntermediate(state, topList);
   }
 
   @Override
@@ -107,7 +107,7 @@ public final class TopValuesListLongAggregatorFunction implements AggregatorFunc
 
   @Override
   public void evaluateFinal(Block[] blocks, int offset, DriverContext driverContext) {
-    blocks[offset] = TopValuesListLongAggregator.evaluateFinal(state, driverContext);
+    blocks[offset] = TopListLongAggregator.evaluateFinal(state, driverContext);
   }
 
   @Override

@@ -503,21 +503,21 @@ tasks.named('stringTemplates').configure {
   }
 
 
-  File topValuesListAggregatorInputFile = new File("${projectDir}/src/main/java/org/elasticsearch/compute/aggregation/X-TopValuesListAggregator.java.st")
+  File topListAggregatorInputFile = new File("${projectDir}/src/main/java/org/elasticsearch/compute/aggregation/X-TopListAggregator.java.st")
   template {
     it.properties = intProperties
-    it.inputFile =  topValuesListAggregatorInputFile
-    it.outputFile = "org/elasticsearch/compute/aggregation/TopValuesListIntAggregator.java"
+    it.inputFile =  topListAggregatorInputFile
+    it.outputFile = "org/elasticsearch/compute/aggregation/TopListIntAggregator.java"
   }
   template {
     it.properties = longProperties
-    it.inputFile =  topValuesListAggregatorInputFile
-    it.outputFile = "org/elasticsearch/compute/aggregation/TopValuesListLongAggregator.java"
+    it.inputFile =  topListAggregatorInputFile
+    it.outputFile = "org/elasticsearch/compute/aggregation/TopListLongAggregator.java"
   }
   template {
     it.properties = doubleProperties
-    it.inputFile =  topValuesListAggregatorInputFile
-    it.outputFile = "org/elasticsearch/compute/aggregation/TopValuesListDoubleAggregator.java"
+    it.inputFile =  topListAggregatorInputFile
+    it.outputFile = "org/elasticsearch/compute/aggregation/TopListDoubleAggregator.java"
   }
 
   File multivalueDedupeInputFile = file("src/main/java/org/elasticsearch/compute/operator/mvdedupe/X-MultivalueDedupe.java.st")

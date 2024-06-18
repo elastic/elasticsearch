@@ -43,9 +43,9 @@ public class EsqlCapabilities {
     private static final String FN_SUBSTRING_EMPTY_NULL = "fn_substring_empty_null";
 
     /**
-     * Fix on function {@code SUBSTRING} that makes it not return null on empty strings.
+     * Support for aggregation function {@code TOP_LIST}.
      */
-    private static final String AGG_TOP_VALUES_LIST = "agg_top_values_list";
+    private static final String AGG_TOP_LIST = "agg_top_list";
 
     /**
      * Optimization for ST_CENTROID changed some results in cartesian data. #108713
@@ -89,7 +89,7 @@ public class EsqlCapabilities {
         caps.add(FN_CBRT);
         caps.add(FN_IP_PREFIX);
         caps.add(FN_SUBSTRING_EMPTY_NULL);
-        caps.add(AGG_TOP_VALUES_LIST);
+        caps.add(AGG_TOP_LIST);
         caps.add(ST_CENTROID_AGG_OPTIMIZED);
         caps.add(METADATA_IGNORED_FIELD);
         caps.add(FN_MV_APPEND);

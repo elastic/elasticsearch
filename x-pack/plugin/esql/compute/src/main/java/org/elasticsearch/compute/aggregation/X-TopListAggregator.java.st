@@ -13,33 +13,38 @@ import org.elasticsearch.compute.ann.GroupingAggregator;
 import org.elasticsearch.compute.ann.IntermediateState;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
-import org.elasticsearch.compute.data.IntBlock;
+$if(!long)$
+import org.elasticsearch.compute.data.$Type$Block;
+$endif$
 import org.elasticsearch.compute.data.IntVector;
-import org.elasticsearch.compute.data.sort.IntBucketedSort;
+$if(long)$
+import org.elasticsearch.compute.data.$Type$Block;
+$endif$
+import org.elasticsearch.compute.data.sort.$Type$BucketedSort;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.sort.SortOrder;
 
 /**
- * Aggregates the top N field values for int.
+ * Aggregates the top N field values for $type$.
  */
-@Aggregator({ @IntermediateState(name = "topValuesList", type = "INT_BLOCK") })
+@Aggregator({ @IntermediateState(name = "topList", type = "$TYPE$_BLOCK") })
 @GroupingAggregator
-class TopValuesListIntAggregator {
+class TopList$Type$Aggregator {
     public static SingleState initSingle(BigArrays bigArrays, int limit, boolean ascending) {
         return new SingleState(bigArrays, limit, ascending);
     }
 
-    public static void combine(SingleState state, int v) {
+    public static void combine(SingleState state, $type$ v) {
         state.add(v);
     }
 
-    public static void combineIntermediate(SingleState state, IntBlock values) {
+    public static void combineIntermediate(SingleState state, $Type$Block values) {
         int start = values.getFirstValueIndex(0);
         int end = start + values.getValueCount(0);
         for (int i = start; i < end; i++) {
-            combine(state, values.getInt(i));
+            combine(state, values.get$Type$(i));
         }
     }
 
@@ -51,15 +56,15 @@ class TopValuesListIntAggregator {
         return new GroupingState(bigArrays, limit, ascending);
     }
 
-    public static void combine(GroupingState state, int groupId, int v) {
+    public static void combine(GroupingState state, int groupId, $type$ v) {
         state.add(groupId, v);
     }
 
-    public static void combineIntermediate(GroupingState state, int groupId, IntBlock values, int valuesPosition) {
+    public static void combineIntermediate(GroupingState state, int groupId, $Type$Block values, int valuesPosition) {
         int start = values.getFirstValueIndex(valuesPosition);
         int end = start + values.getValueCount(valuesPosition);
         for (int i = start; i < end; i++) {
-            combine(state, groupId, values.getInt(i));
+            combine(state, groupId, values.get$Type$(i));
         }
     }
 
@@ -72,13 +77,13 @@ class TopValuesListIntAggregator {
     }
 
     public static class GroupingState implements Releasable {
-        private final IntBucketedSort sort;
+        private final $Type$BucketedSort sort;
 
         private GroupingState(BigArrays bigArrays, int limit, boolean ascending) {
-            this.sort = new IntBucketedSort(bigArrays, ascending ? SortOrder.ASC : SortOrder.DESC, limit);
+            this.sort = new $Type$BucketedSort(bigArrays, ascending ? SortOrder.ASC : SortOrder.DESC, limit);
         }
 
-        public void add(int groupId, int value) {
+        public void add(int groupId, $type$ value) {
             sort.collect(value, groupId);
         }
 
@@ -111,7 +116,7 @@ class TopValuesListIntAggregator {
             this.internalState = new GroupingState(bigArrays, limit, ascending);
         }
 
-        public void add(int value) {
+        public void add($type$ value) {
             internalState.add(0, value);
         }
 

@@ -1,5 +1,5 @@
 pr: 109386
-summary: "ESQL: `top_values_list` aggregation"
+summary: "ESQL: `top_list` aggregation"
 area: ES|QL
 type: feature
 issues:

@@ -24,9 +24,9 @@ import org.elasticsearch.search.sort.SortOrder;
 /**
  * Aggregates the top N field values for double.
  */
-@Aggregator({ @IntermediateState(name = "topValuesList", type = "DOUBLE_BLOCK") })
+@Aggregator({ @IntermediateState(name = "topList", type = "DOUBLE_BLOCK") })
 @GroupingAggregator
-class TopValuesListDoubleAggregator {
+class TopListDoubleAggregator {
     public static SingleState initSingle(BigArrays bigArrays, int limit, boolean ascending) {
         return new SingleState(bigArrays, limit, ascending);
     }

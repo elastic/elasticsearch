@@ -13,18 +13,20 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
+import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 
 /**
- * {@link GroupingAggregatorFunction} implementation for {@link TopValuesListIntAggregator}.
+ * {@link GroupingAggregatorFunction} implementation for {@link TopListLongAggregator}.
  * This class is generated. Do not edit it.
  */
-public final class TopValuesListIntGroupingAggregatorFunction implements GroupingAggregatorFunction {
+public final class TopListLongGroupingAggregatorFunction implements GroupingAggregatorFunction {
   private static final List<IntermediateStateDesc> INTERMEDIATE_STATE_DESC = List.of(
-      new IntermediateStateDesc("topValuesList", ElementType.INT)  );
+      new IntermediateStateDesc("topList", ElementType.LONG)  );
 
-  private final TopValuesListIntAggregator.GroupingState state;
+  private final TopListLongAggregator.GroupingState state;
 
   private final List<Integer> channels;
 
@@ -34,8 +36,8 @@ public final class TopValuesListIntGroupingAggregatorFunction implements Groupin
 
   private final boolean ascending;
 
-  public TopValuesListIntGroupingAggregatorFunction(List<Integer> channels,
-      TopValuesListIntAggregator.GroupingState state, DriverContext driverContext, int limit,
+  public TopListLongGroupingAggregatorFunction(List<Integer> channels,
+      TopListLongAggregator.GroupingState state, DriverContext driverContext, int limit,
       boolean ascending) {
     this.channels = channels;
     this.state = state;
@@ -44,9 +46,9 @@ public final class TopValuesListIntGroupingAggregatorFunction implements Groupin
     this.ascending = ascending;
   }
 
-  public static TopValuesListIntGroupingAggregatorFunction create(List<Integer> channels,
+  public static TopListLongGroupingAggregatorFunction create(List<Integer> channels,
       DriverContext driverContext, int limit, boolean ascending) {
-    return new TopValuesListIntGroupingAggregatorFunction(channels, TopValuesListIntAggregator.initGrouping(driverContext.bigArrays(), limit, ascending), driverContext, limit, ascending);
+    return new TopListLongGroupingAggregatorFunction(channels, TopListLongAggregator.initGrouping(driverContext.bigArrays(), limit, ascending), driverContext, limit, ascending);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -61,8 +63,8 @@ public final class TopValuesListIntGroupingAggregatorFunction implements Groupin
   @Override
   public GroupingAggregatorFunction.AddInput prepareProcessPage(SeenGroupIds seenGroupIds,
       Page page) {
-    IntBlock valuesBlock = page.getBlock(channels.get(0));
-    IntVector valuesVector = valuesBlock.asVector();
+    LongBlock valuesBlock = page.getBlock(channels.get(0));
+    LongVector valuesVector = valuesBlock.asVector();
     if (valuesVector == null) {
       if (valuesBlock.mayHaveNulls()) {
         state.enableGroupIdTracking(seenGroupIds);
@@ -92,7 +94,7 @@ public final class TopValuesListIntGroupingAggregatorFunction implements Groupin
     };
   }
 
-  private void addRawInput(int positionOffset, IntVector groups, IntBlock values) {
+  private void addRawInput(int positionOffset, IntVector groups, LongBlock values) {
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       int groupId = Math.toIntExact(groups.getInt(groupPosition));
       if (values.isNull(groupPosition + positionOffset)) {
@@ -101,19 +103,19 @@ public final class TopValuesListIntGroupingAggregatorFunction implements Groupin
       int valuesStart = values.getFirstValueIndex(groupPosition + positionOffset);
       int valuesEnd = valuesStart + values.getValueCount(groupPosition + positionOffset);
       for (int v = valuesStart; v < valuesEnd; v++) {
-        TopValuesListIntAggregator.combine(state, groupId, values.getInt(v));
+        TopListLongAggregator.combine(state, groupId, values.getLong(v));
       }
     }
   }
 
-  private void addRawInput(int positionOffset, IntVector groups, IntVector values) {
+  private void addRawInput(int positionOffset, IntVector groups, LongVector values) {
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       int groupId = Math.toIntExact(groups.getInt(groupPosition));
-      TopValuesListIntAggregator.combine(state, groupId, values.getInt(groupPosition + positionOffset));
+      TopListLongAggregator.combine(state, groupId, values.getLong(groupPosition + positionOffset));
     }
   }
 
-  private void addRawInput(int positionOffset, IntBlock groups, IntBlock values) {
+  private void addRawInput(int positionOffset, IntBlock groups, LongBlock values) {
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       if (groups.isNull(groupPosition)) {
         continue;
@@ -128,13 +130,13 @@ public final class TopValuesListIntGroupingAggregatorFunction implements Groupin
         int valuesStart = values.getFirstValueIndex(groupPosition + positionOffset);
         int valuesEnd = valuesStart + values.getValueCount(groupPosition + positionOffset);
         for (int v = valuesStart; v < valuesEnd; v++) {
-          TopValuesListIntAggregator.combine(state, groupId, values.getInt(v));
+          TopListLongAggregator.combine(state, groupId, values.getLong(v));
         }
       }
     }
   }
 
-  private void addRawInput(int positionOffset, IntBlock groups, IntVector values) {
+  private void addRawInput(int positionOffset, IntBlock groups, LongVector values) {
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       if (groups.isNull(groupPosition)) {
         continue;
@@ -143,7 +145,7 @@ public final class TopValuesListIntGroupingAggregatorFunction implements Groupin
       int groupEnd = groupStart + groups.getValueCount(groupPosition);
       for (int g = groupStart; g < groupEnd; g++) {
         int groupId = Math.toIntExact(groups.getInt(g));
-        TopValuesListIntAggregator.combine(state, groupId, values.getInt(groupPosition + positionOffset));
+        TopListLongAggregator.combine(state, groupId, values.getLong(groupPosition + positionOffset));
       }
     }
   }
@@ -152,14 +154,14 @@ public final class TopValuesListIntGroupingAggregatorFunction implements Groupin
   public void addIntermediateInput(int positionOffset, IntVector groups, Page page) {
     state.enableGroupIdTracking(new SeenGroupIds.Empty());
     assert channels.size() == intermediateBlockCount();
-    Block topValuesListUncast = page.getBlock(channels.get(0));
-    if (topValuesListUncast.areAllValuesNull()) {
+    Block topListUncast = page.getBlock(channels.get(0));
+    if (topListUncast.areAllValuesNull()) {
       return;
     }
-    IntBlock topValuesList = (IntBlock) topValuesListUncast;
+    LongBlock topList = (LongBlock) topListUncast;
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       int groupId = Math.toIntExact(groups.getInt(groupPosition));
-      TopValuesListIntAggregator.combineIntermediate(state, groupId, topValuesList, groupPosition + positionOffset);
+      TopListLongAggregator.combineIntermediate(state, groupId, topList, groupPosition + positionOffset);
     }
   }
 
@@ -168,9 +170,9 @@ public final class TopValuesListIntGroupingAggregatorFunction implements Groupin
     if (input.getClass() != getClass()) {
       throw new IllegalArgumentException("expected " + getClass() + "; got " + input.getClass());
     }
-    TopValuesListIntAggregator.GroupingState inState = ((TopValuesListIntGroupingAggregatorFunction) input).state;
+    TopListLongAggregator.GroupingState inState = ((TopListLongGroupingAggregatorFunction) input).state;
     state.enableGroupIdTracking(new SeenGroupIds.Empty());
-    TopValuesListIntAggregator.combineStates(state, groupId, inState, position);
+    TopListLongAggregator.combineStates(state, groupId, inState, position);
   }
 
   @Override
@@ -181,7 +183,7 @@ public final class TopValuesListIntGroupingAggregatorFunction implements Groupin
   @Override
   public void evaluateFinal(Block[] blocks, int offset, IntVector selected,
       DriverContext driverContext) {
-    blocks[offset] = TopValuesListIntAggregator.evaluateFinal(state, selected, driverContext);
+    blocks[offset] = TopListLongAggregator.evaluateFinal(state, selected, driverContext);
   }
 
   @Override

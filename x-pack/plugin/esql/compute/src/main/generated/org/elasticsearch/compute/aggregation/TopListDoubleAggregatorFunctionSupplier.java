@@ -11,17 +11,17 @@ import java.util.List;
 import org.elasticsearch.compute.operator.DriverContext;
 
 /**
- * {@link AggregatorFunctionSupplier} implementation for {@link TopValuesListDoubleAggregator}.
+ * {@link AggregatorFunctionSupplier} implementation for {@link TopListDoubleAggregator}.
  * This class is generated. Do not edit it.
  */
-public final class TopValuesListDoubleAggregatorFunctionSupplier implements AggregatorFunctionSupplier {
+public final class TopListDoubleAggregatorFunctionSupplier implements AggregatorFunctionSupplier {
   private final List<Integer> channels;
 
   private final int limit;
 
   private final boolean ascending;
 
-  public TopValuesListDoubleAggregatorFunctionSupplier(List<Integer> channels, int limit,
+  public TopListDoubleAggregatorFunctionSupplier(List<Integer> channels, int limit,
       boolean ascending) {
     this.channels = channels;
     this.limit = limit;
@@ -29,18 +29,17 @@ public final class TopValuesListDoubleAggregatorFunctionSupplier implements Aggr
   }
 
   @Override
-  public TopValuesListDoubleAggregatorFunction aggregator(DriverContext driverContext) {
-    return TopValuesListDoubleAggregatorFunction.create(driverContext, channels, limit, ascending);
+  public TopListDoubleAggregatorFunction aggregator(DriverContext driverContext) {
+    return TopListDoubleAggregatorFunction.create(driverContext, channels, limit, ascending);
   }
 
   @Override
-  public TopValuesListDoubleGroupingAggregatorFunction groupingAggregator(
-      DriverContext driverContext) {
-    return TopValuesListDoubleGroupingAggregatorFunction.create(channels, driverContext, limit, ascending);
+  public TopListDoubleGroupingAggregatorFunction groupingAggregator(DriverContext driverContext) {
+    return TopListDoubleGroupingAggregatorFunction.create(channels, driverContext, limit, ascending);
   }
 
   @Override
   public String describe() {
-    return "top_values_list of doubles";
+    return "top_list of doubles";
   }
 }

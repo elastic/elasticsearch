@@ -122,11 +122,13 @@ public class TopList extends AggregateFunction implements ToAggregator, Surrogat
         var order = orderRawValue();
 
         if (limit <= 0) {
-            return new TypeResolution(format(null, "Limit must be greater than 0. Got {}", limit));
+            return new TypeResolution(format(null, "Limit must be greater than 0 in [{}], found [{}]", sourceText(), limit));
         }
 
         if (order.equalsIgnoreCase(ORDER_ASC) == false && order.equalsIgnoreCase(ORDER_DESC) == false) {
-            return new TypeResolution(format(null, "Invalid order value. Expected [{}, {}] but got {}", ORDER_ASC, ORDER_DESC, order));
+            return new TypeResolution(
+                format(null, "Invalid order value in [{}], expected [{}, {}] but got [{}]", sourceText(), ORDER_ASC, ORDER_DESC, order)
+            );
         }
 
         return TypeResolution.TYPE_RESOLVED;

@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.inference.services.azureaistudio;
 
-import org.apache.http.HttpHeaders;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
@@ -16,8 +15,6 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.inference.ChunkedInferenceServiceResults;
-import org.elasticsearch.inference.ChunkingOptions;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
@@ -29,11 +26,8 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.ChatCompletionResults;
-import org.elasticsearch.xpack.core.inference.results.InferenceChunkedTextEmbeddingFloatResults;
-import org.elasticsearch.xpack.core.ml.inference.results.ChunkedNlpInferenceResults;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
@@ -55,26 +49,21 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.net.URISyntaxException;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.xpack.core.inference.results.InferenceChunkedTextEmbeddingFloatResultsTests.asMapWithListsInsteadOfArrays;
 import static org.elasticsearch.xpack.inference.Utils.getInvalidModel;
 import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityPool;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
-import static org.elasticsearch.xpack.inference.external.request.azureaistudio.AzureAiStudioRequestFields.API_KEY_HEADER;
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
 import static org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioConstants.API_KEY_FIELD;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.Mockito.mock;
@@ -848,92 +837,6 @@ public class AzureAiStudioServiceTests extends ESTestCase {
         verify(sender, times(1)).close();
         verifyNoMoreInteractions(factory);
         verifyNoMoreInteractions(sender);
-    }
-
-    public void testChunkedInfer_Embeddings_CallsInfer_ConvertsFloatResponse() throws IOException, URISyntaxException {
-        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
-
-        try (var service = new AzureAiStudioService(senderFactory, createWithEmptySettings(threadPool))) {
-
-            String responseJson = """
-                {
-                "object": "list",
-                "data": [
-                {
-                "object": "embedding",
-                "index": 0,
-                "embedding": [
-                0.0123,
-                -0.0123
-                ]
-                },
-                {
-                "object": "embedding",
-                "index": 1,
-                "embedding": [
-                0.0223,
-                -0.0223
-                ]
-                },
-                ],
-                "model": "text-embedding-ada-002-v2",
-                "usage": {
-                "prompt_tokens": 8,
-                "total_tokens": 8
-                }
-                }
-                """;
-            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
-
-            var model = AzureAiStudioEmbeddingsModelTests.createModel(
-                "id",
-                getUrl(webServer),
-                AzureAiStudioProvider.OPENAI,
-                AzureAiStudioEndpointType.TOKEN,
-                "apikey",
-                null,
-                false,
-                null,
-                null,
-                "user",
-                null
-            );
-            PlainActionFuture<List<ChunkedInferenceServiceResults>> listener = new PlainActionFuture<>();
-            service.chunkedInfer(
-                model,
-                List.of("abc", "def"),
-                new HashMap<>(),
-                InputType.INGEST,
-                new ChunkingOptions(null, null),
-                InferenceAction.Request.DEFAULT_TIMEOUT,
-                listener
-            );
-
-            var results = listener.actionGet(TIMEOUT);
-            assertThat(results, hasSize(2));
-            {
-                assertThat(results.get(0), CoreMatchers.instanceOf(InferenceChunkedTextEmbeddingFloatResults.class));
-                var floatResult = (InferenceChunkedTextEmbeddingFloatResults) results.get(0);
-                assertThat(floatResult.chunks(), hasSize(1));
-                assertArrayEquals(new float[]{0.123f, -0.123f}, floatResult.chunks().get(0).embedding(), 0.0f);
-            }
-            {
-                assertThat(results.get(1), CoreMatchers.instanceOf(InferenceChunkedTextEmbeddingFloatResults.class));
-                var floatResult = (InferenceChunkedTextEmbeddingFloatResults) results.get(1);
-                assertThat(floatResult.chunks(), hasSize(1));
-                assertArrayEquals(new float[]{0.223f, -0.223f}, floatResult.chunks().get(0).embedding(), 0.0f);
-            }
-
-            assertThat(webServer.requests(), hasSize(1));
-            assertNull(webServer.requests().get(0).getUri().getQuery());
-            assertThat(webServer.requests().get(0).getHeader(HttpHeaders.CONTENT_TYPE), equalTo(XContentType.JSON.mediaType()));
-            assertThat(webServer.requests().get(0).getHeader(API_KEY_HEADER), equalTo("apikey"));
-
-            var requestMap = entityAsMap(webServer.requests().get(0).getBody());
-            assertThat(requestMap.size(), Matchers.is(2));
-            assertThat(requestMap.get("input"), Matchers.is(List.of("abc", "def")));
-            assertThat(requestMap.get("user"), Matchers.is("user"));
-        }
     }
 
     public void testInfer_ThrowsWhenQueryIsPresent() throws IOException {

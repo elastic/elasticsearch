@@ -108,7 +108,8 @@ public class HuggingFaceService extends HuggingFaceBaseService {
         var huggingFaceModel = (HuggingFaceModel) model;
         var actionCreator = new HuggingFaceActionCreator(getSender(), getServiceComponents());
 
-        var batchedRequests = new EmbeddingRequestChunker(input, EMBEDDING_MAX_BATCH_SIZE).batchRequestsWithListeners(listener);
+        var batchedRequests = new EmbeddingRequestChunker(input, EMBEDDING_MAX_BATCH_SIZE, EmbeddingRequestChunker.EmbeddingType.FLOAT)
+            .batchRequestsWithListeners(listener);
         for (var request : batchedRequests) {
             var action = huggingFaceModel.accept(actionCreator);
             action.execute(new DocumentsOnlyInput(request.batch().inputs()), timeout, request.listener());

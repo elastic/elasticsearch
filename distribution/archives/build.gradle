@@ -18,11 +18,17 @@ CopySpec archiveFiles(CopySpec modulesFiles, String distributionType, String pla
         with libFiles(oss)
       }
       into('config') {
-        dirMode 0750
-        fileMode 0660
+        dirPermissions {
+          unix 0750
+        }
+        filePermissions {
+          unix 0660
+        }
         with configFiles(distributionType, oss, jdk)
         from {
-          dirMode 0750
+          dirPermissions {
+            unix 0750
+          }
           jvmOptionsDir.getParent()
         }
       }
@@ -36,21 +42,31 @@ CopySpec archiveFiles(CopySpec modulesFiles, String distributionType, String pla
       }
       into('') {
         from {
-          dirMode 0755
+          dirPermissions {
+            unix 0755
+          }
           logsDir.getParent()
         }
       }
       into('') {
         from {
-          dirMode 0755
+          dirPermissions {
+            unix 0755
+          }
           pluginsDir.getParent()
         }
       }
       from(rootProject.projectDir) {
+        filePermissions {
+          unix(0644)
+        }
         include 'README.asciidoc'
       }
       from(rootProject.file('licenses')) {
         include oss ? 'SSPL-1.0+ELASTIC-LICENSE-2.0.txt' : 'ELASTIC-LICENSE-2.0.txt'
+        filePermissions {
+          unix(0644)
+        }
         rename { 'LICENSE.txt' }
       }
 

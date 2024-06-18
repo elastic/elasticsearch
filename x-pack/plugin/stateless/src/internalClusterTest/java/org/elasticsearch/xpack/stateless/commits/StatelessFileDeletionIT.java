@@ -178,13 +178,7 @@ public class StatelessFileDeletionIT extends AbstractStatelessIntegTestCase {
         }
 
         public Releasable blockSnapshots() {
-            try {
-                snapshotBlocker.tryAcquire(Integer.MAX_VALUE, SAFE_AWAIT_TIMEOUT.seconds(), TimeUnit.SECONDS);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                fail(e, "unable to acquire all permits");
-            }
-
+            safeAcquire(Integer.MAX_VALUE, snapshotBlocker);
             return () -> {
                 if (snapshotBlocker.availablePermits() == 0) {
                     unblockSnapshots();

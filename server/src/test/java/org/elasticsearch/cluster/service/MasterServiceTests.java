@@ -501,7 +501,7 @@ public class MasterServiceTests extends ESTestCase {
                 @Override
                 public ClusterState execute(ClusterState currentState) {
                     relativeTimeInMillis += TimeValue.timeValueSeconds(3).millis();
-                    return ClusterState.builder(currentState).incrementVersion().build();
+                    return ClusterState.builder(currentState).build();
                 }
 
                 @Override
@@ -1246,7 +1246,7 @@ public class MasterServiceTests extends ESTestCase {
                 public ClusterState execute(ClusterState currentState) {
                     relativeTimeInMillis += MasterService.MASTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING.get(Settings.EMPTY).millis()
                         + randomLongBetween(1, 1000000);
-                    return ClusterState.builder(currentState).incrementVersion().build();
+                    return ClusterState.builder(currentState).build();
                 }
 
                 @Override
@@ -1280,7 +1280,7 @@ public class MasterServiceTests extends ESTestCase {
             masterService.submitUnbatchedStateUpdateTask("test5", new ClusterStateUpdateTask() {
                 @Override
                 public ClusterState execute(ClusterState currentState) {
-                    return ClusterState.builder(currentState).incrementVersion().build();
+                    return ClusterState.builder(currentState).build();
                 }
 
                 @Override
@@ -1296,7 +1296,7 @@ public class MasterServiceTests extends ESTestCase {
             masterService.submitUnbatchedStateUpdateTask("test6", new ClusterStateUpdateTask() {
                 @Override
                 public ClusterState execute(ClusterState currentState) {
-                    return ClusterState.builder(currentState).incrementVersion().build();
+                    return ClusterState.builder(currentState).build();
                 }
 
                 @Override

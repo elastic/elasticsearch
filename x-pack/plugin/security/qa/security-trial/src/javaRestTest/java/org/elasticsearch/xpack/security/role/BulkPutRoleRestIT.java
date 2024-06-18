@@ -18,7 +18,10 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.hasSize;
 
 public class BulkPutRoleRestIT extends SecurityOnTrialLicenseRestTestCase {
     public void testPutManyValidRoles() throws Exception {
@@ -26,7 +29,7 @@ public class BulkPutRoleRestIT extends SecurityOnTrialLicenseRestTestCase {
             {"roles": {"test1": {"cluster": ["all"],"indices": [{"names": ["*"],"privileges": ["all"]}]}, "test2":
             {"cluster": ["all"],"indices": [{"names": ["*"],"privileges": ["read"]}]}, "test3":
             {"cluster": ["all"],"indices": [{"names": ["*"],"privileges": ["write"]}]}}}""");
-        assertFalse((boolean) responseMap.get("errors"));
+        assertFalse(responseMap.containsKey("errors"));
         fetchRoleAndAssertEqualsExpected(
             "test1",
             new RoleDescriptor(
@@ -90,11 +93,21 @@ public class BulkPutRoleRestIT extends SecurityOnTrialLicenseRestTestCase {
             {"cluster": ["bad_privilege"],"indices": [{"names": ["*"],"privileges": ["read"]}]}, "test3":
             {"cluster": ["all"],"indices": [{"names": ["*"],"privileges": ["write"]}]}}}""");
 
-        assertTrue((boolean) responseMap.get("errors"));
+        assertTrue(responseMap.containsKey("errors"));
 
-        Map<String, Object> test2Result = ((List<Map<String, Object>>) responseMap.get("items")).get(1);
-        String reason = (String) ((Map<String, Object>) test2Result.get("error")).get("reason");
-        assertThat(reason, containsString("unknown cluster privilege [bad_privilege]"));
+        List<String> created = (List<String>) responseMap.get("created");
+        assertThat(created, hasSize(2));
+        assertThat(created, contains("test1", "test3"));
+
+        Map<String, Object> errors = (Map<String, Object>) responseMap.get("errors");
+        Map<String, Object> failedItems = (Map<String, Object>) errors.get("details");
+        assertEquals(failedItems.size(), 1);
+
+        for (var entry : failedItems.entrySet()) {
+            Map<String, Object> error = (Map<String, Object>) entry.getValue();
+            assertThat((String) error.get("reason"), containsString("unknown cluster privilege [bad_privilege]"));
+        }
+
         fetchRoleAndAssertEqualsExpected(
             "test1",
             new RoleDescriptor(
@@ -147,11 +160,14 @@ public class BulkPutRoleRestIT extends SecurityOnTrialLicenseRestTestCase {
             {"cluster": ["bad_privilege"],"indices": [{"names": ["*"],"privileges": ["read"]}]}, "test3":
             {"cluster": ["bad_privilege"],"indices": [{"names": ["*"],"privileges": ["write"]}]}}}""");
 
-        assertTrue((boolean) responseMap.get("errors"));
+        assertThat(responseMap, hasKey("errors"));
+        Map<String, Object> errors = (Map<String, Object>) responseMap.get("errors");
+        Map<String, Object> failedItems = (Map<String, Object>) errors.get("details");
+        assertEquals(failedItems.size(), 3);
 
-        for (Map<String, Object> result : ((List<Map<String, Object>>) responseMap.get("items"))) {
-            String reason = (String) ((Map<String, Object>) result.get("error")).get("reason");
-            assertThat(reason, containsString("unknown cluster privilege [bad_privilege]"));
+        for (var entry : failedItems.entrySet()) {
+            Map<String, Object> error = (Map<String, Object>) entry.getValue();
+            assertThat((String) error.get("reason"), containsString("unknown cluster privilege [bad_privilege]"));
         }
 
         for (String name : List.of("test1", "test2", "test3")) {
@@ -172,25 +188,17 @@ public class BulkPutRoleRestIT extends SecurityOnTrialLicenseRestTestCase {
 
         {
             Map<String, Object> responseMap = upsertRoles(request);
-            assertFalse((boolean) responseMap.get("errors"));
-            List<Map<String, Object>> items = (List<Map<String, Object>>) responseMap.get("items");
-            assertEquals(3, items.size());
+            assertFalse(responseMap.containsKey("errors"));
 
-            for (Map<String, Object> item : items) {
-                assertEquals("created", item.get("result"));
-                assertEquals(201, item.get("status"));
-            }
+            List<Map<String, Object>> items = (List<Map<String, Object>>) responseMap.get("created");
+            assertEquals(3, items.size());
         }
         {
             Map<String, Object> responseMap = upsertRoles(request);
-            assertFalse((boolean) responseMap.get("errors"));
-            List<Map<String, Object>> items = (List<Map<String, Object>>) responseMap.get("items");
-            assertEquals(3, items.size());
+            assertFalse(responseMap.containsKey("errors"));
 
-            for (Map<String, Object> item : items) {
-                assertEquals("noop", item.get("result"));
-                assertEquals(200, item.get("status"));
-            }
+            List<Map<String, Object>> items = (List<Map<String, Object>>) responseMap.get("noop");
+            assertEquals(3, items.size());
         }
         {
             request = """
@@ -199,14 +207,9 @@ public class BulkPutRoleRestIT extends SecurityOnTrialLicenseRestTestCase {
                 {"cluster": ["all"],"indices": [{"names": ["*"],"privileges": ["all"]}]}}}""";
 
             Map<String, Object> responseMap = upsertRoles(request);
-            assertFalse((boolean) responseMap.get("errors"));
-            List<Map<String, Object>> items = (List<Map<String, Object>>) responseMap.get("items");
+            assertFalse(responseMap.containsKey("errors"));
+            List<Map<String, Object>> items = (List<Map<String, Object>>) responseMap.get("updated");
             assertEquals(3, items.size());
-
-            for (Map<String, Object> item : items) {
-                assertEquals("updated", item.get("result"));
-                assertEquals(200, item.get("status"));
-            }
         }
     }
 

@@ -42,7 +42,6 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -397,11 +396,8 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
             BulkPutRolesResponse.Builder bulkPutRolesResponseBuilder = new BulkPutRolesResponse.Builder();
             roles.stream()
                 .map(RoleDescriptor::getName)
-                .map(
-                    roleName -> BulkPutRolesResponse.Item.failure(roleName, validationErrorByRoleName.get(roleName), RestStatus.BAD_REQUEST)
-                )
+                .map(roleName -> BulkPutRolesResponse.Item.failure(roleName, validationErrorByRoleName.get(roleName)))
                 .forEach(bulkPutRolesResponseBuilder::addItem);
-            bulkPutRolesResponseBuilder.setError(true);
 
             listener.onResponse(bulkPutRolesResponseBuilder.build());
             return;
@@ -417,20 +413,17 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
 
                 roles.stream().map(RoleDescriptor::getName).map(roleName -> {
                     if (validationErrorByRoleName.containsKey(roleName)) {
-                        return BulkPutRolesResponse.Item.failure(roleName, validationErrorByRoleName.get(roleName), RestStatus.BAD_REQUEST);
+                        return BulkPutRolesResponse.Item.failure(roleName, validationErrorByRoleName.get(roleName));
                     }
                     BulkItemResponse resp = bulkItemResponses.next();
                     if (resp.isFailed()) {
-                        return BulkPutRolesResponse.Item.failure(roleName, resp.getFailure().getCause(), resp.getResponse().status());
+                        return BulkPutRolesResponse.Item.failure(roleName, resp.getFailure().getCause());
                     }
                     if (UPDATE_ROLES_REFRESH_CACHE_RESULTS.contains(resp.getResponse().getResult())) {
                         rolesToRefreshInCache.add(roleName);
                     }
-                    return BulkPutRolesResponse.Item.success(roleName, resp.getResponse().getResult(), resp.getResponse().status());
+                    return BulkPutRolesResponse.Item.success(roleName, resp.getResponse().getResult());
                 }).forEach(bulkPutRolesResponseBuilder::addItem);
-
-                bulkPutRolesResponseBuilder.setError(bulkResponse.hasFailures() || validationErrorByRoleName.isEmpty() == false);
-                bulkPutRolesResponseBuilder.setTook(bulkResponse.getTook().millis());
 
                 clearRoleCache(rolesToRefreshInCache.toArray(String[]::new), ActionListener.wrap(res -> {
                     listener.onResponse(bulkPutRolesResponseBuilder.build());

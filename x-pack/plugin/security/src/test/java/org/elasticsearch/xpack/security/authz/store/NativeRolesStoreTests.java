@@ -48,7 +48,6 @@ import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.license.TestUtils;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -159,7 +158,7 @@ public class NativeRolesStoreTests extends ESTestCase {
         } else {
             rolesStore.putRoles(WriteRequest.RefreshPolicy.IMMEDIATE, List.of(roleDescriptor), ActionListener.wrap(resp -> {
                 BulkPutRolesResponse.Item item = resp.getItems().get(0);
-                if (item.status() == RestStatus.CREATED) {
+                if (item.getResultType().equals("created")) {
                     actionListener.onResponse(true);
                 } else {
                     throw item.getCause();

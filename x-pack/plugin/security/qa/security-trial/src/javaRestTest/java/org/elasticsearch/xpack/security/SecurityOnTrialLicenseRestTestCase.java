@@ -164,10 +164,12 @@ public abstract class SecurityOnTrialLicenseRestTestCase extends ESRestTestCase 
         String errorMessage;
         if (request.getEndpoint().endsWith("/role")) {
             Map<String, Object> response = responseAsMap(adminClient().performRequest(request));
-            Map<String, Object> item = ((List<Map<String, Object>>) response.get("items")).get(0);
-            assertEquals(item.get("result"), "failed");
-            assertTrue((boolean) response.get("errors"));
-            errorMessage = (String) ((Map<String, Object>) item.get("error")).get("reason");
+
+            Map<String, Object> errors = (Map<String, Object>) response.get("errors");
+            Map<String, Object> failedItems = (Map<String, Object>) errors.get("details");
+            assertEquals(failedItems.size(), 1);
+            Map<String, Object> error = (Map<String, Object>) failedItems.values().stream().findFirst().orElseThrow();
+            errorMessage = (String) error.get("reason");
         } else {
             ResponseException e = expectThrows(ResponseException.class, () -> adminClient().performRequest(request));
             assertEquals(400, e.getResponse().getStatusLine().getStatusCode());

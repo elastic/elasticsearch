@@ -55,8 +55,8 @@ public class ElasticsearchJavaPlugin implements Plugin<Project> {
     private static void testCompileOnlyDeps(Project project) {
         // we want to test compileOnly deps!
         Configuration compileOnlyConfig = project.getConfigurations().getByName(JavaPlugin.COMPILE_ONLY_CONFIGURATION_NAME);
-        Configuration testImplementationConfig = project.getConfigurations().getByName(JavaPlugin.TEST_IMPLEMENTATION_CONFIGURATION_NAME);
-        testImplementationConfig.extendsFrom(compileOnlyConfig);
+        Configuration testCompileOnly = project.getConfigurations().getByName(JavaPlugin.TEST_COMPILE_ONLY_CONFIGURATION_NAME);
+        testCompileOnly.extendsFrom(compileOnlyConfig);
     }
 
     /**

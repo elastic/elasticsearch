@@ -38,6 +38,11 @@ import java.util.spi.CalendarNameProvider;
 @UpdateForV9
 public class CompatCalendarNameProvider extends CalendarNameProvider {
 
+    /*
+     * Only enable if the providers are SPI,CLDR (so the SPI here overrides CLDR)
+     */
+    private static final boolean ENABLE_SHIM = System.getProperty("java.locale.providers", "SPI,CLDR").equals("SPI,CLDR");
+
     private static void addLocaleData(Map<Integer, Map<Integer, List<String>>> map, int field, int style, List<String> values) {
         addLocaleData(map, field, style, values, true);
     }
@@ -999,7 +1004,7 @@ public class CompatCalendarNameProvider extends CalendarNameProvider {
 
     @Override
     public String getDisplayName(String calendarType, int field, int value, int style, Locale locale) {
-        if (calendarType.equals("gregory")) {
+        if (ENABLE_SHIM && calendarType.equals("gregory")) {
             List<String> values = LOCALE_DATA.getOrDefault(locale, Map::of)
                 .get()
                 .getOrDefault(field, Map.of())
@@ -1014,7 +1019,7 @@ public class CompatCalendarNameProvider extends CalendarNameProvider {
 
     @Override
     public Map<String, Integer> getDisplayNames(String calendarType, int field, int style, Locale locale) {
-        if (calendarType.equals("gregory")) {
+        if (ENABLE_SHIM && calendarType.equals("gregory")) {
             List<String> values = LOCALE_DATA.getOrDefault(locale, Map::of).get().getOrDefault(field, Map.of()).get(style);
             if (values != null) {
                 return toMap(values);

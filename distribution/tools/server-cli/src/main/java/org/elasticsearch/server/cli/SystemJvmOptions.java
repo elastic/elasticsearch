@@ -26,6 +26,7 @@ final class SystemJvmOptions {
         String distroType = sysprops.get("es.distribution.type");
         boolean isHotspot = sysprops.getOrDefault("sun.management.compiler", "").contains("HotSpot");
         String libraryPath = findLibraryPath(sysprops);
+        boolean useCompatLocales = sysprops.getOrDefault("compat.locales", "false").equals("true");
 
         return Stream.concat(
             Stream.of(
@@ -76,8 +77,9 @@ final class SystemJvmOptions {
                  * so that existing behaviour is again maintained.
                  * This is because we can only really change our date formats on major versions. Despite coming from the JDK,
                  * it is still part of our interface to our users, which needs to be maintained as-is.
+                 * Due to the speed of change, we provide a fallback for users who need to still use COMPAT on JDK <=22 for now.
                  */
-                "-Djava.locale.providers=SPI,CLDR",
+                "-Djava.locale.providers=" + getLocaleProviders(useCompatLocales),
                 /*
                  * Temporarily suppress illegal reflective access in searchable snapshots shared cache preallocation; this is temporary
                  * while we explore alternatives. See org.elasticsearch.xpack.searchablesnapshots.preallocate.Preallocate.
@@ -146,6 +148,15 @@ final class SystemJvmOptions {
             return "--enable-native-access=org.elasticsearch.nativeaccess,org.apache.lucene.core";
         }
         return "";
+    }
+
+    private static String getLocaleProviders(boolean useCompatLocales) {
+        if (useCompatLocales && Runtime.version().feature() >= 23) {
+            throw new IllegalArgumentException(
+                "Compat locales have been removed in JDK23+. You can only use compat locales with JDK 22 or earlier."
+            );
+        }
+        return useCompatLocales ? "SPI,COMPAT" : "SPI,CLDR";
     }
 
     /*

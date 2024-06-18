@@ -22,6 +22,7 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.not;
 
 public class BulkPutRoleRestIT extends SecurityOnTrialLicenseRestTestCase {
     public void testPutManyValidRoles() throws Exception {
@@ -29,7 +30,7 @@ public class BulkPutRoleRestIT extends SecurityOnTrialLicenseRestTestCase {
             {"roles": {"test1": {"cluster": ["all"],"indices": [{"names": ["*"],"privileges": ["all"]}]}, "test2":
             {"cluster": ["all"],"indices": [{"names": ["*"],"privileges": ["read"]}]}, "test3":
             {"cluster": ["all"],"indices": [{"names": ["*"],"privileges": ["write"]}]}}}""");
-        assertFalse(responseMap.containsKey("errors"));
+        assertThat(responseMap, not(hasKey("errors")));
         fetchRoleAndAssertEqualsExpected(
             "test1",
             new RoleDescriptor(
@@ -93,7 +94,7 @@ public class BulkPutRoleRestIT extends SecurityOnTrialLicenseRestTestCase {
             {"cluster": ["bad_privilege"],"indices": [{"names": ["*"],"privileges": ["read"]}]}, "test3":
             {"cluster": ["all"],"indices": [{"names": ["*"],"privileges": ["write"]}]}}}""");
 
-        assertTrue(responseMap.containsKey("errors"));
+        assertThat(responseMap, hasKey("errors"));
 
         List<String> created = (List<String>) responseMap.get("created");
         assertThat(created, hasSize(2));
@@ -188,14 +189,14 @@ public class BulkPutRoleRestIT extends SecurityOnTrialLicenseRestTestCase {
 
         {
             Map<String, Object> responseMap = upsertRoles(request);
-            assertFalse(responseMap.containsKey("errors"));
+            assertThat(responseMap, not(hasKey("errors")));
 
             List<Map<String, Object>> items = (List<Map<String, Object>>) responseMap.get("created");
             assertEquals(3, items.size());
         }
         {
             Map<String, Object> responseMap = upsertRoles(request);
-            assertFalse(responseMap.containsKey("errors"));
+            assertThat(responseMap, not(hasKey("errors")));
 
             List<Map<String, Object>> items = (List<Map<String, Object>>) responseMap.get("noop");
             assertEquals(3, items.size());
@@ -207,7 +208,7 @@ public class BulkPutRoleRestIT extends SecurityOnTrialLicenseRestTestCase {
                 {"cluster": ["all"],"indices": [{"names": ["*"],"privileges": ["all"]}]}}}""";
 
             Map<String, Object> responseMap = upsertRoles(request);
-            assertFalse(responseMap.containsKey("errors"));
+            assertThat(responseMap, not(hasKey("errors")));
             List<Map<String, Object>> items = (List<Map<String, Object>>) responseMap.get("updated");
             assertEquals(3, items.size());
         }

@@ -127,7 +127,7 @@ public class IndicesLifecycleListenerIT extends ESIntegTestCase {
         assertThat(state.nodes().get(shard.currentNodeId()).getName(), equalTo(node1));
     }
 
-    public void testRelocationFailureNotRetriedForever() {
+    public void testRelocationFailureNotRetriedForever() throws Exception {
         String node1 = internalCluster().startNode();
         createIndex("index1", 1, 0);
         ensureGreen("index1");
@@ -143,12 +143,14 @@ public class IndicesLifecycleListenerIT extends ESIntegTestCase {
         updateIndexSettings(Settings.builder().put(INDEX_ROUTING_EXCLUDE_GROUP_PREFIX + "._name", node1), "index1");
         ensureGreen("index1");
 
-        var state = clusterAdmin().prepareState().get().getState();
-        logger.info("Final routing is {}", state.getRoutingNodes().toString());
-        var shard = state.routingTable().index("index1").shard(0).primaryShard();
-        assertThat(shard, notNullValue());
-        assertThat(shard.state(), equalTo(ShardRoutingState.STARTED));
-        assertThat(state.nodes().get(shard.currentNodeId()).getName(), equalTo(node1));
+        assertBusy(() -> {
+            var state = clusterAdmin().prepareState().get().getState();
+            var shard = state.routingTable().index("index1").shard(0).primaryShard();
+            assertThat(shard, notNullValue());
+            assertThat(shard.state(), equalTo(ShardRoutingState.STARTED));
+            assertThat(state.nodes().get(shard.currentNodeId()).getName(), equalTo(node1));
+            assertThat(shard.relocationFailureInfo().failedRelocations(), equalTo(5));// see SETTING_ALLOCATION_MAX_RETRY
+        });
     }
 
     public void testIndexStateShardChanged() throws Throwable {

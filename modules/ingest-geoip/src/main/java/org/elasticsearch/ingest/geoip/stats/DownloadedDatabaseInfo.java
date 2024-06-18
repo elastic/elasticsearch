@@ -22,24 +22,14 @@ public record DownloadedDatabaseInfo(String name, DownloadAttempt successfulAtte
         Writeable,
         ToXContent {
     public DownloadedDatabaseInfo(StreamInput in) throws IOException {
-        this(in.readString(), in.readBoolean() ? new DownloadAttempt(in) : null, in.readBoolean() ? new DownloadAttempt(in) : null);
+        this(in.readString(), in.readOptionalWriteable(DownloadAttempt::new), in.readOptionalWriteable(DownloadAttempt::new));
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(name);
-        if (successfulAttempt == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            successfulAttempt.writeTo(out);
-        }
-        if (failedAttempt == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            failedAttempt.writeTo(out);
-        }
+        out.writeOptionalWriteable(successfulAttempt);
+        out.writeOptionalWriteable(failedAttempt);
     }
 
     @Override

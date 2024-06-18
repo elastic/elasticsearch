@@ -16,6 +16,7 @@ import org.elasticsearch.action.admin.cluster.repositories.delete.DeleteReposito
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
@@ -45,10 +46,10 @@ import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.repositories.VerifyNodeRepositoryAction.Request;
 import org.elasticsearch.repositories.blobstore.MeteredBlobStoreRepository;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -103,8 +104,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
     private final ClusterService clusterService;
 
     private final ThreadPool threadPool;
-
-    private final VerifyNodeRepositoryAction verifyAction;
+    private final NodeClient client;
 
     private final Map<String, Repository> internalRepositories = ConcurrentCollections.newConcurrentMap();
     private volatile Map<String, Repository> repositories = Collections.emptyMap();
@@ -116,16 +116,17 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
     public RepositoriesService(
         Settings settings,
         ClusterService clusterService,
-        TransportService transportService,
         Map<String, Repository.Factory> typesRegistry,
         Map<String, Repository.Factory> internalTypesRegistry,
         ThreadPool threadPool,
+        NodeClient client,
         List<BiConsumer<Snapshot, IndexVersion>> preRestoreChecks
     ) {
         this.typesRegistry = typesRegistry;
         this.internalTypesRegistry = internalTypesRegistry;
         this.clusterService = clusterService;
         this.threadPool = threadPool;
+        this.client = client;
         // Doesn't make sense to maintain repositories on non-master and non-data nodes
         // Nothing happens there anyway
         if (DiscoveryNode.canContainData(settings) || DiscoveryNode.isMasterNode(settings)) {
@@ -133,7 +134,6 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                 clusterService.addHighPriorityApplier(this);
             }
         }
-        this.verifyAction = new VerifyNodeRepositoryAction(transportService, clusterService, this);
         this.repositoriesStatsArchive = new RepositoriesStatsArchive(
             REPOSITORIES_STATS_ARCHIVE_RETENTION_PERIOD.get(settings),
             REPOSITORIES_STATS_ARCHIVE_MAX_ARCHIVED_STATS.get(settings),
@@ -412,6 +412,15 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
             return;
         }
 
+        logger.info(
+            Strings.format(
+                "Registering repository [%s] with repository UUID [%s] and generation [%d]",
+                repositoryName,
+                repositoryData.getUuid(),
+                repositoryData.getGenId()
+            )
+        );
+
         submitUnbatchedTask(
             clusterService,
             "update repository UUID [" + repositoryName + "] to [" + repositoryUuid + "]",
@@ -528,11 +537,12 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                 final String verificationToken = repository.startVerification();
                 if (verificationToken != null) {
                     try {
-                        verifyAction.verify(
-                            repositoryName,
-                            verificationToken,
+                        var nodeRequest = new Request(repositoryName, verificationToken);
+                        client.execute(
+                            VerifyNodeRepositoryCoordinationAction.TYPE,
+                            nodeRequest,
                             listener.delegateFailure(
-                                (delegatedListener, verifyResponse) -> threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(() -> {
+                                (delegatedListener, response) -> threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(() -> {
                                     try {
                                         repository.endVerification(verificationToken);
                                     } catch (Exception e) {
@@ -540,7 +550,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                                         delegatedListener.onFailure(e);
                                         return;
                                     }
-                                    delegatedListener.onResponse(verifyResponse);
+                                    delegatedListener.onResponse(response.nodes);
                                 })
                             )
                         );

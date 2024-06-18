@@ -130,9 +130,9 @@ public class NodesStatsRequestTests extends ESTestCase {
      */
     private static NodesStatsRequest roundTripRequest(NodesStatsRequest request) throws Exception {
         try (BytesStreamOutput out = new BytesStreamOutput()) {
-            request.writeTo(out);
+            request.getNodesStatsRequestParameters().writeTo(out);
             try (StreamInput in = out.bytes().streamInput()) {
-                return new NodesStatsRequest(in);
+                return new NodesStatsRequest(new NodesStatsRequestParameters(in), request.nodesIds());
             }
         }
     }

@@ -25,5 +25,5 @@ public final class ActionTypes {
 
     public static final ActionType<QueryUserResponse> QUERY_USER_ACTION = new ActionType<>("cluster:admin/xpack/security/user/query");
 
-    public static final ActionType<BulkPutRolesResponse> BULK_PUT_ROLES = new ActionType<>("cluster:admin/xpack/security/roles/put");
+    public static final ActionType<BulkPutRolesResponse> BULK_PUT_ROLES = new ActionType<>("cluster:admin/xpack/security/role/bulk_put");
 }

@@ -186,6 +186,7 @@ import java.util.function.Consumer;
 import java.util.function.IntFunction;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.DoubleStream;
 import java.util.stream.IntStream;
@@ -785,6 +786,21 @@ public abstract class ESTestCase extends LuceneTestCase {
             } finally {
                 loggedLeaks.clear();
             }
+        }
+    }
+
+    /**
+     * Assert that a leak was detected, also remove the leak from the list of detected leaks
+     * so the test won't fail for that specific leak.
+     *
+     * @param expectedPattern A pattern that matches the detected leak's exception
+     */
+    protected static void assertLeakDetected(String expectedPattern) {
+        synchronized (loggedLeaks) {
+            assertTrue(
+                "No leak detected matching the pattern: " + expectedPattern,
+                loggedLeaks.removeIf(leakText -> Pattern.matches(expectedPattern, leakText))
+            );
         }
     }
 
@@ -2195,14 +2211,18 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     public static void safeAcquire(Semaphore semaphore) {
+        safeAcquire(1, semaphore);
+    }
+
+    public static void safeAcquire(int permits, Semaphore semaphore) {
         try {
             assertTrue(
                 "safeAcquire: Semaphore did not acquire permit within the timeout",
-                semaphore.tryAcquire(SAFE_AWAIT_TIMEOUT.millis(), TimeUnit.MILLISECONDS)
+                semaphore.tryAcquire(permits, SAFE_AWAIT_TIMEOUT.millis(), TimeUnit.MILLISECONDS)
             );
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            fail(e, "safeAcquire: interrupted waiting for Semaphore to acquire permit");
+            fail(e, "safeAcquire: interrupted waiting for Semaphore to acquire " + permits + " permit(s)");
         }
     }
 

@@ -113,6 +113,7 @@ public interface EstimatesRowSize {
                 default -> 50; // wild estimate for the size of a string.
             };
             case DOC -> throw new EsqlIllegalArgumentException("can't load a [doc] with field extraction");
+            case FLOAT -> Float.BYTES;
             case DOUBLE -> Double.BYTES;
             case INT -> Integer.BYTES;
             case LONG -> Long.BYTES;

@@ -3491,7 +3491,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             isTimeBasedIndex ? TIMESERIES_LEAF_READERS_SORTER : null,
             relativeTimeInNanosSupplier,
             indexCommitListener,
-            routingEntry().isPromotableToPrimary()
+            routingEntry().isPromotableToPrimary(),
+            mapperService()
         );
     }
 

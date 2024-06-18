@@ -17,7 +17,10 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
+import java.util.List;
 
 /**
 
@@ -53,7 +56,7 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
      *    the full name of the parent field
      *  - the value, encoded as a byte array
      */
-    public record NameValue(String name, int parentOffset, BytesRef value) {
+    public record NameValue(String name, int parentOffset, BytesRef value, LuceneDocument doc) {
         /**
          * Factory method, for use with fields under the parent object. It doesn't apply to objects at root level.
          * @param context the parser context, containing a non-null parent
@@ -62,7 +65,7 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
          */
         public static NameValue fromContext(DocumentParserContext context, String name, BytesRef value) {
             int parentOffset = context.parent() instanceof RootObjectMapper ? 0 : context.parent().fullPath().length() + 1;
-            return new NameValue(name, parentOffset, value);
+            return new NameValue(name, parentOffset, value, context.doc());
         }
 
         String getParentFieldName() {
@@ -112,8 +115,11 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
     public void postParse(DocumentParserContext context) {
         // Ignored values are only expected in synthetic mode.
         assert context.getIgnoredFieldValues().isEmpty() || context.mappingLookup().isSourceSynthetic();
-        for (NameValue nameValue : context.getIgnoredFieldValues()) {
-            context.doc().add(new StoredField(NAME, encode(nameValue)));
+        List<NameValue> ignoredFieldValues = new ArrayList<>(context.getIgnoredFieldValues());
+        // ensure consistent ordering when retrieving synthetic source
+        Collections.sort(ignoredFieldValues, Comparator.comparing(NameValue::name));
+        for (NameValue nameValue : ignoredFieldValues) {
+            nameValue.doc().add(new StoredField(NAME, encode(nameValue)));
         }
     }
 
@@ -136,7 +142,7 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
         int parentOffset = encodedSize / PARENT_OFFSET_IN_NAME_OFFSET;
         String name = new String(bytes, 4, nameSize, StandardCharsets.UTF_8);
         BytesRef value = new BytesRef(bytes, 4 + nameSize, bytes.length - nameSize - 4);
-        return new NameValue(name, parentOffset, value);
+        return new NameValue(name, parentOffset, value, null);
     }
 
     // This mapper doesn't contribute to source directly as it has no access to the object structure. Instead, its contents

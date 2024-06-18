@@ -210,6 +210,7 @@ public class PackageTests extends PackagingTestCase {
         assertThat(SYSTEMD_SERVICE, fileDoesNotExist());
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/109852")
     public void test60Reinstall() throws Exception {
         try {
             install();
@@ -223,6 +224,7 @@ public class PackageTests extends PackagingTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/109852")
     public void test70RestartServer() throws Exception {
         try {
             install();

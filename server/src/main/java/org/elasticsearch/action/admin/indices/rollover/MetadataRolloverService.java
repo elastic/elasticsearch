@@ -667,12 +667,6 @@ public class MetadataRolloverService {
                     "aliases, mappings, and index settings may not be specified when rolling over a data stream"
                 );
             }
-            var dataStream = (DataStream) indexAbstraction;
-            if (isFailureStoreRollover && dataStream.isFailureStoreEnabled() == false) {
-                throw new IllegalArgumentException(
-                    "unable to roll over failure store because [" + indexAbstraction.getName() + "] does not have the failure store enabled"
-                );
-            }
         }
     }
 }

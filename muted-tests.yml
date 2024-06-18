@@ -67,6 +67,9 @@ tests:
 - class: "org.elasticsearch.xpack.shutdown.NodeShutdownReadinessIT"
   issue: "https://github.com/elastic/elasticsearch/issues/109838"
   method: "testShutdownReadinessService"
+- class: "org.elasticsearch.packaging.test.PackageTests"
+  issue: "https://github.com/elastic/elasticsearch/issues/109841"
+  method: "test50Remove"
 
 # Examples:
 #

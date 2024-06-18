@@ -66,7 +66,7 @@ include::types/mul.asciidoc[]
 image::esql/functions/signature/div.svg[Embedded,opts=inline]
 
 NOTE: Division of two integer types will yield an integer result, rounding towards 0.
-      If you need floating point division, <<esql-cast-operator>> one of the arguments to a `DOUBLE`.
+      If you need floating point division, wrap one of the arguments in <<esql-to_double>>.
 
 include::types/div.asciidoc[]
 

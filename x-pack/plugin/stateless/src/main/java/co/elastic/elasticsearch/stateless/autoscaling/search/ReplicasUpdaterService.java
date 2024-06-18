@@ -44,10 +44,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.stream.Collectors;
 
 import static co.elastic.elasticsearch.serverless.constants.ServerlessSharedSettings.ENABLE_REPLICAS_FOR_INSTANT_FAILOVER;
 import static co.elastic.elasticsearch.serverless.constants.ServerlessSharedSettings.SEARCH_POWER_MAX_SETTING;
@@ -201,20 +199,6 @@ public class ReplicasUpdaterService extends AbstractLifecycleComponent implement
     }
 
     /**
-     * Get all indices minus system indices and indices that have 'auto_expand_replicas' enabled.
-     * TODO remove these filters once we decide how to apporach system indices and auto_expand_replica settings
-     */
-    Map<Index, IndexProperties> getFilteredIndices() {
-        ConcurrentMap<Index, IndexProperties> indices = this.searchMetricsService.getIndices();
-        return indices.entrySet().stream().filter(e -> {
-            if (e.getValue().isAutoExpandReplicas()) {
-                return false;
-            }
-            return true;
-        }).collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
-    }
-
-    /**
      * This method calculates which indices require a change in their current replica
      * setting based on the current Search Power (SP) setting.
      * We should not have to call this method for SP &lt; 100, this case is already fully handled in {@link #performReplicaUpdates}.
@@ -224,7 +208,7 @@ public class ReplicasUpdaterService extends AbstractLifecycleComponent implement
     Map<Integer, Set<String>> getRecommendedReplicaChanges() {
         assert this.searchPowerMinSetting >= 100 : "we should not have to call this method for SP < 100";
         Map<Integer, Set<String>> numReplicaChanges = new HashMap<>(2);
-        Map<Index, IndexProperties> indicesMap = this.getFilteredIndices();
+        Map<Index, IndexProperties> indicesMap = this.searchMetricsService.getIndices();
         Map<ShardId, SearchMetricsService.ShardMetrics> shardMetricsMap = this.searchMetricsService.getShardMetrics();
         LOGGER.trace("Calculating index replica recommendations for " + indicesMap.keySet());
         if (searchPowerMinSetting >= SEARCH_POWER_MIN_FULL_REPLICATION) {
@@ -282,7 +266,8 @@ public class ReplicasUpdaterService extends AbstractLifecycleComponent implement
             for (var rankedIndex : rankingProperties) {
                 String indexName = rankedIndex.indexProperties().name();
                 int replicas = rankedIndex.indexProperties().replicas();
-                if (rankedIndex.interactiveSize() > 0 && twoReplicaEligibleIndices.contains(indexName)) {
+                if (twoReplicaEligibleIndices.contains(indexName)) {
+                    assert rankedIndex.interactiveSize() > 0 : "only interactive indices should get additional copies";
                     if (replicas != 2) {
                         setNumReplicasForIndex(indexName, 2, numReplicaChanges);
                     }
@@ -303,7 +288,7 @@ public class ReplicasUpdaterService extends AbstractLifecycleComponent implement
      */
     private Set<String> resetReplicasForAllIndices() {
         Set<String> indicesToScaleBack = new HashSet<>();
-        Map<Index, IndexProperties> indicesMap = this.getFilteredIndices();
+        Map<Index, IndexProperties> indicesMap = this.searchMetricsService.getIndices();
         for (Map.Entry<Index, IndexProperties> entry : indicesMap.entrySet()) {
             Index index = entry.getKey();
             IndexProperties settings = entry.getValue();

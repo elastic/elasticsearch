@@ -24,8 +24,8 @@ import java.util.List;
 
 public class Max extends NumericAggregate implements SurrogateExpression {
 
-    @FunctionInfo(returnType = { "double", "integer", "long" }, description = "The maximum value of a numeric field.", isAggregation = true)
-    public Max(Source source, @Param(name = "number", type = { "double", "integer", "long" }) Expression field) {
+    @FunctionInfo(returnType = { "double", "integer", "long", "date" }, description = "The maximum value of a numeric field.", isAggregation = true)
+    public Max(Source source, @Param(name = "number", type = { "double", "integer", "long", "date" }) Expression field) {
         super(source, field);
     }
 

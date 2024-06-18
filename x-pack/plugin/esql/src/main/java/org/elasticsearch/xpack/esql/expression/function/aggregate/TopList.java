@@ -42,7 +42,7 @@ public class TopList extends AggregateFunction implements ToAggregator, Surrogat
     private static final String ORDER_DESC = "DESC";
 
     @FunctionInfo(
-        returnType = { "double", "integer", "long" },
+        returnType = { "double", "integer", "long", "date" },
         description = "Collects the top values for a field. Includes repeated values.",
         isAggregation = true,
         examples = @Example(file = "stats_top_list", tag = "top-list")
@@ -51,7 +51,7 @@ public class TopList extends AggregateFunction implements ToAggregator, Surrogat
         Source source,
         @Param(
             name = "field",
-            type = { "double", "integer", "long" },
+            type = { "double", "integer", "long", "date" },
             description = "The field to collect the top values for."
         ) Expression field,
         @Param(name = "limit", type = { "integer" }, description = "The maximum number of values to collect.") Expression limit,

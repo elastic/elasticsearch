@@ -24,8 +24,8 @@ import java.util.List;
 
 public class Min extends NumericAggregate implements SurrogateExpression {
 
-    @FunctionInfo(returnType = { "double", "integer", "long" }, description = "The minimum value of a numeric field.", isAggregation = true)
-    public Min(Source source, @Param(name = "number", type = { "double", "integer", "long" }) Expression field) {
+    @FunctionInfo(returnType = { "double", "integer", "long", "date" }, description = "The minimum value of a numeric field.", isAggregation = true)
+    public Min(Source source, @Param(name = "number", type = { "double", "integer", "long", "date" }) Expression field) {
         super(source, field);
     }
 

@@ -10,6 +10,7 @@ package org.elasticsearch.compute.operator;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.ReleasableIterator;
+import org.hamcrest.Matcher;
 
 import java.util.List;
 import java.util.stream.LongStream;
@@ -107,12 +108,12 @@ public class IteratorRemovePageTests extends OperatorTestCase {
     }
 
     @Override
-    protected String expectedDescriptionOfSimple() {
-        return "IteratorRemovePage[]";
+    protected Matcher<String> expectedDescriptionOfSimple() {
+        return equalTo("IteratorRemovePage[]");
     }
 
     @Override
-    protected String expectedToStringOfSimple() {
+    protected Matcher<String> expectedToStringOfSimple() {
         return expectedDescriptionOfSimple();
     }
 }

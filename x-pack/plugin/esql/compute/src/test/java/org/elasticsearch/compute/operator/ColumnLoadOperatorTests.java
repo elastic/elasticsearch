@@ -12,6 +12,7 @@ import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.TestBlockFactory;
+import org.hamcrest.Matcher;
 
 import java.util.List;
 import java.util.stream.IntStream;
@@ -73,12 +74,12 @@ public class ColumnLoadOperatorTests extends OperatorTestCase {
     }
 
     @Override
-    protected String expectedDescriptionOfSimple() {
-        return "ColumnLoad[values=values:LONG, positions=0]";
+    protected Matcher<String> expectedDescriptionOfSimple() {
+        return equalTo("ColumnLoad[values=values:LONG, positions=0]");
     }
 
     @Override
-    protected String expectedToStringOfSimple() {
+    protected Matcher<String> expectedToStringOfSimple() {
         return expectedDescriptionOfSimple();
     }
 }

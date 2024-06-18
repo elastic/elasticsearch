@@ -235,6 +235,58 @@ public class BlockFactory {
         return v;
     }
 
+    public FloatBlock.Builder newFloatBlockBuilder(int estimatedSize) {
+        return new FloatBlockBuilder(estimatedSize, this);
+    }
+
+    public final FloatBlock newFloatArrayBlock(float[] values, int pc, int[] firstValueIndexes, BitSet nulls, MvOrdering mvOrdering) {
+        return newFloatArrayBlock(values, pc, firstValueIndexes, nulls, mvOrdering, 0L);
+    }
+
+    public FloatBlock newFloatArrayBlock(float[] values, int pc, int[] fvi, BitSet nulls, MvOrdering mvOrdering, long preAdjustedBytes) {
+        var b = new FloatArrayBlock(values, pc, fvi, nulls, mvOrdering, this);
+        adjustBreaker(b.ramBytesUsed() - preAdjustedBytes);
+        return b;
+    }
+
+    public FloatVector.Builder newFloatVectorBuilder(int estimatedSize) {
+        return new FloatVectorBuilder(estimatedSize, this);
+    }
+
+    /**
+     * Build a {@link FloatVector.FixedBuilder} that never grows.
+     */
+    public FloatVector.FixedBuilder newFloatVectorFixedBuilder(int size) {
+        return new FloatVectorFixedBuilder(size, this);
+    }
+
+    public final FloatVector newFloatArrayVector(float[] values, int positionCount) {
+        return newFloatArrayVector(values, positionCount, 0L);
+    }
+
+    public FloatVector newFloatArrayVector(float[] values, int positionCount, long preAdjustedBytes) {
+        var b = new FloatArrayVector(values, positionCount, this);
+        adjustBreaker(b.ramBytesUsed() - preAdjustedBytes);
+        return b;
+    }
+
+    public final FloatBlock newConstantFloatBlockWith(float value, int positions) {
+        return newConstantFloatBlockWith(value, positions, 0L);
+    }
+
+    public FloatBlock newConstantFloatBlockWith(float value, int positions, long preAdjustedBytes) {
+        var b = new ConstantFloatVector(value, positions, this).asBlock();
+        adjustBreaker(b.ramBytesUsed() - preAdjustedBytes);
+        return b;
+    }
+
+    public FloatVector newConstantFloatVector(float value, int positions) {
+        adjustBreaker(ConstantFloatVector.RAM_BYTES_USED);
+        var v = new ConstantFloatVector(value, positions, this);
+        assert v.ramBytesUsed() == ConstantFloatVector.RAM_BYTES_USED;
+        return v;
+    }
+
     public LongBlock.Builder newLongBlockBuilder(int estimatedSize) {
         return new LongBlockBuilder(estimatedSize, this);
     }

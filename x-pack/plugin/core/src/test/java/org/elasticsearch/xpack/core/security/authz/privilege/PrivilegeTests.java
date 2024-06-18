@@ -285,7 +285,7 @@ public class PrivilegeTests extends ESTestCase {
             ActionTypes.QUERY_USER_ACTION.name(),
             HasPrivilegesAction.NAME,
             GetUserPrivilegesAction.NAME,
-            GetSecuritySettingsAction.NAME
+            GetSecuritySettingsAction.INSTANCE.name()
         );
         verifyClusterActionAllowed(
             ClusterPrivilegeResolver.READ_SECURITY,
@@ -321,7 +321,7 @@ public class PrivilegeTests extends ESTestCase {
             ActivateProfileAction.NAME,
             SetProfileEnabledAction.NAME,
             UpdateProfileDataAction.NAME,
-            UpdateSecuritySettingsAction.NAME
+            UpdateSecuritySettingsAction.INSTANCE.name()
         );
     }
 
@@ -460,7 +460,12 @@ public class PrivilegeTests extends ESTestCase {
         }
 
         {
-            verifyClusterActionAllowed(ClusterPrivilegeResolver.READ_SLM, "cluster:admin/slm/get", "cluster:admin/ilm/operation_mode/get");
+            verifyClusterActionAllowed(
+                ClusterPrivilegeResolver.READ_SLM,
+                "cluster:admin/slm/get",
+                "cluster:admin/slm/status",
+                "cluster:admin/ilm/operation_mode/get"
+            );
             verifyClusterActionDenied(
                 ClusterPrivilegeResolver.READ_SLM,
                 "cluster:admin/slm/delete",

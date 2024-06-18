@@ -9,8 +9,6 @@
 package org.elasticsearch.snapshots;
 
 import org.apache.logging.log4j.Level;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
@@ -32,7 +30,6 @@ import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.network.CloseableChannel;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
@@ -59,7 +56,7 @@ import org.elasticsearch.snapshots.mockstore.MockRepository;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.test.InternalTestCluster;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.disruption.BusyMasterServiceDisruption;
 import org.elasticsearch.test.disruption.ServiceDisruptionScheme;
 import org.elasticsearch.test.rest.FakeRestRequest;
@@ -1267,14 +1264,10 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         final String repoName = "test-repo";
         createRepository(repoName, "fs");
 
-        final MockLogAppender mockAppender = new MockLogAppender();
-        mockAppender.addExpectation(
-            new MockLogAppender.UnseenEventExpectation("no warnings", BlobStoreRepository.class.getCanonicalName(), Level.WARN, "*")
-        );
-        mockAppender.start();
-        final Logger logger = LogManager.getLogger(BlobStoreRepository.class);
-        Loggers.addAppender(logger, mockAppender);
-        try {
+        try (var mockLog = MockLog.capture(BlobStoreRepository.class)) {
+            mockLog.addExpectation(
+                new MockLog.UnseenEventExpectation("no warnings", BlobStoreRepository.class.getCanonicalName(), Level.WARN, "*")
+            );
             final String index1 = "index-1";
             final String index2 = "index-2";
             createIndexWithContent("index-1");
@@ -1286,10 +1279,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
             createSnapshot(repoName, snapshot2, List.of(index2));
 
             clusterAdmin().prepareDeleteSnapshot(repoName, snapshot1, snapshot2).get();
-            mockAppender.assertAllExpectationsMatched();
-        } finally {
-            Loggers.removeAppender(logger, mockAppender);
-            mockAppender.stop();
+            mockLog.assertAllExpectationsMatched();
         }
     }
 

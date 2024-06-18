@@ -12,7 +12,6 @@ import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.admin.indices.rollover.RolloverConfiguration;
 import org.elasticsearch.cluster.metadata.DataStreamGlobalRetention;
-import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -121,12 +120,7 @@ public class SimulateIndexTemplateResponse extends ActionResponse implements ToX
         builder.startObject();
         if (this.resolvedTemplate != null) {
             builder.field(TEMPLATE.getPreferredName());
-            this.resolvedTemplate.toXContent(
-                builder,
-                DataStreamLifecycle.maybeAddEffectiveRetentionParams(params),
-                rolloverConfiguration,
-                globalRetention
-            );
+            this.resolvedTemplate.toXContent(builder, params, rolloverConfiguration);
         }
         if (this.overlappingTemplates != null) {
             builder.startArray(OVERLAPPING.getPreferredName());

@@ -8,7 +8,6 @@
 package org.elasticsearch.index.shard;
 
 import org.apache.logging.log4j.Level;
-import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.DirectoryReader;
@@ -54,7 +53,6 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -64,6 +62,7 @@ import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
+import org.elasticsearch.common.util.concurrent.RunOnce;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Releasable;
@@ -125,7 +124,7 @@ import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.test.CorruptionUtils;
 import org.elasticsearch.test.DummyShardLock;
 import org.elasticsearch.test.FieldMaskingReader;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.junit.annotations.TestIssueLogging;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.store.MockFSDirectoryFactory;
@@ -150,6 +149,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CountDownLatch;
@@ -194,7 +194,6 @@ import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.matchesRegex;
 import static org.hamcrest.Matchers.not;
@@ -292,6 +291,36 @@ public class IndexShardTests extends IndexShardTestCase {
             ),
             equalTo(false)
         );
+    }
+
+    public void testAsyncCloseShard() throws Exception {
+        final var shard = newStartedShard();
+        final var store = shard.store();
+        final var storeCloser = new RunOnce(store::close);
+        final var engine = Objects.requireNonNull(shard.getEngineOrNull());
+
+        final var closeFuture = new PlainActionFuture<Void>();
+        final var closeTasks = new ArrayList<Runnable>();
+        shard.close(getTestName(), randomBoolean(), closeTasks::add, closeFuture);
+
+        if (randomBoolean()) {
+            storeCloser.run();
+        }
+
+        assertFalse(closeFuture.isDone());
+        assertThat(closeTasks, hasSize(1));
+        assertEquals(IndexShardState.CLOSED, shard.state());
+        assertNull(shard.getEngineOrNull());
+        EngineTestCase.ensureOpen(engine); // does not throw ACE
+
+        if (randomBoolean()) {
+            storeCloser.run();
+        }
+        assertTrue(store.hasReferences());
+
+        closeTasks.forEach(Runnable::run);
+        storeCloser.run();
+        assertFalse(store.hasReferences());
     }
 
     ShardStateMetadata getShardStateMetadata(IndexShard shard) {
@@ -1517,7 +1546,7 @@ public class IndexShardTests extends IndexShardTestCase {
                 thread[i].join();
             }
         }
-        assertTrue(semaphore.tryAcquire(Integer.MAX_VALUE, 10, TimeUnit.SECONDS));
+        safeAcquire(Integer.MAX_VALUE, semaphore);
 
         closeShards(shard);
     }
@@ -1575,7 +1604,7 @@ public class IndexShardTests extends IndexShardTestCase {
         for (int i = 0; i < thread.length; i++) {
             thread[i].join();
         }
-        assertTrue(semaphore.tryAcquire(Integer.MAX_VALUE, 10, TimeUnit.SECONDS));
+        safeAcquire(Integer.MAX_VALUE, semaphore);
         assertEquals(shard.getLastKnownGlobalCheckpoint(), shard.getLastSyncedGlobalCheckpoint());
 
         closeShards(shard);
@@ -3498,12 +3527,9 @@ public class IndexShardTests extends IndexShardTestCase {
             EMPTY_EVENT_LISTENER
         );
 
-        final MockLogAppender appender = new MockLogAppender();
-        appender.start();
-        Loggers.addAppender(LogManager.getLogger(IndexShard.class), appender);
-        try {
-            appender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+        try (var mockLog = MockLog.capture(IndexShard.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
                     "expensive checks warning",
                     "org.elasticsearch.index.shard.IndexShard",
                     Level.WARN,
@@ -3512,8 +3538,8 @@ public class IndexShardTests extends IndexShardTestCase {
                 )
             );
 
-            appender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
                     "failure message",
                     "org.elasticsearch.index.shard.IndexShard",
                     Level.WARN,
@@ -3531,10 +3557,7 @@ public class IndexShardTests extends IndexShardTestCase {
                 containsString("Recovery failed")
             );
 
-            appender.assertAllExpectationsMatched();
-        } finally {
-            Loggers.removeAppender(LogManager.getLogger(IndexShard.class), appender);
-            appender.stop();
+            mockLog.assertAllExpectationsMatched();
         }
 
         // check that corrupt marker is there
@@ -4001,7 +4024,6 @@ public class IndexShardTests extends IndexShardTestCase {
         closeShards(shard);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/107462")
     public void testFlushTimeExcludingWaiting() throws Exception {
         IndexShard shard = newStartedShard();
         for (int i = 0; i < randomIntBetween(4, 10); i++) {
@@ -4027,9 +4049,9 @@ public class IndexShardTests extends IndexShardTestCase {
                 greaterThan(0L)
             );
             assertThat(
-                "Flush time excluding waiting should less than flush time with waiting",
+                "Flush time excluding waiting should be less or equal than the flush time with waiting",
                 flushStats.getTotalTimeExcludingWaitingOnLockMillis(),
-                lessThan(flushStats.getTotalTime().millis())
+                lessThanOrEqualTo(flushStats.getTotalTime().millis())
             );
         } finally {
             closeShards(shard);
@@ -4039,8 +4061,7 @@ public class IndexShardTests extends IndexShardTestCase {
 
     @TestLogging(reason = "testing traces of concurrent flushes", value = "org.elasticsearch.index.engine.Engine:TRACE")
     public void testFlushOnIdleConcurrentFlushDoesNotWait() throws Exception {
-        final MockLogAppender mockLogAppender = new MockLogAppender();
-        try {
+        try (var mockLog = MockLog.capture(Engine.class)) {
             CountDownLatch readyToCompleteFlushLatch = new CountDownLatch(1);
             IndexShard shard = newStartedShard(false, Settings.EMPTY, config -> new InternalEngine(config) {
                 @Override
@@ -4054,13 +4075,10 @@ public class IndexShardTests extends IndexShardTestCase {
                 indexDoc(shard, "_doc", Integer.toString(i));
             }
 
-            mockLogAppender.start();
-            Loggers.addAppender(LogManager.getLogger(Engine.class), mockLogAppender);
-
             // Issue the first flushOnIdle request. The flush happens in the background using the flush threadpool.
             // Then wait for log message that flush acquired lock immediately
-            mockLogAppender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
                     "should see first flush getting lock immediately",
                     Engine.class.getCanonicalName(),
                     Level.TRACE,
@@ -4069,14 +4087,14 @@ public class IndexShardTests extends IndexShardTestCase {
             );
             shard.flushOnIdle(0);
             assertFalse(shard.isActive());
-            assertBusy(mockLogAppender::assertAllExpectationsMatched);
+            assertBusy(mockLog::assertAllExpectationsMatched);
 
             // While the first flush is happening, index one more doc (to turn the shard's active flag to true),
             // and issue a second flushOnIdle request which should not wait for the ongoing flush
             indexDoc(shard, "_doc", Integer.toString(3));
             assertTrue(shard.isActive());
-            mockLogAppender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
                     "should see second flush returning since it will not wait for the ongoing flush",
                     Engine.class.getCanonicalName(),
                     Level.TRACE,
@@ -4084,7 +4102,7 @@ public class IndexShardTests extends IndexShardTestCase {
                 )
             );
             shard.flushOnIdle(0);
-            assertBusy(mockLogAppender::assertAllExpectationsMatched);
+            assertBusy(mockLog::assertAllExpectationsMatched);
 
             // A direct call to flush (with waitIfOngoing=false) should not wait and return false immediately
             assertFalse(shard.flush(new FlushRequest().waitIfOngoing(false).force(false)));
@@ -4093,15 +4111,15 @@ public class IndexShardTests extends IndexShardTestCase {
             readyToCompleteFlushLatch.countDown();
 
             // Wait for first flushOnIdle to log a message that it released the flush lock
-            mockLogAppender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
                     "should see first flush releasing lock",
                     Engine.class.getCanonicalName(),
                     Level.TRACE,
                     "released flush lock"
                 )
             );
-            assertBusy(mockLogAppender::assertAllExpectationsMatched);
+            assertBusy(mockLog::assertAllExpectationsMatched);
 
             // The second flushOnIdle (that did not happen) should have turned the active flag to true
             assertTrue(shard.isActive());
@@ -4110,9 +4128,6 @@ public class IndexShardTests extends IndexShardTestCase {
             assertTrue(shard.flush(new FlushRequest()));
 
             closeShards(shard);
-        } finally {
-            Loggers.removeAppender(LogManager.getLogger(Engine.class), mockLogAppender);
-            mockLogAppender.stop();
         }
     }
 

@@ -67,8 +67,8 @@ public class GetTopNFunctionsResponse extends ActionResponse implements ToXConte
         builder.startObject();
         builder.field("self_count", selfCount);
         builder.field("total_count", totalCount);
-        builder.field("self_annual_co2_tons", annualCo2Tons);
-        builder.field("self_annual_cost_usd", annualCostsUsd);
+        builder.field("self_annual_co2_tons").rawValue(NumberUtils.doubleToString(annualCo2Tons));
+        builder.field("self_annual_cost_usd").rawValue(NumberUtils.doubleToString(annualCostsUsd));
         builder.xContentList("topn", topNFunctions);
         builder.endObject();
         return builder;

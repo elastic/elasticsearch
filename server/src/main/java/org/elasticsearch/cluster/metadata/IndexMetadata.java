@@ -189,13 +189,17 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         }
     }
 
+    /**
+     * This is a safety limit that should only be exceeded in very rare and special cases. The assumption is that
+     * 99% of the users have less than 1024 shards per index. We also make it a hard check that requires restart of nodes
+     * if a cluster should allow to create more than 1024 shards per index. NOTE: this does not limit the number of shards
+     * per cluster. this also prevents creating stuff like a new index with millions of shards by accident which essentially
+     * kills the entire cluster with OOM on the spot.
+     */
+    public static final String PER_INDEX_MAX_NUMBER_OF_SHARDS = "1024";
+
     static Setting<Integer> buildNumberOfShardsSetting() {
-        /* This is a safety limit that should only be exceeded in very rare and special cases. The assumption is that
-         * 99% of the users have less than 1024 shards per index. We also make it a hard check that requires restart of nodes
-         * if a cluster should allow to create more than 1024 shards per index. NOTE: this does not limit the number of shards
-         * per cluster. this also prevents creating stuff like a new index with millions of shards by accident which essentially
-         * kills the entire cluster with OOM on the spot.*/
-        final int maxNumShards = Integer.parseInt(System.getProperty("es.index.max_number_of_shards", "1024"));
+        final int maxNumShards = Integer.parseInt(System.getProperty("es.index.max_number_of_shards", PER_INDEX_MAX_NUMBER_OF_SHARDS));
         if (maxNumShards < 1) {
             throw new IllegalArgumentException("es.index.max_number_of_shards must be > 0");
         }
@@ -2263,8 +2267,9 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             }
 
             final boolean isSearchableSnapshot = SearchableSnapshotsSettings.isSearchableSnapshotStore(settings);
-            final String indexMode = settings.get(IndexSettings.MODE.getKey());
-            final boolean isTsdb = indexMode != null && IndexMode.TIME_SERIES.getName().equals(indexMode.toLowerCase(Locale.ROOT));
+            String indexModeString = settings.get(IndexSettings.MODE.getKey());
+            final IndexMode indexMode = indexModeString != null ? IndexMode.fromString(indexModeString.toLowerCase(Locale.ROOT)) : null;
+            final boolean isTsdb = indexMode == IndexMode.TIME_SERIES;
             return new IndexMetadata(
                 new Index(index, uuid),
                 version,
@@ -2304,7 +2309,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 AutoExpandReplicas.SETTING.get(settings),
                 isSearchableSnapshot,
                 isSearchableSnapshot && settings.getAsBoolean(SEARCHABLE_SNAPSHOT_PARTIAL_SETTING_KEY, false),
-                isTsdb ? IndexMode.TIME_SERIES : null,
+                indexMode,
                 isTsdb ? IndexSettings.TIME_SERIES_START_TIME.get(settings) : null,
                 isTsdb ? IndexSettings.TIME_SERIES_END_TIME.get(settings) : null,
                 SETTING_INDEX_VERSION_COMPATIBILITY.get(settings),

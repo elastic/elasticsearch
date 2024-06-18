@@ -15,6 +15,8 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
+import org.elasticsearch.xpack.inference.external.http.RequestExecutor;
+import org.elasticsearch.xpack.inference.external.http.retry.RequestSender;
 import org.elasticsearch.xpack.inference.external.http.retry.RetrySettings;
 import org.elasticsearch.xpack.inference.external.http.retry.RetryingHttpSender;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
@@ -39,30 +41,28 @@ public class HttpRequestSender implements Sender {
         private final ServiceComponents serviceComponents;
         private final HttpClientManager httpClientManager;
         private final ClusterService clusterService;
-        private final SingleRequestManager requestManager;
+        private final RequestSender requestSender;
 
         public Factory(ServiceComponents serviceComponents, HttpClientManager httpClientManager, ClusterService clusterService) {
             this.serviceComponents = Objects.requireNonNull(serviceComponents);
             this.httpClientManager = Objects.requireNonNull(httpClientManager);
             this.clusterService = Objects.requireNonNull(clusterService);
 
-            var requestSender = new RetryingHttpSender(
+            requestSender = new RetryingHttpSender(
                 this.httpClientManager.getHttpClient(),
                 serviceComponents.throttlerManager(),
                 new RetrySettings(serviceComponents.settings(), clusterService),
                 serviceComponents.threadPool()
             );
-            requestManager = new SingleRequestManager(requestSender);
         }
 
-        public Sender createSender(String serviceName) {
+        public Sender createSender() {
             return new HttpRequestSender(
-                serviceName,
                 serviceComponents.threadPool(),
                 httpClientManager,
                 clusterService,
                 serviceComponents.settings(),
-                requestManager
+                requestSender
             );
         }
     }
@@ -71,26 +71,24 @@ public class HttpRequestSender implements Sender {
 
     private final ThreadPool threadPool;
     private final HttpClientManager manager;
-    private final RequestExecutorService service;
+    private final RequestExecutor service;
     private final AtomicBoolean started = new AtomicBoolean(false);
-    private final CountDownLatch startCompleted = new CountDownLatch(2);
+    private final CountDownLatch startCompleted = new CountDownLatch(1);
 
     private HttpRequestSender(
-        String serviceName,
         ThreadPool threadPool,
         HttpClientManager httpClientManager,
         ClusterService clusterService,
         Settings settings,
-        SingleRequestManager requestManager
+        RequestSender requestSender
     ) {
         this.threadPool = Objects.requireNonNull(threadPool);
         this.manager = Objects.requireNonNull(httpClientManager);
         service = new RequestExecutorService(
-            serviceName,
             threadPool,
             startCompleted,
             new RequestExecutorServiceSettings(settings, clusterService),
-            requestManager
+            requestSender
         );
     }
 
@@ -103,7 +101,17 @@ public class HttpRequestSender implements Sender {
             // is ready prior to the service attempting to use the http client to send a request
             manager.start();
             threadPool.executor(UTILITY_THREAD_POOL_NAME).execute(service::start);
-            startCompleted.countDown();
+            waitForStartToComplete();
+        }
+    }
+
+    private void waitForStartToComplete() {
+        try {
+            if (startCompleted.await(START_COMPLETED_WAIT_TIME.getSeconds(), TimeUnit.SECONDS) == false) {
+                throw new IllegalStateException("Http sender startup did not complete in time");
+            }
+        } catch (InterruptedException e) {
+            throw new IllegalStateException("Http sender interrupted while waiting for startup to complete");
         }
     }
 
@@ -132,15 +140,5 @@ public class HttpRequestSender implements Sender {
         assert started.get() : "call start() before sending a request";
         waitForStartToComplete();
         service.execute(requestCreator, inferenceInputs, timeout, listener);
-    }
-
-    private void waitForStartToComplete() {
-        try {
-            if (startCompleted.await(START_COMPLETED_WAIT_TIME.getSeconds(), TimeUnit.SECONDS) == false) {
-                throw new IllegalStateException("Http sender startup did not complete in time");
-            }
-        } catch (InterruptedException e) {
-            throw new IllegalStateException("Http sender interrupted while waiting for startup to complete");
-        }
     }
 }

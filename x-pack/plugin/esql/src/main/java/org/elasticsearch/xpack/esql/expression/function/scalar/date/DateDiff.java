@@ -11,17 +11,15 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
+import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
-import org.elasticsearch.xpack.ql.InvalidArgumentException;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.function.OptionalArgument;
-import org.elasticsearch.xpack.ql.tree.NodeInfo;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.time.Instant;
 import java.time.ZoneId;
@@ -36,19 +34,19 @@ import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.FIRST;
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.SECOND;
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.THIRD;
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isDate;
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isString;
-import static org.elasticsearch.xpack.ql.type.DataTypeConverter.safeToInt;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.THIRD;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isDate;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
+import static org.elasticsearch.xpack.esql.core.type.DataTypeConverter.safeToInt;
 
 /**
  * Subtract the second argument from the third argument and return their difference
  * in multiples of the unit specified in the first argument.
  * If the second argument (start) is greater than the third argument (end), then negative values are returned.
  */
-public class DateDiff extends EsqlScalarFunction implements OptionalArgument {
+public class DateDiff extends EsqlScalarFunction {
 
     public static final ZoneId UTC = ZoneId.of("Z");
 
@@ -145,7 +143,13 @@ public class DateDiff extends EsqlScalarFunction implements OptionalArgument {
         | millisecond | milliseconds, ms
         | microsecond | microseconds, mcs
         | nanosecond  | nanoseconds, ns
-        |===""", examples = @Example(file = "date", tag = "docsDateDiff"))
+        |===
+
+        Note that while there is an overlap between the function's supported units and
+        {esql}'s supported time span literals, these sets are distinct and not
+        interchangeable. Similarly, the supported abbreviations are conveniently shared
+        with implementations of this function in other established products and not
+        necessarily common with the date-time nomenclature used by {es}.""", examples = @Example(file = "date", tag = "docsDateDiff"))
     public DateDiff(
         Source source,
         @Param(name = "unit", type = { "keyword", "text" }, description = "Time difference unit") Expression unit,
@@ -214,7 +218,7 @@ public class DateDiff extends EsqlScalarFunction implements OptionalArgument {
 
     @Override
     public DataType dataType() {
-        return DataTypes.INTEGER;
+        return DataType.INTEGER;
     }
 
     @Override

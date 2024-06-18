@@ -7,6 +7,13 @@ Phases allowed: hot.
 Rolls over a target to a new index when the existing index satisfies
 the specified rollover conditions.
 
+[NOTE]
+====
+When an index is rolled over, the previous index's age is updated to reflect the rollover time. 
+This date, rather than the index's `creation_date`, is used in {ilm} 
+`min_age` phase calculations. <<min-age-calculation,Learn more>>.
+====
+
 IMPORTANT: If the rollover action is used on a <<ccr-put-follow,follower index>>,
 policy execution waits until the leader index rolls over (or is
 <<skipping-rollover, otherwise marked complete>>),
@@ -46,11 +53,11 @@ PUT my-index-000001
 [[ilm-rollover-options]]
 ==== Options
 
-A rollover action must specify at least one max_* condition, it may include zero
-or more min_* conditions. An empty rollover action is invalid.
+A rollover action must specify at least one `max_*` condition, it may include zero
+or more `min_*` conditions. An empty rollover action is invalid.
 
-The index will rollover once any max_* condition is satisfied and all
-min_* conditions are satisfied. Note, however, that empty indices are not rolled
+The index will roll over once any `max_*` condition is satisfied and all
+`min_*` conditions are satisfied. Note, however, that empty indices are not rolled
 over by default.
 
 // tag::rollover-conditions[]
@@ -256,7 +263,7 @@ PUT _ilm/policy/my_policy
 ===== Roll over using multiple conditions
 
 When you specify multiple rollover conditions,
-the index is rolled over when _any_ of the max_* and _all_ of the min_* conditions are met.
+the index is rolled over when _any_ of the `max_*` and _all_ of the `min_*` conditions are met.
 This example rolls the index over if it is at least 7 days old or at least 100 gigabytes,
 but only as long as the index contains at least 1000 documents.
 

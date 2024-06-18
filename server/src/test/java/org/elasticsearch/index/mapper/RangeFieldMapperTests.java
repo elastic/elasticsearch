@@ -331,7 +331,22 @@ public abstract class RangeFieldMapperTests extends MapperTestCase {
             var fromKey = includeFrom ? "gte" : "gt";
             var toKey = includeTo ? "lte" : "lt";
 
-            return (ToXContent) (builder, params) -> builder.startObject().field(fromKey, from).field(toKey, to).endObject();
+            return (ToXContent) (builder, params) -> {
+                builder.startObject();
+                if (includeFrom && from == null && randomBoolean()) {
+                    // skip field entirely since it is equivalent to a default value
+                } else {
+                    builder.field(fromKey, from);
+                }
+
+                if (includeTo && to == null && randomBoolean()) {
+                    // skip field entirely since it is equivalent to a default value
+                } else {
+                    builder.field(toKey, to);
+                }
+
+                return builder.endObject();
+            };
         }
 
         Object toExpectedSyntheticSource() {
@@ -339,24 +354,26 @@ public abstract class RangeFieldMapperTests extends MapperTestCase {
             // Also, "to" field always comes first.
             Map<String, Object> output = new LinkedHashMap<>();
 
-            // Range values are not properly normalized for default values
-            // which results in off by one error here.
-            // So "gte": null and "gt": null both result in "gte": MIN_VALUE.
-            // This is a bug, see #107282.
-            if (from == null) {
-                output.put("gte", rangeType().minValue());
-            } else if (includeFrom) {
-                output.put("gte", from);
+            if (includeFrom) {
+                if (from == null || from == rangeType().minValue()) {
+                    output.put("gte", null);
+                } else {
+                    output.put("gte", from);
+                }
             } else {
-                output.put("gte", type.nextUp(from));
+                var fromWithDefaults = from != null ? from : rangeType().minValue();
+                output.put("gte", type.nextUp(fromWithDefaults));
             }
 
-            if (to == null) {
-                output.put("lte", rangeType().maxValue());
-            } else if (includeTo) {
-                output.put("lte", to);
+            if (includeTo) {
+                if (to == null || to == rangeType().maxValue()) {
+                    output.put("lte", null);
+                } else {
+                    output.put("lte", to);
+                }
             } else {
-                output.put("lte", type.nextDown(to));
+                var toWithDefaults = to != null ? to : rangeType().maxValue();
+                output.put("lte", type.nextDown(toWithDefaults));
             }
 
             return output;
@@ -365,7 +382,11 @@ public abstract class RangeFieldMapperTests extends MapperTestCase {
         @Override
         public int compareTo(TestRange<T> o) {
             return Comparator.comparing((TestRange<T> r) -> r.from, Comparator.nullsFirst(Comparator.naturalOrder()))
-                .thenComparing((TestRange<T> r) -> r.to)
+                // `> a` is converted into `>= a + 1` and so included range end will be smaller in resulting source
+                .thenComparing(r -> r.includeFrom, Comparator.reverseOrder())
+                .thenComparing(r -> r.to, Comparator.nullsLast(Comparator.naturalOrder()))
+                // `< a` is converted into `<= a - 1` and so included range end will be larger in resulting source
+                .thenComparing(r -> r.includeTo)
                 .compare(this, o);
         }
     }
@@ -396,7 +417,7 @@ public abstract class RangeFieldMapperTests extends MapperTestCase {
             iw.addDocument(doc);
             iw.close();
             try (DirectoryReader reader = DirectoryReader.open(directory)) {
-                SourceProvider provider = SourceProvider.fromSyntheticSource(mapper.mapping());
+                SourceProvider provider = SourceProvider.fromSyntheticSource(mapper.mapping(), SourceFieldMetrics.NOOP);
                 Source syntheticSource = provider.getSource(getOnlyLeafReader(reader).getContext(), 0);
 
                 return syntheticSource;

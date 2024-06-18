@@ -24,10 +24,8 @@ information, see <<security-privileges>>.
 //[[watcher-api-start-path-params]]
 //==== {api-path-parms-title}
 
-[[watcher-api-start-query-params]]
-==== {api-query-parms-title}
-
-include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
+//[[watcher-api-start-query-params]]
+//==== {api-query-parms-title}
 
 //[[watcher-api-start-request-body]]
 //==== {api-request-body-title}

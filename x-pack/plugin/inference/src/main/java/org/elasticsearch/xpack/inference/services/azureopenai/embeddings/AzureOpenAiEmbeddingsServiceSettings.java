@@ -17,11 +17,12 @@ import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.SimilarityMeasure;
-import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiRateLimitServiceSettings;
+import org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiService;
+import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObject;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
 import java.io.IOException;
@@ -42,7 +43,10 @@ import static org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAi
 /**
  * Defines the service settings for interacting with OpenAI's text embedding models.
  */
-public class AzureOpenAiEmbeddingsServiceSettings implements ServiceSettings, AzureOpenAiRateLimitServiceSettings {
+public class AzureOpenAiEmbeddingsServiceSettings extends FilteredXContentObject
+    implements
+        ServiceSettings,
+        AzureOpenAiRateLimitServiceSettings {
 
     public static final String NAME = "azure_openai_embeddings_service_settings";
 
@@ -60,7 +64,7 @@ public class AzureOpenAiEmbeddingsServiceSettings implements ServiceSettings, Az
      *
      * According to the docs 1000 tokens per minute (TPM) = 6 requests per minute (RPM). The limits change depending on the region
      * and model. The lowest text embedding limit is 240K TPM, so we'll default to that.
-     * Calculation: 240K TPM = 240 * 6 = 1440 requests per minute
+     * Calculation: 240K TPM = 240 * 6 = 1440 requests per minute (used `eastus` and `Text-Embedding-Ada-002` as basis for the calculation).
      */
     private static final RateLimitSettings DEFAULT_RATE_LIMIT_SETTINGS = new RateLimitSettings(1_440);
 
@@ -87,14 +91,15 @@ public class AzureOpenAiEmbeddingsServiceSettings implements ServiceSettings, Az
         Integer dims = removeAsType(map, DIMENSIONS, Integer.class);
         Integer maxTokens = removeAsType(map, MAX_INPUT_TOKENS, Integer.class);
         SimilarityMeasure similarity = extractSimilarity(map, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        RateLimitSettings rateLimitSettings = RateLimitSettings.of(map, DEFAULT_RATE_LIMIT_SETTINGS, validationException);
-
-        Boolean dimensionsSetByUser = extractOptionalBoolean(
+        RateLimitSettings rateLimitSettings = RateLimitSettings.of(
             map,
-            DIMENSIONS_SET_BY_USER,
-            ModelConfigurations.SERVICE_SETTINGS,
-            validationException
+            DEFAULT_RATE_LIMIT_SETTINGS,
+            validationException,
+            AzureOpenAiService.NAME,
+            context
         );
+
+        Boolean dimensionsSetByUser = extractOptionalBoolean(map, DIMENSIONS_SET_BY_USER, validationException);
 
         switch (context) {
             case REQUEST -> {
@@ -247,14 +252,14 @@ public class AzureOpenAiEmbeddingsServiceSettings implements ServiceSettings, Az
         builder.startObject();
 
         toXContentFragmentOfExposedFields(builder, params);
-
         builder.field(DIMENSIONS_SET_BY_USER, dimensionsSetByUser);
 
         builder.endObject();
         return builder;
     }
 
-    private void toXContentFragmentOfExposedFields(XContentBuilder builder, Params params) throws IOException {
+    @Override
+    protected XContentBuilder toXContentFragmentOfExposedFields(XContentBuilder builder, Params params) throws IOException {
         builder.field(RESOURCE_NAME, resourceName);
         builder.field(DEPLOYMENT_ID, deploymentId);
         builder.field(API_VERSION, apiVersion);
@@ -269,18 +274,8 @@ public class AzureOpenAiEmbeddingsServiceSettings implements ServiceSettings, Az
             builder.field(SIMILARITY, similarity);
         }
         rateLimitSettings.toXContent(builder, params);
-    }
 
-    @Override
-    public ToXContentObject getFilteredXContentObject() {
-        return (builder, params) -> {
-            builder.startObject();
-
-            toXContentFragmentOfExposedFields(builder, params);
-
-            builder.endObject();
-            return builder;
-        };
+        return builder;
     }
 
     @Override

@@ -21,7 +21,6 @@ import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiServiceFields;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettingsTests;
-import org.hamcrest.CoreMatchers;
 import org.hamcrest.MatcherAssert;
 
 import java.io.IOException;
@@ -364,7 +363,7 @@ public class AzureOpenAiEmbeddingsServiceSettingsTests extends AbstractWireSeria
         entity.toXContent(builder, null);
         String xContentResult = Strings.toString(builder);
 
-        assertThat(xContentResult, CoreMatchers.is("""
+        assertThat(xContentResult, is("""
             {"resource_name":"resource","deployment_id":"deployment","api_version":"apiVersion",""" + """
             "rate_limit":{"requests_per_minute":2},"dimensions_set_by_user":true}"""));
     }
@@ -385,12 +384,12 @@ public class AzureOpenAiEmbeddingsServiceSettingsTests extends AbstractWireSeria
         entity.toXContent(builder, null);
         String xContentResult = Strings.toString(builder);
 
-        assertThat(xContentResult, CoreMatchers.is("""
+        assertThat(xContentResult, is("""
             {"resource_name":"resource","deployment_id":"deployment","api_version":"apiVersion",""" + """
             "dimensions":1024,"max_input_tokens":512,"rate_limit":{"requests_per_minute":3},"dimensions_set_by_user":false}"""));
     }
 
-    public void testToFilteredXContent_WritesAllValues_ExceptDimensionsSetByUser() throws IOException {
+    public void testToFilteredXContent_WritesAllValues_Except_DimensionsSetByUser() throws IOException {
         var entity = new AzureOpenAiEmbeddingsServiceSettings(
             "resource",
             "deployment",
@@ -407,7 +406,7 @@ public class AzureOpenAiEmbeddingsServiceSettingsTests extends AbstractWireSeria
         filteredXContent.toXContent(builder, null);
         String xContentResult = Strings.toString(builder);
 
-        assertThat(xContentResult, CoreMatchers.is("""
+        assertThat(xContentResult, is("""
             {"resource_name":"resource","deployment_id":"deployment","api_version":"apiVersion",""" + """
             "dimensions":1024,"max_input_tokens":512,"rate_limit":{"requests_per_minute":1}}"""));
     }
@@ -424,7 +423,7 @@ public class AzureOpenAiEmbeddingsServiceSettingsTests extends AbstractWireSeria
 
     @Override
     protected AzureOpenAiEmbeddingsServiceSettings mutateInstance(AzureOpenAiEmbeddingsServiceSettings instance) throws IOException {
-        return createRandom();
+        return randomValueOtherThan(instance, AzureOpenAiEmbeddingsServiceSettingsTests::createRandom);
     }
 
     public static Map<String, Object> getPersistentAzureOpenAiServiceSettingsMap(

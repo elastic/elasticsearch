@@ -12,6 +12,7 @@ import org.apache.lucene.search.spell.LevenshteinDistance;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
@@ -75,8 +76,20 @@ public abstract class BaseRestHandler implements RestHandler {
     @Override
     public abstract List<Route> routes();
 
+    private static final Set<String> ALWAYS_SUPPORTED = Set.of("format", "filter_path", "pretty", "human");
+
     @Override
     public final void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
+        // check if the query has any parameters that are not in the supported set (if declared)
+        Set<String> supported = allSupportedParameters();
+        if (supported != null) {
+            var allSupported = Sets.union(RestResponse.RESPONSE_PARAMS, ALWAYS_SUPPORTED, supported);
+            if (allSupported.containsAll(request.params().keySet()) == false) {
+                Set<String> unsupported = Sets.difference(request.params().keySet(), allSupported);
+                throw new IllegalArgumentException(unrecognized(request, unsupported, allSupported, "parameter"));
+            }
+        }
+
         // prepare the request for execution; has the side effect of touching the request parameters
         try (var action = prepareRequest(request, client)) {
 
@@ -84,6 +97,7 @@ public abstract class BaseRestHandler implements RestHandler {
             // use a sorted set so the unconsumed parameters appear in a reliable sorted order
             final SortedSet<String> unconsumedParams = request.unconsumedParams()
                 .stream()
+                .filter(p -> RestResponse.RESPONSE_PARAMS.contains(p) == false)
                 .filter(p -> responseParams(request.getRestApiVersion()).contains(p) == false)
                 .collect(Collectors.toCollection(TreeSet::new));
 

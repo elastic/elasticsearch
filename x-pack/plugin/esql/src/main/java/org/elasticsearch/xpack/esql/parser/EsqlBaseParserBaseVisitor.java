@@ -221,21 +221,7 @@ public class EsqlBaseParserBaseVisitor<T> extends AbstractParseTreeVisitor<T> im
    * <p>The default implementation returns the result of calling
    * {@link #visitChildren} on {@code ctx}.</p>
    */
-  @Override public T visitFromIdentifier(EsqlBaseParser.FromIdentifierContext ctx) { return visitChildren(ctx); }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation returns the result of calling
-   * {@link #visitChildren} on {@code ctx}.</p>
-   */
-  @Override public T visitFromOptions(EsqlBaseParser.FromOptionsContext ctx) { return visitChildren(ctx); }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation returns the result of calling
-   * {@link #visitChildren} on {@code ctx}.</p>
-   */
-  @Override public T visitConfigOption(EsqlBaseParser.ConfigOptionContext ctx) { return visitChildren(ctx); }
+  @Override public T visitIndexIdentifier(EsqlBaseParser.IndexIdentifierContext ctx) { return visitChildren(ctx); }
   /**
    * {@inheritDoc}
    *
@@ -257,6 +243,13 @@ public class EsqlBaseParserBaseVisitor<T> extends AbstractParseTreeVisitor<T> im
    * {@link #visitChildren} on {@code ctx}.</p>
    */
   @Override public T visitDeprecated_metadata(EsqlBaseParser.Deprecated_metadataContext ctx) { return visitChildren(ctx); }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation returns the result of calling
+   * {@link #visitChildren} on {@code ctx}.</p>
+   */
+  @Override public T visitMetricsCommand(EsqlBaseParser.MetricsCommandContext ctx) { return visitChildren(ctx); }
   /**
    * {@inheritDoc}
    *
@@ -292,6 +285,13 @@ public class EsqlBaseParserBaseVisitor<T> extends AbstractParseTreeVisitor<T> im
    * {@link #visitChildren} on {@code ctx}.</p>
    */
   @Override public T visitQualifiedNamePattern(EsqlBaseParser.QualifiedNamePatternContext ctx) { return visitChildren(ctx); }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation returns the result of calling
+   * {@link #visitChildren} on {@code ctx}.</p>
+   */
+  @Override public T visitQualifiedNamePatterns(EsqlBaseParser.QualifiedNamePatternsContext ctx) { return visitChildren(ctx); }
   /**
    * {@inheritDoc}
    *
@@ -347,7 +347,7 @@ public class EsqlBaseParserBaseVisitor<T> extends AbstractParseTreeVisitor<T> im
    * <p>The default implementation returns the result of calling
    * {@link #visitChildren} on {@code ctx}.</p>
    */
-  @Override public T visitInputParam(EsqlBaseParser.InputParamContext ctx) { return visitChildren(ctx); }
+  @Override public T visitInputParams(EsqlBaseParser.InputParamsContext ctx) { return visitChildren(ctx); }
   /**
    * {@inheritDoc}
    *
@@ -376,6 +376,20 @@ public class EsqlBaseParserBaseVisitor<T> extends AbstractParseTreeVisitor<T> im
    * {@link #visitChildren} on {@code ctx}.</p>
    */
   @Override public T visitStringArrayLiteral(EsqlBaseParser.StringArrayLiteralContext ctx) { return visitChildren(ctx); }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation returns the result of calling
+   * {@link #visitChildren} on {@code ctx}.</p>
+   */
+  @Override public T visitInputParam(EsqlBaseParser.InputParamContext ctx) { return visitChildren(ctx); }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation returns the result of calling
+   * {@link #visitChildren} on {@code ctx}.</p>
+   */
+  @Override public T visitInputNamedOrPositionalParam(EsqlBaseParser.InputNamedOrPositionalParamContext ctx) { return visitChildren(ctx); }
   /**
    * {@inheritDoc}
    *
@@ -544,4 +558,11 @@ public class EsqlBaseParserBaseVisitor<T> extends AbstractParseTreeVisitor<T> im
    * {@link #visitChildren} on {@code ctx}.</p>
    */
   @Override public T visitEnrichWithClause(EsqlBaseParser.EnrichWithClauseContext ctx) { return visitChildren(ctx); }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation returns the result of calling
+   * {@link #visitChildren} on {@code ctx}.</p>
+   */
+  @Override public T visitLookupCommand(EsqlBaseParser.LookupCommandContext ctx) { return visitChildren(ctx); }
 }

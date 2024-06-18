@@ -461,6 +461,8 @@ public class IndexServiceTests extends ESSingleNodeTestCase {
     }
 
     public static void closeIndexService(IndexService indexService) throws IOException {
-        indexService.close("IndexServiceTests#closeIndexService", false);
+        CloseUtils.executeDirectly(
+            l -> indexService.close("IndexServiceTests#closeIndexService", false, EsExecutors.DIRECT_EXECUTOR_SERVICE, l)
+        );
     }
 }

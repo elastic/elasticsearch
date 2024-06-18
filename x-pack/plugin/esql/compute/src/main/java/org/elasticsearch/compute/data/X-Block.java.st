@@ -57,6 +57,14 @@ $endif$
     @Override
     $Type$Vector asVector();
 
+$if(BytesRef)$
+    /**
+     * Returns an ordinal bytesref block if this block is backed by a dictionary and ordinals; otherwise,
+     * returns null. Callers must not release the returned block as no extra reference is retained by this method.
+     */
+    OrdinalBytesRefBlock asOrdinals();
+$endif$
+
     @Override
     $Type$Block filter(int... positions);
 
@@ -238,6 +246,8 @@ $elseif(boolean)$
                     result = 31 * result + Boolean.hashCode(block.getBoolean(firstValueIdx + valueIndex));
 $elseif(int)$
                     result = 31 * result + block.getInt(firstValueIdx + valueIndex);
+$elseif(float)$
+                    result = 31 * result + Float.floatToIntBits(block.getFloat(pos));
 $elseif(long)$
                     long element = block.getLong(firstValueIdx + valueIndex);
                     result = 31 * result + (int) (element ^ (element >>> 32));

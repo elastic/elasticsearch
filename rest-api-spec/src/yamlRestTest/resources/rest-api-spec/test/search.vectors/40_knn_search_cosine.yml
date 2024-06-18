@@ -1,6 +1,6 @@
 setup:
-  - skip:
-      version: ' - 7.99.99'
+  - requires:
+      cluster_features: "gte_v8.0.0"
       reason: 'kNN search added in 8.0'
   - do:
       indices.create:
@@ -96,10 +96,10 @@ setup:
 
 ---
 "kNN search only regular query":
-  - skip:
-      version: ' - 8.3.99'
+  - requires:
+      cluster_features: "gte_v8.4.0"
       reason: 'kNN added to search endpoint in 8.4'
-      features: close_to
+      test_runner_features: "close_to"
   - do:
       search:
         index: test

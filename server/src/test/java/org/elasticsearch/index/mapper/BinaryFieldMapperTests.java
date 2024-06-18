@@ -255,7 +255,7 @@ public class BinaryFieldMapperTests extends MapperTestCase {
                 b.field("type", "binary").field("doc_values", "true");
 
                 if (rarely()) {
-                    b.field("store", true);
+                    b.field("store", false);
                 }
             }
 

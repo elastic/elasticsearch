@@ -11,8 +11,11 @@ package org.elasticsearch.ingest.geoip;
 import com.maxmind.geoip2.model.AnonymousIpResponse;
 import com.maxmind.geoip2.model.AsnResponse;
 import com.maxmind.geoip2.model.CityResponse;
+import com.maxmind.geoip2.model.ConnectionTypeResponse;
 import com.maxmind.geoip2.model.CountryResponse;
+import com.maxmind.geoip2.model.DomainResponse;
 import com.maxmind.geoip2.model.EnterpriseResponse;
+import com.maxmind.geoip2.model.IspResponse;
 
 import org.elasticsearch.core.Nullable;
 
@@ -59,7 +62,16 @@ public interface GeoIpDatabase {
     AnonymousIpResponse getAnonymousIp(InetAddress ipAddress);
 
     @Nullable
+    ConnectionTypeResponse getConnectionType(InetAddress ipAddress);
+
+    @Nullable
+    DomainResponse getDomain(InetAddress ipAddress);
+
+    @Nullable
     EnterpriseResponse getEnterprise(InetAddress ipAddress);
+
+    @Nullable
+    IspResponse getIsp(InetAddress ipAddress);
 
     /**
      * Releases the current database object. Called after processing a single document. Databases should be closed or returned to a

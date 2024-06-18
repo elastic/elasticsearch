@@ -23,7 +23,7 @@ import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
-public class FeatureUpgradeIT extends ParameterizedRollingUpgradeTestCase {
+public class FeatureUpgradeIT extends AbstractRollingUpgradeTestCase {
 
     public FeatureUpgradeIT(@Name("upgradedNodes") int upgradedNodes) {
         super(upgradedNodes);

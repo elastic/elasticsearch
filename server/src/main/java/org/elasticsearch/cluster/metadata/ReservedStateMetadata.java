@@ -47,6 +47,8 @@ public record ReservedStateMetadata(
 ) implements SimpleDiffable<ReservedStateMetadata>, ToXContentFragment {
 
     public static final Long NO_VERSION = Long.MIN_VALUE; // use min long as sentinel for uninitialized version
+    public static final Long EMPTY_VERSION = -1L; // use -1 as sentinel for empty metadata
+    public static final Long RESTORED_VERSION = 0L; // use 0 as sentinel for metadata restored from snapshot
 
     private static final ParseField VERSION = new ParseField("version");
     private static final ParseField HANDLERS = new ParseField("handlers");

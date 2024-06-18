@@ -26,6 +26,7 @@ import org.elasticsearch.action.admin.cluster.shards.TransportClusterSearchShard
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -150,6 +151,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     private final int defaultPreFilterShardSize;
     private final boolean ccsCheckCompatibility;
     private final SearchResponseMetrics searchResponseMetrics;
+    private final Client client;
 
     @Inject
     public TransportSearchAction(
@@ -165,7 +167,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         NamedWriteableRegistry namedWriteableRegistry,
         ExecutorSelector executorSelector,
         SearchTransportAPMMetrics searchTransportMetrics,
-        SearchResponseMetrics searchResponseMetrics
+        SearchResponseMetrics searchResponseMetrics,
+        Client client
     ) {
         super(TYPE.name(), transportService, actionFilters, SearchRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.threadPool = threadPool;
@@ -183,6 +186,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         this.defaultPreFilterShardSize = DEFAULT_PRE_FILTER_SHARD_SIZE.get(clusterService.getSettings());
         this.ccsCheckCompatibility = SearchService.CCS_VERSION_CHECK_SETTING.get(clusterService.getSettings());
         this.searchResponseMetrics = searchResponseMetrics;
+        this.client = client;
     }
 
     private Map<String, OriginalIndices> buildPerIndexOriginalIndices(
@@ -1303,8 +1307,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     task,
                     true,
                     searchService.getCoordinatorRewriteContextProvider(timeProvider::absoluteStartMillis),
-                    listener.delegateFailureAndWrap((l, iters) -> {
-                        SearchPhase action = newSearchPhase(
+                    listener.delegateFailureAndWrap(
+                        (l, iters) -> newSearchPhase(
                             task,
                             searchRequest,
                             executor,
@@ -1317,30 +1321,32 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                             false,
                             threadPool,
                             clusters
-                        );
-                        action.start();
-                    })
+                        ).start()
+                    )
                 );
-            } else {
-                // for synchronous CCS minimize_roundtrips=false, use the CCSSingleCoordinatorSearchProgressListener
-                // (AsyncSearchTask will not return SearchProgressListener.NOOP, since it uses its own progress listener
-                // which delegates to CCSSingleCoordinatorSearchProgressListener when minimizing roundtrips)
-                if (clusters.isCcsMinimizeRoundtrips() == false
-                    && clusters.hasRemoteClusters()
-                    && task.getProgressListener() == SearchProgressListener.NOOP) {
-                    task.setProgressListener(new CCSSingleCoordinatorSearchProgressListener());
-                }
-                final SearchPhaseResults<SearchPhaseResult> queryResultConsumer = searchPhaseController.newSearchPhaseResults(
-                    executor,
-                    circuitBreaker,
-                    task::isCancelled,
-                    task.getProgressListener(),
-                    searchRequest,
-                    shardIterators.size(),
-                    exc -> searchTransportService.cancelSearchTask(task, "failed to merge result [" + exc.getMessage() + "]")
-                );
+            }
+            // for synchronous CCS minimize_roundtrips=false, use the CCSSingleCoordinatorSearchProgressListener
+            // (AsyncSearchTask will not return SearchProgressListener.NOOP, since it uses its own progress listener
+            // which delegates to CCSSingleCoordinatorSearchProgressListener when minimizing roundtrips)
+            if (clusters.isCcsMinimizeRoundtrips() == false
+                && clusters.hasRemoteClusters()
+                && task.getProgressListener() == SearchProgressListener.NOOP) {
+                task.setProgressListener(new CCSSingleCoordinatorSearchProgressListener());
+            }
+            final SearchPhaseResults<SearchPhaseResult> queryResultConsumer = searchPhaseController.newSearchPhaseResults(
+                executor,
+                circuitBreaker,
+                task::isCancelled,
+                task.getProgressListener(),
+                searchRequest,
+                shardIterators.size(),
+                exc -> searchTransportService.cancelSearchTask(task, "failed to merge result [" + exc.getMessage() + "]")
+            );
+            boolean success = false;
+            try {
+                final SearchPhase searchPhase;
                 if (searchRequest.searchType() == DFS_QUERY_THEN_FETCH) {
-                    return new SearchDfsQueryThenFetchAsyncAction(
+                    searchPhase = new SearchDfsQueryThenFetchAsyncAction(
                         logger,
                         namedWriteableRegistry,
                         searchTransportService,
@@ -1355,11 +1361,12 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         timeProvider,
                         clusterState,
                         task,
-                        clusters
+                        clusters,
+                        client
                     );
                 } else {
                     assert searchRequest.searchType() == QUERY_THEN_FETCH : searchRequest.searchType();
-                    return new SearchQueryThenFetchAsyncAction(
+                    searchPhase = new SearchQueryThenFetchAsyncAction(
                         logger,
                         namedWriteableRegistry,
                         searchTransportService,
@@ -1374,8 +1381,15 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         timeProvider,
                         clusterState,
                         task,
-                        clusters
+                        clusters,
+                        client
                     );
+                }
+                success = true;
+                return searchPhase;
+            } finally {
+                if (success == false) {
+                    queryResultConsumer.close();
                 }
             }
         }

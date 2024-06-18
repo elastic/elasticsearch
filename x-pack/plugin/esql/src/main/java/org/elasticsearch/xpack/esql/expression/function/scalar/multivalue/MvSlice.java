@@ -16,29 +16,31 @@ import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
+import org.elasticsearch.xpack.esql.core.expression.function.OptionalArgument;
+import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
+import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
-import org.elasticsearch.xpack.ql.InvalidArgumentException;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.function.OptionalArgument;
-import org.elasticsearch.xpack.ql.tree.NodeInfo;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
 
 import java.util.Arrays;
 import java.util.List;
 import java.util.function.Function;
 
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.THIRD;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
+import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToInt;
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.FIRST;
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.SECOND;
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.THIRD;
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isInteger;
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isType;
 
 /**
  * Returns a subset of the multivalued field using the start and end index values.
@@ -61,7 +63,8 @@ public class MvSlice extends EsqlScalarFunction implements OptionalArgument, Eva
             "long",
             "text",
             "version" },
-        description = "Returns a subset of the multivalued field using the start and end index values."
+        description = "Returns a subset of the multivalued field using the start and end index values.",
+        examples = { @Example(file = "ints", tag = "mv_slice_positive"), @Example(file = "ints", tag = "mv_slice_negative") }
     )
     public MvSlice(
         Source source,
@@ -81,10 +84,21 @@ public class MvSlice extends EsqlScalarFunction implements OptionalArgument, Eva
                 "long",
                 "text",
                 "version" },
-            description = "A multivalued field"
+            description = "Multivalue expression. If `null`, the function returns `null`."
         ) Expression field,
-        @Param(name = "start", type = { "integer" }, description = "start index") Expression start,
-        @Param(name = "end", type = { "integer" }, description = "end index (included)", optional = true) Expression end
+        @Param(
+            name = "start",
+            type = { "integer" },
+            description = "Start position. If `null`, the function returns `null`. "
+                + "The start argument can be negative. An index of -1 is used to specify the last value in the list."
+        ) Expression start,
+        @Param(
+            name = "end",
+            type = { "integer" },
+            description = "End position(included). Optional; if omitted, the position at `start` is returned. "
+                + "The end argument can be negative. An index of -1 is used to specify the last value in the list.",
+            optional = true
+        ) Expression end
     ) {
         super(source, end == null ? Arrays.asList(field, start, start) : Arrays.asList(field, start, end));
         this.field = field;
@@ -103,13 +117,13 @@ public class MvSlice extends EsqlScalarFunction implements OptionalArgument, Eva
             return resolution;
         }
 
-        resolution = isInteger(start, sourceText(), SECOND);
+        resolution = TypeResolutions.isType(start, dt -> dt == INTEGER, sourceText(), SECOND, "integer");
         if (resolution.unresolved()) {
             return resolution;
         }
 
         if (end != null) {
-            resolution = isInteger(end, sourceText(), THIRD);
+            resolution = TypeResolutions.isType(end, dt -> dt == INTEGER, sourceText(), THIRD, "integer");
             if (resolution.unresolved()) {
                 return resolution;
             }

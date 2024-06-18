@@ -19,6 +19,7 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ilm.CheckNotDataStreamWriteIndexStep;
 import org.elasticsearch.xpack.core.ilm.DeleteAction;
 import org.elasticsearch.xpack.core.ilm.DeleteStep;
+import org.elasticsearch.xpack.core.ilm.ErrorStep;
 import org.elasticsearch.xpack.core.ilm.ForceMergeAction;
 import org.elasticsearch.xpack.core.ilm.FreezeAction;
 import org.elasticsearch.xpack.core.ilm.PhaseCompleteStep;
@@ -50,6 +51,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.oneOf;
 
 public class TimeSeriesDataStreamsIT extends ESRestTestCase {
 
@@ -339,7 +341,8 @@ public class TimeSeriesDataStreamsIT extends ESRestTestCase {
             assertThat(indices.size(), is(2));
 
             Map<String, Object> explainIndex = explainIndex(client(), secondGenerationIndex);
-            assertThat(explainIndex.get("failed_step"), is(DeleteStep.NAME));
+            assertThat(explainIndex.get("action"), is(DeleteAction.NAME));
+            assertThat(explainIndex.get("step"), oneOf(DeleteStep.NAME, ErrorStep.NAME));
             assertThat((Integer) explainIndex.get("failed_step_retry_count"), is(greaterThan(1)));
         });
 

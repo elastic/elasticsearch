@@ -19,6 +19,7 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.snapshots.SearchableSnapshotsSettings;
@@ -223,14 +224,14 @@ public class DataTier {
         @Override
         public Settings getAdditionalIndexSettings(
             String indexName,
-            String dataStreamName,
-            boolean timeSeries,
+            @Nullable String dataStreamName,
+            boolean isTimeSeries,
             Metadata metadata,
             Instant resolvedAt,
-            Settings allSettings,
+            Settings indexTemplateAndCreateRequestSettings,
             List<CompressedXContent> combinedTemplateMappings
         ) {
-            Set<String> settings = allSettings.keySet();
+            Set<String> settings = indexTemplateAndCreateRequestSettings.keySet();
             if (settings.contains(TIER_PREFERENCE)) {
                 // just a marker -- this null value will be removed or overridden by the template/request settings
                 return NULL_TIER_PREFERENCE_SETTINGS;

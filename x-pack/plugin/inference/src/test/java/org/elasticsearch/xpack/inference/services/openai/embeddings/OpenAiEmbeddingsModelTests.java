@@ -16,7 +16,7 @@ import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings
 
 import java.util.Map;
 
-import static org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsRequestTaskSettingsTests.getRequestTaskSettingsMap;
+import static org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsRequestTaskSettingsTests.createRequestTaskSettingsMap;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.sameInstance;
 
@@ -24,7 +24,7 @@ public class OpenAiEmbeddingsModelTests extends ESTestCase {
 
     public void testOverrideWith_OverridesUser() {
         var model = createModel("url", "org", "api_key", "model_name", null);
-        var requestTaskSettingsMap = getRequestTaskSettingsMap("user_override");
+        var requestTaskSettingsMap = createRequestTaskSettingsMap("user_override");
 
         var overriddenModel = OpenAiEmbeddingsModel.of(model, requestTaskSettingsMap);
 

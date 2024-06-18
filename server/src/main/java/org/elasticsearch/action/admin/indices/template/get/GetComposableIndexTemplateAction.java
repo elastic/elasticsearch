@@ -16,7 +16,6 @@ import org.elasticsearch.action.admin.indices.rollover.RolloverConfiguration;
 import org.elasticsearch.action.support.master.MasterNodeReadRequest;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStreamGlobalRetention;
-import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
@@ -50,6 +49,7 @@ public class GetComposableIndexTemplateAction extends ActionType<GetComposableIn
          * @param name A template name or pattern, or {@code null} to retrieve all templates.
          */
         public Request(@Nullable String name) {
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
             if (name != null && name.contains(",")) {
                 throw new IllegalArgumentException("template name may not contain ','");
             }
@@ -196,13 +196,7 @@ public class GetComposableIndexTemplateAction extends ActionType<GetComposableIn
                 builder.startObject();
                 builder.field(NAME.getPreferredName(), indexTemplate.getKey());
                 builder.field(INDEX_TEMPLATE.getPreferredName());
-                indexTemplate.getValue()
-                    .toXContent(
-                        builder,
-                        DataStreamLifecycle.maybeAddEffectiveRetentionParams(params),
-                        rolloverConfiguration,
-                        globalRetention
-                    );
+                indexTemplate.getValue().toXContent(builder, params, rolloverConfiguration);
                 builder.endObject();
             }
             builder.endArray();

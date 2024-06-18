@@ -23,6 +23,7 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
+import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.NestedLookup;
 import org.elasticsearch.index.mapper.NestedObjectMapper;
@@ -193,9 +194,9 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
             IndexFieldData.Builder builder = fieldType.fielddataBuilder(fdc);
             return builder.build(new IndexFieldDataCache.None(), null);
         };
-        NestedLookup nestedLookup = NestedLookup.build(
-            List.of(new NestedObjectMapper.Builder("path", IndexVersion.current()).build(MapperBuilderContext.root(false, false)))
-        );
+        NestedLookup nestedLookup = NestedLookup.build(List.of(new NestedObjectMapper.Builder("path", IndexVersion.current(), query -> {
+            throw new UnsupportedOperationException();
+        }).build(MapperBuilderContext.root(false, false))));
         return new SearchExecutionContext(
             0,
             0,
@@ -215,7 +216,8 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
             null,
             () -> true,
             null,
-            emptyMap()
+            emptyMap(),
+            MapperMetrics.NOOP
         ) {
 
             @Override

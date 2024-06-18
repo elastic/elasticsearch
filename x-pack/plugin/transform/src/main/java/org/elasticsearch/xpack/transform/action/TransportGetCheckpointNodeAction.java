@@ -6,6 +6,8 @@
  */
 package org.elasticsearch.xpack.transform.action;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
@@ -34,6 +36,7 @@ import java.util.Set;
 
 public class TransportGetCheckpointNodeAction extends HandledTransportAction<Request, Response> {
 
+    private static final Logger logger = LogManager.getLogger(TransportGetCheckpointNodeAction.class);
     private final IndicesService indicesService;
 
     @Inject
@@ -83,17 +86,27 @@ public class TransportGetCheckpointNodeAction extends HandledTransportAction<Req
                     return;
                 }
             }
-            final IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
-            final IndexShard indexShard = indexService.getShard(shardId.id());
 
-            checkpointsByIndexOfThisNode.computeIfAbsent(shardId.getIndexName(), k -> {
-                long[] seqNumbers = new long[indexService.getIndexSettings().getNumberOfShards()];
-                Arrays.fill(seqNumbers, SequenceNumbers.UNASSIGNED_SEQ_NO);
-                return seqNumbers;
-            });
-            checkpointsByIndexOfThisNode.get(shardId.getIndexName())[shardId.getId()] = indexShard.seqNoStats().getGlobalCheckpoint();
-            ++numProcessedShards;
+            try {
+                final IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
+                final IndexShard indexShard = indexService.getShard(shardId.id());
+
+                checkpointsByIndexOfThisNode.computeIfAbsent(shardId.getIndexName(), k -> {
+                    long[] seqNumbers = new long[indexService.getIndexSettings().getNumberOfShards()];
+                    Arrays.fill(seqNumbers, SequenceNumbers.UNASSIGNED_SEQ_NO);
+                    return seqNumbers;
+                });
+                checkpointsByIndexOfThisNode.get(shardId.getIndexName())[shardId.getId()] = indexShard.seqNoStats().getGlobalCheckpoint();
+                ++numProcessedShards;
+            } catch (Exception e) {
+                logger.atDebug()
+                    .withThrowable(e)
+                    .log("Failed to get checkpoint for shard [{}] and index [{}]", shardId.getId(), shardId.getIndexName());
+                listener.onFailure(e);
+                return;
+            }
         }
+
         listener.onResponse(new Response(checkpointsByIndexOfThisNode));
     }
 }

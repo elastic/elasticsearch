@@ -14,20 +14,18 @@ import org.elasticsearch.compute.aggregation.ValuesDoubleAggregatorFunctionSuppl
 import org.elasticsearch.compute.aggregation.ValuesIntAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.ValuesLongAggregatorFunctionSupplier;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.EsqlTypeResolutions;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.planner.ToAggregator;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.function.aggregate.AggregateFunction;
-import org.elasticsearch.xpack.ql.tree.NodeInfo;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.util.List;
 
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.DEFAULT;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 
 public class Values extends AggregateFunction implements ToAggregator {
     @FunctionInfo(
@@ -65,19 +63,19 @@ public class Values extends AggregateFunction implements ToAggregator {
     @Override
     public AggregatorFunctionSupplier supplier(List<Integer> inputChannels) {
         DataType type = field().dataType();
-        if (type == DataTypes.INTEGER) {
+        if (type == DataType.INTEGER) {
             return new ValuesIntAggregatorFunctionSupplier(inputChannels);
         }
-        if (type == DataTypes.LONG || type == DataTypes.DATETIME) {
+        if (type == DataType.LONG || type == DataType.DATETIME) {
             return new ValuesLongAggregatorFunctionSupplier(inputChannels);
         }
-        if (type == DataTypes.DOUBLE) {
+        if (type == DataType.DOUBLE) {
             return new ValuesDoubleAggregatorFunctionSupplier(inputChannels);
         }
-        if (DataTypes.isString(type) || type == DataTypes.IP || type == DataTypes.VERSION) {
+        if (DataType.isString(type) || type == DataType.IP || type == DataType.VERSION) {
             return new ValuesBytesRefAggregatorFunctionSupplier(inputChannels);
         }
-        if (type == DataTypes.BOOLEAN) {
+        if (type == DataType.BOOLEAN) {
             return new ValuesBooleanAggregatorFunctionSupplier(inputChannels);
         }
         // TODO cartesian_point, geo_point

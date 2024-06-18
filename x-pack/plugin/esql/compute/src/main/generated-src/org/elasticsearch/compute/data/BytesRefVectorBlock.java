@@ -33,6 +33,16 @@ public final class BytesRefVectorBlock extends AbstractVectorBlock implements By
     }
 
     @Override
+    public OrdinalBytesRefBlock asOrdinals() {
+        var ordinals = vector.asOrdinals();
+        if (ordinals != null) {
+            return ordinals.asBlock();
+        } else {
+            return null;
+        }
+    }
+
+    @Override
     public BytesRef getBytesRef(int valueIndex, BytesRef dest) {
         return vector.getBytesRef(valueIndex, dest);
     }
@@ -53,9 +63,8 @@ public final class BytesRefVectorBlock extends AbstractVectorBlock implements By
     }
 
     @Override
-    public ReleasableIterator<BytesRefBlock> lookup(IntBlock positions, ByteSizeValue targetBlockSize) {
-        // TODO optimizations
-        return new BytesRefLookup(this, positions, targetBlockSize);
+    public ReleasableIterator<? extends BytesRefBlock> lookup(IntBlock positions, ByteSizeValue targetBlockSize) {
+        return vector.lookup(positions, targetBlockSize);
     }
 
     @Override

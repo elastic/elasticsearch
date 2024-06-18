@@ -118,6 +118,9 @@ public abstract class DocumentParserContext {
     private final Set<String> fieldsAppliedFromTemplates;
     private final Set<String> copyToFields;
 
+    // Indicates if the source for this context has been cloned and gets parsed multiple times.
+    private boolean clonedSource;
+
     private DocumentParserContext(
         MappingLookup mappingLookup,
         MappingParserContext mappingParserContext,
@@ -135,7 +138,8 @@ public abstract class DocumentParserContext {
         ObjectMapper.Dynamic dynamic,
         Set<String> fieldsAppliedFromTemplates,
         Set<String> copyToFields,
-        DynamicMapperSize dynamicMapperSize
+        DynamicMapperSize dynamicMapperSize,
+        boolean clonedSource
     ) {
         this.mappingLookup = mappingLookup;
         this.mappingParserContext = mappingParserContext;
@@ -154,6 +158,7 @@ public abstract class DocumentParserContext {
         this.fieldsAppliedFromTemplates = fieldsAppliedFromTemplates;
         this.copyToFields = copyToFields;
         this.dynamicMappersSize = dynamicMapperSize;
+        this.clonedSource = clonedSource;
     }
 
     private DocumentParserContext(ObjectMapper parent, ObjectMapper.Dynamic dynamic, DocumentParserContext in) {
@@ -174,7 +179,8 @@ public abstract class DocumentParserContext {
             dynamic,
             in.fieldsAppliedFromTemplates,
             in.copyToFields,
-            in.dynamicMappersSize
+            in.dynamicMappersSize,
+            in.clonedSource
         );
     }
 
@@ -202,7 +208,8 @@ public abstract class DocumentParserContext {
             dynamic,
             new HashSet<>(),
             new HashSet<>(),
-            new DynamicMapperSize()
+            new DynamicMapperSize(),
+            false
         );
     }
 
@@ -260,7 +267,10 @@ public abstract class DocumentParserContext {
      * Add the given ignored values to the corresponding list.
      */
     public final void addIgnoredField(IgnoredSourceFieldMapper.NameValue values) {
-        ignoredFieldValues.add(values);
+        if (canAddIgnoredField()) {
+            // Skip tracking the source for this field twice, it's already tracked for the entire parsing subcontext.
+            ignoredFieldValues.add(values);
+        }
     }
 
     /**
@@ -305,6 +315,18 @@ public abstract class DocumentParserContext {
 
     public final SeqNoFieldMapper.SequenceIDFields seqID() {
         return this.seqID;
+    }
+
+    final void setClonedSource() {
+        this.clonedSource = true;
+    }
+
+    final boolean getClonedSource() {
+        return clonedSource;
+    }
+
+    final boolean canAddIgnoredField() {
+        return mappingLookup.isSourceSynthetic() && clonedSource == false;
     }
 
     /**
@@ -364,13 +386,12 @@ public abstract class DocumentParserContext {
             int additionalFieldsToAdd = getNewFieldsSize() + mapperSize;
             if (indexSettings().isIgnoreDynamicFieldsBeyondLimit()) {
                 if (mappingLookup.exceedsLimit(indexSettings().getMappingTotalFieldsLimit(), additionalFieldsToAdd)) {
-                    if (indexSettings().getMode().isSyntheticSourceEnabled() || mappingLookup.isSourceSynthetic()) {
+                    if (canAddIgnoredField()) {
                         try {
-                            int parentOffset = parent() instanceof RootObjectMapper ? 0 : parent().fullPath().length() + 1;
                             addIgnoredField(
-                                new IgnoredSourceFieldMapper.NameValue(
+                                IgnoredSourceFieldMapper.NameValue.fromContext(
+                                    this,
                                     mapper.name(),
-                                    parentOffset,
                                     XContentDataHelper.encodeToken(parser())
                                 )
                             );
@@ -614,13 +635,10 @@ public abstract class DocumentParserContext {
     }
 
     /**
-     *  @deprecated we are actively deprecating and removing the ability to pass
-     *              complex objects to multifields, so try and avoid using this method
-     * Replace the XContentParser used by this context
+     * Clone this context, replacing the XContentParser with the passed one
      * @param parser    the replacement parser
      * @return  a new context with a replaced parser
      */
-    @Deprecated
     public final DocumentParserContext switchParser(XContentParser parser) {
         return new Wrapper(this.parent, this) {
             @Override
@@ -654,7 +672,7 @@ public abstract class DocumentParserContext {
         }
         return new MapperBuilderContext(
             p,
-            mappingLookup().isSourceSynthetic(),
+            mappingLookup.isSourceSynthetic(),
             false,
             containsDimensions,
             dynamic,

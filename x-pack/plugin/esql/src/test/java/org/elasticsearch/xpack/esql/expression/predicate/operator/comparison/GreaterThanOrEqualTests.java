@@ -11,13 +11,12 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.GreaterThanOrEqual;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataTypes;
-import org.elasticsearch.xpack.ql.util.NumericUtils;
 
 import java.math.BigInteger;
 import java.util.ArrayList;
@@ -71,7 +70,7 @@ public class GreaterThanOrEqualTests extends AbstractFunctionTestCase {
                 "lhs",
                 "rhs",
                 (l, r) -> ((BigInteger) l).compareTo((BigInteger) r) >= 0,
-                DataTypes.BOOLEAN,
+                DataType.BOOLEAN,
                 TestCaseSupplier.ulongCases(BigInteger.ZERO, NumericUtils.UNSIGNED_LONG_MAX, true),
                 TestCaseSupplier.ulongCases(BigInteger.ZERO, NumericUtils.UNSIGNED_LONG_MAX, true),
                 List.of(),
@@ -85,7 +84,7 @@ public class GreaterThanOrEqualTests extends AbstractFunctionTestCase {
                 "lhs",
                 "rhs",
                 (l, r) -> ((BytesRef) l).compareTo((BytesRef) r) >= 0,
-                DataTypes.BOOLEAN,
+                DataType.BOOLEAN,
                 TestCaseSupplier.ipCases(),
                 TestCaseSupplier.ipCases(),
                 List.of(),
@@ -99,7 +98,7 @@ public class GreaterThanOrEqualTests extends AbstractFunctionTestCase {
                 "lhs",
                 "rhs",
                 (l, r) -> ((BytesRef) l).compareTo((BytesRef) r) >= 0,
-                DataTypes.BOOLEAN,
+                DataType.BOOLEAN,
                 TestCaseSupplier.versionCases(""),
                 TestCaseSupplier.versionCases(""),
                 List.of(),
@@ -114,7 +113,7 @@ public class GreaterThanOrEqualTests extends AbstractFunctionTestCase {
                 "lhs",
                 "rhs",
                 (l, r) -> ((Number) l).longValue() >= ((Number) r).longValue(),
-                DataTypes.BOOLEAN,
+                DataType.BOOLEAN,
                 TestCaseSupplier.dateCases(),
                 TestCaseSupplier.dateCases(),
                 List.of(),
@@ -127,7 +126,7 @@ public class GreaterThanOrEqualTests extends AbstractFunctionTestCase {
                 (l, r) -> ((BytesRef) l).compareTo((BytesRef) r) >= 0,
                 (lhsType, rhsType) -> "GreaterThanOrEqualKeywordsEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",
                 List.of(),
-                DataTypes.BOOLEAN
+                DataType.BOOLEAN
             )
         );
 

@@ -26,29 +26,29 @@ import org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupeDouble;
 import org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupeInt;
 import org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupeLong;
 import org.elasticsearch.xpack.esql.capabilities.Validatable;
+import org.elasticsearch.xpack.esql.core.common.Failures;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.function.OptionalArgument;
+import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
-import org.elasticsearch.xpack.ql.common.Failures;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.Literal;
-import org.elasticsearch.xpack.ql.expression.function.OptionalArgument;
-import org.elasticsearch.xpack.ql.tree.NodeInfo;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.util.Arrays;
 import java.util.List;
 import java.util.function.Function;
 
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 import static org.elasticsearch.xpack.esql.expression.Validations.isFoldable;
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.FIRST;
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.SECOND;
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isString;
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isType;
 
 /**
  * Sorts a multivalued field in lexicographical order.
@@ -56,20 +56,26 @@ import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isType;
 public class MvSort extends EsqlScalarFunction implements OptionalArgument, Validatable {
     private final Expression field, order;
 
-    private static final Literal ASC = new Literal(Source.EMPTY, "ASC", DataTypes.KEYWORD);
+    private static final Literal ASC = new Literal(Source.EMPTY, "ASC", DataType.KEYWORD);
 
     @FunctionInfo(
         returnType = { "boolean", "date", "double", "integer", "ip", "keyword", "long", "text", "version" },
-        description = "Sorts a multivalued field in lexicographical order."
+        description = "Sorts a multivalued field in lexicographical order.",
+        examples = @Example(file = "ints", tag = "mv_sort")
     )
     public MvSort(
         Source source,
         @Param(
             name = "field",
             type = { "boolean", "date", "double", "integer", "ip", "keyword", "long", "text", "version" },
-            description = "A multivalued field"
+            description = "Multivalue expression. If `null`, the function returns `null`."
         ) Expression field,
-        @Param(name = "order", type = { "keyword" }, description = "sort order", optional = true) Expression order
+        @Param(
+            name = "order",
+            type = { "keyword" },
+            description = "Sort order. The valid options are ASC and DESC, the default is ASC.",
+            optional = true
+        ) Expression order
     ) {
         super(source, order == null ? Arrays.asList(field, ASC) : Arrays.asList(field, order));
         this.field = field;

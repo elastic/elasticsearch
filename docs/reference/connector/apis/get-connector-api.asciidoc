@@ -4,9 +4,11 @@
 <titleabbrev>Get connector</titleabbrev>
 ++++
 
-preview::[]
+beta::[]
 
 Retrieves the details about a connector.
+
+To get started with Connector APIs, check out the {enterprise-search-ref}/connectors-tutorial-api.html[tutorial^].
 
 [[get-connector-api-request]]
 ==== {api-request-title}

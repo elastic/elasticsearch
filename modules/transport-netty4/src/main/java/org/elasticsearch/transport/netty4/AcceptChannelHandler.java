@@ -13,6 +13,7 @@ import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.ipfilter.AbstractRemoteAddressFilter;
 
 import org.elasticsearch.common.transport.BoundTransportAddress;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 
 import java.net.InetSocketAddress;
 import java.util.function.BiPredicate;
@@ -22,15 +23,24 @@ public class AcceptChannelHandler extends AbstractRemoteAddressFilter<InetSocket
 
     private final BiPredicate<String, InetSocketAddress> predicate;
     private final String profile;
+    private final ThreadContext threadContext;
 
-    public AcceptChannelHandler(final BiPredicate<String, InetSocketAddress> predicate, final String profile) {
+    public AcceptChannelHandler(
+        final BiPredicate<String, InetSocketAddress> predicate,
+        final String profile,
+        final ThreadContext threadContext
+    ) {
         this.predicate = predicate;
         this.profile = profile;
+        this.threadContext = threadContext;
     }
 
     @Override
     protected boolean accept(final ChannelHandlerContext ctx, final InetSocketAddress remoteAddress) throws Exception {
-        return predicate.test(profile, remoteAddress);
+        // this prevents thread-context changes to propagate beyond the channel accept test, as netty worker threads are reused
+        try (ThreadContext.StoredContext ignore = threadContext.newStoredContext()) {
+            return predicate.test(profile, remoteAddress);
+        }
     }
 
     public interface AcceptPredicate extends BiPredicate<String, InetSocketAddress> {

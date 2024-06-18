@@ -1,0 +1,5 @@
+pr: 109717
+summary: Bump jackson version in modules:repository-azure
+area: Snapshot/Restore
+type: upgrade
+issues: []

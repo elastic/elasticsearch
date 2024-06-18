@@ -606,10 +606,6 @@ public class SharedBlobCacheWarmingService {
                                 );
                                 size.addAndGet(bytesCopied);
                                 totalBytesCopied.accept(bytesCopied);
-                                if (bytesCopied < length) {
-                                    // TODO we should remove this and allow gap completion in SparseFileTracker even if progress < range end
-                                    progressUpdater.accept(length);
-                                }
                             }
                         },
                         fetchExecutor,

@@ -1126,7 +1126,9 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             "cartesian_point or cartesian_shape or string"
         ),
         Map.entry(Set.of(DataType.GEO_POINT, DataType.CARTESIAN_POINT, DataType.NULL), "geo_point or cartesian_point"),
-        Map.entry(Set.of(DataType.DATE_PERIOD, DataType.TIME_DURATION, DataType.NULL), "dateperiod or timeduration")
+        Map.entry(Set.of(DataType.DATE_PERIOD, DataType.TIME_DURATION, DataType.NULL), "dateperiod or timeduration"),
+        Map.entry(Set.of(DataType.DATE_PERIOD, DataType.KEYWORD, DataType.TEXT, DataType.NULL), "date_period or string"),
+        Map.entry(Set.of(DataType.TIME_DURATION, DataType.KEYWORD, DataType.TEXT, DataType.NULL), "string or time_duration")
     );
 
     // TODO: generate this message dynamically, a la AbstractConvertFunction#supportedTypesNames()?

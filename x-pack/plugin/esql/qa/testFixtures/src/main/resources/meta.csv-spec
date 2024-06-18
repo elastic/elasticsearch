@@ -88,6 +88,7 @@ double tau()
 "boolean to_boolean(field:boolean|keyword|text|double|long|unsigned_long|integer)"
 "cartesian_point to_cartesianpoint(field:cartesian_point|keyword|text)"
 "cartesian_shape to_cartesianshape(field:cartesian_point|cartesian_shape|keyword|text)"
+"date_period to_dateperiod(field:date_period|keyword|text)"
 "date to_datetime(field:date|keyword|text|double|long|unsigned_long|integer)"
 "double to_dbl(field:boolean|date|keyword|text|double|long|unsigned_long|integer|counter_double|counter_integer|counter_long)"
 "double to_degrees(number:double|integer|long|unsigned_long)"
@@ -103,6 +104,7 @@ double tau()
 "double to_radians(number:double|integer|long|unsigned_long)"
 "keyword to_str(field:boolean|cartesian_point|cartesian_shape|date|double|geo_point|geo_shape|integer|ip|keyword|long|text|unsigned_long|version)"
 "keyword to_string(field:boolean|cartesian_point|cartesian_shape|date|double|geo_point|geo_shape|integer|ip|keyword|long|text|unsigned_long|version)"
+"time_duration to_timeduration(field:time_duration|keyword|text)"
 "unsigned_long to_ul(field:boolean|date|keyword|text|double|long|unsigned_long|integer)"
 "unsigned_long to_ulong(field:boolean|date|keyword|text|double|long|unsigned_long|integer)"
 "unsigned_long to_unsigned_long(field:boolean|date|keyword|text|double|long|unsigned_long|integer)"
@@ -205,6 +207,7 @@ to_bool       |field                               |"boolean|keyword|text|double
 to_boolean    |field                               |"boolean|keyword|text|double|long|unsigned_long|integer"                                                                          |Input value. The input can be a single- or multi-valued column or an expression.
 to_cartesianpo|field                               |"cartesian_point|keyword|text"                                                                                                    |Input value. The input can be a single- or multi-valued column or an expression.
 to_cartesiansh|field                               |"cartesian_point|cartesian_shape|keyword|text"                                                                                    |Input value. The input can be a single- or multi-valued column or an expression.
+to_dateperiod |field                               |"date_period|keyword|text"                                                                                                        |Input value.
 to_datetime   |field                               |"date|keyword|text|double|long|unsigned_long|integer"                                                                             |Input value. The input can be a single- or multi-valued column or an expression.
 to_dbl        |field                               |"boolean|date|keyword|text|double|long|unsigned_long|integer|counter_double|counter_integer|counter_long"                         |Input value. The input can be a single- or multi-valued column or an expression.
 to_degrees    |number                              |"double|integer|long|unsigned_long"                                                                                               |Input value. The input can be a single- or multi-valued column or an expression.
@@ -220,6 +223,7 @@ to_lower      |str                                 |"keyword|text"              
 to_radians    |number                              |"double|integer|long|unsigned_long"                                                                                               |Input value. The input can be a single- or multi-valued column or an expression.
 to_str        |field                               |"boolean|cartesian_point|cartesian_shape|date|double|geo_point|geo_shape|integer|ip|keyword|long|text|unsigned_long|version"      |Input value. The input can be a single- or multi-valued column or an expression.
 to_string     |field                               |"boolean|cartesian_point|cartesian_shape|date|double|geo_point|geo_shape|integer|ip|keyword|long|text|unsigned_long|version"      |Input value. The input can be a single- or multi-valued column or an expression.
+to_timeduratio|field                               |"time_duration|keyword|text"                                                                                                      |Input value.
 to_ul         |field                               |"boolean|date|keyword|text|double|long|unsigned_long|integer"                                                                     |Input value. The input can be a single- or multi-valued column or an expression.
 to_ulong      |field                               |"boolean|date|keyword|text|double|long|unsigned_long|integer"                                                                     |Input value. The input can be a single- or multi-valued column or an expression.
 to_unsigned_lo|field                               |"boolean|date|keyword|text|double|long|unsigned_long|integer"                                                                     |Input value. The input can be a single- or multi-valued column or an expression.
@@ -323,6 +327,7 @@ to_bool       |Converts an input value to a boolean value. A string value of *tr
 to_boolean    |Converts an input value to a boolean value. A string value of *true* will be case-insensitive converted to the Boolean *true*. For anything else, including the empty string, the function will return *false*. The numerical value of *0* will be converted to *false*, anything else will be converted to *true*.
 to_cartesianpo|Converts an input value to a `cartesian_point` value. A string will only be successfully converted if it respects the {wikipedia}/Well-known_text_representation_of_geometry[WKT Point] format.
 to_cartesiansh|Converts an input value to a `cartesian_shape` value. A string will only be successfully converted if it respects the {wikipedia}/Well-known_text_representation_of_geometry[WKT] format.
+to_dateperiod |Converts an input value into a date_period value.
 to_datetime   |Converts an input value to a date value. A string will only be successfully converted if it's respecting the format `yyyy-MM-dd'T'HH:mm:ss.SSS'Z'`. To convert dates in other formats, use <<esql-date_parse>>.
 to_dbl        |Converts an input value to a double value. If the input parameter is of a date type, its value will be interpreted as milliseconds since the {wikipedia}/Unix_time[Unix epoch], converted to double. Boolean *true* will be converted to double *1.0*, *false* to *0.0*.
 to_degrees    |Converts a number in {wikipedia}/Radian[radians] to {wikipedia}/Degree_(angle)[degrees].
@@ -338,6 +343,7 @@ to_lower      |Returns a new string representing the input string converted to l
 to_radians    |Converts a number in {wikipedia}/Degree_(angle)[degrees] to {wikipedia}/Radian[radians].
 to_str        |Converts an input value into a string.
 to_string     |Converts an input value into a string.
+to_timeduratio|Converts an input value into a time_duration value.
 to_ul         |Converts an input value to an unsigned long value. If the input parameter is of a date type, its value will be interpreted as milliseconds since the {wikipedia}/Unix_time[Unix epoch], converted to unsigned long. Boolean *true* will be converted to unsigned long *1*, *false* to *0*.
 to_ulong      |Converts an input value to an unsigned long value. If the input parameter is of a date type, its value will be interpreted as milliseconds since the {wikipedia}/Unix_time[Unix epoch], converted to unsigned long. Boolean *true* will be converted to unsigned long *1*, *false* to *0*.
 to_unsigned_lo|Converts an input value to an unsigned long value. If the input parameter is of a date type, its value will be interpreted as milliseconds since the {wikipedia}/Unix_time[Unix epoch], converted to unsigned long. Boolean *true* will be converted to unsigned long *1*, *false* to *0*.
@@ -442,6 +448,7 @@ to_bool       |boolean                                                          
 to_boolean    |boolean                                                                                                                     |false                       |false           |false
 to_cartesianpo|cartesian_point                                                                                                             |false                       |false           |false
 to_cartesiansh|cartesian_shape                                                                                                             |false                       |false           |false
+to_dateperiod |date_period                                                                                                                 |false                       |false           |false
 to_datetime   |date                                                                                                                        |false                       |false           |false
 to_dbl        |double                                                                                                                      |false                       |false           |false
 to_degrees    |double                                                                                                                      |false                       |false           |false
@@ -457,6 +464,7 @@ to_lower      |"keyword|text"                                                   
 to_radians    |double                                                                                                                      |false                       |false           |false
 to_str        |keyword                                                                                                                     |false                       |false           |false
 to_string     |keyword                                                                                                                     |false                       |false           |false
+to_timeduratio|time_duration                                                                                                               |false                       |false           |false
 to_ul         |unsigned_long                                                                                                               |false                       |false           |false
 to_ulong      |unsigned_long                                                                                                               |false                       |false           |false
 to_unsigned_lo|unsigned_long                                                                                                               |false                       |false           |false
@@ -483,5 +491,5 @@ countFunctions#[skip:-8.14.99, reason:BIN added]
 meta functions |  stats  a = count(*), b = count(*), c = count(*) |  mv_expand c;
 
 a:long | b:long | c:long
-109    | 109    | 109
+111    | 111    | 111
 ;

@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToBase64;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToBoolean;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToCartesianPoint;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToCartesianShape;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDatePeriod;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDatetime;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDegrees;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
@@ -29,6 +30,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToInteger
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToLong;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToRadians;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToString;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToTimeDuration;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToUnsignedLong;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToVersion;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Abs;
@@ -92,6 +94,7 @@ public abstract class UnaryScalarFunction extends EsqlScalarFunction {
             ToBase64.ENTRY,
             ToBoolean.ENTRY,
             ToCartesianPoint.ENTRY,
+            ToDatePeriod.ENTRY,
             ToDatetime.ENTRY,
             ToDegrees.ENTRY,
             ToDouble.ENTRY,
@@ -103,6 +106,7 @@ public abstract class UnaryScalarFunction extends EsqlScalarFunction {
             ToLong.ENTRY,
             ToRadians.ENTRY,
             ToString.ENTRY,
+            ToTimeDuration.ENTRY,
             ToUnsignedLong.ENTRY,
             ToVersion.ENTRY,
             Trim.ENTRY

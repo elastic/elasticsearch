@@ -13,21 +13,21 @@ import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
 import java.io.IOException;
 
-public class RetrievedDatabaseInfoTests extends AbstractWireSerializingTestCase<RetrievedDatabaseInfo> {
+public class DatabaseInfoTests extends AbstractWireSerializingTestCase<DatabaseInfo> {
     @Override
-    protected Writeable.Reader<RetrievedDatabaseInfo> instanceReader() {
-        return RetrievedDatabaseInfo::new;
+    protected Writeable.Reader<DatabaseInfo> instanceReader() {
+        return DatabaseInfo::new;
     }
 
     @Override
-    protected RetrievedDatabaseInfo createTestInstance() {
-        return new RetrievedDatabaseInfo(randomName(), randomSource(), randomMd5(), randomMd5(), randomBuildDate(), randomType());
+    protected DatabaseInfo createTestInstance() {
+        return new DatabaseInfo(randomName(), randomSource(), randomMd5(), randomMd5(), randomBuildDate(), randomType());
     }
 
     @Override
-    protected RetrievedDatabaseInfo mutateInstance(RetrievedDatabaseInfo instance) throws IOException {
+    protected DatabaseInfo mutateInstance(DatabaseInfo instance) throws IOException {
         return switch (between(0, 5)) {
-            case 0 -> new RetrievedDatabaseInfo(
+            case 0 -> new DatabaseInfo(
                 randomValueOtherThan(instance.name(), this::randomName),
                 instance.source(),
                 instance.archiveMd5(),
@@ -35,7 +35,7 @@ public class RetrievedDatabaseInfoTests extends AbstractWireSerializingTestCase<
                 instance.buildDateInMillis(),
                 instance.type()
             );
-            case 1 -> new RetrievedDatabaseInfo(
+            case 1 -> new DatabaseInfo(
                 instance.name(),
                 randomValueOtherThan(instance.source(), this::randomSource),
                 instance.archiveMd5(),
@@ -43,7 +43,7 @@ public class RetrievedDatabaseInfoTests extends AbstractWireSerializingTestCase<
                 instance.buildDateInMillis(),
                 instance.type()
             );
-            case 2 -> new RetrievedDatabaseInfo(
+            case 2 -> new DatabaseInfo(
                 instance.name(),
                 instance.source(),
                 randomValueOtherThan(instance.archiveMd5(), this::randomMd5),
@@ -51,7 +51,7 @@ public class RetrievedDatabaseInfoTests extends AbstractWireSerializingTestCase<
                 instance.buildDateInMillis(),
                 instance.type()
             );
-            case 3 -> new RetrievedDatabaseInfo(
+            case 3 -> new DatabaseInfo(
                 instance.name(),
                 instance.source(),
                 instance.archiveMd5(),
@@ -59,7 +59,7 @@ public class RetrievedDatabaseInfoTests extends AbstractWireSerializingTestCase<
                 instance.buildDateInMillis(),
                 instance.type()
             );
-            case 4 -> new RetrievedDatabaseInfo(
+            case 4 -> new DatabaseInfo(
                 instance.name(),
                 instance.source(),
                 instance.archiveMd5(),
@@ -67,7 +67,7 @@ public class RetrievedDatabaseInfoTests extends AbstractWireSerializingTestCase<
                 randomValueOtherThan(instance.buildDateInMillis(), this::randomBuildDate),
                 instance.type()
             );
-            case 5 -> new RetrievedDatabaseInfo(
+            case 5 -> new DatabaseInfo(
                 instance.name(),
                 instance.source(),
                 instance.archiveMd5(),

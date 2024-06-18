@@ -37,9 +37,7 @@ import java.util.stream.Collectors;
 public class GeoIpStatsAction {
 
     public static final ActionType<Response> INSTANCE = new ActionType<>("cluster:monitor/ingest/geoip/stats");
-    private static final Comparator<RetrievedDatabaseInfo> RETRIEVED_DATABASE_INFO_COMPARATOR = Comparator.comparing(
-        RetrievedDatabaseInfo::name
-    );
+    private static final Comparator<DatabaseInfo> DATABASE_INFO_COMPARATOR = Comparator.comparing(DatabaseInfo::name);
 
     private GeoIpStatsAction() {/* no instances */}
 
@@ -119,7 +117,7 @@ public class GeoIpStatsAction {
                 builder.startObject(e.getKey());
                 if (response.databases.isEmpty() == false) {
                     builder.startArray("databases");
-                    for (RetrievedDatabaseInfo database : response.databases) {
+                    for (DatabaseInfo database : response.databases) {
                         builder.startObject();
                         builder.field("name", database.name());
                         builder.field("source", database.source());
@@ -171,7 +169,7 @@ public class GeoIpStatsAction {
 
         private final GeoIpDownloaderStats downloaderStats;
         private final CacheStats cacheStats;
-        private final SortedSet<RetrievedDatabaseInfo> databases;
+        private final SortedSet<DatabaseInfo> databases;
         private final Set<String> filesInTemp;
         private final Set<String> configDatabases;
 
@@ -183,15 +181,13 @@ public class GeoIpStatsAction {
             } else {
                 cacheStats = null;
             }
-            databases = new TreeSet<>(RETRIEVED_DATABASE_INFO_COMPARATOR);
+            databases = new TreeSet<>(DATABASE_INFO_COMPARATOR);
             if (in.getTransportVersion().onOrAfter(TransportVersions.GEOIP_ADDITIONAL_DATABASE_DOWNLOAD_STATS)) {
-                databases.addAll(in.readCollectionAsImmutableSet(RetrievedDatabaseInfo::new));
+                databases.addAll(in.readCollectionAsImmutableSet(DatabaseInfo::new));
             } else {
                 Set<String> databaseNames = in.readCollectionAsImmutableSet(StreamInput::readString);
                 databases.addAll(
-                    databaseNames.stream()
-                        .map(name -> new RetrievedDatabaseInfo(name, null, null, null, null, null))
-                        .collect(Collectors.toSet())
+                    databaseNames.stream().map(name -> new DatabaseInfo(name, null, null, null, null, null)).collect(Collectors.toSet())
                 );
             }
             filesInTemp = in.readCollectionAsImmutableSet(StreamInput::readString);
@@ -204,14 +200,14 @@ public class GeoIpStatsAction {
             DiscoveryNode node,
             GeoIpDownloaderStats downloaderStats,
             CacheStats cacheStats,
-            Set<RetrievedDatabaseInfo> databases,
+            Set<DatabaseInfo> databases,
             Set<String> filesInTemp,
             Set<String> configDatabases
         ) {
             super(node);
             this.downloaderStats = downloaderStats;
             this.cacheStats = cacheStats;
-            this.databases = new TreeSet<>(RETRIEVED_DATABASE_INFO_COMPARATOR);
+            this.databases = new TreeSet<>(DATABASE_INFO_COMPARATOR);
             this.databases.addAll(databases);
             this.filesInTemp = Set.copyOf(filesInTemp);
             this.configDatabases = Set.copyOf(configDatabases);
@@ -221,7 +217,7 @@ public class GeoIpStatsAction {
             return downloaderStats;
         }
 
-        public Set<RetrievedDatabaseInfo> getDatabases() {
+        public Set<DatabaseInfo> getDatabases() {
             return databases;
         }
 
@@ -249,7 +245,7 @@ public class GeoIpStatsAction {
             if (out.getTransportVersion().onOrAfter(TransportVersions.GEOIP_ADDITIONAL_DATABASE_DOWNLOAD_STATS)) {
                 out.writeCollection(databases);
             } else {
-                out.writeStringCollection(databases.stream().map(RetrievedDatabaseInfo::name).collect(Collectors.toSet()));
+                out.writeStringCollection(databases.stream().map(DatabaseInfo::name).collect(Collectors.toSet()));
             }
 
             out.writeStringCollection(filesInTemp);

@@ -31,8 +31,8 @@ import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.ingest.Processor;
+import org.elasticsearch.ingest.geoip.stats.DatabaseInfo;
 import org.elasticsearch.ingest.geoip.stats.GeoIpStatsAction;
-import org.elasticsearch.ingest.geoip.stats.RetrievedDatabaseInfo;
 import org.elasticsearch.persistent.PersistentTaskParams;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.plugins.IngestPlugin;
@@ -196,7 +196,7 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
                 );
                 Map<String, String> responseDatabaseNameToSourceMap = nodeResponse.getDatabases()
                     .stream()
-                    .collect(Collectors.toMap(RetrievedDatabaseInfo::name, RetrievedDatabaseInfo::source));
+                    .collect(Collectors.toMap(DatabaseInfo::name, DatabaseInfo::source));
                 boolean isIngestNode = internalCluster().getInstance(IngestService.class, nodeResponse.getNode().getName())
                     .getClusterService()
                     .state()
@@ -766,9 +766,7 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
                     "config"
                 );
                 assertThat(
-                    nodeResponse.getDatabases()
-                        .stream()
-                        .collect(Collectors.toMap(RetrievedDatabaseInfo::name, RetrievedDatabaseInfo::source)),
+                    nodeResponse.getDatabases().stream().collect(Collectors.toMap(DatabaseInfo::name, DatabaseInfo::source)),
                     equalTo(databaseNameToSourceMap)
                 );
                 assertThat(nodeResponse.getFilesInTemp().stream().filter(s -> s.endsWith(".txt") == false).toList(), empty());

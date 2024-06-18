@@ -34,9 +34,7 @@ public class GeoIpStatsActionNodeResponseSerializingTests extends AbstractWireSe
 
     static GeoIpStatsAction.NodeResponse createRandomInstance() {
         DiscoveryNode node = DiscoveryNodeUtils.create("id");
-        Set<RetrievedDatabaseInfo> databases = Set.copyOf(
-            randomList(10, GeoIpStatsActionNodeResponseSerializingTests::randomRetrievedDatabaseInfo)
-        );
+        Set<DatabaseInfo> databases = Set.copyOf(randomList(10, GeoIpStatsActionNodeResponseSerializingTests::randomDatabaseInfo));
         Set<String> files = Set.copyOf(randomList(10, () -> randomAlphaOfLengthBetween(5, 10)));
         Set<String> configDatabases = Set.copyOf(randomList(10, () -> randomAlphaOfLengthBetween(5, 10)));
         return new GeoIpStatsAction.NodeResponse(
@@ -49,8 +47,8 @@ public class GeoIpStatsActionNodeResponseSerializingTests extends AbstractWireSe
         );
     }
 
-    private static RetrievedDatabaseInfo randomRetrievedDatabaseInfo() {
-        return new RetrievedDatabaseInfo(
+    private static DatabaseInfo randomDatabaseInfo() {
+        return new DatabaseInfo(
             randomAlphaOfLengthBetween(5, 10),
             randomBoolean() ? null : randomAlphaOfLengthBetween(5, 10),
             randomBoolean() ? null : randomAlphaOfLengthBetween(5, 10),

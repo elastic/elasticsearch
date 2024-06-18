@@ -17,6 +17,7 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -29,7 +30,7 @@ import static org.elasticsearch.TransportVersions.GEOIP_ADDITIONAL_DATABASE_DOWN
 
 public class GeoIpDownloaderStats implements Task.Status {
 
-    public static final GeoIpDownloaderStats EMPTY = new GeoIpDownloaderStats(0, 0, 0, 0, 0, 0, new TreeMap<>());
+    public static final GeoIpDownloaderStats EMPTY = new GeoIpDownloaderStats(0, 0, 0, 0, 0, 0, Collections.emptySortedMap());
 
     static final ParseField SUCCESSFUL_DOWNLOADS = new ParseField("successful_downloads");
     static final ParseField FAILED_DOWNLOADS = new ParseField("failed_downloads");
@@ -60,7 +61,7 @@ public class GeoIpDownloaderStats implements Task.Status {
                 downloadedDatabaseInfos.put(in.readString(), new DownloadedDatabaseInfo(in));
             }
         } else {
-            downloadedDatabaseInfos = null;
+            downloadedDatabaseInfos = Collections.emptySortedMap();
         }
     }
 
@@ -150,27 +151,23 @@ public class GeoIpDownloaderStats implements Task.Status {
     ) {
         Objects.requireNonNull(name);
         TreeMap<String, DownloadedDatabaseInfo> updatedDatabaseInfos;
-        if (downloadedDatabaseInfos == null) {
-            updatedDatabaseInfos = null;
+        DownloadedDatabaseInfo downloadedDatabaseInfo = downloadedDatabaseInfos.get(name);
+        DownloadedDatabaseInfo updatedDownloadedDatabaseInfo;
+        DownloadedDatabaseInfo.DownloadAttempt success = new DownloadedDatabaseInfo.DownloadAttempt(
+            md5,
+            downloadDate,
+            downloadTime,
+            source,
+            buildDate,
+            null
+        );
+        if (downloadedDatabaseInfo == null) {
+            updatedDownloadedDatabaseInfo = new DownloadedDatabaseInfo(name, success, null);
         } else {
-            DownloadedDatabaseInfo downloadedDatabaseInfo = downloadedDatabaseInfos.get(name);
-            DownloadedDatabaseInfo updatedDownloadedDatabaseInfo;
-            DownloadedDatabaseInfo.DownloadAttempt success = new DownloadedDatabaseInfo.DownloadAttempt(
-                md5,
-                downloadDate,
-                downloadTime,
-                source,
-                buildDate,
-                null
-            );
-            if (downloadedDatabaseInfo == null) {
-                updatedDownloadedDatabaseInfo = new DownloadedDatabaseInfo(name, success, null);
-            } else {
-                updatedDownloadedDatabaseInfo = new DownloadedDatabaseInfo(name, success, downloadedDatabaseInfo.failedAttempt());
-            }
-            updatedDatabaseInfos = new TreeMap<>(downloadedDatabaseInfos);
-            updatedDatabaseInfos.put(name, updatedDownloadedDatabaseInfo);
+            updatedDownloadedDatabaseInfo = new DownloadedDatabaseInfo(name, success, downloadedDatabaseInfo.failedAttempt());
         }
+        updatedDatabaseInfos = new TreeMap<>(downloadedDatabaseInfos);
+        updatedDatabaseInfos.put(name, updatedDownloadedDatabaseInfo);
         return new GeoIpDownloaderStats(
             successfulDownloads + 1,
             failedDownloads,
@@ -196,7 +193,7 @@ public class GeoIpDownloaderStats implements Task.Status {
         Long downloadTime
     ) {
         SortedMap<String, DownloadedDatabaseInfo> updatedDatabaseInfos;
-        if (name == null || downloadedDatabaseInfos == null) {
+        if (name == null) {
             updatedDatabaseInfos = downloadedDatabaseInfos;
         } else {
             DownloadedDatabaseInfo downloadedDatabaseInfo = downloadedDatabaseInfos.get(name);
@@ -261,9 +258,7 @@ public class GeoIpDownloaderStats implements Task.Status {
         builder.field(DATABASES_COUNT.getPreferredName(), databasesCount);
         builder.field(SKIPPED_DOWNLOADS.getPreferredName(), skippedDownloads);
         builder.field(EXPIRED_DATABASES.getPreferredName(), expiredDatabases);
-        if (downloadedDatabaseInfos != null) {
-            builder.xContentList("downloader_attempts", downloadedDatabaseInfos.values(), params);
-        }
+        builder.xContentList("downloader_attempts", downloadedDatabaseInfos.values(), params);
         builder.endObject();
         return builder;
     }

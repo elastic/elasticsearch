@@ -22,6 +22,8 @@ module org.elasticsearch.inference {
     requires com.google.auth.oauth2;
     requires com.google.api.client;
     requires com.google.gson;
+    requires aws.java.sdk.bedrockruntime;
+    requires aws.java.sdk.core;
 
     exports org.elasticsearch.xpack.inference.action;
     exports org.elasticsearch.xpack.inference.registry;

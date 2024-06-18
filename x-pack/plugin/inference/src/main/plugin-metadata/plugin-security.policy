@@ -8,6 +8,7 @@
 
 grant {
   // required by: com.google.api.client.json.JsonParser#parseValue
+  // also required by AWS SDK for client configuration
   permission java.lang.RuntimePermission "accessDeclaredMembers";
   // required by: com.google.api.client.json.GenericJson#<init>
   permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
@@ -15,5 +16,24 @@ grant {
   permission java.lang.RuntimePermission "setFactory";
 
   // gcs client opens socket connections for to access repository
-  permission java.net.SocketPermission "*", "connect";
+  // also, AWS Bedrock client opens socket connections and needs resolve for to access to resources
+  permission java.net.SocketPermission "*", "connect,resolve";
+
+  // needed because of problems in ClientConfiguration
+  // TODO: get these fixed in aws sdk
+  permission java.lang.RuntimePermission "getClassLoader";
+
+  // Needed because of problems in AmazonClient SDK:
+  // When no region is set on a AmazonClient instance, the
+  // AWS SDK loads all known partitions from a JSON file and
+  // uses a Jackson's ObjectMapper for that: this one, in
+  // version 2.5.3 with the default binding options, tries
+  // to suppress access checks of ctor/field/method and thus
+  // requires this special permission. AWS must be fixed to
+  // uses Jackson correctly and have the correct modifiers
+  // on binded classes.
+
+  // TODO: get these fixed in aws sdk
+  // See https://github.com/aws/aws-sdk-java/issues/766
+  permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
 };

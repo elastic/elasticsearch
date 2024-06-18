@@ -13,18 +13,14 @@ import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.ingest.SimulateIndexResponse;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.index.IndexingPressure;
-import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.ingest.SimulateIngestService;
-import org.elasticsearch.plugins.internal.DocumentSizeObserver;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -67,21 +63,6 @@ public class TransportSimulateBulkAction extends TransportAbstractBulkAction {
             DocWriteRequest<?> docRequest = bulkRequest.requests.get(i);
             assert docRequest instanceof IndexRequest; // This action is only ever called with IndexRequests
             IndexRequest request = (IndexRequest) docRequest;
-            final SourceToParse sourceToParse = new SourceToParse(
-                request.id(),
-                request.source(),
-                request.getContentType(),
-                request.routing(),
-                request.getDynamicTemplates(),
-                DocumentSizeObserver.EMPTY_INSTANCE
-            );
-
-            ClusterState state = clusterService.state();
-            // may want to use indexname expression resolver?
-            IndexMetadata imd = state.metadata()
-                .getIndexSafe(
-                    state.metadata().getIndicesLookup().get(request.index()).getWriteIndex((IndexRequest) request, state.metadata())
-                );
 
             responses.set(
                 i,

@@ -41,6 +41,7 @@ import org.elasticsearch.xpack.core.security.action.privilege.GetPrivilegesActio
 import org.elasticsearch.xpack.core.security.action.profile.GetProfilesAction;
 import org.elasticsearch.xpack.core.security.action.profile.SuggestProfilesAction;
 import org.elasticsearch.xpack.core.security.action.role.GetRolesAction;
+import org.elasticsearch.xpack.core.security.action.role.QueryRoleAction;
 import org.elasticsearch.xpack.core.security.action.rolemapping.GetRoleMappingsAction;
 import org.elasticsearch.xpack.core.security.action.saml.SamlSpMetadataAction;
 import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountAction;
@@ -262,6 +263,7 @@ public class ClusterPrivilegeResolver {
             ProfileHasPrivilegesAction.NAME,
             SuggestProfilesAction.NAME,
             GetRolesAction.NAME,
+            QueryRoleAction.NAME,
             GetRoleMappingsAction.NAME,
             GetServiceAccountAction.NAME,
             GetServiceAccountCredentialsAction.NAME + "*",

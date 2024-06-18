@@ -37,6 +37,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
@@ -77,6 +78,7 @@ import static org.elasticsearch.xpack.core.security.SecurityField.DOCUMENT_LEVEL
 import static org.elasticsearch.xpack.core.security.authz.RoleDescriptor.ROLE_TYPE;
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.Availability.PRIMARY_SHARDS;
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.Availability.SEARCH_SHARDS;
+import static org.elasticsearch.xpack.security.support.SecurityMigrations.ROLE_METADATA_FLATTENED_MIGRATION_VERSION;
 import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_MAIN_ALIAS;
 import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_ROLES_METADATA_FLATTENED;
 
@@ -220,8 +222,13 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
         }
     }
 
-    public void queryRoleDescriptors(SearchRequest searchRequest, ActionListener<QueryRoleResult> listener) {
-        final SecurityIndexManager frozenSecurityIndex = securityIndex.defensiveCopy();
+    public boolean isQueryByMetadataAvailable() {
+        return securityIndex.isMigrationsVersionAtLeast(ROLE_METADATA_FLATTENED_MIGRATION_VERSION);
+    }
+
+    public void queryRoleDescriptors(SearchSourceBuilder searchSourceBuilder, ActionListener<QueryRoleResult> listener) {
+        SearchRequest searchRequest = new SearchRequest(new String[] { SECURITY_MAIN_ALIAS }, searchSourceBuilder);
+        SecurityIndexManager frozenSecurityIndex = securityIndex.defensiveCopy();
         if (frozenSecurityIndex.indexExists() == false) {
             logger.debug("security index does not exist");
             listener.onResponse(QueryRoleResult.EMPTY);

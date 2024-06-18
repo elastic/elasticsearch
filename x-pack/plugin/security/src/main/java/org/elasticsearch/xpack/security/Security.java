@@ -165,6 +165,7 @@ import org.elasticsearch.xpack.core.security.action.role.DeleteRoleAction;
 import org.elasticsearch.xpack.core.security.action.role.GetRolesAction;
 import org.elasticsearch.xpack.core.security.action.role.PutRoleAction;
 import org.elasticsearch.xpack.core.security.action.role.PutRoleRequestBuilderFactory;
+import org.elasticsearch.xpack.core.security.action.role.QueryRoleAction;
 import org.elasticsearch.xpack.core.security.action.rolemapping.DeleteRoleMappingAction;
 import org.elasticsearch.xpack.core.security.action.rolemapping.GetRoleMappingsAction;
 import org.elasticsearch.xpack.core.security.action.rolemapping.PutRoleMappingAction;
@@ -257,6 +258,7 @@ import org.elasticsearch.xpack.security.action.role.TransportClearRolesCacheActi
 import org.elasticsearch.xpack.security.action.role.TransportDeleteRoleAction;
 import org.elasticsearch.xpack.security.action.role.TransportGetRolesAction;
 import org.elasticsearch.xpack.security.action.role.TransportPutRoleAction;
+import org.elasticsearch.xpack.security.action.role.TransportQueryRoleAction;
 import org.elasticsearch.xpack.security.action.rolemapping.ReservedRoleMappingAction;
 import org.elasticsearch.xpack.security.action.rolemapping.TransportDeleteRoleMappingAction;
 import org.elasticsearch.xpack.security.action.rolemapping.TransportGetRoleMappingsAction;
@@ -1515,6 +1517,7 @@ public class Security extends Plugin
             new ActionHandler<>(PutUserAction.INSTANCE, TransportPutUserAction.class),
             new ActionHandler<>(DeleteUserAction.INSTANCE, TransportDeleteUserAction.class),
             new ActionHandler<>(GetRolesAction.INSTANCE, TransportGetRolesAction.class),
+            new ActionHandler<>(QueryRoleAction.INSTANCE, TransportQueryRoleAction.class),
             new ActionHandler<>(PutRoleAction.INSTANCE, TransportPutRoleAction.class),
             new ActionHandler<>(DeleteRoleAction.INSTANCE, TransportDeleteRoleAction.class),
             new ActionHandler<>(TransportChangePasswordAction.TYPE, TransportChangePasswordAction.class),

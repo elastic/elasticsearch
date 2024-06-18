@@ -258,10 +258,8 @@
 ---
 "Dense vector stats":
   - requires:
-        cluster_features: [ "gte_v8.15.0" ]
-        reason: "dense vector stats reports from primary indices in 8.15"
-  - skip:
-        features: headers
+      cluster_features: [ "gte_v8.15.0" ]
+      reason: "dense vector stats reports from primary indices in 8.15"
   - do:
       indices.create:
         index: test1

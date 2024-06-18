@@ -110,6 +110,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.test.ListMatcher.matchesList;
@@ -360,7 +361,6 @@ public class PlanNamedTypesTests extends ESTestCase {
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(orig, unused -> deser);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/109884")
     public void testMvExpand() throws IOException {
         var esRelation = new EsRelation(
             Source.EMPTY,
@@ -383,10 +383,14 @@ public class PlanNamedTypesTests extends ESTestCase {
     }
 
     static EsIndex randomEsIndex() {
+        Set<String> concreteIndices = new TreeSet<>();
+        while (concreteIndices.size() < 2) {
+            concreteIndices.add(randomAlphaOfLengthBetween(1, 25));
+        }
         return new EsIndex(
-            randomAlphaOfLength(randomIntBetween(1, 25)),
-            Map.of(randomAlphaOfLength(randomIntBetween(1, 25)), randomKeywordEsField()),
-            Set.of(randomAlphaOfLength(randomIntBetween(1, 25)), randomAlphaOfLength(randomIntBetween(1, 25)))
+            randomAlphaOfLengthBetween(1, 25),
+            Map.of(randomAlphaOfLengthBetween(1, 25), randomKeywordEsField()),
+            concreteIndices
         );
     }
 

@@ -180,15 +180,16 @@ class S3BlobStore implements BlobStore {
                 .orElse(0);
 
             if (exceptionCount > 0) {
-                final List<Object> statusCodes = awsRequestMetrics.getProperty(AWSRequestMetrics.Field.StatusCode);
-                final long amountOfRequestRangeNotSatisfiedErrors = Objects.requireNonNullElse(statusCodes, List.of())
-                    .stream()
+                final List<Object> statusCodes = Objects.requireNonNullElse(
+                    awsRequestMetrics.getProperty(AWSRequestMetrics.Field.StatusCode),
+                    List.of()
+                );
+                // REQUESTED_RANGE_NOT_SATISFIED errors are expected errors due to RCO
+                // TODO Add more expected client error codes
+                final long amountOfRequestRangeNotSatisfiedErrors = statusCodes.stream()
                     .filter(e -> (Integer) e == REQUESTED_RANGE_NOT_SATISFIED.getStatus())
                     .count();
                 if (amountOfRequestRangeNotSatisfiedErrors > 0) {
-                    // REQUESTED_RANGE_NOT_SATISFIED errors are expected errors due to RCO, so we would like not to count them along with
-                    // the server side S3 exceptions and track them separately
-                    exceptionCount -= amountOfRequestRangeNotSatisfiedErrors;
                     var clientErrorAttributes = Maps.copyMapWithAddedEntry(
                         attributes,
                         "error_code",

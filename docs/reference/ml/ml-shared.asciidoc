@@ -430,16 +430,16 @@ end::daily-model-snapshot-retention-after-days[]
 
 tag::data-description[]
 The data description defines the format of the input data when you send data to
-the job by using the <<ml-post-data,post data>> API. Note that when using a 
-{dfeed}, only the `time_field` needs to be set, the rest of the properties are 
-automatically set. When data is received via the <<ml-post-data,post data>> API, 
+the job by using the <<ml-post-data,post data>> API. Note that when using a
+{dfeed}, only the `time_field` needs to be set, the rest of the properties are
+automatically set. When data is received via the <<ml-post-data,post data>> API,
 it is not stored in {es}. Only the results for {anomaly-detect} are retained.
 +
 .Properties of `data_description`
 [%collapsible%open]
 ====
 `format`:::
-  (string) Only `xcontent` format is supported at this time, and this is the 
+  (string) Only `xcontent` format is supported at this time, and this is the
   default value.
 
 `time_field`:::
@@ -1284,6 +1284,10 @@ end::job-id-data-frame-analytics-define[]
 tag::job-id-datafeed[]
 The unique identifier for the job to which the {dfeed} sends data.
 end::job-id-datafeed[]
+
+tag::output-memory-allocator-bytes[]
+The amount of memory, in bytes, used to output {anomaly-job} documents.
+end::output-memory-allocator-bytes[]
 
 tag::lambda[]
 Advanced configuration option. Regularization parameter to prevent overfitting

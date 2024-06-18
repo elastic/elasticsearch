@@ -308,24 +308,6 @@ public class PlanNamedTypesTests extends ESTestCase {
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(orig, unused -> deser);
     }
 
-    public void testLiteralSimple() throws IOException {
-        var orig = new Literal(Source.EMPTY, 1, DataType.INTEGER);
-        BytesStreamOutput bso = new BytesStreamOutput();
-        PlanStreamOutput out = new PlanStreamOutput(bso, planNameRegistry, null);
-        PlanNamedTypes.writeLiteral(out, orig);
-        var deser = PlanNamedTypes.readLiteral(planStreamInput(bso));
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(orig, unused -> deser);
-    }
-
-    public void testOrderSimple() throws IOException {
-        var orig = new Order(Source.EMPTY, field("val", DataType.INTEGER), Order.OrderDirection.ASC, Order.NullsPosition.FIRST);
-        BytesStreamOutput bso = new BytesStreamOutput();
-        PlanStreamOutput out = new PlanStreamOutput(bso, planNameRegistry, null);
-        PlanNamedTypes.writeOrder(out, orig);
-        var deser = (Order) PlanNamedTypes.readOrder(planStreamInput(bso));
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(orig, unused -> deser);
-    }
-
     public void testFieldSortSimple() throws IOException {
         var orig = new EsQueryExec.FieldSort(field("val", DataType.LONG), Order.OrderDirection.ASC, Order.NullsPosition.FIRST);
         BytesStreamOutput bso = new BytesStreamOutput();

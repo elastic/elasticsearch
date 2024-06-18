@@ -15,7 +15,7 @@ import org.elasticsearch.core.Nullable;
 
 import java.io.IOException;
 
-public record RetrievedDatabaseInfo(
+public record DatabaseInfo(
     String name,
     @Nullable String source,
     @Nullable String archiveMd5,
@@ -24,7 +24,7 @@ public record RetrievedDatabaseInfo(
     @Nullable String type
 ) implements Writeable {
 
-    public RetrievedDatabaseInfo(StreamInput in) throws IOException {
+    public DatabaseInfo(StreamInput in) throws IOException {
         this(
             in.readString(),
             in.readOptionalString(),

@@ -33,7 +33,7 @@ public class GeoIpDownloaderStatsSerializingTests extends AbstractXContentSerial
         )
     );
 
-    private static final ConstructingObjectParser<DownloadedDatabaseInfo, Void> DOWNLOADED_DATABSE_INFO_PARSER =
+    private static final ConstructingObjectParser<DownloadedDatabaseInfo, Void> DOWNLOADED_DATABASE_INFO_PARSER =
         new ConstructingObjectParser<>(
             "geoip_downloaded_database_info",
             a -> new DownloadedDatabaseInfo(
@@ -65,17 +65,17 @@ public class GeoIpDownloaderStatsSerializingTests extends AbstractXContentSerial
         GEOIP_STATS_PARSER.declareInt(ConstructingObjectParser.constructorArg(), GeoIpDownloaderStats.EXPIRED_DATABASES);
         GEOIP_STATS_PARSER.declareObjectArray(
             ConstructingObjectParser.constructorArg(),
-            DOWNLOADED_DATABSE_INFO_PARSER,
+            DOWNLOADED_DATABASE_INFO_PARSER,
             new ParseField("downloader_attempts")
         );
 
-        DOWNLOADED_DATABSE_INFO_PARSER.declareString(ConstructingObjectParser.constructorArg(), new ParseField("name"));
-        DOWNLOADED_DATABSE_INFO_PARSER.declareObject(
+        DOWNLOADED_DATABASE_INFO_PARSER.declareString(ConstructingObjectParser.constructorArg(), new ParseField("name"));
+        DOWNLOADED_DATABASE_INFO_PARSER.declareObject(
             ConstructingObjectParser.optionalConstructorArg(),
             DOWNLOAD_ATTEMPT_PARSER,
             new ParseField("last_success")
         );
-        DOWNLOADED_DATABSE_INFO_PARSER.declareObject(
+        DOWNLOADED_DATABASE_INFO_PARSER.declareObject(
             ConstructingObjectParser.optionalConstructorArg(),
             DOWNLOAD_ATTEMPT_PARSER,
             new ParseField("last_failure")

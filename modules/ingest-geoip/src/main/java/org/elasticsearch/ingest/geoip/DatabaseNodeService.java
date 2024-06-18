@@ -33,7 +33,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.ingest.geoip.stats.CacheStats;
-import org.elasticsearch.ingest.geoip.stats.RetrievedDatabaseInfo;
+import org.elasticsearch.ingest.geoip.stats.DatabaseInfo;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.watcher.ResourceWatcherService;
@@ -499,20 +499,20 @@ public final class DatabaseNodeService implements GeoIpDatabaseProvider, Closeab
         });
     }
 
-    public Set<RetrievedDatabaseInfo> getAvailableDatabases() {
+    public Set<DatabaseInfo> getAvailableDatabases() {
         /*
          * We return all databases that exist on the node, including manually-configured databases and downloader databases. There will
          * not be more than one entry per database name. If more than one exist, only the active one will be returned. Downloader
          * databases take priority over manually-configured databases.
          */
-        Map<String, RetrievedDatabaseInfo> allDatabases = new HashMap<>();
+        Map<String, DatabaseInfo> allDatabases = new HashMap<>();
         for (Map.Entry<String, DatabaseReaderLazyLoader> entry : configDatabases.getConfigDatabases().entrySet()) {
             DatabaseReaderLazyLoader databaseReaderLazyLoader = entry.getValue();
             try {
                 final Metadata metadata = databaseReaderLazyLoader.getMetadata();
                 allDatabases.put(
                     entry.getKey(),
-                    new RetrievedDatabaseInfo(
+                    new DatabaseInfo(
                         entry.getKey(),
                         "config",
                         databaseReaderLazyLoader.getArchiveMd5(),
@@ -542,7 +542,7 @@ public final class DatabaseNodeService implements GeoIpDatabaseProvider, Closeab
             }
             allDatabases.put(
                 entry.getKey(),
-                new RetrievedDatabaseInfo(
+                new DatabaseInfo(
                     entry.getKey(),
                     "downloader",
                     databaseReaderLazyLoader.getArchiveMd5(),

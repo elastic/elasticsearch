@@ -43,7 +43,7 @@ public record PrimaryTermAndGeneration(long primaryTerm, long generation) implem
 
     @Override
     public String toString() {
-        return "[primary term=" + primaryTerm + ", generation=" + generation + ']';
+        return "[term=" + primaryTerm + ", gen=" + generation + ']';
     }
 
     @Override

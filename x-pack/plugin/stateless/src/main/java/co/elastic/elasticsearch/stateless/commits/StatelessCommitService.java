@@ -406,6 +406,9 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             }
 
             assert reference.getPrimaryTerm() == commitState.allocationPrimaryTerm;
+            logger.trace(
+                () -> format("%s created commit %s", shardId, new PrimaryTermAndGeneration(reference.getPrimaryTerm(), generation))
+            );
 
             // TODO: we can also check whether we need upload before appending to avoid creating VBCC just above the cache region size
 
@@ -2198,6 +2201,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             public void closedLocalReaders() {
                 // be idempotent.
                 if (readersClosed.compareAndSet(false, true)) {
+                    logger.trace(() -> format("%s closed local reader %s", shardId, primaryTermAndGeneration));
                     decRef();
                 }
             }
@@ -2222,6 +2226,14 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 if (remainingLocalCommits != null && remainingLocalCommits.isEmpty()) {
                     var previousUsedLocalCommits = localCommitsRef.getAndUpdate(existing -> null);
                     if (previousUsedLocalCommits != null && previousUsedLocalCommits.isEmpty()) {
+                        logger.trace(
+                            () -> format(
+                                "%s locally deleted %s, also releases %s",
+                                shardId,
+                                primaryTermAndGeneration,
+                                references.stream().map(BlobReference::getPrimaryTermAndGeneration).sorted().toList()
+                            )
+                        );
                         references.forEach(AbstractRefCounted::decRef);
                         decRef();
                     }
@@ -2325,6 +2337,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
 
             @Override
             protected void closeInternal() {
+                logger.trace(() -> format("%s cleared all references to %s", shardId, primaryTermAndGeneration));
                 final BlobReference released = this;
                 internalFiles.forEach(fileName -> {
                     blobLocations.compute(fileName, (file, commitAndBlobLocation) -> {

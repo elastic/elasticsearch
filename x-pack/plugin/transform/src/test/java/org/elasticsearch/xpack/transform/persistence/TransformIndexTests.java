@@ -167,27 +167,35 @@ public class TransformIndexTests extends ESTestCase {
         assertThat(createIndexRequest.aliases(), is(empty()));
     }
 
-    public void testCreateDestinationIndexThrowsResourceAlreadyExistsException() {
+    public void testCreateDestinationIndexThrowsResourceAlreadyExistsException() throws InterruptedException {
         doAnswer(withFailure(new ResourceAlreadyExistsException("blah"))).when(client).execute(any(), any(), any());
+
+        var latch = new CountDownLatch(1);
 
         TransformIndex.createDestinationIndex(
             client,
             TransformConfigTests.randomTransformConfig(TRANSFORM_ID),
             TransformIndex.createTransformDestIndexSettings(Settings.EMPTY, new HashMap<>(), TRANSFORM_ID, clock),
-            ActionTestUtils.assertNoFailureListener(Assert::assertFalse)
+            new LatchedActionListener<>(ActionTestUtils.assertNoFailureListener(Assert::assertFalse), latch)
         );
+
+        assertTrue("Timed out waiting for test to finish", latch.await(10, TimeUnit.SECONDS));
     }
 
-    public void testCreateDestinationIndexThrowsWrappedResourceAlreadyExistsException() {
+    public void testCreateDestinationIndexThrowsWrappedResourceAlreadyExistsException() throws InterruptedException {
         doAnswer(withFailure(new RemoteTransportException("blah", new ResourceAlreadyExistsException("also blah")))).when(client)
             .execute(any(), any(), any());
 
+        var latch = new CountDownLatch(1);
+
         TransformIndex.createDestinationIndex(
             client,
             TransformConfigTests.randomTransformConfig(TRANSFORM_ID),
             TransformIndex.createTransformDestIndexSettings(Settings.EMPTY, new HashMap<>(), TRANSFORM_ID, clock),
-            ActionTestUtils.assertNoFailureListener(Assert::assertFalse)
+            new LatchedActionListener<>(ActionTestUtils.assertNoFailureListener(Assert::assertFalse), latch)
         );
+
+        assertTrue("Timed out waiting for test to finish", latch.await(10, TimeUnit.SECONDS));
     }
 
     public void testSetUpDestinationAliases_NullAliases() {

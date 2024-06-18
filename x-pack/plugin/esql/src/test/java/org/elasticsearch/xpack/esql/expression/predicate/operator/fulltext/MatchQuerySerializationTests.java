@@ -11,7 +11,6 @@ import org.elasticsearch.xpack.esql.core.expression.predicate.fulltext.MatchQuer
 import org.elasticsearch.xpack.esql.expression.AbstractExpressionSerializationTests;
 
 import java.io.IOException;
-import java.util.List;
 
 public class MatchQuerySerializationTests extends AbstractFulltextSerializationTests<MatchQueryPredicate> {
 
@@ -25,10 +24,10 @@ public class MatchQuerySerializationTests extends AbstractFulltextSerializationT
         var field = instance.field();
         var query = instance.query();
         var options = instance.options();
-        switch (randomFrom(List.of(1, 2, 3))) {
-            case 1 -> field = randomValueOtherThan(field, AbstractExpressionSerializationTests::randomChild);
-            case 2 -> query = randomValueOtherThan(query, () -> randomAlphaOfLength(randomIntBetween(1, 16)));
-            case 3 -> options = randomValueOtherThan(options, this::randomOptionOrNull);
+        switch (between(0, 2)) {
+            case 0 -> field = randomValueOtherThan(field, AbstractExpressionSerializationTests::randomChild);
+            case 1 -> query = randomValueOtherThan(query, () -> randomAlphaOfLength(randomIntBetween(1, 16)));
+            case 2 -> options = randomValueOtherThan(options, this::randomOptionOrNull);
         }
         return new MatchQueryPredicate(instance.source(), field, query, options);
     }

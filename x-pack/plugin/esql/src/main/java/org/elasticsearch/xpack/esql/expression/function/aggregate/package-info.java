@@ -165,6 +165,9 @@
  *     </li>
  *     <li>
  *         After completing your template, run the generation with {@code ./gradlew :x-pack:plugin:esql:compute:compileJava}.
+ *         <p>
+ *             You may need to tweak some import orders per type so they don't raise warnings.
+ *         </p>
  *     </li>
  * </ol>
  */

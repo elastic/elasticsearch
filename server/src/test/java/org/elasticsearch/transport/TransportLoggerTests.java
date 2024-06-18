@@ -71,7 +71,7 @@ public class TransportLoggerTests extends ESTestCase {
         try (RecyclerBytesStreamOutput bytesStreamOutput = new RecyclerBytesStreamOutput(recycler)) {
             OutboundMessage.Request request = new OutboundMessage.Request(
                 new ThreadContext(Settings.EMPTY),
-                new TransportRequest.Empty(),
+                new EmptyRequest(),
                 TransportVersion.current(),
                 "internal:test",
                 randomInt(30),

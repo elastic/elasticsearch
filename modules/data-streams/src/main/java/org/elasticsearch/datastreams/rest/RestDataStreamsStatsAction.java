@@ -22,7 +22,7 @@ import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
-@ServerlessScope(Scope.INTERNAL)
+@ServerlessScope(Scope.PUBLIC)
 public class RestDataStreamsStatsAction extends BaseRestHandler {
     @Override
     public String getName() {

@@ -17,9 +17,7 @@
 
 package co.elastic.elasticsearch.stateless.autoscaling.search;
 
-import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.Set;
@@ -71,22 +69,15 @@ public class IndexReplicationRanker {
      * IndexReplicationRanker#rankedIndexComparator}.
      */
     static Set<String> getRankedIndicesBelowThreshold(Collection<IndexRankingProperties> indices, long threshold) {
-        var rankedIndices = new ArrayList<IndexRankingProperties>();
-        for (var index : indices) {
-            // all system indices should be ranked highest, regardless of whether they have an @timestamp field
-            // and are thus considered interactive or not, so we add them explicitly here.
-            if (index.indexProperties().isSystem() || index.interactiveSize() > 0) {
-                rankedIndices.add(index);
-            }
-        }
-        Collections.sort(rankedIndices, rankedIndexComparator.reversed());
+        var rankedIndices = indices.stream().filter(index -> index.interactiveSize() > 0).sorted(rankedIndexComparator.reversed()).toList();
         long cumulativeSize = 0;
         var twoReplicaEligableIndices = new HashSet<String>();
         for (IndexRankingProperties index : rankedIndices) {
             cumulativeSize += index.interactiveSize();
-            if (cumulativeSize <= threshold) {
-                twoReplicaEligableIndices.add(index.indexProperties().name());
+            if (cumulativeSize > threshold) {
+                break;
             }
+            twoReplicaEligableIndices.add(index.indexProperties().name());
         }
         return twoReplicaEligableIndices;
     }

@@ -94,6 +94,10 @@ public abstract class SecuritySingleNodeTestCase extends ESSingleNodeTestCase {
 
     private boolean isMigrationComplete(ClusterState state) {
         IndexMetadata indexMetadata = state.metadata().index(TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7);
+        if (indexMetadata == null) {
+            // If the security index doesn't exist, no migrations to apply
+            return true;
+        }
         Map<String, String> customMetadata = indexMetadata.getCustomData(MIGRATION_VERSION_CUSTOM_KEY);
         if (customMetadata == null) {
             return false;
@@ -106,9 +110,7 @@ public abstract class SecuritySingleNodeTestCase extends ESSingleNodeTestCase {
         final var latch = new CountDownLatch(1);
         ClusterService clusterService = getInstanceFromNode(ClusterService.class);
         clusterService.addListener((event) -> {
-            IndexMetadata indexMetadata = event.state().metadata().index(TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7);
-            if (indexMetadata == null || isMigrationComplete(event.state())) {
-                // Either the security index doesn't exist, so no migrations to apply, or it exists and the migrations have been applied
+            if (isMigrationComplete(event.state())) {
                 latch.countDown();
             }
         });

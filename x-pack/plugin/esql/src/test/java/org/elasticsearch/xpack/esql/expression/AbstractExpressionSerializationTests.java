@@ -29,6 +29,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.sameInstance;
 
 public abstract class AbstractExpressionSerializationTests<T extends Expression> extends AbstractWireTestCase<T> {
     public static Source randomSource() {
@@ -54,11 +55,19 @@ public abstract class AbstractExpressionSerializationTests<T extends Expression>
                 PlanStreamInput pin = new PlanStreamInput(in, new PlanNameRegistry(), in.namedWriteableRegistry(), config);
                 @SuppressWarnings("unchecked")
                 T deser = (T) pin.readNamedWriteable(Expression.class);
-                assertThat(deser.source(), equalTo(instance.source()));
+                if (alwaysEmptySource()) {
+                    assertThat(deser.source(), sameInstance(Source.EMPTY));
+                } else {
+                    assertThat(deser.source(), equalTo(instance.source()));
+                }
                 return deser;
             },
             version
         );
+    }
+
+    protected boolean alwaysEmptySource() {
+        return false;
     }
 
     protected abstract List<NamedWriteableRegistry.Entry> getNamedWriteables();

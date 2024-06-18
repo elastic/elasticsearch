@@ -32,7 +32,7 @@ module org.elasticsearch.server {
     requires org.elasticsearch.plugin.analysis;
     requires org.elasticsearch.grok;
     requires org.elasticsearch.tdigest;
-    requires org.elasticsearch.vec;
+    requires org.elasticsearch.simdvec;
 
     requires com.sun.jna;
     requires hppc;
@@ -431,6 +431,7 @@ module org.elasticsearch.server {
             org.elasticsearch.indices.IndicesFeatures,
             org.elasticsearch.action.admin.cluster.allocation.AllocationStatsFeatures,
             org.elasticsearch.index.mapper.MapperFeatures,
+            org.elasticsearch.script.ScriptFeatures,
             org.elasticsearch.search.retriever.RetrieversFeatures,
             org.elasticsearch.reservedstate.service.FileSettingsFeatures;
 

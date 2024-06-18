@@ -53,6 +53,23 @@ tests:
 - class: "org.elasticsearch.xpack.rollup.job.RollupIndexerStateTests"
   issue: "https://github.com/elastic/elasticsearch/issues/109627"
   method: "testMultipleJobTriggering"
+- class: "org.elasticsearch.index.store.FsDirectoryFactoryTests"
+  issue: "https://github.com/elastic/elasticsearch/issues/109681"
+- class: "org.elasticsearch.xpack.test.rest.XPackRestIT"
+  issue: "https://github.com/elastic/elasticsearch/issues/109687"
+  method: "test {p0=sql/translate/Translate SQL}"
+- class: "org.elasticsearch.xpack.esql.EsqlAsyncSecurityIT"
+  issue: "https://github.com/elastic/elasticsearch/issues/109806"
+  method: "testInsufficientPrivilege"
+- class: org.elasticsearch.action.search.SearchProgressActionListenerIT
+  method: testSearchProgressWithHits
+  issue: https://github.com/elastic/elasticsearch/issues/109830
+- class: "org.elasticsearch.xpack.shutdown.NodeShutdownReadinessIT"
+  issue: "https://github.com/elastic/elasticsearch/issues/109838"
+  method: "testShutdownReadinessService"
+- class: "org.elasticsearch.packaging.test.PackageTests"
+  issue: "https://github.com/elastic/elasticsearch/issues/109841"
+  method: "test50Remove"
 
 # Examples:
 #

@@ -122,6 +122,8 @@ public class ScriptDocValuesGeoPointsTests extends ESTestCase {
             geoPoints.getSupplier().setNextDocId(d);
             if (points[d].length > 0) {
                 assertEquals(points[d][0], geoPoints.getValue());
+                Exception e = expectThrows(IndexOutOfBoundsException.class, () -> geoPoints.get(geoPoints.size()));
+                assertEquals("A document doesn't have a value for a field at position [" + geoPoints.size() + "]!", e.getMessage());
             } else {
                 Exception e = expectThrows(IllegalStateException.class, () -> geoPoints.getValue());
                 assertEquals(

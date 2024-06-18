@@ -254,7 +254,7 @@ public class RestShardsAction extends AbstractCatAction {
         );
         table.addCell(
             "dense_vector.value_count",
-            "alias:dvc,denseVectorCount;default:false;text-align:right;desc:total count of indexed dense vector"
+            "alias:dvc,denseVectorCount;default:false;text-align:right;desc:number of indexed dense vectors in shard"
         );
         table.addCell(
             "sparse_vector.value_count",

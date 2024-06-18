@@ -31,7 +31,7 @@ create logs index:
             properties:
               "@timestamp":
                 type: date
-              hostname:
+              host.name:
                 type: keyword
               agent_id:
                 type: keyword
@@ -48,17 +48,17 @@ create logs index:
         refresh: true
         body:
           - { "index": { } }
-          - { "@timestamp": "2024-02-12T10:30:00Z", "hostname": "foo", "agent_id": "darth-vader", "process_id": 101, "http_method": "GET", "message": "No, I am your father." }
+          - { "@timestamp": "2024-02-12T10:30:00Z", ignored_field_stats: "foo", "agent_id": "darth-vader", "process_id": 101, "http_method": "GET", "message": "No, I am your father." }
           - { "index": { } }
-          - { "@timestamp": "2024-02-12T10:31:00Z", "hostname": "bar", "agent_id": "yoda", "process_id": 102, "http_method": "PUT", "message": "Do. Or do not. There is no try." }
+          - { "@timestamp": "2024-02-12T10:31:00Z", "host.name": "bar", "agent_id": "yoda", "process_id": 102, "http_method": "PUT", "message": "Do. Or do not. There is no try." }
           - { "index": { } }
-          - { "@timestamp": "2024-02-12T10:32:00Z", "hostname": "foo", "agent_id": "obi-wan", "process_id": 103, "http_method": "GET", "message": "May the force be with you." }
+          - { "@timestamp": "2024-02-12T10:32:00Z", "host.name": "foo", "agent_id": "obi-wan", "process_id": 103, "http_method": "GET", "message": "May the force be with you." }
           - { "index": { } }
-          - { "@timestamp": "2024-02-12T10:33:00Z", "hostname": "baz", "agent_id": "darth-vader", "process_id": 102, "http_method": "POST", "message": "I find your lack of faith disturbing." }
+          - { "@timestamp": "2024-02-12T10:33:00Z", "host.name": "baz", "agent_id": "darth-vader", "process_id": 102, "http_method": "POST", "message": "I find your lack of faith disturbing." }
           - { "index": { } }
-          - { "@timestamp": "2024-02-12T10:34:00Z", "hostname": "baz", "agent_id": "yoda", "process_id": 104, "http_method": "POST", "message": "Wars not make one great." }
+          - { "@timestamp": "2024-02-12T10:34:00Z", "host.name": "baz", "agent_id": "yoda", "process_id": 104, "http_method": "POST", "message": "Wars not make one great." }
           - { "index": { } }
-          - { "@timestamp": "2024-02-12T10:35:00Z", "hostname": "foo", "agent_id": "obi-wan", "process_id": 105, "http_method": "GET", "message": "That's no moon. It's a space station." }
+          - { "@timestamp": "2024-02-12T10:35:00Z", "host.name": "foo", "agent_id": "obi-wan", "process_id": 105, "http_method": "GET", "message": "That's no moon. It's a space station." }
 
 
   - do:
@@ -103,7 +103,7 @@ using default timestamp field mapping:
               number_of_shards: 2
           mappings:
             properties:
-              hostname:
+              host.name:
                 type: keyword
               agent_id:
                 type: keyword
@@ -149,7 +149,7 @@ missing hostname field:
 
   - match: { error.root_cause.0.type: "illegal_argument_exception" }
   - match: { error.type: "illegal_argument_exception" }
-  - match: { error.reason: "unknown index sort field:[hostname]" }
+  - match: { error.reason: "unknown index sort field:[host.name]" }
 
 ---
 missing sort field:
@@ -177,7 +177,7 @@ missing sort field:
             properties:
               "@timestamp":
                 type: date
-              hostname:
+              host.name:
                 type: keyword
               agent_id:
                 type: keyword
@@ -271,7 +271,7 @@ override sort order settings:
             properties:
               "@timestamp":
                 type: date
-              hostname:
+              host.name:
                 type: keyword
               agent_id:
                 type: keyword
@@ -319,7 +319,7 @@ override sort missing settings:
             properties:
               "@timestamp":
                 type: date
-              hostname:
+              host.name:
                 type: keyword
               agent_id:
                 type: keyword
@@ -367,7 +367,7 @@ override sort mode settings:
             properties:
               "@timestamp":
                 type: date
-              hostname:
+              host.name:
                 type: keyword
               agent_id:
                 type: keyword
@@ -410,12 +410,12 @@ override sort field using nested field type in sorting:
               number_of_replicas: 0
               number_of_shards: 2
               sort:
-                field: [ "hostname", "nested", "@timestamp" ]
+                field: [ "host.name", "nested", "@timestamp" ]
           mappings:
             properties:
               "@timestamp":
                 type: date
-              hostname:
+              host.name:
                 type: keyword
               agent_id:
                 type: keyword
@@ -459,7 +459,7 @@ override sort field using nested field type:
             properties:
               "@timestamp":
                 type: date
-              hostname:
+              host.name:
                 type: keyword
               agent_id:
                 type: keyword
@@ -499,12 +499,12 @@ routing path not allowed in logs mode:
               mode: logs
               number_of_replicas: 0
               number_of_shards: 2
-              routing_path: [ "hostname", "agent_id" ]
+              routing_path: [ "host.name", "agent_id" ]
           mappings:
             properties:
               "@timestamp":
                 type: date
-              hostname:
+              host.name:
                 type: keyword
               agent_id:
                 type: keyword
@@ -545,7 +545,7 @@ start time not allowed in logs mode:
             properties:
               "@timestamp":
                 type: date
-              hostname:
+              host.name:
                 type: keyword
               agent_id:
                 type: keyword
@@ -586,7 +586,7 @@ end time not allowed in logs mode:
             properties:
               "@timestamp":
                 type: date
-              hostname:
+              host.name:
                 type: keyword
               agent_id:
                 type: keyword

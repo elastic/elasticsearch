@@ -269,7 +269,6 @@
   - requires:
       cluster_features: "gte_v8.15.0"
       reason: 'position fix for unique filter is available since 8.15.0'
-      test_runner_features: "warnings"
   - do:
       indices.analyze:
         body:

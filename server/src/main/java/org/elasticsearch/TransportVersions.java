@@ -193,6 +193,7 @@ public class TransportVersions {
     public static final TransportVersion MORE_LIGHTER_NODES_REQUESTS = def(8_684_00_0);
     public static final TransportVersion DROP_UNUSED_NODES_IDS = def(8_685_00_0);
     public static final TransportVersion DELETE_SNAPSHOTS_ASYNC_ADDED = def(8_686_00_0);
+    public static final TransportVersion ML_AD_OUTPUT_MEMORY_ALLOCATOR_FIELD = def(8_687_00_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,

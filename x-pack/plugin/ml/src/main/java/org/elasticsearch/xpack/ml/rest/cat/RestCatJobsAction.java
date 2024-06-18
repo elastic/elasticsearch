@@ -214,9 +214,9 @@ public class RestCatJobsAction extends AbstractCatAction {
                 .build()
         );
         table.addCell(
-            "json_memory_allocator_bytes",
-            TableColumnAttributeBuilder.builder("how many bytes have the JSON memory allocators used", false)
-                .setAliases("jmab", "jsonMemoryAllocatorBytes")
+            "model.output_memory_allocator_bytes",
+            TableColumnAttributeBuilder.builder("how many bytes have been used to output the model documents", false)
+                .setAliases("momab", "modelOutputMemoryAllocatorBytes")
                 .build()
         );
         table.addCell(
@@ -423,9 +423,9 @@ public class RestCatJobsAction extends AbstractCatAction {
             table.addCell(modelSizeStats == null ? null : modelSizeStats.getBucketAllocationFailuresCount());
             table.addCell(modelSizeStats == null ? null : modelSizeStats.getCategorizationStatus().toString());
             table.addCell(
-                modelSizeStats == null || modelSizeStats.getJsonMemmoryAllocatorBytes() == null
+                modelSizeStats == null || modelSizeStats.getOutputMemmoryAllocatorBytes() == null
                     ? null
-                    : ByteSizeValue.ofBytes(modelSizeStats.getJsonMemmoryAllocatorBytes())
+                    : ByteSizeValue.ofBytes(modelSizeStats.getOutputMemmoryAllocatorBytes())
             );
             table.addCell(modelSizeStats == null ? null : modelSizeStats.getCategorizedDocCount());
             table.addCell(modelSizeStats == null ? null : modelSizeStats.getTotalCategoryCount());

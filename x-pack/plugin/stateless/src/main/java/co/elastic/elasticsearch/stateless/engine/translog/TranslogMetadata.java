@@ -35,18 +35,10 @@ public record TranslogMetadata(long offset, long size, long minSeqNo, long maxSe
         long minSeqNo = streamInput.readLong();
         long maxSeqNo = streamInput.readLong();
         long totalOps = streamInput.readLong();
-        if (hasShardGeneration(version)) {
+        if (version < CompoundTranslogHeader.VERSION_WITH_REMOVED_SHARD_GENERATION_DIRECTORY) {
             streamInput.readLong();
         }
-        Directory directory = version >= CompoundTranslogHeader.VERSION_WITH_BROKEN_DIRECTORY
-            ? Directory.readFromStore(streamInput, version)
-            : null;
-        return new TranslogMetadata(offset, size, minSeqNo, maxSeqNo, totalOps, directory);
-    }
-
-    private static boolean hasShardGeneration(int version) {
-        return version >= CompoundTranslogHeader.VERSION_WITH_SHARD_TRANSLOG_GENERATION
-            && version < CompoundTranslogHeader.VERSION_WITH_REMOVED_SHARD_GENERATION_DIRECTORY;
+        return new TranslogMetadata(offset, size, minSeqNo, maxSeqNo, totalOps, Directory.readFromStore(streamInput));
     }
 
     @Override
@@ -79,14 +71,8 @@ public record TranslogMetadata(long offset, long size, long minSeqNo, long maxSe
 
     public record Directory(long estimatedOperationsToRecover, int[] referencedTranslogFileOffsets) implements Writeable {
 
-        public static Directory readFromStore(StreamInput streamInput, int version) throws IOException {
-            assert version >= CompoundTranslogHeader.VERSION_WITH_BROKEN_DIRECTORY;
-            Directory directory = new Directory(streamInput.readVLong(), streamInput.readVIntArray());
-            if (version >= CompoundTranslogHeader.VERSION_WITH_FIXED_DIRECTORY) {
-                return directory;
-            } else {
-                return null;
-            }
+        public static Directory readFromStore(StreamInput streamInput) throws IOException {
+            return new Directory(streamInput.readVLong(), streamInput.readVIntArray());
         }
 
         // Currently referenced files are serialized as vInts offset from the current generation. This means that the average referenced

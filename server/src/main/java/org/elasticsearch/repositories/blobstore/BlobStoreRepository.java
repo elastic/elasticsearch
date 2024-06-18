@@ -22,6 +22,7 @@ import org.apache.lucene.store.RateLimiter;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.SingleResultDeduplicator;
@@ -66,7 +67,6 @@ import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
 import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.store.InputStreamIndexInput;
 import org.elasticsearch.common.metrics.CounterMetric;
@@ -1559,16 +1559,17 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
          * @param shardId       Shard id that the snapshot was removed from
          * @param blobsToDelete Blob names in the shard directory that have become unreferenced in the new shard generation
          */
-        private record ShardSnapshotMetaDeleteResult(String indexId, int shardId, Collection<String> blobsToDelete) implements Writeable {
-            @Override
-            public void writeTo(StreamOutput out) throws IOException {
+        private record ShardSnapshotMetaDeleteResult(String indexId, int shardId, Collection<String> blobsToDelete) {
+            ShardSnapshotMetaDeleteResult(StreamInput in) throws IOException {
+                this(in.readString(), in.readVInt(), in.readStringCollectionAsImmutableList());
+                assert in.getTransportVersion().equals(TransportVersion.current()); // only used in memory on the local node
+            }
+
+            void writeTo(StreamOutput out) throws IOException {
+                assert out.getTransportVersion().equals(TransportVersion.current()); // only used in memory on the local node
                 out.writeString(indexId);
                 out.writeVInt(shardId);
                 out.writeStringCollection(blobsToDelete);
-            }
-
-            ShardSnapshotMetaDeleteResult(StreamInput in) throws IOException {
-                this(in.readString(), in.readVInt(), in.readStringCollectionAsImmutableList());
             }
         }
 

@@ -111,7 +111,7 @@ public class AutoscalerService implements ClusterStateListener {
         updateAutoscalers(event.state());
         if (autoscalers.isEmpty() == false) {
             startScheduling();
-        }  else {
+        } else {
             stopScheduling();
         }
     }
@@ -142,7 +142,11 @@ public class AutoscalerService implements ClusterStateListener {
         if (cancellable == null) {
             logger.debug("Starting ML inference autoscaler");
             try {
-                cancellable = threadPool.scheduleWithFixedDelay(this::trigger, TimeValue.timeValueSeconds(timeIntervalSeconds), threadPool.generic());
+                cancellable = threadPool.scheduleWithFixedDelay(
+                    this::trigger,
+                    TimeValue.timeValueSeconds(timeIntervalSeconds),
+                    threadPool.generic()
+                );
             } catch (EsRejectedExecutionException e) {
                 if (e.isExecutorShutdown() == false) {
                     throw e;

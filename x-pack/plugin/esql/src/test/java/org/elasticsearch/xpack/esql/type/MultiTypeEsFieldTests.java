@@ -34,6 +34,7 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
 import org.elasticsearch.xpack.esql.session.EsqlConfigurationSerializationTests;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -57,6 +58,13 @@ import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.isString;
  * modules are merged, or at least the relevant classes are moved.
  */
 public class MultiTypeEsFieldTests extends AbstractNamedWriteableTestCase<MultiTypeEsField> {
+
+    private EsqlConfiguration config;
+
+    @Before
+    public void initConfig() {
+        config = EsqlConfigurationSerializationTests.randomConfiguration();
+    }
 
     @Override
     protected MultiTypeEsField createTestInstance() {
@@ -98,7 +106,6 @@ public class MultiTypeEsFieldTests extends AbstractNamedWriteableTestCase<MultiT
 
     @Override
     protected final MultiTypeEsField copyInstance(MultiTypeEsField instance, TransportVersion version) throws IOException {
-        EsqlConfiguration config = EsqlConfigurationSerializationTests.randomConfiguration();
         return copyInstance(
             instance,
             getNamedWriteableRegistry(),

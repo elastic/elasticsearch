@@ -40,7 +40,10 @@ import static org.hamcrest.Matchers.equalTo;
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class PrevalidateShardPathIT extends ESIntegTestCase {
 
-    @TestLogging(value = "org.elasticsearch.cluster.service.MasterService:DEBUG", reason = "https://github.com/elastic/elasticsearch-serverless/pull/2068")
+    @TestLogging(
+        value = "org.elasticsearch.cluster.service.MasterService:DEBUG",
+        reason = "https://github.com/elastic/elasticsearch-serverless/pull/2068"
+    )
     public void testCheckShards() throws Exception {
         internalCluster().startMasterOnlyNode();
         String node1 = internalCluster().startDataOnlyNode();

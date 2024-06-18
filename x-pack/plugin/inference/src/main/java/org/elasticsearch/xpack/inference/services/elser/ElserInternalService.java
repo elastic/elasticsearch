@@ -41,7 +41,7 @@ import org.elasticsearch.xpack.core.ml.action.StopTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelInput;
 import org.elasticsearch.xpack.core.ml.inference.results.ErrorInferenceResults;
-import org.elasticsearch.xpack.core.ml.inference.results.InferenceChunkedTextExpansionResults;
+import org.elasticsearch.xpack.core.ml.inference.results.MlChunkedTextExpansionResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextExpansionConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TokenizationConfigUpdate;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
@@ -415,7 +415,7 @@ public class ElserInternalService implements InferenceService {
         var translated = new ArrayList<ChunkedInferenceServiceResults>();
 
         for (var inferenceResult : inferenceResults) {
-            if (inferenceResult instanceof InferenceChunkedTextExpansionResults mlChunkedResult) {
+            if (inferenceResult instanceof MlChunkedTextExpansionResults mlChunkedResult) {
                 translated.add(InferenceChunkedSparseEmbeddingResults.ofMlResult(mlChunkedResult));
             } else if (inferenceResult instanceof ErrorInferenceResults error) {
                 translated.add(new ErrorChunkedInferenceResults(error.getException()));
@@ -423,7 +423,7 @@ public class ElserInternalService implements InferenceService {
                 throw new ElasticsearchStatusException(
                     "Expected a chunked inference [{}] received [{}]",
                     RestStatus.INTERNAL_SERVER_ERROR,
-                    InferenceChunkedTextExpansionResults.NAME,
+                    MlChunkedTextExpansionResults.NAME,
                     inferenceResult.getWriteableName()
                 );
             }

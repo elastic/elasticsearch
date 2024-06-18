@@ -8,21 +8,17 @@
 
 package org.elasticsearch.action.bulk;
 
-import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.ingest.SimulateIndexResponse;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.indices.EmptySystemIndices;
@@ -63,36 +59,16 @@ public class TransportSimulateBulkActionTests extends ESTestCase {
 
     class TestTransportSimulateBulkAction extends TransportSimulateBulkAction {
 
-        volatile boolean failIndexCreation = false;
-        boolean indexCreated = false; // set when the "real" index is created
-        Runnable beforeIndexCreation = null;
-
         TestTransportSimulateBulkAction() {
             super(
                 TransportSimulateBulkActionTests.this.threadPool,
                 transportService,
-                clusterService,
+                TransportSimulateBulkActionTests.this.clusterService,
                 null,
-                null,
-                new NodeClient(Settings.EMPTY, TransportSimulateBulkActionTests.this.threadPool),
-                new ActionFilters(Collections.emptySet()),
-                new TransportBulkActionTookTests.Resolver(),
+                new ActionFilters(Set.of()),
                 new IndexingPressure(Settings.EMPTY),
                 EmptySystemIndices.INSTANCE
             );
-        }
-
-        @Override
-        void createIndex(String index, boolean requireDataStream, TimeValue timeout, ActionListener<CreateIndexResponse> listener) {
-            indexCreated = true;
-            if (beforeIndexCreation != null) {
-                beforeIndexCreation.run();
-            }
-            if (failIndexCreation) {
-                listener.onFailure(new ResourceAlreadyExistsException("index already exists"));
-            } else {
-                listener.onResponse(null);
-            }
         }
     }
 
@@ -192,20 +168,7 @@ public class TransportSimulateBulkActionTests extends ESTestCase {
                 fail(e, "Unexpected error");
             }
         };
-        Map<String, Boolean> indicesToAutoCreate = Map.of(); // unused
-        Set<String> dataStreamsToRollover = Set.of(); // unused
-        Set<String> failureStoresToRollover = Set.of(); // unused
-        long startTime = 0;
-        bulkAction.createMissingIndicesAndIndexData(
-            task,
-            bulkRequest,
-            r -> fail("executor is unused"),
-            listener,
-            indicesToAutoCreate,
-            dataStreamsToRollover,
-            failureStoresToRollover,
-            startTime
-        );
+        bulkAction.doInternalExecute(task, bulkRequest, r -> fail("executor is unused"), listener);
         assertThat(onResponseCalled.get(), equalTo(true));
     }
 }

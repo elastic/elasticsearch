@@ -93,7 +93,7 @@ public class TransportBulkActionTests extends ESTestCase {
             super(
                 TransportBulkActionTests.this.threadPool,
                 transportService,
-                clusterService,
+                TransportBulkActionTests.this.clusterService,
                 null,
                 mockFeatureService,
                 new NodeClient(Settings.EMPTY, TransportBulkActionTests.this.threadPool),
@@ -415,13 +415,13 @@ public class TransportBulkActionTests extends ESTestCase {
             .build();
 
         // Data stream with failure store should store failures
-        assertThat(TransportBulkAction.shouldStoreFailure(dataStreamWithFailureStore, metadata, testTime), is(true));
+        assertThat(TransportBulkAction.shouldStoreFailureInternal(dataStreamWithFailureStore, metadata, testTime), is(true));
         // Data stream without failure store should not
-        assertThat(TransportBulkAction.shouldStoreFailure(dataStreamWithoutFailureStore, metadata, testTime), is(false));
+        assertThat(TransportBulkAction.shouldStoreFailureInternal(dataStreamWithoutFailureStore, metadata, testTime), is(false));
         // An index should not be considered for failure storage
-        assertThat(TransportBulkAction.shouldStoreFailure(backingIndex1.getIndex().getName(), metadata, testTime), is(false));
+        assertThat(TransportBulkAction.shouldStoreFailureInternal(backingIndex1.getIndex().getName(), metadata, testTime), is(false));
         // even if that index is itself a failure store
-        assertThat(TransportBulkAction.shouldStoreFailure(failureStoreIndex1.getIndex().getName(), metadata, testTime), is(false));
+        assertThat(TransportBulkAction.shouldStoreFailureInternal(failureStoreIndex1.getIndex().getName(), metadata, testTime), is(false));
     }
 
     public void testResolveFailureStoreFromTemplate() throws Exception {
@@ -452,11 +452,11 @@ public class TransportBulkActionTests extends ESTestCase {
             .build();
 
         // Data stream with failure store should store failures
-        assertThat(TransportBulkAction.shouldStoreFailure(dsTemplateWithFailureStore + "-1", metadata, testTime), is(true));
+        assertThat(TransportBulkAction.shouldStoreFailureInternal(dsTemplateWithFailureStore + "-1", metadata, testTime), is(true));
         // Data stream without failure store should not
-        assertThat(TransportBulkAction.shouldStoreFailure(dsTemplateWithoutFailureStore + "-1", metadata, testTime), is(false));
+        assertThat(TransportBulkAction.shouldStoreFailureInternal(dsTemplateWithoutFailureStore + "-1", metadata, testTime), is(false));
         // An index template should not be considered for failure storage
-        assertThat(TransportBulkAction.shouldStoreFailure(indexTemplate + "-1", metadata, testTime), is(false));
+        assertThat(TransportBulkAction.shouldStoreFailureInternal(indexTemplate + "-1", metadata, testTime), is(false));
     }
 
     private BulkRequest buildBulkRequest(List<String> indices) {

@@ -1035,6 +1035,8 @@ public class MasterService extends AbstractLifecycleComponent {
         return true;
     }
 
+    static final String TEST_ONLY_EXECUTOR_MAY_CHANGE_VERSION_NUMBER_TRANSIENT_NAME = "test_only_executor_may_change_version_number";
+
     private static <T extends ClusterStateTaskListener> ClusterState innerExecuteTasks(
         ClusterState previousClusterState,
         List<ExecutionResult<T>> executionResults,
@@ -1047,13 +1049,25 @@ public class MasterService extends AbstractLifecycleComponent {
             // to avoid leaking headers in production that were missed by tests
 
             try {
-                return executor.execute(
+                final var updatedState = executor.execute(
                     new ClusterStateTaskExecutor.BatchExecutionContext<>(
                         previousClusterState,
                         executionResults,
                         threadContext::newStoredContext
                     )
                 );
+                if (updatedState.version() != previousClusterState.version()
+                    || updatedState.routingTable().version() != previousClusterState.routingTable().version()
+                    || updatedState.metadata().version() != previousClusterState.metadata().version()) {
+                    // Shenanigans! Executors mustn't meddle with version numbers. Perhaps the executor based its update on the wrong
+                    // initial state, potentially losing an intervening cluster state update. That'd be very bad!
+                    final var exception = new IllegalStateException(
+                        "cluster state update executor did not preserve version numbers: [" + summary.toString() + "]"
+                    );
+                    assert threadContext.getTransient(TEST_ONLY_EXECUTOR_MAY_CHANGE_VERSION_NUMBER_TRANSIENT_NAME) != null : exception;
+                    throw exception;
+                }
+                return updatedState;
             } catch (Exception e) {
                 logger.trace(
                     () -> format(

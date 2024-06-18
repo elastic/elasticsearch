@@ -81,7 +81,6 @@ public class SearchDirectoryTests extends ESTestCase {
      * In production, the batched compound commits are expanded in cache by appending compound commits. For simplicity, this test appends
      * Lucene files instead.
      */
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch-serverless/issues/1499")
     public void testExpandingCacheRegions() throws Exception {
         var regionSize = ByteSizeValue.ofBytes(SharedBytes.PAGE_SIZE * randomLongBetween(1L, 4L)); // regions are 4kb..16kb
         var cacheSize = ByteSizeValue.ofBytes(regionSize.getBytes() * 100L); // 100 regions
@@ -167,7 +166,7 @@ public class SearchDirectoryTests extends ESTestCase {
             final var blobContainer = searchDirectory.getBlobContainer(primaryTerm);
             final int minFileSize = CodecUtil.footerLength();
 
-            final String blobName = "blob";
+            final String blobName = StatelessCompoundCommit.blobNameFromGeneration(1L);
             long blobLength = 0L;
             long generation = 0L;
 

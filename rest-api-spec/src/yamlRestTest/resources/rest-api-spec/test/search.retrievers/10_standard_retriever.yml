@@ -473,6 +473,9 @@ setup:
 
 ---
 "standard retriever collapse":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/issues/109476"
+      version: "8.13.0 - 8.13.5"
   - do:
       search:
         index: animals

@@ -101,11 +101,8 @@ public class TransportNodesInfoAction extends TransportNodesAction<
 
         public NodeInfoRequest(StreamInput in) throws IOException {
             super(in);
-            if (in.getTransportVersion().onOrAfter(V_8_11_X)) {
-                this.nodesInfoMetrics = new NodesInfoMetrics(in);
-            } else {
-                this.nodesInfoMetrics = new NodesInfoRequest(in).getNodesInfoMetrics();
-            }
+            skipLegacyNodesRequestHeader(V_8_11_X, in);
+            this.nodesInfoMetrics = new NodesInfoMetrics(in);
         }
 
         public NodeInfoRequest(NodesInfoRequest request) {
@@ -115,11 +112,8 @@ public class TransportNodesInfoAction extends TransportNodesAction<
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            if (out.getTransportVersion().onOrAfter(V_8_11_X)) {
-                this.nodesInfoMetrics.writeTo(out);
-            } else {
-                new NodesInfoRequest().clear().addMetrics(nodesInfoMetrics.requestedMetrics()).writeTo(out);
-            }
+            sendLegacyNodesRequestHeader(V_8_11_X, out);
+            nodesInfoMetrics.writeTo(out);
         }
 
         public Set<String> requestedMetrics() {

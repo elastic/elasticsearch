@@ -101,6 +101,20 @@ public class ByteBinaryDenseVector implements DenseVector {
     }
 
     @Override
+    public int hamming(byte[] queryVector) {
+        return VectorUtil.xorBitCount(queryVector, vectorValue);
+    }
+
+    @Override
+    public int hamming(List<Number> queryVector) {
+        int distance = 0;
+        for (int i = 0; i < queryVector.size(); i++) {
+            distance += Integer.bitCount((queryVector.get(i).intValue() ^ vectorValue[i]) & 0xFF);
+        }
+        return distance;
+    }
+
+    @Override
     public double l2Norm(byte[] queryVector) {
         return Math.sqrt(VectorUtil.squareDistance(queryVector, vectorValue));
     }

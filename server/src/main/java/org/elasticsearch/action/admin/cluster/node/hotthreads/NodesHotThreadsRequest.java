@@ -10,23 +10,12 @@ package org.elasticsearch.action.admin.cluster.node.hotthreads;
 
 import org.elasticsearch.action.support.nodes.BaseNodesRequest;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.monitor.jvm.HotThreads;
-
-import java.io.IOException;
 
 public class NodesHotThreadsRequest extends BaseNodesRequest<NodesHotThreadsRequest> {
 
     final HotThreads.RequestOptions requestOptions;
-
-    @UpdateForV9 // will be unused in v9
-    public NodesHotThreadsRequest(StreamInput in) throws IOException {
-        super(in);
-        requestOptions = HotThreads.RequestOptions.readFrom(in);
-    }
 
     /**
      * Get hot threads from nodes based on the nodes ids specified. If none are passed, hot
@@ -67,12 +56,5 @@ public class NodesHotThreadsRequest extends BaseNodesRequest<NodesHotThreadsRequ
 
     public int snapshots() {
         return requestOptions.snapshots();
-    }
-
-    @UpdateForV9 // can become localOnly() in v9
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        requestOptions.writeTo(out);
     }
 }

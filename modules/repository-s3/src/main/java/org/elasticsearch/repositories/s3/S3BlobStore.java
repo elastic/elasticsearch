@@ -196,10 +196,10 @@ class S3BlobStore implements BlobStore {
                         REQUESTED_RANGE_NOT_SATISFIED.getStatus()
                     );
                     s3RepositoriesMetrics.common()
-                        .clientExceptionCounter()
+                        .requestRangeNotSatisfiedExceptionCounter()
                         .incrementBy(amountOfRequestRangeNotSatisfiedErrors, clientErrorAttributes);
                     s3RepositoriesMetrics.common()
-                        .clientExceptionHistogram()
+                        .requestRangeNotSatisfiedExceptionHistogram()
                         .record(amountOfRequestRangeNotSatisfiedErrors, clientErrorAttributes);
                 }
             }

@@ -16,12 +16,12 @@ public record RepositoriesMetrics(
     MeterRegistry meterRegistry,
     LongCounter requestCounter,
     LongCounter exceptionCounter,
-    LongCounter clientExceptionCounter,
+    LongCounter requestRangeNotSatisfiedExceptionCounter,
     LongCounter throttleCounter,
     LongCounter operationCounter,
     LongCounter unsuccessfulOperationCounter,
     LongHistogram exceptionHistogram,
-    LongHistogram clientExceptionHistogram,
+    LongHistogram requestRangeNotSatisfiedExceptionHistogram,
     LongHistogram throttleHistogram,
     LongHistogram httpRequestTimeInMicroHistogram
 ) {
@@ -30,12 +30,14 @@ public record RepositoriesMetrics(
 
     public static final String METRIC_REQUESTS_TOTAL = "es.repositories.requests.total";
     public static final String METRIC_EXCEPTIONS_TOTAL = "es.repositories.exceptions.total";
-    public static final String METRIC_CLIENT_EXCEPTIONS_TOTAL = "es.repositories.exceptions.client.total";
+    public static final String METRIC_EXCEPTIONS_REQUEST_RANGE_NOT_SATISFIED_TOTAL =
+        "es.repositories.exceptions.request_range_not_satisfied.total";
     public static final String METRIC_THROTTLES_TOTAL = "es.repositories.throttles.total";
     public static final String METRIC_OPERATIONS_TOTAL = "es.repositories.operations.total";
     public static final String METRIC_UNSUCCESSFUL_OPERATIONS_TOTAL = "es.repositories.operations.unsuccessful.total";
     public static final String METRIC_EXCEPTIONS_HISTOGRAM = "es.repositories.exceptions.histogram";
-    public static final String METRIC_CLIENT_EXCEPTIONS_HISTOGRAM = "es.repositories.exceptions.client.histogram";
+    public static final String METRIC_EXCEPTIONS_REQUEST_RANGE_NOT_SATISFIED_HISTOGRAM =
+        "es.repositories.exceptions.request_range_not_satisfied.histogram";
     public static final String METRIC_THROTTLES_HISTOGRAM = "es.repositories.throttles.histogram";
     public static final String HTTP_REQUEST_TIME_IN_MICROS_HISTOGRAM = "es.repositories.requests.http_request_time.histogram";
 
@@ -45,7 +47,7 @@ public record RepositoriesMetrics(
             meterRegistry.registerLongCounter(METRIC_REQUESTS_TOTAL, "repository request counter", "unit"),
             meterRegistry.registerLongCounter(METRIC_EXCEPTIONS_TOTAL, "repository request exception counter", "unit"),
             meterRegistry.registerLongCounter(
-                METRIC_CLIENT_EXCEPTIONS_TOTAL,
+                METRIC_EXCEPTIONS_REQUEST_RANGE_NOT_SATISFIED_TOTAL,
                 "repository request RequestedRangeNotSatisfiedException counter",
                 "unit"
             ),
@@ -53,7 +55,11 @@ public record RepositoriesMetrics(
             meterRegistry.registerLongCounter(METRIC_OPERATIONS_TOTAL, "repository operation counter", "unit"),
             meterRegistry.registerLongCounter(METRIC_UNSUCCESSFUL_OPERATIONS_TOTAL, "repository unsuccessful operation counter", "unit"),
             meterRegistry.registerLongHistogram(METRIC_EXCEPTIONS_HISTOGRAM, "repository request exception histogram", "unit"),
-            meterRegistry.registerLongHistogram(METRIC_CLIENT_EXCEPTIONS_HISTOGRAM, "repository client errors histogram", "unit"),
+            meterRegistry.registerLongHistogram(
+                METRIC_EXCEPTIONS_REQUEST_RANGE_NOT_SATISFIED_HISTOGRAM,
+                "repository request exception histogram",
+                "unit"
+            ),
             meterRegistry.registerLongHistogram(METRIC_THROTTLES_HISTOGRAM, "repository request throttle histogram", "unit"),
             meterRegistry.registerLongHistogram(
                 HTTP_REQUEST_TIME_IN_MICROS_HISTOGRAM,

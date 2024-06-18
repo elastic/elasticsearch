@@ -115,7 +115,6 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             BulkShardRequest::new,
             BulkShardRequest::new,
             ExecutorSelector.getWriteExecutorForShard(threadPool),
-            false,
             indexingPressure,
             systemIndices
         );

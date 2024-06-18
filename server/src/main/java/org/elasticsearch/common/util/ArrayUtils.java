@@ -10,6 +10,7 @@ package org.elasticsearch.common.util;
 
 import java.lang.reflect.Array;
 import java.util.Arrays;
+import java.util.Objects;
 
 public class ArrayUtils {
 
@@ -77,10 +78,39 @@ public class ArrayUtils {
      */
     public static <T> T[] append(T[] array, T added) {
         @SuppressWarnings("unchecked")
-        final T[] updated = (T[]) Array.newInstance(added.getClass(), array.length + 1);
+        final T[] updated = (T[]) Array.newInstance(array.getClass().getComponentType(), array.length + 1);
         System.arraycopy(array, 0, updated, 0, array.length);
         updated[array.length] = added;
         return updated;
+    }
+
+    /**
+     * Linear scan to determine if an array contains a value using {@link Objects#equals(Object, Object)}
+     *
+     * @param array the array
+     * @param element The element to search for
+     * @return true if the array contains the element, false otherwise
+     * @param <T> type of the array elements
+     */
+    public static <T> boolean contains(T[] array, T element) {
+        for (T t : array) {
+            if (Objects.equals(element, t)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Append a value to an array, if it's not already present
+     *
+     * @param array the original array
+     * @param mustInclude the value to add if not present
+     * @return the original array if it included the specified value, or a copy of it with the element added if not
+     * @param <T> type of the array elements
+     */
+    public static <T> T[] including(T[] array, T mustInclude) {
+        return contains(array, mustInclude) ? array : append(array, mustInclude);
     }
 
     /**

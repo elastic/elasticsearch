@@ -1511,8 +1511,7 @@ public class TransportReplicationActionTests extends ESTestCase {
                 Request::new,
                 Request::new,
                 EsExecutors.DIRECT_EXECUTOR_SERVICE,
-                false,
-                forceExecute
+                forceExecute ? new ActionFlags[] { ActionFlags.ForceExecutionOnPrimary } : new ActionFlags[] {}
             );
         }
 

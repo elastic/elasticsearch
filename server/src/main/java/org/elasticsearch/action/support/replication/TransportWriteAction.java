@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.ArrayUtils;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
@@ -76,9 +77,9 @@ public abstract class TransportWriteAction<
         Writeable.Reader<Request> request,
         Writeable.Reader<ReplicaRequest> replicaRequest,
         BiFunction<ExecutorSelector, IndexShard, Executor> executorFunction,
-        boolean forceExecutionOnPrimary,
         IndexingPressure indexingPressure,
-        SystemIndices systemIndices
+        SystemIndices systemIndices,
+        TransportReplicationAction.ActionFlags... flags
     ) {
         // We pass ThreadPool.Names.SAME to the super class as we control the dispatching to the
         // ThreadPool.Names.WRITE/ThreadPool.Names.SYSTEM_WRITE thread pools in this class.
@@ -94,8 +95,7 @@ public abstract class TransportWriteAction<
             request,
             replicaRequest,
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
-            true,
-            forceExecutionOnPrimary
+            ArrayUtils.including(flags, ActionFlags.SyncGlobalCheckpointAfterOperation)
         );
         this.executorFunction = executorFunction;
         this.indexingPressure = indexingPressure;

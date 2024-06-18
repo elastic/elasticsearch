@@ -432,7 +432,6 @@ public class TransportWriteActionTests extends ESTestCase {
                 TestRequest::new,
                 TestRequest::new,
                 (service, ignore) -> EsExecutors.DIRECT_EXECUTOR_SERVICE,
-                false,
                 new IndexingPressure(Settings.EMPTY),
                 EmptySystemIndices.INSTANCE
             );
@@ -460,7 +459,6 @@ public class TransportWriteActionTests extends ESTestCase {
                 TestRequest::new,
                 TestRequest::new,
                 (service, ignore) -> EsExecutors.DIRECT_EXECUTOR_SERVICE,
-                false,
                 new IndexingPressure(settings),
                 EmptySystemIndices.INSTANCE
             );

@@ -18,6 +18,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 public class ArrayUtilsTests extends ESTestCase {
+
     public void testBinarySearch() throws Exception {
         for (int j = 0; j < 100; j++) {
             int index = randomIntBetween(0, 9);
@@ -93,6 +94,27 @@ public class ArrayUtilsTests extends ESTestCase {
             final int end = randomIntBetween(start, length);
             assertReverseSubArray(array, start, end - start);
         }
+    }
+
+    public void testIncluding() {
+        String[] oneTwoThree = { "one", "two", "three" };
+        assertArrayEquals(ArrayUtils.including(oneTwoThree, "four"), new String[] { "one", "two", "three", "four" });
+        assertSame(ArrayUtils.including(oneTwoThree, "three"), oneTwoThree);
+        assertSame(ArrayUtils.including(oneTwoThree, "one"), oneTwoThree);
+        assertArrayEquals(
+            ArrayUtils.including(new String[] { "one", null, "three" }, "four"),
+            new String[] { "one", null, "three", "four" }
+        );
+        assertArrayEquals(ArrayUtils.including(oneTwoThree, null), new String[] { "one", "two", "three", null });
+    }
+
+    public void testContains() {
+        String[] oneTwoThree = { "one", "two", "three" };
+        assertFalse(ArrayUtils.contains(oneTwoThree, "four"));
+        assertTrue(ArrayUtils.contains(oneTwoThree, "three"));
+        assertTrue(ArrayUtils.contains(oneTwoThree, "one"));
+        assertTrue(ArrayUtils.contains(new String[] { "one", null, "three" }, "one"));
+        assertTrue(ArrayUtils.contains(new String[] { "one", null, "three" }, null));
     }
 
     private void assertReverseSubArray(double[] array, int from, int length) {

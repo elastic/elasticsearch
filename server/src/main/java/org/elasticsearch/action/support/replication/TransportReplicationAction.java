@@ -37,6 +37,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.ArrayUtils;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Assertions;
@@ -89,6 +90,23 @@ public abstract class TransportReplicationAction<
     ReplicaRequest extends ReplicationRequest<ReplicaRequest>,
     Response extends ReplicationResponse> extends TransportAction<Request, Response> {
 
+    protected enum ActionFlags {
+        /**
+         * When included, will bypass queue-length checks when executing on the primary
+         */
+        ForceExecutionOnPrimary,
+        /**
+         * When included, will sync the global checkpoint to the replicas
+         * after the action completes successfully on the primary
+         */
+        SyncGlobalCheckpointAfterOperation,
+        /**
+         * When included, will prevent the replica action being rejected by
+         * the circuit breakers
+         */
+        BypassCircuitBreakerOnReplica
+    }
+
     /**
      * The timeout for retrying replication requests.
      */
@@ -128,36 +146,6 @@ public abstract class TransportReplicationAction<
     private volatile TimeValue initialRetryBackoffBound;
     private volatile TimeValue retryTimeout;
 
-    protected TransportReplicationAction(
-        Settings settings,
-        String actionName,
-        TransportService transportService,
-        ClusterService clusterService,
-        IndicesService indicesService,
-        ThreadPool threadPool,
-        ShardStateAction shardStateAction,
-        ActionFilters actionFilters,
-        Writeable.Reader<Request> requestReader,
-        Writeable.Reader<ReplicaRequest> replicaRequestReader,
-        Executor executor
-    ) {
-        this(
-            settings,
-            actionName,
-            transportService,
-            clusterService,
-            indicesService,
-            threadPool,
-            shardStateAction,
-            actionFilters,
-            requestReader,
-            replicaRequestReader,
-            executor,
-            false,
-            false
-        );
-    }
-
     @SuppressWarnings("this-escape")
     protected TransportReplicationAction(
         Settings settings,
@@ -171,8 +159,7 @@ public abstract class TransportReplicationAction<
         Writeable.Reader<Request> requestReader,
         Writeable.Reader<ReplicaRequest> replicaRequestReader,
         Executor executor,
-        boolean syncGlobalCheckpointAfterOperation,
-        boolean forceExecutionOnPrimary
+        ActionFlags... flags
     ) {
         super(actionName, actionFilters, transportService.getTaskManager());
         this.threadPool = threadPool;
@@ -187,7 +174,7 @@ public abstract class TransportReplicationAction<
 
         this.initialRetryBackoffBound = REPLICATION_INITIAL_RETRY_BACKOFF_BOUND.get(settings);
         this.retryTimeout = REPLICATION_RETRY_TIMEOUT.get(settings);
-        this.forceExecutionOnPrimary = forceExecutionOnPrimary;
+        this.forceExecutionOnPrimary = ArrayUtils.contains(flags, ActionFlags.ForceExecutionOnPrimary);
 
         transportService.registerRequestHandler(
             actionName,
@@ -210,14 +197,14 @@ public abstract class TransportReplicationAction<
             transportReplicaAction,
             executor,
             true,
-            true,
+            ArrayUtils.contains(flags, ActionFlags.BypassCircuitBreakerOnReplica) == false,
             in -> new ConcreteReplicaRequest<>(replicaRequestReader, in),
             this::handleReplicaRequest
         );
 
         this.transportOptions = transportOptions();
 
-        this.syncGlobalCheckpointAfterOperation = syncGlobalCheckpointAfterOperation;
+        this.syncGlobalCheckpointAfterOperation = ArrayUtils.contains(flags, ActionFlags.SyncGlobalCheckpointAfterOperation);
 
         ClusterSettings clusterSettings = clusterService.getClusterSettings();
         clusterSettings.addSettingsUpdateConsumer(REPLICATION_INITIAL_RETRY_BACKOFF_BOUND, (v) -> initialRetryBackoffBound = v);

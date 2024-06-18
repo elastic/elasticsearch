@@ -11,16 +11,13 @@ package org.elasticsearch.telemetry.apm;
 import io.opentelemetry.api.common.AttributeKey;
 import io.opentelemetry.api.common.Attributes;
 
-import io.opentelemetry.api.metrics.LongCounter;
-import io.opentelemetry.exporter.otlp.http.metrics.OtlpHttpMetricExporter;
-import io.opentelemetry.exporter.otlp.http.trace.OtlpHttpSpanExporter;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.jul.Log4jBridgeHandler;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.plugins.NetworkPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.TelemetryPlugin;
@@ -30,13 +27,6 @@ import org.elasticsearch.telemetry.apm.internal.APMMeterService;
 import org.elasticsearch.telemetry.apm.internal.APMTelemetryProvider;
 import org.elasticsearch.telemetry.apm.internal.tracing.APMTracer;
 
-import io.opentelemetry.api.GlobalOpenTelemetry;
-import io.opentelemetry.api.common.AttributeKey;
-import io.opentelemetry.api.common.Attributes;
-import io.opentelemetry.api.metrics.Meter;
-import io.opentelemetry.api.trace.Span;
-import io.opentelemetry.api.trace.Tracer;
-import io.opentelemetry.context.Scope;
 import io.opentelemetry.exporter.otlp.metrics.OtlpGrpcMetricExporter;
 import io.opentelemetry.exporter.otlp.trace.OtlpGrpcSpanExporter;
 import io.opentelemetry.sdk.OpenTelemetrySdk;
@@ -50,11 +40,9 @@ import org.elasticsearch.telemetry.apm.jvm.JvmFdMetrics;
 
 import java.security.AccessController;
 import java.security.PrivilegedAction;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
-import java.util.logging.Level;
 
 /**
  * This module integrates Elastic's APM product with Elasticsearch. Elasticsearch has
@@ -89,9 +77,12 @@ public class APM extends Plugin implements NetworkPlugin, TelemetryPlugin {
     public TelemetryProvider getTelemetryProvider(Settings settings) {
         Log4jBridgeHandler.install(false,"",true);
 //metrics to check https://test-apm-9fc321.kb.us-central1.gcp.cloud.es.io:9243/app/r/s/Zy7QT
-        String ENDPOINT = "https://3b4a40972a494625a76de9ef337ef425.apm.us-central1.gcp.cloud.es.io:443";
+        String ENDPOINT = settings.get("telemetry.agent.server_url");
+        TimeValue interval = settings.getAsTime("telemetry.agent.metrics_interval", TimeValue.ONE_MINUTE);
+//        String ENDPOINT = "https://3b4a40972a494625a76de9ef337ef425.apm.us-central1.gcp.cloud.es.io:443";
+
         AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
-            createOtel(ENDPOINT);
+            createOtel(ENDPOINT,interval);
             return null;
         });
 
@@ -100,21 +91,22 @@ public class APM extends Plugin implements NetworkPlugin, TelemetryPlugin {
         return apmTelemetryProvider;
     }
 
-    private static void createOtel(String ENDPOINT) {
+    private static void createOtel(String ENDPOINT, TimeValue interval) {
         OtlpGrpcSpanExporter spanExporter = OtlpGrpcSpanExporter.builder()
             .setEndpoint(ENDPOINT)
-            .addHeader("Authorization", "Bearer RXX6gm1WeXlx8qHw3a")
+         //   .addHeader("Authorization", "Bearer RXX6gm1WeXlx8qHw3a")
             .build();
         OtlpGrpcMetricExporter metricExporter = OtlpGrpcMetricExporter.builder()
             .setEndpoint(ENDPOINT)
-            .addHeader("Authorization", "Bearer RXX6gm1WeXlx8qHw3a")
+           // .addHeader("Authorization", "Bearer RXX6gm1WeXlx8qHw3a")
             .build();
         Resource resource = Resource.getDefault().merge(Resource.create(
             Attributes.of(AttributeKey.stringKey("service.name"), "testing_otel_sdk")));
 
+
         SdkMeterProvider sdkMeterProvider = SdkMeterProvider.builder()
             .setResource(resource)
-            .registerMetricReader(PeriodicMetricReader.builder(metricExporter).setInterval(5, TimeUnit.SECONDS).build())
+            .registerMetricReader(PeriodicMetricReader.builder(metricExporter).setInterval(interval.getSeconds(), TimeUnit.SECONDS).build())
             .build();
         SdkTracerProvider sdkTracerProvider = SdkTracerProvider.builder()
             .setResource(resource)

@@ -56,7 +56,7 @@ public abstract class RunTask extends DefaultTestClustersTask {
     private final Path tlsBasePath = Path.of(
         new File(getProject().getRootDir(), "build-tools-internal/src/main/resources/run.ssl").toURI()
     );
-    private MockApmServer mockServer;
+    private MockGrpcApmServer mockServer;
 
     @Option(option = "debug-jvm", description = "Enable debugging configuration, to allow attaching a debugger to elasticsearch.")
     public void setDebug(boolean enabled) {
@@ -197,17 +197,17 @@ public abstract class RunTask extends DefaultTestClustersTask {
                 }
 
                 if (apmServerEnabled) {
-//                    mockServer = new MockApmServer(9999);
-//                    try {
-//                        mockServer.start();
+                    mockServer = new MockGrpcApmServer(9999);
+                    try {
+                        mockServer.start();
                         node.setting("telemetry.metrics.enabled", "true");
                         node.setting("telemetry.tracing.enabled", "true");
-//                        node.setting("telemetry.agent.transaction_sample_rate", "0.10");
-//                        node.setting("telemetry.agent.metrics_interval", "10s");
-//                        node.setting("telemetry.agent.server_url", "http://127.0.0.1:" + mockServer.getPort());
-//                    } catch (IOException e) {
-//                        logger.warn("Unable to start APM server", e);
-//                    }
+                        node.setting("telemetry.agent.transaction_sample_rate", "0.10");
+                        node.setting("telemetry.agent.metrics_interval", "10s");
+                        node.setting("telemetry.agent.server_url", "http://127.0.0.1:" + mockServer.getPort());
+                    } catch (IOException e) {
+                        logger.warn("Unable to start APM server", e);
+                    }
                 }
                 // in serverless metrics are enabled by default
                 // if metrics were not enabled explicitly for gradlew run we should disable them

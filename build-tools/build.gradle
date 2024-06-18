@@ -155,7 +155,11 @@ dependencies {
     testRuntimeOnly(buildLibs.junit5.platform.launcher) {
         because 'allows tests to run from IDEs that bundle older version of launcher'
     }
-
+  implementation 'io.grpc:grpc-netty-shaded:1.50.2'
+  implementation 'io.grpc:grpc-protobuf:1.50.2'
+  implementation 'io.grpc:grpc-stub:1.50.2'
+  compileOnly 'org.apache.tomcat:annotations-api:6.0.53'
+  implementation 'com.google.protobuf:protobuf-java:3.21.12'
 }
 
 tasks.withType(JavaCompile).configureEach {

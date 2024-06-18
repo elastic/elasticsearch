@@ -58,7 +58,6 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Ins
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
-import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 
 import java.math.BigInteger;
 import java.time.Duration;
@@ -549,7 +548,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
     @Override
     public DataType visitToDataType(EsqlBaseParser.ToDataTypeContext ctx) {
         String typeName = visitIdentifier(ctx.identifier());
-        DataType dataType = EsqlDataTypes.fromNameOrAlias(typeName);
+        DataType dataType = DataType.fromNameOrAlias(typeName);
         if (dataType == DataType.UNSUPPORTED) {
             throw new ParsingException(source(ctx), "Unknown data type named [{}]", typeName);
         }

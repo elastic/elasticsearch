@@ -11,7 +11,6 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.net.ConnectException;
 
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.startsWith;
 
 public class CsvTestsDataLoaderTests extends ESTestCase {

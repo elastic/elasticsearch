@@ -51,16 +51,11 @@ public class LengthEncodedWriter implements RecordWriter {
     public LengthEncodedWriter(OutputStream os, String filePath) {
         outputStream = os;
         try {
-
-//            FileUtils.recreateTempDirectoryIfNeeded(Path.of(filePath));
-//            tmpFilePath = env.c
             Path file = Path.of(filePath);
-            logger.info("Opening file: " + filePath + " for writing.");
+            logger.debug("Opening file: " + filePath + " for writing.");
             fileOutputStream = Files.newOutputStream(file);
         } catch (IOException e) {
-            logger.error("Failed to open file: " + filePath + " for writing.");
-            // log error message and stack trace
-            logger.error(e.getMessage(), e);
+            logger.error("Failed to open file: " + filePath + " for writing.", e.getMessage(), e);
             fileOutputStream = null;
         }
         // This will be used to convert 32 bit integers to network byte order
@@ -69,7 +64,6 @@ public class LengthEncodedWriter implements RecordWriter {
 
     // Add public destructor
     public void close() {
-        // TODO: this should be moved to AbstractNativeProcess
         if (fileOutputStream != null) {
             try {
                 fileOutputStream.close();

@@ -37,7 +37,7 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.admin.cluster.RestNodesInfoAction;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskManager;
-import org.elasticsearch.telemetry.tracing.Tracer;
+import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -123,7 +123,7 @@ public class ActionModuleTests extends ESTestCase {
             null,
             usageService,
             null,
-            null,
+            TelemetryProvider.NOOP,
             mock(ClusterService.class),
             null,
             List.of(),
@@ -187,7 +187,7 @@ public class ActionModuleTests extends ESTestCase {
                 null,
                 usageService,
                 null,
-                null,
+                TelemetryProvider.NOOP,
                 mock(ClusterService.class),
                 null,
                 List.of(),
@@ -244,7 +244,7 @@ public class ActionModuleTests extends ESTestCase {
                 null,
                 usageService,
                 null,
-                null,
+                TelemetryProvider.NOOP,
                 mock(ClusterService.class),
                 null,
                 List.of(),
@@ -335,7 +335,7 @@ public class ActionModuleTests extends ESTestCase {
                     null,
                     usageService,
                     null,
-                    null,
+                    TelemetryProvider.NOOP,
                     mock(ClusterService.class),
                     null,
                     List.of(),
@@ -388,10 +388,10 @@ public class ActionModuleTests extends ESTestCase {
             NodeClient client,
             CircuitBreakerService circuitBreakerService,
             UsageService usageService,
-            Tracer tracer
+            TelemetryProvider telemetryProvider
         ) {
             if (installController) {
-                return new RestController(interceptor, client, circuitBreakerService, usageService, tracer);
+                return new RestController(interceptor, client, circuitBreakerService, usageService, telemetryProvider);
             } else {
                 return null;
             }

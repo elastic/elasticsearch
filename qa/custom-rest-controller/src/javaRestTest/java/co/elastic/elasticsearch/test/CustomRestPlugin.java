@@ -21,7 +21,7 @@ import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestInterceptor;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.telemetry.tracing.Tracer;
+import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.usage.UsageService;
 
 public class CustomRestPlugin extends Plugin implements RestServerActionPlugin {
@@ -59,9 +59,9 @@ public class CustomRestPlugin extends Plugin implements RestServerActionPlugin {
             NodeClient client,
             CircuitBreakerService circuitBreakerService,
             UsageService usageService,
-            Tracer tracer
+            TelemetryProvider telemetryProvider
         ) {
-            super(interceptor, client, circuitBreakerService, usageService, tracer);
+            super(interceptor, client, circuitBreakerService, usageService, telemetryProvider);
         }
 
         @Override
@@ -83,9 +83,9 @@ public class CustomRestPlugin extends Plugin implements RestServerActionPlugin {
         NodeClient client,
         CircuitBreakerService circuitBreakerService,
         UsageService usageService,
-        Tracer tracer
+        TelemetryProvider telemetryProvider
     ) {
-        return new CustomController(interceptor, client, circuitBreakerService, usageService, tracer);
+        return new CustomController(interceptor, client, circuitBreakerService, usageService, telemetryProvider);
     }
 
 }

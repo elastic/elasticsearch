@@ -39,6 +39,7 @@ import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.rest.RestHandler.Route;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.transport.Transports;
 import org.elasticsearch.usage.SearchUsageHolder;
@@ -115,10 +116,10 @@ public class RestController implements HttpServerTransport.Dispatcher {
         NodeClient client,
         CircuitBreakerService circuitBreakerService,
         UsageService usageService,
-        Tracer tracer
+        TelemetryProvider telemetryProvider
     ) {
         this.usageService = usageService;
-        this.tracer = tracer;
+        this.tracer = telemetryProvider.getTracer();
         if (restInterceptor == null) {
             restInterceptor = (request, channel, targetHandler, listener) -> listener.onResponse(Boolean.TRUE);
         }

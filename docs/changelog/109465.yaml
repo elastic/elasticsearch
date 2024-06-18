@@ -14,4 +14,7 @@ highlight:
     There are several significant differences between the COMPAT locale database and CLDR.
     To ease migration, a shim has been added to maintain the existing era, day-of-week, month,
     and am/pm names from COMPAT, where they differ from CLDR.
+
+    To continue to use the COMPAT locale database on previous Java versions,
+    set ES_CLI_OPTS="-Dcompat.locales=true", but this will not work on Java version 23 and above.
   notable: false

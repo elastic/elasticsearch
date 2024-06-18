@@ -59,10 +59,11 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
-import org.elasticsearch.common.compress.CompressorFactory;
+import org.elasticsearch.common.compress.DeflateCompressor;
 import org.elasticsearch.common.compress.NotXContentException;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
 import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -137,6 +138,8 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 
+import java.io.BufferedInputStream;
+import java.io.BufferedOutputStream;
 import java.io.Closeable;
 import java.io.FilterInputStream;
 import java.io.IOException;
@@ -167,6 +170,8 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import java.util.zip.DeflaterOutputStream;
+import java.util.zip.InflaterInputStream;
 
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo;
@@ -1586,20 +1591,18 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
         private int resultCount = 0;
 
-        private final StreamOutput compressed;
+        private final StreamOutput compressed = new OutputStreamStreamOutput(
+            new BufferedOutputStream(
+                new DeflaterOutputStream(Streams.flushOnCloseStream(shardDeleteResults)),
+                DeflateCompressor.BUFFER_SIZE
+            )
+        );
 
         private final ArrayList<Closeable> resources = new ArrayList<>();
 
         private final ShardGenerations.Builder shardGenerationsBuilder = ShardGenerations.builder();
 
         ShardBlobsToDelete() {
-            try {
-                this.compressed = new OutputStreamStreamOutput(
-                    CompressorFactory.COMPRESSOR.threadLocalOutputStream(Streams.flushOnCloseStream(shardDeleteResults))
-                );
-            } catch (IOException e) {
-                throw new UncheckedIOException(e);
-            }
             resources.add(compressed);
             resources.add(LeakTracker.wrap((Releasable) shardDeleteResults));
         }
@@ -1615,6 +1618,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 new ShardSnapshotMetaDeleteResult(Objects.requireNonNull(indexId.getId()), shardId, blobsToDelete).writeTo(compressed);
                 resultCount += 1;
             } catch (IOException e) {
+                assert false : e; // no IO actually happens here
                 throw new UncheckedIOException(e);
             }
         }
@@ -1627,9 +1631,15 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             final StreamInput input;
             try {
                 compressed.close();
-                input = CompressorFactory.COMPRESSOR.threadLocalStreamInput(shardDeleteResults.bytes().streamInput());
+                input = new InputStreamStreamInput(
+                    new BufferedInputStream(
+                        new InflaterInputStream(shardDeleteResults.bytes().streamInput()),
+                        DeflateCompressor.BUFFER_SIZE
+                    )
+                );
                 resources.add(input);
             } catch (IOException e) {
+                assert false : e; // no IO actually happens here
                 throw new UncheckedIOException(e);
             }
 
@@ -1650,6 +1660,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             try {
                 IOUtils.close(resources);
             } catch (IOException e) {
+                assert false : e; // no IO actually happens here
                 throw new UncheckedIOException(e);
             }
         }

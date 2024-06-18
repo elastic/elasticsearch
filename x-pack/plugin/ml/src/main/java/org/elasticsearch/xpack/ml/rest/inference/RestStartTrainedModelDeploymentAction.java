@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.ml.rest.inference;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -86,7 +87,7 @@ public class RestStartTrainedModelDeploymentAction extends BaseRestHandler {
         }
 
         if (restRequest.hasParam(TIMEOUT.getPreferredName())) {
-            TimeValue openTimeout = sameParamInQueryAndBody(
+            TimeValue openTimeout = validateParameters(
                 request.getTimeout(),
                 restRequest.paramAsTime(TIMEOUT.getPreferredName(), StartTrainedModelDeploymentAction.DEFAULT_TIMEOUT),
                 StartTrainedModelDeploymentAction.DEFAULT_TIMEOUT
@@ -95,7 +96,7 @@ public class RestStartTrainedModelDeploymentAction extends BaseRestHandler {
         }
 
         request.setWaitForState(
-            sameParamInQueryAndBody(
+            validateParameters(
                 request.getWaitForState(),
                 AllocationStatus.State.fromString(
                     restRequest.param(WAIT_FOR.getPreferredName(), StartTrainedModelDeploymentAction.DEFAULT_WAITFOR_STATE.toString())
@@ -109,7 +110,7 @@ public class RestStartTrainedModelDeploymentAction extends BaseRestHandler {
             NUMBER_OF_ALLOCATIONS.getPreferredName(),
             RestApiVersion.V_8,
             restRequest,
-            (r, s) -> sameParamInQueryAndBody(
+            (r, s) -> validateParameters(
                 request.getNumberOfAllocations(),
                 r.paramAsInt(s, StartTrainedModelDeploymentAction.DEFAULT_NUM_ALLOCATIONS),
                 StartTrainedModelDeploymentAction.DEFAULT_NUM_ALLOCATIONS
@@ -121,7 +122,7 @@ public class RestStartTrainedModelDeploymentAction extends BaseRestHandler {
             THREADS_PER_ALLOCATION.getPreferredName(),
             RestApiVersion.V_8,
             restRequest,
-            (r, s) -> sameParamInQueryAndBody(
+            (r, s) -> validateParameters(
                 request.getThreadsPerAllocation(),
                 r.paramAsInt(s, StartTrainedModelDeploymentAction.DEFAULT_NUM_THREADS),
                 StartTrainedModelDeploymentAction.DEFAULT_NUM_THREADS
@@ -129,7 +130,7 @@ public class RestStartTrainedModelDeploymentAction extends BaseRestHandler {
             request::setThreadsPerAllocation
         );
         request.setQueueCapacity(
-            sameParamInQueryAndBody(
+            validateParameters(
                 request.getQueueCapacity(),
                 restRequest.paramAsInt(QUEUE_CAPACITY.getPreferredName(), StartTrainedModelDeploymentAction.DEFAULT_QUEUE_CAPACITY),
                 StartTrainedModelDeploymentAction.DEFAULT_QUEUE_CAPACITY
@@ -138,7 +139,7 @@ public class RestStartTrainedModelDeploymentAction extends BaseRestHandler {
 
         if (restRequest.hasParam(CACHE_SIZE.getPreferredName())) {
             request.setCacheSize(
-                sameParamInQueryAndBody(
+                validateParameters(
                     request.getCacheSize(),
                     ByteSizeValue.parseBytesSizeValue(restRequest.param(CACHE_SIZE.getPreferredName()), CACHE_SIZE.getPreferredName()),
                     null
@@ -149,7 +150,7 @@ public class RestStartTrainedModelDeploymentAction extends BaseRestHandler {
         }
 
         request.setPriority(
-            sameParamInQueryAndBody(
+            validateParameters(
                 request.getPriority().toString(),
                 restRequest.param(StartTrainedModelDeploymentAction.TaskParams.PRIORITY.getPreferredName()),
                 StartTrainedModelDeploymentAction.DEFAULT_PRIORITY.toString()
@@ -159,7 +160,17 @@ public class RestStartTrainedModelDeploymentAction extends BaseRestHandler {
         return channel -> client.execute(StartTrainedModelDeploymentAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }
 
-    private static <T> T sameParamInQueryAndBody(T bodyParam, T queryParam, T paramDefault) {
+    /**
+     * This function validates that the body and query parameters don't conflict, and returns the value that should be used.
+     * When using this function, the body parameter should already have been set to the default value in
+     * {@link StartTrainedModelDeploymentAction}, or, set to a different value from the rest request.
+     *
+     * @param paramDefault (from {@link StartTrainedModelDeploymentAction})
+     * @return the parameter to use
+     * @throws ElasticsearchStatusException if the parameters don't match
+     */
+    private static <T> T validateParameters(@Nullable T bodyParam, @Nullable T queryParam, @Nullable T paramDefault)
+        throws ElasticsearchStatusException {
         if (Objects.equals(bodyParam, paramDefault) && queryParam != null) {
             // the body param is the same as the default for this value. We cannot tell if this was set intentionally, or if it was just the
             // default, thus we will assume it was the default

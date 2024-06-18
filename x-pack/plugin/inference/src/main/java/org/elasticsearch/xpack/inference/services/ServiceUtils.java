@@ -355,6 +355,32 @@ public final class ServiceUtils {
         return optionalField;
     }
 
+    public static Integer extractRequiredPositiveInteger(
+        Map<String, Object> map,
+        String settingName,
+        String scope,
+        ValidationException validationException
+    ) {
+        int initialValidationErrorCount = validationException.validationErrors().size();
+        Integer field = ServiceUtils.removeAsType(map, settingName, Integer.class, validationException);
+
+        if (validationException.validationErrors().size() > initialValidationErrorCount) {
+            return null;
+        }
+
+        if (field == null) {
+            validationException.addValidationError(ServiceUtils.missingSettingErrorMsg(settingName, scope));
+        } else if (field <= 0) {
+            validationException.addValidationError(ServiceUtils.mustBeAPositiveIntegerErrorMessage(settingName, scope, field));
+        }
+
+        if (validationException.validationErrors().size() > initialValidationErrorCount) {
+            return null;
+        }
+
+        return field;
+    }
+
     public static Integer extractOptionalPositiveInteger(
         Map<String, Object> map,
         String settingName,

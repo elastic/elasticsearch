@@ -44,8 +44,8 @@ public class NodesReloadSecureSettingsRequest extends BaseNodesRequest<NodesRelo
 
     private final RefCounted refs = LeakTracker.wrap(AbstractRefCounted.of(() -> Releasables.close(secureSettingsPassword)));
 
-    public NodesReloadSecureSettingsRequest() {
-        super((String[]) null);
+    public NodesReloadSecureSettingsRequest(String[] nodeIds) {
+        super(nodeIds);
     }
 
     public void setSecureStorePassword(SecureString secureStorePassword) {

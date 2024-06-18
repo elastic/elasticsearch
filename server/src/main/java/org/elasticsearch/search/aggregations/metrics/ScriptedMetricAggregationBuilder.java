@@ -193,11 +193,11 @@ public class ScriptedMetricAggregationBuilder extends AbstractAggregationBuilder
         validateScript(REDUCE_SCRIPT_FIELD.getPreferredName(), name, reduceScript, settings);
 
         if (combineScript == null) {
-            throw new IllegalArgumentException("[combineScript] must not be null: [" + name + "]");
+            throw new IllegalArgumentException("[" + COMBINE_SCRIPT_FIELD.getPreferredName() + "] must not be null: [" + name + "]");
         }
 
         if (reduceScript == null) {
-            throw new IllegalArgumentException("[reduceScript] must not be null: [" + name + "]");
+            throw new IllegalArgumentException("[" + REDUCE_SCRIPT_FIELD.getPreferredName() + "] must not be null: [" + name + "]");
         }
 
         // Extract params from scripts and pass them along to ScriptedMetricAggregatorFactory, since it won't have

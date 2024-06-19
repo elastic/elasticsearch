@@ -11,7 +11,7 @@ apply plugin: 'elasticsearch.internal-yaml-rest-test'
 
 esplugin {
   name 'rank-text-similarity'
-  description 'Reciprocal rank fusion in search.'
+  description 'Text similarity reranking in search.'
   classname 'org.elasticsearch.xpack.rank.textsimilarity.TextSimilarityRankPlugin'
   extendedPlugins = ['x-pack-core', 'x-pack-inference']
 }

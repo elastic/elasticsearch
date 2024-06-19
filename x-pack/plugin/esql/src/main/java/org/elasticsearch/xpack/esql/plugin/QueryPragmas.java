@@ -55,6 +55,8 @@ public final class QueryPragmas implements Writeable {
 
     public static final Setting<Integer> MAX_CONCURRENT_SHARDS_PER_NODE = Setting.intSetting("max_concurrent_shards_per_node", 10, 1, 100);
 
+    public static final Setting<Boolean> NODE_LEVEL_REDUCTION = Setting.boolSetting("node_level_reduction", false);
+
     public static final QueryPragmas EMPTY = new QueryPragmas(Settings.EMPTY);
 
     private final Settings settings;
@@ -124,6 +126,14 @@ public final class QueryPragmas implements Writeable {
         return MAX_CONCURRENT_SHARDS_PER_NODE.get(settings);
     }
 
+    /**
+     * Returns true if each data node should perform a local reduction for sort, limit, topN, stats or false if the coordinator node
+     * will perform the reduction.
+     */
+    public boolean nodeLevelReduction() {
+        return NODE_LEVEL_REDUCTION.get(settings);
+    }
+
     public boolean isEmpty() {
         return settings.isEmpty();
     }
@@ -139,5 +149,10 @@ public final class QueryPragmas implements Writeable {
     @Override
     public int hashCode() {
         return Objects.hash(settings);
+    }
+
+    @Override
+    public String toString() {
+        return settings.toString();
     }
 }

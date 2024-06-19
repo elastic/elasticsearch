@@ -54,8 +54,12 @@ public class AggregatorFunctionSupplierImplementer {
         this.groupingAggregatorImplementer = groupingAggregatorImplementer;
 
         Set<Parameter> createParameters = new LinkedHashSet<>();
-        createParameters.addAll(aggregatorImplementer.createParameters());
-        createParameters.addAll(groupingAggregatorImplementer.createParameters());
+        if (aggregatorImplementer != null) {
+            createParameters.addAll(aggregatorImplementer.createParameters());
+        }
+        if (groupingAggregatorImplementer != null) {
+            createParameters.addAll(groupingAggregatorImplementer.createParameters());
+        }
         this.createParameters = new ArrayList<>(createParameters);
         this.createParameters.add(0, new Parameter(LIST_INTEGER, "channels"));
 
@@ -84,7 +88,11 @@ public class AggregatorFunctionSupplierImplementer {
 
         createParameters.stream().forEach(p -> p.declareField(builder));
         builder.addMethod(ctor());
-        builder.addMethod(aggregator());
+        if (aggregatorImplementer != null) {
+            builder.addMethod(aggregator());
+        } else {
+            builder.addMethod(unsupportedNonGroupingAggregator());
+        }
         builder.addMethod(groupingAggregator());
         builder.addMethod(describe());
         return builder.build();
@@ -93,6 +101,15 @@ public class AggregatorFunctionSupplierImplementer {
     private MethodSpec ctor() {
         MethodSpec.Builder builder = MethodSpec.constructorBuilder().addModifiers(Modifier.PUBLIC);
         createParameters.stream().forEach(p -> p.buildCtor(builder));
+        return builder.build();
+    }
+
+    private MethodSpec unsupportedNonGroupingAggregator() {
+        MethodSpec.Builder builder = MethodSpec.methodBuilder("aggregator")
+            .addParameter(DRIVER_CONTEXT, "driverContext")
+            .returns(Types.AGGREGATOR_FUNCTION);
+        builder.addAnnotation(Override.class).addModifiers(Modifier.PUBLIC);
+        builder.addStatement("throw new UnsupportedOperationException($S)", "non-grouping aggregator is not supported");
         return builder.build();
     }
 

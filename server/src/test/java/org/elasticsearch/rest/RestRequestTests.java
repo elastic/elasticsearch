@@ -256,11 +256,7 @@ public class RestRequestTests extends ESTestCase {
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> request1.markPathRestricted("foo"));
         assertThat(exception.getMessage(), is("The parameter [" + PATH_RESTRICTED + "] is already defined."));
 
-        RestRequest request2 = contentRestRequest("content", new HashMap<>() {
-            {
-                put(PATH_RESTRICTED, "foo");
-            }
-        });
+        RestRequest request2 = contentRestRequest("content", Map.of(PATH_RESTRICTED, "foo"));
         exception = expectThrows(IllegalArgumentException.class, () -> request2.markPathRestricted("bar"));
         assertThat(exception.getMessage(), is("The parameter [" + PATH_RESTRICTED + "] is already defined."));
     }

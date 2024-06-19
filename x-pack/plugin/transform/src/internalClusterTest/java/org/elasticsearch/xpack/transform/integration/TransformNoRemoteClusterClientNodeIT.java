@@ -50,7 +50,7 @@ public class TransformNoRemoteClusterClientNodeIT extends TransformSingleNodeTes
             e.getMessage(),
             allOf(
                 containsString("No appropriate node to run on"),
-                containsString("transform requires a remote connection but remote is disabled")
+                containsString("transform requires a remote connection but the node does not have the remote_cluster_client role")
             )
         );
     }
@@ -74,7 +74,7 @@ public class TransformNoRemoteClusterClientNodeIT extends TransformSingleNodeTes
             e.getMessage(),
             allOf(
                 containsString("No appropriate node to run on"),
-                containsString("transform requires a remote connection but remote is disabled")
+                containsString("transform requires a remote connection but the node does not have the remote_cluster_client role")
             )
         );
     }
@@ -140,7 +140,7 @@ public class TransformNoRemoteClusterClientNodeIT extends TransformSingleNodeTes
             e.getMessage(),
             allOf(
                 containsString("No appropriate node to run on"),
-                containsString("transform requires a remote connection but remote is disabled")
+                containsString("transform requires a remote connection but the node does not have the remote_cluster_client role")
             )
         );
     }

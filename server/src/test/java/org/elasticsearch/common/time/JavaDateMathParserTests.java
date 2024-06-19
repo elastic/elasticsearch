@@ -34,15 +34,19 @@ public class JavaDateMathParserTests extends ESTestCase {
     public void testRoundUpParserBasedOnList() {
         DateFormatter formatter = new JavaDateFormatter(
             "test",
-            new DateTimeFormatterBuilder().appendPattern("uuuu-MM-dd").toFormatter(Locale.ROOT),
-            new DateTimeFormatterBuilder().appendPattern("uuuu-MM-dd'T'HH:mm:ss.S")
-                .appendZoneOrOffsetId()
-                .toFormatter(Locale.ROOT)
-                .withResolverStyle(ResolverStyle.STRICT),
-            new DateTimeFormatterBuilder().appendPattern("uuuu-MM-dd'T'HH:mm:ss.S")
-                .appendOffset("+HHmm", "Z")
-                .toFormatter(Locale.ROOT)
-                .withResolverStyle(ResolverStyle.STRICT)
+            new JavaTimeDateTimePrinter(new DateTimeFormatterBuilder().appendPattern("uuuu-MM-dd").toFormatter(Locale.ROOT)),
+            new JavaTimeDateTimeParser(
+                new DateTimeFormatterBuilder().appendPattern("uuuu-MM-dd'T'HH:mm:ss.S")
+                    .appendZoneOrOffsetId()
+                    .toFormatter(Locale.ROOT)
+                    .withResolverStyle(ResolverStyle.STRICT)
+            ),
+            new JavaTimeDateTimeParser(
+                new DateTimeFormatterBuilder().appendPattern("uuuu-MM-dd'T'HH:mm:ss.S")
+                    .appendOffset("+HHmm", "Z")
+                    .toFormatter(Locale.ROOT)
+                    .withResolverStyle(ResolverStyle.STRICT)
+            )
         );
         Instant parsed = formatter.toDateMathParser().parse("1970-01-01T00:00:00.0+0000", () -> 0L, true, (ZoneId) null);
         assertThat(parsed.toEpochMilli(), equalTo(0L));

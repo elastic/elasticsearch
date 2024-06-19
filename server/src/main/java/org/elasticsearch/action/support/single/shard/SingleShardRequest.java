@@ -19,8 +19,12 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.List;
 
-public abstract class SingleShardRequest<Request extends SingleShardRequest<Request>> extends ActionRequest implements IndicesRequest {
+public abstract class SingleShardRequest<Request extends SingleShardRequest<Request>> extends ActionRequest
+    implements
+        IndicesRequest.RemoteClusterShardRequest {
 
     public static final IndicesOptions INDICES_OPTIONS = IndicesOptions.strictSingleIndexNoExpandForbidClosed();
 
@@ -83,6 +87,11 @@ public abstract class SingleShardRequest<Request extends SingleShardRequest<Requ
     @Override
     public String[] indices() {
         return new String[] { index };
+    }
+
+    @Override
+    public List<ShardId> shards() {
+        return Collections.singletonList(this.internalShardId);
     }
 
     @Override

@@ -121,7 +121,29 @@ public class ByteBufferStreamInput extends StreamInput {
     }
 
     @Override
+    public String readString() throws IOException {
+        final int chars = readArraySize();
+        // cache object fields (even when final this is a valid optimization, see https://openjdk.org/jeps/8132243)
+        final ByteBuffer buffer = this.buffer;
+        if (buffer.hasArray()) {
+            // attempt reading bytes directly into a string to minimize copying
+            final String string = tryReadStringFromBytes(
+                buffer.array(),
+                buffer.position() + buffer.arrayOffset(),
+                buffer.limit() + buffer.arrayOffset(),
+                chars
+            );
+            if (string != null) {
+                return string;
+            }
+        }
+        return doReadString(chars);
+    }
+
+    @Override
     public int read() throws IOException {
+        // cache object fields (even when final this is a valid optimization, see https://openjdk.org/jeps/8132243)
+        final ByteBuffer buffer = this.buffer;
         if (buffer.hasRemaining() == false) {
             return -1;
         }
@@ -139,6 +161,8 @@ public class ByteBufferStreamInput extends StreamInput {
 
     @Override
     public int read(byte[] b, int off, int len) throws IOException {
+        // cache object fields (even when final this is a valid optimization, see https://openjdk.org/jeps/8132243)
+        final ByteBuffer buffer = this.buffer;
         if (buffer.hasRemaining() == false) {
             return -1;
         }
@@ -150,6 +174,8 @@ public class ByteBufferStreamInput extends StreamInput {
 
     @Override
     public long skip(long n) throws IOException {
+        // cache object fields (even when final this is a valid optimization, see https://openjdk.org/jeps/8132243)
+        final ByteBuffer buffer = this.buffer;
         int remaining = buffer.remaining();
         if (n > remaining) {
             buffer.position(buffer.limit());
@@ -239,6 +265,8 @@ public class ByteBufferStreamInput extends StreamInput {
 
     @Override
     public BytesReference readSlicedBytesReference() throws IOException {
+        // cache object fields (even when final this is a valid optimization, see https://openjdk.org/jeps/8132243)
+        final ByteBuffer buffer = this.buffer;
         if (buffer.hasArray()) {
             int len = readVInt();
             var res = new BytesArray(buffer.array(), buffer.arrayOffset() + buffer.position(), len);

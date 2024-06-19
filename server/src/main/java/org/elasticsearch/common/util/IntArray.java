@@ -42,6 +42,11 @@ public interface IntArray extends BigArray, Writeable {
     void fill(long fromIndex, long toIndex, int value);
 
     /**
+     * Alternative of {@link IntArray#readFrom(StreamInput)} where the written bytes are loaded into an existing {@link IntArray}
+     */
+    void fillWith(StreamInput in) throws IOException;
+
+    /**
      * Bulk set.
      */
     void set(long index, byte[] buf, int offset, int len);

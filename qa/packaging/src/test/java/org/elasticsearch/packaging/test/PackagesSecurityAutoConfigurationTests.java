@@ -8,7 +8,6 @@
 
 package org.elasticsearch.packaging.test;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ssl.PemKeyConfig;
@@ -300,7 +299,6 @@ public class PackagesSecurityAutoConfigurationTests extends PackagingTestCase {
             final EnrollmentToken enrollmentToken = new EnrollmentToken(
                 "some-api-key",
                 "b0150fd8a29f9012207912de9a01aa1d1f0dd696c847d3a9353881f9045bf442", // fingerprint of http_ca.crt
-                Version.CURRENT.toString(),
                 List.of(mockNode.getHostName() + ":" + mockNode.getPort())
             );
             Shell.Result result = installation.executables().nodeReconfigureTool.run(

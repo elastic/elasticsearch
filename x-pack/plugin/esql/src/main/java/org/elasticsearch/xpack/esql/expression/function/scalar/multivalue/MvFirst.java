@@ -17,17 +17,18 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.tree.NodeInfo;
-import org.elasticsearch.xpack.ql.tree.Source;
 
 import java.util.List;
 
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isType;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 
 /**
  * Reduce a multivalued field to a single valued field containing the minimum value.
@@ -49,12 +50,22 @@ public class MvFirst extends AbstractMultivalueFunction {
             "text",
             "unsigned_long",
             "version" },
-        description = "Reduce a multivalued field to a single valued field containing the first value."
+        description = """
+            Converts a multivalued expression into a single valued column containing the
+            first value. This is most useful when reading from a function that emits
+            multivalued columns in a known order like <<esql-split>>.
+
+            The order that <<esql-multivalued-fields, multivalued fields>> are read from
+            underlying storage is not guaranteed. It is *frequently* ascending, but don't
+            rely on that. If you need the minimum value use <<esql-mv_min>> instead of
+            `MV_FIRST`. `MV_MIN` has optimizations for sorted values so there isn't a
+            performance benefit to `MV_FIRST`.""",
+        examples = @Example(file = "string", tag = "mv_first")
     )
     public MvFirst(
         Source source,
         @Param(
-            name = "v",
+            name = "field",
             type = {
                 "boolean",
                 "cartesian_point",
@@ -69,7 +80,8 @@ public class MvFirst extends AbstractMultivalueFunction {
                 "long",
                 "text",
                 "unsigned_long",
-                "version" }
+                "version" },
+            description = "Multivalue expression."
         ) Expression field
     ) {
         super(source, field);

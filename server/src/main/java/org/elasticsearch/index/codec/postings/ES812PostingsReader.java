@@ -36,11 +36,13 @@ import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BitUtil;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.index.codec.ForUtil;
 import org.elasticsearch.index.codec.postings.ES812PostingsFormat.IntBlockTermState;
 
 import java.io.IOException;
 import java.util.Arrays;
 
+import static org.elasticsearch.index.codec.ForUtil.BLOCK_SIZE;
 import static org.elasticsearch.index.codec.postings.ES812PostingsFormat.DOC_CODEC;
 import static org.elasticsearch.index.codec.postings.ES812PostingsFormat.MAX_SKIP_LEVELS;
 import static org.elasticsearch.index.codec.postings.ES812PostingsFormat.PAY_CODEC;
@@ -48,7 +50,6 @@ import static org.elasticsearch.index.codec.postings.ES812PostingsFormat.POS_COD
 import static org.elasticsearch.index.codec.postings.ES812PostingsFormat.TERMS_CODEC;
 import static org.elasticsearch.index.codec.postings.ES812PostingsFormat.VERSION_CURRENT;
 import static org.elasticsearch.index.codec.postings.ES812PostingsFormat.VERSION_START;
-import static org.elasticsearch.index.codec.postings.ForUtil.BLOCK_SIZE;
 
 /**
  * Concrete class that reads docId(maybe frq,pos,offset,payloads) list with postings format.
@@ -59,8 +60,6 @@ final class ES812PostingsReader extends PostingsReaderBase {
     private final IndexInput docIn;
     private final IndexInput posIn;
     private final IndexInput payIn;
-
-    private final int version;
 
     /** Sole constructor. */
     ES812PostingsReader(SegmentReadState state) throws IOException {
@@ -77,7 +76,7 @@ final class ES812PostingsReader extends PostingsReaderBase {
         String docName = IndexFileNames.segmentFileName(state.segmentInfo.name, state.segmentSuffix, ES812PostingsFormat.DOC_EXTENSION);
         try {
             docIn = state.directory.openInput(docName, state.context);
-            version = CodecUtil.checkIndexHeader(
+            int version = CodecUtil.checkIndexHeader(
                 docIn,
                 DOC_CODEC,
                 VERSION_START,
@@ -278,7 +277,7 @@ final class ES812PostingsReader extends PostingsReaderBase {
 
     final class BlockDocsEnum extends PostingsEnum {
 
-        final PForUtil pforUtil = new PForUtil(new ForUtil());
+        final PForUtil pforUtil = new PForUtil();
 
         private final long[] docBuffer = new long[BLOCK_SIZE + 1];
         private final long[] freqBuffer = new long[BLOCK_SIZE];
@@ -525,7 +524,7 @@ final class ES812PostingsReader extends PostingsReaderBase {
     // Also handles payloads + offsets
     final class EverythingEnum extends PostingsEnum {
 
-        final PForUtil pforUtil = new PForUtil(new ForUtil());
+        final PForUtil pforUtil = new PForUtil();
 
         private final long[] docBuffer = new long[BLOCK_SIZE + 1];
         private final long[] freqBuffer = new long[BLOCK_SIZE + 1];
@@ -998,7 +997,7 @@ final class ES812PostingsReader extends PostingsReaderBase {
 
     final class BlockImpactsDocsEnum extends ImpactsEnum {
 
-        final PForUtil pforUtil = new PForUtil(new ForUtil());
+        final PForUtil pforUtil = new PForUtil();
 
         private final long[] docBuffer = new long[BLOCK_SIZE + 1];
         private final long[] freqBuffer = new long[BLOCK_SIZE];
@@ -1195,7 +1194,7 @@ final class ES812PostingsReader extends PostingsReaderBase {
 
     final class BlockImpactsPostingsEnum extends ImpactsEnum {
 
-        final PForUtil pforUtil = new PForUtil(new ForUtil());
+        final PForUtil pforUtil = new PForUtil();
 
         private final long[] docBuffer = new long[BLOCK_SIZE];
         private final long[] freqBuffer = new long[BLOCK_SIZE];
@@ -1475,7 +1474,7 @@ final class ES812PostingsReader extends PostingsReaderBase {
 
     final class BlockImpactsEverythingEnum extends ImpactsEnum {
 
-        final PForUtil pforUtil = new PForUtil(new ForUtil());
+        final PForUtil pforUtil = new PForUtil();
 
         private final long[] docBuffer = new long[BLOCK_SIZE];
         private final long[] freqBuffer = new long[BLOCK_SIZE];

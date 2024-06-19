@@ -68,7 +68,7 @@ public class RemoteClusterSettingsTests extends ESTestCase {
 
     public void testSkipUnavailableDefault() {
         final String alias = randomAlphaOfLength(8);
-        assertFalse(REMOTE_CLUSTER_SKIP_UNAVAILABLE.getConcreteSettingForNamespace(alias).get(Settings.EMPTY));
+        assertTrue(REMOTE_CLUSTER_SKIP_UNAVAILABLE.getConcreteSettingForNamespace(alias).get(Settings.EMPTY));
     }
 
     public void testSeedsDefault() {

@@ -12,6 +12,8 @@ import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.util.DoubleArray;
 import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.index.fielddata.FieldData;
+import org.elasticsearch.index.fielddata.GeoPointValues;
 import org.elasticsearch.index.fielddata.MultiGeoPointValues;
 import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.Aggregator;
@@ -53,35 +55,28 @@ final class GeoCentroidAggregator extends MetricsAggregator {
     @Override
     public LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx, LeafBucketCollector sub) throws IOException {
         final MultiGeoPointValues values = valuesSource.geoPointValues(aggCtx.getLeafReaderContext());
+        final GeoPointValues singleton = FieldData.unwrapSingleton(values);
+        return singleton != null ? getLeafCollector(singleton, sub) : getLeafCollector(values, sub);
+    }
+
+    private LeafBucketCollector getLeafCollector(MultiGeoPointValues values, LeafBucketCollector sub) {
         final CompensatedSum compensatedSumLat = new CompensatedSum(0, 0);
         final CompensatedSum compensatedSumLon = new CompensatedSum(0, 0);
-
         return new LeafBucketCollectorBase(sub, values) {
             @Override
             public void collect(int doc, long bucket) throws IOException {
-                latSum = bigArrays().grow(latSum, bucket + 1);
-                lonSum = bigArrays().grow(lonSum, bucket + 1);
-                lonCompensations = bigArrays().grow(lonCompensations, bucket + 1);
-                latCompensations = bigArrays().grow(latCompensations, bucket + 1);
-                counts = bigArrays().grow(counts, bucket + 1);
-
                 if (values.advanceExact(doc)) {
+                    growBucket(bucket);
                     final int valueCount = values.docValueCount();
                     // increment by the number of points for this document
                     counts.increment(bucket, valueCount);
                     // Compute the sum of double values with Kahan summation algorithm which is more
                     // accurate than naive summation.
-                    double sumLat = latSum.get(bucket);
-                    double compensationLat = latCompensations.get(bucket);
-                    double sumLon = lonSum.get(bucket);
-                    double compensationLon = lonCompensations.get(bucket);
-
-                    compensatedSumLat.reset(sumLat, compensationLat);
-                    compensatedSumLon.reset(sumLon, compensationLon);
-
+                    compensatedSumLat.reset(latSum.get(bucket), latCompensations.get(bucket));
+                    compensatedSumLon.reset(lonSum.get(bucket), lonCompensations.get(bucket));
                     // update the sum
                     for (int i = 0; i < valueCount; ++i) {
-                        GeoPoint value = values.nextValue();
+                        final GeoPoint value = values.nextValue();
                         // latitude
                         compensatedSumLat.add(value.getLat());
                         // longitude
@@ -94,6 +89,44 @@ final class GeoCentroidAggregator extends MetricsAggregator {
                 }
             }
         };
+    }
+
+    private LeafBucketCollector getLeafCollector(GeoPointValues values, LeafBucketCollector sub) {
+        final CompensatedSum compensatedSum = new CompensatedSum(0, 0);
+        return new LeafBucketCollectorBase(sub, values) {
+            @Override
+            public void collect(int doc, long bucket) throws IOException {
+                if (values.advanceExact(doc)) {
+                    growBucket(bucket);
+                    // increment by the number of points for this document
+                    counts.increment(bucket, 1);
+                    // Compute the sum of double values with Kahan summation algorithm which is more
+                    // accurate than naive summation.
+                    final GeoPoint value = values.pointValue();
+                    // latitude
+                    compensatedSum.reset(latSum.get(bucket), latCompensations.get(bucket));
+                    compensatedSum.add(value.getLat());
+                    latSum.set(bucket, compensatedSum.value());
+                    latCompensations.set(bucket, compensatedSum.delta());
+                    // longitude
+                    compensatedSum.reset(lonSum.get(bucket), lonCompensations.get(bucket));
+                    compensatedSum.add(value.getLon());
+                    lonSum.set(bucket, compensatedSum.value());
+                    lonCompensations.set(bucket, compensatedSum.delta());
+                }
+            }
+        };
+    }
+
+    private void growBucket(long bucket) {
+        if (bucket >= latSum.size()) {
+            final long newSize = bucket + 1;
+            latSum = bigArrays().grow(latSum, newSize);
+            lonSum = bigArrays().grow(lonSum, newSize);
+            lonCompensations = bigArrays().grow(lonCompensations, newSize);
+            latCompensations = bigArrays().grow(latCompensations, newSize);
+            counts = bigArrays().grow(counts, newSize);
+        }
     }
 
     @Override

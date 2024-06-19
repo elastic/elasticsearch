@@ -20,7 +20,6 @@ import org.elasticsearch.common.inject.internal.BindingImpl;
 import org.elasticsearch.common.inject.internal.Errors;
 import org.elasticsearch.common.inject.internal.MatcherAndConverter;
 
-import java.lang.annotation.Annotation;
 import java.util.Map;
 
 import static java.util.Collections.emptySet;
@@ -51,16 +50,6 @@ interface State {
 
         @Override
         public void putBinding(Key<?> key, BindingImpl<?> binding) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public Scope getScope(Class<? extends Annotation> scopingAnnotation) {
-            return null;
-        }
-
-        @Override
-        public void putAnnotation(Class<? extends Annotation> annotationType, Scope scope) {
             throw new UnsupportedOperationException();
         }
 
@@ -112,13 +101,6 @@ interface State {
     Map<Key<?>, Binding<?>> getExplicitBindingsThisLevel();
 
     void putBinding(Key<?> key, BindingImpl<?> binding);
-
-    /**
-     * Returns the matching scope, or null.
-     */
-    Scope getScope(Class<? extends Annotation> scopingAnnotation);
-
-    void putAnnotation(Class<? extends Annotation> annotationType, Scope scope);
 
     void addConverter(MatcherAndConverter matcherAndConverter);
 

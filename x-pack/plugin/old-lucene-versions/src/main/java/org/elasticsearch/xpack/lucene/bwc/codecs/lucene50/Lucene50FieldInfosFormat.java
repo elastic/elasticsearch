@@ -111,6 +111,7 @@ public final class Lucene50FieldInfosFormat extends FieldInfosFormat {
                             0,
                             VectorEncoding.FLOAT32,
                             VectorSimilarityFunction.EUCLIDEAN,
+                            false,
                             false
                         );
                         infos[i].checkConsistency();

@@ -112,11 +112,6 @@ public class ExtractedFieldsDetectorFactory {
             return;
         }
 
-        ActionListener<SearchResponse> searchListener = ActionListener.wrap(
-            searchResponse -> buildFieldCardinalitiesMap(config, searchResponse, listener),
-            listener::onFailure
-        );
-
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().size(0)
             .query(config.getSource().getParsedQuery())
             .runtimeMappings(config.getSource().getRuntimeMappings());
@@ -147,7 +142,7 @@ public class ExtractedFieldsDetectorFactory {
             client,
             TransportSearchAction.TYPE,
             searchRequest,
-            searchListener
+            listener.delegateFailureAndWrap((l, searchResponse) -> buildFieldCardinalitiesMap(config, searchResponse, l))
         );
     }
 

@@ -14,6 +14,7 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.client.internal.support.AbstractClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.RemoteClusterService;
 
 import java.util.concurrent.Executor;
 
@@ -62,7 +63,11 @@ public abstract class FilterClient extends AbstractClient {
     }
 
     @Override
-    public RemoteClusterClient getRemoteClusterClient(String clusterAlias, Executor responseExecutor) {
-        return in.getRemoteClusterClient(clusterAlias, responseExecutor);
+    public RemoteClusterClient getRemoteClusterClient(
+        String clusterAlias,
+        Executor responseExecutor,
+        RemoteClusterService.DisconnectedStrategy disconnectedStrategy
+    ) {
+        return in.getRemoteClusterClient(clusterAlias, responseExecutor, disconnectedStrategy);
     }
 }

@@ -59,13 +59,12 @@ public interface DataExtractorFactory {
     ) {
         final boolean hasAggs = datafeed.hasAggregations();
         final boolean isComposite = hasAggs && datafeed.hasCompositeAgg(xContentRegistry);
-        ActionListener<DataExtractorFactory> factoryHandler = ActionListener.wrap(
-            factory -> listener.onResponse(
+        ActionListener<DataExtractorFactory> factoryHandler = listener.delegateFailureAndWrap(
+            (l, factory) -> l.onResponse(
                 datafeed.getChunkingConfig().isEnabled()
                     ? new ChunkedDataExtractorFactory(datafeed, job, xContentRegistry, factory)
                     : factory
-            ),
-            listener::onFailure
+            )
         );
 
         ActionListener<GetRollupIndexCapsAction.Response> getRollupIndexCapsActionHandler = ActionListener.wrap(response -> {

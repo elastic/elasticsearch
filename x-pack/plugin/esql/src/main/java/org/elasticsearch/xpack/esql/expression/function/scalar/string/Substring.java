@@ -11,25 +11,26 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
+import org.elasticsearch.xpack.esql.core.expression.function.OptionalArgument;
+import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.function.OptionalArgument;
-import org.elasticsearch.xpack.ql.tree.NodeInfo;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.util.Arrays;
 import java.util.List;
 import java.util.function.Function;
 
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.FIRST;
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.SECOND;
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.THIRD;
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isInteger;
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isString;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.THIRD;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
+import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 
 public class Substring extends EsqlScalarFunction implements OptionalArgument {
 
@@ -37,13 +38,30 @@ public class Substring extends EsqlScalarFunction implements OptionalArgument {
 
     @FunctionInfo(
         returnType = "keyword",
-        description = "Returns a substring of a string, specified by a start position and an optional length"
+        description = "Returns a substring of a string, specified by a start position and an optional length",
+        examples = {
+            @Example(file = "docs", tag = "substring", description = "This example returns the first three characters of every last name:"),
+            @Example(file = "docs", tag = "substringEnd", description = """
+                A negative start position is interpreted as being relative to the end of the string.
+                This example returns the last three characters of of every last name:"""),
+            @Example(file = "docs", tag = "substringRemainder", description = """
+                If length is omitted, substring returns the remainder of the string.
+                This example returns all characters except for the first:""") }
     )
     public Substring(
         Source source,
-        @Param(name = "str", type = { "keyword", "text" }) Expression str,
-        @Param(name = "start", type = { "integer" }) Expression start,
-        @Param(optional = true, name = "length", type = { "integer" }) Expression length
+        @Param(
+            name = "string",
+            type = { "keyword", "text" },
+            description = "String expression. If `null`, the function returns `null`."
+        ) Expression str,
+        @Param(name = "start", type = { "integer" }, description = "Start position.") Expression start,
+        @Param(
+            optional = true,
+            name = "length",
+            type = { "integer" },
+            description = "Length of the substring from the start position. Optional; if omitted, all positions after `start` are returned."
+        ) Expression length
     ) {
         super(source, length == null ? Arrays.asList(str, start) : Arrays.asList(str, start, length));
         this.str = str;
@@ -53,7 +71,7 @@ public class Substring extends EsqlScalarFunction implements OptionalArgument {
 
     @Override
     public DataType dataType() {
-        return DataTypes.KEYWORD;
+        return DataType.KEYWORD;
     }
 
     @Override
@@ -67,12 +85,15 @@ public class Substring extends EsqlScalarFunction implements OptionalArgument {
             return resolution;
         }
 
-        resolution = isInteger(start, sourceText(), SECOND);
+        resolution = TypeResolutions.isType(start, dt -> dt == INTEGER, sourceText(), SECOND, "integer");
+
         if (resolution.unresolved()) {
             return resolution;
         }
 
-        return length == null ? TypeResolution.TYPE_RESOLVED : isInteger(length, sourceText(), THIRD);
+        return length == null
+            ? TypeResolution.TYPE_RESOLVED
+            : TypeResolutions.isType(length, dt -> dt == INTEGER, sourceText(), THIRD, "integer");
     }
 
     @Override
@@ -82,21 +103,18 @@ public class Substring extends EsqlScalarFunction implements OptionalArgument {
 
     @Evaluator(extraName = "NoLength")
     static BytesRef process(BytesRef str, int start) {
-        if (str.length == 0) {
-            return null;
-        }
-        int codePointCount = UnicodeUtil.codePointCount(str);
-        int indexStart = indexStart(codePointCount, start);
-        return new BytesRef(str.utf8ToString().substring(indexStart));
+        int length = str.length; // we just need a value at least the length of the string
+        return process(str, start, length);
+
     }
 
     @Evaluator
     static BytesRef process(BytesRef str, int start, int length) {
-        if (str.length == 0) {
-            return null;
-        }
         if (length < 0) {
             throw new IllegalArgumentException("Length parameter cannot be negative, found [" + length + "]");
+        }
+        if (str.length == 0) {
+            return str;
         }
         int codePointCount = UnicodeUtil.codePointCount(str);
         int indexStart = indexStart(codePointCount, start);

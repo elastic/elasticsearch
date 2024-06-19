@@ -13,9 +13,9 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotAction;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
+import org.elasticsearch.action.admin.cluster.snapshots.create.TransportCreateSnapshotAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -31,6 +31,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
+import org.elasticsearch.snapshots.SnapshotInfoUtils;
 import org.elasticsearch.snapshots.SnapshotShardFailure;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
@@ -60,6 +61,7 @@ import static org.elasticsearch.xpack.core.ilm.LifecycleSettings.SLM_HISTORY_IND
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.sameInstance;
 import static org.hamcrest.Matchers.startsWith;
 
 public class SnapshotLifecycleTaskTests extends ESTestCase {
@@ -177,7 +179,7 @@ public class SnapshotLifecycleTaskTests extends ESTestCase {
             // request. It also returns a mock real response
             VerifyingClient client = new VerifyingClient(threadPool, (action, request, listener) -> {
                 assertFalse(clientCalled.getAndSet(true));
-                assertThat(action, instanceOf(CreateSnapshotAction.class));
+                assertThat(action, sameInstance(TransportCreateSnapshotAction.TYPE));
                 assertThat(request, instanceOf(CreateSnapshotRequest.class));
 
                 CreateSnapshotRequest req = (CreateSnapshotRequest) request;
@@ -194,7 +196,9 @@ public class SnapshotLifecycleTaskTests extends ESTestCase {
                 assertThat(req.includeGlobalState(), equalTo(globalState));
 
                 try {
-                    return CreateSnapshotResponse.fromXContent(createParser(JsonXContent.jsonXContent, createSnapResponse));
+                    return SnapshotInfoUtils.createSnapshotResponseFromXContent(
+                        createParser(JsonXContent.jsonXContent, createSnapResponse)
+                    );
                 } catch (IOException e) {
                     fail("failed to parse snapshot response");
                     return null;
@@ -246,7 +250,7 @@ public class SnapshotLifecycleTaskTests extends ESTestCase {
         try (ClusterService clusterService = ClusterServiceUtils.createClusterService(state, threadPool, settings)) {
             VerifyingClient client = new VerifyingClient(threadPool, (action, request, listener) -> {
                 assertFalse(clientCalled.getAndSet(true));
-                assertThat(action, instanceOf(CreateSnapshotAction.class));
+                assertThat(action, sameInstance(TransportCreateSnapshotAction.TYPE));
                 assertThat(request, instanceOf(CreateSnapshotRequest.class));
 
                 CreateSnapshotRequest req = (CreateSnapshotRequest) request;

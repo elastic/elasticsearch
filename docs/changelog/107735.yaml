@@ -1,0 +1,5 @@
+pr: 107735
+summary: Implement synthetic source support for annotated text field
+area: Mapping
+type: feature
+issues: []

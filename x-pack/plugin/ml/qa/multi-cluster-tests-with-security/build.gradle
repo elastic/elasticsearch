@@ -24,7 +24,7 @@ def remoteCluster = testClusters.register('remote-cluster') {
     testDistribution = 'DEFAULT'
     versions = [ccsCompatVersion.toString(), project.version]
     numberOfNodes = 2
-    setting 'node.roles', '[data,ingest,master]'
+    setting 'node.roles', '[data,ingest,master,ml]'
     setting 'xpack.security.enabled', 'true'
     setting 'xpack.watcher.enabled', 'false'
     setting 'xpack.license.self_generated.type', 'trial'
@@ -35,7 +35,7 @@ def remoteCluster = testClusters.register('remote-cluster') {
 testClusters.register('mixed-cluster') {
     testDistribution = 'DEFAULT'
     numberOfNodes = 2
-    setting 'node.roles', '[data,ingest,master]'
+    setting 'node.roles', '[data,ingest,master,ml]'
     setting 'xpack.security.enabled', 'true'
     setting 'xpack.watcher.enabled', 'false'
     setting 'xpack.license.self_generated.type', 'trial'

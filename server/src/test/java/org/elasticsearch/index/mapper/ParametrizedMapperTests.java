@@ -175,7 +175,7 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
 
         @Override
         public FieldMapper build(MapperBuilderContext context) {
-            return new TestMapper(name(), context.buildFullName(name), multiFieldsBuilder.build(this, context), copyTo, this);
+            return new TestMapper(name(), context.buildFullName(name()), multiFieldsBuilder.build(this, context), copyTo, this);
         }
     }
 
@@ -277,7 +277,10 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
             ScriptCompiler.NONE,
             mapperService.getIndexAnalyzers(),
             mapperService.getIndexSettings(),
-            mapperService.getIndexSettings().getMode().idFieldMapperWithoutFieldData()
+            mapperService.getIndexSettings().getMode().idFieldMapperWithoutFieldData(),
+            query -> {
+                throw new UnsupportedOperationException();
+            }
         );
         if (fromDynamicTemplate) {
             pc = pc.createDynamicTemplateContext(null);

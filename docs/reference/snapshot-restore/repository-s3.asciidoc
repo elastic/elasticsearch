@@ -56,7 +56,7 @@ For more information about creating and updating the {es} keystore, see
 {ref}/secure-settings.html[Secure settings].
 
 For example, if you want to use specific credentials to access S3 then run the
-following commands to add these credentials to the keystore:
+following commands to add these credentials to the keystore.
 
 [source,sh]
 ----
@@ -80,8 +80,12 @@ bin/elasticsearch-keystore remove s3.client.default.session_token
 ----
 
 *All* client secure settings of this repository type are
-{ref}/secure-settings.html#reloadable-secure-settings[reloadable]. After you
-reload the settings, the internal `s3` clients, used to transfer the snapshot
+{ref}/secure-settings.html#reloadable-secure-settings[reloadable].
+You can define these settings before the node is started,
+or call the <<cluster-nodes-reload-secure-settings,Nodes reload secure settings API>>
+after the settings are defined to apply them to a running node.
+
+After you reload the settings, the internal `s3` clients, used to transfer the snapshot
 contents, will utilize the latest settings from the keystore. Any existing `s3`
 repositories, as well as any newly created ones, will pick up the new values
 stored in the keystore.
@@ -154,6 +158,10 @@ settings belong in the `elasticsearch.yml` file.
     (<<time-units,time value>>) The maximum time {es} will wait to receive the next byte
     of data over an established, open connection to the repository before it closes the
     connection. The default value is 50 seconds.
+
+`max_connections`::
+
+    The maximum number of concurrent connections to S3. The default value is `50`.
 
 `max_retries`::
 
@@ -300,6 +308,14 @@ include::repository-shared-settings.asciidoc[]
     be `standard`, `reduced_redundancy`, `standard_ia`, `onezone_ia` and
     `intelligent_tiering`. Defaults to `standard`. See
     <<repository-s3-storage-classes>> for more information.
+
+`delete_objects_max_size`::
+
+    (<<number,numeric>>) Sets the maxmimum batch size, betewen 1 and 1000, used
+    for `DeleteObjects` requests. Defaults to 1000 which is the maximum number
+    supported by the
+    https://docs.aws.amazon.com/AmazonS3/latest/API/API_DeleteObjects.html[AWS
+    DeleteObjects API].
 
 NOTE: The option of defining client settings in the repository settings as
 documented below is considered deprecated, and will be removed in a future
@@ -523,7 +539,7 @@ VPC's internet gateway and not be bandwidth limited by the VPC's NAT instance.
 ==== S3-compatible services
 
 There are a number of storage systems that provide an S3-compatible API, and
-the `repository-s3` type allows you to use these systems in place of AWS S3.
+the `s3` repository type allows you to use these systems in place of AWS S3.
 To do so, you should set the `s3.client.CLIENT_NAME.endpoint` setting to the
 system's endpoint. This setting accepts IP addresses and hostnames and may
 include a port. For example, the endpoint may be `172.17.0.2` or
@@ -536,18 +552,22 @@ you wish to use unsecured HTTP communication instead of HTTPS, set
 `s3.client.CLIENT_NAME.protocol` to `http`.
 
 https://minio.io[MinIO] is an example of a storage system that provides an
-S3-compatible API. The `repository-s3` type allows {es} to work with
+S3-compatible API. The `s3` repository type allows {es} to work with
 MinIO-backed repositories as well as repositories stored on AWS S3. Other
 S3-compatible storage systems may also work with {es}, but these are not
 covered by the {es} test suite.
 
-Note that some storage systems claim to be S3-compatible but do not faithfully
-emulate S3's behaviour in full. The `repository-s3` type requires full
-compatibility with S3. In particular it must support the same set of API
-endpoints, return the same errors in case of failures, and offer consistency and
-performance at least as good as S3 even when accessed concurrently by multiple
-nodes. You will need to work with the supplier of your storage system to address
-any incompatibilities you encounter. Please do not report {es} issues involving
+There are many systems, including some from very well-known storage vendors,
+which claim to offer an S3-compatible API despite failing to emulate S3's
+behaviour in full. If you are using such a system for your snapshots, consider
+using a <<snapshots-filesystem-repository,shared filesystem repository>> based
+on a standardized protocol such as NFS to access your storage system instead.
+The `s3` repository type requires full compatibility with S3. In particular it
+must support the same set of API endpoints, with the same parameters, return
+the same errors in case of failures, and offer consistency and performance at
+least as good as S3 even when accessed concurrently by multiple nodes. You will
+need to work with the supplier of your storage system to address any
+incompatibilities you encounter. Please do not report {es} issues involving
 storage systems which claim to be S3-compatible unless you can demonstrate that
 the same issue exists when using a genuine AWS S3 repository.
 
@@ -564,7 +584,15 @@ is usually simplest to collect these logs and provide them to the supplier of
 your storage system for further analysis. If the incompatibility is not clear
 from the logs emitted by the storage system, configure {es} to log every
 request it makes to the S3 API by <<configuring-logging-levels,setting the
-logging level>> of the `com.amazonaws.request` logger to `DEBUG`:
+logging level>> of the `com.amazonaws.request` logger to `DEBUG`.
+
+To prevent leaking sensitive information such as credentials and keys in logs,
+{es} rejects configuring this logger at high verbosity unless
+<<http-rest-request-tracer,insecure network trace logging>> is enabled.
+To do so, you must explicitly enable it on each node by setting the system
+property `es.insecure_network_trace_enabled` to `true`.
+
+Once enabled, you can configure the `com.amazonaws.request` logger:
 
 [source,console]
 ----
@@ -585,8 +613,9 @@ https://docs.aws.amazon.com/sdk-for-java/v1/developer-guide/java-dg-logging.html
 documentation for further information, including details about other loggers
 that can be used to obtain even more verbose logs. When you have finished
 collecting the logs needed by your supplier, set the logger settings back to
-`null` to return to the default logging configuration. See <<cluster-logger>>
-and <<cluster-update-settings>> for more information.
+`null` to return to the default logging configuration and disable insecure network
+trace logging again. See <<cluster-logger>> and <<cluster-update-settings>> for
+more information.
 
 [[repository-s3-linearizable-registers]]
 ==== Linearizable register implementation

@@ -11,7 +11,9 @@ import org.elasticsearch.inference.InputType;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
+import org.elasticsearch.xpack.inference.services.cohere.completion.CohereCompletionModel;
 import org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbeddingsModel;
+import org.elasticsearch.xpack.inference.services.cohere.rerank.CohereRerankModel;
 
 import java.util.Map;
 import java.util.Objects;
@@ -24,6 +26,7 @@ public class CohereActionCreator implements CohereActionVisitor {
     private final ServiceComponents serviceComponents;
 
     public CohereActionCreator(Sender sender, ServiceComponents serviceComponents) {
+        // TODO Batching - accept a class that can handle batching
         this.sender = Objects.requireNonNull(sender);
         this.serviceComponents = Objects.requireNonNull(serviceComponents);
     }
@@ -32,6 +35,19 @@ public class CohereActionCreator implements CohereActionVisitor {
     public ExecutableAction create(CohereEmbeddingsModel model, Map<String, Object> taskSettings, InputType inputType) {
         var overriddenModel = CohereEmbeddingsModel.of(model, taskSettings, inputType);
 
-        return new CohereEmbeddingsAction(sender, overriddenModel, serviceComponents);
+        return new CohereEmbeddingsAction(sender, overriddenModel, serviceComponents.threadPool());
+    }
+
+    @Override
+    public ExecutableAction create(CohereRerankModel model, Map<String, Object> taskSettings) {
+        var overriddenModel = CohereRerankModel.of(model, taskSettings);
+
+        return new CohereRerankAction(sender, overriddenModel, serviceComponents.threadPool());
+    }
+
+    @Override
+    public ExecutableAction create(CohereCompletionModel model, Map<String, Object> taskSettings) {
+        // no overridden model as task settings are always empty for cohere completion model
+        return new CohereCompletionAction(sender, model, serviceComponents.threadPool());
     }
 }

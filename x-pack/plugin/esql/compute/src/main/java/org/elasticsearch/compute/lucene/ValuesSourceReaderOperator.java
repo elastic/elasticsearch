@@ -137,7 +137,22 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
         boolean success = false;
         try {
             if (docVector.singleSegmentNonDecreasing()) {
-                loadFromSingleLeaf(blocks, docVector);
+                IntVector docs = docVector.docs();
+                int shard = docVector.shards().getInt(0);
+                int segment = docVector.segments().getInt(0);
+                loadFromSingleLeaf(blocks, shard, segment, new BlockLoader.Docs() {
+                    @Override
+                    public int count() {
+                        return docs.getPositionCount();
+                    }
+
+                    @Override
+                    public int get(int i) {
+                        return docs.getInt(i);
+                    }
+                });
+            } else if (docVector.singleSegment()) {
+                loadFromSingleLeafUnsorted(blocks, docVector);
             } else {
                 try (LoadFromMany many = new LoadFromMany(blocks, docVector)) {
                     many.run();
@@ -200,38 +215,24 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
         return true;
     }
 
-    private void loadFromSingleLeaf(Block[] blocks, DocVector docVector) throws IOException {
-        int shard = docVector.shards().getInt(0);
-        int segment = docVector.segments().getInt(0);
-        int firstDoc = docVector.docs().getInt(0);
+    private void loadFromSingleLeaf(Block[] blocks, int shard, int segment, BlockLoader.Docs docs) throws IOException {
+        int firstDoc = docs.get(0);
         positionFieldWork(shard, segment, firstDoc);
-        IntVector docs = docVector.docs();
-        BlockLoader.Docs loaderDocs = new BlockLoader.Docs() {
-            @Override
-            public int count() {
-                return docs.getPositionCount();
-            }
-
-            @Override
-            public int get(int i) {
-                return docs.getInt(i);
-            }
-        };
         StoredFieldsSpec storedFieldsSpec = StoredFieldsSpec.NO_REQUIREMENTS;
         List<RowStrideReaderWork> rowStrideReaders = new ArrayList<>(fields.length);
-        ComputeBlockLoaderFactory loaderBlockFactory = new ComputeBlockLoaderFactory(blockFactory, docs.getPositionCount());
+        ComputeBlockLoaderFactory loaderBlockFactory = new ComputeBlockLoaderFactory(blockFactory, docs.count());
         LeafReaderContext ctx = ctx(shard, segment);
         try {
             for (int f = 0; f < fields.length; f++) {
                 FieldWork field = fields[f];
                 BlockLoader.ColumnAtATimeReader columnAtATime = field.columnAtATime(ctx);
                 if (columnAtATime != null) {
-                    blocks[f] = (Block) columnAtATime.read(loaderBlockFactory, loaderDocs);
+                    blocks[f] = (Block) columnAtATime.read(loaderBlockFactory, docs);
                 } else {
                     rowStrideReaders.add(
                         new RowStrideReaderWork(
                             field.rowStride(ctx),
-                            (Block.Builder) field.loader.builder(loaderBlockFactory, docs.getPositionCount()),
+                            (Block.Builder) field.loader.builder(loaderBlockFactory, docs.count()),
                             f
                         )
                     );
@@ -248,7 +249,7 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
                 );
             }
             StoredFieldLoader storedFieldLoader;
-            if (useSequentialStoredFieldsReader(docVector.docs())) {
+            if (useSequentialStoredFieldsReader(docs)) {
                 storedFieldLoader = StoredFieldLoader.fromSpecSequential(storedFieldsSpec);
                 trackStoredFields(storedFieldsSpec, true);
             } else {
@@ -259,8 +260,8 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
                 storedFieldLoader.getLoader(ctx, null),
                 storedFieldsSpec.requiresSource() ? shardContexts.get(shard).newSourceLoader.get().leaf(ctx.reader(), null) : null
             );
-            for (int p = 0; p < docs.getPositionCount(); p++) {
-                int doc = docs.getInt(p);
+            for (int p = 0; p < docs.count(); p++) {
+                int doc = docs.get(p);
                 if (storedFields != null) {
                     storedFields.advanceTo(doc);
                 }
@@ -275,6 +276,30 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
             }
         } finally {
             Releasables.close(rowStrideReaders);
+        }
+    }
+
+    private void loadFromSingleLeafUnsorted(Block[] blocks, DocVector docVector) throws IOException {
+        IntVector docs = docVector.docs();
+        int[] forwards = docVector.shardSegmentDocMapForwards();
+        int shard = docVector.shards().getInt(0);
+        int segment = docVector.segments().getInt(0);
+        loadFromSingleLeaf(blocks, shard, segment, new BlockLoader.Docs() {
+            @Override
+            public int count() {
+                return docs.getPositionCount();
+            }
+
+            @Override
+            public int get(int i) {
+                return docs.getInt(forwards[i]);
+            }
+        });
+        final int[] backwards = docVector.shardSegmentDocMapBackwards();
+        for (int i = 0; i < blocks.length; i++) {
+            Block in = blocks[i];
+            blocks[i] = in.filter(backwards);
+            in.close();
         }
     }
 
@@ -371,9 +396,9 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
      * Is it more efficient to use a sequential stored field reader
      * when reading stored fields for the documents contained in {@code docIds}?
      */
-    private boolean useSequentialStoredFieldsReader(IntVector docIds) {
-        return docIds.getPositionCount() >= SEQUENTIAL_BOUNDARY
-            && docIds.getInt(docIds.getPositionCount() - 1) - docIds.getInt(0) == docIds.getPositionCount() - 1;
+    private boolean useSequentialStoredFieldsReader(BlockLoader.Docs docs) {
+        int count = docs.count();
+        return count >= SEQUENTIAL_BOUNDARY && docs.get(count - 1) - docs.get(0) == count - 1;
     }
 
     private void trackStoredFields(StoredFieldsSpec spec, boolean sequential) {
@@ -475,8 +500,8 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
     }
 
     @Override
-    protected Status status(int pagesProcessed) {
-        return new Status(new TreeMap<>(readersBuilt), pagesProcessed);
+    protected Status status(long processNanos, int pagesProcessed) {
+        return new Status(new TreeMap<>(readersBuilt), processNanos, pagesProcessed);
     }
 
     public static class Status extends AbstractPageMappingOperator.Status {
@@ -488,8 +513,8 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
 
         private final Map<String, Integer> readersBuilt;
 
-        Status(Map<String, Integer> readersBuilt, int pagesProcessed) {
-            super(pagesProcessed);
+        Status(Map<String, Integer> readersBuilt, long processNanos, int pagesProcessed) {
+            super(processNanos, pagesProcessed);
             this.readersBuilt = readersBuilt;
         }
 
@@ -521,21 +546,20 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
                 builder.field(e.getKey(), e.getValue());
             }
             builder.endObject();
-            builder.field("pages_processed", pagesProcessed());
+            innerToXContent(builder);
             return builder.endObject();
         }
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (super.equals(o) == false) return false;
             Status status = (Status) o;
-            return pagesProcessed() == status.pagesProcessed() && readersBuilt.equals(status.readersBuilt);
+            return readersBuilt.equals(status.readersBuilt);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(readersBuilt, pagesProcessed());
+            return Objects.hash(super.hashCode(), readersBuilt);
         }
 
         @Override
@@ -556,7 +580,7 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
 
         @Override
         public BlockLoader.BooleanBuilder booleansFromDocValues(int expectedCount) {
-            return factory.newBooleanBlockBuilder(expectedCount).mvOrdering(Block.MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING);
+            return factory.newBooleanBlockBuilder(expectedCount).mvOrdering(Block.MvOrdering.SORTED_ASCENDING);
         }
 
         @Override
@@ -576,7 +600,7 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
 
         @Override
         public BlockLoader.DoubleBuilder doublesFromDocValues(int expectedCount) {
-            return factory.newDoubleBlockBuilder(expectedCount).mvOrdering(Block.MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING);
+            return factory.newDoubleBlockBuilder(expectedCount).mvOrdering(Block.MvOrdering.SORTED_ASCENDING);
         }
 
         @Override
@@ -586,7 +610,7 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
 
         @Override
         public BlockLoader.IntBuilder intsFromDocValues(int expectedCount) {
-            return factory.newIntBlockBuilder(expectedCount).mvOrdering(Block.MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING);
+            return factory.newIntBlockBuilder(expectedCount).mvOrdering(Block.MvOrdering.SORTED_ASCENDING);
         }
 
         @Override
@@ -596,7 +620,7 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
 
         @Override
         public BlockLoader.LongBuilder longsFromDocValues(int expectedCount) {
-            return factory.newLongBlockBuilder(expectedCount).mvOrdering(Block.MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING);
+            return factory.newLongBlockBuilder(expectedCount).mvOrdering(Block.MvOrdering.SORTED_ASCENDING);
         }
 
         @Override

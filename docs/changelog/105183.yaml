@@ -1,7 +1,0 @@
-pr: 105183
-summary: Fix handling surrogate pairs in the XLM Roberta tokenizer
-area: Machine Learning
-type: bug
-issues:
- - 104626
- - 104981

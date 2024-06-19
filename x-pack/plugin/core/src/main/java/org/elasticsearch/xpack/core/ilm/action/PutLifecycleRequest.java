@@ -12,6 +12,7 @@ import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -25,19 +26,31 @@ import java.util.Objects;
 
 public class PutLifecycleRequest extends AcknowledgedRequest<PutLifecycleRequest> implements ToXContentObject {
 
+    public interface Factory {
+        PutLifecycleRequest create(LifecyclePolicy lifecyclePolicy);
+
+        String getPolicyName();
+    }
+
     public static final ParseField POLICY_FIELD = new ParseField("policy");
-    private static final ConstructingObjectParser<PutLifecycleRequest, String> PARSER = new ConstructingObjectParser<>(
+    private static final ConstructingObjectParser<PutLifecycleRequest, Factory> PARSER = new ConstructingObjectParser<>(
         "put_lifecycle_request",
-        a -> new PutLifecycleRequest((LifecyclePolicy) a[0])
+        false,
+        (a, factory) -> factory.create((LifecyclePolicy) a[0])
     );
 
     static {
-        PARSER.declareObject(ConstructingObjectParser.constructorArg(), LifecyclePolicy::parse, POLICY_FIELD);
+        PARSER.declareObject(
+            ConstructingObjectParser.constructorArg(),
+            (parser, factory) -> LifecyclePolicy.parse(parser, factory.getPolicyName()),
+            POLICY_FIELD
+        );
     }
 
-    private LifecyclePolicy policy;
+    private final LifecyclePolicy policy;
 
-    public PutLifecycleRequest(LifecyclePolicy policy) {
+    public PutLifecycleRequest(TimeValue masterNodeTimeout, TimeValue ackTimeout, LifecyclePolicy policy) {
+        super(masterNodeTimeout, ackTimeout);
         this.policy = policy;
     }
 
@@ -45,8 +58,6 @@ public class PutLifecycleRequest extends AcknowledgedRequest<PutLifecycleRequest
         super(in);
         policy = new LifecyclePolicy(in);
     }
-
-    public PutLifecycleRequest() {}
 
     public LifecyclePolicy getPolicy() {
         return policy;
@@ -68,8 +79,8 @@ public class PutLifecycleRequest extends AcknowledgedRequest<PutLifecycleRequest
         return err;
     }
 
-    public static PutLifecycleRequest parseRequest(String name, XContentParser parser) {
-        return PARSER.apply(parser, name);
+    public static PutLifecycleRequest parseRequest(Factory factory, XContentParser parser) {
+        return PARSER.apply(parser, factory);
     }
 
     @Override

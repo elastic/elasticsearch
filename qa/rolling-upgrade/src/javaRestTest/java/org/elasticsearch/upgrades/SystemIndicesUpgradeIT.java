@@ -23,7 +23,7 @@ import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
-public class SystemIndicesUpgradeIT extends ParameterizedRollingUpgradeTestCase {
+public class SystemIndicesUpgradeIT extends AbstractRollingUpgradeTestCase {
 
     public SystemIndicesUpgradeIT(@Name("upgradedNodes") int upgradedNodes) {
         super(upgradedNodes);

@@ -20,7 +20,7 @@ import static org.elasticsearch.test.fixtures.ResourceUtils.copyResourceToFile;
 
 public final class IdpTestContainer extends DockerEnvironmentAwareTestContainer {
 
-    private static final String DOCKER_BASE_IMAGE = "docker.elastic.co/elasticsearch-dev/idp-fixture:1.0";
+    private static final String DOCKER_BASE_IMAGE = "docker.elastic.co/elasticsearch-dev/idp-fixture:1.1";
     private final TemporaryFolder temporaryFolder = new TemporaryFolder();
     private Path certsPath;
 

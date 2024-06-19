@@ -244,11 +244,10 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
                 }
                 b.endArray();
             }));
-            assertWarnings("""
-                dynamic template [test] has invalid content [{"match_mapping_type":"string","mapping":{"badparam":false}}], \
-                attempted to validate it with the following match_mapping_type: [string], last error: \
-                [unknown parameter [badparam] on mapper [__dynamic__test] of type [null]]""");
-
+            assertWarnings(
+                "Parameter [badparam] is used in a dynamic template mapping and has no effect on type [null]. "
+                    + "Usage will result in an error in future major versions and should be removed."
+            );
             mapper.parse(source(b -> b.field("field", "foo")));
             assertWarnings(
                 "Parameter [badparam] is used in a dynamic template mapping and has no effect on type [null]. "
@@ -1430,7 +1429,7 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
         );
         assertThat(exception.getRootCause(), instanceOf(MapperParsingException.class));
         assertEquals(
-            "Tried to add subobject [time] to object [__dynamic__test] which does not support subobjects",
+            "Tried to add nested object [time] to object [__dynamic__test] which does not support subobjects",
             exception.getRootCause().getMessage()
         );
     }

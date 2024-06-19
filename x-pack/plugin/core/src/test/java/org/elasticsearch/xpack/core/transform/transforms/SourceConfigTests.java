@@ -13,7 +13,6 @@ import org.elasticsearch.xpack.core.transform.AbstractSerializingTransformTestCa
 import org.junit.Before;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Predicate;
 
@@ -146,19 +145,20 @@ public class SourceConfigTests extends AbstractSerializingTransformTestCase<Sour
     }
 
     public void testGetRuntimeMappings_NonEmptyRuntimeMappings() {
-        Map<String, Object> runtimeMappings = new HashMap<>() {
-            {
-                put("field-A", singletonMap("type", "keyword"));
-                put("field-B", singletonMap("script", "some script"));
-                put("field-C", singletonMap("script", "some other script"));
-            }
-        };
-        Map<String, Object> scriptBasedRuntimeMappings = new HashMap<>() {
-            {
-                put("field-B", singletonMap("script", "some script"));
-                put("field-C", singletonMap("script", "some other script"));
-            }
-        };
+        Map<String, Object> runtimeMappings = Map.of(
+            "field-A",
+            Map.of("type", "keyword"),
+            "field-B",
+            Map.of("script", "some script"),
+            "field-C",
+            Map.of("script", "some other script")
+        );
+        Map<String, Object> scriptBasedRuntimeMappings = Map.of(
+            "field-B",
+            Map.of("script", "some script"),
+            "field-C",
+            Map.of("script", "some other script")
+        );
         SourceConfig sourceConfig = new SourceConfig(generateRandomStringArray(10, 10, false, false), randomQueryConfig(), runtimeMappings);
         assertThat(sourceConfig.getRuntimeMappings(), is(equalTo(runtimeMappings)));
         assertThat(sourceConfig.getScriptBasedRuntimeMappings(), is(equalTo(scriptBasedRuntimeMappings)));

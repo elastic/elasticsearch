@@ -73,9 +73,11 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Predicates;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.shard.ShardId;
@@ -393,7 +395,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
             @Override
             public void onFailure(Exception e) {
                 initializingClones.remove(snapshot);
-                logger.warn(() -> format("[%s][%s] failed to clone snapshot", repositoryName, snapshotName), e);
+                logSnapshotFailure("clone", snapshot, e);
                 listener.onFailure(e);
             }
 
@@ -1188,7 +1190,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                 IndexRoutingTable indexShardRoutingTable = routingTable.index(shardId.getIndex());
                 if (indexShardRoutingTable != null) {
                     IndexShardRoutingTable shardRouting = indexShardRoutingTable.shard(shardId.id());
-                    if (shardRouting != null && shardRouting.primaryShard() != null) {
+                    if (shardRouting != null) {
                         final var primaryNodeId = shardRouting.primaryShard().currentNodeId();
                         if (nodeIdRemovalPredicate.test(primaryNodeId)) {
                             if (shardStatus.state() == ShardState.PAUSED_FOR_NODE_REMOVAL) {
@@ -1273,9 +1275,8 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                                 return true;
                             }
                             ShardRouting shardRouting = indexShardRoutingTable.shard(shardId.shardId()).primaryShard();
-                            if (shardRouting != null
-                                && (shardRouting.started() && snapshotsInProgress.isNodeIdForRemoval(shardRouting.currentNodeId()) == false
-                                    || shardRouting.unassigned())) {
+                            if (shardRouting.started() && snapshotsInProgress.isNodeIdForRemoval(shardRouting.currentNodeId()) == false
+                                || shardRouting.unassigned()) {
                                 return true;
                             }
                         }
@@ -1995,8 +1996,11 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
     /**
      * Deletes snapshots from the repository. In-progress snapshots matched by the delete will be aborted before deleting them.
      *
+     * When <code>wait_for_completion</code> is set to true, the passed action listener will only complete when all
+     * matching snapshots are deleted, when it is false it will complete as soon as the deletes are scheduled
+     *
      * @param request         delete snapshot request
-     * @param listener        listener
+     * @param listener        listener a listener which will be resolved according to the wait_for_completion parameter
      */
     public void deleteSnapshots(final DeleteSnapshotRequest request, final ActionListener<Void> listener) {
         final String repositoryName = request.repository();
@@ -2189,10 +2193,12 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                         Runnable::run
                     );
                 }
-                if (newDelete == null) {
+                if (newDelete == null || request.waitForCompletion() == false) {
                     listener.onResponse(null);
                 } else {
                     addDeleteListener(newDelete.uuid(), listener);
+                }
+                if (newDelete != null) {
                     if (reusedExistingDelete) {
                         return;
                     }
@@ -2266,7 +2272,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
         IndexVersion minCompatVersion = minNodeVersion;
         final Collection<SnapshotId> snapshotIds = repositoryData.getSnapshotIds();
         for (SnapshotId snapshotId : snapshotIds.stream()
-            .filter(excluded == null ? sn -> true : Predicate.not(excluded::contains))
+            .filter(excluded == null ? Predicates.always() : Predicate.not(excluded::contains))
             .toList()) {
             final IndexVersion known = repositoryData.getVersion(snapshotId);
             // If we don't have the version cached in the repository data yet we load it from the snapshot info blobs
@@ -3353,6 +3359,15 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                     updatedState = updateSnapshotState.updatedState;
                 }
 
+                if (updatedState.state() == ShardState.PAUSED_FOR_NODE_REMOVAL) {
+                    // leave subsequent entries for this shard alone until this one is unpaused
+                    iterator.remove();
+                } else {
+                    // All other shard updates leave the shard in a complete state, which means we should leave this update in the list so
+                    // it can fall through to later entries and start any waiting shard snapshots:
+                    assert updatedState.isActive() == false : updatedState;
+                }
+
                 logger.trace("[{}] Updating shard [{}] with status [{}]", updateSnapshotState.snapshot, updatedShard, updatedState.state());
                 changedCount++;
                 newStates.get().put(updatedShard, updatedState);
@@ -3835,12 +3850,54 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
 
         @Override
         public void onFailure(Exception e) {
-            logger.warn(
-                () -> format("[%s][%s] failed to create snapshot", snapshot.getRepository(), snapshot.getSnapshotId().getName()),
-                e
-            );
+            logSnapshotFailure("create", snapshot, e);
             listener.onFailure(e);
         }
+    }
+
+    private static void logSnapshotFailure(String operation, Snapshot snapshot, Exception e) {
+        final var logLevel = snapshotFailureLogLevel(e);
+        if (logLevel == Level.INFO && logger.isDebugEnabled() == false) {
+            // suppress stack trace at INFO unless extra verbosity is configured
+            logger.info(
+                format(
+                    "[%s][%s] failed to %s snapshot: %s",
+                    snapshot.getRepository(),
+                    snapshot.getSnapshotId().getName(),
+                    operation,
+                    e.getMessage()
+                )
+            );
+        } else {
+            logger.log(
+                logLevel,
+                () -> format("[%s][%s] failed to %s snapshot", snapshot.getRepository(), snapshot.getSnapshotId().getName(), operation),
+                e
+            );
+        }
+    }
+
+    private static Level snapshotFailureLogLevel(Exception e) {
+        if (MasterService.isPublishFailureException(e)) {
+            // no action needed, the new master will take things from here
+            return Level.INFO;
+        } else if (e instanceof InvalidSnapshotNameException) {
+            // no action needed, typically ILM-related, or a user error
+            return Level.INFO;
+        } else if (e instanceof IndexNotFoundException) {
+            // not worrying, most likely a user error
+            return Level.INFO;
+        } else if (e instanceof SnapshotException) {
+            if (e.getMessage().contains(ReferenceDocs.UNASSIGNED_SHARDS.toString())) {
+                // non-partial snapshot requested but cluster health is not yellow or green; the health is tracked elsewhere so no need to
+                // make more noise here
+                return Level.INFO;
+            }
+        } else if (e instanceof IllegalArgumentException) {
+            // some other user error
+            return Level.INFO;
+        }
+        return Level.WARN;
     }
 
     private class SnapshotTaskExecutor implements ClusterStateTaskExecutor<SnapshotTask> {
@@ -4088,7 +4145,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
     }
 
     private static boolean supportsNodeRemovalTracking(ClusterState clusterState) {
-        return clusterState.getMinTransportVersion().onOrAfter(TransportVersions.SNAPSHOTS_IN_PROGRESS_TRACKING_REMOVING_NODES_ADDED);
+        return clusterState.getMinTransportVersion().onOrAfter(TransportVersions.V_8_13_0);
     }
 
     private final MasterServiceTaskQueue<UpdateNodeIdsForRemovalTask> updateNodeIdsToRemoveQueue;

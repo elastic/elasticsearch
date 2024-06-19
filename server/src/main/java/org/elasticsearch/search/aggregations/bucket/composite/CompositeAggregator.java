@@ -191,9 +191,9 @@ public final class CompositeAggregator extends BucketsAggregator implements Size
             runDeferredCollections();
         }
 
-        int num = Math.min(size, queue.size());
+        int num = Math.min(size, (int) queue.size());
         final InternalComposite.InternalBucket[] buckets = new InternalComposite.InternalBucket[num];
-        long[] bucketOrdsToCollect = new long[queue.size()];
+        long[] bucketOrdsToCollect = new long[(int) queue.size()];
         for (int i = 0; i < queue.size(); i++) {
             bucketOrdsToCollect[i] = i;
         }
@@ -203,7 +203,7 @@ public final class CompositeAggregator extends BucketsAggregator implements Size
             CompositeKey key = queue.toCompositeKey(slot);
             InternalAggregations aggs = subAggsForBuckets.apply(slot);
             long docCount = queue.getDocCount(slot);
-            buckets[queue.size()] = new InternalComposite.InternalBucket(
+            buckets[(int) queue.size()] = new InternalComposite.InternalBucket(
                 sourceNames,
                 formats,
                 key,

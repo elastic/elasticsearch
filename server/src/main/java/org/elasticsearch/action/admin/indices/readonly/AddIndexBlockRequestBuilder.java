@@ -22,7 +22,7 @@ public class AddIndexBlockRequestBuilder extends AcknowledgedRequestBuilder<
     AddIndexBlockRequestBuilder> {
 
     public AddIndexBlockRequestBuilder(ElasticsearchClient client, APIBlock block, String... indices) {
-        super(client, AddIndexBlockAction.INSTANCE, new AddIndexBlockRequest(block, indices));
+        super(client, TransportAddIndexBlockAction.TYPE, new AddIndexBlockRequest(block, indices));
     }
 
     /**

@@ -21,6 +21,7 @@ package org.elasticsearch.index.codec.postings;
 
 import org.apache.lucene.codecs.MultiLevelSkipListReader;
 import org.apache.lucene.store.IndexInput;
+import org.elasticsearch.index.codec.ForUtil;
 
 import java.io.IOException;
 import java.util.Arrays;

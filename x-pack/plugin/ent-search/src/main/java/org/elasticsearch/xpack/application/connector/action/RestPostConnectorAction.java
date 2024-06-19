@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.application.connector.action;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
@@ -35,14 +34,17 @@ public class RestPostConnectorAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) {
-        PostConnectorAction.Request request = PostConnectorAction.Request.fromXContentBytes(
-            restRequest.content(),
-            restRequest.getXContentType()
-        );
+        PostConnectorAction.Request request;
+        // Handle empty REST request body
+        if (restRequest.hasContent()) {
+            request = PostConnectorAction.Request.fromXContentBytes(restRequest.content(), restRequest.getXContentType());
+        } else {
+            request = new PostConnectorAction.Request();
+        }
         return channel -> client.execute(
             PostConnectorAction.INSTANCE,
             request,
-            new RestToXContentListener<>(channel, r -> RestStatus.CREATED, r -> null)
+            new RestToXContentListener<>(channel, ConnectorCreateActionResponse::status, r -> null)
         );
     }
 }

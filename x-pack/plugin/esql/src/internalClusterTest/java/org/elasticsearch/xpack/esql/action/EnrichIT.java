@@ -18,6 +18,8 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.operator.DriverProfile;
+import org.elasticsearch.compute.operator.DriverStatus;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
@@ -38,6 +40,7 @@ import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.core.enrich.action.DeleteEnrichPolicyAction;
 import org.elasticsearch.xpack.core.enrich.action.ExecuteEnrichPolicyAction;
 import org.elasticsearch.xpack.core.enrich.action.PutEnrichPolicyAction;
+import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
 import org.elasticsearch.xpack.enrich.EnrichPlugin;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
@@ -58,12 +61,15 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
+import static java.util.Collections.emptyList;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.transport.AbstractSimpleTransportTestCase.IGNORE_DESERIALIZATION_ERRORS_SETTING;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.not;
 
 public class EnrichIT extends AbstractEsqlIntegTestCase {
 
@@ -121,6 +127,9 @@ public class EnrichIT extends AbstractEsqlIntegTestCase {
         } else {
             client = client();
         }
+        if (request.profile() == false && randomBoolean()) {
+            request.profile(true);
+        }
         if (randomBoolean()) {
             setRequestCircuitBreakerLimit(ByteSizeValue.ofBytes(between(256, 4096)));
             try {
@@ -157,15 +166,17 @@ public class EnrichIT extends AbstractEsqlIntegTestCase {
             client().prepareIndex("songs").setSource("song_id", s.id, "title", s.title, "artist", s.artist, "length", s.length).get();
         }
         client().admin().indices().prepareRefresh("songs").get();
-        client().execute(PutEnrichPolicyAction.INSTANCE, new PutEnrichPolicyAction.Request("songs", policy)).actionGet();
-        client().execute(ExecuteEnrichPolicyAction.INSTANCE, new ExecuteEnrichPolicyAction.Request("songs")).actionGet();
+        client().execute(PutEnrichPolicyAction.INSTANCE, new PutEnrichPolicyAction.Request(TEST_REQUEST_TIMEOUT, "songs", policy))
+            .actionGet();
+        client().execute(ExecuteEnrichPolicyAction.INSTANCE, new ExecuteEnrichPolicyAction.Request(TEST_REQUEST_TIMEOUT, "songs"))
+            .actionGet();
         assertAcked(client().admin().indices().prepareDelete("songs"));
     }
 
     @After
     public void cleanEnrichPolicies() {
         cluster().wipe(Set.of());
-        client().execute(DeleteEnrichPolicyAction.INSTANCE, new DeleteEnrichPolicyAction.Request("songs"));
+        client().execute(DeleteEnrichPolicyAction.INSTANCE, new DeleteEnrichPolicyAction.Request(TEST_REQUEST_TIMEOUT, "songs"));
     }
 
     @Before
@@ -318,6 +329,27 @@ public class EnrichIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    public void testProfile() {
+        EsqlQueryRequest request = EsqlQueryRequest.syncEsqlQueryRequest();
+        request.pragmas(randomPragmas());
+        request.query("from listens* | sort timestamp DESC | limit 1 | " + enrichSongCommand() + " | KEEP timestamp, artist");
+        request.profile(true);
+        try (var resp = run(request)) {
+            Iterator<Object> row = resp.values().next();
+            assertThat(row.next(), equalTo(7L));
+            assertThat(row.next(), equalTo("Linkin Park"));
+            EsqlQueryResponse.Profile profile = resp.profile();
+            assertNotNull(profile);
+            List<DriverProfile> drivers = profile.drivers();
+            assertThat(drivers.size(), greaterThanOrEqualTo(2));
+            List<DriverStatus.OperatorStatus> enrichOperators = drivers.stream()
+                .flatMap(d -> d.operators().stream())
+                .filter(status -> status.operator().startsWith("EnrichOperator"))
+                .toList();
+            assertThat(enrichOperators, not(emptyList()));
+        }
+    }
+
     /**
      * Some enrich queries that could fail without the PushDownEnrich rule.
      */
@@ -352,6 +384,39 @@ public class EnrichIT extends AbstractEsqlIntegTestCase {
             try (EsqlQueryResponse resp = run(query)) {
                 assertThat(EsqlTestUtils.getValuesList(resp), equalTo(List.of(List.of("Hotel California", "s1"))));
             }
+        }
+    }
+
+    /**
+     * To enable enrich lookup using ordinals
+     */
+    public void testManyDocuments() {
+        int numDocs = between(200, 2000);
+        var artists = Map.of("s1", "Eagles", "s2", "Linkin Park", "s3", "Linkin Park", "s4", "Disturbed");
+        client().admin()
+            .indices()
+            .prepareCreate("many_docs")
+            .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1))
+            .setMapping("song_id", "type=keyword")
+            .get();
+        Map<String, Long> songs = new HashMap<>();
+        for (int i = 0; i < numDocs; i++) {
+            String song = randomFrom(artists.keySet());
+            client().prepareIndex("many_docs").setSource("song_id", song).get();
+            songs.merge(song, 1L, Long::sum);
+        }
+        client().admin().indices().prepareRefresh("many_docs").get();
+        try (EsqlQueryResponse resp = run("FROM many_docs | ENRICH songs | STATS count(*) BY artist")) {
+            List<List<Object>> values = EsqlTestUtils.getValuesList(resp);
+            Map<String, Long> actual = new HashMap<>();
+            for (List<Object> value : values) {
+                actual.merge((String) value.get(1), (Long) value.get(0), Long::sum);
+            }
+            Map<String, Long> expected = new HashMap<>();
+            for (Map.Entry<String, Long> e : songs.entrySet()) {
+                expected.merge(artists.get(e.getKey()), e.getValue(), Long::sum);
+            }
+            assertThat(actual, equalTo(expected));
         }
     }
 

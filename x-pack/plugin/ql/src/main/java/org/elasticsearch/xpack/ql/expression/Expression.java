@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.util.StringUtils;
 
 import java.util.List;
+import java.util.function.Supplier;
 
 /**
  * In a SQL statement, an Expression is whatever a user specifies inside an
@@ -52,6 +53,10 @@ public abstract class Expression extends Node<Expression> implements Resolvable 
 
         public TypeResolution and(TypeResolution other) {
             return failed ? this : other;
+        }
+
+        public TypeResolution and(Supplier<TypeResolution> other) {
+            return failed ? this : other.get();
         }
 
         public String message() {

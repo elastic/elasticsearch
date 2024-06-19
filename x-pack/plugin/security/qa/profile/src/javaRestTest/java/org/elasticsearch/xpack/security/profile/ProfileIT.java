@@ -13,6 +13,7 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -24,6 +25,9 @@ import org.elasticsearch.test.cluster.local.LocalClusterSpecBuilder;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.xcontent.ObjectPath;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 import org.junit.ClassRule;
 
 import java.io.IOException;
@@ -253,11 +257,11 @@ public class ProfileIT extends ESRestTestCase {
         errorDetails4.values().forEach(value -> assertThat(castToMap(value).get("type"), equalTo("resource_not_found_exception")));
     }
 
-    public void testUpdateProfileData() throws IOException {
+    public void testStoreProfileData() throws IOException {
         final Map<String, Object> activateProfileMap = doActivateProfile();
         final String uid = (String) activateProfileMap.get("uid");
-        final Request updateProfileRequest1 = new Request(randomFrom("PUT", "POST"), "_security/profile/" + uid + "/_data");
-        updateProfileRequest1.setJsonEntity("""
+        final Request updateProfileRequest = new Request(randomFrom("PUT", "POST"), "_security/profile/" + uid + "/_data");
+        updateProfileRequest.setJsonEntity("""
             {
               "labels": {
                 "app1": { "tags": [ "prod", "east" ] }
@@ -266,11 +270,125 @@ public class ProfileIT extends ESRestTestCase {
                 "app1": { "theme": "default" }
               }
             }""");
-        assertOK(adminClient().performRequest(updateProfileRequest1));
+        assertOK(adminClient().performRequest(updateProfileRequest));
 
-        final Map<String, Object> profileMap1 = doGetProfile(uid, "app1");
-        assertThat(castToMap(profileMap1.get("labels")), equalTo(Map.of("app1", Map.of("tags", List.of("prod", "east")))));
-        assertThat(castToMap(profileMap1.get("data")), equalTo(Map.of("app1", Map.of("theme", "default"))));
+        final Map<String, Object> profileMap = doGetProfile(uid, "app1");
+        assertThat(castToMap(profileMap.get("labels")), equalTo(Map.of("app1", Map.of("tags", List.of("prod", "east")))));
+        assertThat(castToMap(profileMap.get("data")), equalTo(Map.of("app1", Map.of("theme", "default"))));
+    }
+
+    public void testModifyProfileData() throws IOException {
+        final Map<String, Object> activateProfileMap = doActivateProfile();
+        final String uid = (String) activateProfileMap.get("uid");
+        final String endpoint = "_security/profile/" + uid + "/_data";
+        final String appName1 = randomAlphaOfLengthBetween(3, 5);
+        final String appName2 = randomAlphaOfLengthBetween(6, 8);
+        final List<String> tags = randomList(1, 5, () -> randomAlphaOfLengthBetween(4, 12));
+        final String labelKey = randomAlphaOfLengthBetween(4, 6);
+        final String dataKey1 = randomAlphaOfLengthBetween(3, 5);
+        final String dataKey2 = randomAlphaOfLengthBetween(6, 8);
+        final String dataKey3 = randomAlphaOfLengthBetween(9, 10);
+        final String dataValue1a = randomAlphaOfLengthBetween(6, 9);
+        final String dataValue1b = randomAlphaOfLengthBetween(10, 12);
+        final String dataValue2 = randomAlphaOfLengthBetween(6, 12);
+        final String dataValue3 = randomAlphaOfLengthBetween(4, 10);
+
+        // Store the data
+        {
+            final Request updateProfileRequest = new Request(randomFrom("PUT", "POST"), endpoint);
+            final Map<String, String> dataBlock = Map.ofEntries(
+                // { k1: v1, k2: v2 }
+                Map.entry(dataKey1, dataValue1a),
+                Map.entry(dataKey2, dataValue2)
+            );
+            updateProfileRequest.setJsonEntity(
+                toJson(
+                    Map.ofEntries(
+                        Map.entry("labels", Map.of(appName1, Map.of(labelKey, tags))),
+                        // Store the same data under both app-names
+                        Map.entry("data", Map.of(appName1, dataBlock, appName2, dataBlock))
+                    )
+                )
+            );
+            assertOK(adminClient().performRequest(updateProfileRequest));
+
+            final Map<String, Object> profileMap1 = doGetProfile(uid, appName1);
+            logger.info("Profile Map [{}][app={}] : {}", getTestName(), appName1, profileMap1);
+            assertThat(ObjectPath.eval("labels." + appName1 + "." + labelKey, profileMap1), equalTo(tags));
+            assertThat(ObjectPath.eval("data." + appName1 + "." + dataKey1, profileMap1), equalTo(dataValue1a));
+            assertThat(ObjectPath.eval("data." + appName1 + "." + dataKey2, profileMap1), equalTo(dataValue2));
+            final Map<String, Object> profileMap2 = doGetProfile(uid, appName2);
+            logger.info("Profile Map [{}][app={}] : {}", getTestName(), appName2, profileMap2);
+            assertThat(ObjectPath.eval("data." + appName2 + "." + dataKey1, profileMap2), equalTo(dataValue1a));
+            assertThat(ObjectPath.eval("data." + appName2 + "." + dataKey2, profileMap2), equalTo(dataValue2));
+        }
+
+        // Store modified data
+        {
+            // Add a new tag, remove an old one
+            final String newTag = randomValueOtherThanMany(tags::contains, () -> randomAlphaOfLengthBetween(3, 9));
+            tags.remove(randomFrom(tags));
+            tags.add(newTag);
+            final Request updateProfileRequest = new Request(randomFrom("PUT", "POST"), endpoint);
+            final Map<String, String> dataBlock = Map.ofEntries(
+                // { k1: v1b, k3: v3 }
+                Map.entry(dataKey1, dataValue1b),
+                Map.entry(dataKey3, dataValue3)
+            );
+            updateProfileRequest.setJsonEntity(
+                toJson(
+                    Map.ofEntries(
+                        Map.entry("labels", Map.of(appName1, Map.of(labelKey, tags))),
+                        // We don't make any changes to appName2, so it should keep the original data
+                        Map.entry("data", Map.of(appName1, dataBlock))
+                    )
+                )
+            );
+            assertOK(adminClient().performRequest(updateProfileRequest));
+
+            final Map<String, Object> profileMap1 = doGetProfile(uid, appName1);
+            logger.info("Profile Map [{}][app={}] : {}", getTestName(), appName1, profileMap1);
+            assertThat(ObjectPath.eval("labels." + appName1 + "." + labelKey, profileMap1), equalTo(tags));
+            assertThat(ObjectPath.eval("data." + appName1 + "." + dataKey1, profileMap1), equalTo(dataValue1b));
+            assertThat(ObjectPath.eval("data." + appName1 + "." + dataKey2, profileMap1), equalTo(dataValue2));
+            assertThat(ObjectPath.eval("data." + appName1 + "." + dataKey3, profileMap1), equalTo(dataValue3));
+            final Map<String, Object> profileMap2 = doGetProfile(uid, appName2);
+            logger.info("Profile Map [{}][app={}] : {}", getTestName(), appName2, profileMap2);
+            assertThat(ObjectPath.eval("data." + appName2 + "." + dataKey1, profileMap2), equalTo(dataValue1a));
+            assertThat(ObjectPath.eval("data." + appName2 + "." + dataKey2, profileMap2), equalTo(dataValue2));
+            assertThat(ObjectPath.eval("data." + appName2 + "." + dataKey3, profileMap2), nullValue());
+        }
+    }
+
+    public void testRemoveProfileData() throws IOException {
+        final Map<String, Object> activateProfileMap = doActivateProfile();
+        final String uid = (String) activateProfileMap.get("uid");
+        {
+            final Request request = new Request(randomFrom("PUT", "POST"), "_security/profile/" + uid + "/_data");
+            request.setJsonEntity("""
+                {
+                  "data": {
+                    "app1": { "top": { "inner" : { "leaf": "data_value" } } }
+                  }
+                }""");
+            assertOK(adminClient().performRequest(request));
+
+            final Map<String, Object> profileMap = doGetProfile(uid, "app1");
+            assertThat(ObjectPath.eval("data.app1.top.inner.leaf", profileMap), equalTo("data_value"));
+        }
+        {
+            final Request request = new Request(randomFrom("PUT", "POST"), "_security/profile/" + uid + "/_data");
+            request.setJsonEntity("""
+                {
+                  "data": {
+                    "app1": { "top": null }
+                  }
+                }""");
+            assertOK(adminClient().performRequest(request));
+
+            final Map<String, Object> profileMap = doGetProfile(uid, "app1");
+            assertThat(ObjectPath.eval("data.app1.top", profileMap), nullValue());
+        }
     }
 
     public void testSuggestProfile() throws IOException {
@@ -559,4 +677,11 @@ public class ProfileIT extends ESRestTestCase {
     private Map<String, Object> castToMap(Object o) {
         return (Map<String, Object>) o;
     }
+
+    private static String toJson(Map<String, ? extends Object> map) throws IOException {
+        final XContentBuilder builder = XContentFactory.jsonBuilder().map(map);
+        final BytesReference bytes = BytesReference.bytes(builder);
+        return bytes.utf8ToString();
+    }
+
 }

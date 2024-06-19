@@ -152,6 +152,11 @@ public class NettyAllocator {
                     }
                 };
             }
+
+            @Override
+            public int pageSize() {
+                return PageCacheRecycler.BYTE_PAGE_SIZE;
+            }
         };
     }
 

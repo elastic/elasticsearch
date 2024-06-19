@@ -34,7 +34,7 @@
 ---
 "Sorting and size combined pre 7.3":
   - skip:
-      version: "7.3.0 - "
+      cluster_features: ["gte_v7.3.0"]
       reason: "7.3 should use max_docs or get deprecation warning"
 
   - do:
@@ -76,10 +76,10 @@
 
 ---
 "Sorting and max_docs in body combined":
-  - skip:
-      version: " - 7.5.99"
+  - requires:
+      cluster_features: ["gte_v7.6.0"]
       reason: "max_docs introduced in 7.3.0, but sort deprecated in 7.6"
-      features: "warnings"
+      test_runner_features: "warnings"
 
   - do:
       index:
@@ -123,10 +123,10 @@
 
 ---
 "Sorting deprecated wait_for_completion false":
-  - skip:
-      version: " - 7.5.99"
+  - requires:
+      cluster_features: ["gte_v7.6.0"]
       reason: "sort deprecated in 7.6"
-      features: "warnings"
+      test_runner_features: "warnings"
 
   - do:
       index:
@@ -158,8 +158,8 @@
 
 ---
 "max_docs in URL":
-  - skip:
-      version: " - 7.2.99"
+  - requires:
+      cluster_features: ["gte_v7.3.0"]
       reason: "max_docs introduced in 7.3.0"
 
   - do:

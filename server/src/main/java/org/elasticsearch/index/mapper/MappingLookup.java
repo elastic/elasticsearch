@@ -10,9 +10,11 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.codecs.PostingsFormat;
 import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.elasticsearch.inference.InferenceService;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -40,13 +42,14 @@ public final class MappingLookup {
      * A lookup representing an empty mapping. It can be used to look up fields, although it won't hold any, but it does not
      * hold a valid {@link DocumentParser}, {@link IndexSettings} or {@link IndexAnalyzers}.
      */
-    public static final MappingLookup EMPTY = fromMappers(Mapping.EMPTY, List.of(), List.of(), List.of());
+    public static final MappingLookup EMPTY = fromMappers(Mapping.EMPTY, List.of(), List.of());
 
     private final CacheKey cacheKey = new CacheKey();
 
     /** Full field name to mapper */
     private final Map<String, Mapper> fieldMappers;
     private final Map<String, ObjectMapper> objectMappers;
+    private final Map<String, InferenceFieldMetadata> inferenceFields;
     private final int runtimeFieldMappersCount;
     private final NestedLookup nestedLookup;
     private final FieldTypeLookup fieldTypeLookup;
@@ -67,35 +70,40 @@ public final class MappingLookup {
         List<ObjectMapper> newObjectMappers = new ArrayList<>();
         List<FieldMapper> newFieldMappers = new ArrayList<>();
         List<FieldAliasMapper> newFieldAliasMappers = new ArrayList<>();
+        List<PassThroughObjectMapper> newPassThroughMappers = new ArrayList<>();
         for (MetadataFieldMapper metadataMapper : mapping.getSortedMetadataMappers()) {
             if (metadataMapper != null) {
                 newFieldMappers.add(metadataMapper);
             }
         }
         for (Mapper child : mapping.getRoot()) {
-            collect(child, newObjectMappers, newFieldMappers, newFieldAliasMappers);
+            collect(child, newObjectMappers, newFieldMappers, newFieldAliasMappers, newPassThroughMappers);
         }
-        return new MappingLookup(mapping, newFieldMappers, newObjectMappers, newFieldAliasMappers);
+        return new MappingLookup(mapping, newFieldMappers, newObjectMappers, newFieldAliasMappers, newPassThroughMappers);
     }
 
     private static void collect(
         Mapper mapper,
         Collection<ObjectMapper> objectMappers,
         Collection<FieldMapper> fieldMappers,
-        Collection<FieldAliasMapper> fieldAliasMappers
+        Collection<FieldAliasMapper> fieldAliasMappers,
+        Collection<PassThroughObjectMapper> passThroughMappers
     ) {
-        if (mapper instanceof ObjectMapper) {
-            objectMappers.add((ObjectMapper) mapper);
-        } else if (mapper instanceof FieldMapper) {
-            fieldMappers.add((FieldMapper) mapper);
-        } else if (mapper instanceof FieldAliasMapper) {
-            fieldAliasMappers.add((FieldAliasMapper) mapper);
+        if (mapper instanceof PassThroughObjectMapper passThroughObjectMapper) {
+            passThroughMappers.add(passThroughObjectMapper);
+            objectMappers.add(passThroughObjectMapper);
+        } else if (mapper instanceof ObjectMapper objectMapper) {
+            objectMappers.add(objectMapper);
+        } else if (mapper instanceof FieldMapper fieldMapper) {
+            fieldMappers.add(fieldMapper);
+        } else if (mapper instanceof FieldAliasMapper fieldAliasMapper) {
+            fieldAliasMappers.add(fieldAliasMapper);
         } else {
             throw new IllegalStateException("Unrecognized mapper type [" + mapper.getClass().getSimpleName() + "].");
         }
 
         for (Mapper child : mapper) {
-            collect(child, objectMappers, fieldMappers, fieldAliasMappers);
+            collect(child, objectMappers, fieldMappers, fieldAliasMappers, passThroughMappers);
         }
     }
 
@@ -111,22 +119,29 @@ public final class MappingLookup {
      * @param mappers the field mappers
      * @param objectMappers the object mappers
      * @param aliasMappers the field alias mappers
+     * @param passThroughMappers the pass-through mappers
      * @return the newly created lookup instance
      */
     public static MappingLookup fromMappers(
         Mapping mapping,
         Collection<FieldMapper> mappers,
         Collection<ObjectMapper> objectMappers,
-        Collection<FieldAliasMapper> aliasMappers
+        Collection<FieldAliasMapper> aliasMappers,
+        Collection<PassThroughObjectMapper> passThroughMappers
     ) {
-        return new MappingLookup(mapping, mappers, objectMappers, aliasMappers);
+        return new MappingLookup(mapping, mappers, objectMappers, aliasMappers, passThroughMappers);
+    }
+
+    public static MappingLookup fromMappers(Mapping mapping, Collection<FieldMapper> mappers, Collection<ObjectMapper> objectMappers) {
+        return new MappingLookup(mapping, mappers, objectMappers, List.of(), List.of());
     }
 
     private MappingLookup(
         Mapping mapping,
         Collection<FieldMapper> mappers,
         Collection<ObjectMapper> objectMappers,
-        Collection<FieldAliasMapper> aliasMappers
+        Collection<FieldAliasMapper> aliasMappers,
+        Collection<PassThroughObjectMapper> passThroughMappers
     ) {
         this.totalFieldsCount = mapping.getRoot().getTotalFieldsCount();
         this.mapping = mapping;
@@ -172,13 +187,23 @@ public final class MappingLookup {
             }
         }
 
+        PassThroughObjectMapper.checkForDuplicatePriorities(passThroughMappers);
         final Collection<RuntimeField> runtimeFields = mapping.getRoot().runtimeFields();
-        this.fieldTypeLookup = new FieldTypeLookup(mappers, aliasMappers, runtimeFields);
+        this.fieldTypeLookup = new FieldTypeLookup(mappers, aliasMappers, passThroughMappers, runtimeFields);
+
+        Map<String, InferenceFieldMetadata> inferenceFields = new HashMap<>();
+        for (FieldMapper mapper : mappers) {
+            if (mapper instanceof InferenceFieldMapper inferenceFieldMapper) {
+                inferenceFields.put(mapper.name(), inferenceFieldMapper.getMetadata(fieldTypeLookup.sourcePaths(mapper.name())));
+            }
+        }
+        this.inferenceFields = Map.copyOf(inferenceFields);
+
         if (runtimeFields.isEmpty()) {
             // without runtime fields this is the same as the field type lookup
             this.indexTimeLookup = fieldTypeLookup;
         } else {
-            this.indexTimeLookup = new FieldTypeLookup(mappers, aliasMappers, Collections.emptyList());
+            this.indexTimeLookup = new FieldTypeLookup(mappers, aliasMappers, passThroughMappers, Collections.emptyList());
         }
         // make all fields into compact+fast immutable maps
         this.fieldMappers = Map.copyOf(fieldMappers);
@@ -360,6 +385,13 @@ public final class MappingLookup {
         return objectMappers;
     }
 
+    /**
+     * Returns a map containing all fields that require to run inference (through the {@link InferenceService} prior to indexation.
+     */
+    public Map<String, InferenceFieldMetadata> inferenceFields() {
+        return inferenceFields;
+    }
+
     public NestedLookup nestedLookup() {
         return nestedLookup;
     }
@@ -397,6 +429,13 @@ public final class MappingLookup {
      */
     public Set<String> getMatchingFieldNames(String pattern) {
         return fieldTypeLookup.getMatchingFieldNames(pattern);
+    }
+
+    /**
+     * @return A map from field name to the MappedFieldType
+     */
+    public Map<String, MappedFieldType> getFullNameToFieldType() {
+        return fieldTypeLookup.getFullNameToFieldType();
     }
 
     /**
@@ -457,9 +496,9 @@ public final class MappingLookup {
     /**
      * Build something to load source {@code _source}.
      */
-    public SourceLoader newSourceLoader() {
+    public SourceLoader newSourceLoader(SourceFieldMetrics metrics) {
         SourceFieldMapper sfm = mapping.getMetadataMapperByClass(SourceFieldMapper.class);
-        return sfm == null ? SourceLoader.FROM_STORED_SOURCE : sfm.newSourceLoader(mapping);
+        return sfm == null ? SourceLoader.FROM_STORED_SOURCE : sfm.newSourceLoader(mapping, metrics);
     }
 
     /**

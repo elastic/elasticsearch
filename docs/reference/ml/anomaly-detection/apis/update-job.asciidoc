@@ -23,7 +23,7 @@ Requires the `manage_ml` cluster privilege. This privilege is included in the
 
 `<job_id>`::
 (Required, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
 
 [role="child_attributes"]
 [[ml-update-job-request-body]]
@@ -33,7 +33,7 @@ The following properties can be updated after the job is created:
 
 `allow_lazy_open`::
 (Boolean)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=allow-lazy-open]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=allow-lazy-open]
 +
 --
 NOTE: If the job is open when you make the update, you must stop the {dfeed},
@@ -43,7 +43,7 @@ close the job, then reopen the job and restart the {dfeed} for the changes to ta
 //Begin analysis_limits
 [[update-analysislimits]]`analysis_limits`::
 (Optional, object)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=analysis-limits]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=analysis-limits]
 +
 You can update the `analysis_limits` only while the job is closed.
 +
@@ -52,7 +52,7 @@ You can update the `analysis_limits` only while the job is closed.
 ====
 `model_memory_limit`:::
 (long or string) 
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=model-memory-limit-ad]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=model-memory-limit-ad]
 +
 --
 [NOTE]
@@ -71,7 +71,7 @@ to re-run the job with an increased `model_memory_limit`.
 
 `background_persist_interval`::
 (<<time-units,time units>>)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=background-persist-interval]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=background-persist-interval]
 +
 --
 NOTE: If the job is open when you make the update, you must stop the {dfeed},
@@ -81,11 +81,11 @@ close the job, then reopen the job and restart the {dfeed} for the changes to ta
 
 [[update-customsettings]]`custom_settings`::
 (object)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=custom-settings]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=custom-settings]
 
 `daily_model_snapshot_retention_after_days`::
 (long)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=daily-model-snapshot-retention-after-days]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=daily-model-snapshot-retention-after-days]
 
 `description`::
 (string) A description of the job.
@@ -101,7 +101,7 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=daily-model-snapshot-retention-
 //Begin detectors.custom_rules
 `custom_rules`:::
 (array)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=custom-rules]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=custom-rules]
 +
 .Properties of `custom_rules`
 [%collapsible%open]
@@ -109,12 +109,12 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=custom-rules]
 
 `actions`:::
 (array)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=custom-rules-actions]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=custom-rules-actions]
 
 // Begin detectors.custom_rules.conditions
 `conditions`:::
 (array)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=custom-rules-conditions]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=custom-rules-conditions]
 +
 .Properties of `conditions`
 [%collapsible%open]
@@ -122,33 +122,33 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=custom-rules-conditions]
 
 `applies_to`::::
 (string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=custom-rules-conditions-applies-to]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=custom-rules-conditions-applies-to]
 
 `operator`::::
 (string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=custom-rules-conditions-operator]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=custom-rules-conditions-operator]
 
 `value`::::
 (double)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=custom-rules-conditions-value]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=custom-rules-conditions-value]
 ======
 //End detectors.custom_rules.conditions
 
 //Begin detectors.custom_rules.scope
 `scope`:::
 (object)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=custom-rules-scope]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=custom-rules-scope]
 +
 .Properties of `scope`
 [%collapsible%open]
 ======
 `filter_id`::::
 (string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=custom-rules-scope-filter-id]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=custom-rules-scope-filter-id]
 
 `filter_type`::::
 (string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=custom-rules-scope-filter-type]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=custom-rules-scope-filter-type]
 ======
 //End detectors.custom_rules.scope
 =====
@@ -156,11 +156,11 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=custom-rules-scope-filter-type]
 
 `description`:::
 (string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=detector-description]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=detector-description]
 
 `detector_index`:::
 (integer)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=detector-index]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=detector-index]
 +
 --
 If you want to update a specific detector, you must use this identifier. You
@@ -171,59 +171,59 @@ cannot, however, change the `detector_index` value for a detector.
 
 `groups`::
 (array of strings)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=groups]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=groups]
 
 //Begin model_plot_config
 `model_plot_config`::
 (object)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=model-plot-config]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=model-plot-config]
 +
 .Properties of `model_plot_config`
 [%collapsible%open]
 ====
 `annotations_enabled`:::
 (Boolean)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=model-plot-config-annotations-enabled]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=model-plot-config-annotations-enabled]
 
 `enabled`:::
 (Boolean)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=model-plot-config-enabled]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=model-plot-config-enabled]
 
 `terms`:::
 experimental[] (string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=model-plot-config-terms]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=model-plot-config-terms]
 ====
 //End model_plot_config
 
 `model_prune_window`::
 (<<time-units,time units>>)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=model-prune-window]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=model-prune-window]
 
 `model_snapshot_retention_days`::
 (long)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=model-snapshot-retention-days]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=model-snapshot-retention-days]
 
 //Begin per_partition_categorization
 `per_partition_categorization`:::
 (object)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=per-partition-categorization]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=per-partition-categorization]
 +
 .Properties of `per_partition_categorization`
 [%collapsible%open]
 ====
 `enabled`:::
 (Boolean)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=per-partition-categorization-enabled]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=per-partition-categorization-enabled]
 
 `stop_on_warn`:::
 (Boolean)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=per-partition-categorization-stop-on-warn]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=per-partition-categorization-stop-on-warn]
 ====
 //End per_partition_categorization
 
 `renormalization_window_days`::
 (long)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=renormalization-window-days]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=renormalization-window-days]
 +
 --
 NOTE: If the job is open when you make the update, you must stop the {dfeed},
@@ -233,7 +233,7 @@ close the job, then reopen the job and restart the {dfeed} for the changes to ta
 
 `results_retention_days`::
 (long)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=results-retention-days]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=results-retention-days]
 
 
 [[ml-update-job-example]]

@@ -1,6 +1,0 @@
-pr: 105365
-summary: Fix bug in `rule_query` where `text_expansion` errored because it was not
-  rewritten
-area: Application
-type: bug
-issues: []

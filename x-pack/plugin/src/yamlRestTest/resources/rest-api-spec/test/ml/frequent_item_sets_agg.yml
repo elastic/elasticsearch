@@ -90,7 +90,30 @@ setup:
           { "data": {"features": ["rwd", "turbocharger", "autopilot", "pink wheels"], "error_message": "engine overheated"}, "timestamp": 1022137244000 }
           { "index": {} }
           { "data": {"features": ["fwd", "tow-bar", "turbocharger", "pink wheels", "electric mirror", "heated steering wheel", "lane assist", "sunroof", "autopilot", "air condition" ], "error_message": "low tire pressure"}, "timestamp": 1020920854000 }
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      indices.create:
+        index: unavailable-data
+        body:
+          mappings:
+            properties:
+              features:
+                type: keyword
+              error_message:
+                type: keyword
+              timestamp:
+                type: date
+              geo_point:
+                type: geo_point
+              histogram:
+                type: histogram
 
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      cluster.health:
+        wait_for_status: yellow
 
 ---
 "Test frequent item sets array fields":
@@ -432,6 +455,7 @@ setup:
 
 ---
 "Test frequent item sets unsupported types":
+
   - do:
       catch: /Field \[geo_point\] of type \[geo_point\] is not supported for aggregation \[frequent_item_sets\]/
       search:
@@ -543,28 +567,6 @@ setup:
 
 ---
 "Test frequent items on empty index":
-  - skip:
-      features: headers
-
-  - do:
-      headers:
-        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
-      indices.create:
-        index: unavailable-data
-        body:
-          mappings:
-            properties:
-              features:
-                type: keyword
-              error_message:
-                type: keyword
-              timestamp:
-                type: date
-              geo_point:
-                type: geo_point
-              histogram:
-                type: histogram
-
   - do:
       search:
         index: unavailable-data

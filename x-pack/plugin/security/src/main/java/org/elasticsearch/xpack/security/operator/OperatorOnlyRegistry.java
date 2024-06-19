@@ -7,7 +7,8 @@
 
 package org.elasticsearch.xpack.security.operator;
 
-import org.elasticsearch.rest.RestChannel;
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.transport.TransportRequest;
@@ -22,18 +23,22 @@ public interface OperatorOnlyRegistry {
     OperatorPrivilegesViolation check(String action, TransportRequest request);
 
     /**
-     * Checks to see if a given {@link RestHandler} is subject to operator-only restrictions for the REST API. Any REST API may be
-     * fully or partially restricted. A fully restricted REST API mandates that the implementation call restChannel.sendResponse(...) and
-     * return a {@link OperatorPrivilegesViolation}. A partially restricted REST API mandates that the {@link RestRequest} is marked as
-     * restricted so that the downstream handler can behave appropriately. For example, to restrict the REST response the implementation
+     * Checks to see if a given {@link RestHandler} is subject to operator-only restrictions for the REST API.
+     *
+     * Any REST API may be fully or partially restricted.
+     * A fully restricted REST API mandates that the implementation of this method throw an
+     * {@link org.elasticsearch.ElasticsearchStatusException} with an appropriate status code and error message.
+     *
+     * A partially restricted REST API mandates that the {@link RestRequest} is marked as restricted so that the downstream handler can
+     * behave appropriately.
+     * For example, to restrict the REST response the implementation
      * should call {@link RestRequest#markPathRestricted(String)} so that the downstream handler can properly restrict the response
-     * before returning to the client. Note - a partial restriction should return null.
+     * before returning to the client. Note - a partial restriction should not throw an exception.
+     *
      * @param restHandler The {@link RestHandler} to check for any restrictions
      * @param restRequest The {@link RestRequest} to check for any restrictions and mark any partially restricted REST API's
-     * @param restChannel The {@link RestChannel} to enforce fully restricted REST API's
-     * @return {@link OperatorPrivilegesViolation} iff the request was fully restricted and the response has been sent back to the client.
-     * else returns null.
+     * @throws ElasticsearchStatusException if the request should be denied in its entirety (fully restricted)
      */
-    OperatorPrivilegesViolation checkRest(RestHandler restHandler, RestRequest restRequest, RestChannel restChannel);
+    void checkRest(RestHandler restHandler, RestRequest restRequest) throws ElasticsearchException;
 
 }

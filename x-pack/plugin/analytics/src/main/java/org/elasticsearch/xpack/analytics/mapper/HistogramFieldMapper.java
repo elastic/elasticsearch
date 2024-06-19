@@ -94,8 +94,8 @@ public class HistogramFieldMapper extends FieldMapper {
         @Override
         public HistogramFieldMapper build(MapperBuilderContext context) {
             return new HistogramFieldMapper(
-                name,
-                new HistogramFieldType(context.buildFullName(name), meta.getValue()),
+                name(),
+                new HistogramFieldType(context.buildFullName(name()), meta.getValue()),
                 multiFieldsBuilder.build(this, context),
                 copyTo,
                 this
@@ -410,7 +410,7 @@ public class HistogramFieldMapper extends FieldMapper {
                         + name()
                         + "] of type ["
                         + typeName()
-                        + "] doesn't not support indexing multiple values for the same field in the same document"
+                        + "] doesn't support indexing multiple values for the same field in the same document"
                 );
             }
             context.doc().addWithKey(fieldType().name(), field);
@@ -485,6 +485,11 @@ public class HistogramFieldMapper extends FieldMapper {
     }
 
     @Override
+    protected SyntheticSourceMode syntheticSourceMode() {
+        return SyntheticSourceMode.NATIVE;
+    }
+
+    @Override
     public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
         if (ignoreMalformed.value()) {
             throw new IllegalArgumentException(
@@ -550,6 +555,11 @@ public class HistogramFieldMapper extends FieldMapper {
                 b.endArray();
 
                 b.endObject();
+            }
+
+            @Override
+            public String fieldName() {
+                return name();
             }
         };
     }

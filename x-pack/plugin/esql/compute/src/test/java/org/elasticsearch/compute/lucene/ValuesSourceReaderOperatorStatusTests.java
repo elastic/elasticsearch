@@ -10,6 +10,7 @@ package org.elasticsearch.compute.lucene;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.Map;
@@ -19,7 +20,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class ValuesSourceReaderOperatorStatusTests extends AbstractWireSerializingTestCase<ValuesSourceReaderOperator.Status> {
     public static ValuesSourceReaderOperator.Status simple() {
-        return new ValuesSourceReaderOperator.Status(Map.of("ReaderType", 3), 123);
+        return new ValuesSourceReaderOperator.Status(Map.of("ReaderType", 3), 1022323, 123);
     }
 
     public static String simpleToJson() {
@@ -28,6 +29,8 @@ public class ValuesSourceReaderOperatorStatusTests extends AbstractWireSerializi
               "readers_built" : {
                 "ReaderType" : 3
               },
+              "process_nanos" : 1022323,
+              "process_time" : "1ms",
               "pages_processed" : 123
             }""";
     }
@@ -43,7 +46,7 @@ public class ValuesSourceReaderOperatorStatusTests extends AbstractWireSerializi
 
     @Override
     public ValuesSourceReaderOperator.Status createTestInstance() {
-        return new ValuesSourceReaderOperator.Status(randomReadersBuilt(), between(0, Integer.MAX_VALUE));
+        return new ValuesSourceReaderOperator.Status(randomReadersBuilt(), randomNonNegativeLong(), randomNonNegativeInt());
     }
 
     private Map<String, Integer> randomReadersBuilt() {
@@ -57,19 +60,15 @@ public class ValuesSourceReaderOperatorStatusTests extends AbstractWireSerializi
 
     @Override
     protected ValuesSourceReaderOperator.Status mutateInstance(ValuesSourceReaderOperator.Status instance) throws IOException {
-        switch (between(0, 1)) {
-            case 0:
-                return new ValuesSourceReaderOperator.Status(
-                    randomValueOtherThan(instance.readersBuilt(), this::randomReadersBuilt),
-                    instance.pagesProcessed()
-                );
-            case 1:
-                return new ValuesSourceReaderOperator.Status(
-                    instance.readersBuilt(),
-                    randomValueOtherThan(instance.pagesProcessed(), () -> between(0, Integer.MAX_VALUE))
-                );
-            default:
-                throw new UnsupportedOperationException();
+        Map<String, Integer> readersBuilt = instance.readersBuilt();
+        long processNanos = instance.processNanos();
+        int pagesProcessed = instance.pagesProcessed();
+        switch (between(0, 2)) {
+            case 0 -> readersBuilt = randomValueOtherThan(readersBuilt, this::randomReadersBuilt);
+            case 1 -> processNanos = randomValueOtherThan(processNanos, ESTestCase::randomNonNegativeLong);
+            case 2 -> pagesProcessed = randomValueOtherThan(pagesProcessed, ESTestCase::randomNonNegativeInt);
+            default -> throw new UnsupportedOperationException();
         }
+        return new ValuesSourceReaderOperator.Status(readersBuilt, processNanos, pagesProcessed);
     }
 }

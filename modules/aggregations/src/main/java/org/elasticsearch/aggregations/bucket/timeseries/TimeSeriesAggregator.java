@@ -122,18 +122,16 @@ public class TimeSeriesAggregator extends BucketsAggregator {
                 SortedNumericDocValues docValues = numericVS.longValues(aggCtx.getLeafReaderContext());
                 dimensionConsumers.put(entry.getKey(), (docId, tsidBuilder) -> {
                     if (docValues.advanceExact(docId)) {
-                        for (int i = 0; i < docValues.docValueCount(); i++) {
-                            tsidBuilder.addLong(fieldName, docValues.nextValue());
-                        }
+                        assert docValues.docValueCount() == 1 : "Dimension field cannot be a multi-valued field";
+                        tsidBuilder.addLong(fieldName, docValues.nextValue());
                     }
                 });
             } else {
                 SortedBinaryDocValues docValues = entry.getValue().bytesValues(aggCtx.getLeafReaderContext());
                 dimensionConsumers.put(entry.getKey(), (docId, tsidBuilder) -> {
                     if (docValues.advanceExact(docId)) {
-                        for (int i = 0; i < docValues.docValueCount(); i++) {
-                            tsidBuilder.addString(fieldName, docValues.nextValue());
-                        }
+                        assert docValues.docValueCount() == 1 : "Dimension field cannot be a multi-valued field";
+                        tsidBuilder.addString(fieldName, docValues.nextValue());
                     }
                 });
             }
@@ -144,6 +142,7 @@ public class TimeSeriesAggregator extends BucketsAggregator {
             long currentTsidOrd = -1;
             long currentBucket = -1;
             long currentBucketOrdinal;
+            BytesRef currentTsid;
 
             @Override
             public void collect(int doc, long bucket) throws IOException {
@@ -157,12 +156,16 @@ public class TimeSeriesAggregator extends BucketsAggregator {
                     return;
                 }
 
-                TimeSeriesIdFieldMapper.TimeSeriesIdBuilder tsidBuilder = new TimeSeriesIdFieldMapper.TimeSeriesIdBuilder(null);
-                for (TsidConsumer consumer : dimensionConsumers.values()) {
-                    consumer.accept(doc, tsidBuilder);
+                BytesRef tsid;
+                if (currentTsidOrd == aggCtx.getTsidHashOrd()) {
+                    tsid = currentTsid;
+                } else {
+                    TimeSeriesIdFieldMapper.TimeSeriesIdBuilder tsidBuilder = new TimeSeriesIdFieldMapper.TimeSeriesIdBuilder(null);
+                    for (TsidConsumer consumer : dimensionConsumers.values()) {
+                        consumer.accept(doc, tsidBuilder);
+                    }
+                    currentTsid = tsid = tsidBuilder.buildLegacyTsid().toBytesRef();
                 }
-
-                BytesRef tsid = tsidBuilder.buildLegacyTsid().toBytesRef();
                 long bucketOrdinal = bucketOrds.add(bucket, tsid);
                 if (bucketOrdinal < 0) { // already seen
                     bucketOrdinal = -1 - bucketOrdinal;

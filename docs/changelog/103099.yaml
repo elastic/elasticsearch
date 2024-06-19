@@ -1,6 +1,0 @@
-pr: 103099
-summary: "ESQL: Simpify IS NULL/IS NOT NULL evaluation"
-area: ES|QL
-type: enhancement
-issues:
- - 103097

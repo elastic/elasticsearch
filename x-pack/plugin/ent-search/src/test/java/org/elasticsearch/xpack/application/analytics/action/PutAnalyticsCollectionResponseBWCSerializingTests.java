@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.application.analytics.action;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.AbstractBWCSerializationTestCase;
@@ -40,7 +41,7 @@ public class PutAnalyticsCollectionResponseBWCSerializingTests extends AbstractB
 
     @Override
     protected PutAnalyticsCollectionAction.Response doParseInstance(XContentParser parser) throws IOException {
-        return PutAnalyticsCollectionAction.Response.fromXContent(this.name, parser);
+        return new PutAnalyticsCollectionAction.Response(AcknowledgedResponse.fromXContent(parser).isAcknowledged(), this.name);
     }
 
     @Override

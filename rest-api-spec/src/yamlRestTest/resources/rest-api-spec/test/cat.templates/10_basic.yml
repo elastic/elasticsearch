@@ -1,7 +1,7 @@
 ---
 "Help":
-    - skip:
-        version: " - 7.7.99"
+    - requires:
+        cluster_features: ["gte_v7.8.0"]
         reason: "format changed in 7.8 to accomodate V2 index templates"
 
     - do:
@@ -31,8 +31,8 @@
 
 ---
 "Normal templates":
-    - skip:
-        version: " - 7.7.99"
+    - requires:
+        cluster_features: [ "gte_v7.8.0" ]
         reason: "format changed in 7.8 to accomodate V2 index templates"
 
     - do:
@@ -82,8 +82,8 @@
 
 ---
 "Filtered templates":
-    - skip:
-        version: " - 7.7.99"
+    - requires:
+        cluster_features: [ "gte_v7.8.0" ]
         reason: "format changed in 7.8 to accomodate V2 index templates"
 
     - do:
@@ -92,7 +92,7 @@
           body:
             order: 0
             version: 1
-            index_patterns: t*
+            index_patterns: test*
             settings:
               number_of_shards: 1
               number_of_replicas: 0
@@ -103,7 +103,7 @@
           body:
             order: 2
             version: 1
-            index_patterns: tea*
+            index_patterns: nomatch*
             settings:
               number_of_shards: 1
               number_of_replicas: 0
@@ -116,7 +116,7 @@
         $body: |
                 /^
                     test    \s+
-                    \[t\*\] \s+
+                    \[test\*\] \s+
                     0       \s+
                     1       \s*
                     \n
@@ -124,8 +124,8 @@
 
 ---
 "Column headers":
-    - skip:
-        version: " - 7.7.99"
+    - requires:
+        cluster_features: [ "gte_v7.8.0" ]
         reason: "format changed in 7.8 to accomodate V2 index templates"
 
     - do:
@@ -134,7 +134,7 @@
           body:
             order: 0
             version: 1
-            index_patterns: t*
+            index_patterns: test*
             settings:
               number_of_shards: 1
               number_of_replicas: 0
@@ -154,7 +154,7 @@
                     composed_of
                     \n
                     test            \s+
-                    \[t\*\]         \s+
+                    \[test\*\]         \s+
                     0               \s+
                     1               \s*
                     \n
@@ -162,8 +162,8 @@
 
 ---
 "Select columns":
-    - skip:
-        version: " - 7.7.99"
+    - requires:
+        cluster_features: [ "gte_v7.8.0" ]
         reason: "format changed in 7.8 to accomodate V2 index templates"
 
     - do:
@@ -172,7 +172,7 @@
           body:
             order: 0
             version: 1
-            index_patterns: t*
+            index_patterns: test*
             settings:
               number_of_shards: 1
               number_of_replicas: 0
@@ -190,23 +190,23 @@
                     index_patterns
                     \n
                     test        \s+
-                    \[t\*\]
+                    \[test*\*\]
                     \n
                 $/
 
 ---
 "Sort templates":
-    - skip:
-        version: " - 7.7.99"
+    - requires:
+        cluster_features: [ "gte_v7.8.0" ]
         reason: "format changed in 7.8 to accomodate V2 index templates"
-        features: default_shards, no_xpack
+        test_runner_features: default_shards, no_xpack
 
     - do:
         indices.put_template:
           name: test
           body:
             order: 0
-            index_patterns: t*
+            index_patterns: test*
             settings:
               number_of_shards: 1
               number_of_replicas: 0
@@ -217,7 +217,7 @@
           body:
             order: 0
             version: 1
-            index_patterns: te*
+            index_patterns: test-*
             settings:
               number_of_shards: 1
               number_of_replicas: 0
@@ -230,8 +230,8 @@
     - match:
         $body: |
               /^
-                  test   \s+ \[t\*\]  \s+   \n \n
-                  test_1 \s+ \[te\*\] \s+ 1 \n \n
+                  test   \s+ \[test\*\]  \s+   \n \n
+                  test_1 \s+ \[test-\*\] \s+ 1 \n \n
               $/
 
     - do:
@@ -242,17 +242,17 @@
     - match:
         $body: |
               /^
-                  test_1 \s+ \[te\*\]   \s+ 1\n \n
-                  test   \s+ \[t\*\]    \s+  \n \n
+                  test_1 \s+ \[test-\*\]   \s+ 1\n \n
+                  test   \s+ \[test\*\]    \s+  \n \n
 
               $/
 
 ---
 "Multiple template":
-    - skip:
-        version: " - 7.7.99"
+    - requires:
+        cluster_features: [ "gte_v7.8.0" ]
         reason: "format changed in 7.8 to accomodate V2 index templates"
-        features: default_shards, no_xpack
+        test_runner_features: default_shards, no_xpack
 
     - do:
         indices.put_template:
@@ -260,7 +260,7 @@
           body:
             order: 0
             version: 1
-            index_patterns: [t*, te*]
+            index_patterns: [test*, test-*]
             settings:
               number_of_shards: 1
               number_of_replicas: 0
@@ -278,17 +278,17 @@
                  index_patterns
                  \n
                  test_1       \s+
-                 \[t\*,\ te\*\]
+                 \[test\*,\ test-\*\]
                  \n
                  \n
               $/
 
 ---
 "Mixture of legacy and composable templates":
-    - skip:
-        version: " - 7.7.99"
+    - requires:
+        cluster_features: [ "gte_v7.8.0" ]
         reason: "format changed in 7.8 to accomodate V2 index templates"
-        features: allowed_warnings
+        test_runner_features: allowed_warnings
 
     - do:
         cluster.put_component_template:

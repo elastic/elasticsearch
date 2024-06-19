@@ -72,7 +72,7 @@ in a cluster, omit this parameter or use `_all` or `*`.
 [[search-multi-search-api-query-params]]
 ==== {api-query-parms-title}
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=allow-no-indices]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=allow-no-indices]
 
 `ccs_minimize_roundtrips`::
 (Optional, Boolean)
@@ -80,13 +80,13 @@ If `true`, network roundtrips between the coordinating node and remote clusters
 are minimized for {ccs} requests. Defaults to `true`. See
 <<ccs-network-delays>>.
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
 +
 Defaults to `open`.
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=ignore_throttled]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=ignore_throttled]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
 
 `max_concurrent_searches`::
 (Optional, integer)
@@ -184,7 +184,7 @@ If `true`, the request does *not* return an error if a wildcard expression or
 This parameter also applies to <<aliases,aliases>> that point to a missing
 or index.
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
 +
 Defaults to `open`.
 

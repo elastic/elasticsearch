@@ -73,10 +73,8 @@ public class PrecompiledCharMapNormalizer extends BaseCharFilter {
     private final int[] offsets;
     // The entire normalized bytes representations delimited by NULL
     private final byte[] normalizedStrUtf8Bytes;
-    // Continually reused to copy a single char into utf8 bytes
-    private final byte[] reusableCharByteBuffer = new byte[4];
     // reusable char buffer for decoding utf8 bytes to determine char offset corrections
-    private final char[] reusableCharDecodeBuffer = new char[8];
+    private final char[] reusableCharDecodeBuffer = new char[64];
     private Reader transformedInput;
 
     public PrecompiledCharMapNormalizer(int[] offsets, String normalizedStr, Reader in) {
@@ -172,7 +170,6 @@ public class PrecompiledCharMapNormalizer extends BaseCharFilter {
         ByteBuffer byteBuffer = StandardCharsets.UTF_8.encode(CharBuffer.wrap(str));
         byte[] strBytes = new byte[byteBuffer.limit()];
         byteBuffer.get(strBytes);
-        int[] strCp = str.codePoints().toArray();
         BreakIterator b = BreakIterator.getCharacterInstance(Locale.ROOT);
         b.setText(str);
         // We iterate the whole string, so b.first() is always `0`
@@ -193,9 +190,20 @@ public class PrecompiledCharMapNormalizer extends BaseCharFilter {
                     BytesRef subStr = maybeSubStr.get();
                     int numChars = UnicodeUtil.UTF8toUTF16(subStr.bytes, subStr.offset, subStr.length, reusableCharDecodeBuffer);
                     normalizedCharPos += numChars;
-                    if (numChars != end - startIter) {
-                        addOffCorrectMap(normalizedCharPos, getLastCumulativeDiff() + end - startIter - numChars);
+                    int charDelta = numChars - (end - startIter); // output length - input length
+                    if (charDelta < 0) {
+                        // normalised form is shorter
+                        int lastDiff = getLastCumulativeDiff();
+                        addOffCorrectMap(normalizedCharPos, lastDiff + charDelta);
+                    } else if (charDelta > 0) {
+                        // inserted chars, add the offset in the output stream
+                        int lastDiff = getLastCumulativeDiff();
+                        int startOffset = normalizedCharPos - charDelta;
+                        for (int i = 1; i <= charDelta; i++) {
+                            addOffCorrectMap(startOffset + i, lastDiff - i);
+                        }
                     }
+
                     strBuilder.append(reusableCharDecodeBuffer, 0, numChars);
                     bytePos += byteLen;
                     continue;

@@ -11,6 +11,7 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.application.connector.secrets.ConnectorSecretsTestUtils;
 
+import static org.elasticsearch.xpack.application.connector.ConnectorTestUtils.NULL_STRING;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -24,11 +25,19 @@ public class PostConnectorSecretActionTests extends ESTestCase {
         assertThat(exception, nullValue());
     }
 
-    public void testValidate_WhenConnectorSecretIdIsEmpty_ExpectValidationError() {
+    public void testValidate_WhenConnectorSecretIdIsNull_ExpectValidationError() {
+        PostConnectorSecretRequest requestWithNullValue = new PostConnectorSecretRequest(NULL_STRING);
+        ActionRequestValidationException exception = requestWithNullValue.validate();
+
+        assertThat(exception, notNullValue());
+        assertThat(exception.getMessage(), containsString("[value] of the connector secret cannot be [null] or [\"\"]"));
+    }
+
+    public void testValidate_WhenConnectorSecretIdIsBlank_ExpectValidationError() {
         PostConnectorSecretRequest requestWithMissingValue = new PostConnectorSecretRequest("");
         ActionRequestValidationException exception = requestWithMissingValue.validate();
 
         assertThat(exception, notNullValue());
-        assertThat(exception.getMessage(), containsString("value is missing"));
+        assertThat(exception.getMessage(), containsString("[value] of the connector secret cannot be [null] or [\"\"]"));
     }
 }

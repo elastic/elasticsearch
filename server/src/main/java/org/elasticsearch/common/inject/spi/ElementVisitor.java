@@ -34,11 +34,6 @@ public interface ElementVisitor<V> {
     <T> V visit(Binding<T> binding);
 
     /**
-     * Visit a registration of a scope annotation with the scope that implements it.
-     */
-    V visit(ScopeBinding binding);
-
-    /**
      * Visit a lookup of the provider for a type.
      */
     <T> V visit(ProviderLookup<T> lookup);

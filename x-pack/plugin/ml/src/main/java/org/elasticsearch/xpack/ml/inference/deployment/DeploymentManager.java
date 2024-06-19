@@ -424,7 +424,7 @@ public class DeploymentManager {
             timeout,
             processContext,
             threadPool,
-            ActionListener.wrap(b -> listener.onResponse(AcknowledgedResponse.TRUE), listener::onFailure)
+            listener.delegateFailureAndWrap((l, b) -> l.onResponse(AcknowledgedResponse.TRUE))
         );
 
         executePyTorchAction(processContext, PriorityProcessWorkerExecutorService.RequestPriority.HIGHEST, controlMessageAction);
@@ -533,18 +533,18 @@ public class DeploymentManager {
             startTime = Instant.now();
             logger.debug("[{}] process started", task.getDeploymentId());
             try {
-                loadModel(modelLocation, ActionListener.wrap(success -> {
+                loadModel(modelLocation, loadedListener.delegateFailureAndWrap((delegate, success) -> {
                     if (isStopped) {
                         logger.debug("[{}] model loaded but process is stopped", task.getDeploymentId());
                         killProcessIfPresent();
-                        loadedListener.onFailure(new IllegalStateException("model loaded but process is stopped"));
+                        delegate.onFailure(new IllegalStateException("model loaded but process is stopped"));
                         return;
                     }
 
                     logger.debug("[{}] model loaded, starting priority process worker thread", task.getDeploymentId());
                     startPriorityProcessWorker();
-                    loadedListener.onResponse(success);
-                }, loadedListener::onFailure));
+                    delegate.onResponse(success);
+                }));
             } catch (Exception e) {
                 loadedListener.onFailure(e);
             }

@@ -283,7 +283,11 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
         doAssertReducedMultiBucketConsumer(reduced, bucketConsumer);
         assertReduced(reduced, inputs.toReduce());
         if (supportsSampling()) {
-            SamplingContext randomContext = new SamplingContext(randomDoubleBetween(1e-8, 0.1, false), randomInt());
+            SamplingContext randomContext = new SamplingContext(
+                randomDoubleBetween(1e-8, 0.1, false),
+                randomInt(),
+                randomBoolean() ? null : randomInt()
+            );
             @SuppressWarnings("unchecked")
             T sampled = (T) reduced.finalizeSampling(randomContext);
             assertSampled(sampled, reduced, randomContext);

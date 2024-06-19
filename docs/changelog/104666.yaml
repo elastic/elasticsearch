@@ -1,5 +1,0 @@
-pr: 104666
-summary: Require the name field for `inner_hits` for collapse
-area: Search
-type: bug
-issues: []

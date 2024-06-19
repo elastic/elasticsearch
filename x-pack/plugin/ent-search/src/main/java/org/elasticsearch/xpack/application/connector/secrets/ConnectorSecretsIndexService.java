@@ -76,6 +76,12 @@ public class ConnectorSecretsIndexService {
             .build();
     }
 
+    /**
+     * Gets the secret from the underlying index with the specified id.
+     *
+     * @param id        The id of the secret.
+     * @param listener  The action listener to invoke on response/failure.
+     */
     public void getSecret(String id, ActionListener<GetConnectorSecretResponse> listener) {
         clientWithOrigin.prepareGet(CONNECTOR_SECRETS_INDEX_NAME, id).execute(listener.delegateFailureAndWrap((delegate, getResponse) -> {
             if (getResponse.isSourceEmpty()) {
@@ -86,6 +92,12 @@ public class ConnectorSecretsIndexService {
         }));
     }
 
+    /**
+     * Creates a secret in the underlying index with an auto-generated doc ID.
+     *
+     * @param request   Request for creating the secret.
+     * @param listener  The action listener to invoke on response/failure.
+     */
     public void createSecret(PostConnectorSecretRequest request, ActionListener<PostConnectorSecretResponse> listener) {
         try {
             clientWithOrigin.prepareIndex(CONNECTOR_SECRETS_INDEX_NAME)
@@ -100,6 +112,12 @@ public class ConnectorSecretsIndexService {
         }
     }
 
+    /**
+     * Creates a secret in the underlying index with a specified doc ID.
+     *
+     * @param request   Request for creating the secret.
+     * @param listener  The action listener to invoke on response/failure.
+     */
     public void createSecretWithDocId(PutConnectorSecretRequest request, ActionListener<PutConnectorSecretResponse> listener) {
 
         String connectorSecretId = request.id();
@@ -119,6 +137,12 @@ public class ConnectorSecretsIndexService {
         }
     }
 
+    /**
+     * Deletes the secret in the underlying index with the specified doc ID.
+     *
+     * @param id        The id of the secret to delete.
+     * @param listener  The action listener to invoke on response/failure.
+     */
     public void deleteSecret(String id, ActionListener<DeleteConnectorSecretResponse> listener) {
         try {
             clientWithOrigin.prepareDelete(CONNECTOR_SECRETS_INDEX_NAME, id)

@@ -1212,6 +1212,26 @@ public final class XContentBuilder implements Closeable, Flushable {
         return this;
     }
 
+    /**
+     * Writes a value with the source coming directly from a pre-rendered string representation
+     */
+    public XContentBuilder rawValue(String value) throws IOException {
+        generator.writeRawValue(value);
+        return this;
+    }
+
+    /**
+     * Copies current event from parser into this builder.
+     * The difference with {@link XContentBuilder#copyCurrentStructure(XContentParser)}
+     * is that this method does not copy sub-objects as a single entity.
+     * @param parser
+     * @throws IOException
+     */
+    public XContentBuilder copyCurrentEvent(XContentParser parser) throws IOException {
+        generator.copyCurrentEvent(parser);
+        return this;
+    }
+
     public XContentBuilder copyCurrentStructure(XContentParser parser) throws IOException {
         generator.copyCurrentStructure(parser);
         return this;

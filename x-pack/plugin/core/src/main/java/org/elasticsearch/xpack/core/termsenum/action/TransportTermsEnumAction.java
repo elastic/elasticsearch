@@ -639,7 +639,11 @@ public class TransportTermsEnumAction extends HandledTransportAction<TermsEnumRe
             try {
                 TermsEnumRequest req = new TermsEnumRequest(request).indices(remoteIndices.indices());
 
-                var remoteClient = remoteClusterService.getRemoteClusterClient(clusterAlias, coordinationExecutor);
+                var remoteClient = remoteClusterService.getRemoteClusterClient(
+                    clusterAlias,
+                    coordinationExecutor,
+                    RemoteClusterService.DisconnectedStrategy.RECONNECT_UNLESS_SKIP_UNAVAILABLE
+                );
                 remoteClient.execute(TermsEnumAction.REMOTE_TYPE, req, new ActionListener<>() {
                     @Override
                     public void onResponse(TermsEnumResponse termsEnumResponse) {

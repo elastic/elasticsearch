@@ -1,15 +1,44 @@
 ---
 "cluster health basic test":
-  - skip:
-      version: all
-      reason: "AwaitsFix https://github.com/elastic/elasticsearch/issues/90183"
-      # version: "- 8.3.99"
-      # reason: "health was only added in 8.2.0, and master_is_stable in 8.4.0"
+  - requires:
+      cluster_features: "gte_v8.13.0"
+      reason: "data stream lifecycle indicator was added in 8.13.0"
 
   - do:
       health_report: { }
 
   - is_true: cluster_name
-  - match:   { status: "green" }
-  - match:   { indicators.master_is_stable.status: "green" }
-  - match:   { indicators.master_is_stable.symptom: "The cluster has a stable master node" }
+  # This test might execute before the health node has received all health info, resulting in status "unknown"
+  - is_true: status
+  - match: { indicators.master_is_stable.status: "green" }
+  - match: { indicators.master_is_stable.symptom: "The cluster has a stable master node" }
+  - is_true: indicators.master_is_stable.details.current_master.node_id
+  - is_true: indicators.master_is_stable.details.current_master.name
+  - is_true: indicators.master_is_stable.details.recent_masters.0.node_id
+  - is_true: indicators.master_is_stable.details.recent_masters.0.name
+
+  - match: { indicators.repository_integrity.status: "green" }
+  - match: { indicators.repository_integrity.symptom: "No snapshot repositories configured." }
+
+  - is_true: indicators.disk.status
+  - is_true: indicators.disk.symptom
+
+  - match: { indicators.shards_availability.status: "green" }
+  - match: { indicators.shards_availability.symptom: "This cluster has all shards available." }
+  - exists: indicators.shards_availability.details.initializing_replicas
+  - exists: indicators.shards_availability.details.creating_primaries
+  - exists: indicators.shards_availability.details.restarting_replicas
+  - exists: indicators.shards_availability.details.unassigned_primaries
+  - exists: indicators.shards_availability.details.started_replicas
+  - exists: indicators.shards_availability.details.creating_replicas
+  - exists: indicators.shards_availability.details.initializing_primaries
+  - exists: indicators.shards_availability.details.restarting_primaries
+  - exists: indicators.shards_availability.details.started_primaries
+  - exists: indicators.shards_availability.details.unassigned_replicas
+
+  # The shards_availability indicator is dependent on HealthMetadata being present in the cluster state, which we can't guarantee.
+  - is_true: indicators.shards_capacity.status
+  - is_true: indicators.shards_capacity.symptom
+
+  - is_true: indicators.data_stream_lifecycle.status
+  - is_true: indicators.data_stream_lifecycle.symptom

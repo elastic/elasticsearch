@@ -246,12 +246,7 @@ public class SearchableSnapshotRecoveryStateIntegrationTests extends BaseSearcha
         ) {
             return Collections.singletonMap(
                 "test-fs",
-                (metadata) -> new FsRepository(metadata, env, namedXContentRegistry, clusterService, bigArrays, recoverySettings) {
-                    @Override
-                    protected void assertSnapshotOrGenericThread() {
-                        // ignore
-                    }
-                }
+                (metadata) -> new FsRepository(metadata, env, namedXContentRegistry, clusterService, bigArrays, recoverySettings)
             );
         }
     }

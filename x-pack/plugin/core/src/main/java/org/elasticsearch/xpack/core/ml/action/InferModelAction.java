@@ -90,6 +90,7 @@ public class InferModelAction extends ActionType<InferModelAction.Response> {
         private final List<String> textInput;
         private boolean highPriority;
         private TrainedModelPrefixStrings.PrefixType prefixType = TrainedModelPrefixStrings.PrefixType.NONE;
+        private boolean chunked = false;
 
         /**
          * Build a request from a list of documents as maps.
@@ -197,6 +198,11 @@ public class InferModelAction extends ActionType<InferModelAction.Response> {
             } else {
                 prefixType = TrainedModelPrefixStrings.PrefixType.NONE;
             }
+            if (in.getTransportVersion().onOrAfter(TransportVersions.ML_CHUNK_INFERENCE_OPTION)) {
+                chunked = in.readBoolean();
+            } else {
+                chunked = false;
+            }
         }
 
         public int numberOfDocuments() {
@@ -247,6 +253,14 @@ public class InferModelAction extends ActionType<InferModelAction.Response> {
             return prefixType;
         }
 
+        public void setChunked(boolean chunked) {
+            this.chunked = chunked;
+        }
+
+        public boolean isChunked() {
+            return chunked;
+        }
+
         @Override
         public ActionRequestValidationException validate() {
             return null;
@@ -271,6 +285,9 @@ public class InferModelAction extends ActionType<InferModelAction.Response> {
             if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
                 out.writeEnum(prefixType);
             }
+            if (out.getTransportVersion().onOrAfter(TransportVersions.ML_CHUNK_INFERENCE_OPTION)) {
+                out.writeBoolean(chunked);
+            }
         }
 
         @Override
@@ -285,7 +302,8 @@ public class InferModelAction extends ActionType<InferModelAction.Response> {
                 && Objects.equals(objectsToInfer, that.objectsToInfer)
                 && Objects.equals(textInput, that.textInput)
                 && (highPriority == that.highPriority)
-                && (prefixType == that.prefixType);
+                && (prefixType == that.prefixType)
+                && (chunked == that.chunked);
         }
 
         @Override
@@ -295,7 +313,17 @@ public class InferModelAction extends ActionType<InferModelAction.Response> {
 
         @Override
         public int hashCode() {
-            return Objects.hash(id, objectsToInfer, update, previouslyLicensed, inferenceTimeout, textInput, highPriority, prefixType);
+            return Objects.hash(
+                id,
+                objectsToInfer,
+                update,
+                previouslyLicensed,
+                inferenceTimeout,
+                textInput,
+                highPriority,
+                prefixType,
+                chunked
+            );
         }
 
         public static class Builder {
@@ -414,7 +442,7 @@ public class InferModelAction extends ActionType<InferModelAction.Response> {
         }
 
         public static class Builder {
-            private List<InferenceResults> inferenceResults = new ArrayList<>();
+            private final List<InferenceResults> inferenceResults = new ArrayList<>();
             private String id;
             private boolean isLicensed;
 

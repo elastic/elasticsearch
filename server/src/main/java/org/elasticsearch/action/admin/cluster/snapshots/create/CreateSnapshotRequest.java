@@ -15,6 +15,7 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -65,7 +66,9 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
 
     private String[] indices = EMPTY_ARRAY;
 
-    private IndicesOptions indicesOptions = IndicesOptions.strictExpandHidden();
+    private IndicesOptions indicesOptions = DataStream.isFailureStoreFeatureFlagEnabled()
+        ? IndicesOptions.strictExpandHiddenIncludeFailureStore()
+        : IndicesOptions.strictExpandHidden();
 
     private String[] featureStates = EMPTY_ARRAY;
 
@@ -78,7 +81,9 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
     @Nullable
     private Map<String, Object> userMetadata;
 
-    public CreateSnapshotRequest() {}
+    public CreateSnapshotRequest() {
+        super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
+    }
 
     /**
      * Constructs a new put repository request with the provided snapshot and repository names
@@ -87,6 +92,7 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
      * @param snapshot   snapshot name
      */
     public CreateSnapshotRequest(String repository, String snapshot) {
+        super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
         this.snapshot = snapshot;
         this.repository = repository;
     }
@@ -461,7 +467,7 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
             && Arrays.equals(indices, that.indices)
             && Objects.equals(indicesOptions, that.indicesOptions)
             && Arrays.equals(featureStates, that.featureStates)
-            && Objects.equals(masterNodeTimeout, that.masterNodeTimeout)
+            && Objects.equals(masterNodeTimeout(), that.masterNodeTimeout())
             && Objects.equals(userMetadata, that.userMetadata);
     }
 
@@ -495,7 +501,7 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
             + ", waitForCompletion="
             + waitForCompletion
             + ", masterNodeTimeout="
-            + masterNodeTimeout
+            + masterNodeTimeout()
             + ", metadata="
             + userMetadata
             + '}';

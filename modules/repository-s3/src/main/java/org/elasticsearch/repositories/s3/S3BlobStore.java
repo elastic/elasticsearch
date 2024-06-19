@@ -32,7 +32,6 @@ import org.elasticsearch.common.blobstore.BlobStoreException;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -185,22 +184,17 @@ class S3BlobStore implements BlobStore {
                     List.of()
                 );
                 // REQUESTED_RANGE_NOT_SATISFIED errors are expected errors due to RCO
-                // TODO Add more expected client error codes
+                // TODO Add more expected client error codes?
                 final long amountOfRequestRangeNotSatisfiedErrors = statusCodes.stream()
                     .filter(e -> (Integer) e == REQUESTED_RANGE_NOT_SATISFIED.getStatus())
                     .count();
                 if (amountOfRequestRangeNotSatisfiedErrors > 0) {
-                    var clientErrorAttributes = Maps.copyMapWithAddedEntry(
-                        attributes,
-                        "error_code",
-                        REQUESTED_RANGE_NOT_SATISFIED.getStatus()
-                    );
                     s3RepositoriesMetrics.common()
                         .requestRangeNotSatisfiedExceptionCounter()
-                        .incrementBy(amountOfRequestRangeNotSatisfiedErrors, clientErrorAttributes);
+                        .incrementBy(amountOfRequestRangeNotSatisfiedErrors, attributes);
                     s3RepositoriesMetrics.common()
                         .requestRangeNotSatisfiedExceptionHistogram()
-                        .record(amountOfRequestRangeNotSatisfiedErrors, clientErrorAttributes);
+                        .record(amountOfRequestRangeNotSatisfiedErrors, attributes);
                 }
             }
 

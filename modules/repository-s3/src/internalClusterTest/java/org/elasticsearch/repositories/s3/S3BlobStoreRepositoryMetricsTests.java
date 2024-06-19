@@ -234,16 +234,6 @@ public class S3BlobStoreRepositoryMetricsTests extends S3BlobStoreRepositoryTest
             .orElse(0L);
     }
 
-    private long getLongCounterValue(TestTelemetryPlugin plugin, String instrumentName, int errorCode, Operation operation) {
-        return Measurement.combine(plugin.getLongCounterMeasurement(instrumentName))
-            .stream()
-            .filter(m -> m.attributes().get("error_code").equals(errorCode))
-            .filter(m -> m.attributes().get("operation") == operation.getKey())
-            .mapToLong(Measurement::getLong)
-            .findFirst()
-            .orElse(0L);
-    }
-
     private long getNumberOfMeasurements(TestTelemetryPlugin plugin, String instrumentName, Operation operation) {
         final List<Measurement> measurements = plugin.getLongHistogramMeasurement(instrumentName);
         return measurements.stream().filter(m -> m.attributes().get("operation") == operation.getKey()).count();
@@ -252,16 +242,6 @@ public class S3BlobStoreRepositoryMetricsTests extends S3BlobStoreRepositoryTest
     private long getLongHistogramValue(TestTelemetryPlugin plugin, String instrumentName, Operation operation) {
         final List<Measurement> measurements = Measurement.combine(plugin.getLongHistogramMeasurement(instrumentName));
         return measurements.stream()
-            .filter(m -> m.attributes().get("operation") == operation.getKey())
-            .mapToLong(Measurement::getLong)
-            .findFirst()
-            .orElse(0L);
-    }
-
-    private long getLongHistogramValue(TestTelemetryPlugin plugin, String instrumentName, int errorCode, Operation operation) {
-        return Measurement.combine(plugin.getLongHistogramMeasurement(instrumentName))
-            .stream()
-            .filter(m -> m.attributes().get("error_code").equals(errorCode))
             .filter(m -> m.attributes().get("operation") == operation.getKey())
             .mapToLong(Measurement::getLong)
             .findFirst()

@@ -96,9 +96,9 @@ public class SecurityMigrations {
                     logger.info("Migrated [" + bulkByScrollResponse.getTotal() + "] roles");
                     listener.onResponse(null);
                 }, (exception) -> {
-                    if (exception instanceof IllegalArgumentException illegalArgumentException
-                        && illegalArgumentException.getMessage() != null
-                        && illegalArgumentException.getMessage().contains("script_lang not supported [painless]")) {
+                    if (exception instanceof IllegalArgumentException
+                        && exception.getMessage() != null
+                        && exception.getMessage().contains("script_lang not supported [painless]")) {
                         logger.warn(exception.getMessage());
                         // This only happens in test and should be ignored since painless is always available in the default distribution
                         listener.onResponse(null);

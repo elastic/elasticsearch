@@ -335,6 +335,9 @@ public final class TransportPutFollowAction extends TransportMasterNodeAction<Pu
                     // (and potentially even break things).
                     remoteDataStream.getBackingIndices().copy().setIndices(List.of(backingIndexToFollow)).setRolloverOnWrite(false).build()
                 )
+                // Replicated data streams should not have the failure store marked for lazy rollover (which they do by default for lazy
+                // failure store creation).
+                .setFailureIndices(remoteDataStream.getFailureIndices().copy().setRolloverOnWrite(false).build())
                 .setReplicated(true)
                 .build();
         } else {

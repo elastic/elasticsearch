@@ -24,6 +24,7 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.ClientHelper;
+import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 import org.elasticsearch.xpack.core.template.IndexTemplateConfig;
 import org.elasticsearch.xpack.core.template.IndexTemplateRegistry;
 import org.elasticsearch.xpack.core.template.IngestPipelineConfig;
@@ -359,6 +360,11 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
         } else {
             return Map.of();
         }
+    }
+
+    @Override
+    protected List<LifecyclePolicy> getLifecyclePolicies() {
+        return super.getLifecyclePolicies();
     }
 
     @Override

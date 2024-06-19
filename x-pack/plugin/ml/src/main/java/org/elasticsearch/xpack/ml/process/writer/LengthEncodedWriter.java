@@ -6,10 +6,9 @@
  */
 package org.elasticsearch.xpack.ml.process.writer;
 
-import org.elasticsearch.logging.Logger;
 import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.core.ml.process.writer.RecordWriter;
-import org.elasticsearch.xpack.ml.utils.FileUtils;
 
 import java.io.IOException;
 import java.io.OutputStream;

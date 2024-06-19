@@ -344,10 +344,6 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
         );
     }
 
-    void submitRolloverTask(RolloverRequest rolloverRequest, String source, RolloverTask rolloverTask) {
-        rolloverTaskQueue.submitTask(source, rolloverTask, rolloverRequest.masterNodeTimeout());
-    }
-
     private void initializeFailureStore(
         RolloverRequest rolloverRequest,
         ActionListener<RolloverResponse> listener,
@@ -380,6 +376,10 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
         String source = "initialize_failure_store with index [" + trialRolloverIndexName + "]";
         RolloverTask rolloverTask = new RolloverTask(rolloverRequest, null, trialRolloverResponse, null, listener);
         submitRolloverTask(rolloverRequest, source, rolloverTask);
+    }
+
+    void submitRolloverTask(RolloverRequest rolloverRequest, String source, RolloverTask rolloverTask) {
+        rolloverTaskQueue.submitTask(source, rolloverTask, rolloverRequest.masterNodeTimeout());
     }
 
     static Map<String, Boolean> evaluateConditions(final Collection<Condition<?>> conditions, @Nullable final Condition.Stats stats) {

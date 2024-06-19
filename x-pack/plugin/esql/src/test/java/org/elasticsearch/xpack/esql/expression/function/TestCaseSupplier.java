@@ -1417,7 +1417,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
          * @param name a name for the value, used for generating test case names
          */
         public TypedData(Object data, String name) {
-            this(data, EsqlDataTypes.fromJava(data), name);
+            this(data, DataType.fromJava(data), name);
         }
 
         /**

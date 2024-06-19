@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.optimizer;
 
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.xpack.esql.VerificationException;
@@ -220,7 +221,8 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
                 if (pushable.size() > 0) { // update the executable with pushable conditions
                     Query queryDSL = TRANSLATOR_HANDLER.asQuery(Predicates.combineAnd(pushable));
                     QueryBuilder planQuery = queryDSL.asBuilder();
-                    var query = Queries.combine(Clause.FILTER, asList(queryExec.query(), planQuery));
+                    var baseQuery = queryExec.scoring() && queryExec.query() == null ? new BoolQueryBuilder() : queryExec.query();
+                    var query = Queries.combine(Clause.FILTER, asList(baseQuery, planQuery));
                     queryExec = new EsQueryExec(
                         queryExec.source(),
                         queryExec.index(),
@@ -324,7 +326,9 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
             if (child instanceof EsQueryExec queryExec) {
                 Query queryDSL = TRANSLATOR_HANDLER.asQuery(Predicates.combineAnd(rankExec.expressions())); // HEGO: why expressions
                 QueryBuilder planQuery = queryDSL.asBuilder();
-                var query = Queries.combine(Clause.FILTER, asList(queryExec.query(), planQuery));
+                var baseQuery = queryExec.query() != null ? queryExec.query() : new BoolQueryBuilder();
+                BoolQueryBuilder query = (BoolQueryBuilder) Queries.combine(Clause.SHOULD, asList(baseQuery, planQuery));
+                query.minimumShouldMatch(1);
                 var esQueryExec = new EsQueryExec(
                     queryExec.source(),
                     queryExec.index(),

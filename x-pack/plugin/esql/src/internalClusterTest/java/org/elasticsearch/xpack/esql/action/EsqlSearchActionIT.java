@@ -54,8 +54,8 @@ public class EsqlSearchActionIT extends AbstractEsqlIntegTestCase {
             assertThat(resp.columns().stream().map(ColumnInfo::type).toList(), contains("integer", "float"));
             // values
             List<List<Object>> values = getValuesList(resp);
-            assertThat(values.get(0), contains(3, 2.0f));
-            assertThat(values.get(1), contains(4, 2.0f));
+            assertThat(values.get(0), contains(3, 0.0f));
+            assertThat(values.get(1), contains(4, 0.0f));
         }
     }
 
@@ -173,7 +173,6 @@ public class EsqlSearchActionIT extends AbstractEsqlIntegTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "") // TODO: all scores are 0.0 ? why? fix this
     public void testRankMatchWithPrefilter() {
         var query = """
             SEARCH test [

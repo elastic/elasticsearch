@@ -20,6 +20,7 @@ package co.elastic.elasticsearch.stateless.cluster.coordination;
 import co.elastic.elasticsearch.stateless.test.FakeStatelessNode;
 
 import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.core.LogEvent;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.AbstractCoordinatorTestCase;
@@ -54,6 +55,7 @@ import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -61,16 +63,13 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
 
-import static org.elasticsearch.cluster.coordination.AbstractCoordinatorTestCase.DEFAULT_CLUSTER_STATE_UPDATE_DELAY;
-import static org.elasticsearch.cluster.coordination.AbstractCoordinatorTestCase.DEFAULT_ELECTION_DELAY;
 import static org.elasticsearch.cluster.coordination.stateless.StoreHeartbeatService.HEARTBEAT_FREQUENCY;
 import static org.elasticsearch.cluster.coordination.stateless.StoreHeartbeatService.MAX_MISSED_HEARTBEATS;
-import static org.elasticsearch.test.ESTestCase.randomIntBetween;
-import static org.elasticsearch.test.ESTestCase.randomNonNegativeLong;
 import static org.elasticsearch.test.MockLog.assertThatLogger;
 
 @TestLogging(reason = "these tests do a lot of log-worthy things but we usually don't care", value = "org.elasticsearch:FATAL")
@@ -103,63 +102,79 @@ public class StatelessCoordinationTests extends AtomicRegisterCoordinatorTests {
      * that an error message gets logged and the node refuses to run for election.
      */
     @TestLogging(reason = "test uses a Coordinator log msg", value = "org.elasticsearch.cluster.coordination.Coordinator:INFO")
-    public void testShutdownLogMessageDuringElectionAttempt() throws Exception {
-        // There are two nodes so that a non-leader can be set to shutdown and then made to try to run for election.
+    public void testShutdownLogMessageDuringElectionAttempt() {
+        // There are at least two nodes so that a non-leader can be set to shutdown and then made to try to run for election.
         try (AbstractCoordinatorTestCase.Cluster cluster = new AbstractCoordinatorTestCase.Cluster(randomIntBetween(2, 5))) {
             logger.info("---> Running a test cluster of [" + cluster.size() + "] nodes");
             cluster.runRandomly();
             cluster.stabilise();
 
-            final AbstractCoordinatorTestCase.Cluster.ClusterNode leader = cluster.getAnyLeader();
-            final AbstractCoordinatorTestCase.Cluster.ClusterNode nonLeader = cluster.getAnyNodeExcept(leader);
-            ClusterState originalClusterState = cluster.getAnyLeader().getLastAppliedClusterState();
+            final var seenLog = new AtomicBoolean();
+            final var expectedMessagePrefix = """
+                skip prevoting as local node may not win election (node is ineligible for election during shutdown)""";
+            assertThatLogger(() -> {
+                final AbstractCoordinatorTestCase.Cluster.ClusterNode leader = cluster.getAnyLeader();
+                final AbstractCoordinatorTestCase.Cluster.ClusterNode nonLeader = cluster.getAnyNodeExcept(leader);
 
-            // Update the cluster state to say that nonLeader is shutting down. We do not need to worry about shutdown actually taking
-            // place because the base test class' ClusterNode implementation doesn't include shutdown logic.
-            {
-                SingleNodeShutdownMetadata.Type type = SingleNodeShutdownMetadata.Type.RESTART;
-                NodesShutdownMetadata nodesShutdownMetadata = new NodesShutdownMetadata(
-                    Collections.singletonMap(
-                        nonLeader.getLocalNode().getId(),
-                        SingleNodeShutdownMetadata.builder()
-                            .setNodeId(nonLeader.getLocalNode().getId())
-                            .setReason("shutdown for a unit test")
-                            .setType(type)
-                            .setStartedAtMillis(randomNonNegativeLong())
-                            .setGracePeriod(null)
-                            .build()
-                    )
+                // Update the cluster state to say that nonLeader is shutting down. We do not need to worry about shutdown actually taking
+                // place because the base test class' ClusterNode implementation doesn't include shutdown logic.
+                leader.submitUpdateTask(
+                    "set node shutting down",
+                    currentClusterState -> ClusterState.builder(currentClusterState)
+                        .metadata(
+                            Metadata.builder(currentClusterState.metadata())
+                                .putCustom(
+                                    NodesShutdownMetadata.TYPE,
+                                    new NodesShutdownMetadata(
+                                        Collections.singletonMap(
+                                            nonLeader.getLocalNode().getId(),
+                                            SingleNodeShutdownMetadata.builder()
+                                                .setNodeId(nonLeader.getLocalNode().getId())
+                                                .setReason("shutdown for a unit test")
+                                                .setType(SingleNodeShutdownMetadata.Type.RESTART)
+                                                .setStartedAtMillis(randomNonNegativeLong())
+                                                .setGracePeriod(null)
+                                                .build()
+                                        )
+                                    )
+                                )
+                                .build()
+                        )
+                        .build(),
+                    ESTestCase::fail
                 );
-                final ClusterState shutdownClusterState = ClusterState.builder(originalClusterState)
-                    .metadata(
-                        Metadata.builder(originalClusterState.metadata())
-                            .putCustom(NodesShutdownMetadata.TYPE, nodesShutdownMetadata)
-                            .build()
-                    )
-                    .version(originalClusterState.version() + 1)
-                    .build();
+                cluster.stabilise(DEFAULT_CLUSTER_STATE_UPDATE_DELAY);
 
-                leader.submitUpdateTask("set node shutting down", (currentClusterState) -> shutdownClusterState, (e) -> {});
-                cluster.runFor(DEFAULT_CLUSTER_STATE_UPDATE_DELAY, "committing node shutdown update");
-            }
-
-            // Since the test runs with some disruptions and randmization, it is possible for the election scheduler of the nonLeader node
-            // to get closed before it gets to run an election in which case we will not see the log that skips pre-voting. Therefore,
-            // we'd need to repeat triggering an election.
-            assertBusy(() -> assertThatLogger(() -> {
                 // Force the nonLeader node to become a candidate for master election. This will trigger the election code and the log
-                // message saying that the node is ineligible for election during shutdown
-                AbstractCoordinatorTestCase.Cluster.becomeCandidate(nonLeader, "forcedForTesting");
-                cluster.runFor(DEFAULT_ELECTION_DELAY, "waiting for node to try to run for election");
+                // message saying that the node is ineligible for election during shutdown. However, since the test runs with some
+                // disruptions and randomization, it is possible for the election scheduler of the nonLeader node to get closed before it
+                // gets to run an election in which case we will not see the log that skips pre-voting. Therefore, we need to repeat
+                // triggering the election until we see the log message.
+                while (seenLog.get() == false) {
+                    AbstractCoordinatorTestCase.Cluster.becomeCandidate(nonLeader, "forcedForTesting");
+                    cluster.runFor(DEFAULT_ELECTION_DELAY, "waiting for node to try to run for election");
+                }
             },
                 Coordinator.class,
                 new MockLog.SeenEventExpectation(
                     "log emitted by Coordinator when shut down is in progress",
                     Coordinator.class.getCanonicalName(),
                     Level.INFO,
-                    "skip prevoting as local node may not win election (node is ineligible for election during shutdown)*"
-                )
-            ));
+                    expectedMessagePrefix + "*"
+                ) {
+                },
+                new MockLog.LoggingExpectation() {
+                    @Override
+                    public void match(LogEvent event) {
+                        if (event.getMessage().getFormattedMessage().startsWith(expectedMessagePrefix)) {
+                            seenLog.set(true);
+                        }
+                    }
+
+                    @Override
+                    public void assertMatched() {}
+                }
+            );
         }
     }
 

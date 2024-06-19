@@ -120,7 +120,6 @@ public class RefreshThrottlingServiceTests extends ESTestCase {
                     public ClusterState execute(ClusterState currentState) {
                         var newState = ClusterState.builder(currentState)
                             .nodes(DiscoveryNodes.builder(currentState.nodes()).remove(nodeToRemove).build())
-                            .incrementVersion()
                             .build();
                         return newState;
                     }
@@ -144,7 +143,6 @@ public class RefreshThrottlingServiceTests extends ESTestCase {
                     public ClusterState execute(ClusterState currentState) {
                         var newState = ClusterState.builder(currentState)
                             .nodes(DiscoveryNodes.builder(currentState.nodes()).add(newNode).build())
-                            .incrementVersion()
                             .build();
                         return newState;
                     }
@@ -169,7 +167,7 @@ public class RefreshThrottlingServiceTests extends ESTestCase {
         clusterService.close();
     }
 
-    public void testMinimumMultiplier() throws Exception {
+    public void testMinimumMultiplier() {
         simulateNodeActions(
             List.of(
                 new NodeAction(0, false, false, ByteSizeValue.ofMb(512), 1.0),
@@ -184,7 +182,7 @@ public class RefreshThrottlingServiceTests extends ESTestCase {
         );
     }
 
-    public void testSearchMasterHasMultiplierOne() throws Exception {
+    public void testSearchMasterHasMultiplierOne() {
         simulateNodeActions(
             List.of(
                 new NodeAction(0, false, true, ByteSizeValue.ofGb(64), 1.0),
@@ -193,7 +191,7 @@ public class RefreshThrottlingServiceTests extends ESTestCase {
         );
     }
 
-    public void testIndexMasterAndSearchNode() throws Exception {
+    public void testIndexMasterAndSearchNode() {
         simulateNodeActions(
             List.of(
                 new NodeAction(0, false, false, ByteSizeValue.ofGb(64), 1.0),
@@ -208,7 +206,7 @@ public class RefreshThrottlingServiceTests extends ESTestCase {
         );
     }
 
-    public void testIndexMasterAndIndexNode() throws Exception {
+    public void testIndexMasterAndIndexNode() {
         simulateNodeActions(
             List.of(
                 new NodeAction(0, false, false, ByteSizeValue.ofGb(64), 1.0),
@@ -223,7 +221,7 @@ public class RefreshThrottlingServiceTests extends ESTestCase {
         );
     }
 
-    public void testIndexMasterAndMultipleActions() throws Exception {
+    public void testIndexMasterAndMultipleActions() {
         simulateNodeActions(
             List.of(
                 new NodeAction(0, false, false, ByteSizeValue.ofGb(64), 1.0),

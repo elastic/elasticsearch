@@ -20,17 +20,17 @@ import org.elasticsearch.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.Objects;
 
-public class AutoscalingSettings implements ToXContentObject, Writeable {
+public class AdaptiveAllocationsSettings implements ToXContentObject, Writeable {
 
-    public static final AutoscalingSettings RESET_PLACEHOLDER = new AutoscalingSettings(false, -1, -1);
+    public static final AdaptiveAllocationsSettings RESET_PLACEHOLDER = new AdaptiveAllocationsSettings(false, -1, -1);
 
     public static final ParseField ENABLED = new ParseField("enabled");
     public static final ParseField MIN_NUMBER_OF_ALLOCATIONS = new ParseField("min_number_of_allocations");
     public static final ParseField MAX_NUMBER_OF_ALLOCATIONS = new ParseField("max_number_of_allocations");
 
-    public static final ObjectParser<AutoscalingSettings.Builder, Void> PARSER = new ObjectParser<>(
+    public static final ObjectParser<AdaptiveAllocationsSettings.Builder, Void> PARSER = new ObjectParser<>(
         "autoscaling_settings",
-        AutoscalingSettings.Builder::new
+        AdaptiveAllocationsSettings.Builder::new
     );
 
     static {
@@ -39,7 +39,7 @@ public class AutoscalingSettings implements ToXContentObject, Writeable {
         PARSER.declareIntOrNull(Builder::setMaxNumberOfAllocations, -1, MAX_NUMBER_OF_ALLOCATIONS);
     }
 
-    public static AutoscalingSettings parseRequest(XContentParser parser) {
+    public static AdaptiveAllocationsSettings parseRequest(XContentParser parser) {
         return PARSER.apply(parser, null).build();
     }
 
@@ -50,7 +50,7 @@ public class AutoscalingSettings implements ToXContentObject, Writeable {
 
         public Builder() {}
 
-        public Builder(AutoscalingSettings settings) {
+        public Builder(AdaptiveAllocationsSettings settings) {
             enabled = settings.enabled;
             minNumberOfAllocations = settings.minNumberOfAllocations;
             maxNumberOfAllocations = settings.maxNumberOfAllocations;
@@ -68,8 +68,8 @@ public class AutoscalingSettings implements ToXContentObject, Writeable {
             this.maxNumberOfAllocations = maxNumberOfAllocations;
         }
 
-        public AutoscalingSettings build() {
-            return new AutoscalingSettings(enabled, minNumberOfAllocations, maxNumberOfAllocations);
+        public AdaptiveAllocationsSettings build() {
+            return new AdaptiveAllocationsSettings(enabled, minNumberOfAllocations, maxNumberOfAllocations);
         }
     }
 
@@ -77,13 +77,13 @@ public class AutoscalingSettings implements ToXContentObject, Writeable {
     private final Integer minNumberOfAllocations;
     private final Integer maxNumberOfAllocations;
 
-    public AutoscalingSettings(Boolean enabled, Integer minNumberOfAllocations, Integer maxNumberOfAllocations) {
+    public AdaptiveAllocationsSettings(Boolean enabled, Integer minNumberOfAllocations, Integer maxNumberOfAllocations) {
         this.enabled = enabled;
         this.minNumberOfAllocations = minNumberOfAllocations;
         this.maxNumberOfAllocations = maxNumberOfAllocations;
     }
 
-    public AutoscalingSettings(StreamInput in) throws IOException {
+    public AdaptiveAllocationsSettings(StreamInput in) throws IOException {
         enabled = in.readOptionalBoolean();
         minNumberOfAllocations = in.readOptionalInt();
         maxNumberOfAllocations = in.readOptionalInt();
@@ -124,8 +124,8 @@ public class AutoscalingSettings implements ToXContentObject, Writeable {
         out.writeOptionalInt(maxNumberOfAllocations);
     }
 
-    public AutoscalingSettings merge(AutoscalingSettings updates) {
-        AutoscalingSettings.Builder builder = new Builder(this);
+    public AdaptiveAllocationsSettings merge(AdaptiveAllocationsSettings updates) {
+        AdaptiveAllocationsSettings.Builder builder = new Builder(this);
         if (updates.getEnabled() != null) {
             builder.setEnabled(updates.enabled);
         }
@@ -168,7 +168,7 @@ public class AutoscalingSettings implements ToXContentObject, Writeable {
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        AutoscalingSettings that = (AutoscalingSettings) o;
+        AdaptiveAllocationsSettings that = (AdaptiveAllocationsSettings) o;
         return Objects.equals(enabled, that.enabled)
             && Objects.equals(minNumberOfAllocations, that.minNumberOfAllocations)
             && Objects.equals(maxNumberOfAllocations, that.maxNumberOfAllocations);

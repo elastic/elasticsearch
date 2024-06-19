@@ -178,7 +178,7 @@ class TrainedModelAssignmentRebalancer {
                     assignment.getTaskParams().getThreadsPerAllocation(),
                     currentAssignments,
                     assignment.getMaxAssignedAllocations(),
-                    assignment.getAutoscalingSettings(),
+                    assignment.getAdaptiveAllocationsSettings(),
                     // in the mixed cluster state use old memory fields to avoid unstable assignment plans
                     useNewMemoryFields ? assignment.getTaskParams().getPerDeploymentMemoryBytes() : 0,
                     useNewMemoryFields ? assignment.getTaskParams().getPerAllocationMemoryBytes() : 0
@@ -195,7 +195,7 @@ class TrainedModelAssignmentRebalancer {
                     taskParams.getThreadsPerAllocation(),
                     Map.of(),
                     0,
-                    createAssignmentRequest.get().getAutoscalingSettings(),
+                    createAssignmentRequest.get().getAdaptiveAllocationsSettings(),
                     // in the mixed cluster state use old memory fields to avoid unstable assignment plans
                     useNewMemoryFields ? taskParams.getPerDeploymentMemoryBytes() : 0,
                     useNewMemoryFields ? taskParams.getPerAllocationMemoryBytes() : 0
@@ -235,7 +235,7 @@ class TrainedModelAssignmentRebalancer {
                     assignment.getTaskParams().getThreadsPerAllocation(),
                     findFittingAssignments(assignment, assignableNodeIds, remainingNodeMemory),
                     assignment.getMaxAssignedAllocations(),
-                    assignment.getAutoscalingSettings(),
+                    assignment.getAdaptiveAllocationsSettings(),
                     Priority.LOW,
                     (useNewMemoryFields == false) ? assignment.getTaskParams().getPerDeploymentMemoryBytes() : 0,
                     (useNewMemoryFields == false) ? assignment.getTaskParams().getPerAllocationMemoryBytes() : 0
@@ -252,7 +252,7 @@ class TrainedModelAssignmentRebalancer {
                     taskParams.getThreadsPerAllocation(),
                     Map.of(),
                     0,
-                    createAssignmentRequest.get().getAutoscalingSettings(),
+                    createAssignmentRequest.get().getAdaptiveAllocationsSettings(),
                     Priority.LOW,
                     (useNewMemoryFields == false) ? taskParams.getPerDeploymentMemoryBytes() : 0,
                     (useNewMemoryFields == false) ? taskParams.getPerAllocationMemoryBytes() : 0
@@ -335,7 +335,7 @@ class TrainedModelAssignmentRebalancer {
                 ? TrainedModelAssignment.Builder.empty(createAssignmentRequest.get())
                 : TrainedModelAssignment.Builder.empty(
                     currentMetadata.getDeploymentAssignment(deployment.id()).getTaskParams(),
-                    currentMetadata.getDeploymentAssignment(deployment.id()).getAutoscalingSettings()
+                    currentMetadata.getDeploymentAssignment(deployment.id()).getAdaptiveAllocationsSettings()
                 );
             if (existingAssignment != null) {
                 assignmentBuilder.setStartTime(existingAssignment.getStartTime());

@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.ml.inference.autoscaling;
+package org.elasticsearch.xpack.ml.inference.adapitiveallocations;
 
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
@@ -30,7 +30,7 @@ import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignme
 import java.util.HashMap;
 import java.util.Map;
 
-public class AutoscalerService implements ClusterStateListener {
+public class AdaptiveAllocationsScalerService implements ClusterStateListener {
 
     record Stats(long successCount, long pendingCount, long failedCount, double inferenceTime) {
 
@@ -65,7 +65,7 @@ public class AutoscalerService implements ClusterStateListener {
 
     private static final int DEFAULT_TIME_INTERVAL_SECONDS = 10;
 
-    private static final Logger logger = LogManager.getLogger(AutoscalerService.class);
+    private static final Logger logger = LogManager.getLogger(AdaptiveAllocationsScalerService.class);
 
     private final int timeIntervalSeconds;
     private final ThreadPool threadPool;
@@ -74,16 +74,16 @@ public class AutoscalerService implements ClusterStateListener {
     private final boolean isNlpEnabled;
 
     private final Map<String, Stats> lastInferenceStatsByDeploymentNode;
-    private final Map<String, Autoscaler> autoscalers;
+    private final Map<String, AdaptiveAllocationsScaler> autoscalers;
 
     private volatile Scheduler.Cancellable cancellable;
 
-    public AutoscalerService(ThreadPool threadPool, ClusterService clusterService, Client client, boolean isNlpEnabled) {
+    public AdaptiveAllocationsScalerService(ThreadPool threadPool, ClusterService clusterService, Client client, boolean isNlpEnabled) {
         this(threadPool, clusterService, client, isNlpEnabled, DEFAULT_TIME_INTERVAL_SECONDS);
     }
 
     // visible for testing
-    AutoscalerService(ThreadPool threadPool, ClusterService clusterService, Client client, boolean isNlpEnabled, int timeIntervalSeconds) {
+    AdaptiveAllocationsScalerService(ThreadPool threadPool, ClusterService clusterService, Client client, boolean isNlpEnabled, int timeIntervalSeconds) {
         this.threadPool = threadPool;
         this.clusterService = clusterService;
         this.client = client;
@@ -123,14 +123,14 @@ public class AutoscalerService implements ClusterStateListener {
 
         TrainedModelAssignmentMetadata assignments = TrainedModelAssignmentMetadata.fromState(state);
         for (TrainedModelAssignment assignment : assignments.allAssignments().values()) {
-            if (assignment.getAutoscalingSettings() != null && assignment.getAutoscalingSettings().getEnabled()) {
-                Autoscaler autoscaler = autoscalers.computeIfAbsent(
+            if (assignment.getAdaptiveAllocationsSettings() != null && assignment.getAdaptiveAllocationsSettings().getEnabled()) {
+                AdaptiveAllocationsScaler adaptiveAllocationsScaler = autoscalers.computeIfAbsent(
                     assignment.getDeploymentId(),
-                    key -> new Autoscaler(assignment.getDeploymentId(), assignment.totalTargetAllocations())
+                    key -> new AdaptiveAllocationsScaler(assignment.getDeploymentId(), assignment.totalTargetAllocations())
                 );
-                autoscaler.setMinMaxNumberOfAllocations(
-                    assignment.getAutoscalingSettings().getMinNumberOfAllocations(),
-                    assignment.getAutoscalingSettings().getMaxNumberOfAllocations()
+                adaptiveAllocationsScaler.setMinMaxNumberOfAllocations(
+                    assignment.getAdaptiveAllocationsSettings().getMinNumberOfAllocations(),
+                    assignment.getAdaptiveAllocationsSettings().getMaxNumberOfAllocations()
                 );
             } else {
                 autoscalers.remove(assignment.getDeploymentId());
@@ -140,7 +140,7 @@ public class AutoscalerService implements ClusterStateListener {
 
     private synchronized void startScheduling() {
         if (cancellable == null) {
-            logger.debug("Starting ML inference autoscaler");
+            logger.debug("Starting ML adaptive allocations scaler");
             try {
                 cancellable = threadPool.scheduleWithFixedDelay(
                     this::trigger,
@@ -157,14 +157,14 @@ public class AutoscalerService implements ClusterStateListener {
 
     private synchronized void stopScheduling() {
         if (cancellable != null && cancellable.isCancelled() == false) {
-            logger.debug("Stopping ML inference autoscaler");
+            logger.debug("Stopping ML adaptive allocations scaler");
             cancellable.cancel();
             cancellable = null;
         }
     }
 
     private synchronized void trigger() {
-        getDeploymentStats(ActionListener.wrap(this::processDeploymentStats, e -> logger.warn("Error in inference autoscaling", e)));
+        getDeploymentStats(ActionListener.wrap(this::processDeploymentStats, e -> logger.warn("Error in inference adaptive allocations", e)));
     }
 
     private synchronized void getDeploymentStats(ActionListener<GetDeploymentStatsAction.Response> processDeploymentStats) {
@@ -206,9 +206,9 @@ public class AutoscalerService implements ClusterStateListener {
         for (Map.Entry<String, Stats> deploymentAndStats : recentStatsByDeployment.entrySet()) {
             String deploymentId = deploymentAndStats.getKey();
             Stats stats = deploymentAndStats.getValue();
-            Autoscaler autoscaler = autoscalers.get(deploymentId);
-            autoscaler.process(stats, timeIntervalSeconds, numberOfAllocations.get(deploymentId));
-            Integer newNumberOfAllocations = autoscaler.autoscale();
+            AdaptiveAllocationsScaler adaptiveAllocationsScaler = autoscalers.get(deploymentId);
+            adaptiveAllocationsScaler.process(stats, timeIntervalSeconds, numberOfAllocations.get(deploymentId));
+            Integer newNumberOfAllocations = adaptiveAllocationsScaler.scale();
             if (newNumberOfAllocations != null) {
                 UpdateTrainedModelDeploymentAction.Request updateRequest = new UpdateTrainedModelDeploymentAction.Request(deploymentId);
                 updateRequest.setNumberOfAllocations(newNumberOfAllocations);
@@ -219,13 +219,13 @@ public class AutoscalerService implements ClusterStateListener {
                     updateRequest,
                     ActionListener.wrap(
                         updateResponse -> logger.info(
-                            "Autoscaled deployment [{}] to [{}] allocations.",
+                            "[{}] adaptive allocations scaler: scale to [{}] allocations.",
                             deploymentId,
                             newNumberOfAllocations
                         ),
                         e -> logger.atLevel(Level.WARN)
                             .withThrowable(e)
-                            .log("Autoscaling deployment [{}] to [{}] allocations failed.", deploymentId, newNumberOfAllocations)
+                            .log("[{}] adaptive allocations scaler: scale to [{}] allocations failed.", deploymentId, newNumberOfAllocations)
                     )
                 );
             }

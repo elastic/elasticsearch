@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.ml.inference.autoscaling;
+package org.elasticsearch.xpack.ml.inference.adapitiveallocations;
 
 import org.elasticsearch.test.ESTestCase;
 

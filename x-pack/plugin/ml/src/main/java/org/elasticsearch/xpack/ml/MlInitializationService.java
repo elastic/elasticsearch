@@ -32,7 +32,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.annotations.AnnotationIndex;
-import org.elasticsearch.xpack.ml.inference.autoscaling.AutoscalerService;
+import org.elasticsearch.xpack.ml.inference.adapitiveallocations.AdaptiveAllocationsScalerService;
 
 import java.util.Collections;
 import java.util.Map;
@@ -56,7 +56,7 @@ public final class MlInitializationService implements ClusterStateListener {
 
     private final MlDailyMaintenanceService mlDailyMaintenanceService;
 
-    private final AutoscalerService inferenceAutoscalerService;
+    private final AdaptiveAllocationsScalerService adaptiveAllocationsScalerService;
 
     private boolean isMaster = false;
 
@@ -84,7 +84,7 @@ public final class MlInitializationService implements ClusterStateListener {
                 isDataFrameAnalyticsEnabled,
                 isNlpEnabled
             ),
-            new AutoscalerService(threadPool, clusterService, client, isNlpEnabled),
+            new AdaptiveAllocationsScalerService(threadPool, clusterService, client, isNlpEnabled),
             clusterService
         );
     }
@@ -94,13 +94,13 @@ public final class MlInitializationService implements ClusterStateListener {
         Client client,
         ThreadPool threadPool,
         MlDailyMaintenanceService dailyMaintenanceService,
-        AutoscalerService inferenceAutoscalerService,
+        AdaptiveAllocationsScalerService adaptiveAllocationsScalerService,
         ClusterService clusterService
     ) {
         this.client = Objects.requireNonNull(client);
         this.threadPool = threadPool;
         this.mlDailyMaintenanceService = dailyMaintenanceService;
-        this.inferenceAutoscalerService = inferenceAutoscalerService;
+        this.adaptiveAllocationsScalerService = adaptiveAllocationsScalerService;
         clusterService.addListener(this);
         clusterService.addLifecycleListener(new LifecycleListener() {
             @Override
@@ -121,13 +121,13 @@ public final class MlInitializationService implements ClusterStateListener {
 
     public void onMaster() {
         mlDailyMaintenanceService.start();
-        inferenceAutoscalerService.start();
+        adaptiveAllocationsScalerService.start();
         threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(this::makeMlInternalIndicesHidden);
     }
 
     public void offMaster() {
         mlDailyMaintenanceService.stop();
-        inferenceAutoscalerService.stop();
+        adaptiveAllocationsScalerService.stop();
     }
 
     @Override

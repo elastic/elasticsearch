@@ -423,7 +423,7 @@ public class AssignmentStats implements ToXContentObject, Writeable {
     @Nullable
     private final Integer numberOfAllocations;
     @Nullable
-    private final AutoscalingSettings autoscalingSettings;
+    private final AdaptiveAllocationsSettings adaptiveAllocationsSettings;
     @Nullable
     private final Integer queueCapacity;
     @Nullable
@@ -437,7 +437,7 @@ public class AssignmentStats implements ToXContentObject, Writeable {
         String modelId,
         @Nullable Integer threadsPerAllocation,
         @Nullable Integer numberOfAllocations,
-        @Nullable AutoscalingSettings autoscalingSettings,
+        @Nullable AdaptiveAllocationsSettings adaptiveAllocationsSettings,
         @Nullable Integer queueCapacity,
         @Nullable ByteSizeValue cacheSize,
         Instant startTime,
@@ -448,7 +448,7 @@ public class AssignmentStats implements ToXContentObject, Writeable {
         this.modelId = modelId;
         this.threadsPerAllocation = threadsPerAllocation;
         this.numberOfAllocations = numberOfAllocations;
-        this.autoscalingSettings = autoscalingSettings;
+        this.adaptiveAllocationsSettings = adaptiveAllocationsSettings;
         this.queueCapacity = queueCapacity;
         this.startTime = Objects.requireNonNull(startTime);
         this.nodeStats = nodeStats;
@@ -463,9 +463,9 @@ public class AssignmentStats implements ToXContentObject, Writeable {
         threadsPerAllocation = in.readOptionalVInt();
         numberOfAllocations = in.readOptionalVInt();
         if (in.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_AUTOSCALING)) {
-            autoscalingSettings = in.readOptionalWriteable(AutoscalingSettings::new);
+            adaptiveAllocationsSettings = in.readOptionalWriteable(AdaptiveAllocationsSettings::new);
         } else {
-            autoscalingSettings = null;
+            adaptiveAllocationsSettings = null;
         }
         queueCapacity = in.readOptionalVInt();
         startTime = in.readInstant();
@@ -509,8 +509,8 @@ public class AssignmentStats implements ToXContentObject, Writeable {
     }
 
     @Nullable
-    public AutoscalingSettings getAutoscalingSettings() {
-        return autoscalingSettings;
+    public AdaptiveAllocationsSettings getAdaptiveAllocationsSettings() {
+        return adaptiveAllocationsSettings;
     }
 
     @Nullable
@@ -589,8 +589,8 @@ public class AssignmentStats implements ToXContentObject, Writeable {
         if (numberOfAllocations != null) {
             builder.field(StartTrainedModelDeploymentAction.TaskParams.NUMBER_OF_ALLOCATIONS.getPreferredName(), numberOfAllocations);
         }
-        if (autoscalingSettings != null) {
-            builder.field(StartTrainedModelDeploymentAction.Request.AUTOSCALING_SETTINGS.getPreferredName(), autoscalingSettings);
+        if (adaptiveAllocationsSettings != null) {
+            builder.field(StartTrainedModelDeploymentAction.Request.ADAPTIVE_ALLOCATIONS.getPreferredName(), adaptiveAllocationsSettings);
         }
         if (queueCapacity != null) {
             builder.field(StartTrainedModelDeploymentAction.TaskParams.QUEUE_CAPACITY.getPreferredName(), queueCapacity);
@@ -648,7 +648,7 @@ public class AssignmentStats implements ToXContentObject, Writeable {
         out.writeOptionalVInt(threadsPerAllocation);
         out.writeOptionalVInt(numberOfAllocations);
         if (out.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_AUTOSCALING)) {
-            out.writeOptionalWriteable(autoscalingSettings);
+            out.writeOptionalWriteable(adaptiveAllocationsSettings);
         }
         out.writeOptionalVInt(queueCapacity);
         out.writeInstant(startTime);
@@ -680,7 +680,7 @@ public class AssignmentStats implements ToXContentObject, Writeable {
             && Objects.equals(modelId, that.modelId)
             && Objects.equals(threadsPerAllocation, that.threadsPerAllocation)
             && Objects.equals(numberOfAllocations, that.numberOfAllocations)
-            && Objects.equals(autoscalingSettings, that.autoscalingSettings)
+            && Objects.equals(adaptiveAllocationsSettings, that.adaptiveAllocationsSettings)
             && Objects.equals(queueCapacity, that.queueCapacity)
             && Objects.equals(startTime, that.startTime)
             && Objects.equals(state, that.state)
@@ -697,8 +697,7 @@ public class AssignmentStats implements ToXContentObject, Writeable {
             deploymentId,
             modelId,
             threadsPerAllocation,
-            numberOfAllocations,
-            autoscalingSettings,
+            numberOfAllocations, adaptiveAllocationsSettings,
             queueCapacity,
             startTime,
             nodeStats,

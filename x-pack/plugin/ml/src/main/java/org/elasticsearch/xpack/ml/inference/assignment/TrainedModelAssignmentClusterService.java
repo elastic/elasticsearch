@@ -43,7 +43,7 @@ import org.elasticsearch.xpack.core.ml.action.CreateTrainedModelAssignmentAction
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateTrainedModelAssignmentRoutingInfoAction;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AssignmentState;
-import org.elasticsearch.xpack.core.ml.inference.assignment.AutoscalingSettings;
+import org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationsSettings;
 import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingInfo;
 import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingState;
 import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignment;
@@ -805,17 +805,17 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
     public void updateDeployment(
         String deploymentId,
         Integer numberOfAllocations,
-        AutoscalingSettings autoscalingSettings,
+        AdaptiveAllocationsSettings adaptiveAllocationsSettings,
         ActionListener<TrainedModelAssignment> listener
     ) {
-        updateDeployment(clusterService.state(), deploymentId, numberOfAllocations, autoscalingSettings, listener);
+        updateDeployment(clusterService.state(), deploymentId, numberOfAllocations, adaptiveAllocationsSettings, listener);
     }
 
     private void updateDeployment(
         ClusterState clusterState,
         String deploymentId,
         Integer numberOfAllocations,
-        AutoscalingSettings autoscalingSettingsUpdates,
+        AdaptiveAllocationsSettings adaptiveAllocationsSettingsUpdates,
         ActionListener<TrainedModelAssignment> listener
     ) {
         TrainedModelAssignmentMetadata metadata = TrainedModelAssignmentMetadata.fromState(clusterState);
@@ -824,12 +824,11 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
             listener.onFailure(ExceptionsHelper.missingModelDeployment(deploymentId));
             return;
         }
-        AutoscalingSettings autoscalingSettings = getUpdatedAutoscalingSettings(
-            existingAssignment.getAutoscalingSettings(),
-            autoscalingSettingsUpdates
+        AdaptiveAllocationsSettings adaptiveAllocationsSettings = getAdaptiveAllocationsSettings(
+            existingAssignment.getAdaptiveAllocationsSettings(), adaptiveAllocationsSettingsUpdates
         );
-        if (autoscalingSettings != null) {
-            ActionRequestValidationException validationException = autoscalingSettings.validate();
+        if (adaptiveAllocationsSettings != null) {
+            ActionRequestValidationException validationException = adaptiveAllocationsSettings.validate();
             if (validationException != null) {
                 listener.onFailure(validationException);
                 return;
@@ -837,7 +836,7 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
         }
         boolean hasUpdates = (numberOfAllocations != null
             && Objects.equals(numberOfAllocations, existingAssignment.getTaskParams().getNumberOfAllocations()) == false)
-            || Objects.equals(autoscalingSettings, existingAssignment.getAutoscalingSettings()) == false;
+            || Objects.equals(adaptiveAllocationsSettings, existingAssignment.getAdaptiveAllocationsSettings()) == false;
         if (hasUpdates == false) {
             listener.onResponse(existingAssignment);
             return;
@@ -875,7 +874,7 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
                         return updatedState;
                     }
                     logger.debug(() -> format("[%s] Retrying update as cluster state has been modified", deploymentId));
-                    updateDeployment(currentState, deploymentId, numberOfAllocations, autoscalingSettings, listener);
+                    updateDeployment(currentState, deploymentId, numberOfAllocations, adaptiveAllocationsSettings, listener);
                     return currentState;
                 }
 
@@ -904,13 +903,13 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
             listener::onFailure
         );
 
-        updateAssignment(clusterState, existingAssignment, numberOfAllocations, autoscalingSettings, updatedStateListener);
+        updateAssignment(clusterState, existingAssignment, numberOfAllocations, adaptiveAllocationsSettings, updatedStateListener);
     }
 
-    private AutoscalingSettings getUpdatedAutoscalingSettings(AutoscalingSettings original, AutoscalingSettings updates) {
+    private AdaptiveAllocationsSettings getAdaptiveAllocationsSettings(AdaptiveAllocationsSettings original, AdaptiveAllocationsSettings updates) {
         if (updates == null) {
             return original;
-        } else if (updates == AutoscalingSettings.RESET_PLACEHOLDER) {
+        } else if (updates == AdaptiveAllocationsSettings.RESET_PLACEHOLDER) {
             return null;
         } else if (original == null) {
             return updates;
@@ -923,16 +922,16 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
         ClusterState clusterState,
         TrainedModelAssignment assignment,
         Integer numberOfAllocations,
-        AutoscalingSettings autoscalingSettings,
+        AdaptiveAllocationsSettings adaptiveAllocationsSettings,
         ActionListener<ClusterState> listener
     ) {
         threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(() -> {
             if (numberOfAllocations == null || numberOfAllocations == assignment.getTaskParams().getNumberOfAllocations()) {
-                updateAndKeepNumberOfAllocations(clusterState, assignment, autoscalingSettings, listener);
+                updateAndKeepNumberOfAllocations(clusterState, assignment, adaptiveAllocationsSettings, listener);
             } else if (numberOfAllocations > assignment.getTaskParams().getNumberOfAllocations()) {
-                increaseNumberOfAllocations(clusterState, assignment, numberOfAllocations, autoscalingSettings, listener);
+                increaseNumberOfAllocations(clusterState, assignment, numberOfAllocations, adaptiveAllocationsSettings, listener);
             } else {
-                decreaseNumberOfAllocations(clusterState, assignment, numberOfAllocations, autoscalingSettings, listener);
+                decreaseNumberOfAllocations(clusterState, assignment, numberOfAllocations, adaptiveAllocationsSettings, listener);
             }
         });
     }
@@ -940,11 +939,11 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
     private void updateAndKeepNumberOfAllocations(
         ClusterState clusterState,
         TrainedModelAssignment assignment,
-        AutoscalingSettings autoscalingSettings,
+        AdaptiveAllocationsSettings adaptiveAllocationsSettings,
         ActionListener<ClusterState> listener
     ) {
         TrainedModelAssignment.Builder updatedAssignment = TrainedModelAssignment.Builder.fromAssignment(assignment)
-            .setAutoscalingSettings(autoscalingSettings);
+            .setAdaptiveAllocationsSettings(adaptiveAllocationsSettings);
         TrainedModelAssignmentMetadata.Builder builder = TrainedModelAssignmentMetadata.builder(clusterState);
         builder.updateAssignment(assignment.getDeploymentId(), updatedAssignment);
         listener.onResponse(update(clusterState, builder));
@@ -954,13 +953,13 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
         ClusterState clusterState,
         TrainedModelAssignment assignment,
         int numberOfAllocations,
-        AutoscalingSettings autoscalingSettings,
+        AdaptiveAllocationsSettings adaptiveAllocationsSettings,
         ActionListener<ClusterState> listener
     ) {
         try {
             TrainedModelAssignment.Builder updatedAssignment = TrainedModelAssignment.Builder.fromAssignment(assignment)
                 .setNumberOfAllocations(numberOfAllocations)
-                .setAutoscalingSettings(autoscalingSettings);
+                .setAdaptiveAllocationsSettings(adaptiveAllocationsSettings);
             final ClusterState updatedClusterState = update(
                 clusterState,
                 TrainedModelAssignmentMetadata.builder(clusterState).updateAssignment(assignment.getDeploymentId(), updatedAssignment)
@@ -986,7 +985,7 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
         ClusterState clusterState,
         TrainedModelAssignment assignment,
         int numberOfAllocations,
-        AutoscalingSettings autoscalingSettings,
+        AdaptiveAllocationsSettings adaptiveAllocationsSettings,
         ActionListener<ClusterState> listener
     ) {
         TrainedModelAssignment.Builder updatedAssignment = numberOfAllocations < assignment.totalTargetAllocations()
@@ -994,7 +993,7 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
                 numberOfAllocations
             )
             : TrainedModelAssignment.Builder.fromAssignment(assignment).setNumberOfAllocations(numberOfAllocations);
-        updatedAssignment.setAutoscalingSettings(autoscalingSettings);
+        updatedAssignment.setAdaptiveAllocationsSettings(adaptiveAllocationsSettings);
         // We have now reduced allocations to a number we can be sure it is satisfied
         // and thus we should clear the assignment reason.
         if (numberOfAllocations <= assignment.totalTargetAllocations()) {

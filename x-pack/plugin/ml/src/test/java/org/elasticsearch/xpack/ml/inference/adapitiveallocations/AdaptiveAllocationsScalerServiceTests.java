@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.ml.inference.autoscaling;
+package org.elasticsearch.xpack.ml.inference.adapitiveallocations;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
@@ -22,7 +22,7 @@ import org.elasticsearch.xpack.core.ml.action.GetDeploymentStatsAction;
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AssignmentStats;
-import org.elasticsearch.xpack.core.ml.inference.assignment.AutoscalingSettings;
+import org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationsSettings;
 import org.elasticsearch.xpack.core.ml.inference.assignment.Priority;
 import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignment;
 import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignmentMetadata;
@@ -45,7 +45,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
-public class AutoscalerServiceTests extends ESTestCase {
+public class AdaptiveAllocationsScalerServiceTests extends ESTestCase {
 
     private TestThreadPool threadPool;
     private ClusterService clusterService;
@@ -88,7 +88,7 @@ public class AutoscalerServiceTests extends ESTestCase {
                             100_000_000,
                             100_000_000
                         ),
-                        new AutoscalingSettings(true, null, null)
+                        new AdaptiveAllocationsSettings(true, null, null)
                     ).build()
                 )
             )
@@ -106,7 +106,7 @@ public class AutoscalerServiceTests extends ESTestCase {
                     "model-id",
                     1,
                     numAllocations,
-                    new AutoscalingSettings(true, null, null),
+                    new AdaptiveAllocationsSettings(true, null, null),
                     1024,
                     ByteSizeValue.ZERO,
                     Instant.now(),
@@ -143,7 +143,7 @@ public class AutoscalerServiceTests extends ESTestCase {
         ClusterState clusterState = getClusterState(1);
         when(clusterService.state()).thenReturn(clusterState);
 
-        AutoscalerService service = new AutoscalerService(threadPool, clusterService, client, true, 1);
+        AdaptiveAllocationsScalerService service = new AdaptiveAllocationsScalerService(threadPool, clusterService, client, true, 1);
         service.start();
 
         verify(clusterService).state();

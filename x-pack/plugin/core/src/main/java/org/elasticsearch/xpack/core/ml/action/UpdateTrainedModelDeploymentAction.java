@@ -20,14 +20,14 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xpack.core.ml.inference.assignment.AutoscalingSettings;
+import org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationsSettings;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
 import java.util.Objects;
 
-import static org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction.Request.AUTOSCALING_SETTINGS;
+import static org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction.Request.ADAPTIVE_ALLOCATIONS;
 import static org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction.Request.MODEL_ID;
 import static org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction.Request.NUMBER_OF_ALLOCATIONS;
 
@@ -50,10 +50,9 @@ public class UpdateTrainedModelDeploymentAction extends ActionType<CreateTrained
             PARSER.declareString(Request::setDeploymentId, MODEL_ID);
             PARSER.declareInt(Request::setNumberOfAllocations, NUMBER_OF_ALLOCATIONS);
             PARSER.declareObjectOrNull(
-                Request::setAutoscalingSettings,
-                (p, c) -> AutoscalingSettings.PARSER.parse(p, c).build(),
-                AutoscalingSettings.RESET_PLACEHOLDER,
-                AUTOSCALING_SETTINGS
+                Request::setAdaptiveAllocationsSettings,
+                (p, c) -> AdaptiveAllocationsSettings.PARSER.parse(p, c).build(),
+                AdaptiveAllocationsSettings.RESET_PLACEHOLDER, ADAPTIVE_ALLOCATIONS
             );
             PARSER.declareString((r, val) -> r.ackTimeout(TimeValue.parseTimeValue(val, TIMEOUT.getPreferredName())), TIMEOUT);
         }
@@ -72,7 +71,7 @@ public class UpdateTrainedModelDeploymentAction extends ActionType<CreateTrained
 
         private String deploymentId;
         private Integer numberOfAllocations;
-        private AutoscalingSettings autoscalingSettings;
+        private AdaptiveAllocationsSettings adaptiveAllocationsSettings;
 
         private Request() {
             super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
@@ -88,10 +87,10 @@ public class UpdateTrainedModelDeploymentAction extends ActionType<CreateTrained
             deploymentId = in.readString();
             if (in.getTransportVersion().before(TransportVersions.INFERENCE_AUTOSCALING)) {
                 numberOfAllocations = in.readVInt();
-                autoscalingSettings = null;
+                adaptiveAllocationsSettings = null;
             } else {
                 numberOfAllocations = in.readOptionalVInt();
-                autoscalingSettings = in.readOptionalWriteable(AutoscalingSettings::new);
+                adaptiveAllocationsSettings = in.readOptionalWriteable(AdaptiveAllocationsSettings::new);
             }
         }
 
@@ -111,12 +110,12 @@ public class UpdateTrainedModelDeploymentAction extends ActionType<CreateTrained
             return numberOfAllocations;
         }
 
-        public void setAutoscalingSettings(AutoscalingSettings autoscalingSettings) {
-            this.autoscalingSettings = autoscalingSettings;
+        public void setAdaptiveAllocationsSettings(AdaptiveAllocationsSettings adaptiveAllocationsSettings) {
+            this.adaptiveAllocationsSettings = adaptiveAllocationsSettings;
         }
 
-        public AutoscalingSettings getAutoscalingSettings() {
-            return autoscalingSettings;
+        public AdaptiveAllocationsSettings getAdaptiveAllocationsSettings() {
+            return adaptiveAllocationsSettings;
         }
 
         @Override
@@ -127,7 +126,7 @@ public class UpdateTrainedModelDeploymentAction extends ActionType<CreateTrained
                 out.writeVInt(numberOfAllocations);
             } else {
                 out.writeOptionalVInt(numberOfAllocations);
-                out.writeOptionalWriteable(autoscalingSettings);
+                out.writeOptionalWriteable(adaptiveAllocationsSettings);
             }
         }
 
@@ -138,8 +137,8 @@ public class UpdateTrainedModelDeploymentAction extends ActionType<CreateTrained
             if (numberOfAllocations != null) {
                 builder.field(NUMBER_OF_ALLOCATIONS.getPreferredName(), numberOfAllocations);
             }
-            if (autoscalingSettings != null) {
-                builder.field(AUTOSCALING_SETTINGS.getPreferredName(), autoscalingSettings);
+            if (adaptiveAllocationsSettings != null) {
+                builder.field(ADAPTIVE_ALLOCATIONS.getPreferredName(), adaptiveAllocationsSettings);
             }
             builder.endObject();
             return builder;
@@ -151,7 +150,7 @@ public class UpdateTrainedModelDeploymentAction extends ActionType<CreateTrained
             if (numberOfAllocations != null && numberOfAllocations < 1) {
                 validationException.addValidationError("[" + NUMBER_OF_ALLOCATIONS + "] must be a positive integer");
             }
-            ActionRequestValidationException autoscaleException = autoscalingSettings == null ? null : autoscalingSettings.validate();
+            ActionRequestValidationException autoscaleException = adaptiveAllocationsSettings == null ? null : adaptiveAllocationsSettings.validate();
             if (autoscaleException != null) {
                 validationException.addValidationErrors(autoscaleException.validationErrors());
             }
@@ -160,7 +159,7 @@ public class UpdateTrainedModelDeploymentAction extends ActionType<CreateTrained
 
         @Override
         public int hashCode() {
-            return Objects.hash(deploymentId, numberOfAllocations, autoscalingSettings);
+            return Objects.hash(deploymentId, numberOfAllocations, adaptiveAllocationsSettings);
         }
 
         @Override
@@ -174,7 +173,7 @@ public class UpdateTrainedModelDeploymentAction extends ActionType<CreateTrained
             Request other = (Request) obj;
             return Objects.equals(deploymentId, other.deploymentId)
                 && Objects.equals(numberOfAllocations, other.numberOfAllocations)
-                && Objects.equals(autoscalingSettings, other.autoscalingSettings);
+                && Objects.equals(adaptiveAllocationsSettings, other.adaptiveAllocationsSettings);
         }
 
         @Override

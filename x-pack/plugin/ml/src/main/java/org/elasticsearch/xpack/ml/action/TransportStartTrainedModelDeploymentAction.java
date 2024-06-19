@@ -220,7 +220,7 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
                 persistentTasks,
                 ActionListener.wrap(
                     aVoid -> trainedModelAssignmentService.createNewModelAssignment(
-                        new CreateTrainedModelAssignmentAction.Request(taskParams, request.getAutoscalingSettings()),
+                        new CreateTrainedModelAssignmentAction.Request(taskParams, request.getAdaptiveAllocationsSettings()),
                         waitForDeploymentToStart
                     ),
                     listener::onFailure

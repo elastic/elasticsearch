@@ -19,7 +19,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.ml.inference.autoscaling.AutoscalerService;
+import org.elasticsearch.xpack.ml.inference.adapitiveallocations.AdaptiveAllocationsScalerService;
 import org.junit.Before;
 
 import java.util.Map;
@@ -97,13 +97,12 @@ public class MlInitializationServiceTests extends ESTestCase {
 
     public void testNodeGoesFromMasterToNonMasterAndBack() {
         MlDailyMaintenanceService initialDailyMaintenanceService = mock(MlDailyMaintenanceService.class);
-        AutoscalerService inferenceAutoscalerService = mock(AutoscalerService.class);
+        AdaptiveAllocationsScalerService adaptiveAllocationsScalerService = mock(AdaptiveAllocationsScalerService.class);
 
         MlInitializationService initializationService = new MlInitializationService(
             client,
             threadPool,
-            initialDailyMaintenanceService,
-            inferenceAutoscalerService,
+            initialDailyMaintenanceService, adaptiveAllocationsScalerService,
             clusterService
         );
         initializationService.offMaster();

@@ -169,11 +169,6 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
             timeout = in.readTimeValue();
             waitForState = in.readEnum(AllocationStatus.State.class);
             numberOfAllocations = in.readVInt();
-            if (in.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_ADAPTIVE_ALLOCATIONS)) {
-                this.adaptiveAllocationsSettings = in.readOptionalWriteable(AdaptiveAllocationsSettings::new);
-            } else {
-                this.adaptiveAllocationsSettings = null;
-            }
             threadsPerAllocation = in.readVInt();
             queueCapacity = in.readVInt();
             if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
@@ -188,6 +183,11 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
                 this.deploymentId = in.readString();
             } else {
                 this.deploymentId = modelId;
+            }
+            if (in.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_ADAPTIVE_ALLOCATIONS)) {
+                this.adaptiveAllocationsSettings = in.readOptionalWriteable(AdaptiveAllocationsSettings::new);
+            } else {
+                this.adaptiveAllocationsSettings = null;
             }
         }
 
@@ -279,9 +279,6 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
             out.writeTimeValue(timeout);
             out.writeEnum(waitForState);
             out.writeVInt(numberOfAllocations);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_ADAPTIVE_ALLOCATIONS)) {
-                out.writeOptionalWriteable(adaptiveAllocationsSettings);
-            }
             out.writeVInt(threadsPerAllocation);
             out.writeVInt(queueCapacity);
             if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
@@ -292,6 +289,9 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
             }
             if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
                 out.writeString(deploymentId);
+            }
+            if (out.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_ADAPTIVE_ALLOCATIONS)) {
+                out.writeOptionalWriteable(adaptiveAllocationsSettings);
             }
         }
 
@@ -373,7 +373,8 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
                 deploymentId,
                 timeout,
                 waitForState,
-                numberOfAllocations, adaptiveAllocationsSettings,
+                numberOfAllocations,
+                adaptiveAllocationsSettings,
                 threadsPerAllocation,
                 queueCapacity,
                 cacheSize,

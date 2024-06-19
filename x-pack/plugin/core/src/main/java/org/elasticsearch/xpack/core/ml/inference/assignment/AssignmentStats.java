@@ -462,11 +462,6 @@ public class AssignmentStats implements ToXContentObject, Writeable {
         modelId = in.readString();
         threadsPerAllocation = in.readOptionalVInt();
         numberOfAllocations = in.readOptionalVInt();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_ADAPTIVE_ALLOCATIONS)) {
-            adaptiveAllocationsSettings = in.readOptionalWriteable(AdaptiveAllocationsSettings::new);
-        } else {
-            adaptiveAllocationsSettings = null;
-        }
         queueCapacity = in.readOptionalVInt();
         startTime = in.readInstant();
         nodeStats = in.readCollectionAsList(AssignmentStats.NodeStats::new);
@@ -487,6 +482,11 @@ public class AssignmentStats implements ToXContentObject, Writeable {
             deploymentId = in.readString();
         } else {
             deploymentId = modelId;
+        }
+        if (in.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_ADAPTIVE_ALLOCATIONS)) {
+            adaptiveAllocationsSettings = in.readOptionalWriteable(AdaptiveAllocationsSettings::new);
+        } else {
+            adaptiveAllocationsSettings = null;
         }
     }
 
@@ -647,9 +647,6 @@ public class AssignmentStats implements ToXContentObject, Writeable {
         out.writeString(modelId);
         out.writeOptionalVInt(threadsPerAllocation);
         out.writeOptionalVInt(numberOfAllocations);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_ADAPTIVE_ALLOCATIONS)) {
-            out.writeOptionalWriteable(adaptiveAllocationsSettings);
-        }
         out.writeOptionalVInt(queueCapacity);
         out.writeInstant(startTime);
         out.writeCollection(nodeStats);
@@ -668,6 +665,9 @@ public class AssignmentStats implements ToXContentObject, Writeable {
         }
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
             out.writeString(deploymentId);
+        }
+        if (out.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_ADAPTIVE_ALLOCATIONS)) {
+            out.writeOptionalWriteable(adaptiveAllocationsSettings);
         }
     }
 

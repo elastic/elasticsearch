@@ -62,15 +62,12 @@ public record DataStreamOptions(@Nullable DataStreamLifecycle lifecycle, @Nullab
         this(null, null);
     }
 
-    public static DataStreamOptions read(StreamInput in) throws IOException {
-        return new DataStreamOptions(
-            in.readOptionalWriteable(DataStreamLifecycle::new),
-            in.readOptionalWriteable(DataStreamFailureStore::read)
-        );
+    public DataStreamOptions(StreamInput in) throws IOException {
+        this(in.readOptionalWriteable(DataStreamLifecycle::new), in.readOptionalWriteable(DataStreamFailureStore::new));
     }
 
     public static Diff<DataStreamOptions> readDiffFrom(StreamInput in) throws IOException {
-        return SimpleDiffable.readDiffFrom(DataStreamOptions::read, in);
+        return SimpleDiffable.readDiffFrom(DataStreamOptions::new, in);
     }
 
     @Override

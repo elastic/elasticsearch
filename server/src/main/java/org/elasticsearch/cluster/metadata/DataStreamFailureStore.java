@@ -44,12 +44,12 @@ public record DataStreamFailureStore(boolean enabled) implements SimpleDiffable<
         this(true);
     }
 
-    public static DataStreamFailureStore read(StreamInput in) throws IOException {
-        return new DataStreamFailureStore(in.readBoolean());
+    public DataStreamFailureStore(StreamInput in) throws IOException {
+        this(in.readBoolean());
     }
 
     public static Diff<DataStreamFailureStore> readDiffFrom(StreamInput in) throws IOException {
-        return SimpleDiffable.readDiffFrom(DataStreamFailureStore::read, in);
+        return SimpleDiffable.readDiffFrom(DataStreamFailureStore::new, in);
     }
 
     @Override

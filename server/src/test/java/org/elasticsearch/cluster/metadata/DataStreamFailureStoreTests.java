@@ -18,7 +18,7 @@ public class DataStreamFailureStoreTests extends AbstractXContentSerializingTest
 
     @Override
     protected Writeable.Reader<DataStreamFailureStore> instanceReader() {
-        return DataStreamFailureStore::read;
+        return DataStreamFailureStore::new;
     }
 
     @Override

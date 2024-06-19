@@ -18,7 +18,7 @@ public class DataStreamOptionsTests extends AbstractXContentSerializingTestCase<
 
     @Override
     protected Writeable.Reader<DataStreamOptions> instanceReader() {
-        return DataStreamOptions::read;
+        return DataStreamOptions::new;
     }
 
     @Override

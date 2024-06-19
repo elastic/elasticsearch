@@ -4820,7 +4820,8 @@ public class IndexShardTests extends IndexShardTestCase {
                 config.getLeafSorter(),
                 config.getRelativeTimeInNanosSupplier(),
                 config.getIndexCommitListener(),
-                config.isPromotableToPrimary()
+                config.isPromotableToPrimary(),
+                config.getMapperService()
             );
             return new InternalEngine(configWithWarmer);
         });

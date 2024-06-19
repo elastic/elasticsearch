@@ -1,0 +1,5 @@
+pr: 109906
+summary: Add searchable snapshots details to `GET _cat/indices`
+area: Snapshot/Restore
+type: enhancement
+issues: []

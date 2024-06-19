@@ -12,18 +12,17 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.rank.RankBuilder;
 import org.elasticsearch.xcontent.ParseField;
-import org.elasticsearch.xpack.core.XPackField;
 
 import java.util.List;
 
 public class TextSimilarityRankPlugin extends Plugin implements SearchPlugin {
 
-    public static final String NAME = "text_similarity_rank";
+    public static final String NAME = "text_similarity_reranker";
 
     @Override
     public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
         return List.of(
-            new NamedWriteableRegistry.Entry(RankBuilder.class, XPackField.TEXT_SIMILARITY_RERANKER, TextSimilarityRankBuilder::new)
+            new NamedWriteableRegistry.Entry(RankBuilder.class, NAME, TextSimilarityRankBuilder::new)
         );
     }
 
@@ -35,7 +34,7 @@ public class TextSimilarityRankPlugin extends Plugin implements SearchPlugin {
     @Override
     public List<RetrieverSpec<?>> getRetrievers() {
         return List.of(
-            new RetrieverSpec<>(new ParseField(XPackField.TEXT_SIMILARITY_RERANKER), TextSimilarityRankRetrieverBuilder::fromXContent)
+            new RetrieverSpec<>(new ParseField(NAME), TextSimilarityRankRetrieverBuilder::fromXContent)
         );
     }
 }

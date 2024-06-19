@@ -60,11 +60,6 @@ public final class RRFRetrieverBuilder extends RetrieverBuilder {
         RetrieverBuilder.declareBaseParserFields(NAME, PARSER);
     }
 
-    // - new plugin
-    // - feature support check
-    // - licence check
-    // - REST tests
-    // - explain
     public static RRFRetrieverBuilder fromXContent(XContentParser parser, RetrieverParserContext context) throws IOException {
         if (context.clusterSupportsFeature(RRF_RETRIEVER_SUPPORTED) == false) {
             throw new ParsingException(parser.getTokenLocation(), "unknown retriever [" + NAME + "]");

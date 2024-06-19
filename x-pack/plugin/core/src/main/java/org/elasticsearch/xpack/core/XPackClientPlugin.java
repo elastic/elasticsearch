@@ -402,5 +402,4 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, SearchPlu
             )
         );
     }
-
 }

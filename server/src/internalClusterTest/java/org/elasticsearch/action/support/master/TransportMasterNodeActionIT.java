@@ -12,6 +12,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.health.TransportClusterHealthAction;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateApplier;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.coordination.PublicationTransportHandler;
 import org.elasticsearch.cluster.coordination.StatefulPreVoteCollector;
@@ -24,7 +25,9 @@ import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -43,36 +46,13 @@ public class TransportMasterNodeActionIT extends ESIntegTestCase {
     public void testRoutingLoopProtection() {
 
         final var newMaster = internalCluster().startMasterOnlyNode();
-        final var stateApplierBarrier = new CyclicBarrier(2);
+        final var cleanupTasks = new ArrayList<Runnable>();
 
         try {
-            /*
-             * Ensure that we've got 5 voting nodes in the cluster, this means even if the original
-             * master manages to accept its own failed state update before standing down, we can still
-             * establish a quorum without its (or our own) join.
-             */
-            final var enoughVotingMastersLatch = new CountDownLatch(1);
-            internalCluster().getInstance(ClusterService.class, newMaster).addStateApplier(event -> {
-                if (5 <= event.state().coordinationMetadata().getLastCommittedConfiguration().getNodeIds().size()) {
-                    enoughVotingMastersLatch.countDown();
-                }
-            });
-            internalCluster().startMasterOnlyNode();
-            internalCluster().startMasterOnlyNode();
-            internalCluster().startMasterOnlyNode();
-            safeAwait(enoughVotingMastersLatch);
+            createClusterOfSufficientSize(newMaster, cleanupTasks);
             long originalTerm = internalCluster().masterClient().admin().cluster().prepareState().get().getState().term();
 
-            // Configure a latch that will be released when the existing master knows of the new master's election
-            final String originalMasterName = internalCluster().getMasterName();
-            logger.info("Original master was {}, new master will be {}", originalMasterName, newMaster);
-            final var previousMasterKnowsNewMasterIsElectedLatch = new CountDownLatch(1);
-            internalCluster().getInstance(ClusterService.class, originalMasterName).addStateApplier(event -> {
-                DiscoveryNode masterNode = event.state().nodes().getMasterNode();
-                if (masterNode != null && masterNode.getName().equals(newMaster)) {
-                    previousMasterKnowsNewMasterIsElectedLatch.countDown();
-                }
-            });
+            final var previousMasterKnowsNewMasterIsElectedLatch = configureElectionLatch(newMaster, cleanupTasks);
 
             for (final var transportService : internalCluster().getInstances(TransportService.class)) {
                 if (transportService.getLocalNode().getName().equals(newMaster)) {
@@ -124,6 +104,7 @@ public class TransportMasterNodeActionIT extends ESIntegTestCase {
              * Block cluster state applier on newMaster to delay clearing of old master, and identifying self as
              * new master
              */
+            final var stateApplierBarrier = new CyclicBarrier(2);
             internalCluster().getInstance(ClusterService.class, newMaster).getClusterApplierService().onNewClusterState("test", () -> {
                 // Meet to signify application is blocked
                 safeAwait(stateApplierBarrier);
@@ -131,6 +112,7 @@ public class TransportMasterNodeActionIT extends ESIntegTestCase {
                 safeAwait(stateApplierBarrier);
                 return null;
             }, ActionListener.noop());
+            cleanupTasks.add(stateApplierBarrier::reset);
 
             // Wait until state application is blocked
             safeAwait(stateApplierBarrier);
@@ -166,11 +148,58 @@ public class TransportMasterNodeActionIT extends ESIntegTestCase {
 
             safeGet(stateFuture);
         } finally {
-            // Unblock applier loop if it was left blocked
-            stateApplierBarrier.reset();
+            // Run cleanup tasks
+            cleanupTasks.forEach(Runnable::run);
             for (final var transportService : internalCluster().getInstances(TransportService.class)) {
                 asInstanceOf(MockTransportService.class, transportService).clearAllRules();
             }
         }
+    }
+
+    /**
+     * Configure a latch that will be released when the existing master knows of the new master's election
+     *
+     * @param newMaster The name of the newMaster node
+     * @param cleanupTasks The list of cleanup tasks
+     * @return A latch that will be released when the old master acknowledges the new master's election
+     */
+    private CountDownLatch configureElectionLatch(String newMaster, List<Runnable> cleanupTasks) {
+        final String originalMasterName = internalCluster().getMasterName();
+        logger.info("Original master was {}, new master will be {}", originalMasterName, newMaster);
+        final var previousMasterKnowsNewMasterIsElectedLatch = new CountDownLatch(1);
+        ClusterStateApplier newMasterMonitor = event -> {
+            DiscoveryNode masterNode = event.state().nodes().getMasterNode();
+            if (masterNode != null && masterNode.getName().equals(newMaster)) {
+                previousMasterKnowsNewMasterIsElectedLatch.countDown();
+            }
+        };
+        ClusterService originalMasterClusterService = internalCluster().getInstance(ClusterService.class, originalMasterName);
+        originalMasterClusterService.addStateApplier(newMasterMonitor);
+        cleanupTasks.add(() -> originalMasterClusterService.removeApplier(newMasterMonitor));
+        return previousMasterKnowsNewMasterIsElectedLatch;
+    }
+
+    /**
+     * Ensure that we've got 5 voting nodes in the cluster, this means even if the original
+     * master accepts its own failed state update before standing down, we can still
+     * establish a quorum without its (or our own) join.
+     *
+     * @param newMaster The name of the newMaster node
+     * @param cleanupTasks The list of clean up tasks
+     */
+    private static void createClusterOfSufficientSize(String newMaster, ArrayList<Runnable> cleanupTasks) {
+        final var enoughVotingMastersLatch = new CountDownLatch(1);
+        ClusterStateApplier clusterFormationMonitor = event -> {
+            if (5 <= event.state().coordinationMetadata().getLastCommittedConfiguration().getNodeIds().size()) {
+                enoughVotingMastersLatch.countDown();
+            }
+        };
+        ClusterService newMasterClusterService = internalCluster().getInstance(ClusterService.class, newMaster);
+        newMasterClusterService.addStateApplier(clusterFormationMonitor);
+        cleanupTasks.add(() -> newMasterClusterService.removeApplier(clusterFormationMonitor));
+        internalCluster().startMasterOnlyNode();
+        internalCluster().startMasterOnlyNode();
+        internalCluster().startMasterOnlyNode();
+        safeAwait(enoughVotingMastersLatch);
     }
 }

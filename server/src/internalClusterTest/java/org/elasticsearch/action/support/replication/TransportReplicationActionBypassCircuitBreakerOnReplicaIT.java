@@ -39,6 +39,7 @@ import java.util.Collections;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Set;
+import java.util.function.BiFunction;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 
@@ -133,6 +134,21 @@ public class TransportReplicationActionBypassCircuitBreakerOnReplicaIT extends E
         }
     }
 
+    private enum PrimaryOrReplica implements BiFunction<String, String, String> {
+        PRIMARY {
+            @Override
+            public String apply(String primaryName, String replicaName) {
+                return primaryName;
+            }
+        },
+        REPLICA {
+            @Override
+            public String apply(String primaryName, String replicaName) {
+                return replicaName;
+            }
+        }
+    }
+
     public void testActionCompletesWhenReplicaCircuitBreakersAreAtCapacity() {
         maxOutCircuitBreakersAndExecuteAction(PrimaryOrReplica.REPLICA);
     }
@@ -148,7 +164,7 @@ public class TransportReplicationActionBypassCircuitBreakerOnReplicaIT extends E
         );
     }
 
-    private <T extends Throwable> boolean hasCauseOfType(Class<T> exceptionType, Throwable throwable) {
+    private static <T extends Throwable> boolean hasCauseOfType(Class<T> exceptionType, Throwable throwable) {
         Set<Throwable> seen = Collections.newSetFromMap(new IdentityHashMap<>());
         seen.add(throwable);
         Throwable t = throwable;
@@ -162,11 +178,6 @@ public class TransportReplicationActionBypassCircuitBreakerOnReplicaIT extends E
             seen.add(t);
         }
         return false;
-    }
-
-    private enum PrimaryOrReplica {
-        PRIMARY,
-        REPLICA
     }
 
     private void maxOutCircuitBreakersAndExecuteAction(PrimaryOrReplica nodeToMaxOutCircuitBreakers) {
@@ -185,11 +196,16 @@ public class TransportReplicationActionBypassCircuitBreakerOnReplicaIT extends E
         String coordinator = internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
         ensureGreen("test");
 
-        // Consume all capacity in a circuit breaker on the replica
-        final var circuitBreaker = internalCluster().getInstance(
-            CircuitBreakerService.class,
-            nodeToMaxOutCircuitBreakers == PrimaryOrReplica.PRIMARY ? primary : replica
-        ).getBreaker(CircuitBreaker.IN_FLIGHT_REQUESTS);
+        maxOutCircuitBreakersOnNode(nodeToMaxOutCircuitBreakers.apply(primary, replica));
+
+        PlainActionFuture<Response> testActionResult = new PlainActionFuture<>();
+        client(coordinator).execute(TestAction.TYPE, new Request(new ShardId(resolveIndex("test"), 0)), testActionResult);
+        safeGet(testActionResult);
+    }
+
+    private static void maxOutCircuitBreakersOnNode(String targetNode) {
+        final var circuitBreaker = internalCluster().getInstance(CircuitBreakerService.class, targetNode)
+            .getBreaker(CircuitBreaker.IN_FLIGHT_REQUESTS);
         long allocationSize = 1;
         while (true) {
             try {
@@ -201,9 +217,5 @@ public class TransportReplicationActionBypassCircuitBreakerOnReplicaIT extends E
             allocationSize <<= 1;
             assert 0 <= allocationSize;
         }
-
-        PlainActionFuture<Response> testActionResult = new PlainActionFuture<>();
-        client(coordinator).execute(TestAction.TYPE, new Request(new ShardId(resolveIndex("test"), 0)), testActionResult);
-        safeGet(testActionResult);
     }
 }

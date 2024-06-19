@@ -38,9 +38,6 @@ public class ConnectorSyncJobStateMachineTests extends ESTestCase {
 
     public void testNoValidTransitionsFromCompleted() {
         for (ConnectorSyncStatus state : ConnectorSyncStatus.values()) {
-            if (state.equals(ConnectorSyncStatus.COMPLETED)) {
-                continue;
-            }
             assertFalse(ConnectorSyncJobStateMachine.isValidTransition(ConnectorSyncStatus.COMPLETED, state));
         }
     }
@@ -71,18 +68,12 @@ public class ConnectorSyncJobStateMachineTests extends ESTestCase {
 
     public void testNoValidTransitionsFromCanceled() {
         for (ConnectorSyncStatus state : ConnectorSyncStatus.values()) {
-            if (state.equals(ConnectorSyncStatus.CANCELED)) {
-                continue;
-            }
             assertFalse(ConnectorSyncJobStateMachine.isValidTransition(ConnectorSyncStatus.CANCELED, state));
         }
     }
 
     public void testNoValidTransitionsFromError() {
         for (ConnectorSyncStatus state : ConnectorSyncStatus.values()) {
-            if (state.equals(ConnectorSyncStatus.ERROR)) {
-                continue;
-            }
             assertFalse(ConnectorSyncJobStateMachine.isValidTransition(ConnectorSyncStatus.ERROR, state));
         }
     }

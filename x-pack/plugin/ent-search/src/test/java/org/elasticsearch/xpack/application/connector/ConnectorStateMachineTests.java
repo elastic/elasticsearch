@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.application.connector;
 
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.List;
+
 public class ConnectorStateMachineTests extends ESTestCase {
 
     public void testValidTransitionFromCreated() {
@@ -17,6 +19,7 @@ public class ConnectorStateMachineTests extends ESTestCase {
     }
 
     public void testInvalidTransitionFromCreated() {
+        assertFalse(ConnectorStateMachine.isValidTransition(ConnectorStatus.CREATED, ConnectorStatus.CREATED));
         assertFalse(ConnectorStateMachine.isValidTransition(ConnectorStatus.CREATED, ConnectorStatus.CONFIGURED));
         assertFalse(ConnectorStateMachine.isValidTransition(ConnectorStatus.CREATED, ConnectorStatus.CONNECTED));
     }
@@ -28,6 +31,7 @@ public class ConnectorStateMachineTests extends ESTestCase {
     public void testInvalidTransitionFromNeedsConfiguration() {
         assertFalse(ConnectorStateMachine.isValidTransition(ConnectorStatus.NEEDS_CONFIGURATION, ConnectorStatus.CREATED));
         assertFalse(ConnectorStateMachine.isValidTransition(ConnectorStatus.NEEDS_CONFIGURATION, ConnectorStatus.CONNECTED));
+        assertFalse(ConnectorStateMachine.isValidTransition(ConnectorStatus.NEEDS_CONFIGURATION, ConnectorStatus.NEEDS_CONFIGURATION));
     }
 
     public void testValidTransitionFromConfigured() {
@@ -62,7 +66,6 @@ public class ConnectorStateMachineTests extends ESTestCase {
         assertFalse(ConnectorStateMachine.isValidTransition(ConnectorStatus.ERROR, ConnectorStatus.CREATED));
         assertFalse(ConnectorStateMachine.isValidTransition(ConnectorStatus.ERROR, ConnectorStatus.NEEDS_CONFIGURATION));
     }
-
 
     public void testAssertValidStateTransition_ExpectExceptionOnInvalidTransition() {
         assertThrows(

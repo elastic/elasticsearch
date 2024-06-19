@@ -74,7 +74,7 @@ public class AdaptiveAllocationsScalerService implements ClusterStateListener {
     private final boolean isNlpEnabled;
 
     private final Map<String, Stats> lastInferenceStatsByDeploymentNode;
-    private final Map<String, AdaptiveAllocationsScaler> autoscalers;
+    private final Map<String, AdaptiveAllocationsScaler> scalers;
 
     private volatile Scheduler.Cancellable cancellable;
 
@@ -91,13 +91,13 @@ public class AdaptiveAllocationsScalerService implements ClusterStateListener {
         this.timeIntervalSeconds = timeIntervalSeconds;
 
         lastInferenceStatsByDeploymentNode = new HashMap<>();
-        autoscalers = new HashMap<>();
+        scalers = new HashMap<>();
     }
 
     public synchronized void start() {
         updateAutoscalers(clusterService.state());
         clusterService.addListener(this);
-        if (autoscalers.isEmpty() == false) {
+        if (scalers.isEmpty() == false) {
             startScheduling();
         }
     }
@@ -109,7 +109,7 @@ public class AdaptiveAllocationsScalerService implements ClusterStateListener {
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
         updateAutoscalers(event.state());
-        if (autoscalers.isEmpty() == false) {
+        if (scalers.isEmpty() == false) {
             startScheduling();
         } else {
             stopScheduling();
@@ -124,7 +124,7 @@ public class AdaptiveAllocationsScalerService implements ClusterStateListener {
         TrainedModelAssignmentMetadata assignments = TrainedModelAssignmentMetadata.fromState(state);
         for (TrainedModelAssignment assignment : assignments.allAssignments().values()) {
             if (assignment.getAdaptiveAllocationsSettings() != null && assignment.getAdaptiveAllocationsSettings().getEnabled()) {
-                AdaptiveAllocationsScaler adaptiveAllocationsScaler = autoscalers.computeIfAbsent(
+                AdaptiveAllocationsScaler adaptiveAllocationsScaler = scalers.computeIfAbsent(
                     assignment.getDeploymentId(),
                     key -> new AdaptiveAllocationsScaler(assignment.getDeploymentId(), assignment.totalTargetAllocations())
                 );
@@ -133,7 +133,7 @@ public class AdaptiveAllocationsScalerService implements ClusterStateListener {
                     assignment.getAdaptiveAllocationsSettings().getMaxNumberOfAllocations()
                 );
             } else {
-                autoscalers.remove(assignment.getDeploymentId());
+                scalers.remove(assignment.getDeploymentId());
             }
         }
     }
@@ -168,7 +168,7 @@ public class AdaptiveAllocationsScalerService implements ClusterStateListener {
     }
 
     private synchronized void getDeploymentStats(ActionListener<GetDeploymentStatsAction.Response> processDeploymentStats) {
-        String deploymentIds = String.join(",", autoscalers.keySet());
+        String deploymentIds = String.join(",", scalers.keySet());
         ClientHelper.executeAsyncWithOrigin(
             client,
             ClientHelper.ML_ORIGIN,
@@ -206,7 +206,7 @@ public class AdaptiveAllocationsScalerService implements ClusterStateListener {
         for (Map.Entry<String, Stats> deploymentAndStats : recentStatsByDeployment.entrySet()) {
             String deploymentId = deploymentAndStats.getKey();
             Stats stats = deploymentAndStats.getValue();
-            AdaptiveAllocationsScaler adaptiveAllocationsScaler = autoscalers.get(deploymentId);
+            AdaptiveAllocationsScaler adaptiveAllocationsScaler = scalers.get(deploymentId);
             adaptiveAllocationsScaler.process(stats, timeIntervalSeconds, numberOfAllocations.get(deploymentId));
             Integer newNumberOfAllocations = adaptiveAllocationsScaler.scale();
             if (newNumberOfAllocations != null) {

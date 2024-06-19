@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.plugins.loading;
+package org.elasticsearch.plugins;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -28,11 +28,6 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.jdk.JarHell;
 import org.elasticsearch.jdk.ModuleQualifiedExportsService;
 import org.elasticsearch.node.ReportingService;
-import org.elasticsearch.plugins.ExtensiblePlugin;
-import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.plugins.PluginApiInfo;
-import org.elasticsearch.plugins.PluginDescriptor;
-import org.elasticsearch.plugins.PluginRuntimeInfo;
 import org.elasticsearch.plugins.scanners.StablePluginsRegistry;
 import org.elasticsearch.plugins.spi.SPIClassIterator;
 

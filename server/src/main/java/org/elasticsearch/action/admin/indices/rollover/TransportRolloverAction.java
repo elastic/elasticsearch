@@ -335,7 +335,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                         rolloverAutoSharding,
                         delegate
                     );
-                    submitRolloverTask(rolloverRequest, source, rolloverTask);
+                    rolloverTaskQueue.submitTask(source, rolloverTask, rolloverRequest.masterNodeTimeout());
                 } else {
                     // conditions not met
                     delegate.onResponse(trialRolloverResponse);
@@ -375,10 +375,6 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
 
         String source = "initialize_failure_store with index [" + trialRolloverIndexName + "]";
         RolloverTask rolloverTask = new RolloverTask(rolloverRequest, null, trialRolloverResponse, null, listener);
-        submitRolloverTask(rolloverRequest, source, rolloverTask);
-    }
-
-    void submitRolloverTask(RolloverRequest rolloverRequest, String source, RolloverTask rolloverTask) {
         rolloverTaskQueue.submitTask(source, rolloverTask, rolloverRequest.masterNodeTimeout());
     }
 

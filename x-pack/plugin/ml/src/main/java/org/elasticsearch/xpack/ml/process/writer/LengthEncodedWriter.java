@@ -41,18 +41,19 @@ public class LengthEncodedWriter implements RecordWriter {
      * This object will never close <code>os</code>.
      */
     public LengthEncodedWriter(OutputStream os) {
-        outputStream = os;
-        // This will be used to convert 32 bit integers to network byte order
-        lengthBuffer = ByteBuffer.allocate(4); // 4 == sizeof(int)
-        fileOutputStream = null;
+        this(os, null);
     }
 
     public LengthEncodedWriter(OutputStream os, String filePath) {
         outputStream = os;
         try {
-            Path file = Path.of(filePath);
-            logger.debug("Opening file: " + filePath + " for writing.");
-            fileOutputStream = Files.newOutputStream(file);
+            if (filePath != null) {
+                Path file = Path.of(filePath);
+                logger.info("Opening file: " + filePath + " for writing.");
+                fileOutputStream = Files.newOutputStream(file);
+            } else {
+                fileOutputStream = null;
+            }
         } catch (IOException e) {
             logger.error("Failed to open file: " + filePath + " for writing.", e.getMessage(), e);
             fileOutputStream = null;

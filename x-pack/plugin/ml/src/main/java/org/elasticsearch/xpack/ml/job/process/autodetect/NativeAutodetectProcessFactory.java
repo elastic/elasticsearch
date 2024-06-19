@@ -83,8 +83,6 @@ public class NativeAutodetectProcessFactory implements AutodetectProcessFactory 
         ExecutorService executorService,
         Consumer<String> onProcessCrash
     ) {
-        boolean keepJobData = job.getCustomSettings().containsKey("keep_job_data")
-            && job.getCustomSettings().get("keep_job_data").equals("true");
         List<Path> filesToDelete = new ArrayList<>();
         ProcessPipes processPipes = new ProcessPipes(
             env,
@@ -114,7 +112,7 @@ public class NativeAutodetectProcessFactory implements AutodetectProcessFactory 
             nativeController,
             processPipes,
             numberOfFields,
-            (keepJobData == false) ? filesToDelete : new ArrayList<>(),
+            (job.keepJobData() == false) ? filesToDelete : new ArrayList<>(),
             resultsParser,
             onProcessCrash
         );
@@ -123,7 +121,7 @@ public class NativeAutodetectProcessFactory implements AutodetectProcessFactory 
             // check if jobs'custom settings contain the setting 'keep_job_data'
             // and if it is set to true, then we create the autodetect controll message file
             // TODO Valeriy: store "keep_job_data" into a constant
-            if (keepJobData == true) {
+            if (job.keepJobData()) {
                 FileUtils.recreateTempDirectoryIfNeeded(env.tmpFile());
                 Path controlMsgFile = Files.createTempFile(env.tmpFile(), "autodetect_control_msg", ".json");
                 autodetect.setControlMessageFilePath(controlMsgFile.toString());

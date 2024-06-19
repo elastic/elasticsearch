@@ -161,11 +161,10 @@ public class AutodetectBuilder {
         processPipes.addArgs(command);
 
         // log the command
-        if (job.getCustomSettings().containsKey("keep_job_data") && job.getCustomSettings().get("keep_job_data").equals("true")) {
+        if (job.keepJobData()) {
             // log the command to reproduce the autodetect run
             logger.info("Autodetect process command: " + command);
         }
-        logger.info("Starting autodetect process with command: " + command);
         controller.startProcess(command);
     }
 

@@ -20,6 +20,7 @@ import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.SortOrder;
 
 import java.util.Arrays;
+import java.util.stream.IntStream;
 
 /**
  * Aggregates the top N $type$ values per bucket.
@@ -160,6 +161,16 @@ public class $Type$BucketedSort implements Releasable {
      * Creates a block with the values from the {@code selected} groups.
      */
     public Block toBlock(BlockFactory blockFactory, IntVector selected) {
+        // Check if the selected groups are all empty, to avoid allocating extra memory
+        if (IntStream.range(0, selected.getPositionCount()).map(selected::getInt).noneMatch(bucket -> {
+            var bounds = this.getBucketValuesIndexes(bucket);
+            var size = bounds.v2() - bounds.v1();
+
+            return size > 0;
+        })) {
+            return blockFactory.newConstantNullBlock(selected.getPositionCount());
+        }
+
         // Used to sort the values in the bucket.
         var bucketValues = new $type$[bucketSize];
 

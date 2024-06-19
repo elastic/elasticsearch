@@ -15,6 +15,7 @@ import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
@@ -197,6 +198,7 @@ public abstract class AggregatorFunctionTestCase extends ForkingOperatorTestCase
      * return other sorts of results.
      */
     protected void assertOutputFromEmpty(Block b) {
+        assertThat(b.elementType(), equalTo(ElementType.NULL));
         assertThat(b.getPositionCount(), equalTo(1));
         assertThat(b.areAllValuesNull(), equalTo(true));
         assertThat(b.isNull(0), equalTo(true));

@@ -276,6 +276,7 @@ public interface Block extends Accountable, BlockLoader.Block, NamedWriteable, R
         return List.of(
             IntBlock.ENTRY,
             LongBlock.ENTRY,
+            FloatBlock.ENTRY,
             DoubleBlock.ENTRY,
             BytesRefBlock.ENTRY,
             BooleanBlock.ENTRY,

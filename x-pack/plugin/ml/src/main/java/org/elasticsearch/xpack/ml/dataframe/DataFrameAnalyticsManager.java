@@ -306,7 +306,8 @@ public class DataFrameAnalyticsManager {
                     config,
                     extractedFields,
                     task.getStatsHolder().getProgressTracker(),
-                    task.getStatsHolder().getDataCountsTracker()
+                    task.getStatsHolder().getDataCountsTracker(),
+                    threadPool
                 );
                 InferenceStep inferenceStep = new InferenceStep(client, task, auditor, config, threadPool, inferenceRunner);
                 delegate.onResponse(inferenceStep);

@@ -48,4 +48,15 @@ public class DeleteSnapshotRequestBuilder extends MasterNodeOperationRequestBuil
         request.snapshots(snapshots);
         return this;
     }
+
+    /**
+     * Sets whether to wait for completion
+     *
+     * @param waitForCompletion true to wait for completion, false otherwise
+     * @return this builder
+     */
+    public DeleteSnapshotRequestBuilder setWaitForCompletion(boolean waitForCompletion) {
+        request.waitForCompletion(waitForCompletion);
+        return this;
+    }
 }

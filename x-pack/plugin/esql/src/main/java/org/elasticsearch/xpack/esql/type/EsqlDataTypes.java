@@ -6,17 +6,14 @@
  */
 package org.elasticsearch.xpack.esql.type;
 
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 
 import java.util.Collections;
 import java.util.Locale;
 import java.util.Map;
-import java.util.function.Function;
 
 import static java.util.stream.Collectors.toMap;
 import static java.util.stream.Collectors.toUnmodifiableMap;
-import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
 import static org.elasticsearch.xpack.esql.core.type.DataType.BYTE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_PERIOD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
@@ -52,15 +49,6 @@ public final class EsqlDataTypes {
         ES_TO_TYPE = Collections.unmodifiableMap(map);
     }
 
-    private static final Map<String, DataType> NAME_OR_ALIAS_TO_TYPE;
-    static {
-        Map<String, DataType> map = DataType.types().stream().collect(toMap(DataType::typeName, Function.identity()));
-        map.put("bool", BOOLEAN);
-        map.put("int", INTEGER);
-        map.put("string", KEYWORD);
-        NAME_OR_ALIAS_TO_TYPE = Collections.unmodifiableMap(map);
-    }
-
     private EsqlDataTypes() {}
 
     public static DataType fromTypeName(String name) {
@@ -70,37 +58,6 @@ public final class EsqlDataTypes {
     public static DataType fromName(String name) {
         DataType type = ES_TO_TYPE.get(name);
         return type != null ? type : UNSUPPORTED;
-    }
-
-    public static DataType fromNameOrAlias(String typeName) {
-        DataType type = NAME_OR_ALIAS_TO_TYPE.get(typeName.toLowerCase(Locale.ROOT));
-        return type != null ? type : UNSUPPORTED;
-    }
-
-    public static DataType fromJava(Object value) {
-        if (value == null) {
-            return NULL;
-        }
-        if (value instanceof Boolean) {
-            return BOOLEAN;
-        }
-        if (value instanceof Integer) {
-            return INTEGER;
-        }
-        if (value instanceof Long) {
-            return LONG;
-        }
-        if (value instanceof Double) {
-            return DOUBLE;
-        }
-        if (value instanceof Float) {
-            return FLOAT;
-        }
-        if (value instanceof String || value instanceof Character || value instanceof BytesRef) {
-            return KEYWORD;
-        }
-
-        return null;
     }
 
     public static boolean isUnsupported(DataType type) {

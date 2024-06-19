@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.esql.core.type;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
@@ -18,6 +19,8 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Stream;
 
 import static java.util.stream.Collectors.toMap;
@@ -144,6 +147,15 @@ public enum DataType {
         ES_TO_TYPE = Collections.unmodifiableMap(map);
     }
 
+    private static final Map<String, DataType> NAME_OR_ALIAS_TO_TYPE;
+    static {
+        Map<String, DataType> map = DataType.types().stream().collect(toMap(DataType::typeName, Function.identity()));
+        map.put("bool", BOOLEAN);
+        map.put("int", INTEGER);
+        map.put("string", KEYWORD);
+        NAME_OR_ALIAS_TO_TYPE = Collections.unmodifiableMap(map);
+    }
+
     public static Collection<DataType> types() {
         return TYPES;
     }
@@ -188,7 +200,7 @@ public enum DataType {
         if (value instanceof ZonedDateTime) {
             return DATETIME;
         }
-        if (value instanceof String || value instanceof Character) {
+        if (value instanceof String || value instanceof Character || value instanceof BytesRef) {
             return KEYWORD;
         }
 
@@ -281,5 +293,14 @@ public enum DataType {
             throw new IOException("Unknown DataType for type name: " + name);
         }
         return dataType;
+    }
+
+    public static Set<String> namesAndAliases() {
+        return NAME_OR_ALIAS_TO_TYPE.keySet();
+    }
+
+    public static DataType fromNameOrAlias(String typeName) {
+        DataType type = NAME_OR_ALIAS_TO_TYPE.get(typeName.toLowerCase(Locale.ROOT));
+        return type != null ? type : UNSUPPORTED;
     }
 }

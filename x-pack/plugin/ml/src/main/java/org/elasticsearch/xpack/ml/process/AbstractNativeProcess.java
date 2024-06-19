@@ -61,7 +61,7 @@ public abstract class AbstractNativeProcess implements NativeProcess {
     private volatile boolean processCloseInitiated;
     private volatile boolean processKilled;
     private volatile boolean isReady;
-    private final String controlMessageFilePath;
+    private volatile String controlMessageFilePath;
 
     protected AbstractNativeProcess(
         String jobId,

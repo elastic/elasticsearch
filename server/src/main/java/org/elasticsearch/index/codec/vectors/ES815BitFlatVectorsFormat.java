@@ -24,7 +24,7 @@ import org.apache.lucene.util.quantization.RandomAccessQuantizedByteVectorValues
 
 import java.io.IOException;
 
-import static org.apache.lucene.util.BitUtil.VH_NATIVE_LONG;
+import static org.elasticsearch.script.VectorScoreScriptUtils.andBitCount;
 
 class ES815BitFlatVectorsFormat extends FlatVectorsFormat {
 
@@ -93,23 +93,6 @@ class ES815BitFlatVectorsFormat extends FlatVectorsFormat {
             float[] floats
         ) throws IOException {
             throw new IllegalArgumentException("Unsupported vector type");
-        }
-    }
-
-    static int andBitCount(byte[] a, byte[] b) {
-        if (a.length != b.length) {
-            throw new IllegalArgumentException("vector dimensions differ: " + a.length + "!=" + b.length);
-        } else {
-            int distance = 0;
-            int i = 0;
-            for (int upperBound = a.length & -8; i < upperBound; i += 8) {
-                distance += Long.bitCount((long) VH_NATIVE_LONG.get(a, i) & (long) VH_NATIVE_LONG.get(b, i));
-            }
-            while (i < a.length) {
-                distance += Integer.bitCount((a[i] & b[i]) & 255);
-                ++i;
-            }
-            return distance;
         }
     }
 

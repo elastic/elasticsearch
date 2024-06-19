@@ -122,7 +122,7 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
         Query filterQuery = booleanQuery.clauses().isEmpty() ? null : booleanQuery;
         // The field should always be resolved to the concrete field
         Query knnVectorQueryBuilt = switch (elementType()) {
-            case BYTE -> new ESKnnByteVectorQuery(
+            case BYTE, BIT -> new ESKnnByteVectorQuery(
                 VECTOR_FIELD,
                 queryBuilder.queryVector().asByteVector(),
                 queryBuilder.numCands(),

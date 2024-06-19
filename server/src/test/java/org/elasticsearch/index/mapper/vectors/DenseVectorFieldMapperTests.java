@@ -1020,6 +1020,7 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
                 }
                 yield floats;
             }
+            case BIT -> randomByteArrayOfLength(vectorFieldType.getVectorDimensions() / 8);
         };
     }
 

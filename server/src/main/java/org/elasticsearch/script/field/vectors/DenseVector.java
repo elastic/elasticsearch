@@ -73,6 +73,24 @@ public interface DenseVector {
         throw new IllegalArgumentException(badQueryVectorType(queryVector));
     }
 
+    int andBitCount(byte[] queryVector);
+
+    int andBitCount(List<Number> queryVector);
+
+    @SuppressWarnings("unchecked")
+    default int andBitCount(Object queryVector) {
+        if (queryVector instanceof List<?> list) {
+            checkDimensions(getDims(), list.size());
+            return andBitCount((List<Number>) list);
+        }
+        if (queryVector instanceof byte[] bytes) {
+            checkDimensions(getDims(), bytes.length);
+            return andBitCount(bytes);
+        }
+
+        throw new IllegalArgumentException(badQueryVectorType(queryVector));
+    }
+
     int hamming(byte[] queryVector);
 
     int hamming(List<Number> queryVector);
@@ -245,6 +263,16 @@ public interface DenseVector {
 
         @Override
         public double l1Norm(List<Number> queryVector) {
+            throw new IllegalArgumentException(MISSING_VECTOR_FIELD_MESSAGE);
+        }
+
+        @Override
+        public int andBitCount(byte[] queryVector) {
+            throw new IllegalArgumentException(MISSING_VECTOR_FIELD_MESSAGE);
+        }
+
+        @Override
+        public int andBitCount(List<Number> queryVector) {
             throw new IllegalArgumentException(MISSING_VECTOR_FIELD_MESSAGE);
         }
 

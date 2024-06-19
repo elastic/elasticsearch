@@ -47,12 +47,7 @@ public class MultiTypeEsField extends EsField {
 
     public MultiTypeEsField(StreamInput in) throws IOException {
         // TODO: Change the conversion expression serialization to i.readNamedWriteable(Expression.class) once Expression is fully supported
-        this(
-            in.readString(),
-            DataType.readFrom(in),
-            in.readBoolean(),
-            in.readImmutableMap(StreamInput::readString, i -> ((PlanStreamInput) i).readExpression())
-        );
+        this(in.readString(), DataType.readFrom(in), in.readBoolean(), in.readImmutableMap(i -> ((PlanStreamInput) i).readExpression()));
     }
 
     @Override

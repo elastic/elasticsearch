@@ -190,12 +190,7 @@ public class ReplicationOperation<
                 // We update the checkpoints since a refresh might fail but the operations could be safely persisted, in the case that the
                 // fsync failed the local checkpoint won't advance and the engine will be marked as failed when the next indexing operation
                 // is appended into the translog.
-                updateCheckPoints(
-                    primary.routingEntry(),
-                    primary::localCheckpoint,
-                    primary::globalCheckpoint,
-                    () -> finishAsFailed(e)
-                );
+                updateCheckPoints(primary.routingEntry(), primary::localCheckpoint, primary::globalCheckpoint, () -> finishAsFailed(e));
             }
         });
     }

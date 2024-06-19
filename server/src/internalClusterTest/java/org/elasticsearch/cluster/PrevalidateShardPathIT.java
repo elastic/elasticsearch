@@ -42,7 +42,7 @@ public class PrevalidateShardPathIT extends ESIntegTestCase {
 
     @TestLogging(
         value = "org.elasticsearch.cluster.service.MasterService:DEBUG",
-        reason = "https://github.com/elastic/elasticsearch-serverless/pull/2068"
+        reason = "https://github.com/elastic/elasticsearch/issues/104807"
     )
     public void testCheckShards() throws Exception {
         internalCluster().startMasterOnlyNode();

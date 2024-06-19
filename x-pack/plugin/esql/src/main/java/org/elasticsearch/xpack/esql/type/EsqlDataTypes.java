@@ -16,12 +16,9 @@ import static java.util.stream.Collectors.toMap;
 import static java.util.stream.Collectors.toUnmodifiableMap;
 import static org.elasticsearch.xpack.esql.core.type.DataType.BYTE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_PERIOD;
-import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.FLOAT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.HALF_FLOAT;
-import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
-import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.NESTED;
 import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
 import static org.elasticsearch.xpack.esql.core.type.DataType.OBJECT;
@@ -126,7 +123,7 @@ public final class EsqlDataTypes {
             && t != SCALED_FLOAT
             && t != SOURCE
             && t != HALF_FLOAT
-            && isCounterType(t) == false;
+            && t.isCounter() == false;
     }
 
     public static boolean areCompatible(DataType left, DataType right) {
@@ -135,28 +132,5 @@ public final class EsqlDataTypes {
         } else {
             return (left == NULL || right == NULL) || (isString(left) && isString(right)) || (left.isNumeric() && right.isNumeric());
         }
-    }
-
-    public static DataType widenSmallNumericTypes(DataType type) {
-        if (type == BYTE || type == SHORT) {
-            return INTEGER;
-        }
-        if (type == HALF_FLOAT || type == FLOAT || type == SCALED_FLOAT) {
-            return DOUBLE;
-        }
-        return type;
-    }
-
-    public static DataType getCounterType(String typeName) {
-        final DataType rootType = widenSmallNumericTypes(fromName(typeName));
-        if (rootType == UNSUPPORTED) {
-            return rootType;
-        }
-        assert rootType == LONG || rootType == INTEGER || rootType == DOUBLE : rootType;
-        return fromTypeName("counter_" + rootType.typeName());
-    }
-
-    public static boolean isCounterType(DataType dt) {
-        return dt == DataType.COUNTER_LONG || dt == DataType.COUNTER_INTEGER || dt == DataType.COUNTER_DOUBLE;
     }
 }

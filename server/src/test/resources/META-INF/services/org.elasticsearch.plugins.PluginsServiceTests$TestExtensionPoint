@@ -6,5 +6,5 @@
 # Side Public License, v 1.
 #
 
-org.elasticsearch.plugins.PluginsServiceTests$TestExtension1
-org.elasticsearch.plugins.PluginsServiceTests$TestExtension2
+org.elasticsearch.plugins.loading.PluginsServiceTests$TestExtension1
+org.elasticsearch.plugins.loading.PluginsServiceTests$TestExtension2

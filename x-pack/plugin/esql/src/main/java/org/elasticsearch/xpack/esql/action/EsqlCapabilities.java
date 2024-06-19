@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.esql.plugin.EsqlFeatures;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 
 /**
@@ -22,82 +23,58 @@ import java.util.Set;
  * {@link RestNodesCapabilitiesAction} and we use them to enable tests.
  */
 public class EsqlCapabilities {
-    /**
-     * Support for function {@code CBRT}. Done in #108574.
-     */
-    private static final String FN_CBRT = "fn_cbrt";
+    public enum Cap {
+        // Support for function {@code CBRT}. Done in #108574.
+        FN_CBRT(false),
 
-    /**
-     * Support for {@code MV_APPEND} function. #107001
-     */
-    private static final String FN_MV_APPEND = "fn_mv_append";
+        // Support for {@code MV_APPEND} function. #107001
+        FN_MV_APPEND(false),
 
-    /**
-     * Support for function {@code IP_PREFIX}.
-     */
-    private static final String FN_IP_PREFIX = "fn_ip_prefix";
+        // Support for function {@code IP_PREFIX}.
+        FN_IP_PREFIX(false),
 
-    /**
-     * Fix on function {@code SUBSTRING} that makes it not return null on empty strings.
-     */
-    private static final String FN_SUBSTRING_EMPTY_NULL = "fn_substring_empty_null";
+        // Fix on function {@code SUBSTRING} that makes it not return null on empty strings.
+        FN_SUBSTRING_EMPTY_NULL(false),
 
-    /**
-     * Support for aggregation function {@code TOP_LIST}.
-     */
-    private static final String AGG_TOP_LIST = "agg_top_list";
+        // Support for aggregation function {@code TOP_LIST}.
+        AGG_TOP_LIST(false),
 
-    /**
-     * Optimization for ST_CENTROID changed some results in cartesian data. #108713
-     */
-    private static final String ST_CENTROID_AGG_OPTIMIZED = "st_centroid_agg_optimized";
+        // Optimization for ST_CENTROID changed some results in cartesian data. #108713
+        ST_CENTROID_AGG_OPTIMIZED(false),
 
-    /**
-     * Support for requesting the "_ignored" metadata field.
-     */
-    private static final String METADATA_IGNORED_FIELD = "metadata_field_ignored";
+        // Support for requesting the "_ignored" metadata field.
+        METADATA_IGNORED_FIELD(false),
 
-    /**
-     * Support for the "LOOKUP" command.
-     */
-    private static final String LOOKUP_COMMAND = "lookup_command";
+        // Support for the "LOOKUP" command.
+        LOOKUP_COMMAND(true),
 
-    /**
-     * Support for the syntax {@code "tables": {"type": [<values>]}}.
-     */
-    private static final String TABLES_TYPES = "tables_types";
+        // Support for the syntax {@code "tables": {"type": [<values>]}}.
+        TABLES_TYPES(true),
 
-    /**
-     * Support for requesting the "REPEAT" command.
-     */
-    private static final String REPEAT = "repeat";
+        // Support for requesting the "REPEAT" command.
+        REPEAT(false),
 
-    /**
-     * Cast string literals to datetime in addition and subtraction when the other side is a date or time interval.
-     */
-    public static final String STRING_LITERAL_AUTO_CASTING_TO_DATETIME_ADD_SUB = "string_literal_auto_casting_to_datetime_add_sub";
+        // Cast string literals to datetime in addition and subtraction when the other side is a date or time interval.
+        STRING_LITERAL_AUTO_CASTING_TO_DATETIME_ADD_SUB(false),
 
-    /**
-     * Support for named or positional parameters in EsqlQueryRequest.
-     */
-    private static final String NAMED_POSITIONAL_PARAMETER = "named_positional_parameter";
+        // Support for named or positional parameters in EsqlQueryRequest.
+        NAMED_POSITIONAL_PARAMETER(false);
+
+        Cap(boolean snapshotOnly) {
+            this.snapshotOnly = snapshotOnly;
+        };
+
+        private final boolean snapshotOnly;
+    }
 
     public static final Set<String> CAPABILITIES = capabilities();
 
     private static Set<String> capabilities() {
         List<String> caps = new ArrayList<>();
-        caps.add(FN_CBRT);
-        caps.add(FN_IP_PREFIX);
-        caps.add(FN_SUBSTRING_EMPTY_NULL);
-        caps.add(AGG_TOP_LIST);
-        caps.add(ST_CENTROID_AGG_OPTIMIZED);
-        caps.add(METADATA_IGNORED_FIELD);
-        caps.add(FN_MV_APPEND);
-        caps.add(REPEAT);
-        caps.add(NAMED_POSITIONAL_PARAMETER);
-
-        if (Build.current().isSnapshot()) {
-            caps.add(LOOKUP_COMMAND);
+        for (Cap cap : Cap.values()) {
+            if (Build.current().isSnapshot() || cap.snapshotOnly == false) {
+                caps.add(cap.name().toLowerCase(Locale.ROOT));
+            }
         }
 
         /*
@@ -109,7 +86,6 @@ public class EsqlCapabilities {
         for (NodeFeature feature : new EsqlFeatures().getHistoricalFeatures().keySet()) {
             caps.add(cap(feature));
         }
-        caps.add(STRING_LITERAL_AUTO_CASTING_TO_DATETIME_ADD_SUB);
         return Set.copyOf(caps);
     }
 

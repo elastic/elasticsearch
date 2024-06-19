@@ -184,6 +184,7 @@ public class $Type$BucketedSort implements Releasable {
                     bucketValues[i] = values.get(bounds.v1() + i);
                 }
 
+                // TODO: Make use of heap structures to faster iterate in order instead of copying and sorting
                 Arrays.sort(bucketValues, 0, (int) size);
 
                 builder.beginPositionEntry();

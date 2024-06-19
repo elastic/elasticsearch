@@ -7,12 +7,13 @@
 
 package org.elasticsearch.xpack.inference.services.azureaistudio.completion;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioEndpointType;
 import org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioProvider;
@@ -29,7 +30,7 @@ import static org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiSt
 import static org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioConstants.TARGET_FIELD;
 import static org.hamcrest.Matchers.is;
 
-public class AzureAiStudioChatCompletionServiceSettingsTests extends AbstractWireSerializingTestCase<
+public class AzureAiStudioChatCompletionServiceSettingsTests extends AbstractBWCWireSerializationTestCase<
     AzureAiStudioChatCompletionServiceSettings> {
     public void testFromMap_Request_CreatesSettingsCorrectly() {
         var target = "http://sometarget.local";
@@ -139,6 +140,14 @@ public class AzureAiStudioChatCompletionServiceSettingsTests extends AbstractWir
         return randomValueOtherThan(instance, AzureAiStudioChatCompletionServiceSettingsTests::createRandom);
     }
 
+    @Override
+    protected AzureAiStudioChatCompletionServiceSettings mutateInstanceForVersion(
+        AzureAiStudioChatCompletionServiceSettings instance,
+        TransportVersion version
+    ) {
+        return instance;
+    }
+
     private static AzureAiStudioChatCompletionServiceSettings createRandom() {
         return new AzureAiStudioChatCompletionServiceSettings(
             randomAlphaOfLength(10),
@@ -147,4 +156,5 @@ public class AzureAiStudioChatCompletionServiceSettingsTests extends AbstractWir
             RateLimitSettingsTests.createRandom()
         );
     }
+
 }

@@ -19,7 +19,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.features.FeatureService;
-import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.ingest.IngestService;
@@ -30,6 +29,7 @@ import org.elasticsearch.transport.TransportService;
 
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.Executor;
 
 public class TransportSimulateBulkAction extends TransportBulkAction {
     @Inject
@@ -70,11 +70,11 @@ public class TransportSimulateBulkAction extends TransportBulkAction {
     protected void createMissingIndicesAndIndexData(
         Task task,
         BulkRequest bulkRequest,
-        String executorName,
+        Executor executor,
         ActionListener<BulkResponse> listener,
         Map<String, Boolean> indicesToAutoCreate,
         Set<String> dataStreamsToRollover,
-        Map<String, IndexNotFoundException> indicesThatCannotBeCreated,
+        Set<String> failureStoresToBeRolledOver,
         long startTime
     ) {
         final AtomicArray<BulkItemResponse> responses = new AtomicArray<>(bulkRequest.requests.size());
@@ -92,7 +92,8 @@ public class TransportSimulateBulkAction extends TransportBulkAction {
                         request.version(),
                         ((IndexRequest) request).source(),
                         ((IndexRequest) request).getContentType(),
-                        ((IndexRequest) request).getExecutedPipelines()
+                        ((IndexRequest) request).getExecutedPipelines(),
+                        null
                     )
                 )
             );

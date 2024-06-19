@@ -67,6 +67,11 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
      * Soon to be replaced with a better estimate provided by the model.
      */
     private static final ByteSizeValue ELSER_1_OR_2_MEMORY_USAGE = ByteSizeValue.ofMb(2004);
+    public static final AllocationStatus.State DEFAULT_WAITFOR_STATE = AllocationStatus.State.STARTED;
+    public static final int DEFAULT_NUM_ALLOCATIONS = 1;
+    public static final int DEFAULT_NUM_THREADS = 1;
+    public static final int DEFAULT_QUEUE_CAPACITY = 1024;
+    public static final Priority DEFAULT_PRIORITY = Priority.NORMAL;
 
     public StartTrainedModelDeploymentAction() {
         super(NAME);
@@ -133,16 +138,19 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
         private String modelId;
         private String deploymentId;
         private TimeValue timeout = DEFAULT_TIMEOUT;
-        private AllocationStatus.State waitForState = AllocationStatus.State.STARTED;
+        private AllocationStatus.State waitForState = DEFAULT_WAITFOR_STATE;
         private ByteSizeValue cacheSize;
-        private int numberOfAllocations = 1;
-        private int threadsPerAllocation = 1;
-        private int queueCapacity = 1024;
-        private Priority priority = Priority.NORMAL;
+        private int numberOfAllocations = DEFAULT_NUM_ALLOCATIONS;
+        private int threadsPerAllocation = DEFAULT_NUM_THREADS;
+        private int queueCapacity = DEFAULT_QUEUE_CAPACITY;
+        private Priority priority = DEFAULT_PRIORITY;
 
-        private Request() {}
+        private Request() {
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
+        }
 
         public Request(String modelId, String deploymentId) {
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
             setModelId(modelId);
             setDeploymentId(deploymentId);
         }

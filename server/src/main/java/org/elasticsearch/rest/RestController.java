@@ -365,6 +365,32 @@ public class RestController implements HttpServerTransport.Dispatcher {
         }
     }
 
+    public boolean checkSupported(
+        RestRequest.Method method,
+        String path,
+        Set<String> parameters,
+        Set<String> capabilities,
+        RestApiVersion restApiVersion
+    ) {
+        Iterator<MethodHandlers> allHandlers = getAllHandlers(null, path);
+        while (allHandlers.hasNext()) {
+            RestHandler handler;
+            MethodHandlers handlers = allHandlers.next();
+            if (handlers == null) {
+                handler = null;
+            } else {
+                handler = handlers.getHandler(method, restApiVersion);
+            }
+
+            if (handler != null) {
+                var supportedParams = handler.supportedQueryParameters();
+                return (supportedParams == null || supportedParams.containsAll(parameters))
+                    && handler.supportedCapabilities().containsAll(capabilities);
+            }
+        }
+        return false;
+    }
+
     @Override
     public Map<String, HttpRouteStats> getStats() {
         final Iterator<MethodHandlers> methodHandlersIterator = handlers.allNodeValues();
@@ -644,7 +670,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
         // we use rawPath since we don't want to decode it while processing the path resolution
         // so we can handle things like:
         // my_index/my_type/http%3A%2F%2Fwww.google.com
-        return handlers.retrieveAll(rawPath, paramsSupplier);
+        return handlers.retrieveAll(rawPath, paramsSupplier).iterator();
     }
 
     /**
@@ -831,7 +857,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
                     final var headers = response.getHeaders();
                     response = RestResponse.chunked(
                         response.status(),
-                        new EncodedLengthTrackingChunkedRestResponseBody(response.chunkedContent(), responseLengthRecorder),
+                        new EncodedLengthTrackingChunkedRestResponseBodyPart(response.chunkedContent(), responseLengthRecorder),
                         Releasables.wrap(responseLengthRecorder, response)
                     );
                     for (final var header : headers.entrySet()) {
@@ -890,13 +916,13 @@ public class RestController implements HttpServerTransport.Dispatcher {
         }
     }
 
-    private static class EncodedLengthTrackingChunkedRestResponseBody implements ChunkedRestResponseBody {
+    private static class EncodedLengthTrackingChunkedRestResponseBodyPart implements ChunkedRestResponseBodyPart {
 
-        private final ChunkedRestResponseBody delegate;
+        private final ChunkedRestResponseBodyPart delegate;
         private final ResponseLengthRecorder responseLengthRecorder;
 
-        private EncodedLengthTrackingChunkedRestResponseBody(
-            ChunkedRestResponseBody delegate,
+        private EncodedLengthTrackingChunkedRestResponseBodyPart(
+            ChunkedRestResponseBodyPart delegate,
             ResponseLengthRecorder responseLengthRecorder
         ) {
             this.delegate = delegate;
@@ -904,15 +930,27 @@ public class RestController implements HttpServerTransport.Dispatcher {
         }
 
         @Override
-        public boolean isDone() {
-            return delegate.isDone();
+        public boolean isPartComplete() {
+            return delegate.isPartComplete();
+        }
+
+        @Override
+        public boolean isLastPart() {
+            return delegate.isLastPart();
+        }
+
+        @Override
+        public void getNextPart(ActionListener<ChunkedRestResponseBodyPart> listener) {
+            delegate.getNextPart(
+                listener.map(continuation -> new EncodedLengthTrackingChunkedRestResponseBodyPart(continuation, responseLengthRecorder))
+            );
         }
 
         @Override
         public ReleasableBytesReference encodeChunk(int sizeHint, Recycler<BytesRef> recycler) throws IOException {
             final ReleasableBytesReference bytesReference = delegate.encodeChunk(sizeHint, recycler);
             responseLengthRecorder.addChunkLength(bytesReference.length());
-            if (isDone()) {
+            if (isPartComplete() && isLastPart()) {
                 responseLengthRecorder.close();
             }
             return bytesReference;

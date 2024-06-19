@@ -11,7 +11,9 @@ import org.elasticsearch.action.datastreams.GetDataStreamAction;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.DataStreamFactoryRetention;
 import org.elasticsearch.cluster.metadata.DataStreamGlobalRetention;
+import org.elasticsearch.cluster.metadata.DataStreamGlobalRetentionResolver;
 import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -43,6 +45,9 @@ public class GetDataStreamsTransportActionTests extends ESTestCase {
 
     private final IndexNameExpressionResolver resolver = TestIndexNameExpressionResolver.newInstance();
     private final SystemIndices systemIndices = new SystemIndices(List.of());
+    private final DataStreamGlobalRetentionResolver dataStreamGlobalRetentionResolver = new DataStreamGlobalRetentionResolver(
+        DataStreamFactoryRetention.emptyFactoryRetention()
+    );
 
     public void testGetDataStream() {
         final String dataStreamName = "my-data-stream";
@@ -153,7 +158,8 @@ public class GetDataStreamsTransportActionTests extends ESTestCase {
             req,
             resolver,
             systemIndices,
-            ClusterSettings.createBuiltInClusterSettings()
+            ClusterSettings.createBuiltInClusterSettings(),
+            dataStreamGlobalRetentionResolver
         );
         assertThat(
             response.getDataStreams(),
@@ -182,7 +188,8 @@ public class GetDataStreamsTransportActionTests extends ESTestCase {
             req,
             resolver,
             systemIndices,
-            ClusterSettings.createBuiltInClusterSettings()
+            ClusterSettings.createBuiltInClusterSettings(),
+            dataStreamGlobalRetentionResolver
         );
         assertThat(
             response.getDataStreams(),
@@ -196,6 +203,49 @@ public class GetDataStreamsTransportActionTests extends ESTestCase {
                 ),
                 allOf(
                     transformedMatch(d -> d.getDataStream().getName(), equalTo(dataStream2)),
+                    transformedMatch(d -> d.getTimeSeries().temporalRanges(), contains(new Tuple<>(sixHoursAgo, twoHoursAhead)))
+                )
+            )
+        );
+    }
+
+    public void testGetTimeSeriesDataStreamWithOutOfOrderIndices() {
+        Instant now = Instant.now().truncatedTo(ChronoUnit.SECONDS);
+        String dataStream = "ds-1";
+        Instant sixHoursAgo = now.minus(6, ChronoUnit.HOURS);
+        Instant fourHoursAgo = now.minus(4, ChronoUnit.HOURS);
+        Instant twoHoursAgo = now.minus(2, ChronoUnit.HOURS);
+        Instant twoHoursAhead = now.plus(2, ChronoUnit.HOURS);
+
+        ClusterState state;
+        {
+            var mBuilder = new Metadata.Builder();
+            DataStreamTestHelper.getClusterStateWithDataStream(
+                mBuilder,
+                dataStream,
+                List.of(
+                    new Tuple<>(fourHoursAgo, twoHoursAgo),
+                    new Tuple<>(sixHoursAgo, fourHoursAgo),
+                    new Tuple<>(twoHoursAgo, twoHoursAhead)
+                )
+            );
+            state = ClusterState.builder(new ClusterName("_name")).metadata(mBuilder).build();
+        }
+
+        var req = new GetDataStreamAction.Request(new String[] {});
+        var response = GetDataStreamsTransportAction.innerOperation(
+            state,
+            req,
+            resolver,
+            systemIndices,
+            ClusterSettings.createBuiltInClusterSettings(),
+            dataStreamGlobalRetentionResolver
+        );
+        assertThat(
+            response.getDataStreams(),
+            contains(
+                allOf(
+                    transformedMatch(d -> d.getDataStream().getName(), equalTo(dataStream)),
                     transformedMatch(d -> d.getTimeSeries().temporalRanges(), contains(new Tuple<>(sixHoursAgo, twoHoursAhead)))
                 )
             )
@@ -231,7 +281,8 @@ public class GetDataStreamsTransportActionTests extends ESTestCase {
             req,
             resolver,
             systemIndices,
-            ClusterSettings.createBuiltInClusterSettings()
+            ClusterSettings.createBuiltInClusterSettings(),
+            dataStreamGlobalRetentionResolver
         );
 
         var name1 = DataStream.getDefaultBackingIndexName("ds-1", 1, instant.toEpochMilli());
@@ -275,7 +326,8 @@ public class GetDataStreamsTransportActionTests extends ESTestCase {
             req,
             resolver,
             systemIndices,
-            ClusterSettings.createBuiltInClusterSettings()
+            ClusterSettings.createBuiltInClusterSettings(),
+            dataStreamGlobalRetentionResolver
         );
         assertThat(response.getGlobalRetention(), nullValue());
         DataStreamGlobalRetention globalRetention = new DataStreamGlobalRetention(
@@ -288,7 +340,8 @@ public class GetDataStreamsTransportActionTests extends ESTestCase {
             req,
             resolver,
             systemIndices,
-            ClusterSettings.createBuiltInClusterSettings()
+            ClusterSettings.createBuiltInClusterSettings(),
+            dataStreamGlobalRetentionResolver
         );
         assertThat(response.getGlobalRetention(), equalTo(globalRetention));
     }

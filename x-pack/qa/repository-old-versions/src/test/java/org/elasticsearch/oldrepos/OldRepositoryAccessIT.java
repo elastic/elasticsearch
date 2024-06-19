@@ -215,7 +215,7 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
         assertEquals(numberOfShards, (int) getResp.evaluate("snapshots.0.shards.successful"));
         assertEquals(numberOfShards, (int) getResp.evaluate("snapshots.0.shards.total"));
         assertEquals(0, (int) getResp.evaluate("snapshots.0.shards.failed"));
-        assertEquals(indexVersion.toString(), getResp.evaluate("snapshots.0.version"));
+        assertEquals(indexVersion.toReleaseVersion(), getResp.evaluate("snapshots.0.version"));
 
         // list specific snapshot on new ES
         getSnaps = new Request("GET", "/_snapshot/" + repoName + "/" + snapshotName);
@@ -229,7 +229,7 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
         assertEquals(numberOfShards, (int) getResp.evaluate("snapshots.0.shards.successful"));
         assertEquals(numberOfShards, (int) getResp.evaluate("snapshots.0.shards.total"));
         assertEquals(0, (int) getResp.evaluate("snapshots.0.shards.failed"));
-        assertEquals(indexVersion.toString(), getResp.evaluate("snapshots.0.version"));
+        assertEquals(indexVersion.toReleaseVersion(), getResp.evaluate("snapshots.0.version"));
 
         // list advanced snapshot info on new ES
         getSnaps = new Request("GET", "/_snapshot/" + repoName + "/" + snapshotName + "/_status");

@@ -94,7 +94,6 @@ public class TransportStopDatafeedAction extends TransportTasksAction<
             actionFilters,
             StopDatafeedAction.Request::new,
             StopDatafeedAction.Response::new,
-            StopDatafeedAction.Response::new,
             threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME)
         );
         this.threadPool = Objects.requireNonNull(threadPool);

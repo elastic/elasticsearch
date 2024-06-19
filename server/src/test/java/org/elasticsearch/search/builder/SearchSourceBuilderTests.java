@@ -12,6 +12,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.admin.cluster.stats.SearchUsageStats;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -62,6 +63,8 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.util.Base64;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -385,13 +388,13 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
     }
 
     public void testTimeoutWithUnits() throws IOException {
-        final String timeout = randomTimeValue();
+        final var timeout = randomTimeValue();
         final String query = Strings.format("""
             { "query": { "match_all": {}}, "timeout": "%s"}
-            """, timeout);
+            """, timeout.getStringRep());
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, query)) {
             final SearchSourceBuilder builder = new SearchSourceBuilder().parseXContent(parser, true, nf -> false);
-            assertThat(builder.timeout(), equalTo(TimeValue.parseTimeValue(timeout, null, "timeout")));
+            assertThat(builder.timeout(), equalTo(timeout));
         }
     }
 
@@ -436,7 +439,7 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
         XContentType xContentType = randomFrom(XContentType.values());
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
         TimeValue keepAlive = randomBoolean() ? TimeValue.timeValueHours(1) : null;
-        searchSourceBuilder.pointInTimeBuilder(new PointInTimeBuilder("id").setKeepAlive(keepAlive));
+        searchSourceBuilder.pointInTimeBuilder(new PointInTimeBuilder(new BytesArray("id")).setKeepAlive(keepAlive));
         XContentBuilder builder = XContentFactory.contentBuilder(xContentType);
         searchSourceBuilder.toXContent(builder, ToXContent.EMPTY_PARAMS);
         BytesReference bytes = BytesReference.bytes(builder);
@@ -444,7 +447,10 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
         assertEquals(1, sourceAsMap.size());
         @SuppressWarnings("unchecked")
         Map<String, Object> pit = (Map<String, Object>) sourceAsMap.get("pit");
-        assertEquals("id", pit.get("id"));
+        assertEquals(
+            new String(Base64.getUrlEncoder().encode("id".getBytes(StandardCharsets.UTF_8)), StandardCharsets.ISO_8859_1),
+            pit.get("id")
+        );
         if (keepAlive != null) {
             assertEquals("1h", pit.get("keep_alive"));
             assertEquals(2, pit.size());
@@ -771,7 +777,7 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
         // these are not correct runtime mappings but they are counted compared to empty object
         searchSourceBuilder.runtimeMappings(Collections.singletonMap("field", "keyword"));
         searchSourceBuilder.knnSearch(List.of(new KnnSearchBuilder("field", new float[] {}, 2, 5, null)));
-        searchSourceBuilder.pointInTimeBuilder(new PointInTimeBuilder("pitid"));
+        searchSourceBuilder.pointInTimeBuilder(new PointInTimeBuilder(new BytesArray("pitid")));
         searchSourceBuilder.docValueField("field");
         searchSourceBuilder.storedField("field");
         searchSourceBuilder.explain(true);

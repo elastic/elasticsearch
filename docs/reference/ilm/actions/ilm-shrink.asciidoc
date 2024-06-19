@@ -4,7 +4,7 @@
 
 Phases allowed: hot, warm.
 
-Sets a source index to <<index-blocks-read-only,read-only>> and shrinks it into
+<<index-blocks-write,Blocks writes>> on a source index and shrinks it into
 a new index with fewer primary shards. The name of the resulting index is
 `shrink-<random-uuid>-<original-index-name>`. This action corresponds to the
 <<indices-shrink-index,shrink API>>.
@@ -49,6 +49,10 @@ target index will have 2 primary shards, with each shard size of 50gb; if the so
 with totaling 1000gb, then the target index will have 20 primary shards; if the source index has 60 primary shards
 with totaling 4000gb, then the target index will still have 60 primary shards. This parameter conflicts
 with `number_of_shards` in the `settings`, only one of them may be set.
+
+`allow_write_after_shrink`::
+(Optional, boolean)
+If true, the shrunken index is made writable by removing the <<index-blocks-write,write block>>. Defaults to false.
 
 
 [[ilm-shrink-ex]]

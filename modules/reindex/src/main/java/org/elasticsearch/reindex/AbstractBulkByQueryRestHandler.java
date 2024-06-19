@@ -11,7 +11,6 @@ package org.elasticsearch.reindex;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.RestApiVersion;
@@ -45,7 +44,6 @@ public abstract class AbstractBulkByQueryRestHandler<
     protected void parseInternalRequest(
         Request internal,
         RestRequest restRequest,
-        NamedWriteableRegistry namedWriteableRegistry,
         Predicate<NodeFeature> clusterSupportsFeature,
         Map<String, Consumer<Object>> bodyConsumers
     ) throws IOException {
@@ -58,14 +56,7 @@ public abstract class AbstractBulkByQueryRestHandler<
             IntConsumer sizeConsumer = restRequest.getRestApiVersion() == RestApiVersion.V_7
                 ? size -> setMaxDocsFromSearchSize(internal, size)
                 : size -> failOnSizeSpecified();
-            RestSearchAction.parseSearchRequest(
-                searchRequest,
-                restRequest,
-                parser,
-                namedWriteableRegistry,
-                clusterSupportsFeature,
-                sizeConsumer
-            );
+            RestSearchAction.parseSearchRequest(searchRequest, restRequest, parser, clusterSupportsFeature, sizeConsumer);
         }
 
         searchRequest.source().size(restRequest.paramAsInt("scroll_size", searchRequest.source().size()));

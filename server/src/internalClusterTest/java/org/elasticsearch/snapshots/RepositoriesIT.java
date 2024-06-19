@@ -29,6 +29,7 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.RepositoryConflictException;
@@ -171,7 +172,7 @@ public class RepositoriesIT extends AbstractSnapshotIntegTestCase {
                     .put("compress", randomBoolean())
                     .put("chunk_size", randomIntBetween(5, 100), ByteSizeUnit.BYTES)
             )
-            .setTimeout("0s")
+            .setTimeout(TimeValue.ZERO)
             .get();
         assertThat(putRepositoryResponse.isAcknowledged(), equalTo(false));
 
@@ -188,7 +189,9 @@ public class RepositoriesIT extends AbstractSnapshotIntegTestCase {
         assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
 
         logger.info("-->  deleting repository test-repo-2 with 0s timeout - shouldn't ack");
-        AcknowledgedResponse deleteRepositoryResponse = clusterAdmin().prepareDeleteRepository("test-repo-2").setTimeout("0s").get();
+        AcknowledgedResponse deleteRepositoryResponse = clusterAdmin().prepareDeleteRepository("test-repo-2")
+            .setTimeout(TimeValue.ZERO)
+            .get();
         assertThat(deleteRepositoryResponse.isAcknowledged(), equalTo(false));
 
         logger.info("-->  deleting repository test-repo-1 with standard timeout - should ack");
@@ -299,7 +302,11 @@ public class RepositoriesIT extends AbstractSnapshotIntegTestCase {
         logger.info("--> try updating the repository, should fail because the deletion of the snapshot is in progress");
         RepositoryConflictException e2 = expectThrows(
             RepositoryConflictException.class,
-            clusterAdmin().preparePutRepository(repo).setType("mock").setSettings(Settings.builder().put("location", randomRepoPath()))
+            clusterAdmin().preparePutRepository(repo)
+                // if "true" will deadlock on snapshot thread pool, we are running with single thread which is busy at the moment
+                .setVerify(false)
+                .setType("mock")
+                .setSettings(Settings.builder().put("location", randomRepoPath()))
         );
         assertThat(e2.status(), equalTo(RestStatus.CONFLICT));
         assertThat(e2.getMessage(), containsString("trying to modify or unregister repository that is currently used"));

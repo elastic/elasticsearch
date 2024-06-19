@@ -22,11 +22,21 @@ import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.core.inference.results.ChunkedSparseEmbeddingResults;
+import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.ErrorChunkedInferenceResults;
+import org.elasticsearch.xpack.core.inference.results.InferenceChunkedSparseEmbeddingResults;
+import org.elasticsearch.xpack.core.ml.action.InferModelAction;
 import org.elasticsearch.xpack.core.ml.action.InferTrainedModelDeploymentAction;
-import org.elasticsearch.xpack.core.ml.inference.results.ChunkedTextExpansionResultsTests;
+import org.elasticsearch.xpack.core.ml.action.PutTrainedModelAction;
+import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.results.ErrorInferenceResults;
+import org.elasticsearch.xpack.core.ml.inference.results.InferenceChunkedTextExpansionResultsTests;
+import org.elasticsearch.xpack.core.ml.inference.results.MlChunkedTextExpansionResults;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TokenizationConfigUpdate;
+import org.junit.After;
+import org.junit.Before;
+import org.mockito.ArgumentCaptor;
+import org.mockito.Mockito;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -34,7 +44,10 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasSize;
@@ -46,6 +59,18 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class ElserInternalServiceTests extends ESTestCase {
+
+    private static ThreadPool threadPool;
+
+    @Before
+    public void setUpThreadPool() {
+        threadPool = new TestThreadPool("test");
+    }
+
+    @After
+    public void shutdownThreadPool() {
+        TestThreadPool.terminate(threadPool, 30, TimeUnit.SECONDS);
+    }
 
     public static Model randomModelConfig(String inferenceEntityId, TaskType taskType) {
         return switch (taskType) {
@@ -330,24 +355,19 @@ public class ElserInternalServiceTests extends ESTestCase {
     @SuppressWarnings("unchecked")
     public void testChunkInfer() {
         var mlTrainedModelResults = new ArrayList<InferenceResults>();
-        mlTrainedModelResults.add(ChunkedTextExpansionResultsTests.createRandomResults());
-        mlTrainedModelResults.add(ChunkedTextExpansionResultsTests.createRandomResults());
+        mlTrainedModelResults.add(InferenceChunkedTextExpansionResultsTests.createRandomResults());
+        mlTrainedModelResults.add(InferenceChunkedTextExpansionResultsTests.createRandomResults());
         mlTrainedModelResults.add(new ErrorInferenceResults(new RuntimeException("boom")));
-        var response = new InferTrainedModelDeploymentAction.Response(mlTrainedModelResults);
+        var response = new InferModelAction.Response(mlTrainedModelResults, "foo", true);
 
         ThreadPool threadpool = new TestThreadPool("test");
         Client client = mock(Client.class);
         when(client.threadPool()).thenReturn(threadpool);
         doAnswer(invocationOnMock -> {
-            var listener = (ActionListener<InferTrainedModelDeploymentAction.Response>) invocationOnMock.getArguments()[2];
+            var listener = (ActionListener<InferModelAction.Response>) invocationOnMock.getArguments()[2];
             listener.onResponse(response);
             return null;
-        }).when(client)
-            .execute(
-                same(InferTrainedModelDeploymentAction.INSTANCE),
-                any(InferTrainedModelDeploymentAction.Request.class),
-                any(ActionListener.class)
-            );
+        }).when(client).execute(same(InferModelAction.INSTANCE), any(InferModelAction.Request.class), any(ActionListener.class));
 
         var model = new ElserInternalModel(
             "foo",
@@ -361,18 +381,12 @@ public class ElserInternalServiceTests extends ESTestCase {
         var gotResults = new AtomicBoolean();
         var resultsListener = ActionListener.<List<ChunkedInferenceServiceResults>>wrap(chunkedResponse -> {
             assertThat(chunkedResponse, hasSize(3));
-            assertThat(chunkedResponse.get(0), instanceOf(ChunkedSparseEmbeddingResults.class));
-            var result1 = (ChunkedSparseEmbeddingResults) chunkedResponse.get(0);
-            assertEquals(
-                ((org.elasticsearch.xpack.core.ml.inference.results.ChunkedTextExpansionResults) mlTrainedModelResults.get(0)).getChunks(),
-                result1.getChunkedResults()
-            );
-            assertThat(chunkedResponse.get(1), instanceOf(ChunkedSparseEmbeddingResults.class));
-            var result2 = (ChunkedSparseEmbeddingResults) chunkedResponse.get(1);
-            assertEquals(
-                ((org.elasticsearch.xpack.core.ml.inference.results.ChunkedTextExpansionResults) mlTrainedModelResults.get(1)).getChunks(),
-                result2.getChunkedResults()
-            );
+            assertThat(chunkedResponse.get(0), instanceOf(InferenceChunkedSparseEmbeddingResults.class));
+            var result1 = (InferenceChunkedSparseEmbeddingResults) chunkedResponse.get(0);
+            assertEquals(((MlChunkedTextExpansionResults) mlTrainedModelResults.get(0)).getChunks(), result1.getChunkedResults());
+            assertThat(chunkedResponse.get(1), instanceOf(InferenceChunkedSparseEmbeddingResults.class));
+            var result2 = (InferenceChunkedSparseEmbeddingResults) chunkedResponse.get(1);
+            assertEquals(((MlChunkedTextExpansionResults) mlTrainedModelResults.get(1)).getChunks(), result2.getChunkedResults());
             var result3 = (ErrorChunkedInferenceResults) chunkedResponse.get(2);
             assertThat(result3.getException(), instanceOf(RuntimeException.class));
             assertThat(result3.getException().getMessage(), containsString("boom"));
@@ -381,10 +395,12 @@ public class ElserInternalServiceTests extends ESTestCase {
 
         service.chunkedInfer(
             model,
+            null,
             List.of("foo", "bar"),
             Map.of(),
             InputType.SEARCH,
             new ChunkingOptions(null, null),
+            InferenceAction.Request.DEFAULT_TIMEOUT,
             ActionListener.runAfter(resultsListener, () -> terminate(threadpool))
         );
 
@@ -392,6 +408,105 @@ public class ElserInternalServiceTests extends ESTestCase {
             terminate(threadpool);
         }
         assertTrue("Listener not called", gotResults.get());
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testChunkInferSetsTokenization() {
+        var expectedSpan = new AtomicInteger();
+        var expectedWindowSize = new AtomicReference<Integer>();
+
+        ThreadPool threadpool = new TestThreadPool("test");
+        Client client = mock(Client.class);
+        try {
+            when(client.threadPool()).thenReturn(threadpool);
+            doAnswer(invocationOnMock -> {
+                var request = (InferTrainedModelDeploymentAction.Request) invocationOnMock.getArguments()[1];
+                assertThat(request.getUpdate(), instanceOf(TokenizationConfigUpdate.class));
+                var update = (TokenizationConfigUpdate) request.getUpdate();
+                assertEquals(update.getSpanSettings().span(), expectedSpan.get());
+                assertEquals(update.getSpanSettings().maxSequenceLength(), expectedWindowSize.get());
+                return null;
+            }).when(client)
+                .execute(
+                    same(InferTrainedModelDeploymentAction.INSTANCE),
+                    any(InferTrainedModelDeploymentAction.Request.class),
+                    any(ActionListener.class)
+                );
+
+            var model = new ElserInternalModel(
+                "foo",
+                TaskType.SPARSE_EMBEDDING,
+                "elser",
+                new ElserInternalServiceSettings(1, 1, "elser"),
+                new ElserMlNodeTaskSettings()
+            );
+            var service = createService(client);
+
+            expectedSpan.set(-1);
+            expectedWindowSize.set(null);
+            service.chunkedInfer(
+                model,
+                List.of("foo", "bar"),
+                Map.of(),
+                InputType.SEARCH,
+                null,
+                InferenceAction.Request.DEFAULT_TIMEOUT,
+                ActionListener.wrap(r -> fail("unexpected result"), e -> fail(e.getMessage()))
+            );
+
+            expectedSpan.set(-1);
+            expectedWindowSize.set(256);
+            service.chunkedInfer(
+                model,
+                List.of("foo", "bar"),
+                Map.of(),
+                InputType.SEARCH,
+                new ChunkingOptions(256, null),
+                InferenceAction.Request.DEFAULT_TIMEOUT,
+                ActionListener.wrap(r -> fail("unexpected result"), e -> fail(e.getMessage()))
+            );
+        } finally {
+            terminate(threadpool);
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testPutModel() {
+        var client = mock(Client.class);
+        ArgumentCaptor<PutTrainedModelAction.Request> argument = ArgumentCaptor.forClass(PutTrainedModelAction.Request.class);
+
+        doAnswer(invocation -> {
+            var listener = (ActionListener<PutTrainedModelAction.Response>) invocation.getArguments()[2];
+            listener.onResponse(new PutTrainedModelAction.Response(mock(TrainedModelConfig.class)));
+            return null;
+        }).when(client).execute(Mockito.same(PutTrainedModelAction.INSTANCE), argument.capture(), any());
+
+        when(client.threadPool()).thenReturn(threadPool);
+
+        var service = createService(client);
+
+        var model = new ElserInternalModel(
+            "my-elser",
+            TaskType.SPARSE_EMBEDDING,
+            "elser",
+            new ElserInternalServiceSettings(1, 1, ".elser_model_2"),
+            ElserMlNodeTaskSettings.DEFAULT
+        );
+
+        service.putModel(model, new ActionListener<>() {
+            @Override
+            public void onResponse(Boolean success) {
+                assertTrue(success);
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                fail(e);
+            }
+        });
+
+        var putConfig = argument.getValue().getTrainedModelConfig();
+        assertEquals("text_field", putConfig.getInput().getFieldNames().get(0));
     }
 
     private ElserInternalService createService(Client client) {

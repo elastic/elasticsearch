@@ -8,7 +8,7 @@
 
 package org.elasticsearch.action.delete;
 
-import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.action.bulk.BulkItemResponseTests;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -119,7 +119,7 @@ public class DeleteResponseTests extends ESTestCase {
 
         DeleteResponse.Builder context = new DeleteResponse.Builder();
         while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
-            DocWriteResponse.parseInnerToXContent(parser, context);
+            BulkItemResponseTests.parseInnerToXContent(parser, context);
         }
         return context.build();
     }

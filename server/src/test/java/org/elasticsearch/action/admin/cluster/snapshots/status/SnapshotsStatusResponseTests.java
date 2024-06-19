@@ -33,7 +33,7 @@ public class SnapshotsStatusResponseTests extends AbstractChunkedSerializingTest
         }
     );
     static {
-        PARSER.declareObjectArray(constructorArg(), SnapshotStatus.PARSER, new ParseField("snapshots"));
+        PARSER.declareObjectArray(constructorArg(), SnapshotStatusTests.PARSER, new ParseField("snapshots"));
     }
 
     @Override

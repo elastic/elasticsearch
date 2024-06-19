@@ -30,6 +30,9 @@ import java.util.Map;
 public class DownsampleMetrics extends AbstractLifecycleComponent {
 
     public static final String LATENCY_SHARD = "es.tsdb.downsample.latency.shard.histogram";
+    public static final String LATENCY_TOTAL = "es.tsdb.downsample.latency.total.histogram";
+    public static final String ACTIONS_SHARD = "es.tsdb.downsample.actions.shard.total";
+    public static final String ACTIONS = "es.tsdb.downsample.actions.total";
 
     private final MeterRegistry meterRegistry;
 
@@ -41,6 +44,9 @@ public class DownsampleMetrics extends AbstractLifecycleComponent {
     protected void doStart() {
         // Register all metrics to track.
         meterRegistry.registerLongHistogram(LATENCY_SHARD, "Downsampling action latency per shard", "ms");
+        meterRegistry.registerLongHistogram(LATENCY_TOTAL, "Downsampling latency end-to-end", "ms");
+        meterRegistry.registerLongCounter(ACTIONS_SHARD, "Number of shard-level downsampling actions", "count");
+        meterRegistry.registerLongCounter(ACTIONS, "Number of downsampling operations", "count");
     }
 
     @Override
@@ -49,17 +55,18 @@ public class DownsampleMetrics extends AbstractLifecycleComponent {
     @Override
     protected void doClose() throws IOException {}
 
-    enum ShardActionStatus {
+    enum ActionStatus {
 
         SUCCESS("success"),
         MISSING_DOCS("missing_docs"),
-        FAILED("failed");
+        FAILED("failed"),
+        INVALID_CONFIGURATION("invalid_configuration");
 
-        public static final String NAME = "status";
+        static final String NAME = "status";
 
         private final String message;
 
-        ShardActionStatus(String message) {
+        ActionStatus(String message) {
             this.message = message;
         }
 
@@ -68,7 +75,13 @@ public class DownsampleMetrics extends AbstractLifecycleComponent {
         }
     }
 
-    void recordLatencyShard(long durationInMilliSeconds, ShardActionStatus status) {
-        meterRegistry.getLongHistogram(LATENCY_SHARD).record(durationInMilliSeconds, Map.of(ShardActionStatus.NAME, status.getMessage()));
+    void recordShardOperation(long durationInMilliSeconds, ActionStatus status) {
+        meterRegistry.getLongHistogram(LATENCY_SHARD).record(durationInMilliSeconds, Map.of(ActionStatus.NAME, status.getMessage()));
+        meterRegistry.getLongCounter(ACTIONS_SHARD).incrementBy(1L, Map.of(ActionStatus.NAME, status.getMessage()));
+    }
+
+    void recordOperation(long durationInMilliSeconds, ActionStatus status) {
+        meterRegistry.getLongHistogram(LATENCY_TOTAL).record(durationInMilliSeconds, Map.of(ActionStatus.NAME, status.getMessage()));
+        meterRegistry.getLongCounter(ACTIONS).incrementBy(1L, Map.of(ActionStatus.NAME, status.getMessage()));
     }
 }

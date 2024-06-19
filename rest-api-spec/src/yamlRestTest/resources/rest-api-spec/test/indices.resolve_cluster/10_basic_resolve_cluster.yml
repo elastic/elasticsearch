@@ -1,9 +1,9 @@
 ---
 setup:
-  - skip:
-      version: " - 8.12.99"
+  - requires:
+      cluster_features: ["gte_v8.13.0"]
       reason: "resolve cluster introduced in 8.13"
-      features: allowed_warnings
+      test_runner_features: allowed_warnings
 
   - do:
       indices.create:
@@ -25,8 +25,8 @@ setup:
 
 ---
 "Resolve cluster with indices and aliases":
-  - skip:
-      version: " - 8.12.99"
+  - requires:
+      cluster_features: ["gte_v8.13.0"]
       reason: "resolve cluster introduced in 8.13"
 
   - do:
@@ -51,8 +51,8 @@ setup:
 
 ---
 "Resolve cluster with closed index":
-  - skip:
-      version: " - 8.12.99"
+  - requires:
+      cluster_features: ["gte_v8.13.0"]
       reason: "resolve cluster introduced in 8.13"
 
   - do:
@@ -86,8 +86,8 @@ setup:
 
 ---
 "Resolve cluster using alias":
-  - skip:
-      version: " - 8.12.99"
+  - requires:
+      cluster_features: ["gte_v8.13.0"]
       reason: "resolve cluster introduced in 8.13"
 
   - do:
@@ -110,8 +110,8 @@ setup:
 
 ---
 "Resolve cluster using alias and index that does not exist":
-  - skip:
-      version: " - 8.12.99"
+  - requires:
+      cluster_features: ["gte_v8.13.0"]
       reason: "resolve cluster introduced in 8.13"
 
   - do:
@@ -136,8 +136,8 @@ setup:
 
 ---
 "Test resolve cluster optional params are accepted":
-  - skip:
-      version: " - 8.12.99"
+  - requires:
+      cluster_features: ["gte_v8.13.0"]
       reason: "resolve cluster introduced in 8.13"
 
   - do:

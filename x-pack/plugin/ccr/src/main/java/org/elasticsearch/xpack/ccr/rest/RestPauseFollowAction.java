@@ -14,6 +14,7 @@ import org.elasticsearch.rest.action.RestToXContentListener;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
+import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 import static org.elasticsearch.xpack.core.ccr.action.PauseFollowAction.INSTANCE;
 import static org.elasticsearch.xpack.core.ccr.action.PauseFollowAction.Request;
 
@@ -31,7 +32,7 @@ public class RestPauseFollowAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) {
-        Request request = new Request(restRequest.param("index"));
+        final var request = new Request(getMasterNodeTimeout(restRequest), restRequest.param("index"));
         return channel -> client.execute(INSTANCE, request, new RestToXContentListener<>(channel));
     }
 }

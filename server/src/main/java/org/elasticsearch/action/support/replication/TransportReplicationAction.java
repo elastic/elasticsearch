@@ -1183,8 +1183,8 @@ public abstract class TransportReplicationAction<
     }
 
     public static class ReplicaResponse extends ActionResponse implements ReplicationOperation.ReplicaResponse {
-        private long localCheckpoint;
-        private long globalCheckpoint;
+        private final long localCheckpoint;
+        private final long globalCheckpoint;
 
         ReplicaResponse(StreamInput in) throws IOException {
             super(in);

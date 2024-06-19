@@ -83,6 +83,12 @@ grant codeBase "${codebase.elasticsearch-preallocate}" {
   permission java.lang.reflect.ReflectPermission "newProxyInPackage.org.elasticsearch.preallocate";
 };
 
+grant codeBase "${codebase.elasticsearch-simdvec}" {
+  // for access MemorySegmentIndexInput internals
+  permission java.lang.RuntimePermission "accessDeclaredMembers";
+  permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
+};
+
 //// Everything else:
 
 grant {

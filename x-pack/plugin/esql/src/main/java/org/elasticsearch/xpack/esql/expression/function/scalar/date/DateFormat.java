@@ -12,39 +12,46 @@ import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.function.OptionalArgument;
+import org.elasticsearch.xpack.esql.core.session.Configuration;
+import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlConfigurationFunction;
 import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.function.OptionalArgument;
-import org.elasticsearch.xpack.ql.session.Configuration;
-import org.elasticsearch.xpack.ql.tree.NodeInfo;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypes;
+import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 
 import java.util.List;
 import java.util.Locale;
 import java.util.function.Function;
 
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isDate;
+import static org.elasticsearch.xpack.esql.expression.EsqlTypeResolutions.isStringAndExact;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.DEFAULT_DATE_TIME_FORMATTER;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeToString;
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.FIRST;
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.SECOND;
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isDate;
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isStringAndExact;
 
 public class DateFormat extends EsqlConfigurationFunction implements OptionalArgument {
 
     private final Expression field;
     private final Expression format;
 
-    @FunctionInfo(returnType = "keyword", description = "Returns a string representation of a date, in the provided format.")
+    @FunctionInfo(
+        returnType = "keyword",
+        description = "Returns a string representation of a date, in the provided format.",
+        examples = @Example(file = "date", tag = "docsDateFormat")
+    )
     public DateFormat(
         Source source,
-        @Param(optional = true, name = "dateFormat", type = { "keyword" }, description = "A valid date pattern") Expression format,
-        @Param(name = "date", type = { "date" }, description = "Date expression") Expression date,
+        @Param(optional = true, name = "dateFormat", type = { "keyword", "text" }, description = """
+            Date format (optional).  If no format is specified, the `yyyy-MM-dd'T'HH:mm:ss.SSSZ` format is used.
+            If `null`, the function returns `null`.""") Expression format,
+        @Param(name = "date", type = { "date" }, description = "Date expression. If `null`, the function returns `null`.") Expression date,
         Configuration configuration
     ) {
         super(source, date != null ? List.of(format, date) : List.of(format), configuration);
@@ -54,7 +61,7 @@ public class DateFormat extends EsqlConfigurationFunction implements OptionalArg
 
     @Override
     public DataType dataType() {
-        return DataTypes.KEYWORD;
+        return DataType.KEYWORD;
     }
 
     @Override
@@ -63,15 +70,17 @@ public class DateFormat extends EsqlConfigurationFunction implements OptionalArg
             return new TypeResolution("Unresolved children");
         }
 
-        TypeResolution resolution = isDate(field, sourceText(), format == null ? FIRST : SECOND);
-        if (resolution.unresolved()) {
-            return resolution;
-        }
+        TypeResolution resolution;
         if (format != null) {
             resolution = isStringAndExact(format, sourceText(), FIRST);
             if (resolution.unresolved()) {
                 return resolution;
             }
+        }
+
+        resolution = isDate(field, sourceText(), format == null ? FIRST : SECOND);
+        if (resolution.unresolved()) {
+            return resolution;
         }
 
         return TypeResolution.TYPE_RESOLVED;
@@ -96,23 +105,17 @@ public class DateFormat extends EsqlConfigurationFunction implements OptionalArg
     public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
         var fieldEvaluator = toEvaluator.apply(field);
         if (format == null) {
-            return dvrCtx -> new DateFormatConstantEvaluator(source(), fieldEvaluator.get(dvrCtx), DEFAULT_DATE_TIME_FORMATTER, dvrCtx);
+            return new DateFormatConstantEvaluator.Factory(source(), fieldEvaluator, DEFAULT_DATE_TIME_FORMATTER);
         }
-        if (format.dataType() != DataTypes.KEYWORD) {
+        if (EsqlDataTypes.isString(format.dataType()) == false) {
             throw new IllegalArgumentException("unsupported data type for format [" + format.dataType() + "]");
         }
         if (format.foldable()) {
             DateFormatter formatter = toFormatter(format.fold(), ((EsqlConfiguration) configuration()).locale());
-            return dvrCtx -> new DateFormatConstantEvaluator(source(), fieldEvaluator.get(dvrCtx), formatter, dvrCtx);
+            return new DateFormatConstantEvaluator.Factory(source(), fieldEvaluator, formatter);
         }
         var formatEvaluator = toEvaluator.apply(format);
-        return dvrCtx -> new DateFormatEvaluator(
-            source(),
-            fieldEvaluator.get(dvrCtx),
-            formatEvaluator.get(dvrCtx),
-            ((EsqlConfiguration) configuration()).locale(),
-            dvrCtx
-        );
+        return new DateFormatEvaluator.Factory(source(), fieldEvaluator, formatEvaluator, ((EsqlConfiguration) configuration()).locale());
     }
 
     private static DateFormatter toFormatter(Object format, Locale locale) {

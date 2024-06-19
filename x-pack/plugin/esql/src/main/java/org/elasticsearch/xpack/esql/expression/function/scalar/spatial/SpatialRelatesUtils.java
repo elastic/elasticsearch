@@ -23,12 +23,12 @@ import org.elasticsearch.lucene.spatial.CentroidCalculator;
 import org.elasticsearch.lucene.spatial.CoordinateEncoder;
 import org.elasticsearch.lucene.spatial.GeometryDocValueReader;
 import org.elasticsearch.lucene.spatial.GeometryDocValueWriter;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes;
 
 import java.io.IOException;
 
-import static org.elasticsearch.xpack.ql.planner.ExpressionTranslators.valueOf;
+import static org.elasticsearch.xpack.esql.core.planner.ExpressionTranslators.valueOf;
 
 public class SpatialRelatesUtils {
 
@@ -47,6 +47,25 @@ public class SpatialRelatesUtils {
         } else {
             var luceneGeometries = LuceneGeometriesUtils.toXYGeometry(geometry, t -> {});
             return XYGeometry.create(luceneGeometries);
+        }
+    }
+
+    /**
+     * This function is used to convert a spatial constant to an array of lucene Component2Ds.
+     * When both left and right sides are constants, we convert the left to a doc-values byte array and the right to a Component2D[].
+     * The reason for generating an array instead of a single component is for multi-shape support with ST_CONTAINS.
+     */
+    static Component2D[] asLuceneComponent2Ds(SpatialRelatesFunction.SpatialCrsType crsType, Expression expression) {
+        return asLuceneComponent2Ds(crsType, makeGeometryFromLiteral(expression));
+    }
+
+    static Component2D[] asLuceneComponent2Ds(SpatialRelatesFunction.SpatialCrsType crsType, Geometry geometry) {
+        if (crsType == SpatialRelatesFunction.SpatialCrsType.GEO) {
+            var luceneGeometries = LuceneGeometriesUtils.toLatLonGeometry(geometry, true, t -> {});
+            return LuceneComponent2DUtils.createLatLonComponents(luceneGeometries);
+        } else {
+            var luceneGeometries = LuceneGeometriesUtils.toXYGeometry(geometry, t -> {});
+            return LuceneComponent2DUtils.createXYComponents(luceneGeometries);
         }
     }
 

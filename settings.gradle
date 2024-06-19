@@ -4,6 +4,9 @@ import org.elasticsearch.gradle.internal.toolchain.AdoptiumJdkToolchainResolver
 
 pluginManagement {
   repositories {
+    maven {
+      url 'https://jitpack.io'
+    }
     mavenCentral()
     gradlePluginPortal()
   }
@@ -14,7 +17,7 @@ pluginManagement {
 }
 
 plugins {
-  id "com.gradle.enterprise" version "3.16.2"
+  id "com.gradle.develocity" version "3.17.4"
   id 'elasticsearch.java-toolchain'
 }
 
@@ -90,8 +93,7 @@ List projects = [
   'test:framework',
   'test:fixtures:azure-fixture',
   'test:fixtures:gcs-fixture',
-  'test:fixtures:hdfs2-fixture',
-  'test:fixtures:hdfs3-fixture',
+  'test:fixtures:hdfs-fixture',
   'test:fixtures:krb5kdc-fixture',
   'test:fixtures:minio-fixture',
   'test:fixtures:old-elasticsearch',
@@ -103,7 +105,8 @@ List projects = [
   'test:test-clusters',
   'test:x-content',
   'test:yaml-rest-runner',
-  'test:metadata-extractor'
+  'test:metadata-extractor',
+  'test:immutable-collections-patch'
 ]
 
 /**

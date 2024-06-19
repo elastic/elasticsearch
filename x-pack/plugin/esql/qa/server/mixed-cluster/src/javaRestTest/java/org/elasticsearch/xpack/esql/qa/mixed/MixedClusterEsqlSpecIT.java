@@ -10,15 +10,14 @@ package org.elasticsearch.xpack.esql.qa.mixed;
 import org.elasticsearch.Version;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.rest.TestFeatureService;
+import org.elasticsearch.xpack.esql.core.CsvSpecReader.CsvTestCase;
 import org.elasticsearch.xpack.esql.qa.rest.EsqlSpecTestCase;
-import org.elasticsearch.xpack.ql.CsvSpecReader.CsvTestCase;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.ClassRule;
 
 import java.io.IOException;
-import java.util.HashSet;
-import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.CsvTestUtils.isEnabled;
 import static org.elasticsearch.xpack.esql.qa.rest.EsqlSpecTestCase.Mode.ASYNC;
@@ -34,20 +33,18 @@ public class MixedClusterEsqlSpecIT extends EsqlSpecTestCase {
 
     static final Version bwcVersion = Version.fromString(System.getProperty("tests.old_cluster_version"));
 
-    private static final Set<String> oldClusterFeatures = new HashSet<>();
-    private static boolean oldClusterFeaturesInitialized = false;
+    private static TestFeatureService oldClusterTestFeatureService = null;
 
     @Before
     public void extractOldClusterFeatures() {
-        if (oldClusterFeaturesInitialized == false) {
-            oldClusterFeatures.addAll(testFeatureService.getAllSupportedFeatures());
-            oldClusterFeaturesInitialized = true;
+        if (oldClusterTestFeatureService == null) {
+            oldClusterTestFeatureService = testFeatureService;
         }
     }
 
     protected static boolean oldClusterHasFeature(String featureId) {
-        assert oldClusterFeaturesInitialized;
-        return oldClusterFeatures.contains(featureId);
+        assert oldClusterTestFeatureService != null;
+        return oldClusterTestFeatureService.clusterHasFeature(featureId);
     }
 
     protected static boolean oldClusterHasFeature(NodeFeature feature) {
@@ -56,8 +53,7 @@ public class MixedClusterEsqlSpecIT extends EsqlSpecTestCase {
 
     @AfterClass
     public static void cleanUp() {
-        oldClusterFeaturesInitialized = false;
-        oldClusterFeatures.clear();
+        oldClusterTestFeatureService = null;
     }
 
     public MixedClusterEsqlSpecIT(String fileName, String groupName, String testName, Integer lineNumber, CsvTestCase testCase, Mode mode) {

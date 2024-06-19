@@ -15,6 +15,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.OriginSettingClient;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkedInferenceServiceResults;
 import org.elasticsearch.inference.ChunkingOptions;
@@ -28,19 +29,19 @@ import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.ClientHelper;
-import org.elasticsearch.xpack.core.inference.results.ChunkedSparseEmbeddingResults;
 import org.elasticsearch.xpack.core.inference.results.ErrorChunkedInferenceResults;
+import org.elasticsearch.xpack.core.inference.results.InferenceChunkedSparseEmbeddingResults;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.action.CreateTrainedModelAssignmentAction;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
-import org.elasticsearch.xpack.core.ml.action.InferTrainedModelDeploymentAction;
+import org.elasticsearch.xpack.core.ml.action.InferModelAction;
 import org.elasticsearch.xpack.core.ml.action.PutTrainedModelAction;
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.action.StopTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelInput;
-import org.elasticsearch.xpack.core.ml.inference.results.ChunkedTextExpansionResults;
 import org.elasticsearch.xpack.core.ml.inference.results.ErrorInferenceResults;
+import org.elasticsearch.xpack.core.ml.inference.results.MlChunkedTextExpansionResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextExpansionConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TokenizationConfigUpdate;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
@@ -57,6 +58,7 @@ import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 import static org.elasticsearch.xpack.core.ml.inference.assignment.AllocationStatus.State.STARTED;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrThrowIfNull;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwIfNotEmptyMap;
+import static org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalService.buildInferenceRequest;
 
 public class ElserInternalService implements InferenceService {
 
@@ -245,9 +247,11 @@ public class ElserInternalService implements InferenceService {
 
     @Override
     public void stop(String inferenceEntityId, ActionListener<Boolean> listener) {
+        var request = new StopTrainedModelDeploymentAction.Request(inferenceEntityId);
+        request.setForce(true);
         client.execute(
             StopTrainedModelDeploymentAction.INSTANCE,
-            new StopTrainedModelDeploymentAction.Request(inferenceEntityId),
+            request,
             listener.delegateFailureAndWrap((delegatedResponseListener, response) -> delegatedResponseListener.onResponse(Boolean.TRUE))
         );
     }
@@ -255,9 +259,11 @@ public class ElserInternalService implements InferenceService {
     @Override
     public void infer(
         Model model,
-        List<String> input,
+        @Nullable String query,
+        List<String> inputs,
         Map<String, Object> taskSettings,
         InputType inputType,
+        TimeValue timeout,
         ActionListener<InferenceServiceResults> listener
     ) {
         // No task settings to override with requestTaskSettings
@@ -269,26 +275,45 @@ public class ElserInternalService implements InferenceService {
             return;
         }
 
-        var request = InferTrainedModelDeploymentAction.Request.forTextInput(
+        var request = buildInferenceRequest(
             model.getConfigurations().getInferenceEntityId(),
             TextExpansionConfigUpdate.EMPTY_UPDATE,
-            input,
-            TimeValue.timeValueSeconds(10)  // TODO get timeout from request
+            inputs,
+            inputType,
+            timeout,
+            false // chunk
         );
+
         client.execute(
-            InferTrainedModelDeploymentAction.INSTANCE,
+            InferModelAction.INSTANCE,
             request,
-            listener.delegateFailureAndWrap((l, inferenceResult) -> l.onResponse(SparseEmbeddingResults.of(inferenceResult.getResults())))
+            listener.delegateFailureAndWrap(
+                (l, inferenceResult) -> l.onResponse(SparseEmbeddingResults.of(inferenceResult.getInferenceResults()))
+            )
         );
     }
 
-    @Override
     public void chunkedInfer(
         Model model,
         List<String> input,
         Map<String, Object> taskSettings,
         InputType inputType,
-        ChunkingOptions chunkingOptions,
+        @Nullable ChunkingOptions chunkingOptions,
+        TimeValue timeout,
+        ActionListener<List<ChunkedInferenceServiceResults>> listener
+    ) {
+        chunkedInfer(model, null, input, taskSettings, inputType, chunkingOptions, timeout, listener);
+    }
+
+    @Override
+    public void chunkedInfer(
+        Model model,
+        @Nullable String query,
+        List<String> inputs,
+        Map<String, Object> taskSettings,
+        InputType inputType,
+        @Nullable ChunkingOptions chunkingOptions,
+        TimeValue timeout,
         ActionListener<List<ChunkedInferenceServiceResults>> listener
     ) {
         try {
@@ -298,22 +323,25 @@ public class ElserInternalService implements InferenceService {
             return;
         }
 
-        var configUpdate = chunkingOptions.settingsArePresent()
+        var configUpdate = chunkingOptions != null
             ? new TokenizationConfigUpdate(chunkingOptions.windowSize(), chunkingOptions.span())
-            : TextExpansionConfigUpdate.EMPTY_UPDATE;
+            : new TokenizationConfigUpdate(null, null);
 
-        var request = InferTrainedModelDeploymentAction.Request.forTextInput(
+        var request = buildInferenceRequest(
             model.getConfigurations().getInferenceEntityId(),
             configUpdate,
-            input,
-            TimeValue.timeValueSeconds(10)  // TODO get timeout from request
+            inputs,
+            inputType,
+            timeout,
+            true // chunk
         );
-        request.setChunkResults(true);
 
         client.execute(
-            InferTrainedModelDeploymentAction.INSTANCE,
+            InferModelAction.INSTANCE,
             request,
-            listener.delegateFailureAndWrap((l, inferenceResult) -> l.onResponse(translateChunkedResults(inferenceResult.getResults())))
+            listener.delegateFailureAndWrap(
+                (l, inferenceResult) -> l.onResponse(translateChunkedResults(inferenceResult.getInferenceResults()))
+            )
         );
     }
 
@@ -334,9 +362,8 @@ public class ElserInternalService implements InferenceService {
             return;
         } else {
             String modelId = ((ElserInternalModel) model).getServiceSettings().getModelId();
-            var fieldNames = List.<String>of();
-            var input = new TrainedModelInput(fieldNames);
-            var config = TrainedModelConfig.builder().setInput(input).setModelId(modelId).build();
+            var input = new TrainedModelInput(List.<String>of("text_field")); // by convention text_field is used
+            var config = TrainedModelConfig.builder().setInput(input).setModelId(modelId).validate(true).build();
             PutTrainedModelAction.Request putRequest = new PutTrainedModelAction.Request(config, false, true);
             executeAsyncWithOrigin(
                 client,
@@ -388,15 +415,15 @@ public class ElserInternalService implements InferenceService {
         var translated = new ArrayList<ChunkedInferenceServiceResults>();
 
         for (var inferenceResult : inferenceResults) {
-            if (inferenceResult instanceof ChunkedTextExpansionResults mlChunkedResult) {
-                translated.add(ChunkedSparseEmbeddingResults.ofMlResult(mlChunkedResult));
+            if (inferenceResult instanceof MlChunkedTextExpansionResults mlChunkedResult) {
+                translated.add(InferenceChunkedSparseEmbeddingResults.ofMlResult(mlChunkedResult));
             } else if (inferenceResult instanceof ErrorInferenceResults error) {
                 translated.add(new ErrorChunkedInferenceResults(error.getException()));
             } else {
                 throw new ElasticsearchStatusException(
                     "Expected a chunked inference [{}] received [{}]",
                     RestStatus.INTERNAL_SERVER_ERROR,
-                    ChunkedTextExpansionResults.NAME,
+                    MlChunkedTextExpansionResults.NAME,
                     inferenceResult.getWriteableName()
                 );
             }

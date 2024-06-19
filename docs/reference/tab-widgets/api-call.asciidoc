@@ -50,7 +50,7 @@ terminal session.
 
 [source,sh]
 ----
-curl --cacert http_ca.crt -u elastic:$ELASTIC_PASSWORD https://localhost:9200
+curl -u elastic:$ELASTIC_PASSWORD https://localhost:9200
 ----
 // NOTCONSOLE
 

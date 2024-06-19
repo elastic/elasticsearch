@@ -4,8 +4,6 @@
 <titleabbrev>Put Data Stream Lifecycle</titleabbrev>
 ++++
 
-preview::[]
-
 Configures the data stream lifecycle for the targeted data streams.
 
 [[put-lifecycle-api-prereqs]]
@@ -36,7 +34,7 @@ To target all data streams use `*` or `_all`.
 [[put-data-lifecycle-api-query-parms]]
 ==== {api-query-parms-title}
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=ds-expand-wildcards]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=ds-expand-wildcards]
 +
 Defaults to `open`.
 

@@ -8,8 +8,8 @@
 
 package org.elasticsearch.rest.action.admin.indices;
 
-import org.elasticsearch.action.admin.indices.diskusage.AnalyzeIndexDiskUsageAction;
 import org.elasticsearch.action.admin.indices.diskusage.AnalyzeIndexDiskUsageRequest;
+import org.elasticsearch.action.admin.indices.diskusage.TransportAnalyzeIndexDiskUsageAction;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
@@ -54,7 +54,7 @@ public class RestAnalyzeIndexDiskUsageAction extends BaseRestHandler {
         final AnalyzeIndexDiskUsageRequest analyzeRequest = new AnalyzeIndexDiskUsageRequest(indices, indicesOptions, flush);
         return channel -> {
             final RestCancellableNodeClient cancelClient = new RestCancellableNodeClient(client, request.getHttpChannel());
-            cancelClient.execute(AnalyzeIndexDiskUsageAction.INSTANCE, analyzeRequest, new RestToXContentListener<>(channel));
+            cancelClient.execute(TransportAnalyzeIndexDiskUsageAction.TYPE, analyzeRequest, new RestToXContentListener<>(channel));
         };
     }
 }

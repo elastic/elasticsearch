@@ -26,8 +26,8 @@ public class GetStoredScriptResponse extends ActionResponse implements ToXConten
     public static final ParseField FOUND_PARSE_FIELD = new ParseField("found");
     public static final ParseField SCRIPT = new ParseField("script");
 
-    private String id;
-    private StoredScriptSource source;
+    private final String id;
+    private final StoredScriptSource source;
 
     public GetStoredScriptResponse(StreamInput in) throws IOException {
         super(in);

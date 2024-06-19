@@ -53,7 +53,6 @@ public class ForUtilTests extends LuceneTestCase {
         {
             // encode
             IndexOutput out = d.createOutput("test.bin", IOContext.DEFAULT);
-            final ForUtil forUtil = new ForUtil();
 
             for (int i = 0; i < iterations; ++i) {
                 long[] source = new long[ForUtil.BLOCK_SIZE];
@@ -64,7 +63,7 @@ public class ForUtilTests extends LuceneTestCase {
                 }
                 final int bpv = PackedInts.bitsRequired(or);
                 out.writeByte((byte) bpv);
-                forUtil.encode(source, bpv, out);
+                ForUtil.encode(source, bpv, out);
             }
             endPointer = out.getFilePointer();
             out.close();
@@ -73,12 +72,11 @@ public class ForUtilTests extends LuceneTestCase {
         {
             // decode
             IndexInput in = d.openInput("test.bin", IOContext.READONCE);
-            final ForUtil forUtil = new ForUtil();
             for (int i = 0; i < iterations; ++i) {
                 final int bitsPerValue = in.readByte();
                 final long currentFilePointer = in.getFilePointer();
                 final long[] restored = new long[ForUtil.BLOCK_SIZE];
-                forUtil.decode(bitsPerValue, in, restored);
+                ForUtil.decode(bitsPerValue, in, restored);
                 int[] ints = new int[ForUtil.BLOCK_SIZE];
                 for (int j = 0; j < ForUtil.BLOCK_SIZE; ++j) {
                     ints[j] = Math.toIntExact(restored[j]);
@@ -88,7 +86,7 @@ public class ForUtilTests extends LuceneTestCase {
                     ArrayUtil.copyOfSubArray(values, i * ForUtil.BLOCK_SIZE, (i + 1) * ForUtil.BLOCK_SIZE),
                     ints
                 );
-                assertEquals(forUtil.numBytes(bitsPerValue), in.getFilePointer() - currentFilePointer);
+                assertEquals(ForUtil.numBytes(bitsPerValue), in.getFilePointer() - currentFilePointer);
             }
             assertEquals(endPointer, in.getFilePointer());
             in.close();

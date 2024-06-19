@@ -7,33 +7,45 @@
 
 package org.elasticsearch.xpack.esql.plan.logical;
 
-import org.elasticsearch.xpack.ql.expression.Attribute;
-import org.elasticsearch.xpack.ql.plan.TableIdentifier;
-import org.elasticsearch.xpack.ql.plan.logical.UnresolvedRelation;
-import org.elasticsearch.xpack.ql.tree.NodeInfo;
-import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.plan.TableIdentifier;
+import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
+import org.elasticsearch.xpack.esql.core.tree.Source;
 
 import java.util.List;
 
 public class EsqlUnresolvedRelation extends UnresolvedRelation {
 
     private final List<Attribute> metadataFields;
+    private final IndexMode indexMode;
 
-    public EsqlUnresolvedRelation(Source source, TableIdentifier table, List<Attribute> metadataFields, String unresolvedMessage) {
+    public EsqlUnresolvedRelation(
+        Source source,
+        TableIdentifier table,
+        List<Attribute> metadataFields,
+        IndexMode indexMode,
+        String unresolvedMessage
+    ) {
         super(source, table, "", false, unresolvedMessage);
         this.metadataFields = metadataFields;
+        this.indexMode = indexMode;
     }
 
-    public EsqlUnresolvedRelation(Source source, TableIdentifier table, List<Attribute> metadataFields) {
-        this(source, table, metadataFields, null);
+    public EsqlUnresolvedRelation(Source source, TableIdentifier table, List<Attribute> metadataFields, IndexMode indexMode) {
+        this(source, table, metadataFields, indexMode, null);
     }
 
     public List<Attribute> metadataFields() {
         return metadataFields;
     }
 
+    public IndexMode indexMode() {
+        return indexMode;
+    }
+
     @Override
     protected NodeInfo<UnresolvedRelation> info() {
-        return NodeInfo.create(this, EsqlUnresolvedRelation::new, table(), metadataFields(), unresolvedMessage());
+        return NodeInfo.create(this, EsqlUnresolvedRelation::new, table(), metadataFields(), indexMode(), unresolvedMessage());
     }
 }

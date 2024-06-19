@@ -17,6 +17,7 @@ import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsDefinition;
+import org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissions;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivileges;
 
@@ -40,6 +41,7 @@ public final class GetUserPrivilegesResponse extends ActionResponse {
     private final Set<RoleDescriptor.ApplicationResourcePrivileges> application;
     private final Set<String> runAs;
     private final Set<RemoteIndices> remoteIndex;
+    private final RemoteClusterPermissions remoteClusterPermissions;
 
     public GetUserPrivilegesResponse(StreamInput in) throws IOException {
         super(in);
@@ -53,6 +55,11 @@ public final class GetUserPrivilegesResponse extends ActionResponse {
         } else {
             remoteIndex = Set.of();
         }
+        if (in.getTransportVersion().onOrAfter(TransportVersions.ROLE_REMOTE_CLUSTER_PRIVS)) {
+            remoteClusterPermissions = new RemoteClusterPermissions(in);
+        } else {
+            remoteClusterPermissions = RemoteClusterPermissions.NONE;
+        }
     }
 
     public GetUserPrivilegesResponse(
@@ -61,7 +68,8 @@ public final class GetUserPrivilegesResponse extends ActionResponse {
         Set<Indices> index,
         Set<RoleDescriptor.ApplicationResourcePrivileges> application,
         Set<String> runAs,
-        Set<RemoteIndices> remoteIndex
+        Set<RemoteIndices> remoteIndex,
+        RemoteClusterPermissions remoteClusterPermissions
     ) {
         this.cluster = Collections.unmodifiableSet(cluster);
         this.configurableClusterPrivileges = Collections.unmodifiableSet(conditionalCluster);
@@ -69,6 +77,7 @@ public final class GetUserPrivilegesResponse extends ActionResponse {
         this.application = Collections.unmodifiableSet(application);
         this.runAs = Collections.unmodifiableSet(runAs);
         this.remoteIndex = Collections.unmodifiableSet(remoteIndex);
+        this.remoteClusterPermissions = remoteClusterPermissions;
     }
 
     public Set<String> getClusterPrivileges() {
@@ -87,6 +96,10 @@ public final class GetUserPrivilegesResponse extends ActionResponse {
         return remoteIndex;
     }
 
+    public RemoteClusterPermissions getRemoteClusterPermissions() {
+        return remoteClusterPermissions;
+    }
+
     public Set<RoleDescriptor.ApplicationResourcePrivileges> getApplicationPrivileges() {
         return application;
     }
@@ -97,6 +110,10 @@ public final class GetUserPrivilegesResponse extends ActionResponse {
 
     public boolean hasRemoteIndicesPrivileges() {
         return false == remoteIndex.isEmpty();
+    }
+
+    public boolean hasRemoteClusterPrivileges() {
+        return remoteClusterPermissions.hasPrivileges();
     }
 
     @Override
@@ -111,8 +128,19 @@ public final class GetUserPrivilegesResponse extends ActionResponse {
         } else if (hasRemoteIndicesPrivileges()) {
             throw new IllegalArgumentException(
                 "versions of Elasticsearch before ["
-                    + TransportVersions.V_8_8_0
+                    + TransportVersions.V_8_8_0.toReleaseVersion()
                     + "] can't handle remote indices privileges and attempted to send to ["
+                    + out.getTransportVersion().toReleaseVersion()
+                    + "]"
+            );
+        }
+        if (out.getTransportVersion().onOrAfter(TransportVersions.ROLE_REMOTE_CLUSTER_PRIVS)) {
+            remoteClusterPermissions.writeTo(out);
+        } else if (hasRemoteClusterPrivileges()) {
+            throw new IllegalArgumentException(
+                "versions of Elasticsearch before ["
+                    + TransportVersions.ROLE_REMOTE_CLUSTER_PRIVS
+                    + "] can't handle remote cluster privileges and attempted to send to ["
                     + out.getTransportVersion()
                     + "]"
             );
@@ -133,12 +161,13 @@ public final class GetUserPrivilegesResponse extends ActionResponse {
             && Objects.equals(index, that.index)
             && Objects.equals(application, that.application)
             && Objects.equals(runAs, that.runAs)
-            && Objects.equals(remoteIndex, that.remoteIndex);
+            && Objects.equals(remoteIndex, that.remoteIndex)
+            && Objects.equals(remoteClusterPermissions, that.remoteClusterPermissions);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(cluster, configurableClusterPrivileges, index, application, runAs, remoteIndex);
+        return Objects.hash(cluster, configurableClusterPrivileges, index, application, runAs, remoteIndex, remoteClusterPermissions);
     }
 
     public record RemoteIndices(Indices indices, Set<String> remoteClusters) implements ToXContentObject, Writeable {
@@ -151,7 +180,7 @@ public final class GetUserPrivilegesResponse extends ActionResponse {
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             indices.innerToXContent(builder);
-            builder.field(RoleDescriptor.Fields.REMOTE_CLUSTERS.getPreferredName(), remoteClusters);
+            builder.field(RoleDescriptor.Fields.CLUSTERS.getPreferredName(), remoteClusters);
             return builder.endObject();
         }
 

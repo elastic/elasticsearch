@@ -8,13 +8,18 @@
 package org.elasticsearch.xpack.ml.inference.ltr;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.SearchModule;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.rescore.QueryRescorerBuilder;
 import org.elasticsearch.search.rescore.RescorerBuilder;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
@@ -33,7 +38,9 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.LearningToRankConfigTests.randomLearningToRankConfig;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
 
@@ -57,6 +64,117 @@ public class LearningToRankRescorerBuilderSerializationTests extends AbstractBWC
         }
     }
 
+    public void testRescoreChainValidation() {
+        {
+            SearchSourceBuilder source = new SearchSourceBuilder().from(10)
+                .size(10)
+                .addRescorer(createQueryRescorerBuilder(randomIntBetween(2, 10000)))
+                .addRescorer(createQueryRescorerBuilder(randomIntBetween(2, 10000)))
+                .addRescorer(createTestInstance(50))
+                .addRescorer(createQueryRescorerBuilder(randomIntBetween(2, 50)))
+                .addRescorer(createTestInstance(50))
+                .addRescorer(createTestInstance(20))
+                .addRescorer(createQueryRescorerBuilder(randomIntBetween(2, 20)))
+                .addRescorer(createQueryRescorerBuilder(randomIntBetween(2, 20)));
+
+            SearchRequest searchRequest = new SearchRequest().source(source);
+            ActionRequestValidationException validationErrors = searchRequest.validate();
+            assertNull(validationErrors);
+        }
+
+        {
+            RescorerBuilder<?> rescorer = createTestInstance(randomIntBetween(2, 19));
+            SearchSourceBuilder source = new SearchSourceBuilder().from(10).size(10).addRescorer(rescorer);
+
+            SearchRequest searchRequest = new SearchRequest().source(source);
+            ActionRequestValidationException validationErrors = searchRequest.validate();
+            assertNotNull(validationErrors);
+            assertThat(
+                validationErrors.validationErrors().get(0),
+                equalTo(
+                    "rescorer [window_size] is too small and should be at least the value of [from + size: 20] but was ["
+                        + rescorer.windowSize()
+                        + "]"
+                )
+            );
+        }
+
+        {
+            SearchSourceBuilder source = new SearchSourceBuilder().from(10)
+                .size(10)
+                .addRescorer(createQueryRescorerBuilder(randomIntBetween(2, 10000)))
+                .addRescorer(createQueryRescorerBuilder(randomIntBetween(2, 10000)))
+                .addRescorer(createTestInstance(50))
+                .addRescorer(createTestInstance(60));
+
+            SearchRequest searchRequest = new SearchRequest().source(source);
+            ActionRequestValidationException validationErrors = searchRequest.validate();
+            assertNotNull(validationErrors);
+            assertThat(
+                validationErrors.validationErrors().get(0),
+                equalTo(
+                    "unable to add a rescorer with [window_size: 60] because a rescorer of type [learning_to_rank] "
+                        + "with a smaller [window_size: 50] has been added before"
+                )
+            );
+        }
+
+        {
+            SearchSourceBuilder source = new SearchSourceBuilder().from(10)
+                .size(10)
+                .addRescorer(createQueryRescorerBuilder(randomIntBetween(2, 10000)))
+                .addRescorer(createQueryRescorerBuilder(randomIntBetween(2, 10000)))
+                .addRescorer(createTestInstance(50))
+                .addRescorer(createQueryRescorerBuilder(60));
+
+            SearchRequest searchRequest = new SearchRequest().source(source);
+            ActionRequestValidationException validationErrors = searchRequest.validate();
+            assertNotNull(validationErrors);
+            assertThat(
+                validationErrors.validationErrors().get(0),
+                equalTo(
+                    "unable to add a rescorer with [window_size: 60] because a rescorer of type [learning_to_rank] "
+                        + "with a smaller [window_size: 50] has been added before"
+                )
+            );
+        }
+
+        {
+            SearchSourceBuilder source = new SearchSourceBuilder().size(3)
+                .addRescorer(createQueryRescorerBuilder(randomIntBetween(2, 10000)))
+                .addRescorer(createQueryRescorerBuilder(randomIntBetween(2, 10000)))
+                .addRescorer(createTestInstance(5))
+                .addRescorer(createQueryRescorerBuilder(null));
+
+            SearchRequest searchRequest = new SearchRequest().source(source);
+            ActionRequestValidationException validationErrors = searchRequest.validate();
+            assertNotNull(validationErrors);
+            assertThat(
+                validationErrors.validationErrors().get(0),
+                equalTo(
+                    "unable to add a rescorer with [window_size: 10] because a rescorer of type [learning_to_rank] "
+                        + "with a smaller [window_size: 5] has been added before"
+                )
+            );
+        }
+    }
+
+    public void testModelIdIsRequired() throws IOException {
+        XContentBuilder jsonBuilder = jsonBuilder().startObject();
+        if (randomBoolean()) {
+            jsonBuilder.field("params", randomParams());
+        }
+        jsonBuilder.endObject();
+
+        XContentParser parser = createParser(jsonBuilder);
+
+        Exception e = assertThrows(
+            IllegalArgumentException.class,
+            () -> LearningToRankRescorerBuilder.fromXContent(parser, mock(LearningToRankService.class))
+        );
+        assertThat(e.getMessage(), containsString("Required one of fields [model_id], but none were specified."));
+    }
+
     @Override
     protected LearningToRankRescorerBuilder doParseInstance(XContentParser parser) throws IOException {
         return (LearningToRankRescorerBuilder) RescorerBuilder.parseFromXContent(parser, (r) -> {});
@@ -67,8 +185,7 @@ public class LearningToRankRescorerBuilderSerializationTests extends AbstractBWC
         return in -> new LearningToRankRescorerBuilder(in, learningToRankService);
     }
 
-    @Override
-    protected LearningToRankRescorerBuilder createTestInstance() {
+    protected LearningToRankRescorerBuilder createTestInstance(int windowSize) {
         LearningToRankRescorerBuilder builder = randomBoolean()
             ? createXContextTestInstance(null)
             : new LearningToRankRescorerBuilder(
@@ -78,9 +195,14 @@ public class LearningToRankRescorerBuilderSerializationTests extends AbstractBWC
                 learningToRankService
             );
 
-        builder.windowSize(randomIntBetween(1, 10000));
+        builder.windowSize(windowSize);
 
         return builder;
+    }
+
+    @Override
+    protected LearningToRankRescorerBuilder createTestInstance() {
+        return createTestInstance(randomIntBetween(1, 10000));
     }
 
     @Override
@@ -168,5 +290,15 @@ public class LearningToRankRescorerBuilderSerializationTests extends AbstractBWC
 
     private static Map<String, Object> randomParams() {
         return randomMap(1, randomIntBetween(1, 10), () -> new Tuple<>(randomIdentifier(), randomIdentifier()));
+    }
+
+    private static QueryRescorerBuilder createQueryRescorerBuilder(Integer windowSize) {
+        QueryRescorerBuilder queryRescorer = new QueryRescorerBuilder(mock(QueryBuilder.class));
+
+        if (windowSize != null) {
+            queryRescorer.windowSize(windowSize);
+        }
+
+        return queryRescorer;
     }
 }

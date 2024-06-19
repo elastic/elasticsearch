@@ -209,7 +209,7 @@ public class TruncateTranslogAction {
     private static int writeEmptyTranslog(Path filename, String translogUUID) throws IOException {
         try (FileChannel fc = FileChannel.open(filename, StandardOpenOption.WRITE, StandardOpenOption.CREATE_NEW)) {
             TranslogHeader header = new TranslogHeader(translogUUID, SequenceNumbers.UNASSIGNED_PRIMARY_TERM);
-            header.write(fc);
+            header.write(fc, true);
             return header.sizeInBytes();
         }
     }

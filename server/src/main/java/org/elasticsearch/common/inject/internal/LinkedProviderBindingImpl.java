@@ -54,8 +54,8 @@ public final class LinkedProviderBindingImpl<T> extends BindingImpl<T> implement
     }
 
     @Override
-    public BindingImpl<T> withScoping(Scoping scoping) {
-        return new LinkedProviderBindingImpl<>(getSource(), getKey(), scoping, providerKey);
+    public BindingImpl<T> withEagerSingletonScoping() {
+        return new LinkedProviderBindingImpl<>(getSource(), getKey(), Scoping.EAGER_SINGLETON, providerKey);
     }
 
     @Override

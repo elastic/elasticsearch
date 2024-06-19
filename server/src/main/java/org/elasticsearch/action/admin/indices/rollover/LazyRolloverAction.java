@@ -98,7 +98,8 @@ public final class LazyRolloverAction extends ActionType<RolloverResponse> {
                 clusterState,
                 rolloverRequest.getRolloverTarget(),
                 rolloverRequest.getNewIndexName(),
-                rolloverRequest.getCreateIndexRequest()
+                rolloverRequest.getCreateIndexRequest(),
+                rolloverRequest.indicesOptions().failureStoreOptions().includeFailureIndices()
             );
             final String trialSourceIndexName = trialRolloverNames.sourceName();
             final String trialRolloverIndexName = trialRolloverNames.rolloverName();
@@ -117,16 +118,12 @@ public final class LazyRolloverAction extends ActionType<RolloverResponse> {
                 false
             );
 
-            String source = "lazy_rollover source [" + trialRolloverIndexName + "] to target [" + trialRolloverIndexName + "]";
+            String source = "lazy_rollover source [" + trialSourceIndexName + "] to target [" + trialRolloverIndexName + "]";
             // We create a new rollover request to ensure that it doesn't contain any other parameters apart from the data stream name
             // This will provide a more resilient user experience
-            RolloverTask rolloverTask = new RolloverTask(
-                new RolloverRequest(rolloverRequest.getRolloverTarget(), null),
-                null,
-                trialRolloverResponse,
-                null,
-                listener
-            );
+            var newRolloverRequest = new RolloverRequest(rolloverRequest.getRolloverTarget(), null);
+            newRolloverRequest.setIndicesOptions(rolloverRequest.indicesOptions());
+            RolloverTask rolloverTask = new RolloverTask(newRolloverRequest, null, trialRolloverResponse, null, listener);
             submitRolloverTask(rolloverRequest, source, rolloverTask);
         }
     }

@@ -20,7 +20,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.security.action.rolemapping.GetRoleMappingsRequestBuilder;
 import org.elasticsearch.xpack.core.security.action.rolemapping.GetRoleMappingsResponse;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.ExpressionRoleMapping;
-import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
 
 import java.io.IOException;
 import java.util.List;
@@ -31,7 +30,7 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
  * Rest endpoint to retrieve a role-mapping from the org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingStore
  */
 @ServerlessScope(Scope.INTERNAL)
-public class RestGetRoleMappingsAction extends SecurityBaseRestHandler {
+public class RestGetRoleMappingsAction extends NativeRoleMappingBaseRestHandler {
 
     public RestGetRoleMappingsAction(Settings settings, XPackLicenseState licenseState) {
         super(settings, licenseState);

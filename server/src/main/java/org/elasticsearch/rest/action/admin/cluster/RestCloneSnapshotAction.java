@@ -24,6 +24,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
+import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 
 /**
  * Clones indices from one snapshot into another snapshot in the same repository
@@ -51,7 +52,7 @@ public class RestCloneSnapshotAction extends BaseRestHandler {
                 request.param("target_snapshot"),
                 XContentMapValues.nodeStringArrayValue(source.getOrDefault("indices", Collections.emptyList()))
             );
-            cloneSnapshotRequest.masterNodeTimeout(request.paramAsTime("master_timeout", cloneSnapshotRequest.masterNodeTimeout()));
+            cloneSnapshotRequest.masterNodeTimeout(getMasterNodeTimeout(request));
             cloneSnapshotRequest.indicesOptions(IndicesOptions.fromMap(source, cloneSnapshotRequest.indicesOptions()));
             return channel -> client.admin().cluster().cloneSnapshot(cloneSnapshotRequest, new RestToXContentListener<>(channel));
         }

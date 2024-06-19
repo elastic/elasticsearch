@@ -17,21 +17,20 @@ import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.lucene.UnsupportedValueSource;
-import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
-import org.elasticsearch.xpack.versionfield.Version;
 
 import java.io.IOException;
 
+import static org.elasticsearch.xpack.esql.core.util.NumericUtils.unsignedLongAsNumber;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeToString;
-import static org.elasticsearch.xpack.ql.util.NumericUtils.unsignedLongAsNumber;
-import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.CARTESIAN;
-import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.GEO;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.ipToString;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.spatialToString;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.versionToString;
 
 abstract class PositionToXContent {
     protected final Block block;
@@ -62,21 +61,21 @@ abstract class PositionToXContent {
 
     public static PositionToXContent positionToXContent(ColumnInfo columnInfo, Block block, BytesRef scratch) {
         return switch (columnInfo.type()) {
-            case "long" -> new PositionToXContent(block) {
+            case "long", "counter_long" -> new PositionToXContent(block) {
                 @Override
                 protected XContentBuilder valueToXContent(XContentBuilder builder, ToXContent.Params params, int valueIndex)
                     throws IOException {
                     return builder.value(((LongBlock) block).getLong(valueIndex));
                 }
             };
-            case "integer" -> new PositionToXContent(block) {
+            case "integer", "counter_integer" -> new PositionToXContent(block) {
                 @Override
                 protected XContentBuilder valueToXContent(XContentBuilder builder, ToXContent.Params params, int valueIndex)
                     throws IOException {
                     return builder.value(((IntBlock) block).getInt(valueIndex));
                 }
             };
-            case "double" -> new PositionToXContent(block) {
+            case "double", "counter_double" -> new PositionToXContent(block) {
                 @Override
                 protected XContentBuilder valueToXContent(XContentBuilder builder, ToXContent.Params params, int valueIndex)
                     throws IOException {
@@ -109,7 +108,7 @@ abstract class PositionToXContent {
                 protected XContentBuilder valueToXContent(XContentBuilder builder, ToXContent.Params params, int valueIndex)
                     throws IOException {
                     BytesRef val = ((BytesRefBlock) block).getBytesRef(valueIndex, scratch);
-                    return builder.value(DocValueFormat.IP.format(val));
+                    return builder.value(ipToString(val));
                 }
             };
             case "date" -> new PositionToXContent(block) {
@@ -120,18 +119,11 @@ abstract class PositionToXContent {
                     return builder.value(dateTimeToString(longVal));
                 }
             };
-            case "geo_point", "geo_shape" -> new PositionToXContent(block) {
+            case "geo_point", "geo_shape", "cartesian_point", "cartesian_shape" -> new PositionToXContent(block) {
                 @Override
                 protected XContentBuilder valueToXContent(XContentBuilder builder, ToXContent.Params params, int valueIndex)
                     throws IOException {
-                    return builder.value(GEO.wkbToWkt(((BytesRefBlock) block).getBytesRef(valueIndex, scratch)));
-                }
-            };
-            case "cartesian_point", "cartesian_shape" -> new PositionToXContent(block) {
-                @Override
-                protected XContentBuilder valueToXContent(XContentBuilder builder, ToXContent.Params params, int valueIndex)
-                    throws IOException {
-                    return builder.value(CARTESIAN.wkbToWkt(((BytesRefBlock) block).getBytesRef(valueIndex, scratch)));
+                    return builder.value(spatialToString(((BytesRefBlock) block).getBytesRef(valueIndex, scratch)));
                 }
             };
             case "boolean" -> new PositionToXContent(block) {
@@ -146,7 +138,7 @@ abstract class PositionToXContent {
                 protected XContentBuilder valueToXContent(XContentBuilder builder, ToXContent.Params params, int valueIndex)
                     throws IOException {
                     BytesRef val = ((BytesRefBlock) block).getBytesRef(valueIndex, scratch);
-                    return builder.value(new Version(val).toString());
+                    return builder.value(versionToString(val));
                 }
             };
             case "null" -> new PositionToXContent(block) {

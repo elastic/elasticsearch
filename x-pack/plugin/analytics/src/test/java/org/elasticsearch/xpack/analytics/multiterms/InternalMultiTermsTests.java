@@ -21,6 +21,7 @@ import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.InternalAggregations;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.test.InternalAggregationTestCase;
 import org.elasticsearch.xpack.analytics.AnalyticsPlugin;
@@ -358,18 +359,20 @@ public class InternalMultiTermsTests extends InternalAggregationTestCase<Interna
             keyConverters2,
             null
         );
-        AggregationReduceContext context = new AggregationReduceContext.ForPartial(
+        AggregationReduceContext context = new AggregationReduceContext.ForFinal(
             bigArrays,
             mockScriptService,
             () -> false,
-            mock(AggregationBuilder.class)
+            mock(AggregationBuilder.class),
+            i -> {},
+            PipelineAggregator.PipelineTree.EMPTY
         );
 
         InternalMultiTerms result = (InternalMultiTerms) InternalAggregationTestCase.reduce(List.of(terms1, terms2), context);
         assertThat(result.buckets, hasSize(3));
-        assertThat(result.buckets.get(0).getKeyAsString(), equalTo("4|9.223372036854776E18|4.0"));
+        assertThat(result.buckets.get(0).getKeyAsString(), equalTo("4|9.223372036854776E18|1.0"));
         assertThat(result.buckets.get(0).getDocCount(), equalTo(3L));
-        assertThat(result.buckets.get(1).getKeyAsString(), equalTo("4|9.223372036854776E18|1.0"));
+        assertThat(result.buckets.get(1).getKeyAsString(), equalTo("4|9.223372036854776E18|4.0"));
         assertThat(result.buckets.get(1).getDocCount(), equalTo(3L));
         assertThat(result.buckets.get(2).getKeyAsString(), equalTo("3|9.223372036854776E18|3.0"));
         assertThat(result.buckets.get(2).getDocCount(), equalTo(2L));

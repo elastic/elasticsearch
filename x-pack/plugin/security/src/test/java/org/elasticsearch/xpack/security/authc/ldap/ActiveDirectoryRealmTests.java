@@ -318,7 +318,7 @@ public class ActiveDirectoryRealmTests extends ESTestCase {
         verify(sessionFactory, times(1)).session(eq("CN=ironman"), any(SecureString.class), anyActionListener());
 
         // Refresh the role mappings
-        roleMapper.notifyRefresh();
+        roleMapper.clearRealmCachesOnLocalNode();
 
         for (int i = 0; i < count; i++) {
             PlainActionFuture<AuthenticationResult<User>> future = new PlainActionFuture<>();

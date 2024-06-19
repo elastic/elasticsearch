@@ -47,7 +47,7 @@ An example synonyms file:
 
 [source,synonyms]
 --------------------------------------------------
-include::{es-test-dir}/cluster/config/analysis/synonym.txt[]
+include::{elasticsearch-root}/docs/src/test/cluster/config/analysis/synonym.txt[]
 --------------------------------------------------
 
 To update an existing synonyms set, upload new files to your cluster.

@@ -1,6 +1,6 @@
-constant_keyword:
-  - skip:
-      version: " - 8.4.99"
+aggregate_metric_double:
+  - requires:
+      cluster_features: ["gte_v8.5.0"]
       reason: synthetic source support added  in 8.5.0
 
   - do:
@@ -51,3 +51,54 @@ constant_keyword:
           min: 18.2
           max: 100.0
           value_count: 50
+
+---
+aggregate_metric_double with ignore_malformed:
+  - requires:
+      cluster_features: ["mapper.track_ignored_source"]
+      reason: requires tracking ignored source
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            _source:
+              mode: synthetic
+            properties:
+              metric:
+                type: aggregate_metric_double
+                metrics: [min, max, value_count]
+                default_metric: max
+                ignore_malformed: true
+
+  - do:
+      index:
+        index:  test
+        id:     "1"
+        refresh: true
+        body:
+          metric:
+            min: 18.2
+            max: 100
+            field: "field"
+            sub:
+              array: [1, 2, 3]
+              field: "field"
+            value_count: 50
+
+  - do:
+      search:
+        index: test
+
+  - match:
+      hits.hits.0._source:
+        metric:
+          min: 18.2
+          max: 100
+          field: "field"
+          sub:
+            array: [1, 2, 3]
+            field: "field"
+          value_count: 50
+

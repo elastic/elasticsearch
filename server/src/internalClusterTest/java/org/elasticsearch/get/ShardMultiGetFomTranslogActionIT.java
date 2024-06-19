@@ -16,7 +16,9 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -31,28 +33,42 @@ import static org.elasticsearch.action.get.ShardMultiGetFromTranslogUtil.getResp
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
 
 public class ShardMultiGetFomTranslogActionIT extends ESIntegTestCase {
+
+    private static final String INDEX = "test";
+    private static final String ALIAS = "alias";
+
     public void testShardMultiGetFromTranslog() throws Exception {
         assertAcked(
-            prepareCreate("test").setSettings(
+            prepareCreate(INDEX).setSettings(
                 Settings.builder()
                     .put("index.refresh_interval", -1)
                     // A ShardMultiGetFromTranslogAction runs only Stateless where there is only one active indexing shard.
                     .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
                     .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            ).addAlias(new Alias("alias").writeIndex(randomFrom(true, false, null)))
+            ).addAlias(new Alias(ALIAS).writeIndex(randomFrom(true, false, null)))
         );
         ensureGreen();
 
+        var shardRouting = randomFrom(clusterService().state().routingTable().allShards(INDEX));
+        var indicesService = internalCluster().getInstance(
+            IndicesService.class,
+            clusterService().state().nodes().get(shardRouting.currentNodeId()).getName()
+        );
+        var initialGeneration = indicesService.indexServiceSafe(shardRouting.index())
+            .getShard(shardRouting.id())
+            .getEngineOrNull()
+            .getLastCommittedSegmentInfos()
+            .getGeneration();
+
         // Do a single get to enable storing locations in translog. Otherwise, we could get unwanted refreshes that
         // prune the LiveVersionMap and would make the test fail/flaky.
-        var indexResponse = prepareIndex("test").setId("0").setSource("field1", "value2").get();
+        var indexResponse = prepareIndex(INDEX).setId("0").setSource("field1", "value2").get();
         client().prepareGet("test", indexResponse.getId()).get();
 
         var mgetIds = List.of("1", "2", "3");
-        var response = getFromTranslog(indexOrAlias(), mgetIds);
+        var response = getFromTranslog(shardRouting, mgetIds);
         var multiGetShardResponse = response.multiGetShardResponse();
         assertThat(getLocations(multiGetShardResponse).size(), equalTo(3));
         assertThat(getFailures(multiGetShardResponse).size(), equalTo(3));
@@ -60,17 +76,17 @@ public class ShardMultiGetFomTranslogActionIT extends ESIntegTestCase {
         assertThat(getResponses(multiGetShardResponse).size(), equalTo(3));
         assertTrue(getResponses(multiGetShardResponse).stream().allMatch(Objects::isNull));
         // There hasn't been any switches from unsafe to safe map
-        assertThat(response.segmentGeneration(), equalTo(-1L));
+        assertThat(response.segmentGeneration(), equalTo(initialGeneration));
 
         var bulkRequest = client().prepareBulk();
         var idsToIndex = randomSubsetOf(2, mgetIds);
         for (String id : idsToIndex) {
-            bulkRequest.add(new IndexRequest("test").id(id).source("field1", "value1"));
+            bulkRequest.add(new IndexRequest(INDEX).id(id).source("field1", "value1"));
         }
         bulkRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.NONE);
         var bulkResponse = bulkRequest.get();
         assertNoFailures(bulkResponse);
-        response = getFromTranslog(indexOrAlias(), mgetIds);
+        response = getFromTranslog(shardRouting, mgetIds);
         multiGetShardResponse = response.multiGetShardResponse();
         assertThat(getLocations(multiGetShardResponse).size(), equalTo(3));
         assertThat(getFailures(multiGetShardResponse).size(), equalTo(3));
@@ -90,11 +106,11 @@ public class ShardMultiGetFomTranslogActionIT extends ESIntegTestCase {
                 assertNull(getResponse);
             }
         }
-        assertThat(response.segmentGeneration(), equalTo(-1L));
+        assertThat(response.segmentGeneration(), equalTo(initialGeneration));
         // Get followed by a Delete should still return a result
         var idToDelete = randomFrom(idsToIndex);
-        client().prepareDelete("test", idToDelete).get();
-        response = getFromTranslog(indexOrAlias(), idsToIndex);
+        client().prepareDelete(INDEX, idToDelete).get();
+        response = getFromTranslog(shardRouting, idsToIndex);
         multiGetShardResponse = response.multiGetShardResponse();
         assertThat(getLocations(multiGetShardResponse).size(), equalTo(2));
         assertTrue(getFailures(multiGetShardResponse).stream().allMatch(Objects::isNull));
@@ -107,8 +123,8 @@ public class ShardMultiGetFomTranslogActionIT extends ESIntegTestCase {
         }
         assertThat(response.segmentGeneration(), equalTo(-1L));
 
-        indexResponse = prepareIndex("test").setSource("field1", "value2").get();
-        response = getFromTranslog(indexOrAlias(), List.of(indexResponse.getId()));
+        indexResponse = prepareIndex(INDEX).setSource("field1", "value2").get();
+        response = getFromTranslog(shardRouting, List.of(indexResponse.getId()));
         multiGetShardResponse = response.multiGetShardResponse();
         assertThat(getLocations(multiGetShardResponse).size(), equalTo(1));
         assertTrue(getFailures(multiGetShardResponse).stream().allMatch(Objects::isNull));
@@ -119,8 +135,8 @@ public class ShardMultiGetFomTranslogActionIT extends ESIntegTestCase {
         assertThat(getResponses.get(0).getVersion(), equalTo(indexResponse.getVersion()));
         assertThat(response.segmentGeneration(), equalTo(-1L));
         // After a refresh we should not be able to get from translog
-        refresh("test");
-        response = getFromTranslog(indexOrAlias(), List.of(indexResponse.getId()));
+        refresh(INDEX);
+        response = getFromTranslog(shardRouting, List.of(indexResponse.getId()));
         multiGetShardResponse = response.multiGetShardResponse();
         assertThat(getLocations(multiGetShardResponse).size(), equalTo(1));
         assertTrue(getFailures(multiGetShardResponse).stream().allMatch(Objects::isNull));
@@ -128,27 +144,28 @@ public class ShardMultiGetFomTranslogActionIT extends ESIntegTestCase {
             "after a refresh we should not be able to get from translog",
             getResponses(multiGetShardResponse).stream().allMatch(Objects::isNull)
         );
-        assertThat(response.segmentGeneration(), equalTo(-1L));
+        // refresh in stateful does not flush a new generation, hence no change in lastUnsafeSegmentGenerationForGets
+        assertThat(response.segmentGeneration(), equalTo(initialGeneration));
         // After two refreshes the LiveVersionMap switches back to append-only and stops tracking IDs
         // Refreshing with empty LiveVersionMap doesn't cause the switch, see {@link LiveVersionMap.Maps#shouldInheritSafeAccess()}.
-        prepareIndex("test").setSource("field1", "value3").get();
-        refresh("test");
-        refresh("test");
+        prepareIndex(INDEX).setSource("field1", "value3").get();
+        refresh(INDEX);
+        refresh(INDEX);
         // An optimized index operation marks the maps as unsafe
-        prepareIndex("test").setSource("field1", "value4").get();
-        response = getFromTranslog(indexOrAlias(), List.of("non-existent"));
+        prepareIndex(INDEX).setSource("field1", "value4").get();
+        response = getFromTranslog(shardRouting, List.of("non-existent"));
         multiGetShardResponse = response.multiGetShardResponse();
         assertThat(getLocations(multiGetShardResponse).size(), equalTo(1));
         assertThat(getFailures(multiGetShardResponse).size(), equalTo(1));
         assertNull(getFailures(multiGetShardResponse).get(0));
         assertThat(getResponses(multiGetShardResponse).size(), equalTo(1));
         assertNull(getResponses(multiGetShardResponse).get(0));
-        assertThat(response.segmentGeneration(), greaterThan(0L));
+        // getFromTranslog in stateful does not flush a new generation, hence no change to lastUnsafeSegmentGenerationForGets
+        assertThat(response.segmentGeneration(), equalTo(initialGeneration));
     }
 
-    private TransportShardMultiGetFomTranslogAction.Response getFromTranslog(String index, List<String> ids) throws Exception {
-        var shardRouting = randomFrom(clusterService().state().routingTable().allShards("test"));
-        var multiGetRequest = client().prepareMultiGet().addIds(index, ids).request();
+    private TransportShardMultiGetFomTranslogAction.Response getFromTranslog(ShardRouting shardRouting, List<String> ids) throws Exception {
+        var multiGetRequest = client().prepareMultiGet().addIds(indexOrAlias(), ids).request();
         var multiGetShardRequest = ShardMultiGetFromTranslogUtil.newMultiGetShardRequest(multiGetRequest, shardRouting.shardId());
         var node = clusterService().state().nodes().get(shardRouting.currentNodeId());
         assertNotNull(node);
@@ -172,6 +189,6 @@ public class ShardMultiGetFomTranslogActionIT extends ESIntegTestCase {
     }
 
     private String indexOrAlias() {
-        return randomBoolean() ? "test" : "alias";
+        return randomBoolean() ? INDEX : ALIAS;
     }
 }

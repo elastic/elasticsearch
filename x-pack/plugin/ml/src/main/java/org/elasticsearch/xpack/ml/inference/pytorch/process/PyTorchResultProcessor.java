@@ -141,6 +141,9 @@ public class PyTorchResultProcessor {
     }
 
     private void notifyAndClearPendingResults(ErrorResult errorResult) {
+        if (pendingResults.size() > 0) {
+            logger.warn(format("[%s] clearing [%d] requests pending results", modelId, pendingResults.size()));
+        }
         pendingResults.forEach(
             (id, pendingResult) -> pendingResult.listener.onResponse(new PyTorchResult(id, null, null, null, null, null, errorResult))
         );

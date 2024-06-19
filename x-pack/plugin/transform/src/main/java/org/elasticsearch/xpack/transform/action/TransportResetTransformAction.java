@@ -84,8 +84,8 @@ public class TransportResetTransformAction extends AcknowledgedTransportMasterNo
             indexNameExpressionResolver,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
-        this.transformConfigManager = transformServices.getConfigManager();
-        this.auditor = transformServices.getAuditor();
+        this.transformConfigManager = transformServices.configManager();
+        this.auditor = transformServices.auditor();
         this.client = Objects.requireNonNull(client);
         this.securityContext = XPackSettings.SECURITY_ENABLED.get(settings)
             ? new SecurityContext(settings, threadPool.getThreadContext())
@@ -110,7 +110,7 @@ public class TransportResetTransformAction extends AcknowledgedTransportMasterNo
         // <4> Reset transform
         ActionListener<TransformUpdater.UpdateResult> updateTransformListener = ActionListener.wrap(
             unusedUpdateResult -> transformConfigManager.resetTransform(request.getId(), ActionListener.wrap(resetResponse -> {
-                logger.debug("[{}] reset transform", request.getId());
+                logger.info("[{}] reset transform", request.getId());
                 auditor.info(request.getId(), "Reset transform.");
                 listener.onResponse(AcknowledgedResponse.of(resetResponse));
             }, listener::onFailure)),
@@ -135,7 +135,7 @@ public class TransportResetTransformAction extends AcknowledgedTransportMasterNo
                     false, // defer validation
                     false, // dry run
                     false, // check access
-                    request.timeout(),
+                    request.ackTimeout(),
                     destIndexSettings,
                     updateTransformListener
                 );

@@ -14,8 +14,7 @@ import java.util.List;
 
 /**
  * DenseVector value type for the painless.
- */
-/* dotProduct, l1Norm, l2Norm, cosineSimilarity have three flavors depending on the type of the queryVector
+ * dotProduct, l1Norm, l2Norm, cosineSimilarity have three flavors depending on the type of the queryVector
  * 1) float[], this is for the ScoreScriptUtils class bindings which have converted a List based query vector into an array
  * 2) List, A painless script will typically use Lists since they are easy to pass as params and have an easy
  *      literal syntax.  Working with Lists directly, instead of converting to a float[], trades off runtime operations against
@@ -69,6 +68,24 @@ public interface DenseVector {
         } else if (queryVector instanceof byte[] bytes) {
             checkDimensions(getDims(), bytes.length);
             return l1Norm(bytes);
+        }
+
+        throw new IllegalArgumentException(badQueryVectorType(queryVector));
+    }
+
+    int hamming(byte[] queryVector);
+
+    int hamming(List<Number> queryVector);
+
+    @SuppressWarnings("unchecked")
+    default int hamming(Object queryVector) {
+        if (queryVector instanceof List<?> list) {
+            checkDimensions(getDims(), list.size());
+            return hamming((List<Number>) list);
+        }
+        if (queryVector instanceof byte[] bytes) {
+            checkDimensions(getDims(), bytes.length);
+            return hamming(bytes);
         }
 
         throw new IllegalArgumentException(badQueryVectorType(queryVector));
@@ -228,6 +245,16 @@ public interface DenseVector {
 
         @Override
         public double l1Norm(List<Number> queryVector) {
+            throw new IllegalArgumentException(MISSING_VECTOR_FIELD_MESSAGE);
+        }
+
+        @Override
+        public int hamming(byte[] queryVector) {
+            throw new IllegalArgumentException(MISSING_VECTOR_FIELD_MESSAGE);
+        }
+
+        @Override
+        public int hamming(List<Number> queryVector) {
             throw new IllegalArgumentException(MISSING_VECTOR_FIELD_MESSAGE);
         }
 

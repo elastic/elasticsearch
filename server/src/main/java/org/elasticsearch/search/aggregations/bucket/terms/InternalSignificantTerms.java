@@ -12,13 +12,15 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.ObjectObjectPagedHashMap;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.AggregationErrors;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorReducer;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
-import org.elasticsearch.search.aggregations.bucket.MultiBucketAggregatorsReducer;
+import org.elasticsearch.search.aggregations.bucket.BucketReducer;
+import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 import org.elasticsearch.search.aggregations.bucket.terms.heuristic.SignificanceHeuristic;
 import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -28,6 +30,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 
 /**
  * Result of the significant terms aggregation.
@@ -202,36 +205,53 @@ public abstract class InternalSignificantTerms<A extends InternalSignificantTerm
         return new AggregatorReducer() {
             long globalSubsetSize = 0;
             long globalSupersetSize = 0;
-            final ObjectObjectPagedHashMap<String, ReducerAndProto<B>> buckets = new ObjectObjectPagedHashMap<>(
+            final ObjectObjectPagedHashMap<String, ReducerAndExtraInfo<B>> buckets = new ObjectObjectPagedHashMap<>(
                 getBuckets().size(),
                 reduceContext.bigArrays()
             );
 
+            private InternalAggregation referenceAgg = null;
+
             @Override
             public void accept(InternalAggregation aggregation) {
+                /*
+                canLeadReduction here is essentially checking if this shard returned data.  Unmapped shards (that didn't
+                specify a missing value) will be false. Since they didn't return data, we can safely skip them, and
+                doing so prevents us from accidentally taking one as the reference agg for type checking, which would cause
+                shards that actually returned data to fail.
+                 */
+                if (aggregation.canLeadReduction() == false) {
+                    return;
+                }
                 @SuppressWarnings("unchecked")
                 final InternalSignificantTerms<A, B> terms = (InternalSignificantTerms<A, B>) aggregation;
+                if (referenceAgg == null) {
+                    referenceAgg = terms;
+                } else if (referenceAgg.getClass().equals(terms.getClass()) == false) {
+                    // We got here because shards had different mappings for the same field (presumably different indices)
+                    throw AggregationErrors.reduceTypeMismatch(referenceAgg.getName(), Optional.empty());
+                }
                 // Compute the overall result set size and the corpus size using the
                 // top-level Aggregations from each shard
                 globalSubsetSize += terms.getSubsetSize();
                 globalSupersetSize += terms.getSupersetSize();
                 for (B bucket : terms.getBuckets()) {
-                    ReducerAndProto<B> reducerAndProto = buckets.get(bucket.getKeyAsString());
-                    if (reducerAndProto == null) {
-                        reducerAndProto = new ReducerAndProto<>(new MultiBucketAggregatorsReducer(reduceContext, size), bucket);
+                    ReducerAndExtraInfo<B> reducerAndExtraInfo = buckets.get(bucket.getKeyAsString());
+                    if (reducerAndExtraInfo == null) {
+                        reducerAndExtraInfo = new ReducerAndExtraInfo<>(new BucketReducer<>(bucket, reduceContext, size));
                         boolean success = false;
                         try {
-                            buckets.put(bucket.getKeyAsString(), reducerAndProto);
+                            buckets.put(bucket.getKeyAsString(), reducerAndExtraInfo);
                             success = true;
                         } finally {
                             if (success == false) {
-                                Releasables.close(reducerAndProto.reducer);
+                                Releasables.close(reducerAndExtraInfo.reducer);
                             }
                         }
                     }
-                    reducerAndProto.reducer.accept(bucket);
-                    reducerAndProto.subsetDf[0] += bucket.subsetDf;
-                    reducerAndProto.supersetDf[0] += bucket.supersetDf;
+                    reducerAndExtraInfo.reducer.accept(bucket);
+                    reducerAndExtraInfo.subsetDf[0] += bucket.subsetDf;
+                    reducerAndExtraInfo.supersetDf[0] += bucket.supersetDf;
                 }
             }
 
@@ -240,14 +260,14 @@ public abstract class InternalSignificantTerms<A extends InternalSignificantTerm
                 final SignificanceHeuristic heuristic = getSignificanceHeuristic().rewrite(reduceContext);
                 final int size = (int) (reduceContext.isFinalReduce() == false ? buckets.size() : Math.min(requiredSize, buckets.size()));
                 try (BucketSignificancePriorityQueue<B> ordered = new BucketSignificancePriorityQueue<>(size, reduceContext.bigArrays())) {
-                    buckets.iterator().forEachRemaining(entry -> {
+                    buckets.forEach(entry -> {
                         final B b = createBucket(
                             entry.value.subsetDf[0],
                             globalSubsetSize,
                             entry.value.supersetDf[0],
                             globalSupersetSize,
-                            entry.value.reducer.get(),
-                            entry.value.proto
+                            entry.value.reducer.getAggregations(),
+                            entry.value.reducer.getProto()
                         );
                         b.updateScore(heuristic);
                         if (((b.score > 0) && (b.subsetDf >= minDocCount)) || reduceContext.isFinalReduce() == false) {
@@ -271,15 +291,19 @@ public abstract class InternalSignificantTerms<A extends InternalSignificantTerm
 
             @Override
             public void close() {
-                buckets.iterator().forEachRemaining(entry -> Releasables.close(entry.value.reducer));
+                buckets.forEach(entry -> Releasables.close(entry.value.reducer));
                 Releasables.close(buckets);
             }
         };
     }
 
-    private record ReducerAndProto<B>(MultiBucketAggregatorsReducer reducer, B proto, long[] subsetDf, long[] supersetDf) {
-        private ReducerAndProto(MultiBucketAggregatorsReducer reducer, B proto) {
-            this(reducer, proto, new long[] { 0 }, new long[] { 0 });
+    private record ReducerAndExtraInfo<B extends MultiBucketsAggregation.Bucket>(
+        BucketReducer<B> reducer,
+        long[] subsetDf,
+        long[] supersetDf
+    ) {
+        private ReducerAndExtraInfo(BucketReducer<B> reducer) {
+            this(reducer, new long[] { 0 }, new long[] { 0 });
         }
     }
 

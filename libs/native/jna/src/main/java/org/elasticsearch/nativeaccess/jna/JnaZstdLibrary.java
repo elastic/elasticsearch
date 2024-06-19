@@ -8,55 +8,71 @@
 
 package org.elasticsearch.nativeaccess.jna;
 
-import com.sun.jna.Library;
 import com.sun.jna.Native;
+import com.sun.jna.Pointer;
 
+import org.elasticsearch.nativeaccess.CloseableByteBuffer;
 import org.elasticsearch.nativeaccess.lib.ZstdLibrary;
-
-import java.nio.ByteBuffer;
 
 class JnaZstdLibrary implements ZstdLibrary {
 
-    private interface NativeFunctions extends Library {
-        long ZSTD_compressBound(int scrLen);
+    public static class NativeFunctions {
+        public static native long ZSTD_compressBound(int scrLen);
 
-        long ZSTD_compress(ByteBuffer dst, int dstLen, ByteBuffer src, int srcLen, int compressionLevel);
+        public static native long ZSTD_compress(Pointer dst, int dstLen, Pointer src, int srcLen, int compressionLevel);
 
-        boolean ZSTD_isError(long code);
+        public static native boolean ZSTD_isError(long code);
 
-        String ZSTD_getErrorName(long code);
+        public static native String ZSTD_getErrorName(long code);
 
-        long ZSTD_decompress(ByteBuffer dst, int dstLen, ByteBuffer src, int srcLen);
+        public static native long ZSTD_decompress(Pointer dst, int dstLen, Pointer src, int srcLen);
     }
 
-    private final NativeFunctions functions;
-
     JnaZstdLibrary() {
-        this.functions = Native.load("zstd", NativeFunctions.class);
+        Native.register(NativeFunctions.class, "zstd");
     }
 
     @Override
     public long compressBound(int scrLen) {
-        return functions.ZSTD_compressBound(scrLen);
+        return NativeFunctions.ZSTD_compressBound(scrLen);
     }
 
     @Override
-    public long compress(ByteBuffer dst, ByteBuffer src, int compressionLevel) {
-        return functions.ZSTD_compress(dst, dst.remaining(), src, src.remaining(), compressionLevel);
+    public long compress(CloseableByteBuffer dst, CloseableByteBuffer src, int compressionLevel) {
+        assert dst instanceof JnaCloseableByteBuffer;
+        assert src instanceof JnaCloseableByteBuffer;
+        var nativeDst = (JnaCloseableByteBuffer) dst;
+        var nativeSrc = (JnaCloseableByteBuffer) src;
+        return NativeFunctions.ZSTD_compress(
+            nativeDst.memory.share(dst.buffer().position()),
+            dst.buffer().remaining(),
+            nativeSrc.memory.share(src.buffer().position()),
+            src.buffer().remaining(),
+            compressionLevel
+        );
     }
 
     @Override
     public boolean isError(long code) {
-        return functions.ZSTD_isError(code);
+        return NativeFunctions.ZSTD_isError(code);
     }
 
     @Override
     public String getErrorName(long code) {
-        return functions.ZSTD_getErrorName(code);
+        return NativeFunctions.ZSTD_getErrorName(code);
     }
 
     @Override
-    public long decompress(ByteBuffer dst, ByteBuffer src) {
-        return functions.ZSTD_decompress(dst, dst.remaining(), src, src.remaining());
+    public long decompress(CloseableByteBuffer dst, CloseableByteBuffer src) {
+        assert dst instanceof JnaCloseableByteBuffer;
+        assert src instanceof JnaCloseableByteBuffer;
+        var nativeDst = (JnaCloseableByteBuffer) dst;
+        var nativeSrc = (JnaCloseableByteBuffer) src;
+        return NativeFunctions.ZSTD_decompress(
+            nativeDst.memory.share(dst.buffer().position()),
+            dst.buffer().remaining(),
+            nativeSrc.memory.share(src.buffer().position()),
+            src.buffer().remaining()
+        );
     }
 }

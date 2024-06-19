@@ -10,6 +10,7 @@ import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.get.MultiGetResponse;
 import org.elasticsearch.action.search.ClosePointInTimeRequest;
@@ -27,6 +28,7 @@ import org.elasticsearch.action.termvectors.TermVectorsResponse;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.analysis.common.CommonAnalysisPlugin;
 import org.elasticsearch.client.internal.Requests;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
@@ -48,6 +50,7 @@ import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
+import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.search.vectors.KnnVectorQueryBuilder;
 import org.elasticsearch.test.InternalSettingsPlugin;
@@ -68,6 +71,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
@@ -77,6 +81,8 @@ import static org.elasticsearch.index.query.QueryBuilders.existsQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.join.query.JoinQueryBuilders.hasChildQuery;
+import static org.elasticsearch.test.MapMatcher.assertMap;
+import static org.elasticsearch.test.MapMatcher.matchesMap;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCountAndNoFailures;
@@ -137,6 +143,9 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
             + "\n"
             + "user9:"
             + usersPasswHashed
+            + "\n"
+            + "user_different_fields:"
+            + usersPasswHashed
             + "\n";
     }
 
@@ -150,7 +159,8 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
             role5:user4,user7
             role6:user5,user7
             role7:user6
-            role8:user9""";
+            role8:user9
+            role_different_fields:user_different_fields""";
     }
 
     @Override
@@ -213,6 +223,16 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
                     privileges: [ ALL ]
                     field_security:
                        grant: [ 'field*', 'query' ]
+            role_different_fields:
+              indices:
+                - names: [ 'partial1*' ]
+                  privileges: [ 'read' ]
+                  field_security:
+                    grant: [ value, partial ]
+                - names: [ 'partial2*' ]
+                  privileges: [ 'read' ]
+                  field_security:
+                    grant: [ value ]
             """;
     }
 
@@ -1138,7 +1158,7 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
         }
     }
 
-    static String openPointInTime(String userName, TimeValue keepAlive, String... indices) {
+    static BytesReference openPointInTime(String userName, TimeValue keepAlive, String... indices) {
         OpenPointInTimeRequest request = new OpenPointInTimeRequest(indices).keepAlive(keepAlive);
         final OpenPointInTimeResponse response = client().filterWithHeader(
             Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue(userName, USERS_PASSWD))
@@ -1159,7 +1179,7 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
         }
         refresh("test");
 
-        String pitId = openPointInTime("user1", TimeValue.timeValueMinutes(1), "test");
+        BytesReference pitId = openPointInTime("user1", TimeValue.timeValueMinutes(1), "test");
         try {
             for (int from = 0; from < numDocs; from++) {
                 assertResponse(
@@ -2336,4 +2356,49 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
         );
     }
 
+    public void testSearchDifferentFieldsVisible() {
+        String firstName = "partial1" + randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        String secondName = "partial2" + randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        indexPartial(firstName, secondName);
+        SearchResponse response = client().filterWithHeader(
+            Map.of(BASIC_AUTH_HEADER, basicAuthHeaderValue("user_different_fields", USERS_PASSWD))
+        ).prepareSearch("partial*").addSort(SortBuilders.fieldSort("value").order(SortOrder.ASC)).get();
+        try {
+            assertMap(response.getHits().getAt(0).getSourceAsMap(), matchesMap().entry("value", 1).entry("partial", 2));
+            assertMap(response.getHits().getAt(1).getSourceAsMap(), matchesMap().entry("value", 2));
+        } finally {
+            response.decRef();
+        }
+    }
+
+    /**
+     * The fields {@code partial} is only visible in one of the two backing indices and field caps should show it.
+     */
+    public void testFieldCapsDifferentFieldsVisible() {
+        String firstName = "partial1_" + randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        String secondName = "partial2_" + randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        indexPartial(firstName, secondName);
+        FieldCapabilitiesResponse response = client().filterWithHeader(
+            Map.of(BASIC_AUTH_HEADER, basicAuthHeaderValue("user_different_fields", USERS_PASSWD))
+        ).prepareFieldCaps("partial*").setFields("value", "partial").get();
+        try {
+            assertThat(response.get().keySet(), equalTo(Set.of("value", "partial")));
+            assertThat(response.getField("value").keySet(), equalTo(Set.of("long")));
+            assertThat(response.getField("partial").keySet(), equalTo(Set.of("long")));
+        } finally {
+            response.decRef();
+        }
+    }
+
+    private void indexPartial(String firstName, String secondName) {
+        BulkResponse bulkResponse = client().prepareBulk()
+            .add(client().prepareIndex(firstName).setSource("value", 1, "partial", 2))
+            .add(client().prepareIndex(secondName).setSource("value", 2, "partial", 3))
+            .setRefreshPolicy(IMMEDIATE)
+            .get();
+        for (var i : bulkResponse.getItems()) {
+            assertThat(i.getFailure(), nullValue());
+            assertThat(i.status(), equalTo(RestStatus.CREATED));
+        }
+    }
 }

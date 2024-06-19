@@ -1,0 +1,197 @@
+---
+setup:
+  - requires:
+      cluster_features: ["mapper.annotated_text.synthetic_source"]
+      reason: introduced in 8.15.0
+
+---
+stored annotated_text field:
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            _source:
+              mode: synthetic
+            properties:
+              annotated_text:
+                type: annotated_text
+                store: true
+
+  - do:
+      index:
+        index: test
+        id: 1
+        refresh: true
+        body:
+          annotated_text: the quick brown fox
+
+  - do:
+      search:
+        index: test
+
+  - match:
+      hits.hits.0._source:
+        annotated_text: the quick brown fox
+
+---
+annotated_text field with keyword multi-field:
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            _source:
+              mode: synthetic
+            properties:
+              annotated_text:
+                type: annotated_text
+                fields:
+                  keyword:
+                    type: keyword
+
+  - do:
+      index:
+        index: test
+        id: 1
+        refresh: true
+        body:
+          annotated_text: the quick brown fox
+
+  - do:
+      search:
+        index: test
+
+  - match:
+      hits.hits.0._source:
+        annotated_text: the quick brown fox
+
+---
+multiple values in stored annotated_text field:
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            _source:
+              mode: synthetic
+            properties:
+              annotated_text:
+                type: annotated_text
+                store: true
+
+  - do:
+      index:
+        index: test
+        id: 1
+        refresh: true
+        body:
+          annotated_text: ["world", "hello", "world"]
+
+  - do:
+      search:
+        index: test
+
+  - match:
+      hits.hits.0._source:
+        annotated_text: ["world", "hello", "world"]
+
+---
+multiple values in annotated_text field with keyword multi-field:
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            _source:
+              mode: synthetic
+            properties:
+              annotated_text:
+                type: annotated_text
+                fields:
+                  keyword:
+                    type: keyword
+
+  - do:
+      index:
+        index: test
+        id: 1
+        refresh: true
+        body:
+          annotated_text: ["world", "hello", "world"]
+
+  - do:
+      search:
+        index: test
+
+  - match:
+      hits.hits.0._source:
+        annotated_text: ["hello", "world"]
+
+
+---
+multiple values in annotated_text field with stored keyword multi-field:
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            _source:
+              mode: synthetic
+            properties:
+              annotated_text:
+                type: annotated_text
+                fields:
+                  keyword:
+                    type: keyword
+                    store: true
+                    doc_values: false
+
+  - do:
+      index:
+        index: test
+        id: 1
+        refresh: true
+        body:
+          annotated_text: ["world", "hello", "world"]
+
+  - do:
+      search:
+        index: test
+
+  - match:
+      hits.hits.0._source:
+        annotated_text: ["world", "hello", "world"]
+
+---
+multiple values in stored annotated_text field with keyword multi-field:
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            _source:
+              mode: synthetic
+            properties:
+              annotated_text:
+                type: annotated_text
+                store: true
+                fields:
+                  keyword:
+                    type: keyword
+
+  - do:
+      index:
+        index: test
+        id: 1
+        refresh: true
+        body:
+          annotated_text: ["world", "hello", "world"]
+
+  - do:
+      search:
+        index: test
+
+  - match:
+      hits.hits.0._source:
+        annotated_text: ["world", "hello", "world"]

@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.core.transform.transforms.TransformTaskState;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -98,6 +99,30 @@ public class TransformHealthCheckerTests extends ESTestCase {
             equalTo("Task encountered failures updating internal state")
         );
         context.resetStatePersistenceFailureCount();
+        assertThat(TransformHealthChecker.checkTransform(task), equalTo(TransformHealth.GREEN));
+    }
+
+    public void testStartUpFailures() {
+        var task = mock(TransformTask.class);
+        var context = createTestContext();
+        var now = getNow();
+
+        withIdStateAndContext(task, randomAlphaOfLength(10), context);
+        assertThat(TransformHealthChecker.checkTransform(task), equalTo(TransformHealth.GREEN));
+
+        context.incrementAndGetStartUpFailureCount(new ElasticsearchException("failed to persist"));
+
+        var health = TransformHealthChecker.checkTransform(task);
+        assertThat(health.getStatus(), equalTo(HealthStatus.YELLOW));
+        assertEquals(1, health.getIssues().size());
+        assertThat(health.getIssues().get(0).getIssue(), equalTo("Transform task is automatically retrying its startup process"));
+        assertThat(health.getIssues().get(0).getFirstOccurrence(), greaterThanOrEqualTo(now));
+        assertThat(health.getIssues().get(0).getFirstOccurrence(), lessThan(Instant.MAX));
+
+        IntStream.range(0, 10).forEach(i -> context.incrementAndGetStartUpFailureCount(new ElasticsearchException("failed to persist")));
+        assertThat("Start up failures should always be yellow regardless of count", health.getStatus(), equalTo(HealthStatus.YELLOW));
+
+        context.resetStartUpFailureCount();
         assertThat(TransformHealthChecker.checkTransform(task), equalTo(TransformHealth.GREEN));
     }
 

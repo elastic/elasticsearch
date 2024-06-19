@@ -14,6 +14,7 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -47,7 +48,7 @@ public class RemoveIndexLifecyclePolicyAction extends ActionType<RemoveIndexLife
             PARSER.declareBoolean(ConstructingObjectParser.constructorArg(), HAS_FAILURES_FIELD);
         }
 
-        private List<String> failedIndexes;
+        private final List<String> failedIndexes;
 
         public Response(StreamInput in) throws IOException {
             super(in);
@@ -113,9 +114,8 @@ public class RemoveIndexLifecyclePolicyAction extends ActionType<RemoveIndexLife
             indicesOptions = IndicesOptions.readIndicesOptions(in);
         }
 
-        public Request() {}
-
-        public Request(String... indices) {
+        public Request(TimeValue masterNodeTimeout, TimeValue ackTimeout, String... indices) {
+            super(masterNodeTimeout, ackTimeout);
             if (indices == null) {
                 throw new IllegalArgumentException("indices cannot be null");
             }

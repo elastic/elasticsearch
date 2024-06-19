@@ -22,8 +22,8 @@ setup:
 
 ---
 "Test use_field":
-  - skip:
-      version: " - 7.1.99"
+  - requires:
+      cluster_features: ["gte_v7.2.0"]
       reason: "Implemented in 7.2"
   - do:
       search:

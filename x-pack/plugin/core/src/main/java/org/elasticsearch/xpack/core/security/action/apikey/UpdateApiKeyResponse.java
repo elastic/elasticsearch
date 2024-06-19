@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.core.security.action.apikey;
 
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -22,11 +21,6 @@ public final class UpdateApiKeyResponse extends ActionResponse implements ToXCon
 
     public UpdateApiKeyResponse(boolean updated) {
         this.updated = updated;
-    }
-
-    public UpdateApiKeyResponse(StreamInput in) throws IOException {
-        super(in);
-        this.updated = in.readBoolean();
     }
 
     public boolean isUpdated() {

@@ -420,12 +420,15 @@ public class TransformInsufficientPermissionsIT extends TransformRestTestCase {
 
         startTransform(transformId, RequestOptions.DEFAULT);
 
-        String destIndexIssue = Strings.format("Could not create destination index [%s] for transform [%s]", destIndexName, transformId);
+        var permissionIssues = Strings.format(
+            "org.elasticsearch.ElasticsearchSecurityException: Cannot start transform [%s] because user lacks required permissions, "
+                + "see privileges_check_failed issue for more details",
+            transformId
+        );
         // transform's auth state status is still RED due to:
         // - lacking permissions
-        // - and the inability to create destination index in the indexer (which is also a consequence of lacking permissions)
-        // wait for 10 seconds to give the transform indexer enough time to try creating destination index
-        assertBusy(() -> { assertRed(transformId, authIssue, destIndexIssue); });
+        // - and the inability to start the indexer (which is also a consequence of lacking permissions)
+        assertBusy(() -> { assertRed(transformId, authIssue, permissionIssues); });
 
         // update transform's credentials so that the transform has permission to access source/dest indices
         updateConfig(transformId, "{}", RequestOptions.DEFAULT.toBuilder().addHeader(AUTH_KEY, Users.SENIOR.header).build());
@@ -440,7 +443,6 @@ public class TransformInsufficientPermissionsIT extends TransformRestTestCase {
      * unattended              = true
      * pre-existing dest index = true
      */
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/105794")
     public void testTransformPermissionsDeferUnattendedDest() throws Exception {
         String transformId = "transform-permissions-defer-unattended-dest-exists";
         String sourceIndexName = transformId + "-index";
@@ -467,8 +469,15 @@ public class TransformInsufficientPermissionsIT extends TransformRestTestCase {
 
         startTransform(config.getId(), RequestOptions.DEFAULT);
 
-        // transform's auth state status is still RED, but the health status is GREEN (because dest index exists)
-        assertRed(transformId, authIssue);
+        var permissionIssues = Strings.format(
+            "org.elasticsearch.ElasticsearchSecurityException: Cannot start transform [%s] because user lacks required permissions, "
+                + "see privileges_check_failed issue for more details",
+            transformId
+        );
+        // transform's auth state status is still RED due to:
+        // - lacking permissions
+        // - and the inability to start the indexer (which is also a consequence of lacking permissions)
+        assertBusy(() -> { assertRed(transformId, authIssue, permissionIssues); });
 
         // update transform's credentials so that the transform has permission to access source/dest indices
         updateConfig(transformId, "{}", RequestOptions.DEFAULT.toBuilder().addHeader(AUTH_KEY, Users.SENIOR.header).build());

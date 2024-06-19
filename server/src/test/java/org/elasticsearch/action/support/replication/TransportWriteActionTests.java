@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.Index;
@@ -430,7 +431,7 @@ public class TransportWriteActionTests extends ESTestCase {
                 new ActionFilters(new HashSet<>()),
                 TestRequest::new,
                 TestRequest::new,
-                (service, ignore) -> ThreadPool.Names.SAME,
+                (service, ignore) -> EsExecutors.DIRECT_EXECUTOR_SERVICE,
                 false,
                 new IndexingPressure(Settings.EMPTY),
                 EmptySystemIndices.INSTANCE
@@ -458,7 +459,7 @@ public class TransportWriteActionTests extends ESTestCase {
                 new ActionFilters(new HashSet<>()),
                 TestRequest::new,
                 TestRequest::new,
-                (service, ignore) -> ThreadPool.Names.SAME,
+                (service, ignore) -> EsExecutors.DIRECT_EXECUTOR_SERVICE,
                 false,
                 new IndexingPressure(settings),
                 EmptySystemIndices.INSTANCE

@@ -301,23 +301,7 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
             ).getMetadata()
         );
         DataStream ds = mb.dataStream(dataStreamName);
-        mb.put(
-            new DataStream(
-                ds.getName(),
-                ds.getIndices(),
-                ds.getGeneration(),
-                ds.getMetadata(),
-                ds.isHidden(),
-                ds.isReplicated(),
-                ds.isSystem(),
-                ds.isAllowCustomRouting(),
-                IndexMode.TIME_SERIES,
-                ds.getLifecycle(),
-                ds.isFailureStore(),
-                ds.getFailureIndices(),
-                null
-            )
-        );
+        mb.put(ds.copy().setIndexMode(IndexMode.TIME_SERIES).build());
         Metadata metadata = mb.build();
 
         Instant now = twoHoursAgo.plus(2, ChronoUnit.HOURS);
@@ -647,10 +631,12 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
                     "properties": {
                         "labels": {
                             "type": "passthrough",
-                            "time_series_dimension": true
+                            "time_series_dimension": true,
+                            "priority": 2
                         },
                         "metrics": {
-                            "type": "passthrough"
+                            "type": "passthrough",
+                            "priority": 1
                         },
                         "another_field": {
                             "type": "keyword"

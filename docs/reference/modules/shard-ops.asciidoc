@@ -9,6 +9,7 @@ Over the course of normal operation, Elasticsearch allocates shards to nodes, re
 
 TIP: To learn about optimizing the number and size of shards in your cluster, refer to <<size-your-shards,Size your shards>>. To learn about how read and write operations are replicated across shards, refer to <<docs-replication,Reading and writing documents>>.
 
+[[shard-allocation]]
 ==== Shard allocation
 
 include::{es-ref-dir}/modules/shard-allocation-desc.asciidoc[]
@@ -32,6 +33,7 @@ You can use the following APIs to monitor shard recovery:
 - <<cluster-allocation-explain,Cluster allocation explain>>
 - <<cat-allocation,cat allocation>>
 
+[[shard-recovery]]
 ==== Shard recovery
 
 include::{es-ref-dir}/modules/shard-recovery-desc.asciidoc[]
@@ -53,6 +55,7 @@ You can use the following APIs to monitor shard allocation:
  - View a list of in-progress and completed recoveries using the <<cat-recovery,cat recovery API>>
  - View detailed information about a specific recovery using the <<indices-recovery,index recovery API>>
 
+[[shard-relocation]]
 ==== Shard relocation
 
 Shard relocation is the process of moving shards from one node to another. This can happen when a node joins or leaves the cluster, or when the cluster is rebalancing.

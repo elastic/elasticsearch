@@ -17,6 +17,8 @@
 
 package co.elastic.elasticsearch.stateless.autoscaling.search.load;
 
+import co.elastic.elasticsearch.stateless.autoscaling.MetricQuality;
+
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -26,17 +28,21 @@ import org.elasticsearch.core.TimeValue;
 import java.io.IOException;
 import java.util.Objects;
 
+import static co.elastic.elasticsearch.serverless.constants.ServerlessTransportVersions.PUBLISH_NODE_SEARCH_LOAD_QUALITY;
+
 public class PublishNodeSearchLoadRequest extends MasterNodeRequest<PublishNodeSearchLoadRequest> {
 
     private final String nodeId;
     private final long seqNo;
     private final double searchLoad;
+    private final MetricQuality quality;
 
-    public PublishNodeSearchLoadRequest(String nodeId, long seqNo, double searchLoad) {
+    public PublishNodeSearchLoadRequest(String nodeId, long seqNo, double searchLoad, MetricQuality quality) {
         super(TimeValue.MINUS_ONE);
         this.nodeId = nodeId;
         this.seqNo = seqNo;
         this.searchLoad = searchLoad;
+        this.quality = quality;
     }
 
     public PublishNodeSearchLoadRequest(StreamInput in) throws IOException {
@@ -44,6 +50,11 @@ public class PublishNodeSearchLoadRequest extends MasterNodeRequest<PublishNodeS
         this.nodeId = in.readString();
         this.seqNo = in.readLong();
         this.searchLoad = in.readDouble();
+        if (in.getTransportVersion().onOrAfter(PUBLISH_NODE_SEARCH_LOAD_QUALITY)) {
+            this.quality = in.readEnum(MetricQuality.class);
+        } else {
+            this.quality = MetricQuality.EXACT;
+        }
     }
 
     @Override
@@ -52,6 +63,9 @@ public class PublishNodeSearchLoadRequest extends MasterNodeRequest<PublishNodeS
         out.writeString(nodeId);
         out.writeLong(seqNo);
         out.writeDouble(searchLoad);
+        if (out.getTransportVersion().onOrAfter(PUBLISH_NODE_SEARCH_LOAD_QUALITY)) {
+            out.writeEnum(quality);
+        }
     }
 
     public String getNodeId() {
@@ -66,6 +80,10 @@ public class PublishNodeSearchLoadRequest extends MasterNodeRequest<PublishNodeS
         return searchLoad;
     }
 
+    public MetricQuality getQuality() {
+        return quality;
+    }
+
     @Override
     public ActionRequestValidationException validate() {
         return null;
@@ -76,16 +94,27 @@ public class PublishNodeSearchLoadRequest extends MasterNodeRequest<PublishNodeS
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         PublishNodeSearchLoadRequest that = (PublishNodeSearchLoadRequest) o;
-        return seqNo == that.seqNo && Double.compare(that.searchLoad, searchLoad) == 0 && Objects.equals(nodeId, that.nodeId);
+        return seqNo == that.seqNo
+            && Double.compare(that.searchLoad, searchLoad) == 0
+            && Objects.equals(nodeId, that.nodeId)
+            && quality == that.quality;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(nodeId, seqNo, searchLoad);
+        return Objects.hash(nodeId, seqNo, searchLoad, quality);
     }
 
     @Override
     public String toString() {
-        return "PublishNodeSearchLoadRequest{nodeId='" + nodeId + "', seqNo=" + seqNo + ", searchLoad=" + searchLoad + '}';
+        return "PublishNodeSearchLoadRequest{nodeId='"
+            + nodeId
+            + "', seqNo="
+            + seqNo
+            + ", searchLoad="
+            + searchLoad
+            + ", quality="
+            + quality
+            + "}";
     }
 }

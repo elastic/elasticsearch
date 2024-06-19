@@ -132,7 +132,7 @@ public class SearchMetricsService implements ClusterStateListener {
 
     public void processSearchLoadRequest(PublishNodeSearchLoadRequest request) {
         var nodeSearchLoad = nodeSearchLoads.computeIfAbsent(request.getNodeId(), unused -> new NodeSearchLoad(request.getNodeId()));
-        nodeSearchLoad.setLatestReadingTo(request.getSearchLoad(), request.getSeqNo());
+        nodeSearchLoad.setLatestReadingTo(request.getSearchLoad(), request.getQuality(), request.getSeqNo());
     }
 
     @Override
@@ -218,7 +218,8 @@ public class SearchMetricsService implements ClusterStateListener {
                     if (isSearchNode(removedNode)) {
                         var removedNodeSearchLoad = nodeSearchLoads.get(removedNode.getId());
                         if (removedNodeSearchLoad != null) {
-                            removedNodeSearchLoad.setQualityToMinimum();
+                            // We don’t know if the node was just disconnected, and it will come back eventually, or if it’s dead.
+                            removedNodeSearchLoad.setQualityToMinimumAndLoadToZero();
                         }
                     }
                 }
@@ -347,6 +348,8 @@ public class SearchMetricsService implements ClusterStateListener {
     }
 
     class NodeSearchLoad {
+        private static final Logger SEARCH_LOAD_LOGGER = LogManager.getLogger(NodeSearchLoad.class);
+
         private final String nodeId;
         private double searchLoad;
         private long latestSampleTimeInNanos;
@@ -357,22 +360,37 @@ public class SearchMetricsService implements ClusterStateListener {
             this.nodeId = nodeId;
         }
 
-        synchronized void setLatestReadingTo(double searchLoad, long metricSeqNo) {
+        synchronized void setLatestReadingTo(double searchLoad, MetricQuality quality, long metricSeqNo) {
             if (metricSeqNo > maxSeqNo) {
                 this.searchLoad = searchLoad;
-                this.quality = MetricQuality.EXACT;
+                this.quality = quality;
                 this.latestSampleTimeInNanos = relativeTimeInNanos();
                 this.maxSeqNo = metricSeqNo;
+                SEARCH_LOAD_LOGGER.trace(
+                    "Set the load reading for node [{}] to: searchLoad: [{}], isSearchLoadValid: [{}], quality: [{}]",
+                    nodeId,
+                    searchLoad,
+                    quality
+                );
             }
         }
 
-        synchronized void setQualityToMinimum() {
+        synchronized void setQualityToMinimumAndLoadToZero() {
             this.quality = MetricQuality.MINIMUM;
+            this.searchLoad = 0.0;
         }
 
         synchronized NodeSearchLoadSnapshot getSearchLoadSnapshot() {
-            if (quality == MetricQuality.EXACT && timeSinceLastSampleInNanos() >= accurateMetricWindowNs) {
+            long timeSinceLastSampleInNanos = timeSinceLastSampleInNanos();
+            if (quality == MetricQuality.EXACT && timeSinceLastSampleInNanos >= accurateMetricWindowNs) {
                 quality = MetricQuality.MINIMUM;
+                SEARCH_LOAD_LOGGER.trace(
+                    "Set the quality to MINIMUM for node: [{}] due to time since last sample: [{}]NS GT exceeds accurate "
+                        + "metric window: [{}]NS",
+                    nodeId,
+                    timeSinceLastSampleInNanos,
+                    accurateMetricWindowNs
+                );
             }
             return new NodeSearchLoadSnapshot(nodeId, searchLoad, quality);
         }

@@ -108,8 +108,8 @@ public class SearchMetricsServiceTests extends ESTestCase {
         service.processShardSizesRequest(
             new PublishShardSizesRequest("search_node_1", Map.of(new ShardId(indexMetadata.getIndex(), 0), new ShardSize(1024, 1024, ZERO)))
         );
-        service.processSearchLoadRequest(new PublishNodeSearchLoadRequest("search_node_1", 1L, 1.0));
-        service.processSearchLoadRequest(new PublishNodeSearchLoadRequest("search_node_2", 1L, 2.0));
+        service.processSearchLoadRequest(new PublishNodeSearchLoadRequest("search_node_1", 1L, 1.0, MetricQuality.EXACT));
+        service.processSearchLoadRequest(new PublishNodeSearchLoadRequest("search_node_2", 1L, 2.0, MetricQuality.EXACT));
 
         assertThat(
             service.getSearchTierMetrics(),
@@ -145,10 +145,10 @@ public class SearchMetricsServiceTests extends ESTestCase {
         service.processShardSizesRequest(
             new PublishShardSizesRequest("search_node_1", Map.of(new ShardId(indexMetadata.getIndex(), 0), new ShardSize(512, 512, ZERO)))
         );
-        service.processSearchLoadRequest(new PublishNodeSearchLoadRequest("search_node_1", 2L, 1.0));
-        service.processSearchLoadRequest(new PublishNodeSearchLoadRequest("search_node_1", 1L, 5.0));
-        service.processSearchLoadRequest(new PublishNodeSearchLoadRequest("search_node_2", 2L, 2.0));
-        service.processSearchLoadRequest(new PublishNodeSearchLoadRequest("search_node_2", 1L, 5.0));
+        service.processSearchLoadRequest(new PublishNodeSearchLoadRequest("search_node_1", 2L, 1.0, MetricQuality.EXACT));
+        service.processSearchLoadRequest(new PublishNodeSearchLoadRequest("search_node_1", 1L, 5.0, MetricQuality.EXACT));
+        service.processSearchLoadRequest(new PublishNodeSearchLoadRequest("search_node_2", 2L, 2.0, MetricQuality.EXACT));
+        service.processSearchLoadRequest(new PublishNodeSearchLoadRequest("search_node_2", 1L, 5.0, MetricQuality.EXACT));
 
         // sticks to the first received metric
         assertThat(
@@ -183,8 +183,8 @@ public class SearchMetricsServiceTests extends ESTestCase {
             ),
             new PublishShardSizesRequest("search_node_2", Map.of(new ShardId(indexMetadata.getIndex(), 0), new ShardSize(1025, 1025, ZERO)))
         );
-        service.processSearchLoadRequest(new PublishNodeSearchLoadRequest("search_node_1", 1L, 1.0));
-        service.processSearchLoadRequest(new PublishNodeSearchLoadRequest("search_node_2", 1L, 2.0));
+        service.processSearchLoadRequest(new PublishNodeSearchLoadRequest("search_node_1", 1L, 1.0, MetricQuality.EXACT));
+        service.processSearchLoadRequest(new PublishNodeSearchLoadRequest("search_node_2", 1L, 2.0, MetricQuality.EXACT));
 
         // any of the replica sizes should be accepted
         var metrics = service.getSearchTierMetrics();
@@ -228,10 +228,10 @@ public class SearchMetricsServiceTests extends ESTestCase {
         );
         sendInRandomOrder(
             service,
-            new PublishNodeSearchLoadRequest("search_node_1", 2L, 1.0),
-            new PublishNodeSearchLoadRequest("search_node_1", 1L, 5.0),
-            new PublishNodeSearchLoadRequest("search_node_2", 2L, 2.0),
-            new PublishNodeSearchLoadRequest("search_node_2", 1L, 5.0)
+            new PublishNodeSearchLoadRequest("search_node_1", 2L, 1.0, MetricQuality.EXACT),
+            new PublishNodeSearchLoadRequest("search_node_1", 1L, 5.0, MetricQuality.EXACT),
+            new PublishNodeSearchLoadRequest("search_node_2", 2L, 2.0, MetricQuality.EXACT),
+            new PublishNodeSearchLoadRequest("search_node_2", 1L, 5.0, MetricQuality.EXACT)
         );
 
         // both messages should be accepted
@@ -273,10 +273,10 @@ public class SearchMetricsServiceTests extends ESTestCase {
         );
         sendInRandomOrder(
             service,
-            new PublishNodeSearchLoadRequest("search_node_1", 2L, 1.0),
-            new PublishNodeSearchLoadRequest("search_node_1", 1L, 5.0),
-            new PublishNodeSearchLoadRequest("search_node_2", 2L, 2.0),
-            new PublishNodeSearchLoadRequest("search_node_2", 1L, 5.0)
+            new PublishNodeSearchLoadRequest("search_node_1", 2L, 1.0, MetricQuality.EXACT),
+            new PublishNodeSearchLoadRequest("search_node_1", 1L, 5.0, MetricQuality.EXACT),
+            new PublishNodeSearchLoadRequest("search_node_2", 2L, 2.0, MetricQuality.EXACT),
+            new PublishNodeSearchLoadRequest("search_node_2", 1L, 5.0, MetricQuality.EXACT)
         );
 
         // only newer metric should be accepted
@@ -308,8 +308,8 @@ public class SearchMetricsServiceTests extends ESTestCase {
         service.processShardSizesRequest(
             new PublishShardSizesRequest("search_node_1", Map.of(new ShardId(indexMetadata.getIndex(), 0), new ShardSize(1024, 1024, ZERO)))
         );
-        service.processSearchLoadRequest(new PublishNodeSearchLoadRequest("search_node_1", 1L, 1.0));
-        service.processSearchLoadRequest(new PublishNodeSearchLoadRequest("search_node_2", 1L, 2.0));
+        service.processSearchLoadRequest(new PublishNodeSearchLoadRequest("search_node_1", 1L, 1.0, MetricQuality.EXACT));
+        service.processSearchLoadRequest(new PublishNodeSearchLoadRequest("search_node_2", 1L, 2.0, MetricQuality.EXACT));
 
         // after metric becomes outdated
         currentRelativeTimeInNanos.addAndGet(ACCURATE_METRICS_WINDOW_SETTING.get(Settings.EMPTY).nanos() + 1);
@@ -331,7 +331,7 @@ public class SearchMetricsServiceTests extends ESTestCase {
         // metrics become exact again when receiving empty ping from the node
         service.processShardSizesRequest(new PublishShardSizesRequest("search_node_1", Map.of()));
         // Metrics become exact for the node that is updated.
-        service.processSearchLoadRequest(new PublishNodeSearchLoadRequest("search_node_1", 2L, 5.0));
+        service.processSearchLoadRequest(new PublishNodeSearchLoadRequest("search_node_1", 2L, 5.0, MetricQuality.EXACT));
         assertThat(
             service.getSearchTierMetrics(),
             equalTo(
@@ -789,6 +789,56 @@ public class SearchMetricsServiceTests extends ESTestCase {
         );
     }
 
+    public void testMetricQualityIsUpdated() {
+
+        var indexMetadata = createIndex(1, 1);
+        var state = ClusterState.builder(ClusterState.EMPTY_STATE)
+            .nodes(createNodes(1))
+            .metadata(Metadata.builder().put(indexMetadata, false))
+            .build();
+
+        service.clusterChanged(new ClusterChangedEvent("test", state, ClusterState.EMPTY_STATE));
+        service.processShardSizesRequest(
+            new PublishShardSizesRequest("search_node_1", Map.of(new ShardId(indexMetadata.getIndex(), 0), new ShardSize(1024, 1024, ZERO)))
+        );
+        service.processSearchLoadRequest(new PublishNodeSearchLoadRequest("search_node_1", 1L, 1.0, MetricQuality.EXACT));
+        service.processSearchLoadRequest(new PublishNodeSearchLoadRequest("search_node_2", 1L, 2.0, MetricQuality.EXACT));
+        assertLoadMetrics(
+            List.of(
+                new NodeSearchLoadSnapshot("search_node_1", 1.0, MetricQuality.EXACT),
+                new NodeSearchLoadSnapshot("search_node_2", 2.0, MetricQuality.EXACT)
+            )
+        );
+        service.processSearchLoadRequest(new PublishNodeSearchLoadRequest("search_node_1", 2L, 1.0, MetricQuality.MINIMUM));
+        assertLoadMetrics(
+            List.of(
+                new NodeSearchLoadSnapshot("search_node_1", 1.0, MetricQuality.MINIMUM),
+                new NodeSearchLoadSnapshot("search_node_2", 2.0, MetricQuality.EXACT)
+            )
+        );
+        service.processSearchLoadRequest(new PublishNodeSearchLoadRequest("search_node_1", 3L, 1.0, MetricQuality.EXACT));
+        assertLoadMetrics(
+            List.of(
+                new NodeSearchLoadSnapshot("search_node_1", 1.0, MetricQuality.EXACT),
+                new NodeSearchLoadSnapshot("search_node_2", 2.0, MetricQuality.EXACT)
+            )
+        );
+    }
+
+    private void assertLoadMetrics(List<NodeSearchLoadSnapshot> nodeLoads) {
+        assertThat(
+            service.getSearchTierMetrics(),
+            equalTo(
+                new SearchTierMetrics(
+                    FIXED_MEMORY_METRICS,
+                    new MaxShardCopies(1, MetricQuality.EXACT),
+                    new StorageMetrics(1024, 1024, 2048, MetricQuality.EXACT),
+                    nodeLoads
+                )
+            )
+        );
+    }
+
     public void testServiceOnlyReturnDataWhenLocalNodeIsElectedAsMaster() {
         var localNode = DiscoveryNodeUtils.create(UUIDs.randomBase64UUID());
         var remoteNode = DiscoveryNodeUtils.create(UUIDs.randomBase64UUID());
@@ -840,7 +890,7 @@ public class SearchMetricsServiceTests extends ESTestCase {
         return ClusterState.builder(ClusterName.DEFAULT).nodes(nodes).build();
     }
 
-    public void testSearchLoadIsKeptDuringNodeLifecycle() {
+    public void testSearchLoadIsCorrectDuringNodeLifecycle() {
         final var masterNode = DiscoveryNodeUtils.builder(UUIDs.randomBase64UUID()).roles(Set.of(DiscoveryNodeRole.MASTER_ROLE)).build();
         final var searchNode = DiscoveryNodeUtils.create(UUIDs.randomBase64UUID());
 
@@ -868,7 +918,7 @@ public class SearchMetricsServiceTests extends ESTestCase {
         // Take into account the case where the search node sends the metric to the new master node before it applies the new cluster state
         if (randomBoolean()) {
             fakeClock.addAndGet(TimeValue.timeValueSeconds(1).nanos());
-            service.processSearchLoadRequest(new PublishNodeSearchLoadRequest(searchNode.getId(), 1, 0.5));
+            service.processSearchLoadRequest(new PublishNodeSearchLoadRequest(searchNode.getId(), 1, 0.5, MetricQuality.EXACT));
         }
 
         var nodesWithSearchNode = DiscoveryNodes.builder(nodesWithElectedMaster).add(searchNode).build();
@@ -878,7 +928,7 @@ public class SearchMetricsServiceTests extends ESTestCase {
         );
 
         fakeClock.addAndGet(TimeValue.timeValueSeconds(1).nanos());
-        service.processSearchLoadRequest(new PublishNodeSearchLoadRequest(searchNode.getId(), 2, 1.5));
+        service.processSearchLoadRequest(new PublishNodeSearchLoadRequest(searchNode.getId(), 2, 1.5, MetricQuality.EXACT));
 
         var searchTierMetrics = service.getSearchTierMetrics();
         assertThat(searchTierMetrics.getNodesLoad(), hasSize(1));
@@ -887,11 +937,9 @@ public class SearchMetricsServiceTests extends ESTestCase {
         assertThat(searchNodeLoad.load(), is(equalTo(1.5)));
         assertThat(searchTierMetrics.toString(), searchNodeLoad.metricQuality(), is(equalTo(MetricQuality.EXACT)));
 
-        if (randomBoolean()) {
-            service.clusterChanged(
-                new ClusterChangedEvent("search node leaves", clusterState(nodesWithElectedMaster), clusterState(nodesWithSearchNode))
-            );
-        }
+        service.clusterChanged(
+            new ClusterChangedEvent("search node leaves", clusterState(nodesWithElectedMaster), clusterState(nodesWithSearchNode))
+        );
 
         fakeClock.addAndGet(inaccurateMetricTime.getNanos());
 
@@ -899,7 +947,7 @@ public class SearchMetricsServiceTests extends ESTestCase {
         assertThat(searchTierMetricsAfterNodeMetricIsInaccurate.getNodesLoad(), hasSize(1));
 
         var searchNodeLoadAfterMissingMetrics = searchTierMetricsAfterNodeMetricIsInaccurate.getNodesLoad().get(0);
-        assertThat(searchNodeLoadAfterMissingMetrics.load(), is(equalTo(1.5)));
+        assertThat(searchNodeLoadAfterMissingMetrics.load(), is(equalTo(0.0)));
         assertThat(searchNodeLoadAfterMissingMetrics.metricQuality(), is(equalTo(MetricQuality.MINIMUM)));
 
         // The node re-joins before the metric is considered to be inaccurate
@@ -908,7 +956,7 @@ public class SearchMetricsServiceTests extends ESTestCase {
                 new ClusterChangedEvent("search node re-joins", clusterState(nodesWithSearchNode), clusterState(nodesWithElectedMaster))
             );
             fakeClock.addAndGet(TimeValue.timeValueSeconds(1).nanos());
-            service.processSearchLoadRequest(new PublishNodeSearchLoadRequest(searchNode.getId(), 3, 0.5));
+            service.processSearchLoadRequest(new PublishNodeSearchLoadRequest(searchNode.getId(), 3, 0.5, MetricQuality.EXACT));
 
             var searchTierMetricsAfterNodeReJoins = service.getSearchTierMetrics();
             assertThat(searchTierMetricsAfterNodeReJoins.getNodesLoad(), hasSize(1));
@@ -939,13 +987,17 @@ public class SearchMetricsServiceTests extends ESTestCase {
 
         var maxSeqNo = randomIntBetween(10, 20);
         var maxSeqNoSearchLoad = randomSearchLoad();
-        service.processSearchLoadRequest(new PublishNodeSearchLoadRequest(searchNode.getId(), maxSeqNo, maxSeqNoSearchLoad));
+        service.processSearchLoadRequest(
+            new PublishNodeSearchLoadRequest(searchNode.getId(), maxSeqNo, maxSeqNoSearchLoad, MetricQuality.EXACT)
+        );
 
         var numberOfOutOfOrderMetricSamples = randomIntBetween(1, maxSeqNo);
         var unorderedSeqNos = IntStream.of(numberOfOutOfOrderMetricSamples).boxed().collect(Collectors.toCollection(ArrayList::new));
         Collections.shuffle(unorderedSeqNos, random());
         for (long seqNo : unorderedSeqNos) {
-            service.processSearchLoadRequest(new PublishNodeSearchLoadRequest(searchNode.getId(), maxSeqNo, maxSeqNoSearchLoad));
+            service.processSearchLoadRequest(
+                new PublishNodeSearchLoadRequest(searchNode.getId(), maxSeqNo, maxSeqNoSearchLoad, MetricQuality.EXACT)
+            );
         }
 
         var searchTierMetrics = service.getSearchTierMetrics();

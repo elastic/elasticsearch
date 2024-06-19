@@ -29,6 +29,7 @@ import java.util.Map;
 
 import static co.elastic.elasticsearch.stateless.autoscaling.search.load.SearchLoadProbe.MAX_QUEUE_CONTRIBUTION_FACTOR;
 import static co.elastic.elasticsearch.stateless.autoscaling.search.load.SearchLoadProbe.MAX_TIME_TO_CLEAR_QUEUE;
+import static co.elastic.elasticsearch.stateless.autoscaling.search.load.SearchLoadProbe.SHARD_READ_LOAD_THRESHOLD_SETTING;
 import static co.elastic.elasticsearch.stateless.autoscaling.search.load.SearchLoadProbe.calculateSearchLoadForExecutor;
 import static org.elasticsearch.core.TimeValue.timeValueMillis;
 import static org.elasticsearch.threadpool.ThreadPool.searchOrGetThreadPoolSize;
@@ -133,24 +134,29 @@ public class SearchLoadProbeTests extends ESTestCase {
     }
 
     public void testGetSearchLoad() {
-        Map<String, SearchExecutorStats> statsPerExecutor = new HashMap<>();
+        Map<String, ExecutorLoadStats> statsPerExecutor = new HashMap<>();
         var searchLoadProbe = new SearchLoadProbe(
             new ClusterSettings(
                 Settings.EMPTY,
-                Sets.addToCopy(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS, MAX_TIME_TO_CLEAR_QUEUE, MAX_QUEUE_CONTRIBUTION_FACTOR)
+                Sets.addToCopy(
+                    ClusterSettings.BUILT_IN_CLUSTER_SETTINGS,
+                    MAX_TIME_TO_CLEAR_QUEUE,
+                    MAX_QUEUE_CONTRIBUTION_FACTOR,
+                    SHARD_READ_LOAD_THRESHOLD_SETTING
+                )
             ),
             statsPerExecutor::get
         );
 
-        statsPerExecutor.put(Names.SEARCH, new SearchExecutorStats(3.0, timeValueMillis(200).nanos(), 0, 10, 10));
+        statsPerExecutor.put(Names.SEARCH, new ExecutorLoadStats(3.0, timeValueMillis(200).nanos(), 0, 10, 10));
         assertThat(searchLoadProbe.getSearchLoad(), closeTo(3.0, 1e-3));
 
         statsPerExecutor.clear();
-        statsPerExecutor.put(Names.SEARCH, new SearchExecutorStats(1.0, timeValueMillis(200).nanos(), 0, 1, 1));
+        statsPerExecutor.put(Names.SEARCH, new ExecutorLoadStats(1.0, timeValueMillis(200).nanos(), 0, 1, 1));
         assertThat(searchLoadProbe.getSearchLoad(), closeTo(1.0, 1e-3));
 
         statsPerExecutor.clear();
-        statsPerExecutor.put(Names.SEARCH, new SearchExecutorStats(1.0, timeValueMillis(200).nanos(), 0, 1, 2));
+        statsPerExecutor.put(Names.SEARCH, new ExecutorLoadStats(1.0, timeValueMillis(200).nanos(), 0, 1, 2));
         assertThat(searchLoadProbe.getSearchLoad(), closeTo(2.0, 1e-3));
 
         statsPerExecutor.clear();
@@ -161,7 +167,7 @@ public class SearchLoadProbeTests extends ESTestCase {
         int numProcessors = 4;
         statsPerExecutor.put(
             Names.SEARCH,
-            new SearchExecutorStats(threadsUsed, timeValueMillis(200).nanos(), queueSize, maxThreads, numProcessors)
+            new ExecutorLoadStats(threadsUsed, timeValueMillis(200).nanos(), queueSize, maxThreads, numProcessors)
         );
         var expectedExtraThreads = threadsUsed * ((double) numProcessors / maxThreads);
         assertThat(searchLoadProbe.getSearchLoad(), closeTo(threadsUsed + expectedExtraThreads, 1e-3));
@@ -233,18 +239,23 @@ public class SearchLoadProbeTests extends ESTestCase {
         int searchQueueSize,
         double expectedTotalReportedLoad
     ) {
-        Map<String, SearchExecutorStats> statsPerExecutor = new HashMap<>();
+        Map<String, ExecutorLoadStats> statsPerExecutor = new HashMap<>();
         var searchLoadProbe = new SearchLoadProbe(
             new ClusterSettings(
                 Settings.builder().put(MAX_TIME_TO_CLEAR_QUEUE.getKey(), TimeValue.timeValueMillis(maxTimeToClearQueueMillis)).build(),
-                Sets.addToCopy(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS, MAX_TIME_TO_CLEAR_QUEUE, MAX_QUEUE_CONTRIBUTION_FACTOR)
+                Sets.addToCopy(
+                    ClusterSettings.BUILT_IN_CLUSTER_SETTINGS,
+                    MAX_TIME_TO_CLEAR_QUEUE,
+                    MAX_QUEUE_CONTRIBUTION_FACTOR,
+                    SHARD_READ_LOAD_THRESHOLD_SETTING
+                )
             ),
             statsPerExecutor::get
         );
 
         statsPerExecutor.put(
             Names.SEARCH,
-            new SearchExecutorStats(
+            new ExecutorLoadStats(
                 searchPoolThreadsUsed,
                 timeValueMillis(searchTaskTimeMillis).nanos(),
                 searchQueueSize,

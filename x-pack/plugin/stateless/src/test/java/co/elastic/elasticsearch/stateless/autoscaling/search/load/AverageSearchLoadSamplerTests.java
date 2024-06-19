@@ -17,6 +17,9 @@
 
 package co.elastic.elasticsearch.stateless.autoscaling.search.load;
 
+import co.elastic.elasticsearch.stateless.Stateless;
+
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.TaskExecutionTimeTrackingEsThreadPoolExecutor;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
@@ -25,8 +28,13 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
-import static co.elastic.elasticsearch.stateless.autoscaling.search.load.AverageSearchLoadSampler.DEFAULT_EWMA_ALPHA;
+import static co.elastic.elasticsearch.stateless.Stateless.SHARD_READ_THREAD_POOL;
+import static co.elastic.elasticsearch.stateless.autoscaling.search.load.AverageSearchLoadSampler.DEFAULT_SEARCH_EWMA_ALPHA;
+import static co.elastic.elasticsearch.stateless.autoscaling.search.load.AverageSearchLoadSampler.DEFAULT_SHARD_READ_EWMA_ALPHA;
+import static co.elastic.elasticsearch.stateless.autoscaling.search.load.AverageSearchLoadSampler.SEARCH_EXECUTOR;
+import static co.elastic.elasticsearch.stateless.autoscaling.search.load.AverageSearchLoadSampler.SHARD_READ_EXECUTOR;
 import static co.elastic.elasticsearch.stateless.autoscaling.search.load.AverageSearchLoadSampler.ensureRange;
 import static org.elasticsearch.core.TimeValue.timeValueMillis;
 import static org.elasticsearch.core.TimeValue.timeValueSeconds;
@@ -38,24 +46,40 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class AverageSearchLoadSamplerTests extends ESTestCase {
+    private static Map<String, Double> DEFAULT_EWMA_ALPHA_VALUES = Map.of(
+        SEARCH_EXECUTOR,
+        DEFAULT_SEARCH_EWMA_ALPHA,
+        SHARD_READ_EXECUTOR,
+        DEFAULT_SHARD_READ_EWMA_ALPHA
+    );
+
+    private static TestThreadPool getThreadPool(String name) {
+        return new TestThreadPool(name, Stateless.statelessExecutorBuilders(Settings.EMPTY, true));
+    }
 
     public void testAverageSearchLoadInitialValue() throws Exception {
-        var threadpool = new TestThreadPool("test");
+        var threadpool = getThreadPool("test");
         try {
-            var searchLoadSampler = new AverageSearchLoadSampler(threadpool, timeValueSeconds(1), DEFAULT_EWMA_ALPHA, 4);
+            var searchLoadSampler = new AverageSearchLoadSampler(threadpool, timeValueSeconds(1), DEFAULT_EWMA_ALPHA_VALUES, 4);
             searchLoadSampler.sample();
-            assertThat(searchLoadSampler.getSearchExecutorStats(ThreadPool.Names.SEARCH).threadsUsed(), equalTo(0.0));
+            assertThat(searchLoadSampler.getExecutorLoadStats(ThreadPool.Names.SEARCH).threadsUsed(), equalTo(0.0));
             var randomThreadPool = randomValueOtherThanMany(
-                AverageSearchLoadSampler.SEARCH_EXECUTORS::contains,
+                AverageSearchLoadSampler.MONITORED_EXECUTORS.keySet()::contains,
                 () -> randomFrom(ThreadPool.THREAD_POOL_TYPES.keySet())
             );
-            expectThrows(IllegalArgumentException.class, () -> searchLoadSampler.getSearchExecutorStats(randomThreadPool).threadsUsed());
+            expectThrows(IllegalArgumentException.class, () -> searchLoadSampler.getExecutorLoadStats(randomThreadPool).threadsUsed());
 
             var searchExecutor = (TaskExecutionTimeTrackingEsThreadPoolExecutor) threadpool.executor(ThreadPool.Names.SEARCH);
             searchExecutor.execute(() -> safeSleep(randomLongBetween(50, 200)));
             assertBusy(() -> assertThat(searchExecutor.getCompletedTaskCount(), equalTo(1L)));
             searchLoadSampler.sample();
-            assertThat(searchLoadSampler.getSearchExecutorStats(ThreadPool.Names.SEARCH).threadsUsed(), greaterThan(0.0));
+            assertThat(searchLoadSampler.getExecutorLoadStats(ThreadPool.Names.SEARCH).threadsUsed(), greaterThan(0.0));
+
+            var shardReadExecutor = (TaskExecutionTimeTrackingEsThreadPoolExecutor) threadpool.executor(SHARD_READ_THREAD_POOL);
+            shardReadExecutor.execute(() -> safeSleep(randomLongBetween(50, 200)));
+            assertBusy(() -> assertThat(shardReadExecutor.getCompletedTaskCount(), equalTo(1L)));
+            searchLoadSampler.sample();
+            assertThat(searchLoadSampler.getExecutorLoadStats(SHARD_READ_THREAD_POOL).threadsUsed(), greaterThan(0.0));
         } finally {
             terminate(threadpool);
         }

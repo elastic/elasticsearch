@@ -44,9 +44,11 @@ import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static co.elastic.elasticsearch.stateless.autoscaling.indexing.AutoscalingIndexingMetricsIT.longAwait;
+import static co.elastic.elasticsearch.stateless.autoscaling.search.load.AverageSearchLoadSampler.SHARD_READ_EXECUTOR;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.equalTo;
@@ -262,6 +264,85 @@ public class AutoscalingSearchLoadMetricsIT extends AbstractStatelessIntegTestCa
         } finally {
             longAwait(barrier);
         }
+    }
+
+    public void testShardReadLoadCausesMinimumAndZeroSearchLoad() throws Exception {
+        startMasterAndIndexNode();
+        var searchNode = startSearchNode(
+            Settings.builder()
+                .put(SearchLoadSampler.MAX_TIME_BETWEEN_METRIC_PUBLICATIONS_SETTING.getKey(), TimeValue.timeValueMillis(200))
+                .put(SearchLoadSampler.SAMPLING_FREQUENCY_SETTING.getKey(), TimeValue.timeValueMillis(30))
+                .build()
+        );
+
+        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        createIndex(indexName, indexSettings(1, 1).build());
+        ensureGreen(indexName);
+
+        final var metricPublicationBarrier = new CyclicBarrier(2);
+        for (var transportService : internalCluster().getInstances(TransportService.class)) {
+            MockTransportService mockTransportService = (MockTransportService) transportService;
+            mockTransportService.addSendBehavior((connection, requestId, action, request, options) -> {
+                if (action.equals(TransportPublishSearchLoads.NAME)) {
+                    longAwait(metricPublicationBarrier);
+                }
+                connection.sendRequest(requestId, action, request, options);
+            });
+        }
+
+        // Wait for a publication of the metrics
+        longAwait(metricPublicationBarrier);
+
+        // Check pre-conditions: search load should be EXACT prior to SHARD_READ_EXECUTOR load.
+        var searchMetricsService = internalCluster().getCurrentMasterNodeInstance(SearchMetricsService.class);
+        var metrics = searchMetricsService.getSearchTierMetrics();
+        assertThat(metrics.toString(), metrics.getNodesLoad().size(), equalTo(1));
+        assertThat(metrics.toString(), metrics.getNodesLoad().get(0).metricQuality(), equalTo(MetricQuality.EXACT));
+
+        // Block the SHARD_READ_EXECUTOR workers to simulate download from S3.
+        var threadPool = internalCluster().getInstance(ThreadPool.class, searchNode);
+        var executor = (TaskExecutionTimeTrackingEsThreadPoolExecutor) threadPool.executor(SHARD_READ_EXECUTOR);
+        final var executorThreads = threadPool.info(SHARD_READ_EXECUTOR).getMax();
+        var barrier = new CyclicBarrier(executorThreads + 1);
+        AtomicBoolean loadEnabled = new AtomicBoolean(true);
+        for (int i = 0; i < executorThreads; i++) {
+            executor.execute(() -> {
+                if (loadEnabled.get()) {
+                    longAwait(barrier);
+                }
+            });
+        }
+
+        // Wait for another publication of the metrics.
+        longAwait(metricPublicationBarrier);
+
+        try {
+            // Eventually just because of the "long-running" tasks in the SHARD_READ_EXECUTOR, the load will go up.
+            assertBusy(() -> {
+                try {
+                    var metricsAfter = searchMetricsService.getSearchTierMetrics();
+                    assertThat(metricsAfter.toString(), metricsAfter.getNodesLoad().size(), equalTo(1));
+                    assertThat(metricsAfter.toString(), metricsAfter.getNodesLoad().get(0).metricQuality(), equalTo(MetricQuality.MINIMUM));
+                    assertThat(metrics.toString(), metrics.getNodesLoad().get(0).load(), equalTo(0.0));
+                } finally {
+                    longAwait(metricPublicationBarrier);
+                }
+            });
+        } finally {
+            loadEnabled.set(false);
+            longAwait(barrier);
+        }
+
+        // With subsequent sampling iterations, the EWMA of the SHARD_READ_EXECUTOR will go down, and search load will be reported as EXACT.
+        assertBusy(() -> {
+            try {
+                var metricsAfter = searchMetricsService.getSearchTierMetrics();
+                assertThat(metricsAfter.toString(), metricsAfter.getNodesLoad().size(), equalTo(1));
+                assertThat(metricsAfter.toString(), metricsAfter.getNodesLoad().get(0).metricQuality(), equalTo(MetricQuality.EXACT));
+            } finally {
+                longAwait(metricPublicationBarrier);
+            }
+        });
     }
 
     public void testMetricsAreRepublishedAfterMasterFailover() throws Exception {

@@ -1435,9 +1435,6 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         if (rolloverInfos.equals(that.rolloverInfos) == false) {
             return false;
         }
-        if (mappingsUpdatedVersion.equals(that.mappingsUpdatedVersion) == false) {
-            return false;
-        }
         if (inferenceFields.equals(that.inferenceFields) == false) {
             return false;
         }
@@ -1461,7 +1458,6 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         result = 31 * result + Arrays.hashCode(primaryTerms);
         result = 31 * result + inSyncAllocationIds.hashCode();
         result = 31 * result + rolloverInfos.hashCode();
-        result = 31 * result + mappingsUpdatedVersion.hashCode();
         result = 31 * result + inferenceFields.hashCode();
         result = 31 * result + Boolean.hashCode(isSystem);
         return result;

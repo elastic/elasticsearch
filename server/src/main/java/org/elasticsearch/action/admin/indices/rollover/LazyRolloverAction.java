@@ -30,6 +30,7 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
@@ -52,6 +53,7 @@ public final class LazyRolloverAction extends ActionType<RolloverResponse> {
     private static final Logger logger = LogManager.getLogger(LazyRolloverAction.class);
 
     public static final NodeFeature DATA_STREAM_LAZY_ROLLOVER = new NodeFeature("data_stream.rollover.lazy");
+    public static final NodeFeature DATA_STREAM_LAZY_ROLLOVER_TASK = new NodeFeature("data_stream.rollover.lazy.dedicated_task");
 
     public static final LazyRolloverAction INSTANCE = new LazyRolloverAction();
     public static final String NAME = "indices:admin/data_stream/lazy_rollover";
@@ -68,6 +70,7 @@ public final class LazyRolloverAction extends ActionType<RolloverResponse> {
     public static final class TransportLazyRolloverAction extends TransportRolloverAction {
 
         private final MasterServiceTaskQueue<LazyRolloverTask> lazyRolloverTaskQueue;
+        private final FeatureService featureService;
 
         @Inject
         public TransportLazyRolloverAction(
@@ -80,6 +83,7 @@ public final class LazyRolloverAction extends ActionType<RolloverResponse> {
             AllocationService allocationService,
             MetadataDataStreamsService metadataDataStreamsService,
             DataStreamAutoShardingService dataStreamAutoShardingService,
+            FeatureService featureService,
             Client client
         ) {
             super(
@@ -95,6 +99,7 @@ public final class LazyRolloverAction extends ActionType<RolloverResponse> {
                 metadataDataStreamsService,
                 dataStreamAutoShardingService
             );
+            this.featureService = featureService;
             this.lazyRolloverTaskQueue = clusterService.createTaskQueue(
                 "lazy-rollover",
                 Priority.NORMAL,
@@ -143,8 +148,23 @@ public final class LazyRolloverAction extends ActionType<RolloverResponse> {
             // This will provide a more resilient user experience
             var newRolloverRequest = new RolloverRequest(rolloverRequest.getRolloverTarget(), null);
             newRolloverRequest.setIndicesOptions(rolloverRequest.indicesOptions());
-            LazyRolloverTask rolloverTask = new LazyRolloverTask(newRolloverRequest, listener);
-            lazyRolloverTaskQueue.submitTask(source, rolloverTask, rolloverRequest.masterNodeTimeout());
+            if (featureService.clusterHasFeature(clusterState, DATA_STREAM_LAZY_ROLLOVER_TASK)) {
+                LazyRolloverTask rolloverTask = new LazyRolloverTask(newRolloverRequest, listener);
+                lazyRolloverTaskQueue.submitTask(source, rolloverTask, rolloverRequest.masterNodeTimeout());
+            } else {
+                RolloverResponse trialRolloverResponse = new RolloverResponse(
+                    trialSourceIndexName,
+                    trialRolloverIndexName,
+                    Map.of(),
+                    false,
+                    false,
+                    false,
+                    false,
+                    false
+                );
+                RolloverTask rolloverTask = new RolloverTask(rolloverRequest, null, trialRolloverResponse, null, listener);
+                submitRolloverTask(newRolloverRequest, source, rolloverTask);
+            }
         }
     }
 
@@ -289,9 +309,13 @@ public final class LazyRolloverAction extends ActionType<RolloverResponse> {
         }
     }
 
+    /**
+     * A lazy rollover is only needed if the data stream is marked to rollover on write or if it targets the failure store
+     * and the failure store is empty.
+     */
     private static boolean isLazyRolloverNeeded(DataStream dataStream, boolean failureStore) {
         DataStream.DataStreamIndices indices = dataStream.getDataStreamIndices(failureStore);
-        return indices.isRolloverOnWrite() || indices.getIndices().isEmpty();
+        return indices.isRolloverOnWrite() || (failureStore && indices.getIndices().isEmpty());
     }
 
     private static void notifyAllListeners(

@@ -335,13 +335,17 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                         rolloverAutoSharding,
                         delegate
                     );
-                    rolloverTaskQueue.submitTask(source, rolloverTask, rolloverRequest.masterNodeTimeout());
+                    submitRolloverTask(rolloverRequest, source, rolloverTask);
                 } else {
                     // conditions not met
                     delegate.onResponse(trialRolloverResponse);
                 }
             })
         );
+    }
+
+    void submitRolloverTask(RolloverRequest rolloverRequest, String source, RolloverTask rolloverTask) {
+        rolloverTaskQueue.submitTask(source, rolloverTask, rolloverRequest.masterNodeTimeout());
     }
 
     private void initializeFailureStore(
@@ -375,7 +379,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
 
         String source = "initialize_failure_store with index [" + trialRolloverIndexName + "]";
         RolloverTask rolloverTask = new RolloverTask(rolloverRequest, null, trialRolloverResponse, null, listener);
-        rolloverTaskQueue.submitTask(source, rolloverTask, rolloverRequest.ackTimeout());
+        submitRolloverTask(rolloverRequest, source, rolloverTask);
     }
 
     static Map<String, Boolean> evaluateConditions(final Collection<Condition<?>> conditions, @Nullable final Condition.Stats stats) {

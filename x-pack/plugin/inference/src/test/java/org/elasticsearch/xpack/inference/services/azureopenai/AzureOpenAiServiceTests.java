@@ -38,6 +38,7 @@ import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
+import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.azureopenai.embeddings.AzureOpenAiEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.azureopenai.embeddings.AzureOpenAiEmbeddingsModelTests;
 import org.hamcrest.CoreMatchers;
@@ -49,10 +50,12 @@ import org.junit.Before;
 import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.xpack.core.inference.results.InferenceChunkedTextEmbeddingFloatResultsTests.asMapWithListsInsteadOfArrays;
@@ -74,6 +77,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
@@ -84,12 +88,20 @@ public class AzureOpenAiServiceTests extends ESTestCase {
     private final MockWebServer webServer = new MockWebServer();
     private ThreadPool threadPool;
     private HttpClientManager clientManager;
+    private ConcurrentHashMap<String, InferenceServiceResults> cache;
+    private AzureOpenAiService azureOpenAiService;
+    private ActionListener<InferenceServiceResults> listener;
 
     @Before
     public void init() throws Exception {
         webServer.start();
         threadPool = createThreadPool(inferenceUtilityPool());
         clientManager = HttpClientManager.create(Settings.EMPTY, threadPool, mockClusterServiceEmpty(), mock(ThrottlerManager.class));
+        cache = new ConcurrentHashMap<>();
+        HttpRequestSender.Factory senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+        ServiceComponents serviceComponents = createWithEmptySettings(threadPool);
+        azureOpenAiService = new AzureOpenAiService(senderFactory, serviceComponents);
+        listener = mock(ActionListener.class);
     }
 
     @After
@@ -630,25 +642,25 @@ public class AzureOpenAiServiceTests extends ESTestCase {
         try (var service = new AzureOpenAiService(senderFactory, createWithEmptySettings(threadPool))) {
 
             String responseJson = """
-                {
-                    "object": "list",
-                    "data": [
-                        {
-                            "object": "embedding",
-                            "index": 0,
-                            "embedding": [
-                                0.0123,
-                                -0.0123
-                            ]
-                        }
-                    ],
-                    "model": "text-embedding-ada-002-v2",
-                    "usage": {
-                        "prompt_tokens": 8,
-                        "total_tokens": 8
-                    }
-                }
-                """;
+                 {
+                     "object": "list",
+                     "data": [
+                         {
+                             "object": "embedding",
+                             "index": 0,
+                             "embedding": [
+                                 0.0123,
+                                 -0.0123
+                             ]
+                         }
+                     ],
+                     "model": "text-embedding-ada-002-v2",
+                     "usage": {
+                         "prompt_tokens": 8,
+                         "total_tokens": 8
+                     }
+                 }
+                 """;
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
             var model = AzureOpenAiEmbeddingsModelTests.createModel("resource", "deployment", "apiversion", "user", "apikey", null, "id");
@@ -685,25 +697,25 @@ public class AzureOpenAiServiceTests extends ESTestCase {
         try (var service = new AzureOpenAiService(senderFactory, createWithEmptySettings(threadPool))) {
 
             String responseJson = """
-                {
-                    "object": "list",
-                    "data": [
-                        {
-                            "object": "embedding",
-                            "index": 0,
-                            "embedding": [
-                                0.0123,
-                                -0.0123
-                            ]
-                        }
-                    ],
-                    "model": "text-embedding-ada-002-v2",
-                    "usage": {
-                        "prompt_tokens": 8,
-                        "total_tokens": 8
-                    }
-                }
-                """;
+                 {
+                     "object": "list",
+                     "data": [
+                         {
+                             "object": "embedding",
+                             "index": 0,
+                             "embedding": [
+                                 0.0123,
+                                 -0.0123
+                             ]
+                         }
+                     ],
+                     "model": "text-embedding-ada-002-v2",
+                     "usage": {
+                         "prompt_tokens": 8,
+                         "total_tokens": 8
+                     }
+                 }
+                 """;
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
             var model = AzureOpenAiEmbeddingsModelTests.createModel(
@@ -757,25 +769,25 @@ public class AzureOpenAiServiceTests extends ESTestCase {
         try (var service = new AzureOpenAiService(senderFactory, createWithEmptySettings(threadPool))) {
 
             String responseJson = """
-                {
-                    "object": "list",
-                    "data": [
-                        {
-                            "object": "embedding",
-                            "index": 0,
-                            "embedding": [
-                                0.0123,
-                                -0.0123
-                            ]
-                        }
-                    ],
-                    "model": "text-embedding-ada-002-v2",
-                    "usage": {
-                        "prompt_tokens": 8,
-                        "total_tokens": 8
-                    }
-                }
-                """;
+                 {
+                     "object": "list",
+                     "data": [
+                         {
+                             "object": "embedding",
+                             "index": 0,
+                             "embedding": [
+                                 0.0123,
+                                 -0.0123
+                             ]
+                         }
+                     ],
+                     "model": "text-embedding-ada-002-v2",
+                     "usage": {
+                         "prompt_tokens": 8,
+                         "total_tokens": 8
+                     }
+                 }
+                 """;
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
             var model = AzureOpenAiEmbeddingsModelTests.createModel(
@@ -829,25 +841,25 @@ public class AzureOpenAiServiceTests extends ESTestCase {
         try (var service = new AzureOpenAiService(senderFactory, createWithEmptySettings(threadPool))) {
 
             String responseJson = """
-                {
-                    "object": "list",
-                    "data": [
-                        {
-                            "object": "embedding",
-                            "index": 0,
-                            "embedding": [
-                                0.0123,
-                                -0.0123
-                            ]
-                        }
-                    ],
-                    "model": "text-embedding-ada-002-v2",
-                    "usage": {
-                        "prompt_tokens": 8,
-                        "total_tokens": 8
-                    }
-                }
-                """;
+                 {
+                     "object": "list",
+                     "data": [
+                         {
+                             "object": "embedding",
+                             "index": 0,
+                             "embedding": [
+                                 0.0123,
+                                 -0.0123
+                             ]
+                         }
+                     ],
+                     "model": "text-embedding-ada-002-v2",
+                     "usage": {
+                         "prompt_tokens": 8,
+                         "total_tokens": 8
+                     }
+                 }
+                 """;
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
             var model = AzureOpenAiEmbeddingsModelTests.createModel(
@@ -901,25 +913,25 @@ public class AzureOpenAiServiceTests extends ESTestCase {
         try (var service = new AzureOpenAiService(senderFactory, createWithEmptySettings(threadPool))) {
 
             String responseJson = """
-                {
-                    "object": "list",
-                    "data": [
-                        {
-                            "object": "embedding",
-                            "index": 0,
-                            "embedding": [
-                                0.0123,
-                                -0.0123
-                            ]
-                        }
-                    ],
-                    "model": "text-embedding-ada-002-v2",
-                    "usage": {
-                        "prompt_tokens": 8,
-                        "total_tokens": 8
-                    }
-                }
-                """;
+                 {
+                     "object": "list",
+                     "data": [
+                         {
+                             "object": "embedding",
+                             "index": 0,
+                             "embedding": [
+                                 0.0123,
+                                 -0.0123
+                             ]
+                         }
+                     ],
+                     "model": "text-embedding-ada-002-v2",
+                     "usage": {
+                         "prompt_tokens": 8,
+                         "total_tokens": 8
+                     }
+                 }
+                 """;
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
             var model = AzureOpenAiEmbeddingsModelTests.createModel(
@@ -963,25 +975,25 @@ public class AzureOpenAiServiceTests extends ESTestCase {
         try (var service = new AzureOpenAiService(senderFactory, createWithEmptySettings(threadPool))) {
 
             String responseJson = """
-                {
-                    "object": "list",
-                    "data": [
-                        {
-                            "object": "embedding",
-                            "index": 0,
-                            "embedding": [
-                                0.0123,
-                                -0.0123
-                            ]
-                        }
-                    ],
-                    "model": "text-embedding-ada-002-v2",
-                    "usage": {
-                        "prompt_tokens": 8,
-                        "total_tokens": 8
-                    }
-                }
-                """;
+                 {
+                     "object": "list",
+                     "data": [
+                         {
+                             "object": "embedding",
+                             "index": 0,
+                             "embedding": [
+                                 0.0123,
+                                 -0.0123
+                             ]
+                         }
+                     ],
+                     "model": "text-embedding-ada-002-v2",
+                     "usage": {
+                         "prompt_tokens": 8,
+                         "total_tokens": 8
+                     }
+                 }
+                 """;
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
             var model = AzureOpenAiEmbeddingsModelTests.createModel(
@@ -1035,15 +1047,15 @@ public class AzureOpenAiServiceTests extends ESTestCase {
         try (var service = new AzureOpenAiService(senderFactory, createWithEmptySettings(threadPool))) {
 
             String responseJson = """
-                {
-                    "error": {
-                        "message": "Incorrect API key provided:",
-                        "type": "invalid_request_error",
-                        "param": null,
-                        "code": "invalid_api_key"
-                    }
-                }
-                """;
+                 {
+                     "error": {
+                         "message": "Incorrect API key provided:",
+                         "type": "invalid_request_error",
+                         "param": null,
+                         "code": "invalid_api_key"
+                     }
+                 }
+                 """;
             webServer.enqueue(new MockResponse().setResponseCode(401).setBody(responseJson));
 
             var model = AzureOpenAiEmbeddingsModelTests.createModel("resource", "deployment", "apiversion", "user", "apikey", null, "id");
@@ -1072,25 +1084,25 @@ public class AzureOpenAiServiceTests extends ESTestCase {
         try (var service = new AzureOpenAiService(senderFactory, createWithEmptySettings(threadPool))) {
 
             String responseJson = """
-                {
-                "object": "list",
-                "data": [
-                {
-                "object": "embedding",
-                "index": 0,
-                "embedding": [
-                0.0123,
-                -0.0123
-                ]
-                }
-                ],
-                "model": "text-embedding-ada-002-v2",
-                "usage": {
-                "prompt_tokens": 8,
-                "total_tokens": 8
-                }
-                }
-                """;
+                 {
+                 "object": "list",
+                 "data": [
+                 {
+                 "object": "embedding",
+                 "index": 0,
+                 "embedding": [
+                 0.0123,
+                 -0.0123
+                 ]
+                 }
+                 ],
+                 "model": "text-embedding-ada-002-v2",
+                 "usage": {
+                 "prompt_tokens": 8,
+                 "total_tokens": 8
+                 }
+                 }
+                 """;
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
             var model = AzureOpenAiEmbeddingsModelTests.createModel("resource", "deployment", "apiversion", "user", "apikey", null, "id");
@@ -1130,6 +1142,45 @@ public class AzureOpenAiServiceTests extends ESTestCase {
             assertThat(requestMap.get("input"), Matchers.is(List.of("abc")));
             assertThat(requestMap.get("user"), Matchers.is("user"));
         }
+    }
+
+    public void testDoInfer_CachedResponse() {
+        // Create a mock model and populate cache
+        AzureOpenAiModel mockModel = mock(AzureOpenAiModel.class);
+        Map<String, Object> taskSettings = new HashMap<>();
+        List<String> input = Arrays.asList("input1", "input2");
+        String cacheKey = generateCacheKey(input, taskSettings);
+        InferenceServiceResults cachedResponse = mock(InferenceServiceResults.class);
+        when(cache.containsKey(cacheKey)).thenReturn(true);
+        when(cache.get(cacheKey)).thenReturn(cachedResponse);
+
+        // Call the doInfer method
+        azureOpenAiService.doInfer(mockModel, input, taskSettings, InputType.INGEST, TIMEOUT, listener);
+
+        // Verify that cache is checked and response is returned from cache
+        verify(cache, times(1)).containsKey(cacheKey);
+        verify(cache, times(1)).get(cacheKey);
+        verify(listener, times(1)).onResponse(cachedResponse);
+    }
+    public void testDoInfer_NonCachedResponse() {
+        // Create a mock model and populate cache
+        AzureOpenAiModel mockModel = mock(AzureOpenAiModel.class);
+        Map<String, Object> taskSettings = new HashMap<>();
+        List<String> input = Arrays.asList("input1", "input2");
+        String cacheKey = generateCacheKey(input, taskSettings);
+        cache.remove(cacheKey); // Ensure the cache is empty for this test
+
+        // Call the doInfer method
+        azureOpenAiService.doInfer(mockModel, input, taskSettings, InputType.INGEST, TIMEOUT, listener);
+
+        // Verify that cache is checked and response is not returned from cache
+        verify(cache, times(1)).containsKey(cacheKey);
+        verify(cache, never()).get(cacheKey);
+        // You might want to verify that the action creator and action are called as expected
+    }
+
+    private String generateCacheKey(List<String> input, Map<String, Object> taskSettings) {
+        return input.toString() + taskSettings.toString();
     }
 
     private AzureOpenAiService createAzureOpenAiService() {

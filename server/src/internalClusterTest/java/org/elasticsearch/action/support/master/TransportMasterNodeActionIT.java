@@ -49,7 +49,7 @@ public class TransportMasterNodeActionIT extends ESIntegTestCase {
         final var cleanupTasks = new ArrayList<Runnable>();
 
         try {
-            createClusterOfSufficientSize(newMaster, cleanupTasks);
+            createClusterOfSufficientSize();
             final long originalTerm = internalCluster().masterClient().admin().cluster().prepareState().get().getState().term();
             final var previousMasterKnowsNewMasterIsElectedLatch = configureElectionLatch(newMaster, cleanupTasks);
 
@@ -187,26 +187,26 @@ public class TransportMasterNodeActionIT extends ESIntegTestCase {
     }
 
     /**
+     * Add some master-only nodes and block until they've joined the cluster
+     *
      * Ensure that we've got 5 voting nodes in the cluster, this means even if the original
      * master accepts its own failed state update before standing down, we can still
      * establish a quorum without its (or our own) join.
-     *
-     * @param newMaster The name of the newMaster node
-     * @param cleanupTasks The list of clean up tasks
      */
-    private static void createClusterOfSufficientSize(String newMaster, ArrayList<Runnable> cleanupTasks) {
+    private static void createClusterOfSufficientSize() {
         final var enoughVotingMastersLatch = new CountDownLatch(1);
         ClusterStateApplier clusterFormationMonitor = event -> {
             if (5 <= event.state().coordinationMetadata().getLastCommittedConfiguration().getNodeIds().size()) {
                 enoughVotingMastersLatch.countDown();
             }
         };
-        ClusterService newMasterClusterService = internalCluster().getInstance(ClusterService.class, newMaster);
-        newMasterClusterService.addStateApplier(clusterFormationMonitor);
-        cleanupTasks.add(() -> newMasterClusterService.removeApplier(clusterFormationMonitor));
-        internalCluster().startMasterOnlyNode();
-        internalCluster().startMasterOnlyNode();
-        internalCluster().startMasterOnlyNode();
-        safeAwait(enoughVotingMastersLatch);
+        ClusterService newMasterClusterService = internalCluster().getAnyMasterNodeInstance(ClusterService.class);
+        try {
+            newMasterClusterService.addStateApplier(clusterFormationMonitor);
+            internalCluster().startMasterOnlyNodes(3);
+            safeAwait(enoughVotingMastersLatch);
+        } finally {
+            newMasterClusterService.removeApplier(clusterFormationMonitor);
+        }
     }
 }

@@ -564,6 +564,11 @@ tasks.named('stringTemplates').configure {
     it.outputFile = "org/elasticsearch/compute/operator/topn/KeyExtractorForLong.java"
   }
   template {
+    it.properties = floatProperties
+    it.inputFile =  keyExtractorInputFile
+    it.outputFile = "org/elasticsearch/compute/operator/topn/KeyExtractorForFloat.java"
+  }
+  template {
     it.properties = doubleProperties
     it.inputFile =  keyExtractorInputFile
     it.outputFile = "org/elasticsearch/compute/operator/topn/KeyExtractorForDouble.java"
@@ -588,6 +593,11 @@ tasks.named('stringTemplates').configure {
     it.properties = longProperties
     it.inputFile =  valueExtractorInputFile
     it.outputFile = "org/elasticsearch/compute/operator/topn/ValueExtractorForLong.java"
+  }
+  template {
+    it.properties = floatProperties
+    it.inputFile =  valueExtractorInputFile
+    it.outputFile = "org/elasticsearch/compute/operator/topn/ValueExtractorForFloat.java"
   }
   template {
     it.properties = doubleProperties
@@ -619,5 +629,10 @@ tasks.named('stringTemplates').configure {
     it.properties = doubleProperties
     it.inputFile =  resultBuilderInputFile
     it.outputFile = "org/elasticsearch/compute/operator/topn/ResultBuilderForDouble.java"
+  }
+  template {
+    it.properties = floatProperties
+    it.inputFile =  resultBuilderInputFile
+    it.outputFile = "org/elasticsearch/compute/operator/topn/ResultBuilderForFloat.java"
   }
 }

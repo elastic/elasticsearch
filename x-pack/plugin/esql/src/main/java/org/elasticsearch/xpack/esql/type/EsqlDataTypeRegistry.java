@@ -44,7 +44,7 @@ public class EsqlDataTypeRegistry implements DataTypeRegistry {
 
     @Override
     public DataType fromJava(Object value) {
-        return EsqlDataTypes.fromJava(value);
+        return DataType.fromJava(value);
     }
 
     @Override

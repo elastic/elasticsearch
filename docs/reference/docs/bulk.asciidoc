@@ -140,7 +140,7 @@ Perl::
 
 Python::
 
-    See https://elasticsearch-py.readthedocs.org/en/master/helpers.html[elasticsearch.helpers.*]
+    See https://elasticsearch-py.readthedocs.io/en/latest/helpers.html[elasticsearch.helpers.*]
 
 JavaScript::
 

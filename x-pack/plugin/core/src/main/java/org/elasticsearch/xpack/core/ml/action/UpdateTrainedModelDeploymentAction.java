@@ -85,7 +85,7 @@ public class UpdateTrainedModelDeploymentAction extends ActionType<CreateTrained
         public Request(StreamInput in) throws IOException {
             super(in);
             deploymentId = in.readString();
-            if (in.getTransportVersion().before(TransportVersions.INFERENCE_AUTOSCALING)) {
+            if (in.getTransportVersion().before(TransportVersions.INFERENCE_ADAPTIVE_ALLOCATIONS)) {
                 numberOfAllocations = in.readVInt();
                 adaptiveAllocationsSettings = null;
             } else {
@@ -122,7 +122,7 @@ public class UpdateTrainedModelDeploymentAction extends ActionType<CreateTrained
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(deploymentId);
-            if (out.getTransportVersion().before(TransportVersions.INFERENCE_AUTOSCALING)) {
+            if (out.getTransportVersion().before(TransportVersions.INFERENCE_ADAPTIVE_ALLOCATIONS)) {
                 out.writeVInt(numberOfAllocations);
             } else {
                 out.writeOptionalVInt(numberOfAllocations);

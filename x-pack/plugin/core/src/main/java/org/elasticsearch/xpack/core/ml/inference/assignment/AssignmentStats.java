@@ -462,7 +462,7 @@ public class AssignmentStats implements ToXContentObject, Writeable {
         modelId = in.readString();
         threadsPerAllocation = in.readOptionalVInt();
         numberOfAllocations = in.readOptionalVInt();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_AUTOSCALING)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_ADAPTIVE_ALLOCATIONS)) {
             adaptiveAllocationsSettings = in.readOptionalWriteable(AdaptiveAllocationsSettings::new);
         } else {
             adaptiveAllocationsSettings = null;
@@ -647,7 +647,7 @@ public class AssignmentStats implements ToXContentObject, Writeable {
         out.writeString(modelId);
         out.writeOptionalVInt(threadsPerAllocation);
         out.writeOptionalVInt(numberOfAllocations);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_AUTOSCALING)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_ADAPTIVE_ALLOCATIONS)) {
             out.writeOptionalWriteable(adaptiveAllocationsSettings);
         }
         out.writeOptionalVInt(queueCapacity);

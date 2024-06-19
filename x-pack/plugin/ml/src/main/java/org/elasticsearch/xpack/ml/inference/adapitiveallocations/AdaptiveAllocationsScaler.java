@@ -29,6 +29,13 @@ public class AdaptiveAllocationsScaler {
 
     AdaptiveAllocationsScaler(String deploymentId, int numberOfAllocations) {
         this.deploymentId = deploymentId;
+        // A smoothing factor of 100 roughly means the last 100 measurements have an effect
+        // on the estimated values. The sampling time is 10 seconds, so approximately the
+        // last 15 minutes are taken into account.
+        // For the request rate, use auto-detection for dynamics changes, because the request
+        // rate maybe change due to changed user behaviour.
+        // For the inference time, don't use this auto-detection. The dynamics may change when
+        // the number of allocations changes, which is passed explicitly to the estimator.
         requestRateEstimator = new KalmanFilter(deploymentId + ":rate", 100, true);
         inferenceTimeEstimator = new KalmanFilter(deploymentId + ":time", 100, false);
         this.numberOfAllocations = numberOfAllocations;
@@ -43,12 +50,26 @@ public class AdaptiveAllocationsScaler {
     }
 
     void process(AdaptiveAllocationsScalerService.Stats stats, double timeIntervalSeconds, int numberOfAllocations) {
+        // The request rate (per second) is the request count divided by the time.
+        // Assuming a Poisson process for the requests, the variance in the request
+        // count equals the mean request count, and the variance in the request rate
+        // equals that variance divided by the time interval squared.
+        // The minimum request count is set to 1, because lower request counts can't
+        // be reliably measured.
+        // The estimated request rate should be used for the variance calculations,
+        // because the measured request rate gives biased estimates.
         double requestRate = (double) stats.requestCount() / timeIntervalSeconds;
         double requestRateEstimate = requestRateEstimator.hasValue() ? requestRateEstimator.estimate() : requestRate;
         double requestRateVariance = Math.max(1.0, requestRateEstimate * timeIntervalSeconds) / Math.pow(timeIntervalSeconds, 2);
         requestRateEstimator.add(requestRate, requestRateVariance, false);
 
         if (stats.requestCount() > 0) {
+            // The inference time distribution is unknown. For simplicity, we assume
+            // a std.error equal to the mean, so that the variance equals the mean
+            // value squared. The measurement variance scales inversely proportional
+            // to the number of measurements.
+            // Again, the estimated inference time should be used for the variance
+            // calculations to prevent biased estimates.
             double inferenceTime = stats.inferenceTime();
             double inferenceTimeEstimate = inferenceTimeEstimator.hasValue() ? inferenceTimeEstimator.estimate() : inferenceTime;
             double inferenceTimeVariance = Math.pow(inferenceTimeEstimate, 2) / stats.requestCount();

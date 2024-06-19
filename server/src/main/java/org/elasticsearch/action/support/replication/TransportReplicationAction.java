@@ -92,17 +92,15 @@ public abstract class TransportReplicationAction<
 
     protected enum ActionFlags {
         /**
-         * When included, will bypass queue-length checks when executing on the primary
+         * Bypass queue-length checks when executing on the primary
          */
         ForceExecutionOnPrimary,
         /**
-         * When included, will sync the global checkpoint to the replicas
-         * after the action completes successfully on the primary
+         * Sync the global checkpoint to the replicas after the action completes successfully on the primary
          */
         SyncGlobalCheckpointAfterOperation,
         /**
-         * When included, will prevent the replica action being rejected by
-         * the circuit breakers
+         * Prevent the replica action being rejected by the circuit breakers if the primary action succeeded
          */
         BypassCircuitBreakerOnReplica
     }

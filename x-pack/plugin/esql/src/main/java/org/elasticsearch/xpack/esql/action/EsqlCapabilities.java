@@ -23,7 +23,7 @@ import java.util.Set;
  * {@link RestNodesCapabilitiesAction} and we use them to enable tests.
  */
 public class EsqlCapabilities {
-    enum Cap {
+    public enum Cap {
         // Support for function {@code CBRT}. Done in #108574.
         FN_CBRT(false),
 
@@ -58,11 +58,20 @@ public class EsqlCapabilities {
         STRING_LITERAL_AUTO_CASTING_TO_DATETIME_ADD_SUB(false),
 
         // Support for named or positional parameters in EsqlQueryRequest.
-        NAMED_POSITIONAL_PARAMETER(false);
+        NAMED_POSITIONAL_PARAMETER(false),
+
+        /**
+         * Support multiple field mappings if appropriate conversion function is used (union types)
+         */
+        UNION_TYPES(false);
 
         Cap(boolean snapshotOnly) {
             this.snapshotOnly = snapshotOnly;
         };
+
+        public String capabilityName() {
+            return name().toLowerCase(Locale.ROOT);
+        }
 
         private final boolean snapshotOnly;
     }
@@ -73,7 +82,7 @@ public class EsqlCapabilities {
         List<String> caps = new ArrayList<>();
         for (Cap cap : Cap.values()) {
             if (Build.current().isSnapshot() || cap.snapshotOnly == false) {
-                caps.add(cap.name().toLowerCase(Locale.ROOT));
+                caps.add(cap.capabilityName());
             }
         }
 

@@ -1014,6 +1014,44 @@ count:long | country:k
 // end::st_dwithin-airports-result[]
 ;
 
+airportsSortDistanceFromCopenhagenTrainStation
+required_capability: st_distance
+
+FROM airports
+| EVAL distance = ST_DISTANCE(location, TO_GEOPOINT("POINT(12.565 55.673)"))
+| SORT distance ASC
+| LIMIT 5
+| EVAL distance = ROUND(distance/1000,2)
+| EVAL city_distance = ROUND(ST_DISTANCE(city_location, TO_GEOPOINT("POINT(12.565 55.673)"))/1000,2)
+| KEEP abbrev, name, location, country, city, city_location, distance, city_distance
+;
+
+abbrev:k | name:text               | location:geo_point                       | country:k | city:k          | city_location:geo_point | distance:d | city_distance:d    
+CPH      | Copenhagen              | POINT(12.6493508684508 55.6285017221528) | Denmark   | Copenhagen      | POINT(12.5683 55.6761)  | 7.24       | 0.4
+GOT      | Gothenburg              | POINT(12.2938269092573 57.6857493534879) | Sweden    | Gothenburg      | POINT(11.9675 57.7075)  | 224.42     | 229.15
+HAM      | Hamburg                 | POINT(10.005647830925 53.6320011640866)  | Germany   | Norderstedt     | POINT(10.0103 53.7064)  | 280.34     | 273.42
+TXL      | Berlin-Tegel Int'l      | POINT(13.2903090925074 52.5544287044101) | Germany   | Hohen Neuendorf | POINT(13.2833 52.6667)  | 349.97     | 337.53
+BRE      | Bremen                  | POINT(8.7858617703132 53.052287104156)   | Germany   | Bremen          | POINT(8.8 53.0833)      | 380.5      | 377.22
+;
+
+airportsSortDistanceFromAirportToCity
+required_capability: st_distance
+
+FROM airports
+| EVAL distance = ST_DISTANCE(location, city_location)
+| SORT distance ASC
+| LIMIT 5
+| KEEP abbrev, name, location, country, city, city_location, distance
+;
+
+abbrev:k | name:text               | location:geo_point                        | country:k    | city:k                  | city_location:geo_point  | distance:d    
+TRD      | Trondheim Vaernes       | POINT(10.9168095241445 63.472029381717)   | Norway       | Stjørdalshalsen         | POINT(10.9189 63.4712)   | 138.86728011324072
+DHA      | King Abdulaziz AB       | POINT(50.1477245727844 26.2703680854768)  | Saudi Arabia | Dhahran                 | POINT(50.15 26.2667)     | 466.7314410344158
+NDB      | Nouadhibou Int'l        | POINT(-17.0334398691538 20.9290523064387) | Mauritania   | Nouadhibou              | POINT(-17.0333 20.9333)  | 472.545954400989
+ESE      | Ensenada                | POINT(-116.595724400418 31.7977139760569) | Mexico       | Rodolfo Sánchez Taboada | POINT(-116.5911 31.7958) | 486.1044856437723
+INU      | Nauru Int'l             | POINT(166.91613965882 -0.545037226856384) | Nauru        | Yaren                   | POINT(166.9209 -0.5477)  | 606.4888777331985
+;
+
 ###############################################
 # Tests for Equality and casting with GEO_POINT
 
@@ -1949,6 +1987,25 @@ FROM airports_web
 
 count:long
 12
+;
+
+airportsSortDistanceFromCopenhagenTrainStationCartesian
+required_capability: st_distance
+
+FROM airports_web
+| EVAL distance = ST_DISTANCE(location, TO_CARTESIANPOINT("POINT(1402900 7490000)"))
+| SORT distance ASC
+| LIMIT 5
+| EVAL distance = ROUND(distance/1000,2)
+| KEEP abbrev, name, location, distance
+;
+
+abbrev:k | name:text               | location:cartesian_point                    | distance:d
+CPH      | Copenhagen              | POINT(1408119.2975413958 7484813.53657096)  | 7.36
+GOT      | Gothenburg              | POINT(1368542.5514391668 7901590.990691348) | 413.02
+HAM      | Hamburg                 | POINT(1113823.6215953932 7100767.499507231) | 484.84
+TXL      | Berlin-Tegel Int'l      | POINT(1479470.4406631375 6901000.847325224) | 593.96
+BRE      | Bremen                  | POINT(978037.6584513546 6992675.481947904)  | 654.09
 ;
 
 ###############################################

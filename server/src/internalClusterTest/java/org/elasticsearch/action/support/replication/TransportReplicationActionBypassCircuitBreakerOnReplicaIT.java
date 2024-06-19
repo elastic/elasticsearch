@@ -35,10 +35,7 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.Collection;
-import java.util.Collections;
-import java.util.IdentityHashMap;
 import java.util.List;
-import java.util.Set;
 import java.util.function.BiFunction;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -158,26 +155,10 @@ public class TransportReplicationActionBypassCircuitBreakerOnReplicaIT extends E
             AssertionError.class,
             () -> maxOutCircuitBreakersAndExecuteAction(PrimaryOrReplica.PRIMARY)
         );
-        assertTrue(
+        assertNotNull(
             "Not caused by CircuitBreakingException " + ExceptionsHelper.stackTrace(assertionError),
-            hasCauseOfType(CircuitBreakingException.class, assertionError)
+            ExceptionsHelper.unwrap(assertionError, CircuitBreakingException.class)
         );
-    }
-
-    private static <T extends Throwable> boolean hasCauseOfType(Class<T> exceptionType, Throwable throwable) {
-        Set<Throwable> seen = Collections.newSetFromMap(new IdentityHashMap<>());
-        seen.add(throwable);
-        Throwable t = throwable;
-        while ((t = t.getCause()) != null) {
-            if (seen.contains(t)) {
-                break;
-            }
-            if (exceptionType.isAssignableFrom(t.getClass())) {
-                return true;
-            }
-            seen.add(t);
-        }
-        return false;
     }
 
     private void maxOutCircuitBreakersAndExecuteAction(PrimaryOrReplica nodeToMaxOutCircuitBreakers) {

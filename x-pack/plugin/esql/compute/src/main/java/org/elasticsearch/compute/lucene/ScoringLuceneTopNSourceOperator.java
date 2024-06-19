@@ -34,7 +34,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
- * #### add javadoc
+ * A {@link LuceneTopNSourceOperator} that provides scores.
  */
 public final class ScoringLuceneTopNSourceOperator extends LuceneTopNSourceOperator {
 

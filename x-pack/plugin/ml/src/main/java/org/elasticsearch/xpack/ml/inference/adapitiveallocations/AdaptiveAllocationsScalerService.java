@@ -270,45 +270,37 @@ public class AdaptiveAllocationsScalerService implements ClusterStateListener {
                     ClientHelper.ML_ORIGIN,
                     UpdateTrainedModelDeploymentAction.INSTANCE,
                     updateRequest,
-                    ActionListener.wrap(
-
-                        updateResponse -> {
-                            logger.info(
-                                "adaptive allocations scaler: scaled [{}] to [{}] allocations.",
+                    ActionListener.wrap(updateResponse -> {
+                        logger.info("adaptive allocations scaler: scaled [{}] to [{}] allocations.", deploymentId, newNumberOfAllocations);
+                        threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME)
+                            .execute(
+                                () -> systemAuditor.info(
+                                    Strings.format(
+                                        "adaptive allocations scaler: scaled [%s] to [%s] allocations.",
+                                        deploymentId,
+                                        newNumberOfAllocations
+                                    )
+                                )
+                            );
+                    }, e -> {
+                        logger.atLevel(Level.WARN)
+                            .withThrowable(e)
+                            .log(
+                                "adaptive allocations scaler: scaling [{}] to [{}] allocations failed.",
                                 deploymentId,
                                 newNumberOfAllocations
                             );
-                            threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME)
-                                .execute(
-                                    () -> systemAuditor.info(
-                                        Strings.format(
-                                            "adaptive allocations scaler: scaled [%s] to [%s] allocations.",
-                                            deploymentId,
-                                            newNumberOfAllocations
-                                        )
+                        threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME)
+                            .execute(
+                                () -> systemAuditor.warning(
+                                    Strings.format(
+                                        "adaptive allocations scaler: scaling [{}] to [{}] allocations failed.",
+                                        deploymentId,
+                                        newNumberOfAllocations
                                     )
-                                );
-                        },
-                        e -> {
-                            logger.atLevel(Level.WARN)
-                                .withThrowable(e)
-                                .log(
-                                    "adaptive allocations scaler: scaling [{}] to [{}] allocations failed.",
-                                    deploymentId,
-                                    newNumberOfAllocations
-                                );
-                            threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME)
-                                .execute(
-                                    () -> systemAuditor.warning(
-                                        Strings.format(
-                                            "adaptive allocations scaler: scaling [{}] to [{}] allocations failed.",
-                                            deploymentId,
-                                            newNumberOfAllocations
-                                        )
-                                    )
-                                );
-                        }
-                    )
+                                )
+                            );
+                    })
                 );
             }
         }

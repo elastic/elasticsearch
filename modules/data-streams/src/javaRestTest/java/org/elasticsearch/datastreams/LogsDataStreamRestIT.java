@@ -28,6 +28,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 public class LogsDataStreamRestIT extends ESRestTestCase {
@@ -102,19 +103,19 @@ public class LogsDataStreamRestIT extends ESRestTestCase {
 
     private static final String STANDARD_TEMPLATE = """
         {
-            "index_patterns": [ "logs-*-*" ],
-            "data_stream": {},
-            "priority": 201,
-            "template": {
-              "settings": {
-                "index": {
-                  "mode": "standard"
-                }
-              },
-              "mappings": {
-                "properties": {
-                  "@timestamp" : {
-                    "type": "date"
+          "index_patterns": [ "logs-*-*" ],
+          "data_stream": {},
+          "priority": 201,
+          "template": {
+            "settings": {
+              "index": {
+                "mode": "standard"
+              }
+            },
+            "mappings": {
+              "properties": {
+                "@timestamp" : {
+                  "type": "date"
                 },
                 "host.name": {
                   "type": "keyword"
@@ -135,22 +136,22 @@ public class LogsDataStreamRestIT extends ESRestTestCase {
 
     private static final String TIME_SERIES_TEMPLATE = """
         {
-            "index_patterns": [ "logs-*-*" ],
-            "data_stream": {},
-            "priority": 201,
-            "template": {
-              "settings": {
-                "index": {
-                  "mode": "time_series",
-                  "look_ahead_time": "5m"
-                }
-              },
-              "mappings": {
-                "properties": {
-                  "@timestamp" : {
-                    "type": "date"
+          "index_patterns": [ "logs-*-*" ],
+          "data_stream": {},
+          "priority": 201,
+          "template": {
+            "settings": {
+              "index": {
+                "mode": "time_series",
+                "look_ahead_time": "5m"
+              }
+            },
+            "mappings": {
+              "properties": {
+                "@timestamp" : {
+                  "type": "date"
                 },
-                "hostname": {
+                "host.name": {
                   "type": "keyword",
                   "time_series_dimension": "true"
                 },
@@ -165,8 +166,8 @@ public class LogsDataStreamRestIT extends ESRestTestCase {
                   "type": "ip"
                 },
                 "memory_usage_bytes": {
-                    "type": "long",
-                    "time_series_metric": "gauge"
+                  "type": "long",
+                  "time_series_metric": "gauge"
                 }
               }
             }
@@ -176,18 +177,7 @@ public class LogsDataStreamRestIT extends ESRestTestCase {
     private static final String DOC_TEMPLATE = """
         {
             "@timestamp": "%s",
-            "hostname": "%s",
-            "pid": "%d",
-            "method": "%s",
-            "message": "%s",
-            "ip_address": "%s"
-        }
-        """;
-
-    private static final String TIME_SERIES_DOC_TEMPLATE = """
-        {
-            "@timestamp": "%s",
-            "hostname": "%s",
+            "host.name": "%s",
             "pid": "%d",
             "method": "%s",
             "message": "%s",
@@ -208,7 +198,8 @@ public class LogsDataStreamRestIT extends ESRestTestCase {
                 randomNonNegativeLong(),
                 randomFrom("PUT", "POST", "GET"),
                 randomAlphaOfLength(32),
-                randomIp(randomBoolean())
+                randomIp(randomBoolean()),
+                randomLongBetween(1_000_000L, 2_000_000L)
             )
         );
         assertDataStreamBackingIndexMode("logs", 0);
@@ -222,7 +213,8 @@ public class LogsDataStreamRestIT extends ESRestTestCase {
                 randomNonNegativeLong(),
                 randomFrom("PUT", "POST", "GET"),
                 randomAlphaOfLength(32),
-                randomIp(randomBoolean())
+                randomIp(randomBoolean()),
+                randomLongBetween(1_000_000L, 2_000_000L)
             )
         );
         assertDataStreamBackingIndexMode("logs", 1);
@@ -240,7 +232,8 @@ public class LogsDataStreamRestIT extends ESRestTestCase {
                 randomNonNegativeLong(),
                 randomFrom("PUT", "POST", "GET"),
                 randomAlphaOfLength(32),
-                randomIp(randomBoolean())
+                randomIp(randomBoolean()),
+                randomLongBetween(1_000_000L, 2_000_000L)
             )
         );
         assertDataStreamBackingIndexMode("logs", 0);
@@ -256,7 +249,8 @@ public class LogsDataStreamRestIT extends ESRestTestCase {
                 randomNonNegativeLong(),
                 randomFrom("PUT", "POST", "GET"),
                 randomAlphaOfLength(64),
-                randomIp(randomBoolean())
+                randomIp(randomBoolean()),
+                randomLongBetween(1_000_000L, 2_000_000L)
             )
         );
         assertDataStreamBackingIndexMode("standard", 1);
@@ -272,7 +266,8 @@ public class LogsDataStreamRestIT extends ESRestTestCase {
                 randomNonNegativeLong(),
                 randomFrom("PUT", "POST", "GET"),
                 randomAlphaOfLength(32),
-                randomIp(randomBoolean())
+                randomIp(randomBoolean()),
+                randomLongBetween(1_000_000L, 2_000_000L)
             )
         );
         assertDataStreamBackingIndexMode("logs", 2);
@@ -290,7 +285,8 @@ public class LogsDataStreamRestIT extends ESRestTestCase {
                 randomNonNegativeLong(),
                 randomFrom("PUT", "POST", "GET"),
                 randomAlphaOfLength(32),
-                randomIp(randomBoolean())
+                randomIp(randomBoolean()),
+                randomLongBetween(1_000_000L, 2_000_000L)
             )
         );
         assertDataStreamBackingIndexMode("logs", 0);
@@ -300,7 +296,7 @@ public class LogsDataStreamRestIT extends ESRestTestCase {
         indexDocument(
             client,
             DATA_STREAM_NAME,
-            timeSeriesDocument(
+            document(
                 Instant.now().plusSeconds(10),
                 randomAlphaOfLength(10),
                 randomNonNegativeLong(),
@@ -318,12 +314,13 @@ public class LogsDataStreamRestIT extends ESRestTestCase {
             client,
             DATA_STREAM_NAME,
             document(
-                Instant.now().plusSeconds(320),
+                Instant.now().plusSeconds(320), // 5 mins index.look_ahead_time
                 randomAlphaOfLength(10),
                 randomNonNegativeLong(),
                 randomFrom("PUT", "POST", "GET"),
                 randomAlphaOfLength(32),
-                randomIp(randomBoolean())
+                randomIp(randomBoolean()),
+                randomLongBetween(1_000_000L, 2_000_000L)
             )
         );
         assertDataStreamBackingIndexMode("logs", 2);
@@ -339,33 +336,13 @@ public class LogsDataStreamRestIT extends ESRestTestCase {
         long pid,
         final String method,
         final String message,
-        final InetAddress ipAddress
-    ) {
-        return String.format(
-            Locale.ROOT,
-            DOC_TEMPLATE,
-            DateFormatter.forPattern(FormatNames.DATE.getName()).format(timestamp),
-            hostname,
-            pid,
-            method,
-            message,
-            InetAddresses.toAddrString(ipAddress)
-        );
-    }
-
-    private String timeSeriesDocument(
-        final Instant timestamp,
-        final String hostname,
-        long pid,
-        final String method,
-        final String message,
         final InetAddress ipAddress,
         long memoryUsageBytes
     ) {
         return String.format(
             Locale.ROOT,
-            TIME_SERIES_DOC_TEMPLATE,
-            DateFormatter.forPattern(FormatNames.DATE.getName()).format(timestamp),
+            DOC_TEMPLATE,
+            DateFormatter.forPattern(FormatNames.DATE_TIME.getName()).format(timestamp),
             hostname,
             pid,
             method,
@@ -389,7 +366,9 @@ public class LogsDataStreamRestIT extends ESRestTestCase {
     private static void indexDocument(final RestClient client, String dataStreamName, String doc) throws IOException {
         final Request request = new Request("POST", "/" + dataStreamName + "/_doc?refresh=true");
         request.setJsonEntity(doc);
-        assertOK(client.performRequest(request));
+        final Response response = client.performRequest(request);
+        assertOK(response);
+        assertThat(entityAsMap(response).get("result"), equalTo("created"));
     }
 
     private static void rolloverDataStream(final RestClient client, final String dataStreamName) throws IOException {

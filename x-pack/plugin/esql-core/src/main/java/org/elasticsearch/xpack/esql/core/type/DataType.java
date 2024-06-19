@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.esql.core.type;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
@@ -199,7 +200,7 @@ public enum DataType {
         if (value instanceof ZonedDateTime) {
             return DATETIME;
         }
-        if (value instanceof String || value instanceof Character) {
+        if (value instanceof String || value instanceof Character || value instanceof BytesRef) {
             return KEYWORD;
         }
 

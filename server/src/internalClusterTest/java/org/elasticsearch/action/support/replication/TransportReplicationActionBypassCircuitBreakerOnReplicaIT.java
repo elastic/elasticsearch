@@ -26,7 +26,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
-import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -177,26 +176,15 @@ public class TransportReplicationActionBypassCircuitBreakerOnReplicaIT extends E
         String coordinator = internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
         ensureGreen("test");
 
-        maxOutCircuitBreakersOnNode(nodeToMaxOutCircuitBreakers.apply(primary, replica));
-
-        PlainActionFuture<Response> testActionResult = new PlainActionFuture<>();
-        client(coordinator).execute(TestAction.TYPE, new Request(new ShardId(resolveIndex("test"), 0)), testActionResult);
-        safeGet(testActionResult);
-    }
-
-    private static void maxOutCircuitBreakersOnNode(String targetNode) {
-        final var circuitBreaker = internalCluster().getInstance(CircuitBreakerService.class, targetNode)
-            .getBreaker(CircuitBreaker.IN_FLIGHT_REQUESTS);
-        long allocationSize = 1;
-        while (true) {
-            try {
-                circuitBreaker.addEstimateBytesAndMaybeBreak(allocationSize, "test");
-            } catch (CircuitBreakingException e) {
-                circuitBreaker.addWithoutBreaking(allocationSize);
-                break;
-            }
-            allocationSize <<= 1;
-            assert 0 <= allocationSize;
+        try (
+            var ignored = fullyAllocateCircuitBreakerOnNode(
+                nodeToMaxOutCircuitBreakers.apply(primary, replica),
+                CircuitBreaker.IN_FLIGHT_REQUESTS
+            )
+        ) {
+            PlainActionFuture<Response> testActionResult = new PlainActionFuture<>();
+            client(coordinator).execute(TestAction.TYPE, new Request(new ShardId(resolveIndex("test"), 0)), testActionResult);
+            safeGet(testActionResult);
         }
     }
 }

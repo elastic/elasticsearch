@@ -17,9 +17,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.disruption.NetworkDisruption;
 import org.elasticsearch.test.disruption.ServiceDisruptionScheme;
@@ -259,46 +257,31 @@ public class DiscoveryDisruptionIT extends AbstractDisruptionTestCase {
         logger.info("--> master [{}], victim [{}]", masterName, victimName);
 
         // fill up the circuit breaker to breaking point
-        final var circuitBreaker = internalCluster().getInstance(CircuitBreakerService.class, victimName)
-            .getBreaker(CircuitBreaker.IN_FLIGHT_REQUESTS);
-        long allocationSize = 1;
-        while (true) {
-            try {
-                circuitBreaker.addEstimateBytesAndMaybeBreak(allocationSize, "test");
-            } catch (CircuitBreakingException e) {
-                circuitBreaker.addWithoutBreaking(allocationSize);
-                break;
-            }
-            allocationSize <<= 1;
-            assert 0 <= allocationSize;
-        }
+        try (var ignored = fullyAllocateCircuitBreakerOnNode(victimName, CircuitBreaker.IN_FLIGHT_REQUESTS)) {
 
-        // drop the victim from the cluster with a network disruption
-        final var masterTransportService = MockTransportService.getInstance(masterName);
-        masterTransportService.addFailToSendNoConnectRule(internalCluster().getInstance(TransportService.class, victimName));
-        logger.info("--> waiting for victim's departure");
-        ensureStableCluster(2, masterName);
+            // drop the victim from the cluster with a network disruption
+            final var masterTransportService = MockTransportService.getInstance(masterName);
+            masterTransportService.addFailToSendNoConnectRule(internalCluster().getInstance(TransportService.class, victimName));
+            logger.info("--> waiting for victim's departure");
+            ensureStableCluster(2, masterName);
 
-        // verify that the victim sends no joins while the circuit breaker is breaking
-        final var victimTransportService = MockTransportService.getInstance(victimName);
-        victimTransportService.addSendBehavior((connection, requestId, action, request, options) -> {
-            assertNotEquals(action, JoinHelper.JOIN_ACTION_NAME);
-            connection.sendRequest(requestId, action, request, options);
-        });
+            // verify that the victim sends no joins while the circuit breaker is breaking
+            final var victimTransportService = MockTransportService.getInstance(victimName);
+            victimTransportService.addSendBehavior((connection, requestId, action, request, options) -> {
+                assertNotEquals(action, JoinHelper.JOIN_ACTION_NAME);
+                connection.sendRequest(requestId, action, request, options);
+            });
 
-        // fix the network disruption
-        logger.info("--> removing network disruption");
-        masterTransportService.clearAllRules();
-        ensureStableCluster(2, masterName);
+            // fix the network disruption
+            logger.info("--> removing network disruption");
+            masterTransportService.clearAllRules();
+            ensureStableCluster(2, masterName);
 
-        // permit joins again
-        victimTransportService.addSendBehavior(null);
+            // permit joins again
+            victimTransportService.addSendBehavior(null);
 
-        // release the breaker
-        logger.info("--> releasing allocations from circuit breaker");
-        while (0 < allocationSize) {
-            circuitBreaker.addWithoutBreaking(-allocationSize);
-            allocationSize >>= 1;
+            // release the breaker
+            logger.info("--> releasing allocations from circuit breaker");
         }
 
         logger.info("--> waiting for cluster to heal");

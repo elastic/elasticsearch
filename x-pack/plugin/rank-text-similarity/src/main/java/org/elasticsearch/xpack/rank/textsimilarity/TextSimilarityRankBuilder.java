@@ -5,7 +5,8 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.core.ml.rerank;
+package org.elasticsearch.xpack.rank.textsimilarity;
+
 
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.Query;
@@ -30,10 +31,10 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
-import static org.elasticsearch.xpack.core.ml.rerank.TextSimilarityRankRetrieverBuilder.FIELD_FIELD;
-import static org.elasticsearch.xpack.core.ml.rerank.TextSimilarityRankRetrieverBuilder.INFERENCE_ID_FIELD;
-import static org.elasticsearch.xpack.core.ml.rerank.TextSimilarityRankRetrieverBuilder.INFERENCE_TEXT_FIELD;
-import static org.elasticsearch.xpack.core.ml.rerank.TextSimilarityRankRetrieverBuilder.MIN_SCORE_FIELD;
+import static org.elasticsearch.xpack.rank.textsimilarity.TextSimilarityRankRetrieverBuilder.FIELD_FIELD;
+import static org.elasticsearch.xpack.rank.textsimilarity.TextSimilarityRankRetrieverBuilder.INFERENCE_ID_FIELD;
+import static org.elasticsearch.xpack.rank.textsimilarity.TextSimilarityRankRetrieverBuilder.INFERENCE_TEXT_FIELD;
+import static org.elasticsearch.xpack.rank.textsimilarity.TextSimilarityRankRetrieverBuilder.MIN_SCORE_FIELD;
 
 public class TextSimilarityRankBuilder extends RankBuilder {
 

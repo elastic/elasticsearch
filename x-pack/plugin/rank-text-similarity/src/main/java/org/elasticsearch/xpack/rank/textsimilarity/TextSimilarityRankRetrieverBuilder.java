@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.core.ml.rerank;
+package org.elasticsearch.xpack.rank.textsimilarity;
 
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.features.NodeFeature;

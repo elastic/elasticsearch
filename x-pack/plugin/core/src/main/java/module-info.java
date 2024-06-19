@@ -123,7 +123,6 @@ module org.elasticsearch.xcore {
     exports org.elasticsearch.xpack.core.ml.notifications;
     exports org.elasticsearch.xpack.core.ml.packageloader.action;
     exports org.elasticsearch.xpack.core.ml.process.writer;
-    exports org.elasticsearch.xpack.core.ml.rerank;
     exports org.elasticsearch.xpack.core.ml.search;
     exports org.elasticsearch.xpack.core.ml.stats;
     exports org.elasticsearch.xpack.core.ml.utils.time;

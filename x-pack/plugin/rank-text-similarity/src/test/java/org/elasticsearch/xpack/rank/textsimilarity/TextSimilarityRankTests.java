@@ -5,7 +5,8 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.core.ml.rerank;
+package org.elasticsearch.xpack.rank.textsimilarity;
+
 
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
@@ -38,11 +39,11 @@ public class TextSimilarityRankTests extends ESSingleNodeTestCase {
 
     public static class TestPlugin extends Plugin implements ActionPlugin {
 
-        private final SetOnce<TextSimilarityRankTests.TestFilter> testFilter = new SetOnce<>();
+        private final SetOnce<TestFilter> testFilter = new SetOnce<>();
 
         @Override
         public Collection<?> createComponents(PluginServices services) {
-            testFilter.set(new TextSimilarityRankTests.TestFilter());
+            testFilter.set(new TestFilter());
             return Collections.emptyList();
         }
 

@@ -67,8 +67,15 @@ tests:
 - class: "org.elasticsearch.xpack.shutdown.NodeShutdownReadinessIT"
   issue: "https://github.com/elastic/elasticsearch/issues/109838"
   method: "testShutdownReadinessService"
-- class: "org.elasticsearch.packaging.test.PackageTests"
-  issue: "https://github.com/elastic/elasticsearch/issues/109852"
+- class: "org.elasticsearch.cluster.PrevalidateShardPathIT"
+  issue: "https://github.com/elastic/elasticsearch/issues/104807"
+  method: "testCheckShards"
+- class: "org.elasticsearch.packaging.test.RpmPreservationTests"
+  issue: "https://github.com/elastic/elasticsearch/issues/109898"
+  method: "test30PreserveConfig"
+- class: "org.elasticsearch.xpack.security.ScrollHelperIntegTests"
+  issue: "https://github.com/elastic/elasticsearch/issues/109905"
+  method: "testFetchAllEntities"
 
 # Examples:
 #

@@ -1,7 +1,7 @@
 [[shard-allocation-relocation-recovery]]
 === Shard allocation, relocation, and recovery
 
-Each <<documents-indices,index>> in Elasticsearch is divided into one or more <<scalability,shards>>, each of which acts as a copy of the index and can be replicated across multiple <<node,nodes>> to protect against hardware failures.
+Each <<documents-indices,index>> in Elasticsearch is divided into one or more <<scalability,shards>>, each of which acts as a copy of the index and can be replicated across multiple <<modules-node,nodes>> to protect against hardware failures.
 
 include::{es-ref-dir}/primaries-replicas-desc.asciidoc[]
 

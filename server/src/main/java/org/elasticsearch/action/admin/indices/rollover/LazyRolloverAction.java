@@ -118,9 +118,9 @@ public final class LazyRolloverAction extends ActionType<RolloverResponse> {
 
             Metadata metadata = clusterState.metadata();
             DataStream dataStream = metadata.dataStreams().get(rolloverRequest.getRolloverTarget());
-            DataStream.DataStreamIndices targetIndices = dataStream.getDataStreamIndices(rolloverRequest.targetsFailureStore());
             // Skip even adding submitting the task if we detect that the lazy rollover has been already executed.
-            if (targetIndices.isRolloverOnWrite() == false) {
+            if (isLazyRolloverNeeded(dataStream, rolloverRequest.targetsFailureStore()) == false) {
+                DataStream.DataStreamIndices targetIndices = dataStream.getDataStreamIndices(rolloverRequest.targetsFailureStore());
                 listener.onResponse(noopLazyRolloverResponse(targetIndices));
                 return;
             }
@@ -225,8 +225,9 @@ public final class LazyRolloverAction extends ActionType<RolloverResponse> {
             // If the data stream has been rolled over since it was marked for lazy rollover, this operation is a noop
             final DataStream dataStream = currentState.metadata().dataStreams().get(rolloverRequest.getRolloverTarget());
             assert dataStream != null;
-            final DataStream.DataStreamIndices targetIndices = dataStream.getDataStreamIndices(rolloverRequest.targetsFailureStore());
-            if (targetIndices.isRolloverOnWrite() == false) {
+
+            if (isLazyRolloverNeeded(dataStream, rolloverRequest.targetsFailureStore()) == false) {
+                final DataStream.DataStreamIndices targetIndices = dataStream.getDataStreamIndices(rolloverRequest.targetsFailureStore());
                 var noopResponse = noopLazyRolloverResponse(targetIndices);
                 notifyAllListeners(rolloverTaskContexts, context -> context.getTask().listener.onResponse(noopResponse));
                 return currentState;
@@ -286,6 +287,11 @@ public final class LazyRolloverAction extends ActionType<RolloverResponse> {
             // Return the new rollover cluster state, which includes the changes that create the new index
             return rolloverResult.clusterState();
         }
+    }
+
+    private static boolean isLazyRolloverNeeded(DataStream dataStream, boolean failureStore) {
+        DataStream.DataStreamIndices indices = dataStream.getDataStreamIndices(failureStore);
+        return indices.isRolloverOnWrite() || indices.getIndices().isEmpty();
     }
 
     private static void notifyAllListeners(

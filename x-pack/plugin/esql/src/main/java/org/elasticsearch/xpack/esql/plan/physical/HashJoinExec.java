@@ -13,7 +13,7 @@ import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
-import org.elasticsearch.xpack.esql.io.stream.PlanNamedTypes;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 
@@ -53,7 +53,7 @@ public class HashJoinExec extends UnaryExec implements EstimatesRowSize {
         super(Source.readFrom(in), in.readPhysicalPlanNode());
         this.joinData = new LocalSourceExec(in);
         this.matchFields = in.readNamedWriteableCollectionAsList(NamedExpression.class);
-        this.conditions = in.readCollectionAsList(i -> (Equals) PlanNamedTypes.readBinComparison(in, "equals"));
+        this.conditions = in.readCollectionAsList(i -> (Equals) EsqlBinaryComparison.readFrom(in));
         this.output = in.readNamedWriteableCollectionAsList(Attribute.class);
     }
 
@@ -62,7 +62,7 @@ public class HashJoinExec extends UnaryExec implements EstimatesRowSize {
         out.writePhysicalPlanNode(child());
         joinData.writeTo(out);
         out.writeNamedWriteableCollection(matchFields);
-        out.writeCollection(conditions, (o, v) -> PlanNamedTypes.writeBinComparison(out, v));
+        out.writeCollection(conditions, (o, v) -> v.writeTo(o));
         out.writeNamedWriteableCollection(output);
     }
 

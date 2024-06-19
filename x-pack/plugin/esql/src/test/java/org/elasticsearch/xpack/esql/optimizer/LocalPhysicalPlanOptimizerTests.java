@@ -16,6 +16,8 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.index.query.BoolQueryBuilder;
+import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -744,6 +746,47 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         var field = as(project.child(), FieldExtractExec.class);
         var fields = field.attributesToExtract();
         assertThat(Expressions.names(fields), contains("_meta_field", "gender", "job", "job.raw", "languages", "long_noidx"));
+    }
+
+    public void testSingleRankPushdown() {
+        var plan = plannerOptimizer.plan("""
+            search test [
+                | RANK match(first_name, "Anna")
+            ]
+            """);
+
+        var limit = as(plan, LimitExec.class);
+        var exchange = as(limit.child(), ExchangeExec.class);
+        var project = as(exchange.child(), ProjectExec.class);
+        var fieldExtract = as(project.child(), FieldExtractExec.class);
+        var actualLuceneQuery = as(fieldExtract.child(), EsQueryExec.class).query();
+
+        var expectedLuceneQuery = new BoolQueryBuilder().should(new MatchQueryBuilder("first_name", "Anna")).minimumShouldMatch(1);
+
+        assertThat(actualLuceneQuery, equalTo(expectedLuceneQuery));
+    }
+
+    public void testRankWithFiltersPushdown() {
+        var plan = plannerOptimizer.plan("""
+            search test [
+                | RANK match(first_name, "Anna")
+                | WHERE emp_no > 10040
+            ]
+            """);
+
+        var limit = as(plan, LimitExec.class);
+        var exchange = as(limit.child(), ExchangeExec.class);
+        var project = as(exchange.child(), ProjectExec.class);
+        var fieldExtract = as(project.child(), FieldExtractExec.class);
+        var actualLuceneQuery = as(fieldExtract.child(), EsQueryExec.class).query();
+
+        Source filterSource = new Source(3, 12, "emp_no > 10040");
+        var expectedFilterQuery = wrapWithSingleQuery(QueryBuilders.rangeQuery("emp_no").gt(10040), "emp_no", filterSource);
+        var expectedLuceneQuery = new BoolQueryBuilder().should(new MatchQueryBuilder("first_name", "Anna"))
+            .filter(expectedFilterQuery)
+            .minimumShouldMatch(1);
+
+        assertThat(actualLuceneQuery.toString(), is(expectedLuceneQuery.toString()));
     }
 
     private QueryBuilder wrapWithSingleQuery(QueryBuilder inner, String fieldName, Source source) {

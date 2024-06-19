@@ -221,7 +221,7 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
                 if (pushable.size() > 0) { // update the executable with pushable conditions
                     Query queryDSL = TRANSLATOR_HANDLER.asQuery(Predicates.combineAnd(pushable));
                     QueryBuilder planQuery = queryDSL.asBuilder();
-                    var baseQuery = queryExec.query() != null ? queryExec.query() : new BoolQueryBuilder();
+                    var baseQuery = queryExec.scoring() && queryExec.query() == null ? new BoolQueryBuilder() : queryExec.query();
                     var query = Queries.combine(Clause.FILTER, asList(baseQuery, planQuery));
                     queryExec = new EsQueryExec(
                         queryExec.source(),

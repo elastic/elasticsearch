@@ -26,16 +26,15 @@ public class ConnectorStateMachine {
         ConnectorStatus.NEEDS_CONFIGURATION,
         EnumSet.of(ConnectorStatus.CONFIGURED, ConnectorStatus.ERROR),
         ConnectorStatus.CONFIGURED,
-        EnumSet.of(ConnectorStatus.NEEDS_CONFIGURATION, ConnectorStatus.CONNECTED, ConnectorStatus.ERROR),
+        EnumSet.of(ConnectorStatus.NEEDS_CONFIGURATION, ConnectorStatus.CONFIGURED, ConnectorStatus.CONNECTED, ConnectorStatus.ERROR),
         ConnectorStatus.CONNECTED,
-        EnumSet.of(ConnectorStatus.CONFIGURED, ConnectorStatus.ERROR),
+        EnumSet.of(ConnectorStatus.CONNECTED, ConnectorStatus.CONFIGURED, ConnectorStatus.ERROR),
         ConnectorStatus.ERROR,
-        EnumSet.of(ConnectorStatus.CONNECTED, ConnectorStatus.CONFIGURED)
+        EnumSet.of(ConnectorStatus.CONNECTED, ConnectorStatus.CONFIGURED, ConnectorStatus.ERROR)
     );
 
     /**
      * Checks if a transition from one {@link ConnectorStatus} to another is valid.
-     * Transition to the same state is always valid.
      *
      * @param current The current {@link ConnectorStatus} of the {@link Connector}.
      * @param next The proposed next {@link ConnectorStatus} of the {@link Connector}.
@@ -58,9 +57,6 @@ public class ConnectorStateMachine {
     }
 
     public static Set<ConnectorStatus> validNextStates(ConnectorStatus current) {
-        Set<ConnectorStatus> nextStates = new HashSet<>(VALID_TRANSITIONS.getOrDefault(current, Collections.emptySet()));
-        // Transition to the same state is allowed
-        nextStates.add(current);
-        return Collections.unmodifiableSet(nextStates);
+        return VALID_TRANSITIONS.getOrDefault(current, Collections.emptySet());
     }
 }

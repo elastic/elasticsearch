@@ -34,6 +34,7 @@ public class ConnectorStateMachineTests extends ESTestCase {
         assertTrue(ConnectorStateMachine.isValidTransition(ConnectorStatus.CONFIGURED, ConnectorStatus.NEEDS_CONFIGURATION));
         assertTrue(ConnectorStateMachine.isValidTransition(ConnectorStatus.CONFIGURED, ConnectorStatus.CONNECTED));
         assertTrue(ConnectorStateMachine.isValidTransition(ConnectorStatus.CONFIGURED, ConnectorStatus.ERROR));
+        assertTrue(ConnectorStateMachine.isValidTransition(ConnectorStatus.CONFIGURED, ConnectorStatus.CONFIGURED));
     }
 
     public void testInvalidTransitionFromConfigured() {
@@ -43,6 +44,7 @@ public class ConnectorStateMachineTests extends ESTestCase {
     public void testValidTransitionFromConnected() {
         assertTrue(ConnectorStateMachine.isValidTransition(ConnectorStatus.CONNECTED, ConnectorStatus.CONFIGURED));
         assertTrue(ConnectorStateMachine.isValidTransition(ConnectorStatus.CONNECTED, ConnectorStatus.ERROR));
+        assertTrue(ConnectorStateMachine.isValidTransition(ConnectorStatus.CONNECTED, ConnectorStatus.CONNECTED));
     }
 
     public void testInvalidTransitionFromConnected() {
@@ -53,6 +55,7 @@ public class ConnectorStateMachineTests extends ESTestCase {
     public void testValidTransitionFromError() {
         assertTrue(ConnectorStateMachine.isValidTransition(ConnectorStatus.ERROR, ConnectorStatus.CONNECTED));
         assertTrue(ConnectorStateMachine.isValidTransition(ConnectorStatus.ERROR, ConnectorStatus.CONFIGURED));
+        assertTrue(ConnectorStateMachine.isValidTransition(ConnectorStatus.ERROR, ConnectorStatus.ERROR));
     }
 
     public void testInvalidTransitionFromError() {
@@ -60,13 +63,6 @@ public class ConnectorStateMachineTests extends ESTestCase {
         assertFalse(ConnectorStateMachine.isValidTransition(ConnectorStatus.ERROR, ConnectorStatus.NEEDS_CONFIGURATION));
     }
 
-    public void testTransitionToSameState() {
-        assertTrue(ConnectorStateMachine.isValidTransition(ConnectorStatus.CREATED, ConnectorStatus.CREATED));
-        assertTrue(ConnectorStateMachine.isValidTransition(ConnectorStatus.NEEDS_CONFIGURATION, ConnectorStatus.NEEDS_CONFIGURATION));
-        assertTrue(ConnectorStateMachine.isValidTransition(ConnectorStatus.CONFIGURED, ConnectorStatus.CONFIGURED));
-        assertTrue(ConnectorStateMachine.isValidTransition(ConnectorStatus.CONNECTED, ConnectorStatus.CONNECTED));
-        assertTrue(ConnectorStateMachine.isValidTransition(ConnectorStatus.ERROR, ConnectorStatus.ERROR));
-    }
 
     public void testAssertValidStateTransition_ExpectExceptionOnInvalidTransition() {
         assertThrows(

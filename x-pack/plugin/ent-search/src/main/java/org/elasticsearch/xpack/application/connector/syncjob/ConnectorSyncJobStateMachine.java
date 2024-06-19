@@ -11,7 +11,6 @@ import org.elasticsearch.xpack.application.connector.ConnectorSyncStatus;
 
 import java.util.Collections;
 import java.util.EnumSet;
-import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
@@ -41,7 +40,6 @@ public class ConnectorSyncJobStateMachine {
 
     /**
      * Checks if a transition from one {@link ConnectorSyncStatus} to another is valid.
-     * Transition to the same state is always valid.
      *
      * @param current The current {@link ConnectorSyncStatus} of the {@link ConnectorSyncJob}.
      * @param next The proposed next {link ConnectorSyncStatus} of the {@link ConnectorSyncJob}.
@@ -64,9 +62,6 @@ public class ConnectorSyncJobStateMachine {
     }
 
     public static Set<ConnectorSyncStatus> validNextStates(ConnectorSyncStatus current) {
-        Set<ConnectorSyncStatus> nextStates = new HashSet<>(VALID_TRANSITIONS.getOrDefault(current, Collections.emptySet()));
-        // Transition to the same state is allowed
-        nextStates.add(current);
-        return Collections.unmodifiableSet(nextStates);
+        return VALID_TRANSITIONS.getOrDefault(current, Collections.emptySet());
     }
 }

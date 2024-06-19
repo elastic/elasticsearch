@@ -16,8 +16,8 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.geometry.Point;
+import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.Warnings;
-import org.elasticsearch.xpack.ql.tree.Source;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link StDWithin}.
@@ -37,11 +37,11 @@ public final class StDWithinCartesianPointDocValuesAndConstantAndConstantEvaluat
   public StDWithinCartesianPointDocValuesAndConstantAndConstantEvaluator(Source source,
       EvalOperator.ExpressionEvaluator leftValue, Point rightValue, double distance,
       DriverContext driverContext) {
-    this.warnings = new Warnings(source);
     this.leftValue = leftValue;
     this.rightValue = rightValue;
     this.distance = distance;
     this.driverContext = driverContext;
+    this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
   }
 
   @Override

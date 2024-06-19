@@ -43,7 +43,7 @@ public abstract class BinarySpatialFunctionTestCase extends AbstractFunctionTest
         return Class.forName("org.elasticsearch.xpack.esql.expression.function.scalar.spatial." + functionClassName);
     }
 
-    protected static TestCaseSupplier.TypedDataSupplier testCaseSupplier(DataType dataType, boolean pointsOnly) {
+    public static TestCaseSupplier.TypedDataSupplier testCaseSupplier(DataType dataType, boolean pointsOnly) {
         if (pointsOnly) {
             return switch (dataType.esType()) {
                 case "geo_point" -> TestCaseSupplier.geoPointCases(() -> false).get(0);

@@ -10,13 +10,11 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.spatial;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.FunctionName;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
-import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -32,9 +30,9 @@ public class StDWithinTests extends BinarySpatialFunctionTestCase {
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
         List<TestCaseSupplier> suppliers = new ArrayList<>();
-        DataType[] geoDataTypes = { EsqlDataTypes.GEO_POINT };
+        DataType[] geoDataTypes = { DataType.GEO_POINT };
         StDWithinTests.addSpatialCombinations(suppliers, geoDataTypes);
-        DataType[] cartesianDataTypes = { EsqlDataTypes.CARTESIAN_POINT };
+        DataType[] cartesianDataTypes = { DataType.CARTESIAN_POINT };
         StDWithinTests.addSpatialCombinations(suppliers, cartesianDataTypes);
         return parameterSuppliersFromTypedData(
             errorsForCasesWithoutExamples(anyNullIsNull(true, suppliers), StDWithinTests::typeErrorMessage)
@@ -47,7 +45,7 @@ public class StDWithinTests extends BinarySpatialFunctionTestCase {
     }
 
     protected static void addSpatialCombinations(List<TestCaseSupplier> suppliers, DataType[] dataTypes) {
-        addSpatialCombinations(suppliers, dataTypes, DataTypes.DOUBLE, true);
+        addSpatialCombinations(suppliers, dataTypes, DataType.DOUBLE, true);
     }
 
     protected static String typeErrorMessage(boolean includeOrdinal, List<Set<DataType>> validPerPosition, List<DataType> types) {

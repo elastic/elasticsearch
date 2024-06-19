@@ -21,8 +21,8 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.Warnings;
-import org.elasticsearch.xpack.ql.tree.Source;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link StDWithin}.
@@ -42,11 +42,11 @@ public final class StDWithinCartesianPointDocValuesAndFieldAndFieldEvaluator imp
   public StDWithinCartesianPointDocValuesAndFieldAndFieldEvaluator(Source source,
       EvalOperator.ExpressionEvaluator leftValue, EvalOperator.ExpressionEvaluator rightValue,
       EvalOperator.ExpressionEvaluator distance, DriverContext driverContext) {
-    this.warnings = new Warnings(source);
     this.leftValue = leftValue;
     this.rightValue = rightValue;
     this.distance = distance;
     this.driverContext = driverContext;
+    this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
   }
 
   @Override
@@ -118,10 +118,10 @@ public final class StDWithinCartesianPointDocValuesAndFieldAndFieldEvaluator imp
 
   public BooleanVector eval(int positionCount, LongVector leftValueVector,
       BytesRefVector rightValueVector, DoubleVector distanceVector) {
-    try(BooleanVector.Builder result = driverContext.blockFactory().newBooleanVectorBuilder(positionCount)) {
+    try(BooleanVector.FixedBuilder result = driverContext.blockFactory().newBooleanVectorFixedBuilder(positionCount)) {
       BytesRef rightValueScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendBoolean(StDWithin.processCartesianPointDocValuesAndFieldAndField(leftValueVector.getLong(p), rightValueVector.getBytesRef(p, rightValueScratch), distanceVector.getDouble(p)));
+        result.appendBoolean(p, StDWithin.processCartesianPointDocValuesAndFieldAndField(leftValueVector.getLong(p), rightValueVector.getBytesRef(p, rightValueScratch), distanceVector.getDouble(p)));
       }
       return result.build();
     }

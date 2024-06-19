@@ -194,7 +194,7 @@ public class PackageTests extends PackagingTestCase {
             }
 
             assertThat(sh.runIgnoreExitCode("systemctl status elasticsearch.service").exitCode(), is(statusExitCode));
-            assertThat(sh.runIgnoreExitCode("systemctl is-enabled elasticsearch.service").exitCode(), is(1));
+            assertThat(sh.runIgnoreExitCode("systemctl is-enabled elasticsearch.service").exitCode(), not(0));
 
         }
 
@@ -210,7 +210,6 @@ public class PackageTests extends PackagingTestCase {
         assertThat(SYSTEMD_SERVICE, fileDoesNotExist());
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/109852")
     public void test60Reinstall() throws Exception {
         try {
             install();

@@ -11,13 +11,13 @@ import org.elasticsearch.action.fieldcaps.FieldCapabilitiesIndexResponse;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.fieldcaps.IndexFieldCapabilities;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.esql.core.index.EsIndex;
 import org.elasticsearch.xpack.esql.core.index.IndexResolution;
-import org.elasticsearch.xpack.esql.core.index.IndexResolver;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.DataTypeRegistry;
 import org.elasticsearch.xpack.esql.core.type.DateEsField;
@@ -43,11 +43,30 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.OBJECT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSUPPORTED;
 
-public class EsqlIndexResolver {
+public class IndexResolver {
+    public static final Set<String> ALL_FIELDS = Set.of("*");
+    public static final Set<String> INDEX_METADATA_FIELD = Set.of("_index");
+    public static final String UNMAPPED = "unmapped";
+
+    public static final IndicesOptions FIELD_CAPS_INDICES_OPTIONS = IndicesOptions.builder()
+        .concreteTargetOptions(IndicesOptions.ConcreteTargetOptions.ALLOW_UNAVAILABLE_TARGETS)
+        .wildcardOptions(
+            IndicesOptions.WildcardOptions.builder()
+                .matchOpen(true)
+                .matchClosed(false)
+                .includeHidden(false)
+                .allowEmptyExpressions(true)
+                .resolveAliases(true)
+        )
+        .gatekeeperOptions(
+            IndicesOptions.GatekeeperOptions.builder().ignoreThrottled(true).allowClosedIndices(true).allowAliasToMultipleIndices(true)
+        )
+        .build();
+
     private final Client client;
     private final DataTypeRegistry typeRegistry;
 
-    public EsqlIndexResolver(Client client, DataTypeRegistry typeRegistry) {
+    public IndexResolver(Client client, DataTypeRegistry typeRegistry) {
         this.client = client;
         this.typeRegistry = typeRegistry;
     }
@@ -206,26 +225,10 @@ public class EsqlIndexResolver {
                 if (type == UNSUPPORTED) {
                     return unsupported(name, fc);
                 }
-                typesToIndices.computeIfAbsent(type.esType(), _key -> new TreeSet<>()).add(ir.getIndexName());
+                typesToIndices.computeIfAbsent(type.typeName(), _key -> new TreeSet<>()).add(ir.getIndexName());
             }
         }
-        StringBuilder errorMessage = new StringBuilder();
-        errorMessage.append("mapped as [");
-        errorMessage.append(typesToIndices.size());
-        errorMessage.append("] incompatible types: ");
-        boolean first = true;
-        for (Map.Entry<String, Set<String>> e : typesToIndices.entrySet()) {
-            if (first) {
-                first = false;
-            } else {
-                errorMessage.append(", ");
-            }
-            errorMessage.append("[");
-            errorMessage.append(e.getKey());
-            errorMessage.append("] in ");
-            errorMessage.append(e.getValue());
-        }
-        return new InvalidMappedField(name, errorMessage.toString());
+        return new InvalidMappedField(name, typesToIndices);
     }
 
     private EsField conflictingMetricTypes(String name, String fullName, FieldCapabilitiesResponse fieldCapsResponse) {
@@ -245,7 +248,7 @@ public class EsqlIndexResolver {
         req.includeUnmapped(true);
         // lenient because we throw our own errors looking at the response e.g. if something was not resolved
         // also because this way security doesn't throw authorization exceptions but rather honors ignore_unavailable
-        req.indicesOptions(IndexResolver.FIELD_CAPS_INDICES_OPTIONS);
+        req.indicesOptions(FIELD_CAPS_INDICES_OPTIONS);
         req.setMergeResults(false);
         return req;
     }

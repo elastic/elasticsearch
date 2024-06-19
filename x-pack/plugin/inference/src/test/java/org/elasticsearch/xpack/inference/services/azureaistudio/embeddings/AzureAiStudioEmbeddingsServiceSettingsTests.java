@@ -9,9 +9,10 @@ package org.elasticsearch.xpack.inference.services.azureaistudio.embeddings;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.SimilarityMeasure;
-import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
@@ -21,6 +22,7 @@ import org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioCon
 import org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioEndpointType;
 import org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioProvider;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
+import org.elasticsearch.xpack.inference.services.settings.RateLimitSettingsTests;
 import org.hamcrest.CoreMatchers;
 import org.hamcrest.MatcherAssert;
 
@@ -32,7 +34,7 @@ import static org.elasticsearch.xpack.inference.services.ServiceFields.SIMILARIT
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
-public class AzureAiStudioEmbeddingsServiceSettingsTests extends ESTestCase {
+public class AzureAiStudioEmbeddingsServiceSettingsTests extends AbstractWireSerializingTestCase<AzureAiStudioEmbeddingsServiceSettings> {
 
     public void testFromMap_Request_CreatesSettingsCorrectly() {
         var target = "http://sometarget.local";
@@ -335,5 +337,33 @@ public class AzureAiStudioEmbeddingsServiceSettingsTests extends ESTestCase {
         }
 
         return map;
+    }
+
+    @Override
+    protected Writeable.Reader<AzureAiStudioEmbeddingsServiceSettings> instanceReader() {
+        return AzureAiStudioEmbeddingsServiceSettings::new;
+    }
+
+    @Override
+    protected AzureAiStudioEmbeddingsServiceSettings createTestInstance() {
+        return createRandom();
+    }
+
+    @Override
+    protected AzureAiStudioEmbeddingsServiceSettings mutateInstance(AzureAiStudioEmbeddingsServiceSettings instance) throws IOException {
+        return randomValueOtherThan(instance, AzureAiStudioEmbeddingsServiceSettingsTests::createRandom);
+    }
+
+    private static AzureAiStudioEmbeddingsServiceSettings createRandom() {
+        return new AzureAiStudioEmbeddingsServiceSettings(
+            randomAlphaOfLength(10),
+            randomFrom(AzureAiStudioProvider.values()),
+            randomFrom(AzureAiStudioEndpointType.values()),
+            randomFrom(new Integer[] { null, randomNonNegativeInt() }),
+            randomBoolean(),
+            randomFrom(new Integer[] { null, randomNonNegativeInt() }),
+            randomFrom(new SimilarityMeasure[] { null, randomFrom(SimilarityMeasure.values()) }),
+            RateLimitSettingsTests.createRandom()
+        );
     }
 }

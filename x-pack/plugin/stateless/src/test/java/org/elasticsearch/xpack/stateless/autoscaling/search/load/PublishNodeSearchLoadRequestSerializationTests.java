@@ -17,6 +17,8 @@
 
 package co.elastic.elasticsearch.stateless.autoscaling.search.load;
 
+import co.elastic.elasticsearch.stateless.autoscaling.MetricQuality;
+
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
@@ -31,7 +33,12 @@ public class PublishNodeSearchLoadRequestSerializationTests extends AbstractWire
 
     @Override
     protected PublishNodeSearchLoadRequest createTestInstance() {
-        return new PublishNodeSearchLoadRequest(UUIDs.randomBase64UUID(), randomLong(), randomDoubleBetween(0, 512, true));
+        return new PublishNodeSearchLoadRequest(
+            UUIDs.randomBase64UUID(),
+            randomLong(),
+            randomDoubleBetween(0, 512, true),
+            MetricQuality.EXACT
+        );
     }
 
     @Override
@@ -40,17 +47,20 @@ public class PublishNodeSearchLoadRequestSerializationTests extends AbstractWire
             case 0 -> new PublishNodeSearchLoadRequest(
                 randomValueOtherThan(instance.getNodeId(), UUIDs::randomBase64UUID),
                 instance.getSeqNo(),
-                instance.getSearchLoad()
+                instance.getSearchLoad(),
+                MetricQuality.EXACT
             );
             case 1 -> new PublishNodeSearchLoadRequest(
                 instance.getNodeId(),
                 randomValueOtherThan(instance.getSeqNo(), ESTestCase::randomLong),
-                instance.getSearchLoad()
+                instance.getSearchLoad(),
+                MetricQuality.EXACT
             );
             case 2 -> new PublishNodeSearchLoadRequest(
                 instance.getNodeId(),
                 instance.getSeqNo(),
-                randomValueOtherThan(instance.getSearchLoad(), () -> randomDoubleBetween(0, 512, true))
+                randomValueOtherThan(instance.getSearchLoad(), () -> randomDoubleBetween(0, 512, true)),
+                MetricQuality.EXACT
             );
             default -> throw new IllegalStateException("Unexpected value: " + randomInt(2));
         };

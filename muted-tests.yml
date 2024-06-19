@@ -7,6 +7,10 @@ tests:
   method: test {p0=ml/inference_crud/Test force delete given model with alias referenced
     by pipeline}
   issue: https://github.com/elastic/elasticsearch/issues/107505
+- class: "org.elasticsearch.upgrades.UpgradeClusterClientYamlTestSuiteIT"
+  issue: "https://github.com/elastic/elasticsearch/issues/109903"
+  method: "test {p0=old_cluster/30_ml_jobs_crud/Put job on the old cluster with the\
+    \ default model memory limit and post some data}"
 
 # Examples:
 #

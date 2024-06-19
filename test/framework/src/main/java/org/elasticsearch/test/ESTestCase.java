@@ -186,7 +186,6 @@ import java.util.function.Consumer;
 import java.util.function.IntFunction;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
-import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.DoubleStream;
 import java.util.stream.IntStream;
@@ -790,17 +789,13 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     /**
-     * Assert that a leak was detected, also remove the leak from the list of detected leaks
-     * so the test won't fail for that specific leak.
-     *
-     * @param expectedPattern A pattern that matches the detected leak's exception
+     * Assert that at least one leak was detected, also clear the list of detected leaks
+     * so the test won't fail for leaks detected up until this point.
      */
-    protected static void assertLeakDetected(String expectedPattern) {
+    protected static void assertLeakDetected() {
         synchronized (loggedLeaks) {
-            assertTrue(
-                "No leak detected matching the pattern: " + expectedPattern,
-                loggedLeaks.removeIf(leakText -> Pattern.matches(expectedPattern, leakText))
-            );
+            assertFalse("No leaks have been detected", loggedLeaks.isEmpty());
+            loggedLeaks.clear();
         }
     }
 

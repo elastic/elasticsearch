@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic;
 
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -14,6 +16,7 @@ import org.elasticsearch.xpack.esql.core.expression.predicate.operator.arithmeti
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
+import java.io.IOException;
 import java.time.DateTimeException;
 import java.time.Duration;
 import java.time.Period;
@@ -25,6 +28,7 @@ import static org.elasticsearch.xpack.esql.core.util.NumericUtils.unsignedLongAd
 import static org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.EsqlArithmeticOperation.OperationSymbol.ADD;
 
 public class Add extends DateTimeArithmeticOperation implements BinaryComparisonInversible {
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Add", Add::new);
 
     public Add(Source source, Expression left, Expression right) {
         super(
@@ -35,9 +39,26 @@ public class Add extends DateTimeArithmeticOperation implements BinaryComparison
             AddIntsEvaluator.Factory::new,
             AddLongsEvaluator.Factory::new,
             AddUnsignedLongsEvaluator.Factory::new,
-            (s, lhs, rhs) -> new AddDoublesEvaluator.Factory(source, lhs, rhs),
+            AddDoublesEvaluator.Factory::new,
             AddDatetimesEvaluator.Factory::new
         );
+    }
+
+    private Add(StreamInput in) throws IOException {
+        super(
+            in,
+            ADD,
+            AddIntsEvaluator.Factory::new,
+            AddLongsEvaluator.Factory::new,
+            AddUnsignedLongsEvaluator.Factory::new,
+            AddDoublesEvaluator.Factory::new,
+            AddDatetimesEvaluator.Factory::new
+        );
+    }
+
+    @Override
+    public String getWriteableName() {
+        return ENTRY.name;
     }
 
     @Override

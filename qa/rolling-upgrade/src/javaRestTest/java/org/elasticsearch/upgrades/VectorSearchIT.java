@@ -56,8 +56,6 @@ public class VectorSearchIT extends AbstractRollingUpgradeTestCase {
                 """;
             createIndex(SCRIPT_BYTE_INDEX_NAME, Settings.EMPTY, mapping);
             indexVectors(SCRIPT_BYTE_INDEX_NAME);
-            // refresh the index
-            client().performRequest(new Request("POST", "/" + SCRIPT_BYTE_INDEX_NAME + "/_refresh"));
         }
         // search with a script query
         Request searchRequest = new Request("POST", "/" + SCRIPT_BYTE_INDEX_NAME + "/_search");
@@ -107,8 +105,6 @@ public class VectorSearchIT extends AbstractRollingUpgradeTestCase {
                 """;
             createIndex(SCRIPT_VECTOR_INDEX_NAME, Settings.EMPTY, mapping);
             indexVectors(SCRIPT_VECTOR_INDEX_NAME);
-            // refresh the index
-            client().performRequest(new Request("POST", "/" + SCRIPT_VECTOR_INDEX_NAME + "/_refresh"));
         }
         // search with a script query
         Request searchRequest = new Request("POST", "/" + SCRIPT_VECTOR_INDEX_NAME + "/_search");
@@ -237,7 +233,6 @@ public class VectorSearchIT extends AbstractRollingUpgradeTestCase {
             // create index and index 10 random floating point vectors
             createIndex(BYTE_INDEX_NAME, Settings.EMPTY, mapping);
             indexVectors(BYTE_INDEX_NAME);
-            // refresh the index
             // force merge the index
             client().performRequest(new Request("POST", "/" + BYTE_INDEX_NAME + "/_forcemerge?max_num_segments=1"));
         }
@@ -448,6 +443,8 @@ public class VectorSearchIT extends AbstractRollingUpgradeTestCase {
             indexRequest.setJsonEntity(vectors[i]);
             assertOK(client().performRequest(indexRequest));
         }
+        // always refresh to ensure the data is visible
+        refresh(indexName);
     }
 
     private static Map<String, Object> search(Request request) throws IOException {

@@ -50,8 +50,7 @@ public class TransportMasterNodeActionIT extends ESIntegTestCase {
 
         try {
             createClusterOfSufficientSize(newMaster, cleanupTasks);
-            long originalTerm = internalCluster().masterClient().admin().cluster().prepareState().get().getState().term();
-
+            final long originalTerm = internalCluster().masterClient().admin().cluster().prepareState().get().getState().term();
             final var previousMasterKnowsNewMasterIsElectedLatch = configureElectionLatch(newMaster, cleanupTasks);
 
             for (final var transportService : internalCluster().getInstances(TransportService.class)) {
@@ -100,22 +99,7 @@ public class TransportMasterNodeActionIT extends ESIntegTestCase {
                     handler.messageReceived(request, channel, task);
                 });
 
-            /*
-             * Block cluster state applier on newMaster to delay clearing of old master, and identifying self as
-             * new master
-             */
-            final var stateApplierBarrier = new CyclicBarrier(2);
-            internalCluster().getInstance(ClusterService.class, newMaster).getClusterApplierService().onNewClusterState("test", () -> {
-                // Meet to signify application is blocked
-                safeAwait(stateApplierBarrier);
-                // Wait for the signal to unblock
-                safeAwait(stateApplierBarrier);
-                return null;
-            }, ActionListener.noop());
-            cleanupTasks.add(stateApplierBarrier::reset);
-
-            // Wait until state application is blocked
-            safeAwait(stateApplierBarrier);
+            final var stateApplierBarrier = blockClusterStateApplier(newMaster, cleanupTasks);
 
             // trigger a cluster state update, which fails, causing a master failover
             internalCluster().getCurrentMasterNodeInstance(ClusterService.class)
@@ -154,6 +138,29 @@ public class TransportMasterNodeActionIT extends ESIntegTestCase {
                 asInstanceOf(MockTransportService.class, transportService).clearAllRules();
             }
         }
+    }
+
+    /**
+     * Block the cluster state applier on a node. Returns only when applier is blocked.
+     *
+     * @param nodeName The name of the node on which to block the applier
+     * @param cleanupTasks The list of clean up tasks
+     * @return A cyclic barrier which when awaited on will un-block the applier
+     */
+    private static CyclicBarrier blockClusterStateApplier(String nodeName, ArrayList<Runnable> cleanupTasks) {
+        final var stateApplierBarrier = new CyclicBarrier(2);
+        internalCluster().getInstance(ClusterService.class, nodeName).getClusterApplierService().onNewClusterState("test", () -> {
+            // Meet to signify application is blocked
+            safeAwait(stateApplierBarrier);
+            // Wait for the signal to unblock
+            safeAwait(stateApplierBarrier);
+            return null;
+        }, ActionListener.noop());
+        cleanupTasks.add(stateApplierBarrier::reset);
+
+        // Wait until state application is blocked
+        safeAwait(stateApplierBarrier);
+        return stateApplierBarrier;
     }
 
     /**

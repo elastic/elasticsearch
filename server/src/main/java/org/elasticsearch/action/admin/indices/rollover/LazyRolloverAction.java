@@ -188,10 +188,9 @@ public final class LazyRolloverAction extends ActionType<RolloverResponse> {
                     RolloverRequest rolloverRequest = entry.getKey();
                     state = executeTask(state, rolloverRequest, results, rolloverTaskContexts, listener);
                 } catch (Exception e) {
-                    rolloverTaskContexts.forEach(taskContext -> {
-                        taskContext.captureResponseHeaders().close();
-                        taskContext.onFailure(e);
-                    });
+                    rolloverTaskContexts.forEach(taskContext -> taskContext.onFailure(e));
+                } finally {
+                    rolloverTaskContexts.forEach(taskContext -> taskContext.captureResponseHeaders().close());
                 }
             }
 

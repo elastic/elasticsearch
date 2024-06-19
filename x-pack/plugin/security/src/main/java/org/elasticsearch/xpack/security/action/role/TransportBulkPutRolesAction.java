@@ -12,9 +12,9 @@ import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.security.action.ActionTypes;
 import org.elasticsearch.xpack.core.security.action.role.BulkPutRolesRequest;
 import org.elasticsearch.xpack.core.security.action.role.BulkPutRolesResponse;
-import org.elasticsearch.xpack.core.security.action.role.PutRoleAction;
 import org.elasticsearch.xpack.security.authz.store.NativeRolesStore;
 
 import java.io.IOException;
@@ -25,7 +25,7 @@ public class TransportBulkPutRolesAction extends TransportAction<BulkPutRolesReq
 
     @Inject
     public TransportBulkPutRolesAction(ActionFilters actionFilters, NativeRolesStore rolesStore, TransportService transportService) {
-        super(PutRoleAction.NAME, actionFilters, transportService.getTaskManager());
+        super(ActionTypes.BULK_PUT_ROLES.name(), actionFilters, transportService.getTaskManager());
         this.rolesStore = rolesStore;
     }
 

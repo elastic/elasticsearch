@@ -116,6 +116,7 @@ public class NativePrivilegeStoreCacheTests extends SecuritySingleNodeTestCase {
         assertEquals(6, putPrivilegesResponse.created().values().stream().mapToInt(List::size).sum());
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/109894")
     public void testGetPrivilegesUsesCache() {
         final Client client = client();
 
@@ -204,6 +205,7 @@ public class NativePrivilegeStoreCacheTests extends SecuritySingleNodeTestCase {
         assertEquals(1, new GetPrivilegesRequestBuilder(client).application("app-1").privileges("write").get().privileges().length);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/109895")
     public void testSuffixWildcard() {
         final Client client = client();
 

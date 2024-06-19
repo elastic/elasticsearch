@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.plugins.loading;
+package org.elasticsearch.plugins;
 
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.util.Constants;
@@ -19,11 +19,6 @@ import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.jdk.ModuleQualifiedExportsService;
 import org.elasticsearch.plugin.analysis.CharFilterFactory;
-import org.elasticsearch.plugins.ExtensiblePlugin;
-import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.plugins.PluginDescriptor;
-import org.elasticsearch.plugins.PluginRuntimeInfo;
-import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.plugins.scanners.PluginInfo;
 import org.elasticsearch.plugins.spi.BarPlugin;
 import org.elasticsearch.plugins.spi.BarTestService;
@@ -318,18 +313,18 @@ public class PluginsServiceTests extends ESTestCase {
 
     public void testPassingMandatoryPluginCheck() {
         PluginsService.checkMandatoryPlugins(
-            Set.of("org.elasticsearch.plugins.loading.PluginsServiceTests$FakePlugin"),
-            Set.of("org.elasticsearch.plugins.loading.PluginsServiceTests$FakePlugin")
+            Set.of("org.elasticsearch.plugins.PluginsServiceTests$FakePlugin"),
+            Set.of("org.elasticsearch.plugins.PluginsServiceTests$FakePlugin")
         );
     }
 
     public void testFailingMandatoryPluginCheck() {
         IllegalStateException e = expectThrows(
             IllegalStateException.class,
-            () -> PluginsService.checkMandatoryPlugins(Set.of(), Set.of("org.elasticsearch.plugins.loading.PluginsServiceTests$FakePlugin"))
+            () -> PluginsService.checkMandatoryPlugins(Set.of(), Set.of("org.elasticsearch.plugins.PluginsServiceTests$FakePlugin"))
         );
         assertEquals(
-            "missing mandatory plugins [org.elasticsearch.plugins.loading.PluginsServiceTests$FakePlugin], found plugins []",
+            "missing mandatory plugins [org.elasticsearch.plugins.PluginsServiceTests$FakePlugin], found plugins []",
             e.getMessage()
         );
     }

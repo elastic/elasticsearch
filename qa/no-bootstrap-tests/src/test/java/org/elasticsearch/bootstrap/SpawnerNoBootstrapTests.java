@@ -22,7 +22,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.plugins.Platforms;
-import org.elasticsearch.plugins.loading.PluginTestUtil;
+import org.elasticsearch.plugins.PluginTestUtil;
 import org.elasticsearch.test.GraalVMThreadsFilter;
 import org.elasticsearch.test.MockLog;
 

@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.plugins.loading;
+package org.elasticsearch.plugins;
 
 import org.apache.logging.log4j.Level;
 import org.apache.lucene.tests.util.LuceneTestCase;
@@ -14,7 +14,6 @@ import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.jdk.JarHell;
-import org.elasticsearch.plugins.PluginDescriptor;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
 

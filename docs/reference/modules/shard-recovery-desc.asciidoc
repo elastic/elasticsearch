@@ -5,9 +5,9 @@ and indexing.
 
 Recovery automatically occurs during the following processes:
 
-* Node startup. This type of recovery is called a local store recovery.
-* Primary shard replication.
+* Node startup or failure. This type of recovery is called a local store recovery.
+* Replication of primary shards to replica shards.
 * Relocation of a shard to a different node in the same cluster.
-* <<snapshots-restore-snapshot,Snapshot restore>> operation.
-* <<indices-clone-index,Clone>>, <<indices-shrink-index,shrink>>, or
+* A <<snapshots-restore-snapshot,snapshot restore>> operation.
+* A <<indices-clone-index,clone>>, <<indices-shrink-index,shrink>>, or
 <<indices-split-index,split>> operation.

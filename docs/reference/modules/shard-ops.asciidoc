@@ -7,6 +7,8 @@ There are two types of shards: primaries and replicas. Each document in an index
 
 Over the course of normal operation, Elasticsearch allocates shards to nodes, relocates shards across nodes to balance the cluster, and recovers shards to ensure that the required number of replicas are available. This section describes how these operations work and how you can control them.
 
+TIP: To learn about optimizing the number and size of shards in your cluster, refer to <<size-your-shards,Size your shards>> To learn about how read and write operations are replicated across shards, refer to <<docs-replication,Reading and writing documents>>.
+
 ==== Shard allocation
 
 include::{es-ref-dir}/modules/shard-allocation-desc.asciidoc[]
@@ -34,12 +36,27 @@ You can use the following APIs to monitor shard allocation:
 
 include::{es-ref-dir}/modules/shard-recovery-desc.asciidoc[]
 
-<<cat-recovery,The cat recovery API>> provides a more compact view of the shard recovery information.
+===== Adjust shard recovery settings
+
+To control how shards are recovered, for example the number of recoveries that can happen concurrently, the resources that can be used by recovery operations, and which indices should be prioritized for recovery, you can adjust the following settings: 
+
+- <<recovery,Index recovery settings>>
+- <<modules-cluster,cluster-level shard allocation settings>>
+- <<index-modules-allocation,index-level shard allocation settings>>, including <<delayed-allocation,delayed allocation>> and <<recovery-prioritization,index recovery prioritization>> 
+
+===== Monitor shard recovery
+
+You can use the following APIs to monitor shard allocation:
+
+ - View a list of in-progress and completed recoveries using the <<cat-recovery,cat recovery API>>
+ - View detailed information about a specific recovery using the <<indices-recovery,index recovery API>>
 
 ==== Shard relocation
 
 Shard relocation is the process of moving shards from one node to another. This can happen when a node joins or leaves the cluster, or when the cluster is rebalancing.
 
 When a shard is relocated, it is created as a new replica shard on the target node. When the shard is fully allocated and recovered, the old shard is deleted. If the shard being relocated is a primary shard, then the new shard is marked as primary before the old shard is deleted.
+
+===== Adjust shard relocation settings
 
 To control how and when a shard is relocated, you can adjust the <<modules-cluster,cluster-level shard allocation settings>> and the <<index-modules-allocation,index-level shard allocation settings>>. For example, you can adjust the rebalancing settings that control when shards are relocated to balance the cluster, or the high watermark for disk-based shard allocation that can trigger shard relocation.

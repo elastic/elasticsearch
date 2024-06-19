@@ -1,0 +1,5 @@
+There are two types of shards: primaries and replicas. Each document in an index
+belongs to one primary shard. A replica shard is a copy of a primary shard.
+Replicas provide redundant copies of your data to protect against hardware
+failure and increase capacity to serve read requests
+like searching or retrieving a document.

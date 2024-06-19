@@ -197,11 +197,7 @@ redundancy, which both protects against hardware failures and increases
 query capacity as nodes are added to a cluster. As the cluster grows (or shrinks),
 {es} automatically migrates shards to rebalance the cluster.
 
-There are two types of shards: primaries and replicas. Each document in an index
-belongs to one primary shard. A replica shard is a copy of a primary shard.
-Replicas provide redundant copies of your data to protect against hardware
-failure and increase capacity to serve read requests
-like searching or retrieving a document.
+include::{es-ref-dir}/primaries-replicas-desc.asciidoc[]
 
 The number of primary shards in an index is fixed at the time that an index is
 created, but the number of replica shards can be changed at any time, without

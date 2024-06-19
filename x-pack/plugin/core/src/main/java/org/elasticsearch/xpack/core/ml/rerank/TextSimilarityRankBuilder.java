@@ -20,6 +20,7 @@ import org.elasticsearch.search.rank.context.QueryPhaseRankCoordinatorContext;
 import org.elasticsearch.search.rank.context.QueryPhaseRankShardContext;
 import org.elasticsearch.search.rank.context.RankFeaturePhaseRankCoordinatorContext;
 import org.elasticsearch.search.rank.context.RankFeaturePhaseRankShardContext;
+import org.elasticsearch.search.rank.feature.RankFeatureDoc;
 import org.elasticsearch.search.rank.rerank.RerankingQueryPhaseRankCoordinatorContext;
 import org.elasticsearch.search.rank.rerank.RerankingQueryPhaseRankShardContext;
 import org.elasticsearch.search.rank.rerank.RerankingRankFeaturePhaseRankShardContext;
@@ -94,7 +95,29 @@ public class TextSimilarityRankBuilder extends RankBuilder {
 
     @Override
     public Explanation explainHit(Explanation baseExplanation, RankDoc scoreDoc, List<String> queryNames) {
-        return null;
+        if (scoreDoc == null) {
+            return baseExplanation;
+        }
+        if (false == baseExplanation.isMatch()) {
+            return baseExplanation;
+        }
+
+        assert scoreDoc instanceof RankFeatureDoc : "ScoreDoc is not an instance of RankFeatureDoc";
+        RankFeatureDoc rrfRankDoc = (RankFeatureDoc) scoreDoc;
+
+        return Explanation.match(
+            rrfRankDoc.score,
+            "rank after reranking: ["
+                + rrfRankDoc.rank
+                + "] with score: ["
+                + rrfRankDoc.score
+                + "], using inference endpoint: ["
+                + inferenceId
+                + "] on document field: ["
+                + field
+                + "]",
+            baseExplanation
+        );
     }
 
     @Override
@@ -132,7 +155,7 @@ public class TextSimilarityRankBuilder extends RankBuilder {
             && Objects.equals(inferenceText, that.inferenceText)
             && Objects.equals(field, that.field)
             && Objects.equals(minScore, that.minScore);
-   }
+    }
 
     @Override
     protected int doHashCode() {

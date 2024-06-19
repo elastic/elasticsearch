@@ -47,6 +47,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
+import java.util.regex.Pattern;
 
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.allOf;
@@ -54,6 +55,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.matchesRegex;
 import static org.hamcrest.Matchers.notNullValue;
 
 public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTestCase {
@@ -205,6 +207,8 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
         mountSnapshot(indexName, restoredIndexName, readRepository);
 
         ensureGreen(restoredIndexName);
+
+        checkCatIndicesOutput(restoredIndexName, readRepository, SNAPSHOT_NAME, indexName);
 
         final Number count = count(restoredIndexName);
         assertThat("Wrong index count for index " + restoredIndexName, count.intValue(), equalTo(numDocs));
@@ -697,5 +701,33 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
     @FunctionalInterface
     interface SearchableSnapshotsTestCaseBody {
         void runTest(String indexName, int numDocs) throws Exception;
+    }
+
+    private void checkCatIndicesOutput(String indexName, String repositoryName, String snapshotName, String snapshotIndexName)
+        throws IOException {
+
+        final var requestForDefaultColumns = new Request("GET", "_cat/indices/" + indexName);
+        assertThat(
+            responseAsBytes(client().performRequest(requestForDefaultColumns)).utf8ToString(),
+            matchesRegex(Pattern.compile(Strings.format("^green\\s+open\\s+%s.*(shared_cache|full_copy).*", indexName), Pattern.DOTALL))
+        );
+
+        final var requestForAllColumns = new Request("GET", "_cat/indices/" + indexName);
+        requestForAllColumns.addParameter("h", "index,searchable_snapshots.*");
+        assertThat(
+            responseAsBytes(client().performRequest(requestForAllColumns)).utf8ToString(),
+            matchesRegex(
+                Pattern.compile(
+                    Strings.format(
+                        "^%s\\s+(shared_cache|full_copy)\\s+%s\\s+[0-9A-Za-z_-]+\\s+%s\\s+[0-9A-Za-z_-]+\\s+%s.*",
+                        indexName,
+                        repositoryName,
+                        snapshotName,
+                        snapshotIndexName
+                    ),
+                    Pattern.DOTALL
+                )
+            )
+        );
     }
 }

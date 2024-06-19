@@ -34,6 +34,7 @@ import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestResponseListener;
+import org.elasticsearch.snapshots.SearchableSnapshotsSettings;
 
 import java.time.Instant;
 import java.time.ZoneOffset;
@@ -520,6 +521,25 @@ public class RestIndicesAction extends AbstractCatAction {
         );
         table.addCell("pri.sparse_vector.value_count", "default:false;text-align:right;desc:total count of indexed sparse vectors");
 
+        table.addCell("searchable_snapshots.storage_type", """
+            default:true;\
+            desc:for searchable snapshot indices, indicates the mount storage type""");
+        table.addCell("searchable_snapshots.repository_name", """
+            default:false;\
+            desc:for searchable snapshot indices, the original name of the snapshot repository which contains the underlying data""");
+        table.addCell("searchable_snapshots.repository_uuid", """
+            default:false;\
+            desc:for searchable snapshot indices, the UUID of the snapshot repository which contains the underlying data""");
+        table.addCell("searchable_snapshots.snapshot_name", """
+            default:false;\
+            desc:for searchable snapshot indices, the name of the snapshot which contains the underlying data""");
+        table.addCell("searchable_snapshots.snapshot_uuid", """
+            default:false;\
+            desc:for searchable snapshot indices, the UUID of the snapshot which contains the underlying data""");
+        table.addCell("searchable_snapshots.index_name", """
+            default:false;\
+            desc:for searchable snapshot indices, the name of the index in the snapshot which contains the underlying data""");
+
         table.endHeaders();
         return table;
     }
@@ -799,6 +819,18 @@ public class RestIndicesAction extends AbstractCatAction {
 
             table.addCell(totalStats.getSparseVectorStats() == null ? null : totalStats.getSparseVectorStats().getValueCount());
             table.addCell(primaryStats.getSparseVectorStats() == null ? null : primaryStats.getSparseVectorStats().getValueCount());
+
+            final var indexSettings = indexMetadata.getSettings();
+            table.addCell(
+                SearchableSnapshotsSettings.isSearchableSnapshotStore(indexSettings)
+                    ? SearchableSnapshotsSettings.isPartialSearchableSnapshotIndex(indexSettings) ? "shared_cache" : "full_copy"
+                    : null
+            );
+            table.addCell(indexSettings.get(SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOTS_REPOSITORY_NAME_SETTING_KEY));
+            table.addCell(indexSettings.get(SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOTS_REPOSITORY_UUID_SETTING_KEY));
+            table.addCell(indexSettings.get(SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOTS_SNAPSHOT_NAME_SETTING_KEY));
+            table.addCell(indexSettings.get(SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOTS_SNAPSHOT_UUID_SETTING_KEY));
+            table.addCell(indexSettings.get(SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOT_INDEX_NAME_SETTING_KEY));
 
             table.endRow();
         });

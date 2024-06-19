@@ -379,6 +379,16 @@ teardown:
 
 ---
 "Rolling over an uninitialized failure store should initialize it":
+  # Initializing with conditions is not allowed.
+  - do:
+      catch: /Rolling over\/initializing an empty failure store is only supported without conditions\./
+      indices.rollover:
+        alias: "data-stream-for-rollover"
+        target_failure_store: true
+        body:
+          conditions:
+            max_docs: 1
+
   - do:
       indices.rollover:
         alias: "data-stream-for-rollover"

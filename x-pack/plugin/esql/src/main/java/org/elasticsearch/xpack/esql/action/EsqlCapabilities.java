@@ -21,56 +21,47 @@ import java.util.Set;
  * and {@link RestEsqlAsyncQueryAction} APIs. These are exposed over the
  * {@link RestNodesCapabilitiesAction} and we use them to enable tests.
  */
-public class EsqlCapabilities {
+public enum EsqlCapabilities {
     /**
      * Support for function {@code CBRT}. Done in #108574.
      */
-    private static final String FN_CBRT = "fn_cbrt";
-
+    FN_CBRT("fn_cbrt"),
     /**
      * Support for {@code MV_APPEND} function. #107001
      */
-    private static final String FN_MV_APPEND = "fn_mv_append";
-
+    FN_MV_APPEND("fn_mv_append"),
     /**
      * Support for function {@code IP_PREFIX}.
      */
-    private static final String FN_IP_PREFIX = "fn_ip_prefix";
-
+    FN_IP_PREFIX("fn_ip_prefix"),
     /**
      * Fix on function {@code SUBSTRING} that makes it not return null on empty strings.
      */
-    private static final String FN_SUBSTRING_EMPTY_NULL = "fn_substring_empty_null";
-
+    FN_SUBSTRING_EMPTY_NULL("fn_substring_empty_null"),
     /**
      * Support for aggregation function {@code TOP_LIST}.
      */
-    private static final String AGG_TOP_LIST = "agg_top_list";
-
+    AGG_TOP_LIST("agg_top_list"),
     /**
      * Optimization for ST_CENTROID changed some results in cartesian data. #108713
      */
-    private static final String ST_CENTROID_AGG_OPTIMIZED = "st_centroid_agg_optimized";
-
+    ST_CENTROID_AGG_OPTIMIZED("st_centroid_agg_optimized"),
     /**
      * Support for requesting the "_ignored" metadata field.
      */
-    private static final String METADATA_IGNORED_FIELD = "metadata_field_ignored";
-
+    METADATA_IGNORED_FIELD("metadata_field_ignored"),
     /**
      * Support for the "LOOKUP" command.
      */
-    private static final String LOOKUP_COMMAND = "lookup_command";
-
+    LOOKUP_COMMAND("lookup_command", true),
     /**
      * Support for the syntax {@code "tables": {"type": [<values>]}}.
      */
-    private static final String TABLES_TYPES = "tables_types";
-
+    TABLES_TYPES("tables_types", true),
     /**
      * Support for requesting the "REPEAT" command.
      */
-    private static final String REPEAT = "repeat";
+    REPEAT("repeat");
 
     /**
      * Cast string literals to datetime in addition and subtraction when the other side is a date or time interval.
@@ -86,18 +77,10 @@ public class EsqlCapabilities {
 
     private static Set<String> capabilities() {
         List<String> caps = new ArrayList<>();
-        caps.add(FN_CBRT);
-        caps.add(FN_IP_PREFIX);
-        caps.add(FN_SUBSTRING_EMPTY_NULL);
-        caps.add(AGG_TOP_LIST);
-        caps.add(ST_CENTROID_AGG_OPTIMIZED);
-        caps.add(METADATA_IGNORED_FIELD);
-        caps.add(FN_MV_APPEND);
-        caps.add(REPEAT);
-        caps.add(NAMED_POSITIONAL_PARAMETER);
-
-        if (Build.current().isSnapshot()) {
-            caps.add(LOOKUP_COMMAND);
+        for (EsqlCapabilities cap: EsqlCapabilities.values()) {
+            if (Build.current().isSnapshot() || cap.snapshotOnly == false) {
+                caps.add(cap.name);
+            }
         }
 
         /*
@@ -120,5 +103,17 @@ public class EsqlCapabilities {
     public static String cap(NodeFeature feature) {
         assert feature.id().startsWith("esql.");
         return feature.id().substring("esql.".length());
+    }
+
+    private final String name;
+    private final boolean snapshotOnly;
+
+    EsqlCapabilities(String name, boolean snapshotOnly) {
+        this.name = name;
+        this.snapshotOnly = snapshotOnly;
+    }
+
+    EsqlCapabilities(String name){
+        this(name, false);
     }
 }

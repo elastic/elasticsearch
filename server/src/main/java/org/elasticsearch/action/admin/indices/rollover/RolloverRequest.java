@@ -200,7 +200,7 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
     }
 
     /**
-     * Sets the rollover target to roll  over to another index
+     * Sets the rollover target to roll over to another index
      */
     public void setRolloverTarget(String rolloverTarget) {
         this.rolloverTarget = rolloverTarget;

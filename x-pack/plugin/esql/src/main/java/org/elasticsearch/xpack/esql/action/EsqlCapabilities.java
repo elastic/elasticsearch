@@ -24,7 +24,9 @@ import java.util.Set;
  */
 public class EsqlCapabilities {
     public enum Cap {
-        // Support for function {@code CBRT}. Done in #108574.
+        /**
+         * Support for function {@code CBRT}. Done in #108574.
+         */
         FN_CBRT(false),
 
         /**

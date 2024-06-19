@@ -802,6 +802,7 @@ public class ConnectorSyncJobIndexServiceTests extends ESSingleNodeTestCase {
         Long requestIndexedDocumentVolume = request.getIndexedDocumentVolume();
         Long requestTotalDocumentCount = request.getTotalDocumentCount();
         Instant requestLastSeen = request.getLastSeen();
+        Object metadata = request.getMetadata();
 
         Long deletedDocumentCountAfterUpdate = (Long) syncJobSourceAfterUpdate.get(
             ConnectorSyncJob.DELETED_DOCUMENT_COUNT_FIELD.getPreferredName()
@@ -818,6 +819,7 @@ public class ConnectorSyncJobIndexServiceTests extends ESSingleNodeTestCase {
         Instant lastSeenAfterUpdate = Instant.parse(
             (String) syncJobSourceAfterUpdate.get(ConnectorSyncJob.LAST_SEEN_FIELD.getPreferredName())
         );
+        Object metadataAfterUpdate = syncJobSourceAfterUpdate.get(ConnectorSyncJob.METADATA_FIELD.getPreferredName());
 
         assertThat(updateResponse.status(), equalTo(RestStatus.OK));
         assertThat(deletedDocumentCountAfterUpdate, equalTo(requestDeletedDocumentCount));
@@ -825,6 +827,7 @@ public class ConnectorSyncJobIndexServiceTests extends ESSingleNodeTestCase {
         assertThat(indexedDocumentVolumeAfterUpdate, equalTo(requestIndexedDocumentVolume));
         assertThat(totalDocumentCountAfterUpdate, equalTo(requestTotalDocumentCount));
         assertThat(lastSeenAfterUpdate, equalTo(requestLastSeen));
+        assertThat(metadataAfterUpdate, equalTo(metadata));
         assertFieldsExceptAllIngestionStatsDidNotUpdate(syncJobSourceBeforeUpdate, syncJobSourceAfterUpdate);
     }
 
@@ -838,12 +841,14 @@ public class ConnectorSyncJobIndexServiceTests extends ESSingleNodeTestCase {
         Instant lastSeenBeforeUpdate = Instant.parse(
             (String) syncJobSourceBeforeUpdate.get(ConnectorSyncJob.LAST_SEEN_FIELD.getPreferredName())
         );
+
         UpdateConnectorSyncJobIngestionStatsAction.Request request = new UpdateConnectorSyncJobIngestionStatsAction.Request(
             syncJobId,
             10L,
             20L,
             100L,
             10L,
+            null,
             null
         );
 
@@ -866,7 +871,7 @@ public class ConnectorSyncJobIndexServiceTests extends ESSingleNodeTestCase {
         expectThrows(
             ResourceNotFoundException.class,
             () -> awaitUpdateConnectorSyncJobIngestionStats(
-                new UpdateConnectorSyncJobIngestionStatsAction.Request(NON_EXISTING_SYNC_JOB_ID, 0L, 0L, 0L, 0L, Instant.now())
+                new UpdateConnectorSyncJobIngestionStatsAction.Request(NON_EXISTING_SYNC_JOB_ID, 0L, 0L, 0L, 0L, Instant.now(), null)
             )
         );
     }
@@ -1067,7 +1072,8 @@ public class ConnectorSyncJobIndexServiceTests extends ESSingleNodeTestCase {
                 ConnectorSyncJob.INDEXED_DOCUMENT_COUNT_FIELD,
                 ConnectorSyncJob.INDEXED_DOCUMENT_VOLUME_FIELD,
                 ConnectorSyncJob.TOTAL_DOCUMENT_COUNT_FIELD,
-                ConnectorSyncJob.LAST_SEEN_FIELD
+                ConnectorSyncJob.LAST_SEEN_FIELD,
+                ConnectorSyncJob.METADATA_FIELD
             )
         );
     }

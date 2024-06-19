@@ -39,7 +39,8 @@ public class UpdateConnectorSyncJobIngestionStatsActionRequestTests extends ESTe
             0L,
             0L,
             0L,
-            Instant.now()
+            Instant.now(),
+            null
         );
         ActionRequestValidationException exception = request.validate();
 
@@ -54,7 +55,8 @@ public class UpdateConnectorSyncJobIngestionStatsActionRequestTests extends ESTe
             0L,
             0L,
             0L,
-            Instant.now()
+            Instant.now(),
+            null
         );
         ActionRequestValidationException exception = request.validate();
 
@@ -69,7 +71,8 @@ public class UpdateConnectorSyncJobIngestionStatsActionRequestTests extends ESTe
             0L,
             0L,
             0L,
-            Instant.now()
+            Instant.now(),
+            null
         );
         ActionRequestValidationException exception = request.validate();
 
@@ -84,7 +87,8 @@ public class UpdateConnectorSyncJobIngestionStatsActionRequestTests extends ESTe
             -10L,
             0L,
             0L,
-            Instant.now()
+            Instant.now(),
+            null
         );
         ActionRequestValidationException exception = request.validate();
 
@@ -99,7 +103,8 @@ public class UpdateConnectorSyncJobIngestionStatsActionRequestTests extends ESTe
             0L,
             -10L,
             0L,
-            Instant.now()
+            Instant.now(),
+            null
         );
         ActionRequestValidationException exception = request.validate();
 
@@ -114,7 +119,8 @@ public class UpdateConnectorSyncJobIngestionStatsActionRequestTests extends ESTe
             0L,
             0L,
             -10L,
-            Instant.now()
+            Instant.now(),
+            null
         );
         ActionRequestValidationException exception = request.validate();
 

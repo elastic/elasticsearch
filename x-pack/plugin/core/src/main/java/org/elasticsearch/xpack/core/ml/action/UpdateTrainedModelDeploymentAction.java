@@ -52,7 +52,8 @@ public class UpdateTrainedModelDeploymentAction extends ActionType<CreateTrained
             PARSER.declareObjectOrNull(
                 Request::setAdaptiveAllocationsSettings,
                 (p, c) -> AdaptiveAllocationsSettings.PARSER.parse(p, c).build(),
-                AdaptiveAllocationsSettings.RESET_PLACEHOLDER, ADAPTIVE_ALLOCATIONS
+                AdaptiveAllocationsSettings.RESET_PLACEHOLDER,
+                ADAPTIVE_ALLOCATIONS
             );
             PARSER.declareString((r, val) -> r.ackTimeout(TimeValue.parseTimeValue(val, TIMEOUT.getPreferredName())), TIMEOUT);
         }
@@ -150,7 +151,9 @@ public class UpdateTrainedModelDeploymentAction extends ActionType<CreateTrained
             if (numberOfAllocations != null && numberOfAllocations < 1) {
                 validationException.addValidationError("[" + NUMBER_OF_ALLOCATIONS + "] must be a positive integer");
             }
-            ActionRequestValidationException autoscaleException = adaptiveAllocationsSettings == null ? null : adaptiveAllocationsSettings.validate();
+            ActionRequestValidationException autoscaleException = adaptiveAllocationsSettings == null
+                ? null
+                : adaptiveAllocationsSettings.validate();
             if (autoscaleException != null) {
                 validationException.addValidationErrors(autoscaleException.validationErrors());
             }

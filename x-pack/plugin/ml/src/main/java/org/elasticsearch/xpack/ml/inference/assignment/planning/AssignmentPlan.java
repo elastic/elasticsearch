@@ -60,7 +60,8 @@ public class AssignmentPlan implements Comparable<AssignmentPlan> {
                 allocations,
                 threadsPerAllocation,
                 currentAllocationsByNodeId,
-                maxAssignedAllocations, adaptiveAllocationsSettings,
+                maxAssignedAllocations,
+                adaptiveAllocationsSettings,
                 Priority.NORMAL,
                 perDeploymentMemoryBytes,
                 perAllocationMemoryBytes

@@ -94,7 +94,8 @@ public final class TrainedModelAssignment implements SimpleDiffable<TrainedModel
         PARSER.declareObjectOrNull(
             ConstructingObjectParser.optionalConstructorArg(),
             (p, c) -> AdaptiveAllocationsSettings.PARSER.parse(p, c).build(),
-            null, ADAPTIVE_ALLOCATIONS
+            null,
+            ADAPTIVE_ALLOCATIONS
         );
     }
 
@@ -130,7 +131,8 @@ public final class TrainedModelAssignment implements SimpleDiffable<TrainedModel
             Optional.ofNullable(assignmentState).orElse(legacyAssignmentState),
             reason,
             startTime,
-            maxAssignedAllocations, adaptiveAllocationsSettings
+            maxAssignedAllocations,
+            adaptiveAllocationsSettings
         );
     }
 
@@ -328,7 +330,13 @@ public final class TrainedModelAssignment implements SimpleDiffable<TrainedModel
 
     @Override
     public int hashCode() {
-        return Objects.hash(nodeRoutingTable, taskParams, assignmentState, reason, startTime, maxAssignedAllocations,
+        return Objects.hash(
+            nodeRoutingTable,
+            taskParams,
+            assignmentState,
+            reason,
+            startTime,
+            maxAssignedAllocations,
             adaptiveAllocationsSettings
         );
     }
@@ -401,7 +409,10 @@ public final class TrainedModelAssignment implements SimpleDiffable<TrainedModel
             return new Builder(request.getTaskParams(), request.getAdaptiveAllocationsSettings());
         }
 
-        public static Builder empty(StartTrainedModelDeploymentAction.TaskParams taskParams, AdaptiveAllocationsSettings adaptiveAllocationsSettings) {
+        public static Builder empty(
+            StartTrainedModelDeploymentAction.TaskParams taskParams,
+            AdaptiveAllocationsSettings adaptiveAllocationsSettings
+        ) {
             return new Builder(taskParams, adaptiveAllocationsSettings);
         }
 
@@ -565,7 +576,8 @@ public final class TrainedModelAssignment implements SimpleDiffable<TrainedModel
                 assignmentState,
                 reason,
                 startTime,
-                maxAssignedAllocations, adaptiveAllocationsSettings
+                maxAssignedAllocations,
+                adaptiveAllocationsSettings
             );
         }
     }

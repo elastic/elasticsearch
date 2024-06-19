@@ -73,7 +73,8 @@ public class CreateTrainedModelAssignmentAction extends ActionType<CreateTrained
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Request request = (Request) o;
-            return Objects.equals(taskParams, request.taskParams) && Objects.equals(adaptiveAllocationsSettings, request.adaptiveAllocationsSettings);
+            return Objects.equals(taskParams, request.taskParams)
+                && Objects.equals(adaptiveAllocationsSettings, request.adaptiveAllocationsSettings);
         }
 
         @Override

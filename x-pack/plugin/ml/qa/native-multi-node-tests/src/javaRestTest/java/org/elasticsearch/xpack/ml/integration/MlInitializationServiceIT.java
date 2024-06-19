@@ -52,7 +52,8 @@ public class MlInitializationServiceIT extends MlNativeAutodetectIntegTestCase {
         mlInitializationService = new MlInitializationService(
             client(),
             threadPool,
-            mlDailyMaintenanceService, adaptiveAllocationsScalerService,
+            mlDailyMaintenanceService,
+            adaptiveAllocationsScalerService,
             clusterService
         );
     }

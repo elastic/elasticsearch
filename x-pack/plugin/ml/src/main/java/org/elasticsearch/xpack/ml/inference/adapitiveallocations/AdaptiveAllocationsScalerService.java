@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.Scheduler;
@@ -26,6 +27,8 @@ import org.elasticsearch.xpack.core.ml.action.UpdateTrainedModelDeploymentAction
 import org.elasticsearch.xpack.core.ml.inference.assignment.AssignmentStats;
 import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignment;
 import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignmentMetadata;
+import org.elasticsearch.xpack.ml.MachineLearning;
+import org.elasticsearch.xpack.ml.notifications.SystemAuditor;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -72,6 +75,7 @@ public class AdaptiveAllocationsScalerService implements ClusterStateListener {
     private final ThreadPool threadPool;
     private final ClusterService clusterService;
     private final Client client;
+    private final SystemAuditor systemAuditor;
     private final boolean isNlpEnabled;
     private final Map<String, Map<String, Stats>> lastInferenceStatsByDeploymentAndNode;
     private Long lastInferenceStatsTimestampMillis;
@@ -80,15 +84,29 @@ public class AdaptiveAllocationsScalerService implements ClusterStateListener {
     private volatile Scheduler.Cancellable cancellable;
     private AtomicBoolean busy;
 
-    public AdaptiveAllocationsScalerService(ThreadPool threadPool, ClusterService clusterService, Client client, boolean isNlpEnabled) {
-        this(threadPool, clusterService, client, isNlpEnabled, DEFAULT_TIME_INTERVAL_SECONDS);
+    public AdaptiveAllocationsScalerService(
+        ThreadPool threadPool,
+        ClusterService clusterService,
+        Client client,
+        SystemAuditor systemAuditor,
+        boolean isNlpEnabled
+    ) {
+        this(threadPool, clusterService, client, systemAuditor, isNlpEnabled, DEFAULT_TIME_INTERVAL_SECONDS);
     }
 
     // visible for testing
-    AdaptiveAllocationsScalerService(ThreadPool threadPool, ClusterService clusterService, Client client, boolean isNlpEnabled, int timeIntervalSeconds) {
+    AdaptiveAllocationsScalerService(
+        ThreadPool threadPool,
+        ClusterService clusterService,
+        Client client,
+        SystemAuditor systemAuditor,
+        boolean isNlpEnabled,
+        int timeIntervalSeconds
+    ) {
         this.threadPool = threadPool;
         this.clusterService = clusterService;
         this.client = client;
+        this.systemAuditor = systemAuditor;
         this.isNlpEnabled = isNlpEnabled;
         this.timeIntervalSeconds = timeIntervalSeconds;
 
@@ -175,10 +193,7 @@ public class AdaptiveAllocationsScalerService implements ClusterStateListener {
             return;
         }
         ActionListener<GetDeploymentStatsAction.Response> listener = ActionListener.runAfter(
-            ActionListener.wrap(
-                this::processDeploymentStats,
-                e -> logger.warn("Error in inference adaptive allocations scaling", e)
-            ),
+            ActionListener.wrap(this::processDeploymentStats, e -> logger.warn("Error in inference adaptive allocations scaling", e)),
             () -> busy.set(false)
         );
         getDeploymentStats(listener);
@@ -191,7 +206,7 @@ public class AdaptiveAllocationsScalerService implements ClusterStateListener {
             ClientHelper.ML_ORIGIN,
             GetDeploymentStatsAction.INSTANCE,
             // TODO(dave/jan): create a lightweight version of this request, because the current one
-            //                 collects too much data for the adaptive allocations scaler.
+            // collects too much data for the adaptive allocations scaler.
             new GetDeploymentStatsAction.Request(deploymentIds),
             processDeploymentStats
         );
@@ -213,7 +228,10 @@ public class AdaptiveAllocationsScalerService implements ClusterStateListener {
         for (AssignmentStats assignmentStats : statsResponse.getStats().results()) {
             String deploymentId = assignmentStats.getDeploymentId();
             numberOfAllocations.put(deploymentId, assignmentStats.getNumberOfAllocations());
-            Map<String, Stats> deploymentStats = lastInferenceStatsByDeploymentAndNode.computeIfAbsent(deploymentId, key -> new HashMap<>());
+            Map<String, Stats> deploymentStats = lastInferenceStatsByDeploymentAndNode.computeIfAbsent(
+                deploymentId,
+                key -> new HashMap<>()
+            );
             for (AssignmentStats.NodeStats nodeStats : assignmentStats.getNodeStats()) {
                 String nodeId = nodeStats.getNode().getId();
                 Stats lastStats = deploymentStats.get(nodeId);
@@ -226,7 +244,8 @@ public class AdaptiveAllocationsScalerService implements ClusterStateListener {
                 deploymentStats.put(nodeId, nextStats);
                 if (lastStats != null) {
                     Stats recentStats = nextStats.sub(lastStats);
-                    recentStatsByDeployment.compute(assignmentStats.getDeploymentId(),
+                    recentStatsByDeployment.compute(
+                        assignmentStats.getDeploymentId(),
                         (key, value) -> value == null ? recentStats : value.add(recentStats)
                     );
                 }
@@ -252,14 +271,43 @@ public class AdaptiveAllocationsScalerService implements ClusterStateListener {
                     UpdateTrainedModelDeploymentAction.INSTANCE,
                     updateRequest,
                     ActionListener.wrap(
-                        updateResponse -> logger.info(
-                            "[{}] adaptive allocations scaler: scale to [{}] allocations.",
-                            deploymentId,
-                            newNumberOfAllocations
-                        ),
-                        e -> logger.atLevel(Level.WARN)
-                            .withThrowable(e)
-                            .log("[{}] adaptive allocations scaler: scale to [{}] allocations failed.", deploymentId, newNumberOfAllocations)
+
+                        updateResponse -> {
+                            logger.info(
+                                "adaptive allocations scaler: scaled [{}] to [{}] allocations.",
+                                deploymentId,
+                                newNumberOfAllocations
+                            );
+                            threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME)
+                                .execute(
+                                    () -> systemAuditor.info(
+                                        Strings.format(
+                                            "adaptive allocations scaler: scaled [%s] to [%s] allocations.",
+                                            deploymentId,
+                                            newNumberOfAllocations
+                                        )
+                                    )
+                                );
+                        },
+                        e -> {
+                            logger.atLevel(Level.WARN)
+                                .withThrowable(e)
+                                .log(
+                                    "adaptive allocations scaler: scaling [{}] to [{}] allocations failed.",
+                                    deploymentId,
+                                    newNumberOfAllocations
+                                );
+                            threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME)
+                                .execute(
+                                    () -> systemAuditor.warning(
+                                        Strings.format(
+                                            "adaptive allocations scaler: scaling [{}] to [{}] allocations failed.",
+                                            deploymentId,
+                                            newNumberOfAllocations
+                                        )
+                                    )
+                                );
+                        }
                     )
                 );
             }

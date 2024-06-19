@@ -29,8 +29,8 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.MlConfigVersion;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
-import org.elasticsearch.xpack.core.ml.inference.assignment.AllocationStatus;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationsSettings;
+import org.elasticsearch.xpack.core.ml.inference.assignment.AllocationStatus;
 import org.elasticsearch.xpack.core.ml.inference.assignment.Priority;
 import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignment;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
@@ -122,7 +122,8 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
             PARSER.declareObjectOrNull(
                 Request::setAdaptiveAllocationsSettings,
                 (p, c) -> AdaptiveAllocationsSettings.PARSER.parse(p, c).build(),
-                null, ADAPTIVE_ALLOCATIONS
+                null,
+                ADAPTIVE_ALLOCATIONS
             );
         }
 
@@ -333,7 +334,9 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
             if (threadsPerAllocation < 1) {
                 validationException.addValidationError("[" + THREADS_PER_ALLOCATION + "] must be a positive integer");
             }
-            ActionRequestValidationException autoscaleException = adaptiveAllocationsSettings == null ? null : adaptiveAllocationsSettings.validate();
+            ActionRequestValidationException autoscaleException = adaptiveAllocationsSettings == null
+                ? null
+                : adaptiveAllocationsSettings.validate();
             if (autoscaleException != null) {
                 validationException.addValidationErrors(autoscaleException.validationErrors());
             }

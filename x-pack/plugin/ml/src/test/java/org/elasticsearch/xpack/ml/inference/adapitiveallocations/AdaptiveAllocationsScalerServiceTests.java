@@ -21,11 +21,12 @@ import org.elasticsearch.xpack.core.ml.action.CreateTrainedModelAssignmentAction
 import org.elasticsearch.xpack.core.ml.action.GetDeploymentStatsAction;
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateTrainedModelDeploymentAction;
-import org.elasticsearch.xpack.core.ml.inference.assignment.AssignmentStats;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationsSettings;
+import org.elasticsearch.xpack.core.ml.inference.assignment.AssignmentStats;
 import org.elasticsearch.xpack.core.ml.inference.assignment.Priority;
 import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignment;
 import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignmentMetadata;
+import org.elasticsearch.xpack.ml.notifications.SystemAuditor;
 import org.junit.After;
 import org.junit.Before;
 
@@ -50,6 +51,7 @@ public class AdaptiveAllocationsScalerServiceTests extends ESTestCase {
     private TestThreadPool threadPool;
     private ClusterService clusterService;
     private Client client;
+    private SystemAuditor systemAuditor;
 
     @Override
     @Before
@@ -58,6 +60,7 @@ public class AdaptiveAllocationsScalerServiceTests extends ESTestCase {
         threadPool = createThreadPool();
         clusterService = mock(ClusterService.class);
         client = mock(Client.class);
+        systemAuditor = mock(SystemAuditor.class);
     }
 
     @Override
@@ -143,7 +146,14 @@ public class AdaptiveAllocationsScalerServiceTests extends ESTestCase {
         ClusterState clusterState = getClusterState(1);
         when(clusterService.state()).thenReturn(clusterState);
 
-        AdaptiveAllocationsScalerService service = new AdaptiveAllocationsScalerService(threadPool, clusterService, client, true, 1);
+        AdaptiveAllocationsScalerService service = new AdaptiveAllocationsScalerService(
+            threadPool,
+            clusterService,
+            client,
+            systemAuditor,
+            true,
+            1
+        );
         service.start();
 
         verify(clusterService).state();

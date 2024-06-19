@@ -42,8 +42,8 @@ import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.CreateTrainedModelAssignmentAction;
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateTrainedModelAssignmentRoutingInfoAction;
-import org.elasticsearch.xpack.core.ml.inference.assignment.AssignmentState;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationsSettings;
+import org.elasticsearch.xpack.core.ml.inference.assignment.AssignmentState;
 import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingInfo;
 import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingState;
 import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignment;
@@ -825,7 +825,8 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
             return;
         }
         AdaptiveAllocationsSettings adaptiveAllocationsSettings = getAdaptiveAllocationsSettings(
-            existingAssignment.getAdaptiveAllocationsSettings(), adaptiveAllocationsSettingsUpdates
+            existingAssignment.getAdaptiveAllocationsSettings(),
+            adaptiveAllocationsSettingsUpdates
         );
         if (adaptiveAllocationsSettings != null) {
             ActionRequestValidationException validationException = adaptiveAllocationsSettings.validate();
@@ -906,7 +907,10 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
         updateAssignment(clusterState, existingAssignment, numberOfAllocations, adaptiveAllocationsSettings, updatedStateListener);
     }
 
-    private AdaptiveAllocationsSettings getAdaptiveAllocationsSettings(AdaptiveAllocationsSettings original, AdaptiveAllocationsSettings updates) {
+    private AdaptiveAllocationsSettings getAdaptiveAllocationsSettings(
+        AdaptiveAllocationsSettings original,
+        AdaptiveAllocationsSettings updates
+    ) {
         if (updates == null) {
             return original;
         } else if (updates == AdaptiveAllocationsSettings.RESET_PLACEHOLDER) {

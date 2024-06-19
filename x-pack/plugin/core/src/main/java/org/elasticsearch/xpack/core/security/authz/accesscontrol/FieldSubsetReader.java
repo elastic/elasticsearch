@@ -40,6 +40,7 @@ import org.elasticsearch.common.lucene.index.SequentialStoredFieldsLeafReader;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
+import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.transport.Transports;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -399,6 +400,20 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
                 Map<String, Object> transformedSource = filter(result.v2(), filter, 0);
                 XContentBuilder xContentBuilder = XContentBuilder.builder(result.v1().xContent()).map(transformedSource);
                 visitor.binaryField(fieldInfo, BytesReference.toBytes(BytesReference.bytes(xContentBuilder)));
+            } else if (IgnoredSourceFieldMapper.NAME.equals(fieldInfo.name)) {
+                // for _ignored_source, parse, filter out the field and its contents, and serialize back downstream
+                IgnoredSourceFieldMapper.MappedNameValue mappedNameValue = IgnoredSourceFieldMapper.decodeAsMap(value);
+                Map<String, Object> transformedField = filter(mappedNameValue.map(), filter, 0);
+                if (transformedField.isEmpty() == false) {
+                    var topValue = transformedField.values().iterator().next();
+                    if (topValue instanceof Map<?,?> || topValue instanceof List<?>) {
+                        // The field value contains an object or an array, reconstruct it from filtered values.
+                        visitor.binaryField(fieldInfo, IgnoredSourceFieldMapper.encodeFromMap(mappedNameValue, transformedField));
+                    } else {
+                        // The field value contains no object, so no filtering happened. Use the original value.
+                        visitor.binaryField(fieldInfo, value);
+                    }
+                }
             } else {
                 visitor.binaryField(fieldInfo, value);
             }

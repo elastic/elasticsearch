@@ -73,7 +73,7 @@ public final class XContentDataHelper {
      * passed build. The assumption is that the passed value has encoded using the function
      * {@link #encodeToken(XContentParser)} above.
      */
-    static void decodeAndWrite(XContentBuilder b, BytesRef r) throws IOException {
+    public static void decodeAndWrite(XContentBuilder b, BytesRef r) throws IOException {
         switch ((char) r.bytes[r.offset]) {
             case BINARY_ENCODING -> TypeUtils.EMBEDDED_OBJECT.decodeAndWrite(b, r);
             case CBOR_OBJECT_ENCODING, JSON_OBJECT_ENCODING, YAML_OBJECT_ENCODING, SMILE_OBJECT_ENCODING -> {
@@ -90,6 +90,18 @@ public final class XContentDataHelper {
             case NULL_ENCODING -> TypeUtils.NULL.decodeAndWrite(b, r);
             default -> throw new IllegalArgumentException("Can't decode " + r);
         }
+    }
+
+    /**
+     * Returns the {@link XContentType} to use for creating an XContentBuilder to decode the passed value.
+     */
+    public static XContentType getXContentType(BytesRef r) {
+        return switch ((char) r.bytes[r.offset]) {
+            case JSON_OBJECT_ENCODING -> XContentType.JSON;
+            case YAML_OBJECT_ENCODING -> XContentType.YAML;
+            case SMILE_OBJECT_ENCODING -> XContentType.SMILE;
+            default -> XContentType.CBOR;  // CBOR can parse all other encoded types.
+        };
     }
 
     /**

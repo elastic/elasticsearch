@@ -102,8 +102,9 @@ public class SecurityMigrations {
                         logger.warn(exception.getMessage());
                         // This only happens in test and should be ignored since painless is always available in the default distribution
                         listener.onResponse(null);
+                    } else {
+                        listener.onFailure(exception);
                     }
-                    listener.onFailure(exception);
                 }));
         }
 

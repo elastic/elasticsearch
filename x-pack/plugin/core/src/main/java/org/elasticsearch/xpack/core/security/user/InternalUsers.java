@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.core.security.user;
 
 import org.elasticsearch.action.admin.indices.analyze.TransportReloadAnalyzersAction;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeAction;
-import org.elasticsearch.action.admin.indices.readonly.AddIndexBlockAction;
+import org.elasticsearch.action.admin.indices.readonly.TransportAddIndexBlockAction;
 import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
 import org.elasticsearch.action.admin.indices.rollover.LazyRolloverAction;
 import org.elasticsearch.action.admin.indices.rollover.RolloverAction;
@@ -149,7 +149,7 @@ public class InternalUsers {
                         IndicesStatsAction.NAME + "*",
                         TransportUpdateSettingsAction.TYPE.name(),
                         DownsampleAction.NAME,
-                        AddIndexBlockAction.NAME
+                        TransportAddIndexBlockAction.TYPE.name()
                     )
                     .allowRestrictedIndices(false)
                     .build(),
@@ -168,7 +168,7 @@ public class InternalUsers {
                         IndicesStatsAction.NAME + "*",
                         TransportUpdateSettingsAction.TYPE.name(),
                         DownsampleAction.NAME,
-                        AddIndexBlockAction.NAME
+                        TransportAddIndexBlockAction.TYPE.name()
                     )
                     .allowRestrictedIndices(true)
                     .build() },

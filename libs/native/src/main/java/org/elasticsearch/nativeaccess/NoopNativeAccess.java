@@ -11,6 +11,8 @@ package org.elasticsearch.nativeaccess;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 
+import java.util.Optional;
+
 class NoopNativeAccess implements NativeAccess {
 
     private static final Logger logger = LogManager.getLogger(NativeAccess.class);
@@ -20,6 +22,22 @@ class NoopNativeAccess implements NativeAccess {
     @Override
     public boolean definitelyRunningAsRoot() {
         logger.warn("Cannot check if running as root because native access is not available");
+        return false;
+    }
+
+    @Override
+    public ProcessLimits getProcessLimits() {
+        logger.warn("Cannot get process limits because native access is not available");
+        return new ProcessLimits(ProcessLimits.UNKNOWN, ProcessLimits.UNKNOWN, ProcessLimits.UNKNOWN);
+    }
+
+    @Override
+    public void tryLockMemory() {
+        logger.warn("Cannot lock memory because native access is not available");
+    }
+
+    @Override
+    public boolean isMemoryLocked() {
         return false;
     }
 
@@ -39,5 +57,11 @@ class NoopNativeAccess implements NativeAccess {
     public CloseableByteBuffer newBuffer(int len) {
         logger.warn("cannot allocate buffer because native access is not available");
         return null;
+    }
+
+    @Override
+    public Optional<VectorSimilarityFunctions> getVectorSimilarityFunctions() {
+        logger.warn("cannot get vector distance because native access is not available");
+        return Optional.empty();
     }
 }

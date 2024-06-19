@@ -387,7 +387,7 @@ public class IndexNameExpressionResolver {
                     resolveIndicesForDataStream(context, (DataStream) indexAbstraction, concreteIndicesResult);
                 } else if (indexAbstraction.getType() == Type.ALIAS
                     && indexAbstraction.isDataStreamRelated()
-                    && DataStream.isFailureStoreEnabled()
+                    && DataStream.isFailureStoreFeatureFlagEnabled()
                     && context.getOptions().includeFailureIndices()) {
                         // Collect the data streams involved
                         Set<DataStream> aliasDataStreams = new HashSet<>();
@@ -425,7 +425,7 @@ public class IndexNameExpressionResolver {
         if (shouldIncludeFailureIndices(context.getOptions(), dataStream)) {
             // We short-circuit here, if failure indices are not allowed and they can be skipped
             if (context.getOptions().allowFailureIndices() || context.getOptions().ignoreUnavailable() == false) {
-                for (Index index : dataStream.getFailureIndices()) {
+                for (Index index : dataStream.getFailureIndices().getIndices()) {
                     if (shouldTrackConcreteIndex(context, context.getOptions(), index)) {
                         concreteIndicesResult.add(index);
                     }
@@ -453,11 +453,13 @@ public class IndexNameExpressionResolver {
     }
 
     private static boolean shouldIncludeRegularIndices(IndicesOptions indicesOptions) {
-        return DataStream.isFailureStoreEnabled() == false || indicesOptions.includeRegularIndices();
+        return DataStream.isFailureStoreFeatureFlagEnabled() == false || indicesOptions.includeRegularIndices();
     }
 
     private static boolean shouldIncludeFailureIndices(IndicesOptions indicesOptions, DataStream dataStream) {
-        return DataStream.isFailureStoreEnabled() && indicesOptions.includeFailureIndices() && dataStream.isFailureStore();
+        return DataStream.isFailureStoreFeatureFlagEnabled()
+            && indicesOptions.includeFailureIndices()
+            && dataStream.isFailureStoreEnabled();
     }
 
     private static boolean resolvesToMoreThanOneIndex(IndexAbstraction indexAbstraction, Context context) {
@@ -468,7 +470,7 @@ public class IndexNameExpressionResolver {
                 count += dataStream.getIndices().size();
             }
             if (shouldIncludeFailureIndices(context.getOptions(), dataStream)) {
-                count += dataStream.getFailureIndices().size();
+                count += dataStream.getFailureIndices().getIndices().size();
             }
             return count > 1;
         }
@@ -566,11 +568,11 @@ public class IndexNameExpressionResolver {
             // Exclude this one as it's a net-new system index, and we explicitly don't want those.
             return false;
         }
-        if (DataStream.isFailureStoreEnabled()) {
+        if (DataStream.isFailureStoreFeatureFlagEnabled()) {
             IndexAbstraction indexAbstraction = context.getState().metadata().getIndicesLookup().get(index.getName());
             if (context.options.allowFailureIndices() == false) {
                 DataStream parentDataStream = indexAbstraction.getParentDataStream();
-                if (parentDataStream != null && parentDataStream.isFailureStore()) {
+                if (parentDataStream != null && parentDataStream.isFailureStoreEnabled()) {
                     if (parentDataStream.isFailureStoreIndex(index.getName())) {
                         if (options.ignoreUnavailable()) {
                             return false;
@@ -1246,32 +1248,36 @@ public class IndexNameExpressionResolver {
         }
 
         /**
-         * Returns all the indices and all the datastreams, considering the open/closed, system, and hidden context parameters.
+         * Returns all the indices, datastreams, and aliases, considering the open/closed, system, and hidden context parameters.
          * Depending on the context, returns the names of the datastreams themselves or their backing indices.
          */
         public static Collection<String> resolveAll(Context context) {
-            List<String> resolvedExpressions = resolveEmptyOrTrivialWildcard(context);
-            if (context.includeDataStreams() == false) {
-                return resolvedExpressions;
-            } else {
-                Stream<IndexAbstraction> dataStreamsAbstractions = context.getState()
-                    .metadata()
-                    .getIndicesLookup()
-                    .values()
-                    .stream()
-                    .filter(indexAbstraction -> indexAbstraction.getType() == Type.DATA_STREAM)
-                    .filter(
-                        indexAbstraction -> indexAbstraction.isSystem() == false
-                            || context.systemIndexAccessPredicate.test(indexAbstraction.getName())
-                    );
-                if (context.getOptions().expandWildcardsHidden() == false) {
-                    dataStreamsAbstractions = dataStreamsAbstractions.filter(indexAbstraction -> indexAbstraction.isHidden() == false);
-                }
-                // dedup backing indices if expand hidden indices option is true
-                Set<String> resolvedIncludingDataStreams = expandToOpenClosed(context, dataStreamsAbstractions).collect(Collectors.toSet());
-                resolvedIncludingDataStreams.addAll(resolvedExpressions);
-                return resolvedIncludingDataStreams;
+            List<String> concreteIndices = resolveEmptyOrTrivialWildcard(context);
+
+            if (context.includeDataStreams() == false && context.getOptions().ignoreAliases()) {
+                return concreteIndices;
             }
+
+            Stream<IndexAbstraction> ias = context.getState()
+                .metadata()
+                .getIndicesLookup()
+                .values()
+                .stream()
+                .filter(ia -> context.getOptions().expandWildcardsHidden() || ia.isHidden() == false)
+                .filter(ia -> shouldIncludeIfDataStream(ia, context) || shouldIncludeIfAlias(ia, context))
+                .filter(ia -> ia.isSystem() == false || context.systemIndexAccessPredicate.test(ia.getName()));
+
+            Set<String> resolved = expandToOpenClosed(context, ias).collect(Collectors.toSet());
+            resolved.addAll(concreteIndices);
+            return resolved;
+        }
+
+        private static boolean shouldIncludeIfDataStream(IndexAbstraction ia, IndexNameExpressionResolver.Context context) {
+            return context.includeDataStreams() && ia.getType() == Type.DATA_STREAM;
+        }
+
+        private static boolean shouldIncludeIfAlias(IndexAbstraction ia, IndexNameExpressionResolver.Context context) {
+            return context.getOptions().ignoreAliases() == false && ia.getType() == Type.ALIAS;
         }
 
         /**
@@ -1425,7 +1431,7 @@ public class IndexNameExpressionResolver {
                         DataStream dataStream = (DataStream) indexAbstraction;
                         indicesStateStream = Stream.concat(
                             indicesStateStream,
-                            dataStream.getFailureIndices().stream().map(context.state.metadata()::index)
+                            dataStream.getFailureIndices().getIndices().stream().map(context.state.metadata()::index)
                         );
                     }
                     if (excludeState != null) {

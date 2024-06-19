@@ -37,8 +37,8 @@ public class UntargettedBindingImpl<T> extends BindingImpl<T> implements Untarge
     }
 
     @Override
-    public BindingImpl<T> withScoping(Scoping scoping) {
-        return new UntargettedBindingImpl<>(getSource(), getKey(), scoping);
+    public BindingImpl<T> withEagerSingletonScoping() {
+        return new UntargettedBindingImpl<>(getSource(), getKey(), Scoping.EAGER_SINGLETON);
     }
 
     @Override

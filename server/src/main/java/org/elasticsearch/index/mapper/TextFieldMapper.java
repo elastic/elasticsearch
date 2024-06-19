@@ -390,7 +390,7 @@ public final class TextFieldMapper extends FieldMapper {
                     store.getValue(),
                     tsi,
                     context.isSourceSynthetic(),
-                    syntheticSourceDelegate(fieldType, multiFields),
+                    SyntheticSourceHelper.syntheticSourceDelegate(fieldType, multiFields),
                     meta.getValue(),
                     eagerGlobalOrdinals.getValue(),
                     indexPhrases.getValue()
@@ -400,17 +400,6 @@ public final class TextFieldMapper extends FieldMapper {
                 }
             }
             return ft;
-        }
-
-        private static KeywordFieldMapper.KeywordFieldType syntheticSourceDelegate(FieldType fieldType, MultiFields multiFields) {
-            if (fieldType.stored()) {
-                return null;
-            }
-            var kwd = getKeywordFieldMapperForSyntheticSource(multiFields);
-            if (kwd != null) {
-                return kwd.fieldType();
-            }
-            return null;
         }
 
         private SubFieldInfo buildPrefixInfo(MapperBuilderContext context, FieldType fieldType, TextFieldType tft) {
@@ -1094,7 +1083,7 @@ public final class TextFieldMapper extends FieldMapper {
             return isSyntheticSource;
         }
 
-        KeywordFieldMapper.KeywordFieldType syntheticSourceDelegate() {
+        public KeywordFieldMapper.KeywordFieldType syntheticSourceDelegate() {
             return syntheticSourceDelegate;
         }
     }
@@ -1458,6 +1447,11 @@ public final class TextFieldMapper extends FieldMapper {
     }
 
     @Override
+    protected SyntheticSourceMode syntheticSourceMode() {
+        return SyntheticSourceMode.NATIVE;
+    }
+
+    @Override
     public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
         if (copyTo.copyToFields().isEmpty() != true) {
             throw new IllegalArgumentException(
@@ -1473,7 +1467,7 @@ public final class TextFieldMapper extends FieldMapper {
             };
         }
 
-        var kwd = getKeywordFieldMapperForSyntheticSource(this);
+        var kwd = SyntheticSourceHelper.getKeywordFieldMapperForSyntheticSource(this);
         if (kwd != null) {
             return kwd.syntheticFieldLoader(simpleName());
         }
@@ -1489,16 +1483,29 @@ public final class TextFieldMapper extends FieldMapper {
         );
     }
 
-    private static KeywordFieldMapper getKeywordFieldMapperForSyntheticSource(Iterable<? extends Mapper> multiFields) {
-        for (Mapper sub : multiFields) {
-            if (sub.typeName().equals(KeywordFieldMapper.CONTENT_TYPE)) {
-                KeywordFieldMapper kwd = (KeywordFieldMapper) sub;
-                if (kwd.hasNormalizer() == false && (kwd.fieldType().hasDocValues() || kwd.fieldType().isStored())) {
-                    return kwd;
-                }
+    public static class SyntheticSourceHelper {
+        public static KeywordFieldMapper.KeywordFieldType syntheticSourceDelegate(FieldType fieldType, MultiFields multiFields) {
+            if (fieldType.stored()) {
+                return null;
             }
+            var kwd = getKeywordFieldMapperForSyntheticSource(multiFields);
+            if (kwd != null) {
+                return kwd.fieldType();
+            }
+            return null;
         }
 
-        return null;
+        public static KeywordFieldMapper getKeywordFieldMapperForSyntheticSource(Iterable<? extends Mapper> multiFields) {
+            for (Mapper sub : multiFields) {
+                if (sub.typeName().equals(KeywordFieldMapper.CONTENT_TYPE)) {
+                    KeywordFieldMapper kwd = (KeywordFieldMapper) sub;
+                    if (kwd.hasNormalizer() == false && (kwd.fieldType().hasDocValues() || kwd.fieldType().isStored())) {
+                        return kwd;
+                    }
+                }
+            }
+
+            return null;
+        }
     }
 }

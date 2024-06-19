@@ -222,7 +222,8 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
             null,
             () -> true,
             null,
-            Collections.emptyMap()
+            Collections.emptyMap(),
+            MapperMetrics.NOOP
         );
         MappedFieldType ft = new DateFieldType("field");
         String date1 = "2015-10-12T14:10:55";
@@ -317,7 +318,8 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
             "my_date",
             IndexNumericFieldData.NumericType.DATE_NANOSECONDS,
             CoreValuesSourceType.DATE,
-            DateNanosDocValuesField::new
+            DateNanosDocValuesField::new,
+            false
         );
         // Read index and check the doc values
         DirectoryReader reader = DirectoryReader.open(w);

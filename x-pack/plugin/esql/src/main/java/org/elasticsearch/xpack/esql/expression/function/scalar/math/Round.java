@@ -11,31 +11,30 @@ import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.function.OptionalArgument;
+import org.elasticsearch.xpack.esql.core.expression.predicate.operator.math.Maths;
+import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.function.OptionalArgument;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.math.Maths;
-import org.elasticsearch.xpack.ql.tree.NodeInfo;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.math.BigInteger;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Objects;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isInteger;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNumeric;
+import static org.elasticsearch.xpack.esql.core.util.NumericUtils.unsignedLongAsNumber;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.bigIntegerToUnsignedLong;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.longToUnsignedLong;
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.FIRST;
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.SECOND;
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isInteger;
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isNumeric;
-import static org.elasticsearch.xpack.ql.util.NumericUtils.unsignedLongAsNumber;
 
 public class Round extends EsqlScalarFunction implements OptionalArgument {
 
@@ -44,15 +43,23 @@ public class Round extends EsqlScalarFunction implements OptionalArgument {
     private final Expression field, decimals;
 
     // @TODO: add support for "integer", "long", "unsigned_long" once tests are fixed
-    @FunctionInfo(returnType = "double", description = "Rounds a number to the closest number with the specified number of digits.")
+    @FunctionInfo(returnType = { "double", "integer", "long", "unsigned_long" }, description = """
+        Rounds a number to the specified number of decimal places.
+        Defaults to 0, which returns the nearest integer. If the
+        precision is a negative number, rounds to the number of digits left
+        of the decimal point.""", examples = @Example(file = "docs", tag = "round"))
     public Round(
         Source source,
-        @Param(name = "number", type = "double", description = "The numeric value to round") Expression field,
+        @Param(
+            name = "number",
+            type = { "double", "integer", "long", "unsigned_long" },
+            description = "The numeric value to round. If `null`, the function returns `null`."
+        ) Expression field,
         @Param(
             optional = true,
             name = "decimals",
-            type = { "integer" },
-            description = "The number of decimal places to round to. Defaults to 0."
+            type = { "integer" },  // TODO long is supported here too
+            description = "The number of decimal places to round to. Defaults to 0. If `null`, the function returns `null`."
         ) Expression decimals
     ) {
         super(source, decimals != null ? Arrays.asList(field, decimals) : Arrays.asList(field));
@@ -136,16 +143,16 @@ public class Round extends EsqlScalarFunction implements OptionalArgument {
     @Override
     public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
         DataType fieldType = dataType();
-        if (fieldType == DataTypes.DOUBLE) {
+        if (fieldType == DataType.DOUBLE) {
             return toEvaluator(toEvaluator, RoundDoubleNoDecimalsEvaluator.Factory::new, RoundDoubleEvaluator.Factory::new);
         }
-        if (fieldType == DataTypes.INTEGER) {
+        if (fieldType == DataType.INTEGER) {
             return toEvaluator(toEvaluator, EVALUATOR_IDENTITY, RoundIntEvaluator.Factory::new);
         }
-        if (fieldType == DataTypes.LONG) {
+        if (fieldType == DataType.LONG) {
             return toEvaluator(toEvaluator, EVALUATOR_IDENTITY, RoundLongEvaluator.Factory::new);
         }
-        if (fieldType == DataTypes.UNSIGNED_LONG) {
+        if (fieldType == DataType.UNSIGNED_LONG) {
             return toEvaluator(toEvaluator, EVALUATOR_IDENTITY, RoundUnsignedLongEvaluator.Factory::new);
         }
         throw EsqlIllegalArgumentException.illegalDataType(fieldType);
@@ -160,21 +167,7 @@ public class Round extends EsqlScalarFunction implements OptionalArgument {
         if (decimals == null) {
             return noDecimals.apply(source(), fieldEvaluator);
         }
-        var decimalsEvaluator = Cast.cast(source(), decimals().dataType(), DataTypes.LONG, toEvaluator.apply(decimals()));
+        var decimalsEvaluator = Cast.cast(source(), decimals().dataType(), DataType.LONG, toEvaluator.apply(decimals()));
         return withDecimals.apply(source(), fieldEvaluator, decimalsEvaluator);
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(field, decimals);
-    }
-
-    @Override
-    public boolean equals(Object obj) {
-        if (obj == null || obj.getClass() != getClass()) {
-            return false;
-        }
-        Round other = (Round) obj;
-        return Objects.equals(other.field, field) && Objects.equals(other.decimals, decimals);
     }
 }

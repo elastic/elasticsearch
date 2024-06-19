@@ -18,7 +18,7 @@ public class OpenAiChatCompletionResponseHandler extends OpenAiResponseHandler {
     }
 
     @Override
-    RetryException buildExceptionHandling429(Request request, HttpResult result) {
+    protected RetryException buildExceptionHandling429(Request request, HttpResult result) {
         // We don't retry, if the chat completion input is too large
         return new RetryException(false, buildError(RATE_LIMIT, request, result));
     }

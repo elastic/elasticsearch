@@ -4,8 +4,8 @@
 <titleabbrev>GeoIP stats</titleabbrev>
 ++++
 
-Gets download statistics for GeoIP2 databases used with the
-<<geoip-processor,`geoip` processor>>.
+Gets statistics about the <<geoip-processor,`geoip` processor>>, including
+download statistics for GeoIP2 databases used with it.
 
 [source,console]
 ----
@@ -24,7 +24,7 @@ GET _ingest/geoip/stats
 `manage` <<privileges-list-cluster,cluster privilege>> to use this API.
 
 * If <<ingest-geoip-downloader-enabled,`ingest.geoip.downloader.enabled`>> is
-disabled, this API returns zero values and an empty `nodes` object.
+disabled and no custom databases are configured, this API returns zero values and an empty `nodes` object.
 
 [role="child_attributes"]
 [[geoip-stats-api-response-body]]
@@ -60,7 +60,7 @@ Total number of database updates skipped.
 
 `nodes`::
 (object)
-Downloaded GeoIP2 databases for each node.
+Statistics for each node.
 +
 .Properties of `nodes`
 [%collapsible%open]
@@ -83,6 +83,41 @@ Downloaded databases for the node.
 (string)
 Name of the database.
 ======
+`cache_stats`::
+(object)
+GeoIP cache stats for the node.
++
+.Properties of `cache_stats`
+[%collapsible%open]
+======
+`count`::
+(Long)
+Number of cached entries.
+
+`hits`::
+(Long)
+The number of enrich lookups served from cache.
+
+`misses`::
+(Long)
+The number of times geoIP lookups couldn't be
+served from cache.
+
+`evictions`::
+(Long)
+The number cache entries evicted from the cache.
+
+`hits_time_in_millis`::
+(Long)
+The amount of time in milliseconds spent fetching data from the cache on successful cache hits only.
+
+`misses_time_in_millis`::
+(Long)
+The amount of time in milliseconds spent fetching data from the cache and the backing GeoIP2 database and updating the
+cache, on cache misses only.
+
+======
+
 
 `files_in_temp`::
 (array of strings)

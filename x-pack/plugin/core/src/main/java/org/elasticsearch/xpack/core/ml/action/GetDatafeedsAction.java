@@ -50,6 +50,7 @@ public class GetDatafeedsAction extends ActionType<GetDatafeedsAction.Response> 
         }
 
         public Request() {
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
             local(true);
         }
 

@@ -18,7 +18,7 @@ import org.elasticsearch.tasks.TaskId;
  */
 public class GetTaskRequestBuilder extends ActionRequestBuilder<GetTaskRequest, GetTaskResponse> {
     public GetTaskRequestBuilder(ElasticsearchClient client) {
-        super(client, GetTaskAction.INSTANCE, new GetTaskRequest());
+        super(client, TransportGetTaskAction.TYPE, new GetTaskRequest());
     }
 
     /**

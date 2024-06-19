@@ -61,7 +61,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskAction.TASKS_ORIGIN;
+import static org.elasticsearch.action.admin.cluster.node.tasks.get.TransportGetTaskAction.TASKS_ORIGIN;
 import static org.elasticsearch.test.ESTestCase.waitUntil;
 
 /**
@@ -195,18 +195,10 @@ public class TestTaskPlugin extends Plugin implements ActionPlugin, NetworkPlugi
     }
 
     public static class NodesRequest extends BaseNodesRequest<NodesRequest> {
-        private String requestName;
+        private final String requestName;
         private boolean shouldStoreResult = false;
         private boolean shouldBlock = true;
         private boolean shouldFail = false;
-
-        NodesRequest(StreamInput in) throws IOException {
-            super(in);
-            requestName = in.readString();
-            shouldStoreResult = in.readBoolean();
-            shouldBlock = in.readBoolean();
-            shouldFail = in.readBoolean();
-        }
 
         NodesRequest(String requestName, String... nodesIds) {
             super(nodesIds);
@@ -236,15 +228,6 @@ public class TestTaskPlugin extends Plugin implements ActionPlugin, NetworkPlugi
 
         public boolean getShouldFail() {
             return shouldFail;
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            out.writeString(requestName);
-            out.writeBoolean(shouldStoreResult);
-            out.writeBoolean(shouldBlock);
-            out.writeBoolean(shouldFail);
         }
 
         @Override
@@ -391,7 +374,6 @@ public class TestTaskPlugin extends Plugin implements ActionPlugin, NetworkPlugi
                 transportService,
                 new ActionFilters(new HashSet<>()),
                 UnblockTestTasksRequest::new,
-                UnblockTestTasksResponse::new,
                 UnblockTestTaskResponse::new,
                 transportService.getThreadPool().executor(ThreadPool.Names.MANAGEMENT)
             );

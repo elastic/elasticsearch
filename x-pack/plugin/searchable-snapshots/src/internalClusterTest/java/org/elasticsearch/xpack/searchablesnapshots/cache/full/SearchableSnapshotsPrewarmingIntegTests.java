@@ -215,6 +215,7 @@ public class SearchableSnapshotsPrewarmingIntegTests extends ESSingleNodeTestCas
                     final RestoreSnapshotResponse restoreSnapshotResponse = client().execute(
                         MountSearchableSnapshotAction.INSTANCE,
                         new MountSearchableSnapshotRequest(
+                            TEST_REQUEST_TIMEOUT,
                             indexName,
                             "repository",
                             "snapshot",
@@ -447,13 +448,6 @@ public class SearchableSnapshotsPrewarmingIntegTests extends ESSingleNodeTestCas
             return Collections.singletonMap(
                 "tracking",
                 (metadata) -> new FsRepository(metadata, env, namedXContentRegistry, clusterService, bigArrays, recoverySettings) {
-
-                    @Override
-                    protected void assertSnapshotOrGenericThread() {
-                        if (enabled.get()) {
-                            super.assertSnapshotOrGenericThread();
-                        }
-                    }
 
                     @Override
                     protected BlobStore createBlobStore() throws Exception {

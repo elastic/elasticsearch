@@ -22,7 +22,9 @@ public final class ForUtil {
 
     public static final int BLOCK_SIZE = 128;
     private static final int BLOCK_SIZE_LOG2 = 7;
-    private final long[] tmp = new long[BLOCK_SIZE / 2];
+    private static final ThreadLocal<long[]> scratch = ThreadLocal.withInitial(() -> new long[BLOCK_SIZE / 2]);
+
+    private ForUtil() {}
 
     private static long expandMask32(long mask32) {
         return mask32 | (mask32 << 32);
@@ -118,7 +120,7 @@ public final class ForUtil {
     }
 
     /** Encode 128 integers from {@code longs} into {@code out}. */
-    public void encode(long[] longs, int bitsPerValue, DataOutput out) throws IOException {
+    public static void encode(long[] longs, int bitsPerValue, DataOutput out) throws IOException {
         final int nextPrimitive;
         final int numLongs;
         if (bitsPerValue <= 8) {
@@ -138,6 +140,7 @@ public final class ForUtil {
         final int numLongsPerShift = bitsPerValue * 2;
         int idx = 0;
         int shift = nextPrimitive - bitsPerValue;
+        final long[] tmp = scratch.get();
         for (int i = 0; i < numLongsPerShift; ++i) {
             tmp[i] = longs[idx++] << shift;
         }
@@ -191,7 +194,7 @@ public final class ForUtil {
     }
 
     /** Number of bytes required to encode 128 integers of {@code bitsPerValue} bits per value. */
-    public int numBytes(int bitsPerValue) {
+    public static int numBytes(int bitsPerValue) {
         return bitsPerValue << (BLOCK_SIZE_LOG2 - 3);
     }
 
@@ -299,7 +302,8 @@ public final class ForUtil {
     private static final long MASK32_24 = MASKS32[24];
 
     /** Decode 128 integers into {@code longs}. */
-    public void decode(int bitsPerValue, DataInput in, long[] longs) throws IOException {
+    public static void decode(int bitsPerValue, DataInput in, long[] longs) throws IOException {
+        final long[] tmp = scratch.get();
         switch (bitsPerValue) {
             case 1:
                 decode1(in, tmp, longs);
@@ -410,7 +414,8 @@ public final class ForUtil {
      * [0..63], and values [64..127] are encoded in the low-order bits of {@code longs} [0..63]. This
      * representation may allow subsequent operations to be performed on two values at a time.
      */
-    public void decodeTo32(int bitsPerValue, DataInput in, long[] longs) throws IOException {
+    public static void decodeTo32(int bitsPerValue, DataInput in, long[] longs) throws IOException {
+        final long[] tmp = scratch.get();
         switch (bitsPerValue) {
             case 1:
                 decode1(in, tmp, longs);

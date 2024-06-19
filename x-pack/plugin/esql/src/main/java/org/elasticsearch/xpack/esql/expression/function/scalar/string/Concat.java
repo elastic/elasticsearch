@@ -13,23 +13,23 @@ import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.EsqlClientException;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Expressions;
+import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.Expressions;
-import org.elasticsearch.xpack.ql.tree.NodeInfo;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.util.List;
 import java.util.function.Function;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.common.unit.ByteSizeUnit.MB;
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.DEFAULT;
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isString;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
 
 /**
  * Join strings.
@@ -38,18 +38,22 @@ public class Concat extends EsqlScalarFunction {
 
     static final long MAX_CONCAT_LENGTH = MB.toBytes(1);
 
-    @FunctionInfo(returnType = "keyword", description = "Concatenates two or more strings.")
+    @FunctionInfo(
+        returnType = "keyword",
+        description = "Concatenates two or more strings.",
+        examples = @Example(file = "eval", tag = "docsConcat")
+    )
     public Concat(
         Source source,
-        @Param(name = "string1", type = { "keyword", "text" }) Expression first,
-        @Param(name = "string2", type = { "keyword", "text" }) List<? extends Expression> rest
+        @Param(name = "string1", type = { "keyword", "text" }, description = "Strings to concatenate.") Expression first,
+        @Param(name = "string2", type = { "keyword", "text" }, description = "Strings to concatenate.") List<? extends Expression> rest
     ) {
         super(source, Stream.concat(Stream.of(first), rest.stream()).toList());
     }
 
     @Override
     public DataType dataType() {
-        return DataTypes.KEYWORD;
+        return DataType.KEYWORD;
     }
 
     @Override

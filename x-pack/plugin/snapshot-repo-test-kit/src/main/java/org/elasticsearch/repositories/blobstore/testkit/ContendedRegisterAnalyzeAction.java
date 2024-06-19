@@ -156,7 +156,13 @@ class ContendedRegisterAnalyzeAction extends HandledTransportAction<ContendedReg
         };
 
         if (request.getInitialRead() > request.getRequestCount()) {
-            blobContainer.getRegister(OperationPurpose.REPOSITORY_ANALYSIS, registerName, initialValueListener);
+            blobContainer.getRegister(OperationPurpose.REPOSITORY_ANALYSIS, registerName, initialValueListener.delegateFailure((l, r) -> {
+                if (r.isPresent()) {
+                    l.onResponse(r);
+                } else {
+                    l.onFailure(new IllegalStateException("register read failed due to contention"));
+                }
+            }));
         } else {
             blobContainer.compareAndExchangeRegister(
                 OperationPurpose.REPOSITORY_ANALYSIS,

@@ -11,6 +11,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.analysis.PreAnalyzer;
 import org.elasticsearch.xpack.esql.analysis.Verifier;
+import org.elasticsearch.xpack.esql.core.expression.function.FunctionRegistry;
 import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
@@ -18,28 +19,24 @@ import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.planner.Mapper;
 import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
-import org.elasticsearch.xpack.esql.session.EsqlIndexResolver;
 import org.elasticsearch.xpack.esql.session.EsqlSession;
+import org.elasticsearch.xpack.esql.session.IndexResolver;
 import org.elasticsearch.xpack.esql.stats.Metrics;
 import org.elasticsearch.xpack.esql.stats.QueryMetric;
-import org.elasticsearch.xpack.ql.expression.function.FunctionRegistry;
-import org.elasticsearch.xpack.ql.index.IndexResolver;
 
 import static org.elasticsearch.action.ActionListener.wrap;
 
 public class PlanExecutor {
 
     private final IndexResolver indexResolver;
-    private final EsqlIndexResolver esqlIndexResolver;
     private final PreAnalyzer preAnalyzer;
     private final FunctionRegistry functionRegistry;
     private final Mapper mapper;
     private final Metrics metrics;
     private final Verifier verifier;
 
-    public PlanExecutor(IndexResolver indexResolver, EsqlIndexResolver esqlIndexResolver) {
+    public PlanExecutor(IndexResolver indexResolver) {
         this.indexResolver = indexResolver;
-        this.esqlIndexResolver = esqlIndexResolver;
         this.preAnalyzer = new PreAnalyzer();
         this.functionRegistry = new EsqlFunctionRegistry();
         this.mapper = new Mapper(functionRegistry);
@@ -58,7 +55,6 @@ public class PlanExecutor {
             sessionId,
             cfg,
             indexResolver,
-            esqlIndexResolver,
             enrichPolicyResolver,
             preAnalyzer,
             functionRegistry,

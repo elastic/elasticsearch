@@ -112,7 +112,6 @@ public class GetQueryRulesetAction {
     public static class Response extends ActionResponse implements ToXContentObject {
 
         private final QueryRuleset queryRuleset;
-        private static final ParseField QUERY_RULESET_FIELD = new ParseField("queryRuleset");
 
         public Response(StreamInput in) throws IOException {
             super(in);
@@ -152,14 +151,6 @@ public class GetQueryRulesetAction {
         @Override
         public int hashCode() {
             return Objects.hash(queryRuleset);
-        }
-
-        private static final ConstructingObjectParser<Response, String> PARSER = new ConstructingObjectParser<>(
-            "get_query_ruleset_response",
-            p -> new Response((QueryRuleset) p[0])
-        );
-        static {
-            PARSER.declareObject(constructorArg(), (p, c) -> QueryRuleset.fromXContent(c, p), QUERY_RULESET_FIELD);
         }
 
         public static Response fromXContent(String resourceName, XContentParser parser) throws IOException {

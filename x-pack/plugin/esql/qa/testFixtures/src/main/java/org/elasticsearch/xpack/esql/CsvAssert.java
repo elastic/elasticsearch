@@ -19,6 +19,7 @@ import org.hamcrest.Matchers;
 import org.hamcrest.StringDescription;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
@@ -33,10 +34,10 @@ import static org.elasticsearch.xpack.esql.CsvTestUtils.ExpectedResults;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.Type;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.Type.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.logMetaData;
-import static org.elasticsearch.xpack.ql.util.DateUtils.UTC_DATE_TIME_FORMATTER;
-import static org.elasticsearch.xpack.ql.util.NumericUtils.unsignedLongAsNumber;
-import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.CARTESIAN;
-import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.GEO;
+import static org.elasticsearch.xpack.esql.core.util.DateUtils.UTC_DATE_TIME_FORMATTER;
+import static org.elasticsearch.xpack.esql.core.util.NumericUtils.unsignedLongAsNumber;
+import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.CARTESIAN;
+import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
@@ -79,12 +80,7 @@ public final class CsvAssert {
         var expectedTypes = expected.columnTypes();
 
         assertThat(
-            format(
-                null,
-                "Different number of columns returned; expected [{}] but actual was [{}]",
-                expectedNames.size(),
-                actualNames.size()
-            ),
+            format(null, "Different number of columns returned; expected {} but actual was {}", expectedNames, actualNames),
             actualNames,
             Matchers.hasSize(expectedNames.size())
         );
@@ -273,7 +269,8 @@ public final class CsvAssert {
             if (f.actual instanceof List<?> a) {
                 actualList = a;
             } else {
-                actualList = List.of(f.actual);
+                // Do not use List::of - actual can be null.
+                actualList = Collections.singletonList(f.actual);
             }
             expected.describeMismatch(actualList, description);
             String prefix = "row " + f.row + " column " + f.column + ":";

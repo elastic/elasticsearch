@@ -12,6 +12,7 @@ import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.elasticsearch.cluster.routing.allocation.NodeAllocationStats;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -171,7 +172,10 @@ public class NodeStats extends BaseNodeResponse implements ChunkedToXContent {
         this.nodeAllocationStats = nodeAllocationStats;
     }
 
-    public NodeStats withNodeAllocationStats(@Nullable NodeAllocationStats nodeAllocationStats) {
+    public NodeStats withNodeAllocationStats(
+        @Nullable NodeAllocationStats nodeAllocationStats,
+        @Nullable DiskThresholdSettings masterThresholdSettings
+    ) {
         return new NodeStats(
             getNode(),
             timestamp,
@@ -180,7 +184,7 @@ public class NodeStats extends BaseNodeResponse implements ChunkedToXContent {
             process,
             jvm,
             threadPool,
-            fs,
+            FsInfo.setEffectiveWatermarks(fs, masterThresholdSettings, getNode().isDedicatedFrozenNode()),
             transport,
             http,
             breaker,

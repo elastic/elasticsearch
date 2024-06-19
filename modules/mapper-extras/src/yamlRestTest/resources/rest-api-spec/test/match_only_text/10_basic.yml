@@ -1,7 +1,7 @@
 setup:
 
-  - skip:
-      version: " - 7.13.99"
+  - requires:
+      cluster_features: ["gte_v7.14.0"]
       reason: "match_only_text was added in 7.14"
 
   - do:
@@ -256,8 +256,8 @@ setup:
 ---
 "Wildcard highlighting":
 
-  - skip:
-      version: " - 8.2.99"
+  - requires:
+      cluster_features: ["gte_v8.3.0"]
       reason: "Wildcard highlighting on match_only_text was fixed in 8.3"
 
   - do:
@@ -277,8 +277,8 @@ setup:
 
 ---
 synthetic_source:
-  - skip:
-      version: " - 8.3.99"
+  - requires:
+      cluster_features: ["gte_v8.4.0"]
       reason: synthetic source introduced in 8.4.0
 
   - do:
@@ -310,8 +310,8 @@ synthetic_source:
 
 ---
 tsdb:
-  - skip:
-      version: " - 8.9.99"
+  - requires:
+      cluster_features: ["gte_v8.10.0"]
       reason: bug fixed in 8.10.0
 
   - do:

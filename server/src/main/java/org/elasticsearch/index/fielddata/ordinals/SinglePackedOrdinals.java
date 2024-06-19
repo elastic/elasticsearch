@@ -17,7 +17,6 @@ import org.apache.lucene.util.RamUsageEstimator;
 import org.apache.lucene.util.packed.PackedInts;
 import org.elasticsearch.index.fielddata.AbstractSortedDocValues;
 
-import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
 
@@ -86,7 +85,7 @@ public class SinglePackedOrdinals extends Ordinals {
         }
 
         @Override
-        public boolean advanceExact(int docID) throws IOException {
+        public boolean advanceExact(int docID) {
             currentDoc = docID;
             currentOrd = (int) (reader.get(docID) - 1);
             return currentOrd != -1;

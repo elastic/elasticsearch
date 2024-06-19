@@ -161,7 +161,10 @@ public abstract class AbstractFieldDataTestCase extends ESSingleNodeTestCase {
                 docValues
             ).build(context).fieldType();
         } else if (type.equals("binary")) {
-            fieldType = new BinaryFieldMapper.Builder(fieldName, docValues).build(context).fieldType();
+            fieldType = new BinaryFieldMapper.Builder(fieldName, indexService.getIndexSettings().getMode().isSyntheticSourceEnabled())
+                .docValues(docValues)
+                .build(context)
+                .fieldType();
         } else {
             throw new UnsupportedOperationException(type);
         }

@@ -70,11 +70,11 @@ and indices, omit this parameter or use `*` or `_all`.
 [[index-recovery-api-query-params]]
 ==== {api-query-parms-title}
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=active-only]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=active-only]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=detailed]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=detailed]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-query-parm]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=index-query-parm]
 
 
 [[index-recovery-api-response-body]]

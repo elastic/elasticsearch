@@ -1,9 +1,9 @@
 ---
 "Test data stream lifecycle usage stats":
-  - skip:
-      version: "- 8.10.99"
+  - requires:
+      cluster_features: "gte_v8.11.0"
       reason: "the data stream lifecycle stats were updated to the usage api in 8.11"
-      features: allowed_warnings
+      test_runner_features: "allowed_warnings"
 
   - do:
       xpack.usage: {}

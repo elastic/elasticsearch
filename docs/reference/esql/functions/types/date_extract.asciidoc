@@ -6,4 +6,5 @@
 |===
 datePart | date | result
 keyword | datetime | long
+text | datetime | long
 |===

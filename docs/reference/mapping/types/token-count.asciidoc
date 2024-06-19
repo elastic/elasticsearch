@@ -64,10 +64,10 @@ The following parameters are accepted by `token_count` fields:
     value. Required. For best performance, use an analyzer without token
     filters.
 
-`enable_position_increments`:: 
+`enable_position_increments`::
 
-Indicates if position increments should be counted. 
-Set to `false` if you don't want to count tokens removed by analyzer filters (like <<analysis-stop-tokenfilter,`stop`>>). 
+Indicates if position increments should be counted.
+Set to `false` if you don't want to count tokens removed by analyzer filters (like <<analysis-stop-tokenfilter,`stop`>>).
 Defaults to `true`.
 
 <<doc-values,`doc_values`>>::
@@ -91,3 +91,17 @@ Defaults to `true`.
     Whether the field value should be stored and retrievable separately from
     the <<mapping-source-field,`_source`>> field. Accepts `true` or `false`
     (default).
+
+[[token-count-synthetic-source]]
+===== Synthetic `_source`
+
+IMPORTANT: Synthetic `_source` is Generally Available only for TSDB indices
+(indices that have `index.mode` set to `time_series`). For other indices
+synthetic `_source` is in technical preview. Features in technical preview may
+be changed or removed in a future release. Elastic will work to fix
+any issues, but features in technical preview are not subject to the support SLA
+of official GA features.
+
+`token_count` fields support <<synthetic-source,synthetic `_source`>> in their
+default configuration. Synthetic `_source` cannot be used together with
+<<copy-to,`copy_to`>>.

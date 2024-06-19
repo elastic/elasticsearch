@@ -19,6 +19,7 @@ import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.sort.NestedSortBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
@@ -619,7 +620,7 @@ public class SimpleNestedIT extends ESIntegTestCase {
             );
 
         if (randomBoolean()) {
-            searchRequestBuilder.setScroll("10m");
+            searchRequestBuilder.setScroll(TimeValue.timeValueMinutes(10));
         }
 
         assertResponse(searchRequestBuilder, response -> {
@@ -640,7 +641,7 @@ public class SimpleNestedIT extends ESIntegTestCase {
             );
 
         if (randomBoolean()) {
-            searchRequestBuilder.setScroll("10m");
+            searchRequestBuilder.setScroll(TimeValue.timeValueMinutes(10));
         }
 
         assertResponse(searchRequestBuilder, response -> {

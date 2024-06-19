@@ -13,12 +13,16 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.scalar.UnaryScalarFunction;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.tree.Source;
 
 /**
  * Base class for functions that reduce multivalued fields into single valued fields.
+ * <p>
+ *     We have a guide for writing these in the javadoc for
+ *     {@link org.elasticsearch.xpack.esql.expression.function.scalar}.
+ * </p>
  */
 public abstract class AbstractMultivalueFunction extends UnaryScalarFunction {
     protected AbstractMultivalueFunction(Source source, Expression field) {

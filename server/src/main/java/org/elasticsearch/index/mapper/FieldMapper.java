@@ -181,6 +181,7 @@ public abstract class FieldMapper extends Mapper {
             if (hasScript) {
                 throwIndexingWithScriptParam();
             }
+
             parseCreateField(context);
         } catch (Exception e) {
             rethrowAsDocumentParsingException(context, e);
@@ -436,6 +437,66 @@ public abstract class FieldMapper extends Mapper {
 
     public Map<String, NamedAnalyzer> indexAnalyzers() {
         return Map.of();
+    }
+
+    /**
+     * Specifies the mode of synthetic source support by the mapper.
+     *
+     * <pre>
+     * {@link SyntheticSourceMode#NATIVE} - mapper natively supports synthetic source, f.e. by constructing it from doc values.
+     *
+     * {@link SyntheticSourceMode#FALLBACK} - mapper does not have native support and uses generic fallback implementation
+     * that stores raw input source data as is.
+     * </pre>
+     */
+    protected enum SyntheticSourceMode {
+        NATIVE,
+        FALLBACK
+    }
+
+    /**
+     * <p>
+     * Specifies the mode of synthetic source support by the mapper.
+     * <br>
+     * This is used to determine if a field mapper has support for
+     * constructing synthetic source.
+     * In case it doesn't (meaning {@link SyntheticSourceMode#FALLBACK}),
+     * we will store raw source data for this field as is
+     * and then use it for synthetic source.
+     * </p>
+     * <p>
+     * Field mappers must override this method if they provide
+     * a custom implementation of {@link #syntheticFieldLoader()}
+     * in order to use a more efficient field-specific implementation.
+     * </p>
+     * @return {@link SyntheticSourceMode}
+     */
+    protected SyntheticSourceMode syntheticSourceMode() {
+        return SyntheticSourceMode.FALLBACK;
+    }
+
+    /**
+     * Mappers override this method with native synthetic source support.
+     * If mapper does not support synthetic source, it is generated using generic implementation
+     * in {@link DocumentParser#parseObjectOrField} and {@link ObjectMapper#syntheticFieldLoader()}.
+     *
+     * @return implementation of {@link SourceLoader.SyntheticFieldLoader}
+     */
+    @Override
+    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
+        // If mapper supports synthetic source natively, it overrides this method,
+        // so we won't see those here.
+        if (syntheticSourceMode() == SyntheticSourceMode.FALLBACK) {
+            if (copyTo.copyToFields().isEmpty() != true) {
+                throw new IllegalArgumentException(
+                    "field [" + name() + "] of type [" + typeName() + "] doesn't support synthetic source because it declares copy_to"
+                );
+            }
+            // Nothing because it is handled at `ObjectMapper` level.
+            return SourceLoader.SyntheticFieldLoader.NOTHING;
+        }
+
+        return super.syntheticFieldLoader();
     }
 
     public static final class MultiFields implements Iterable<FieldMapper>, ToXContent {
@@ -1199,7 +1260,7 @@ public abstract class FieldMapper extends Mapper {
         private final String mapperName;
         private final List<String> conflicts = new ArrayList<>();
 
-        Conflicts(String mapperName) {
+        public Conflicts(String mapperName) {
             this.mapperName = mapperName;
         }
 
@@ -1211,7 +1272,7 @@ public abstract class FieldMapper extends Mapper {
             conflicts.add("Cannot update parameter [" + parameter + "] from [" + existing + "] to [" + toMerge + "]");
         }
 
-        void check() {
+        public void check() {
             if (conflicts.isEmpty()) {
                 return;
             }
@@ -1466,6 +1527,14 @@ public abstract class FieldMapper extends Mapper {
         };
     }
 
+    public static BiConsumer<String, MappingParserContext> notFromDynamicTemplates(String type) {
+        return (n, c) -> {
+            if (c.isFromDynamicTemplate()) {
+                throw new MapperParsingException("Field [" + n + "] of type [" + type + "] can't be used in dynamic templates");
+            }
+        };
+    }
+
     /**
      * TypeParser implementation that automatically handles parsing
      */
@@ -1496,6 +1565,13 @@ public abstract class FieldMapper extends Mapper {
             BiConsumer<String, MappingParserContext> contextValidator
         ) {
             this(builderFunction, contextValidator, IndexVersions.MINIMUM_COMPATIBLE);
+        }
+
+        public TypeParser(
+            BiFunction<String, MappingParserContext, Builder> builderFunction,
+            List<BiConsumer<String, MappingParserContext>> contextValidator
+        ) {
+            this(builderFunction, (n, c) -> contextValidator.forEach(v -> v.accept(n, c)), IndexVersions.MINIMUM_COMPATIBLE);
         }
 
         private TypeParser(

@@ -141,11 +141,14 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
 
     @Override
     protected ClusterBlockException checkBlock(RolloverRequest request, ClusterState state) {
-        IndicesOptions indicesOptions = IndicesOptions.fromOptions(
-            true,
-            true,
-            request.indicesOptions().expandWildcardsOpen(),
-            request.indicesOptions().expandWildcardsClosed()
+        final var indicesOptions = new IndicesOptions(
+            IndicesOptions.ConcreteTargetOptions.ALLOW_UNAVAILABLE_TARGETS,
+            IndicesOptions.WildcardOptions.builder()
+                .matchOpen(request.indicesOptions().expandWildcardsOpen())
+                .matchClosed(request.indicesOptions().expandWildcardsClosed())
+                .build(),
+            IndicesOptions.GatekeeperOptions.DEFAULT,
+            request.indicesOptions().failureStoreOptions()
         );
 
         return state.blocks()
@@ -166,11 +169,13 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
         assert task instanceof CancellableTask;
         Metadata metadata = clusterState.metadata();
         // We evaluate the names of the index for which we should evaluate conditions, as well as what our newly created index *would* be.
+        boolean targetFailureStore = rolloverRequest.indicesOptions().failureStoreOptions().includeFailureIndices();
         final MetadataRolloverService.NameResolution trialRolloverNames = MetadataRolloverService.resolveRolloverNames(
             clusterState,
             rolloverRequest.getRolloverTarget(),
             rolloverRequest.getNewIndexName(),
-            rolloverRequest.getCreateIndexRequest()
+            rolloverRequest.getCreateIndexRequest(),
+            targetFailureStore
         );
         final String trialSourceIndexName = trialRolloverNames.sourceName();
         final String trialRolloverIndexName = trialRolloverNames.rolloverName();
@@ -196,6 +201,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                 metadataDataStreamsService.setRolloverOnWrite(
                     rolloverRequest.getRolloverTarget(),
                     true,
+                    targetFailureStore,
                     rolloverRequest.ackTimeout(),
                     rolloverRequest.masterNodeTimeout(),
                     listener.map(
@@ -225,9 +231,15 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
             return;
         }
 
+        final var statsIndicesOptions = new IndicesOptions(
+            IndicesOptions.ConcreteTargetOptions.ALLOW_UNAVAILABLE_TARGETS,
+            IndicesOptions.WildcardOptions.builder().matchClosed(true).allowEmptyExpressions(false).build(),
+            IndicesOptions.GatekeeperOptions.DEFAULT,
+            rolloverRequest.indicesOptions().failureStoreOptions()
+        );
         IndicesStatsRequest statsRequest = new IndicesStatsRequest().indices(rolloverRequest.getRolloverTarget())
             .clear()
-            .indicesOptions(IndicesOptions.fromOptions(true, false, true, true))
+            .indicesOptions(statsIndicesOptions)
             .docs(true)
             .indexing(true);
         statsRequest.setParentTask(clusterService.localNode().getId(), task.getId());
@@ -250,11 +262,16 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                     final Optional<IndexStats> indexStats = Optional.ofNullable(statsResponse)
                         .map(stats -> stats.getIndex(dataStream.getWriteIndex().getName()));
 
-                    Double writeLoad = indexStats.map(stats -> stats.getTotal().getIndexing())
-                        .map(indexing -> indexing.getTotal().getWriteLoad())
-                        .orElse(null);
+                    Double indexWriteLoad = indexStats.map(
+                        stats -> Arrays.stream(stats.getShards())
+                            .filter(shardStats -> shardStats.getStats().indexing != null)
+                            // only take primaries into account as in stateful the replicas also index data
+                            .filter(shardStats -> shardStats.getShardRouting().primary())
+                            .map(shardStats -> shardStats.getStats().indexing.getTotal().getWriteLoad())
+                            .reduce(0.0, Double::sum)
+                    ).orElse(null);
 
-                    rolloverAutoSharding = dataStreamAutoShardingService.calculate(clusterState, dataStream, writeLoad);
+                    rolloverAutoSharding = dataStreamAutoShardingService.calculate(clusterState, dataStream, indexWriteLoad);
                     logger.debug("auto sharding result for data stream [{}] is [{}]", dataStream.getName(), rolloverAutoSharding);
 
                     // if auto sharding recommends increasing the number of shards we want to trigger a rollover even if there are no
@@ -349,7 +366,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                 .flatMap(Arrays::stream)
                 .filter(shard -> shard.getShardRouting().primary())
                 .map(ShardStats::getStats)
-                .mapToLong(shard -> shard.docs.getTotalSizeInBytes())
+                .mapToLong(shard -> shard.docs == null ? 0L : shard.docs.getTotalSizeInBytes())
                 .max()
                 .orElse(0);
 
@@ -359,7 +376,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                 .flatMap(Arrays::stream)
                 .filter(shard -> shard.getShardRouting().primary())
                 .map(ShardStats::getStats)
-                .mapToLong(shard -> shard.docs.getCount())
+                .mapToLong(shard -> shard.docs == null ? 0L : shard.docs.getCount())
                 .max()
                 .orElse(0);
 
@@ -439,7 +456,8 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                 currentState,
                 rolloverRequest.getRolloverTarget(),
                 rolloverRequest.getNewIndexName(),
-                rolloverRequest.getCreateIndexRequest()
+                rolloverRequest.getCreateIndexRequest(),
+                rolloverRequest.indicesOptions().failureStoreOptions().includeFailureIndices()
             );
 
             // Re-evaluate the conditions, now with our final source index name
@@ -489,13 +507,18 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                     false,
                     false,
                     sourceIndexStats,
-                    rolloverTask.autoShardingResult()
+                    rolloverTask.autoShardingResult(),
+                    rolloverRequest.indicesOptions().failureStoreOptions().includeFailureIndices()
                 );
                 results.add(rolloverResult);
                 logger.trace("rollover result [{}]", rolloverResult);
 
                 final var rolloverIndexName = rolloverResult.rolloverIndexName();
                 final var sourceIndexName = rolloverResult.sourceIndexName();
+
+                final var waitForActiveShardsTimeout = rolloverRequest.masterNodeTimeout().millis() < 0
+                    ? null
+                    : rolloverRequest.masterNodeTimeout();
 
                 rolloverTaskContext.success(() -> {
                     // Now assuming we have a new state and the name of the rolled over index, we need to wait for the configured number of
@@ -504,7 +527,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                         clusterService,
                         new String[] { rolloverIndexName },
                         rolloverRequest.getCreateIndexRequest().waitForActiveShards(),
-                        rolloverRequest.masterNodeTimeout(),
+                        waitForActiveShardsTimeout,
                         allocationActionMultiListener.delay(rolloverTask.listener())
                             .map(
                                 isShardsAcknowledged -> new RolloverResponse(

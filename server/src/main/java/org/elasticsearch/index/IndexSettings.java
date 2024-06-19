@@ -284,7 +284,7 @@ public final class IndexSettings {
         TimeValue.MINUS_ONE,
         Property.NodeScope
     ); // TODO: remove setting
-    public static TimeValue STATELESS_DEFAULT_REFRESH_INTERVAL = TimeValue.timeValueSeconds(15); // TODO: this value is still not final
+    public static TimeValue STATELESS_DEFAULT_REFRESH_INTERVAL = TimeValue.timeValueSeconds(5); // TODO: this value is still not final
     public static TimeValue STATELESS_MIN_NON_FAST_REFRESH_INTERVAL = TimeValue.timeValueSeconds(5);
     public static final Setting<TimeValue> INDEX_REFRESH_INTERVAL_SETTING = Setting.timeSetting("index.refresh_interval", (settings) -> {
         if (EXISTING_SHARDS_ALLOCATOR_SETTING.get(settings).equals("stateless") && INDEX_FAST_REFRESH_SETTING.get(settings) == false) {
@@ -1114,16 +1114,21 @@ public final class IndexSettings {
         final Settings newSettings = indexMetadata.getSettings();
         IndexVersion newIndexVersion = SETTING_INDEX_VERSION_CREATED.get(newSettings);
         if (version.equals(newIndexVersion) == false) {
-            throw new IllegalArgumentException("version mismatch on settings update expected: " + version + " but was: " + newIndexVersion);
+            throw new IllegalArgumentException(
+                "version mismatch on settings update expected: "
+                    + version.toReleaseVersion()
+                    + " but was: "
+                    + newIndexVersion.toReleaseVersion()
+            );
         }
         IndexVersion newCompatibilityVersion = IndexMetadata.SETTING_INDEX_VERSION_COMPATIBILITY.get(newSettings);
         IndexVersion compatibilityVersion = IndexMetadata.SETTING_INDEX_VERSION_COMPATIBILITY.get(settings);
         if (compatibilityVersion.equals(newCompatibilityVersion) == false) {
             throw new IllegalArgumentException(
                 "compatibility version mismatch on settings update expected: "
-                    + compatibilityVersion
+                    + compatibilityVersion.toReleaseVersion()
                     + " but was: "
-                    + newCompatibilityVersion
+                    + newCompatibilityVersion.toReleaseVersion()
             );
         }
         final String newUUID = newSettings.get(IndexMetadata.SETTING_INDEX_UUID, IndexMetadata.INDEX_UUID_NA_VALUE);

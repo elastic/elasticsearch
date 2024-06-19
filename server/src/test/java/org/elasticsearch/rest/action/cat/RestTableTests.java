@@ -200,7 +200,7 @@ public class RestTableTests extends ESTestCase {
         table.addCell("compare");
         table.endHeaders();
         restRequest.params().put("s", "notaheader");
-        Exception e = expectThrows(UnsupportedOperationException.class, () -> RestTable.getRowOrder(table, restRequest));
+        Exception e = expectThrows(IllegalArgumentException.class, () -> RestTable.getRowOrder(table, restRequest));
         assertEquals("Unable to sort by unknown sort key `notaheader`", e.getMessage());
     }
 
@@ -432,14 +432,15 @@ public class RestTableTests extends ESTestCase {
         };
 
         final var bodyChunks = new ArrayList<String>();
-        final var chunkedRestResponseBody = response.chunkedContent();
+        final var firstBodyPart = response.chunkedContent();
 
-        while (chunkedRestResponseBody.isDone() == false) {
-            try (var chunk = chunkedRestResponseBody.encodeChunk(pageSize, recycler)) {
+        while (firstBodyPart.isPartComplete() == false) {
+            try (var chunk = firstBodyPart.encodeChunk(pageSize, recycler)) {
                 assertThat(chunk.length(), greaterThan(0));
                 bodyChunks.add(chunk.utf8ToString());
             }
         }
+        assertTrue(firstBodyPart.isLastPart());
         assertEquals(0, openPages.get());
         return bodyChunks;
     }

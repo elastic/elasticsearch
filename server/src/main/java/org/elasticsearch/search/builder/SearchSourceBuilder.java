@@ -299,7 +299,9 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
             out.writeCollection(subSearchSourceBuilders);
         } else if (out.getTransportVersion().before(TransportVersions.V_8_4_0) && subSearchSourceBuilders.size() >= 2) {
-            throw new IllegalArgumentException("cannot serialize [sub_searches] to version [" + out.getTransportVersion() + "]");
+            throw new IllegalArgumentException(
+                "cannot serialize [sub_searches] to version [" + out.getTransportVersion().toReleaseVersion() + "]"
+            );
         } else {
             out.writeOptionalNamedWriteable(query());
         }
@@ -346,8 +348,10 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
             if (out.getTransportVersion().before(TransportVersions.V_8_7_0)) {
                 if (knnSearch.size() > 1) {
                     throw new IllegalArgumentException(
-                        "Versions before 8070099 don't support multiple [knn] search clauses and search was sent to ["
-                            + out.getTransportVersion()
+                        "Versions before ["
+                            + TransportVersions.V_8_7_0.toReleaseVersion()
+                            + "] don't support multiple [knn] search clauses and search was sent to ["
+                            + out.getTransportVersion().toReleaseVersion()
                             + "]"
                     );
                 }
@@ -359,7 +363,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
             out.writeOptionalNamedWriteable(rankBuilder);
         } else if (rankBuilder != null) {
-            throw new IllegalArgumentException("cannot serialize [rank] to version [" + out.getTransportVersion() + "]");
+            throw new IllegalArgumentException("cannot serialize [rank] to version [" + out.getTransportVersion().toReleaseVersion() + "]");
         }
     }
 

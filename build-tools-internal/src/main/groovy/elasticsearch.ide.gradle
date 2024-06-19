@@ -130,7 +130,8 @@ if (providers.systemProperty('idea.active').getOrNull() == 'true') {
       ':server:generateModulesList',
       ':server:generatePluginsList',
       ':generateProviderImpls',
-      ':libs:elasticsearch-native:elasticsearch-native-libraries:extractLibs'].collect { elasticsearchProject.right()?.task(it) ?: it })
+      ':libs:elasticsearch-native:elasticsearch-native-libraries:extractLibs',
+      ':x-pack:libs:es-opensaml-security-api:shadowJar'].collect { elasticsearchProject.right()?.task(it) ?: it })
   }
 
   // this path is produced by the extractLibs task above
@@ -239,20 +240,22 @@ if (providers.systemProperty('idea.active').getOrNull() == 'true') {
  * but before the XML document, e.g. a doctype or comment
  */
 void modifyXml(Object path, Action<? super Node> action, String preface = null) {
-  Node xml = parseXml(path)
-  action.execute(xml)
+  if (project.file(path).exists()) {
+    Node xml = parseXml(path)
+    action.execute(xml)
 
-  File xmlFile = project.file(path)
-  xmlFile.withPrintWriter { writer ->
-    def printer = new XmlNodePrinter(writer)
-    printer.namespaceAware = true
-    printer.preserveWhitespace = true
-    writer.write("<?xml version=\"1.0\"?>\n")
+    File xmlFile = project.file(path)
+    xmlFile.withPrintWriter { writer ->
+      def printer = new XmlNodePrinter(writer)
+      printer.namespaceAware = true
+      printer.preserveWhitespace = true
+      writer.write("<?xml version=\"1.0\"?>\n")
 
-    if (preface != null) {
-      writer.write(preface)
+      if (preface != null) {
+        writer.write(preface)
+      }
+      printer.print(xml)
     }
-    printer.print(xml)
   }
 }
 

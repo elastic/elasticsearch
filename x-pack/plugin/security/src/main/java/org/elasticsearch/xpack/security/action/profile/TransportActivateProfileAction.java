@@ -39,7 +39,6 @@ public class TransportActivateProfileAction extends TransportGrantAction<Activat
             ActivateProfileAction.NAME,
             transportService,
             actionFilters,
-            ActivateProfileRequest::new,
             authenticationService,
             authorizationService,
             threadPool.getThreadContext()

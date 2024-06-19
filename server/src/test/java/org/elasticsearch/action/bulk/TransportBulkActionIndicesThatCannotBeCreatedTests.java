@@ -39,6 +39,7 @@ import org.elasticsearch.transport.TransportService;
 
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.Executor;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
@@ -137,7 +138,7 @@ public class TransportBulkActionIndicesThatCannotBeCreatedTests extends ESTestCa
                 BulkRequest bulkRequest,
                 long startTimeNanos,
                 ActionListener<BulkResponse> listener,
-                String executorName,
+                Executor executor,
                 AtomicArray<BulkItemResponse> responses,
                 Map<String, IndexNotFoundException> indicesThatCannotBeCreated
             ) {

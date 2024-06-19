@@ -20,8 +20,6 @@ import org.elasticsearch.common.inject.binder.AnnotatedBindingBuilder;
 import org.elasticsearch.common.inject.binder.LinkedBindingBuilder;
 import org.elasticsearch.common.inject.spi.Message;
 
-import java.lang.annotation.Annotation;
-
 /**
  * Collects configuration information (primarily <i>bindings</i>) which will be
  * used to create an {@link Injector}. Guice provides this object to your
@@ -96,11 +94,6 @@ import java.lang.annotation.Annotation;
  * <p><b>Note:</b> a scope specified in this way <i>overrides</i> any scope that
  * was specified with an annotation on the {@code ServiceImpl} class.
  *
- * <p>Besides {@link Singleton}/{@link Scopes#SINGLETON}, there are
- * servlet-specific scopes available in
- * {@code com.google.inject.servlet.ServletScopes}, and your Modules can
- * contribute their own custom scopes for use here as well.
- *
  * <pre>
  *     bind(new TypeLiteral&lt;PaymentService&lt;CreditCard&gt;&gt;() {})
  *         .to(CreditCardPaymentService.class);</pre>
@@ -165,8 +158,7 @@ import java.lang.annotation.Annotation;
  * cases Guice will let something bogus slip by, and will then inform you of
  * the problems at runtime, as soon as you try to create your Injector.
  *
- * <p>The other methods of Binder such as {@link #bindScope},
- * {@link #install}, and {@link #addError} are not part of the Binding EDSL;
+ * <p>The other methods of Binder such as {@link #install}, and {@link #addError} are not part of the Binding EDSL;
  * you can learn how to use these in the usual way, from the method
  * documentation.
  *
@@ -175,11 +167,6 @@ import java.lang.annotation.Annotation;
  * @author kevinb@google.com (Kevin Bourrillion)
  */
 public interface Binder {
-
-    /**
-     * Binds a scope to an annotation.
-     */
-    void bindScope(Class<? extends Annotation> annotationType, Scope scope);
 
     /**
      * See the EDSL examples at {@link Binder}.

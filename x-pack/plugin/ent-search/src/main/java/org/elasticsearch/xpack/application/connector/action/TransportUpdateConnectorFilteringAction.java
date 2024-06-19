@@ -11,12 +11,16 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.application.connector.ConnectorFiltering;
 import org.elasticsearch.xpack.application.connector.ConnectorIndexService;
+import org.elasticsearch.xpack.application.connector.filtering.FilteringAdvancedSnippet;
+import org.elasticsearch.xpack.application.connector.filtering.FilteringRule;
+
+import java.util.List;
 
 public class TransportUpdateConnectorFilteringAction extends HandledTransportAction<
     UpdateConnectorFilteringAction.Request,
@@ -25,12 +29,7 @@ public class TransportUpdateConnectorFilteringAction extends HandledTransportAct
     protected final ConnectorIndexService connectorIndexService;
 
     @Inject
-    public TransportUpdateConnectorFilteringAction(
-        TransportService transportService,
-        ClusterService clusterService,
-        ActionFilters actionFilters,
-        Client client
-    ) {
+    public TransportUpdateConnectorFilteringAction(TransportService transportService, ActionFilters actionFilters, Client client) {
         super(
             UpdateConnectorFilteringAction.NAME,
             transportService,
@@ -47,6 +46,27 @@ public class TransportUpdateConnectorFilteringAction extends HandledTransportAct
         UpdateConnectorFilteringAction.Request request,
         ActionListener<ConnectorUpdateActionResponse> listener
     ) {
-        connectorIndexService.updateConnectorFiltering(request, listener.map(r -> new ConnectorUpdateActionResponse(r.getResult())));
+        String connectorId = request.getConnectorId();
+        List<ConnectorFiltering> filtering = request.getFiltering();
+        FilteringAdvancedSnippet advancedSnippet = request.getAdvancedSnippet();
+        List<FilteringRule> rules = request.getRules();
+        // If [filtering] is not present in request body, it means that user's intention is to
+        // update draft's rules or advanced snippet
+        if (request.getFiltering() == null) {
+            connectorIndexService.updateConnectorFilteringDraft(
+                connectorId,
+                advancedSnippet,
+                rules,
+                listener.map(r -> new ConnectorUpdateActionResponse(r.getResult()))
+            );
+        }
+        // Otherwise override the whole filtering object (discouraged in docs)
+        else {
+            connectorIndexService.updateConnectorFiltering(
+                connectorId,
+                filtering,
+                listener.map(r -> new ConnectorUpdateActionResponse(r.getResult()))
+            );
+        }
     }
 }

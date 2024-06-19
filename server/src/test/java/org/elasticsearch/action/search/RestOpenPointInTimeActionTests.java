@@ -8,6 +8,7 @@
 
 package org.elasticsearch.action.search;
 
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.rest.FakeRestRequest;
@@ -30,7 +31,7 @@ public class RestOpenPointInTimeActionTests extends RestActionTestCase {
         verifyingClient.setExecuteVerifier(((actionType, transportRequest) -> {
             assertThat(transportRequest, instanceOf(OpenPointInTimeRequest.class));
             transportRequests.add((OpenPointInTimeRequest) transportRequest);
-            return new OpenPointInTimeResponse("n/a");
+            return new OpenPointInTimeResponse(new BytesArray("n/a"));
         }));
         {
             RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.POST)

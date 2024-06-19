@@ -312,7 +312,7 @@ null       | null      | null            | 11    | 0     | 1.3.0  | 0.1     | no
 ;
 
 values
-required_feature: esql.agg_values
+required_capability: agg_values
 
   FROM apps
 | STATS version=MV_SORT(VALUES(version))
@@ -323,7 +323,7 @@ required_feature: esql.agg_values
 ;
 
 valuesGrouped
-required_feature: esql.agg_values
+required_capability: agg_values
 
   FROM apps
 | EVAL name=SUBSTRING(name, 0, 1)
@@ -348,7 +348,7 @@ version:version | name:keyword
 ;
 
 valuesGroupedByOrdinals
-required_feature: esql.agg_values
+required_capability: agg_values
 
   FROM apps
 | STATS version=MV_SORT(VALUES(version)) BY name
@@ -369,4 +369,65 @@ version:version | name:keyword
            null | kkkkk
            null | lllll
           5.2.9 | mmmmm
+;
+
+
+mvAppend
+required_capability: fn_mv_append
+
+ROW a = to_version("1.2.0"), x1 = to_version("0.0.1"), x2 = to_version("1.0.0")
+| EVAL b = mv_append(x1, x2)
+| EVAL aa = mv_append(a, a), bb = mv_append(b, b), ab = mv_append(a, b), abb = mv_append(mv_append(a, b), b)
+| KEEP a, b, aa, bb, ab, abb
+;
+
+a:version | b:version       | aa:version         | bb:version                   | ab:version             | abb:version
+1.2.0     | [0.0.1, 1.0.0]  | [1.2.0, 1.2.0]     | [0.0.1, 1.0.0, 0.0.1, 1.0.0] | [1.2.0, 0.0.1, 1.0.0]  | [1.2.0, 0.0.1, 1.0.0, 0.0.1, 1.0.0]
+;
+
+
+implictCastingEqual
+required_capability: string_literal_auto_casting_extended
+from apps | where version == "1.2.3.4" | sort name | keep name, version;
+
+name:keyword | version:version
+aaaaa        | 1.2.3.4
+hhhhh        | 1.2.3.4
+;
+
+implictCastingNotEqual
+required_capability: string_literal_auto_casting_extended
+from apps | where version != "1.2.3.4" | sort name, version | keep name, version | limit 2;
+
+name:keyword | version:version
+aaaaa        | 1
+bbbbb        | 2.1
+;
+
+implictCastingGreaterThan
+required_capability: string_literal_auto_casting_extended
+from apps | where version > "1.2.3.4" | sort name, version | keep name, version | limit 2;
+
+name:keyword | version:version
+bbbbb        | 2.1
+ccccc        | 2.3.4
+;
+
+implictCastingLessThanOrEqual
+required_capability: string_literal_auto_casting_extended
+from apps | where version <= "1.2.3.4" | sort name, version | keep name, version | limit 2;
+
+name:keyword | version:version
+aaaaa        | 1
+aaaaa        | 1.2.3.4
+;
+
+implictCastingIn
+required_capability: string_literal_auto_casting_extended
+from apps | where version in ( "1.2.3.4", "bad" ) | sort name | keep name, version;
+
+name:keyword | version:version
+aaaaa        | 1.2.3.4
+hhhhh        | 1.2.3.4
+iiiii        | bad
 ;

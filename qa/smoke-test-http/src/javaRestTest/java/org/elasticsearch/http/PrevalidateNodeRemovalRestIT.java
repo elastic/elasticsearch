@@ -29,7 +29,7 @@ public class PrevalidateNodeRemovalRestIT extends HttpSmokeTestCase {
 
     public void testRestStatusCode() throws IOException {
         String node1Name = internalCluster().getRandomNodeName();
-        String node1Id = internalCluster().clusterService(node1Name).localNode().getId();
+        String node1Id = getNodeId(node1Name);
         ensureGreen();
         RestClient client = getRestClient();
 

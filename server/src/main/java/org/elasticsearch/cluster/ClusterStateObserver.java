@@ -46,10 +46,6 @@ public class ClusterStateObserver {
     volatile Long startTimeMS;
     volatile boolean timedOut;
 
-    public ClusterStateObserver(ClusterService clusterService, Logger logger, ThreadContext contextHolder) {
-        this(clusterService, new TimeValue(60000), logger, contextHolder);
-    }
-
     /**
      * @param timeout        a global timeout for this observer. After it has expired the observer
      *                       will fail any existing or new #waitForNextChange calls. Set to null

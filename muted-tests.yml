@@ -11,6 +11,9 @@ tests:
   issue: "https://github.com/elastic/elasticsearch/issues/109903"
   method: "test {p0=old_cluster/30_ml_jobs_crud/Put job on the old cluster with the\
     \ default model memory limit and post some data}"
+- class: "org.elasticsearch.xpack.test.rest.XPackRestIT"
+  issue: "https://github.com/elastic/elasticsearch/issues/109902"
+  method: "test {p0=ml/post_data/Test flush with skip_time}"
 
 # Examples:
 #

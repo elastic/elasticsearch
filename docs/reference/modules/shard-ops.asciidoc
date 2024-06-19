@@ -5,7 +5,7 @@ Data in Elasticsearch is organized into indices. Each index in Elasticsearch is 
 
 There are two types of shards: primaries and replicas. Each document in an index belongs to one primary shard, which serves as the main entry point for all indexing operations. A replica shard is a copy of a primary shard. Replicas provide redundant copies of your data to protect against hardware failure and increase capacity to serve read requests like searching or retrieving a document.
 
-Over the course of normal operation, Elasticsearch allocates shards to nodes, relocates shards across nodes to balance the cluster, and recovers shards to ensure that the required number of replicas are available. This section describes how these operations work and how you can control them.
+Over the course of normal operation, Elasticsearch allocates shards to nodes, relocates shards across nodes to balance the cluster, and recovers shards to initialize new copies. This section describes how these operations work and how you can control them.
 
 TIP: To learn about optimizing the number and size of shards in your cluster, refer to <<size-your-shards,Size your shards>> To learn about how read and write operations are replicated across shards, refer to <<docs-replication,Reading and writing documents>>.
 
@@ -41,8 +41,8 @@ include::{es-ref-dir}/modules/shard-recovery-desc.asciidoc[]
 To control how shards are recovered, for example the number of recoveries that can happen concurrently, the resources that can be used by recovery operations, and which indices should be prioritized for recovery, you can adjust the following settings: 
 
 - <<recovery,Index recovery settings>>
-- <<modules-cluster,cluster-level shard allocation settings>>
-- <<index-modules-allocation,index-level shard allocation settings>>, including <<delayed-allocation,delayed allocation>> and <<recovery-prioritization,index recovery prioritization>> 
+- <<modules-cluster,Cluster-level shard allocation settings>>
+- <<index-modules-allocation,Index-level shard allocation settings>>, including <<delayed-allocation,delayed allocation>> and <<recovery-prioritization,index recovery prioritization>> 
 
 ===== Monitor shard recovery
 
@@ -59,4 +59,4 @@ When a shard is relocated, it is created as a new replica shard on the target no
 
 ===== Adjust shard relocation settings
 
-To control how and when a shard is relocated, you can adjust the <<modules-cluster,cluster-level shard allocation settings>> and the <<index-modules-allocation,index-level shard allocation settings>>. For example, you can adjust the rebalancing settings that control when shards are relocated to balance the cluster, or the high watermark for disk-based shard allocation that can trigger shard relocation.
+You can control how and when shards are relocated. For example, you can adjust the rebalancing settings that control when shards are relocated to balance the cluster, or the high watermark for disk-based shard allocation that can trigger shard relocation. To these settings are part of the <<modules-cluster,cluster-level shard allocation settings>>.

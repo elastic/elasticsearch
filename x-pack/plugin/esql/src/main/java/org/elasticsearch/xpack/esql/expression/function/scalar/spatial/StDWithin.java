@@ -224,7 +224,12 @@ public class StDWithin extends StDistance implements EvaluatorMapper, SpatialEva
                     }
                 } else if (crsType() == SpatialCrsType.CARTESIAN) {
                     if (docValues) {
-                        return new StDWithinCartesianPointDocValuesAndConstantAndConstantEvaluator.Factory(source(), fieldEvaluator, point, dist);
+                        return new StDWithinCartesianPointDocValuesAndConstantAndConstantEvaluator.Factory(
+                            source(),
+                            fieldEvaluator,
+                            point,
+                            dist
+                        );
                     } else {
                         return new StDWithinCartesianFieldAndConstantAndConstantEvaluator.Factory(source(), fieldEvaluator, point, dist);
                     }

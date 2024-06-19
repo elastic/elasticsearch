@@ -562,16 +562,17 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
 
     private DocumentMapper doMerge(String type, MergeReason reason, Map<String, Object> mappingSourceAsMap) {
         Mapping incomingMapping = parseMapping(type, reason, mappingSourceAsMap);
+        // TODO: In many cases the source here is equal to mappingSource so we need not serialize again.
+        // We should identify these cases reliably and save expensive serialization here
         if (reason == MergeReason.MAPPING_AUTO_UPDATE_PREFLIGHT) {
+            // only doing a merge without updating the actual #mapper field, no need to synchronize
             Mapping mapping = mergeMappings(this.mapper, incomingMapping, MergeReason.MAPPING_AUTO_UPDATE_PREFLIGHT, this.indexSettings);
-            // TODO: In many cases the source here is equal to mappingSource so we need not serialize again.
-            // We should identify these cases reliably and save expensive serialization here
             return newDocumentMapper(mapping, MergeReason.MAPPING_AUTO_UPDATE_PREFLIGHT, mapping.toCompressedXContent());
         } else {
+            // synchronized concurrent mapper updates are guaranteed to set merged mappers derived from the mapper value previously read
+            // TODO: can we even have concurrent updates here?
             synchronized (this) {
                 Mapping mapping = mergeMappings(this.mapper, incomingMapping, reason, this.indexSettings);
-                // TODO: In many cases the source here is equal to mappingSource so we need not serialize again.
-                // We should identify these cases reliably and save expensive serialization here
                 DocumentMapper newMapper = newDocumentMapper(mapping, reason, mapping.toCompressedXContent());
                 this.mapper = newMapper;
                 assert assertSerialization(newMapper, reason);

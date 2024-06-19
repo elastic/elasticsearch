@@ -42,7 +42,7 @@ public class AdaptiveAllocationsScaler {
         this.maxNumberOfAllocations = maxNumberOfAllocations;
     }
 
-    void process(AdaptiveAllocationsScalerService.Stats stats, int timeIntervalSeconds, int numberOfAllocations) {
+    void process(AdaptiveAllocationsScalerService.Stats stats, double timeIntervalSeconds, int numberOfAllocations) {
         double requestRate = (double) stats.requestCount() / timeIntervalSeconds;
         double requestRateEstimate = requestRateEstimator.hasValue() ? requestRateEstimator.estimate() : requestRate;
         double requestRateVariance = Math.max(1.0, requestRateEstimate * timeIntervalSeconds) / Math.pow(timeIntervalSeconds, 2);

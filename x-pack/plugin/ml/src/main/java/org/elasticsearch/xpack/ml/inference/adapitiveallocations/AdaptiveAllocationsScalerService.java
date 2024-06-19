@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignme
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 public class AdaptiveAllocationsScalerService implements ClusterStateListener {
 
@@ -72,11 +73,12 @@ public class AdaptiveAllocationsScalerService implements ClusterStateListener {
     private final ClusterService clusterService;
     private final Client client;
     private final boolean isNlpEnabled;
-
-    private final Map<String, Stats> lastInferenceStatsByDeploymentNode;
+    private final Map<String, Map<String, Stats>> lastInferenceStatsByDeploymentAndNode;
+    private Long lastInferenceStatsTimestampMillis;
     private final Map<String, AdaptiveAllocationsScaler> scalers;
 
     private volatile Scheduler.Cancellable cancellable;
+    private AtomicBoolean busy;
 
     public AdaptiveAllocationsScalerService(ThreadPool threadPool, ClusterService clusterService, Client client, boolean isNlpEnabled) {
         this(threadPool, clusterService, client, isNlpEnabled, DEFAULT_TIME_INTERVAL_SECONDS);
@@ -90,8 +92,11 @@ public class AdaptiveAllocationsScalerService implements ClusterStateListener {
         this.isNlpEnabled = isNlpEnabled;
         this.timeIntervalSeconds = timeIntervalSeconds;
 
-        lastInferenceStatsByDeploymentNode = new HashMap<>();
+        lastInferenceStatsByDeploymentAndNode = new HashMap<>();
+        lastInferenceStatsTimestampMillis = null;
         scalers = new HashMap<>();
+        busy = new AtomicBoolean(false);
+
     }
 
     public synchronized void start() {
@@ -134,6 +139,7 @@ public class AdaptiveAllocationsScalerService implements ClusterStateListener {
                 );
             } else {
                 scalers.remove(assignment.getDeploymentId());
+                lastInferenceStatsByDeploymentAndNode.remove(assignment.getDeploymentId());
             }
         }
     }
@@ -163,51 +169,79 @@ public class AdaptiveAllocationsScalerService implements ClusterStateListener {
         }
     }
 
-    private synchronized void trigger() {
-        getDeploymentStats(ActionListener.wrap(this::processDeploymentStats, e -> logger.warn("Error in inference adaptive allocations", e)));
+    private void trigger() {
+        if (busy.getAndSet(true)) {
+            logger.debug("Skipping inference adaptive allocations scaling, because it's still busy.");
+            return;
+        }
+        ActionListener<GetDeploymentStatsAction.Response> listener = ActionListener.runAfter(
+            ActionListener.wrap(
+                this::processDeploymentStats,
+                e -> logger.warn("Error in inference adaptive allocations scaling", e)
+            ),
+            () -> busy.set(false)
+        );
+        getDeploymentStats(listener);
     }
 
-    private synchronized void getDeploymentStats(ActionListener<GetDeploymentStatsAction.Response> processDeploymentStats) {
+    private void getDeploymentStats(ActionListener<GetDeploymentStatsAction.Response> processDeploymentStats) {
         String deploymentIds = String.join(",", scalers.keySet());
         ClientHelper.executeAsyncWithOrigin(
             client,
             ClientHelper.ML_ORIGIN,
             GetDeploymentStatsAction.INSTANCE,
+            // TODO(dave/jan): create a lightweight version of this request, because the current one
+            //                 collects too much data for the adaptive allocations scaler.
             new GetDeploymentStatsAction.Request(deploymentIds),
             processDeploymentStats
         );
     }
 
-    private synchronized void processDeploymentStats(GetDeploymentStatsAction.Response statsResponse) {
+    private void processDeploymentStats(GetDeploymentStatsAction.Response statsResponse) {
+        Double statsTimeInterval;
+        long now = System.currentTimeMillis();
+        if (lastInferenceStatsTimestampMillis != null) {
+            statsTimeInterval = (now - lastInferenceStatsTimestampMillis) / 1000.0;
+        } else {
+            statsTimeInterval = null;
+        }
+        lastInferenceStatsTimestampMillis = now;
+
         Map<String, Stats> recentStatsByDeployment = new HashMap<>();
         Map<String, Integer> numberOfAllocations = new HashMap<>();
 
         for (AssignmentStats assignmentStats : statsResponse.getStats().results()) {
-            numberOfAllocations.put(assignmentStats.getDeploymentId(), assignmentStats.getNumberOfAllocations());
+            String deploymentId = assignmentStats.getDeploymentId();
+            numberOfAllocations.put(deploymentId, assignmentStats.getNumberOfAllocations());
+            Map<String, Stats> deploymentStats = lastInferenceStatsByDeploymentAndNode.computeIfAbsent(deploymentId, key -> new HashMap<>());
             for (AssignmentStats.NodeStats nodeStats : assignmentStats.getNodeStats()) {
-                String statsId = assignmentStats.getDeploymentId() + "@" + nodeStats.getNode().getId();
-                Stats lastStats = lastInferenceStatsByDeploymentNode.get(statsId);
+                String nodeId = nodeStats.getNode().getId();
+                Stats lastStats = deploymentStats.get(nodeId);
                 Stats nextStats = new Stats(
                     nodeStats.getInferenceCount().orElse(0L),
                     nodeStats.getPendingCount() == null ? 0 : nodeStats.getPendingCount(),
                     nodeStats.getErrorCount() + nodeStats.getTimeoutCount() + nodeStats.getRejectedExecutionCount(),
                     nodeStats.getAvgInferenceTime().orElse(0.0) / 1000.0
                 );
-                lastInferenceStatsByDeploymentNode.put(statsId, nextStats);
-
-                Stats recentStats = (lastStats == null ? nextStats : nextStats.sub(lastStats));
-                recentStatsByDeployment.compute(
-                    assignmentStats.getDeploymentId(),
-                    (key, value) -> value == null ? recentStats : value.add(recentStats)
-                );
+                deploymentStats.put(nodeId, nextStats);
+                if (lastStats != null) {
+                    Stats recentStats = nextStats.sub(lastStats);
+                    recentStatsByDeployment.compute(assignmentStats.getDeploymentId(),
+                        (key, value) -> value == null ? recentStats : value.add(recentStats)
+                    );
+                }
             }
+        }
+
+        if (statsTimeInterval == null) {
+            return;
         }
 
         for (Map.Entry<String, Stats> deploymentAndStats : recentStatsByDeployment.entrySet()) {
             String deploymentId = deploymentAndStats.getKey();
             Stats stats = deploymentAndStats.getValue();
             AdaptiveAllocationsScaler adaptiveAllocationsScaler = scalers.get(deploymentId);
-            adaptiveAllocationsScaler.process(stats, timeIntervalSeconds, numberOfAllocations.get(deploymentId));
+            adaptiveAllocationsScaler.process(stats, statsTimeInterval, numberOfAllocations.get(deploymentId));
             Integer newNumberOfAllocations = adaptiveAllocationsScaler.scale();
             if (newNumberOfAllocations != null) {
                 UpdateTrainedModelDeploymentAction.Request updateRequest = new UpdateTrainedModelDeploymentAction.Request(deploymentId);

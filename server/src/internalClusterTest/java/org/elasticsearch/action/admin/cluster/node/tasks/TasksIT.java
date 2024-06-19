@@ -488,7 +488,6 @@ public class TasksIT extends ESIntegTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/109686")
     public void testTasksCancellation() throws Exception {
         // Start blocking test task
         // Get real client (the plugin is not registered on transport nodes)
@@ -510,6 +509,9 @@ public class TasksIT extends ESIntegTestCase {
         assertEquals(1, cancelTasksResponse.getTasks().size());
 
         expectThrows(TaskCancelledException.class, future);
+
+        logger.info("--> waiting for all ongoing tasks to complete within a reasonable time");
+        safeGet(clusterAdmin().prepareListTasks().setActions(TEST_TASK_ACTION.name() + "*").setWaitForCompletion(true).execute());
 
         logger.info("--> checking that test tasks are not running");
         assertEquals(0, clusterAdmin().prepareListTasks().setActions(TEST_TASK_ACTION.name() + "*").get().getTasks().size());

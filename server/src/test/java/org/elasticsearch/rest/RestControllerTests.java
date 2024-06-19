@@ -37,6 +37,8 @@ import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.rest.RestHandler.Route;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.telemetry.TelemetryProvider;
+import org.elasticsearch.telemetry.metric.LongCounter;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpNodeClient;
@@ -93,6 +95,7 @@ public class RestControllerTests extends ESTestCase {
     private TestThreadPool threadPool;
     private NodeClient client;
     private Tracer tracer;
+    private LongCounter requestsCounter;
     private TelemetryProvider telemetryProvider;
     private List<RestRequest.Method> methodList;
 
@@ -116,8 +119,13 @@ public class RestControllerTests extends ESTestCase {
         threadPool = createThreadPool();
         client = new NoOpNodeClient(threadPool);
         tracer = mock(Tracer.class);
+        requestsCounter = mock(LongCounter.class);
         telemetryProvider = mock(TelemetryProvider.class);
+        var mockMeterRegister = mock(MeterRegistry.class);
         when(telemetryProvider.getTracer()).thenReturn(tracer);
+        when(telemetryProvider.getMeterRegistry()).thenReturn(mockMeterRegister);
+        when(mockMeterRegister.registerLongCounter(eq(RestController.METRIC_REQUESTS_TOTAL), anyString(), anyString()))
+            .thenReturn(requestsCounter);
 
         restController = new RestController(null, client, circuitBreakerService, usageService, telemetryProvider);
         restController.registerHandler(

@@ -40,6 +40,7 @@ import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.rest.RestHandler.Route;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.telemetry.TelemetryProvider;
+import org.elasticsearch.telemetry.metric.LongCounter;
 import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.transport.Transports;
 import org.elasticsearch.usage.SearchUsageHolder;
@@ -108,8 +109,11 @@ public class RestController implements HttpServerTransport.Dispatcher {
 
     private final UsageService usageService;
     private final Tracer tracer;
+    private final LongCounter requestsCounter;
     // If true, the ServerlessScope annotations will be enforced
     private final ServerlessApiProtections apiProtections;
+
+    public static final String METRIC_REQUESTS_TOTAL = "es.rest.requests.total";
 
     public RestController(
         RestInterceptor restInterceptor,
@@ -120,6 +124,8 @@ public class RestController implements HttpServerTransport.Dispatcher {
     ) {
         this.usageService = usageService;
         this.tracer = telemetryProvider.getTracer();
+        this.requestsCounter = telemetryProvider.getMeterRegistry().registerLongCounter(METRIC_REQUESTS_TOTAL,
+            "The total number of rest requests/responses processed", "unit");
         if (restInterceptor == null) {
             restInterceptor = (request, channel, targetHandler, listener) -> listener.onResponse(Boolean.TRUE);
         }
@@ -326,11 +332,12 @@ public class RestController implements HttpServerTransport.Dispatcher {
     @Override
     public void dispatchRequest(RestRequest request, RestChannel channel, ThreadContext threadContext) {
         threadContext.addResponseHeader(ELASTIC_PRODUCT_HTTP_HEADER, ELASTIC_PRODUCT_HTTP_HEADER_VALUE);
+        var decoratedChannel = new MeteringRestChannelDecorator(channel, requestsCounter);
         try {
-            tryAllHandlers(request, channel, threadContext);
+            tryAllHandlers(request, decoratedChannel, threadContext);
         } catch (Exception e) {
             try {
-                sendFailure(channel, e);
+                sendFailure(decoratedChannel, e);
             } catch (Exception inner) {
                 inner.addSuppressed(e);
                 logger.error(() -> "failed to send failure response for uri [" + request.uri() + "]", inner);
@@ -341,6 +348,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
     @Override
     public void dispatchBadRequest(final RestChannel channel, final ThreadContext threadContext, final Throwable cause) {
         threadContext.addResponseHeader(ELASTIC_PRODUCT_HTTP_HEADER, ELASTIC_PRODUCT_HTTP_HEADER_VALUE);
+        var decoratedChannel = new MeteringRestChannelDecorator(channel, requestsCounter);
         try {
             final Exception e;
             if (cause == null) {
@@ -353,16 +361,16 @@ public class RestController implements HttpServerTransport.Dispatcher {
             // unless it's a http headers validation error, we consider any exceptions encountered so far during request processing
             // to be a problem of invalid/malformed request (hence the RestStatus#BAD_REQEST (400) HTTP response code)
             if (e instanceof HttpHeadersValidationException) {
-                sendFailure(channel, (Exception) e.getCause());
+                sendFailure(decoratedChannel, (Exception) e.getCause());
             } else {
-                channel.sendResponse(new RestResponse(channel, BAD_REQUEST, e));
+                decoratedChannel.sendResponse(new RestResponse(decoratedChannel, BAD_REQUEST, e));
             }
         } catch (final IOException e) {
             if (cause != null) {
                 e.addSuppressed(cause);
             }
             logger.warn("failed to send bad request response", e);
-            channel.sendResponse(new RestResponse(INTERNAL_SERVER_ERROR, RestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY));
+            decoratedChannel.sendResponse(new RestResponse(INTERNAL_SERVER_ERROR, RestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY));
         }
     }
 
@@ -770,6 +778,81 @@ public class RestController implements HttpServerTransport.Dispatcher {
             }
         }
         return validMethods;
+    }
+
+    private static final class MeteringRestChannelDecorator implements RestChannel {
+
+        private final RestChannel delegate;
+        private final LongCounter requestCounter;
+
+        private MeteringRestChannelDecorator(RestChannel delegate, LongCounter requestCounter) {
+            this.delegate = delegate;
+            this.requestCounter = requestCounter;
+        }
+
+        @Override
+        public XContentBuilder newBuilder() throws IOException {
+            return delegate.newBuilder();
+        }
+
+        @Override
+        public XContentBuilder newErrorBuilder() throws IOException {
+            return delegate.newErrorBuilder();
+        }
+
+        @Override
+        public XContentBuilder newBuilder(@Nullable XContentType xContentType, boolean useFiltering) throws IOException {
+            return delegate.newBuilder(xContentType, useFiltering);
+        }
+
+        @Override
+        public XContentBuilder newBuilder(XContentType xContentType, XContentType responseContentType, boolean useFiltering)
+            throws IOException {
+            return delegate.newBuilder(xContentType, responseContentType, useFiltering);
+        }
+
+        @Override
+        public XContentBuilder newBuilder(
+            XContentType xContentType,
+            XContentType responseContentType,
+            boolean useFiltering,
+            OutputStream out
+        ) throws IOException {
+            return delegate.newBuilder(xContentType, responseContentType, useFiltering, out);
+        }
+
+        @Override
+        public BytesStream bytesOutput() {
+            return delegate.bytesOutput();
+        }
+
+        @Override
+        public void releaseOutputBuffer() {
+            delegate.releaseOutputBuffer();
+        }
+
+        @Override
+        public RestRequest request() {
+            return delegate.request();
+        }
+
+        @Override
+        public boolean detailedErrorsEnabled() {
+            return delegate.detailedErrorsEnabled();
+        }
+
+        @Override
+        public void sendResponse(RestResponse response) {
+            delegate.sendResponse(response);
+            try {
+                Map<String, Object> attributes = Map.of("es.rest.status_code", response.status().getStatus(),
+                    "es.rest.request_path", request().path(),
+                    "es.rest.request_method", request().method().name());
+                requestCounter.incrementBy(1, attributes);
+            } catch (Exception ex) {
+                logger.error("Cannot track request status code", ex);
+            }
+        }
     }
 
     private static final class ResourceHandlingHttpChannel implements RestChannel {

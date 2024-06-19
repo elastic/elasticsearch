@@ -28,6 +28,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
+import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteUtils;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryRequest;
@@ -281,7 +282,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
      */
     public void startShardRecovery(String sourceNode, String targetNode) throws Exception {
         logger.info("--> updating cluster settings with moving shard from node `{}` to node `{}`", sourceNode, targetNode);
-        clusterAdmin().prepareReroute().add(new MoveAllocationCommand(INDEX_NAME, 0, sourceNode, targetNode)).get().getState();
+        ClusterRerouteUtils.reroute(client(), new MoveAllocationCommand(INDEX_NAME, 0, sourceNode, targetNode));
 
         logger.info("--> requesting shard recovery");
         indicesAdmin().prepareRecoveries(INDEX_NAME).get();
@@ -321,8 +322,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
      * @param isRecoveryThrottlingNode whether to expect throttling to have occurred on the node
      */
     public void assertNodeHasThrottleTimeAndNoRecoveries(String nodeName, Boolean isRecoveryThrottlingNode) {
-        NodesStatsResponse nodesStatsResponse = clusterAdmin().prepareNodesStats()
-            .setNodesIds(nodeName)
+        NodesStatsResponse nodesStatsResponse = clusterAdmin().prepareNodesStats(nodeName)
             .clear()
             .setIndices(new CommonStatsFlags(CommonStatsFlags.Flag.Recovery))
             .get();
@@ -553,7 +553,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         throttleRecovery10Seconds(shardSize);
 
         logger.info("--> move shard from: {} to: {}", nodeA, nodeB);
-        clusterAdmin().prepareReroute().add(new MoveAllocationCommand(INDEX_NAME, 0, nodeA, nodeB)).get().getState();
+        ClusterRerouteUtils.reroute(client(), new MoveAllocationCommand(INDEX_NAME, 0, nodeA, nodeB));
 
         logger.info("--> waiting for recovery to start both on source and target");
         final Index index = resolveIndex(INDEX_NAME);
@@ -611,8 +611,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         validateIndexRecoveryState(recoveryStates.get(0).getIndex());
 
         Consumer<String> assertNodeHasThrottleTimeAndNoRecoveries = nodeName -> {
-            NodesStatsResponse nodesStatsResponse = clusterAdmin().prepareNodesStats()
-                .setNodesIds(nodeName)
+            NodesStatsResponse nodesStatsResponse = clusterAdmin().prepareNodesStats(nodeName)
                 .clear()
                 .setIndices(new CommonStatsFlags(CommonStatsFlags.Flag.Recovery))
                 .get();
@@ -639,7 +638,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         throttleRecovery10Seconds(shardSize);
 
         logger.info("--> move replica shard from: {} to: {}", nodeA, nodeC);
-        clusterAdmin().prepareReroute().add(new MoveAllocationCommand(INDEX_NAME, 0, nodeA, nodeC)).get().getState();
+        ClusterRerouteUtils.reroute(client(), new MoveAllocationCommand(INDEX_NAME, 0, nodeA, nodeC));
 
         response = indicesAdmin().prepareRecoveries(INDEX_NAME).get();
         recoveryStates = response.shardRecoveryStates().get(INDEX_NAME);
@@ -1643,7 +1642,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         internalCluster().stopRandomDataNode();
         internalCluster().stopRandomDataNode();
         final String nodeWithoutData = internalCluster().startDataOnlyNode();
-        assertAcked(clusterAdmin().prepareReroute().add(new AllocateEmptyPrimaryAllocationCommand(indexName, 0, nodeWithoutData, true)));
+        ClusterRerouteUtils.reroute(client(), new AllocateEmptyPrimaryAllocationCommand(indexName, 0, nodeWithoutData, true));
         internalCluster().startDataOnlyNode(randomNodeDataPathSettings);
         ensureGreen();
         for (ShardStats shardStats : indicesAdmin().prepareStats(indexName).get().getIndex(indexName).getShards()) {
@@ -1712,7 +1711,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         );
         internalCluster().startNode();
         internalCluster().startNode();
-        clusterAdmin().prepareReroute().setRetryFailed(true).get();
+        ClusterRerouteUtils.rerouteRetryFailed(client());
         assertAcked(indicesAdmin().prepareDelete("test")); // cancel recoveries
         assertBusy(() -> {
             for (PeerRecoverySourceService recoveryService : internalCluster().getDataNodeInstances(PeerRecoverySourceService.class)) {

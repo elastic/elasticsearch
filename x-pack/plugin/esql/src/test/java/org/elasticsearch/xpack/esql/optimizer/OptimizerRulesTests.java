@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.optimizer;
 
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.esql.core.TestUtils;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
@@ -30,7 +29,6 @@ import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RLike;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RLikePattern;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardLike;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPattern;
-import org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules.ConstantFolding;
 import org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules.FoldNull;
 import org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules.PropagateNullable;
 import org.elasticsearch.xpack.esql.core.plan.logical.Filter;
@@ -50,15 +48,31 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
-import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer.ReplaceRegexMatch;
+import org.elasticsearch.xpack.esql.optimizer.rules.BooleanFunctionEqualsElimination;
+import org.elasticsearch.xpack.esql.optimizer.rules.CombineDisjunctionsToIn;
+import org.elasticsearch.xpack.esql.optimizer.rules.ConstantFolding;
+import org.elasticsearch.xpack.esql.optimizer.rules.LiteralsOnTheRight;
+import org.elasticsearch.xpack.esql.optimizer.rules.PropagateEquals;
+import org.elasticsearch.xpack.esql.optimizer.rules.ReplaceRegexMatch;
 
 import java.util.List;
 
 import static java.util.Arrays.asList;
-import static org.elasticsearch.xpack.esql.core.TestUtils.nullEqualsOf;
-import static org.elasticsearch.xpack.esql.core.TestUtils.of;
-import static org.elasticsearch.xpack.esql.core.TestUtils.rangeOf;
-import static org.elasticsearch.xpack.esql.core.TestUtils.relation;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.FIVE;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.FOUR;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.ONE;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.THREE;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TWO;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.equalsOf;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.getFieldAttribute;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.greaterThanOf;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.greaterThanOrEqualOf;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.lessThanOf;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.lessThanOrEqualOf;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.notEqualsOf;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.of;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.rangeOf;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.relation;
 import static org.elasticsearch.xpack.esql.core.expression.Literal.FALSE;
 import static org.elasticsearch.xpack.esql.core.expression.Literal.NULL;
 import static org.elasticsearch.xpack.esql.core.expression.Literal.TRUE;
@@ -68,42 +82,8 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.hamcrest.Matchers.contains;
 
 public class OptimizerRulesTests extends ESTestCase {
-    private static final Literal ONE = new Literal(Source.EMPTY, 1, DataType.INTEGER);
-    private static final Literal TWO = new Literal(Source.EMPTY, 2, DataType.INTEGER);
-    private static final Literal THREE = new Literal(Source.EMPTY, 3, DataType.INTEGER);
-    private static final Literal FOUR = new Literal(Source.EMPTY, 4, DataType.INTEGER);
-    private static final Literal FIVE = new Literal(Source.EMPTY, 5, DataType.INTEGER);
-    private static final Literal SIX = new Literal(Source.EMPTY, 6, DataType.INTEGER);
     private static final Expression DUMMY_EXPRESSION =
         new org.elasticsearch.xpack.esql.core.optimizer.OptimizerRulesTests.DummyBooleanExpression(EMPTY, 0);
-
-    private static Equals equalsOf(Expression left, Expression right) {
-        return new Equals(EMPTY, left, right, null);
-    }
-
-    private static LessThan lessThanOf(Expression left, Expression right) {
-        return new LessThan(EMPTY, left, right, null);
-    }
-
-    public static GreaterThan greaterThanOf(Expression left, Expression right) {
-        return new GreaterThan(EMPTY, left, right, randomZone());
-    }
-
-    public static NotEquals notEqualsOf(Expression left, Expression right) {
-        return new NotEquals(EMPTY, left, right, randomZone());
-    }
-
-    public static LessThanOrEqual lessThanOrEqualOf(Expression left, Expression right) {
-        return new LessThanOrEqual(EMPTY, left, right, randomZone());
-    }
-
-    public static GreaterThanOrEqual greaterThanOrEqualOf(Expression left, Expression right) {
-        return new GreaterThanOrEqual(EMPTY, left, right, randomZone());
-    }
-
-    private static FieldAttribute getFieldAttribute() {
-        return TestUtils.getFieldAttribute("a");
-    }
 
     //
     // Constant folding
@@ -127,8 +107,6 @@ public class OptimizerRulesTests extends ESTestCase {
         assertEquals(FALSE, new ConstantFolding().rule(greaterThanOf(TWO, THREE)).canonical());
         assertEquals(FALSE, new ConstantFolding().rule(greaterThanOrEqualOf(TWO, THREE)).canonical());
         assertEquals(FALSE, new ConstantFolding().rule(equalsOf(TWO, THREE)).canonical());
-        assertEquals(FALSE, new ConstantFolding().rule(nullEqualsOf(TWO, THREE)).canonical());
-        assertEquals(FALSE, new ConstantFolding().rule(nullEqualsOf(TWO, NULL)).canonical());
         assertEquals(TRUE, new ConstantFolding().rule(notEqualsOf(TWO, THREE)).canonical());
         assertEquals(TRUE, new ConstantFolding().rule(lessThanOrEqualOf(TWO, THREE)).canonical());
         assertEquals(TRUE, new ConstantFolding().rule(lessThanOf(TWO, THREE)).canonical());
@@ -188,7 +166,7 @@ public class OptimizerRulesTests extends ESTestCase {
         FieldAttribute fa = getFieldAttribute();
 
         Or or = new Or(EMPTY, equalsOf(fa, ONE), equalsOf(fa, TWO));
-        Expression e = new OptimizerRules.CombineDisjunctionsToIn().rule(or);
+        Expression e = new CombineDisjunctionsToIn().rule(or);
         assertEquals(In.class, e.getClass());
         In in = (In) e;
         assertEquals(fa, in.value());
@@ -199,7 +177,7 @@ public class OptimizerRulesTests extends ESTestCase {
         FieldAttribute fa = getFieldAttribute();
 
         Or or = new Or(EMPTY, equalsOf(fa, ONE), equalsOf(fa, ONE));
-        Expression e = new OptimizerRules.CombineDisjunctionsToIn().rule(or);
+        Expression e = new CombineDisjunctionsToIn().rule(or);
         assertEquals(Equals.class, e.getClass());
         Equals eq = (Equals) e;
         assertEquals(fa, eq.left());
@@ -210,7 +188,7 @@ public class OptimizerRulesTests extends ESTestCase {
         FieldAttribute fa = getFieldAttribute();
 
         Or or = new Or(EMPTY, equalsOf(fa, ONE), new In(EMPTY, fa, List.of(TWO)));
-        Expression e = new OptimizerRules.CombineDisjunctionsToIn().rule(or);
+        Expression e = new CombineDisjunctionsToIn().rule(or);
         assertEquals(In.class, e.getClass());
         In in = (In) e;
         assertEquals(fa, in.value());
@@ -221,7 +199,7 @@ public class OptimizerRulesTests extends ESTestCase {
         FieldAttribute fa = getFieldAttribute();
 
         Or or = new Or(EMPTY, equalsOf(fa, ONE), new In(EMPTY, fa, asList(ONE, TWO)));
-        Expression e = new OptimizerRules.CombineDisjunctionsToIn().rule(or);
+        Expression e = new CombineDisjunctionsToIn().rule(or);
         assertEquals(In.class, e.getClass());
         In in = (In) e;
         assertEquals(fa, in.value());
@@ -233,7 +211,7 @@ public class OptimizerRulesTests extends ESTestCase {
 
         Equals equals = equalsOf(fa, ONE);
         Or or = new Or(EMPTY, equals, new In(EMPTY, fa, List.of(ONE)));
-        Expression e = new OptimizerRules.CombineDisjunctionsToIn().rule(or);
+        Expression e = new CombineDisjunctionsToIn().rule(or);
         assertEquals(equals, e);
     }
 
@@ -242,17 +220,17 @@ public class OptimizerRulesTests extends ESTestCase {
 
         And and = new And(EMPTY, equalsOf(fa, ONE), equalsOf(fa, TWO));
         Filter dummy = new Filter(EMPTY, relation(), and);
-        LogicalPlan transformed = new OptimizerRules.CombineDisjunctionsToIn().apply(dummy);
+        LogicalPlan transformed = new CombineDisjunctionsToIn().apply(dummy);
         assertSame(dummy, transformed);
         assertEquals(and, ((Filter) transformed).condition());
     }
 
     public void testTwoEqualsDifferentFields() {
-        FieldAttribute fieldOne = TestUtils.getFieldAttribute("ONE");
-        FieldAttribute fieldTwo = TestUtils.getFieldAttribute("TWO");
+        FieldAttribute fieldOne = getFieldAttribute("ONE");
+        FieldAttribute fieldTwo = getFieldAttribute("TWO");
 
         Or or = new Or(EMPTY, equalsOf(fieldOne, ONE), equalsOf(fieldTwo, TWO));
-        Expression e = new OptimizerRules.CombineDisjunctionsToIn().rule(or);
+        Expression e = new CombineDisjunctionsToIn().rule(or);
         assertEquals(or, e);
     }
 
@@ -261,7 +239,7 @@ public class OptimizerRulesTests extends ESTestCase {
 
         Or firstOr = new Or(EMPTY, new In(EMPTY, fa, List.of(ONE)), new In(EMPTY, fa, List.of(TWO)));
         Or secondOr = new Or(EMPTY, firstOr, new In(EMPTY, fa, List.of(THREE)));
-        Expression e = new OptimizerRules.CombineDisjunctionsToIn().rule(secondOr);
+        Expression e = new CombineDisjunctionsToIn().rule(secondOr);
         assertEquals(In.class, e.getClass());
         In in = (In) e;
         assertEquals(fa, in.value());
@@ -273,7 +251,7 @@ public class OptimizerRulesTests extends ESTestCase {
 
         Or firstOr = new Or(EMPTY, new In(EMPTY, fa, List.of(ONE)), lessThanOf(fa, TWO));
         Or secondOr = new Or(EMPTY, firstOr, new In(EMPTY, fa, List.of(THREE)));
-        Expression e = new OptimizerRules.CombineDisjunctionsToIn().rule(secondOr);
+        Expression e = new CombineDisjunctionsToIn().rule(secondOr);
         assertEquals(Or.class, e.getClass());
         Or or = (Or) e;
         assertEquals(or.left(), firstOr.right());
@@ -285,7 +263,7 @@ public class OptimizerRulesTests extends ESTestCase {
 
     // Test BooleanFunctionEqualsElimination
     public void testBoolEqualsSimplificationOnExpressions() {
-        OptimizerRules.BooleanFunctionEqualsElimination s = new OptimizerRules.BooleanFunctionEqualsElimination();
+        BooleanFunctionEqualsElimination s = new BooleanFunctionEqualsElimination();
         Expression exp = new GreaterThan(EMPTY, getFieldAttribute(), new Literal(EMPTY, 0, DataType.INTEGER), null);
 
         assertEquals(exp, s.rule(new Equals(EMPTY, exp, TRUE)));
@@ -294,7 +272,7 @@ public class OptimizerRulesTests extends ESTestCase {
     }
 
     public void testBoolEqualsSimplificationOnFields() {
-        OptimizerRules.BooleanFunctionEqualsElimination s = new OptimizerRules.BooleanFunctionEqualsElimination();
+        BooleanFunctionEqualsElimination s = new BooleanFunctionEqualsElimination();
 
         FieldAttribute field = getFieldAttribute();
 
@@ -322,7 +300,7 @@ public class OptimizerRulesTests extends ESTestCase {
         Equals eq1 = equalsOf(fa, ONE);
         Equals eq2 = equalsOf(fa, TWO);
 
-        OptimizerRules.PropagateEquals rule = new OptimizerRules.PropagateEquals();
+        PropagateEquals rule = new PropagateEquals();
         Expression exp = rule.rule(new And(EMPTY, eq1, eq2));
         assertEquals(FALSE, exp);
     }
@@ -333,7 +311,7 @@ public class OptimizerRulesTests extends ESTestCase {
         Equals eq1 = equalsOf(fa, new Literal(EMPTY, 10, DataType.INTEGER));
         Range r = rangeOf(fa, ONE, false, new Literal(EMPTY, 10, DataType.INTEGER), false);
 
-        OptimizerRules.PropagateEquals rule = new OptimizerRules.PropagateEquals();
+        PropagateEquals rule = new PropagateEquals();
         Expression exp = rule.rule(new And(EMPTY, eq1, r));
         assertEquals(FALSE, exp);
     }
@@ -344,7 +322,7 @@ public class OptimizerRulesTests extends ESTestCase {
         NotEquals neq = notEqualsOf(fa, THREE);
         Equals eq = equalsOf(fa, THREE);
 
-        OptimizerRules.PropagateEquals rule = new OptimizerRules.PropagateEquals();
+        PropagateEquals rule = new PropagateEquals();
         Expression exp = rule.rule(new And(EMPTY, neq, eq));
         assertEquals(FALSE, exp);
     }
@@ -355,7 +333,7 @@ public class OptimizerRulesTests extends ESTestCase {
         NotEquals neq = notEqualsOf(fa, FOUR);
         Equals eq = equalsOf(fa, THREE);
 
-        OptimizerRules.PropagateEquals rule = new OptimizerRules.PropagateEquals();
+        PropagateEquals rule = new PropagateEquals();
         Expression exp = rule.rule(new And(EMPTY, neq, eq));
         assertEquals(Equals.class, exp.getClass());
         assertEquals(eq, exp);
@@ -367,7 +345,7 @@ public class OptimizerRulesTests extends ESTestCase {
         Equals eq = equalsOf(fa, TWO);
         LessThan lt = lessThanOf(fa, TWO);
 
-        OptimizerRules.PropagateEquals rule = new OptimizerRules.PropagateEquals();
+        PropagateEquals rule = new PropagateEquals();
         Expression exp = rule.rule(new And(EMPTY, eq, lt));
         assertEquals(FALSE, exp);
     }
@@ -378,7 +356,7 @@ public class OptimizerRulesTests extends ESTestCase {
         Equals eq = equalsOf(fa, TWO);
         LessThanOrEqual lt = lessThanOrEqualOf(fa, TWO);
 
-        OptimizerRules.PropagateEquals rule = new OptimizerRules.PropagateEquals();
+        PropagateEquals rule = new PropagateEquals();
         Expression exp = rule.rule(new And(EMPTY, eq, lt));
         assertEquals(eq, exp);
     }
@@ -389,7 +367,7 @@ public class OptimizerRulesTests extends ESTestCase {
         Equals eq = equalsOf(fa, TWO);
         LessThanOrEqual lt = lessThanOrEqualOf(fa, ONE);
 
-        OptimizerRules.PropagateEquals rule = new OptimizerRules.PropagateEquals();
+        PropagateEquals rule = new PropagateEquals();
         Expression exp = rule.rule(new And(EMPTY, eq, lt));
         assertEquals(FALSE, exp);
     }
@@ -400,7 +378,7 @@ public class OptimizerRulesTests extends ESTestCase {
         Equals eq = equalsOf(fa, TWO);
         GreaterThan gt = greaterThanOf(fa, TWO);
 
-        OptimizerRules.PropagateEquals rule = new OptimizerRules.PropagateEquals();
+        PropagateEquals rule = new PropagateEquals();
         Expression exp = rule.rule(new And(EMPTY, eq, gt));
         assertEquals(FALSE, exp);
     }
@@ -411,7 +389,7 @@ public class OptimizerRulesTests extends ESTestCase {
         Equals eq = equalsOf(fa, TWO);
         GreaterThanOrEqual gte = greaterThanOrEqualOf(fa, TWO);
 
-        OptimizerRules.PropagateEquals rule = new OptimizerRules.PropagateEquals();
+        PropagateEquals rule = new PropagateEquals();
         Expression exp = rule.rule(new And(EMPTY, eq, gte));
         assertEquals(eq, exp);
     }
@@ -422,7 +400,7 @@ public class OptimizerRulesTests extends ESTestCase {
         Equals eq = equalsOf(fa, TWO);
         GreaterThan gt = greaterThanOf(fa, THREE);
 
-        OptimizerRules.PropagateEquals rule = new OptimizerRules.PropagateEquals();
+        PropagateEquals rule = new PropagateEquals();
         Expression exp = rule.rule(new And(EMPTY, eq, gt));
         assertEquals(FALSE, exp);
     }
@@ -435,7 +413,7 @@ public class OptimizerRulesTests extends ESTestCase {
         GreaterThan gt = greaterThanOf(fa, ONE);
         NotEquals neq = notEqualsOf(fa, FOUR);
 
-        OptimizerRules.PropagateEquals rule = new OptimizerRules.PropagateEquals();
+        PropagateEquals rule = new PropagateEquals();
         Expression and = Predicates.combineAnd(asList(eq, lt, gt, neq));
         Expression exp = rule.rule((And) and);
         assertEquals(eq, exp);
@@ -449,7 +427,7 @@ public class OptimizerRulesTests extends ESTestCase {
         GreaterThan gt = greaterThanOf(fa, new Literal(EMPTY, 0, DataType.INTEGER));
         NotEquals neq = notEqualsOf(fa, FOUR);
 
-        OptimizerRules.PropagateEquals rule = new OptimizerRules.PropagateEquals();
+        PropagateEquals rule = new PropagateEquals();
         Expression and = Predicates.combineAnd(asList(eq, range, gt, neq));
         Expression exp = rule.rule((And) and);
         assertEquals(eq, exp);
@@ -461,7 +439,7 @@ public class OptimizerRulesTests extends ESTestCase {
         Equals eq = equalsOf(fa, TWO);
         GreaterThan gt = greaterThanOf(fa, ONE);
 
-        OptimizerRules.PropagateEquals rule = new OptimizerRules.PropagateEquals();
+        PropagateEquals rule = new PropagateEquals();
         Expression exp = rule.rule(new Or(EMPTY, eq, gt));
         assertEquals(gt, exp);
     }
@@ -472,7 +450,7 @@ public class OptimizerRulesTests extends ESTestCase {
         Equals eq = equalsOf(fa, TWO);
         GreaterThan gt = greaterThanOf(fa, TWO);
 
-        OptimizerRules.PropagateEquals rule = new OptimizerRules.PropagateEquals();
+        PropagateEquals rule = new PropagateEquals();
         Expression exp = rule.rule(new Or(EMPTY, eq, gt));
         assertEquals(GreaterThanOrEqual.class, exp.getClass());
         GreaterThanOrEqual gte = (GreaterThanOrEqual) exp;
@@ -485,7 +463,7 @@ public class OptimizerRulesTests extends ESTestCase {
         Equals eq = equalsOf(fa, TWO);
         LessThan lt = lessThanOf(fa, THREE);
 
-        OptimizerRules.PropagateEquals rule = new OptimizerRules.PropagateEquals();
+        PropagateEquals rule = new PropagateEquals();
         Expression exp = rule.rule(new Or(EMPTY, eq, lt));
         assertEquals(lt, exp);
     }
@@ -496,7 +474,7 @@ public class OptimizerRulesTests extends ESTestCase {
         Equals eq = equalsOf(fa, THREE);
         LessThan lt = lessThanOf(fa, THREE);
 
-        OptimizerRules.PropagateEquals rule = new OptimizerRules.PropagateEquals();
+        PropagateEquals rule = new PropagateEquals();
         Expression exp = rule.rule(new Or(EMPTY, eq, lt));
         assertEquals(LessThanOrEqual.class, exp.getClass());
         LessThanOrEqual lte = (LessThanOrEqual) exp;
@@ -509,7 +487,7 @@ public class OptimizerRulesTests extends ESTestCase {
         Equals eq = equalsOf(fa, TWO);
         Range range = rangeOf(fa, ONE, false, THREE, false);
 
-        OptimizerRules.PropagateEquals rule = new OptimizerRules.PropagateEquals();
+        PropagateEquals rule = new PropagateEquals();
         Expression exp = rule.rule(new Or(EMPTY, eq, range));
         assertEquals(range, exp);
     }
@@ -520,7 +498,7 @@ public class OptimizerRulesTests extends ESTestCase {
         Equals eq = equalsOf(fa, TWO);
         Range range = rangeOf(fa, TWO, false, THREE, false);
 
-        OptimizerRules.PropagateEquals rule = new OptimizerRules.PropagateEquals();
+        PropagateEquals rule = new PropagateEquals();
         Expression exp = rule.rule(new Or(EMPTY, eq, range));
         assertEquals(Range.class, exp.getClass());
         Range r = (Range) exp;
@@ -536,7 +514,7 @@ public class OptimizerRulesTests extends ESTestCase {
         Equals eq = equalsOf(fa, THREE);
         Range range = rangeOf(fa, TWO, false, THREE, false);
 
-        OptimizerRules.PropagateEquals rule = new OptimizerRules.PropagateEquals();
+        PropagateEquals rule = new PropagateEquals();
         Expression exp = rule.rule(new Or(EMPTY, eq, range));
         assertEquals(Range.class, exp.getClass());
         Range r = (Range) exp;
@@ -552,7 +530,7 @@ public class OptimizerRulesTests extends ESTestCase {
         Equals eq = equalsOf(fa, TWO);
         NotEquals neq = notEqualsOf(fa, TWO);
 
-        OptimizerRules.PropagateEquals rule = new OptimizerRules.PropagateEquals();
+        PropagateEquals rule = new PropagateEquals();
         Expression exp = rule.rule(new Or(EMPTY, eq, neq));
         assertEquals(TRUE, exp);
     }
@@ -563,7 +541,7 @@ public class OptimizerRulesTests extends ESTestCase {
         Equals eq = equalsOf(fa, TWO);
         NotEquals neq = notEqualsOf(fa, FIVE);
 
-        OptimizerRules.PropagateEquals rule = new OptimizerRules.PropagateEquals();
+        PropagateEquals rule = new PropagateEquals();
         Expression exp = rule.rule(new Or(EMPTY, eq, neq));
         assertEquals(NotEquals.class, exp.getClass());
         NotEquals ne = (NotEquals) exp;
@@ -578,19 +556,19 @@ public class OptimizerRulesTests extends ESTestCase {
         GreaterThan gt = greaterThanOf(fa, TWO);
         NotEquals neq = notEqualsOf(fa, TWO);
 
-        OptimizerRules.PropagateEquals rule = new OptimizerRules.PropagateEquals();
+        PropagateEquals rule = new PropagateEquals();
         Expression exp = rule.rule((Or) Predicates.combineOr(asList(eq, range, neq, gt)));
         assertEquals(TRUE, exp);
     }
 
     // a == 1 AND a == 2 -> nop for date/time fields
     public void testPropagateEquals_ignoreDateTimeFields() {
-        FieldAttribute fa = TestUtils.getFieldAttribute("a", DataType.DATETIME);
+        FieldAttribute fa = getFieldAttribute("a", DataType.DATETIME);
         Equals eq1 = equalsOf(fa, ONE);
         Equals eq2 = equalsOf(fa, TWO);
         And and = new And(EMPTY, eq1, eq2);
 
-        OptimizerRules.PropagateEquals rule = new OptimizerRules.PropagateEquals();
+        PropagateEquals rule = new PropagateEquals();
         Expression exp = rule.rule(and);
         assertEquals(and, exp);
     }
@@ -601,7 +579,7 @@ public class OptimizerRulesTests extends ESTestCase {
         Equals eq1 = equalsOf(fa, ONE);
         Range r = rangeOf(fa, ONE, true, new Literal(EMPTY, 10, DataType.INTEGER), false);
 
-        OptimizerRules.PropagateEquals rule = new OptimizerRules.PropagateEquals();
+        PropagateEquals rule = new PropagateEquals();
         Expression exp = rule.rule(new And(EMPTY, eq1, r));
         assertEquals(eq1, exp);
     }
@@ -678,11 +656,7 @@ public class OptimizerRulesTests extends ESTestCase {
         FieldAttribute fa = getFieldAttribute();
         IsNull isNull = new IsNull(EMPTY, fa);
 
-        And nestedAnd = new And(
-            EMPTY,
-            lessThanOf(TestUtils.getFieldAttribute("b"), ONE),
-            lessThanOf(TestUtils.getFieldAttribute("c"), ONE)
-        );
+        And nestedAnd = new And(EMPTY, lessThanOf(getFieldAttribute("b"), ONE), lessThanOf(getFieldAttribute("c"), ONE));
         And and = new And(EMPTY, isNull, nestedAnd);
         And top = new And(EMPTY, and, lessThanOf(fa, ONE));
 
@@ -701,7 +675,7 @@ public class OptimizerRulesTests extends ESTestCase {
             greaterThanOf(new Div(EMPTY, new Add(EMPTY, fa, ONE), TWO), ONE),
             greaterThanOf(new Add(EMPTY, fa, TWO), ONE)
         );
-        Expression kept = new And(EMPTY, isNull, lessThanOf(TestUtils.getFieldAttribute("b"), THREE));
+        Expression kept = new And(EMPTY, isNull, lessThanOf(getFieldAttribute("b"), THREE));
         And and = new And(EMPTY, nullified, kept);
 
         Expression optimized = new PropagateNullable().rule(and);
@@ -834,7 +808,7 @@ public class OptimizerRulesTests extends ESTestCase {
 
     public void testLiteralsOnTheRight() {
         Alias a = new Alias(EMPTY, "a", new Literal(EMPTY, 10, INTEGER));
-        Expression result = new org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules.LiteralsOnTheRight().rule(equalsOf(FIVE, a));
+        Expression result = new LiteralsOnTheRight().rule(equalsOf(FIVE, a));
         assertTrue(result instanceof Equals);
         Equals eq = (Equals) result;
         assertEquals(a, eq.left());

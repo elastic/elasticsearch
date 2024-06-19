@@ -21,8 +21,8 @@ import org.elasticsearch.search.internal.LegacyReaderContext;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.transport.EmptyRequest;
 import org.elasticsearch.transport.TransportRequest;
-import org.elasticsearch.transport.TransportRequest.Empty;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
@@ -134,7 +134,7 @@ public class SecuritySearchOperationListenerTests extends ESSingleNodeTestCase {
                     .realmRef(new RealmRef("realm", "file", "node"))
                     .build(false);
                 authentication.writeToContext(threadContext);
-                listener.validateReaderContext(readerContext, Empty.INSTANCE);
+                listener.validateReaderContext(readerContext, new EmptyRequest());
                 assertThat(threadContext.getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY), is(indicesAccessControl));
                 verifyNoMoreInteractions(auditTrail);
             }
@@ -147,7 +147,7 @@ public class SecuritySearchOperationListenerTests extends ESSingleNodeTestCase {
                     .realmRef(new RealmRef(realmName, "file", nodeName))
                     .build(false);
                 authentication.writeToContext(threadContext);
-                listener.validateReaderContext(readerContext, Empty.INSTANCE);
+                listener.validateReaderContext(readerContext, new EmptyRequest());
                 assertThat(threadContext.getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY), is(indicesAccessControl));
                 verifyNoMoreInteractions(auditTrail);
             }

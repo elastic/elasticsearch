@@ -60,10 +60,6 @@ import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyReposito
 import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyRepositoryRequestBuilder;
 import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyRepositoryResponse;
-import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteRequest;
-import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteRequestBuilder;
-import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteResponse;
-import org.elasticsearch.action.admin.cluster.reroute.TransportClusterRerouteAction;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsAction;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequestBuilder;
@@ -203,18 +199,6 @@ public class ClusterAdminClient implements ElasticsearchClient {
         return new ClusterUpdateSettingsRequestBuilder(this);
     }
 
-    public ActionFuture<ClusterRerouteResponse> reroute(final ClusterRerouteRequest request) {
-        return execute(TransportClusterRerouteAction.TYPE, request);
-    }
-
-    public void reroute(final ClusterRerouteRequest request, final ActionListener<ClusterRerouteResponse> listener) {
-        execute(TransportClusterRerouteAction.TYPE, request, listener);
-    }
-
-    public ClusterRerouteRequestBuilder prepareReroute() {
-        return new ClusterRerouteRequestBuilder(this);
-    }
-
     public ActionFuture<NodesInfoResponse> nodesInfo(final NodesInfoRequest request) {
         return execute(TransportNodesInfoAction.TYPE, request);
     }
@@ -224,7 +208,7 @@ public class ClusterAdminClient implements ElasticsearchClient {
     }
 
     public NodesInfoRequestBuilder prepareNodesInfo(String... nodesIds) {
-        return new NodesInfoRequestBuilder(this).setNodesIds(nodesIds);
+        return new NodesInfoRequestBuilder(this, nodesIds);
     }
 
     public void clusterStats(ClusterStatsRequest request, ActionListener<ClusterStatsResponse> listener) {
@@ -244,7 +228,7 @@ public class ClusterAdminClient implements ElasticsearchClient {
     }
 
     public NodesStatsRequestBuilder prepareNodesStats(String... nodesIds) {
-        return new NodesStatsRequestBuilder(this).setNodesIds(nodesIds);
+        return new NodesStatsRequestBuilder(this, nodesIds);
     }
 
     public ActionFuture<NodesCapabilitiesResponse> nodesCapabilities(final NodesCapabilitiesRequest request) {

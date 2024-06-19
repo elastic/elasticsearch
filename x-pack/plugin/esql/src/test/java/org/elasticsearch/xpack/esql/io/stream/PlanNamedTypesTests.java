@@ -19,11 +19,11 @@ import org.elasticsearch.test.EqualsHashCodeTestUtils;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.SerializationTestUtils;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
-import org.elasticsearch.xpack.esql.core.expression.function.Function;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.arithmetic.ArithmeticOperation;
 import org.elasticsearch.xpack.esql.core.index.EsIndex;
 import org.elasticsearch.xpack.esql.core.plan.logical.Filter;
@@ -110,6 +110,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.test.ListMatcher.matchesList;
@@ -194,12 +195,12 @@ public class PlanNamedTypesTests extends ESTestCase {
     public void testFunctionEntries() {
         var serializableFunctions = PlanNamedTypes.namedTypeEntries()
             .stream()
-            .filter(e -> Function.class.isAssignableFrom(e.concreteClass()))
+            .filter(e -> Expression.class.isAssignableFrom(e.categoryClass()))
             .map(PlanNameRegistry.Entry::name)
             .sorted()
             .toList();
 
-        for (var function : (new EsqlFunctionRegistry()).listFunctions()) {
+        for (var function : new EsqlFunctionRegistry().listFunctions()) {
             assertThat(serializableFunctions, hasItem(equalTo(PlanNamedTypes.name(function.clazz()))));
         }
     }
@@ -233,15 +234,13 @@ public class PlanNamedTypesTests extends ESTestCase {
         var orig = new Equals(Source.EMPTY, field("foo", DataType.DOUBLE), field("bar", DataType.DOUBLE));
         BytesStreamOutput bso = new BytesStreamOutput();
         PlanStreamOutput out = new PlanStreamOutput(bso, planNameRegistry, null);
-        out.writeNamed(EsqlBinaryComparison.class, orig);
-        var deser = (Equals) planStreamInput(bso).readNamed(EsqlBinaryComparison.class);
+        out.writeNamed(Expression.class, orig);
+        var deser = (Equals) planStreamInput(bso).readNamed(Expression.class);
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(orig, unused -> deser);
     }
 
     public void testBinComparison() {
-        Stream.generate(PlanNamedTypesTests::randomBinaryComparison)
-            .limit(100)
-            .forEach(obj -> assertNamedType(EsqlBinaryComparison.class, obj));
+        Stream.generate(PlanNamedTypesTests::randomBinaryComparison).limit(100).forEach(obj -> assertNamedType(Expression.class, obj));
     }
 
     public void testAggFunctionSimple() throws IOException {
@@ -261,15 +260,13 @@ public class PlanNamedTypesTests extends ESTestCase {
         var orig = new Add(Source.EMPTY, field("foo", DataType.LONG), field("bar", DataType.LONG));
         BytesStreamOutput bso = new BytesStreamOutput();
         PlanStreamOutput out = new PlanStreamOutput(bso, planNameRegistry, null);
-        out.writeNamed(ArithmeticOperation.class, orig);
-        var deser = (Add) planStreamInput(bso).readNamed(ArithmeticOperation.class);
+        out.writeNamed(Expression.class, orig);
+        var deser = (Add) planStreamInput(bso).readNamed(Expression.class);
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(orig, unused -> deser);
     }
 
     public void testArithmeticOperation() {
-        Stream.generate(PlanNamedTypesTests::randomArithmeticOperation)
-            .limit(100)
-            .forEach(obj -> assertNamedType(ArithmeticOperation.class, obj));
+        Stream.generate(PlanNamedTypesTests::randomArithmeticOperation).limit(100).forEach(obj -> assertNamedType(Expression.class, obj));
     }
 
     public void testSubStringSimple() throws IOException {
@@ -305,24 +302,6 @@ public class PlanNamedTypesTests extends ESTestCase {
         PlanStreamOutput out = new PlanStreamOutput(bso, planNameRegistry, null);
         PlanNamedTypes.writePow(out, orig);
         var deser = PlanNamedTypes.readPow(planStreamInput(bso));
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(orig, unused -> deser);
-    }
-
-    public void testLiteralSimple() throws IOException {
-        var orig = new Literal(Source.EMPTY, 1, DataType.INTEGER);
-        BytesStreamOutput bso = new BytesStreamOutput();
-        PlanStreamOutput out = new PlanStreamOutput(bso, planNameRegistry, null);
-        PlanNamedTypes.writeLiteral(out, orig);
-        var deser = PlanNamedTypes.readLiteral(planStreamInput(bso));
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(orig, unused -> deser);
-    }
-
-    public void testOrderSimple() throws IOException {
-        var orig = new Order(Source.EMPTY, field("val", DataType.INTEGER), Order.OrderDirection.ASC, Order.NullsPosition.FIRST);
-        BytesStreamOutput bso = new BytesStreamOutput();
-        PlanStreamOutput out = new PlanStreamOutput(bso, planNameRegistry, null);
-        PlanNamedTypes.writeOrder(out, orig);
-        var deser = (Order) PlanNamedTypes.readOrder(planStreamInput(bso));
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(orig, unused -> deser);
     }
 
@@ -404,10 +383,14 @@ public class PlanNamedTypesTests extends ESTestCase {
     }
 
     static EsIndex randomEsIndex() {
+        Set<String> concreteIndices = new TreeSet<>();
+        while (concreteIndices.size() < 2) {
+            concreteIndices.add(randomAlphaOfLengthBetween(1, 25));
+        }
         return new EsIndex(
-            randomAlphaOfLength(randomIntBetween(1, 25)),
-            Map.of(randomAlphaOfLength(randomIntBetween(1, 25)), randomKeywordEsField()),
-            Set.of(randomAlphaOfLength(randomIntBetween(1, 25)), randomAlphaOfLength(randomIntBetween(1, 25)))
+            randomAlphaOfLengthBetween(1, 25),
+            Map.of(randomAlphaOfLengthBetween(1, 25), randomKeywordEsField()),
+            concreteIndices
         );
     }
 

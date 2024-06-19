@@ -28,15 +28,6 @@ import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
-import org.apache.lucene.queries.function.FunctionQuery;
-import org.apache.lucene.queries.function.valuesource.ByteKnnVectorFieldSource;
-import org.apache.lucene.queries.function.valuesource.ByteVectorSimilarityFunction;
-import org.apache.lucene.queries.function.valuesource.ConstKnnByteVectorValueSource;
-import org.apache.lucene.queries.function.valuesource.ConstKnnFloatValueSource;
-import org.apache.lucene.queries.function.valuesource.FloatKnnVectorFieldSource;
-import org.apache.lucene.queries.function.valuesource.FloatVectorSimilarityFunction;
-import org.apache.lucene.search.BooleanClause;
-import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.BitSetProducer;
@@ -71,6 +62,7 @@ import org.elasticsearch.search.vectors.ESDiversifyingChildrenByteKnnVectorQuery
 import org.elasticsearch.search.vectors.ESDiversifyingChildrenFloatKnnVectorQuery;
 import org.elasticsearch.search.vectors.ESKnnByteVectorQuery;
 import org.elasticsearch.search.vectors.ESKnnFloatVectorQuery;
+import org.elasticsearch.search.vectors.ExactKnnQuery;
 import org.elasticsearch.search.vectors.VectorData;
 import org.elasticsearch.search.vectors.VectorSimilarityQuery;
 import org.elasticsearch.xcontent.ToXContent;
@@ -1484,19 +1476,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 float squaredMagnitude = VectorUtil.dotProduct(queryVector, queryVector);
                 elementType.checkVectorMagnitude(similarity, ElementType.errorByteElementsAppender(queryVector), squaredMagnitude);
             }
-            VectorSimilarityFunction vectorSimilarityFunction = similarity.vectorSimilarityFunction(indexVersionCreated, elementType);
-            return new BooleanQuery.Builder().add(new FieldExistsQuery(name()), BooleanClause.Occur.FILTER)
-                .add(
-                    new FunctionQuery(
-                        new ByteVectorSimilarityFunction(
-                            vectorSimilarityFunction,
-                            new ByteKnnVectorFieldSource(name()),
-                            new ConstKnnByteVectorValueSource(queryVector)
-                        )
-                    ),
-                    BooleanClause.Occur.SHOULD
-                )
-                .build();
+            return new ExactKnnQuery.Bytes(queryVector, name());
         }
 
         private Query createExactKnnFloatQuery(float[] queryVector) {
@@ -1519,19 +1499,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     }
                 }
             }
-            VectorSimilarityFunction vectorSimilarityFunction = similarity.vectorSimilarityFunction(indexVersionCreated, elementType);
-            return new BooleanQuery.Builder().add(new FieldExistsQuery(name()), BooleanClause.Occur.FILTER)
-                .add(
-                    new FunctionQuery(
-                        new FloatVectorSimilarityFunction(
-                            vectorSimilarityFunction,
-                            new FloatKnnVectorFieldSource(name()),
-                            new ConstKnnFloatValueSource(queryVector)
-                        )
-                    ),
-                    BooleanClause.Occur.SHOULD
-                )
-                .build();
+            return new ExactKnnQuery.Floats(queryVector, name());
         }
 
         Query createKnnQuery(float[] queryVector, int numCands, Query filter, Float similarityThreshold, BitSetProducer parentFilter) {

@@ -1,0 +1,5 @@
+pr: 109925
+summary: Use a `xpack.stack.template.index.mode` variable to enable LogsDB in `logs@settings`
+area: Logs
+type: bug
+issues: []

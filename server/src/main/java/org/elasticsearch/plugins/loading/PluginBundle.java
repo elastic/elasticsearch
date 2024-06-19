@@ -6,7 +6,9 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.plugins;
+package org.elasticsearch.plugins.loading;
+
+import org.elasticsearch.plugins.PluginDescriptor;
 
 import java.io.IOException;
 import java.net.URL;

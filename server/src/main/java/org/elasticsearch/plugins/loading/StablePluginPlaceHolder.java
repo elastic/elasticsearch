@@ -6,7 +6,9 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.plugins;
+package org.elasticsearch.plugins.loading;
+
+import org.elasticsearch.plugins.Plugin;
 
 class StablePluginPlaceHolder extends Plugin {
     private final String name;

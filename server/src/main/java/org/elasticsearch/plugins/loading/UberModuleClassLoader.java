@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.plugins;
+package org.elasticsearch.plugins.loading;
 
 import org.elasticsearch.core.SuppressForbidden;
 

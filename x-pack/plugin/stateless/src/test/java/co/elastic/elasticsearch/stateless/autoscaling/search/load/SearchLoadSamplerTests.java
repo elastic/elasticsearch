@@ -17,6 +17,8 @@
 
 package co.elastic.elasticsearch.stateless.autoscaling.search.load;
 
+import co.elastic.elasticsearch.stateless.autoscaling.MetricQuality;
+
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -29,10 +31,12 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.DoubleSupplier;
+import java.util.function.Supplier;
 import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.empty;
@@ -43,6 +47,141 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class SearchLoadSamplerTests extends ESTestCase {
+    record PublishedMetric(int sampleNum, boolean hasLoad, MetricQuality quality) {}
+
+    public void testPublishingQuality() {
+        // Alternates between EXACT and MINIMUM quality.
+        class TestSearchLoadSupplier implements Supplier<MetricQuality> {
+            int count = 0;
+
+            @Override
+            public MetricQuality get() {
+                var quality = (count % 2 == 0) ? MetricQuality.EXACT : MetricQuality.MINIMUM;
+                count++;
+                return quality;
+            }
+        }
+        assertQuality(
+            2,
+            2,
+            new TestSearchLoadSupplier(),
+            List.of(
+                // 1. Initial metric warrants publish.
+                new PublishedMetric(1, true, MetricQuality.EXACT),
+                // 2. Second metric quality is MINIMUM, max cycles exceeded: publish.
+                new PublishedMetric(2, false, MetricQuality.MINIMUM)
+            )
+        );
+        assertQuality(
+            2,
+            3,
+            new TestSearchLoadSupplier(),
+            List.of(
+                // 1. Initial metric warrants publish
+                new PublishedMetric(1, true, MetricQuality.EXACT)
+            // 2. Second metric quality is MINIMUM, max cycles not exceeded: don't publish
+            )
+        );
+        assertQuality(
+            3,
+            3,
+            new TestSearchLoadSupplier(),
+            List.of(
+                // 1. Initial metric warrants publish
+                new PublishedMetric(1, true, MetricQuality.EXACT),
+                // 2. Second metric quality is MINIMUM, max cycles not exceeded: don't publish
+                // 3. Second metric quality is EXACT, max cycles exceeded: publish
+                new PublishedMetric(3, true, MetricQuality.EXACT)
+            )
+        );
+        assertQuality(
+            4,
+            4,
+            new TestSearchLoadSupplier(),
+            List.of(
+                // 1. Initial metric warrants publish
+                new PublishedMetric(1, true, MetricQuality.EXACT),
+                // 2. Second metric quality is MINIMUM, max cycles not exceeded: don't publish
+                // 3. Second metric quality is EXACT, max cycles not exceeded since last EXACT publish, sensitivity threshold
+                // not exceeded: don't publish
+                // 4. Max samples between publishing exceeded, metric quality MINIMUM: publish
+                new PublishedMetric(4, false, MetricQuality.MINIMUM)
+            )
+        );
+        assertQuality(
+            5,
+            4,
+            new TestSearchLoadSupplier(),
+            List.of(
+                // 1. Initial metric warrants publish
+                new PublishedMetric(1, true, MetricQuality.EXACT),
+                // 2. Second metric quality is MINIMUM, max cycles not exceeded: don't publish
+                // 3. Second metric quality is EXACT, max cycles not exceeded since last EXACT publish, sensitivity threshold
+                // not exceeded: don't publish
+                // 4. Max samples between publishing exceeded, metric quality MINIMUM: publish
+                new PublishedMetric(4, false, MetricQuality.MINIMUM),
+                // 5. Last published metric was MINIMUM, now EXACT: publish
+                new PublishedMetric(5, true, MetricQuality.EXACT)
+            )
+        );
+    }
+
+    private void assertQuality(
+        int cyclesToRunFor,
+        int maxSamplesBetweenMetricPublications,
+        Supplier<MetricQuality> searchLoadSupplier,
+        List<PublishedMetric> expectedResults
+    ) {
+        var deterministicTaskQueue = new DeterministicTaskQueue();
+        var threadPool = deterministicTaskQueue.getThreadPool();
+
+        ClusterService clusterService = mock();
+        when(clusterService.threadPool()).thenReturn(threadPool);
+
+        var minSensitivityRatio = 0.1;
+        var samplingFrequency = TimeValue.timeValueSeconds(1);
+        var maxTimeBetweenMetricPublications = TimeValue.timeValueSeconds(maxSamplesBetweenMetricPublications - 1);
+        var clusterSettings = clusterSettings(
+            Settings.builder()
+                .put(SearchLoadSampler.MIN_SENSITIVITY_RATIO_FOR_PUBLICATION_SETTING.getKey(), minSensitivityRatio)
+                .put(SearchLoadSampler.SAMPLING_FREQUENCY_SETTING.getKey(), samplingFrequency)
+                .put(SearchLoadSampler.MAX_TIME_BETWEEN_METRIC_PUBLICATIONS_SETTING.getKey(), maxTimeBetweenMetricPublications)
+                .build()
+        );
+
+        var numProcessors = randomIntBetween(2, 32);
+        var nodeSearchLoad = randomSearchLoad(numProcessors);
+
+        var averageSearchLoadSampler = new RandomAverageSearchLoadSampler(threadPool);
+
+        var publishedMetrics = new ArrayList<PublishedMetric>();
+
+        var sampler = new SearchLoadSampler(
+            null,
+            averageSearchLoadSampler,
+            () -> nodeSearchLoad,
+            searchLoadSupplier,
+            numProcessors,
+            clusterSettings,
+            clusterService
+        ) {
+            @Override
+            public void publishSearchLoad(double searchLoad, MetricQuality quality, String nodeId, ActionListener<Void> listener) {
+                // publishedMetrics.add(Tuple.tuple(deterministicTaskQueue.getCurrentTimeMillis(), searchLoad));
+                publishedMetrics.add(
+                    new PublishedMetric(((int) deterministicTaskQueue.getCurrentTimeMillis() / 1000) + 1, searchLoad != 0.0, quality)
+                );
+                listener.onResponse(null);
+            }
+        };
+        sampler.setNodeId(randomIdentifier());
+        sampler.start();
+
+        runFor(deterministicTaskQueue, (cyclesToRunFor - 1) * 1000L);
+
+        assertThat(publishedMetrics, is(equalTo(expectedResults)));
+    }
+
     public void testSearchLoadIsPublishedWithFixedFrequencyIfItDoesNotChange() {
         var deterministicTaskQueue = new DeterministicTaskQueue();
         var threadPool = deterministicTaskQueue.getThreadPool();
@@ -67,9 +206,17 @@ public class SearchLoadSamplerTests extends ESTestCase {
         var publishedMetrics = new ArrayList<>();
         var searchLoadSampler = new RandomAverageSearchLoadSampler(threadPool);
 
-        var sampler = new SearchLoadSampler(null, searchLoadSampler, () -> nodeSearchLoad, numProcessors, clusterSettings, clusterService) {
+        var sampler = new SearchLoadSampler(
+            null,
+            searchLoadSampler,
+            () -> nodeSearchLoad,
+            () -> MetricQuality.EXACT,
+            numProcessors,
+            clusterSettings,
+            clusterService
+        ) {
             @Override
-            public void publishSearchLoad(double searchLoad, String nodeId, ActionListener<Void> listener) {
+            public void publishSearchLoad(double searchLoad, MetricQuality quality, String nodeId, ActionListener<Void> listener) {
                 publishedMetrics.add(Tuple.tuple(deterministicTaskQueue.getCurrentTimeMillis(), searchLoad));
                 listener.onResponse(null);
             }
@@ -116,13 +263,14 @@ public class SearchLoadSamplerTests extends ESTestCase {
             null,
             searchLoadSampler,
             currentIndexLoadSupplier::next,
+            () -> MetricQuality.EXACT,
             numProcessors,
             clusterSettings,
             clusterService
 
         ) {
             @Override
-            public void publishSearchLoad(double searchLoad, String nodeId, ActionListener<Void> listener) {
+            public void publishSearchLoad(double searchLoad, MetricQuality quality, String nodeId, ActionListener<Void> listener) {
                 publishedMetrics.add(searchLoad);
                 listener.onResponse(null);
             }
@@ -182,9 +330,17 @@ public class SearchLoadSamplerTests extends ESTestCase {
 
         var searchLoadSampler = new RandomAverageSearchLoadSampler(threadPool);
 
-        var sampler = new SearchLoadSampler(null, searchLoadSampler, searchLoadProbe, numProcessors, clusterSettings, clusterService) {
+        var sampler = new SearchLoadSampler(
+            null,
+            searchLoadSampler,
+            searchLoadProbe,
+            () -> MetricQuality.EXACT,
+            numProcessors,
+            clusterSettings,
+            clusterService
+        ) {
             @Override
-            public void publishSearchLoad(double searchLoad, String nodeId, ActionListener<Void> listener) {
+            public void publishSearchLoad(double searchLoad, MetricQuality quality, String nodeId, ActionListener<Void> listener) {
                 publishedMetrics.add(searchLoad);
                 listener.onResponse(null);
             }
@@ -225,9 +381,17 @@ public class SearchLoadSamplerTests extends ESTestCase {
         var publishedMetrics = new ArrayList<Double>();
         var searchLoadSampler = new RandomAverageSearchLoadSampler(threadPool);
 
-        var sampler = new SearchLoadSampler(null, searchLoadSampler, readingIter::next, numProcessors, clusterSettings, clusterService) {
+        var sampler = new SearchLoadSampler(
+            null,
+            searchLoadSampler,
+            readingIter::next,
+            () -> MetricQuality.EXACT,
+            numProcessors,
+            clusterSettings,
+            clusterService
+        ) {
             @Override
-            public void publishSearchLoad(double searchLoad, String nodeId, ActionListener<Void> listener) {
+            public void publishSearchLoad(double searchLoad, MetricQuality quality, String nodeId, ActionListener<Void> listener) {
                 publishedMetrics.add(searchLoad);
                 listener.onResponse(null);
             }
@@ -300,12 +464,13 @@ public class SearchLoadSamplerTests extends ESTestCase {
             null,
             searchLoadSampler,
             currentIndexLoadSupplier,
+            () -> MetricQuality.EXACT,
             numProcessors,
             clusterSettings,
             clusterService
         ) {
             @Override
-            public void publishSearchLoad(double searchLoad, String nodeId, ActionListener<Void> listener) {
+            public void publishSearchLoad(double searchLoad, MetricQuality quality, String nodeId, ActionListener<Void> listener) {
                 publishedMetrics.add(searchLoad);
                 listener.onResponse(null);
             }
@@ -332,9 +497,17 @@ public class SearchLoadSamplerTests extends ESTestCase {
         var searchLoadSampler = new RandomAverageSearchLoadSampler(threadPool);
 
         var clusterSettings = clusterSettings(Settings.EMPTY);
-        var sampler = new SearchLoadSampler(null, searchLoadSampler, () -> indexLoad, 8, clusterSettings, clusterService) {
+        var sampler = new SearchLoadSampler(
+            null,
+            searchLoadSampler,
+            () -> indexLoad,
+            () -> MetricQuality.EXACT,
+            8,
+            clusterSettings,
+            clusterService
+        ) {
             @Override
-            public void publishSearchLoad(double searchLoad, String nodeId, ActionListener<Void> listener) {
+            public void publishSearchLoad(double searchLoad, MetricQuality quality, String nodeId, ActionListener<Void> listener) {
                 publishedMetrics.add(searchLoad);
                 listener.onResponse(null);
             }
@@ -394,12 +567,13 @@ public class SearchLoadSamplerTests extends ESTestCase {
             null,
             searchLoadSampler,
             currentIndexLoadSupplier::next,
+            () -> MetricQuality.EXACT,
             numProcessors,
             clusterSettings,
             clusterService
         ) {
             @Override
-            public void publishSearchLoad(double searchLoad, String nodeId, ActionListener<Void> listener) {
+            public void publishSearchLoad(double searchLoad, MetricQuality quality, String nodeId, ActionListener<Void> listener) {
                 if (publicationFails.get()) {
                     publicationFailures.incrementAndGet();
                     listener.onFailure(new IllegalArgumentException("Boom"));
@@ -443,15 +617,20 @@ public class SearchLoadSamplerTests extends ESTestCase {
     // A mocked sampler that returns random values
     private static class RandomAverageSearchLoadSampler extends AverageSearchLoadSampler {
         RandomAverageSearchLoadSampler(ThreadPool threadPool) {
-            super(threadPool, TimeValue.timeValueSeconds(1), DEFAULT_EWMA_ALPHA, 4);
+            super(
+                threadPool,
+                TimeValue.timeValueSeconds(1),
+                Map.of(SEARCH_EXECUTOR, DEFAULT_SEARCH_EWMA_ALPHA, SHARD_READ_EXECUTOR, DEFAULT_SHARD_READ_EWMA_ALPHA),
+                4
+            );
         }
 
         @Override
         public void sample() {}
 
         @Override
-        public SearchExecutorStats getSearchExecutorStats(String executor) {
-            return new SearchExecutorStats(
+        public ExecutorLoadStats getExecutorLoadStats(String executor) {
+            return new ExecutorLoadStats(
                 randomDoubleBetween(0.0, 8.0, true),
                 randomDoubleBetween(100.0, 500.0, true),
                 randomIntBetween(0, 100),

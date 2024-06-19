@@ -30,23 +30,41 @@ import org.elasticsearch.threadpool.ThreadPool.Names;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Set;
+
+import static co.elastic.elasticsearch.stateless.Stateless.SHARD_READ_THREAD_POOL;
 
 public class AverageSearchLoadSampler {
+    static final double DEFAULT_SEARCH_EWMA_ALPHA = 0.2;
+    static final double DEFAULT_SHARD_READ_EWMA_ALPHA = 0.8;
 
-    /**
-     * IMPORTANT: We should not add additional executors to this list without changing the formula for how loads are combined in the
-     * SearchLoadProbe.  Currently, the formula sums the thread pool loads which will result in over-scaling.
-     */
-    static final Set<String> SEARCH_EXECUTORS = Set.of(Names.SEARCH);
-    static final double DEFAULT_EWMA_ALPHA = 0.2;
     public static final Setting<Double> SEARCH_LOAD_SAMPLER_EWMA_ALPHA_SETTING = Setting.doubleSetting(
         "serverless.autoscaling.search.sampler.search_load_ewma_alpha",
-        DEFAULT_EWMA_ALPHA,
+        DEFAULT_SEARCH_EWMA_ALPHA,
         0.0,
         1.0,
         Setting.Property.NodeScope,
         Setting.Property.OperatorDynamic
+    );
+    public static final Setting<Double> SHARD_READ_SAMPLER_EWMA_ALPHA_SETTING = Setting.doubleSetting(
+        "serverless.autoscaling.search.sampler.shard_read_load_ewma_alpha",
+        DEFAULT_SHARD_READ_EWMA_ALPHA,
+        0.0,
+        1.0,
+        Setting.Property.NodeScope,
+        Setting.Property.OperatorDynamic
+    );
+
+    public static final String SEARCH_EXECUTOR = Names.SEARCH;
+    public static final String SHARD_READ_EXECUTOR = SHARD_READ_THREAD_POOL;
+
+    /**
+     * Stores the monitored executor names and EWMA alpha settings.
+     */
+    static final Map<String, Setting<Double>> MONITORED_EXECUTORS = Map.of(
+        SEARCH_EXECUTOR,
+        SEARCH_LOAD_SAMPLER_EWMA_ALPHA_SETTING,
+        SHARD_READ_EXECUTOR,
+        SHARD_READ_SAMPLER_EWMA_ALPHA_SETTING
     );
 
     private final ThreadPool threadPool;
@@ -54,29 +72,46 @@ public class AverageSearchLoadSampler {
     private final int numProcessors;
 
     public static AverageSearchLoadSampler create(ThreadPool threadPool, Settings settings, ClusterSettings clusterSettings) {
-        assert SEARCH_EXECUTORS.stream()
+        assert MONITORED_EXECUTORS.keySet()
+            .stream()
             .map(threadPool::executor)
             .allMatch(executor -> executor instanceof TaskExecutionTimeTrackingEsThreadPoolExecutor);
+
+        Map<String, Double> threadPoolsAndEWMAAlpha = new HashMap<>(MONITORED_EXECUTORS.size(), 1.0f);
+        MONITORED_EXECUTORS.forEach((name, setting) -> threadPoolsAndEWMAAlpha.put(name, clusterSettings.get(setting)));
         var sampler = new AverageSearchLoadSampler(
             threadPool,
             SearchLoadSampler.SAMPLING_FREQUENCY_SETTING.get(settings),
-            clusterSettings.get(SEARCH_LOAD_SAMPLER_EWMA_ALPHA_SETTING),
+            threadPoolsAndEWMAAlpha,
             EsExecutors.allocatedProcessors(settings)
         );
-        clusterSettings.addSettingsUpdateConsumer(SEARCH_LOAD_SAMPLER_EWMA_ALPHA_SETTING, sampler::updateEWMAAlpha);
+        MONITORED_EXECUTORS.forEach(
+            (name, setting) -> clusterSettings.addSettingsUpdateConsumer(setting, value -> sampler.updateEWMAAlpha(name, value))
+        );
         return sampler;
     }
 
-    AverageSearchLoadSampler(ThreadPool threadPool, TimeValue samplingFrequency, double ewmaAlpha, int numProcessors) {
+    AverageSearchLoadSampler(
+        ThreadPool threadPool,
+        TimeValue samplingFrequency,
+        Map<String, Double> threadPoolToAlphaValue,
+        int numProcessors
+    ) {
+        assert threadPoolToAlphaValue.keySet().equals(MONITORED_EXECUTORS.keySet())
+            : "threadPoolToAlphaValue must contain a single entry for each of the monitored executors: " + MONITORED_EXECUTORS;
+
         this.threadPool = threadPool;
-        SEARCH_EXECUTORS.forEach(
-            name -> averageThreadLoadPerExecutor.put(name, new AverageLoad(threadPool.info(name).getMax(), samplingFrequency, ewmaAlpha))
+        threadPoolToAlphaValue.forEach(
+            (name, alpha) -> averageThreadLoadPerExecutor.put(
+                name,
+                new AverageLoad(threadPool.info(name).getMax(), samplingFrequency, alpha)
+            )
         );
         this.numProcessors = numProcessors;
     }
 
     public void sample() {
-        for (var name : SEARCH_EXECUTORS) {
+        for (var name : MONITORED_EXECUTORS.keySet()) {
             var executor = (TaskExecutionTimeTrackingEsThreadPoolExecutor) threadPool.executor(name);
             long currentTotalNanos = executor.getTotalTaskExecutionTime();
             var ongoingTasks = executor.getOngoingTasks();
@@ -84,12 +119,12 @@ public class AverageSearchLoadSampler {
         }
     }
 
-    public SearchExecutorStats getSearchExecutorStats(String executorName) {
-        if (SEARCH_EXECUTORS.contains(executorName) == false) {
-            throw new IllegalArgumentException("only the following search executors are valid: " + SEARCH_EXECUTORS);
+    public ExecutorLoadStats getExecutorLoadStats(String executorName) {
+        if (MONITORED_EXECUTORS.get(executorName) == null) {
+            throw new IllegalArgumentException("only the following executors are valid: " + MONITORED_EXECUTORS);
         }
         var executor = (TaskExecutionTimeTrackingEsThreadPoolExecutor) threadPool.executor(executorName);
-        return new SearchExecutorStats(
+        return new ExecutorLoadStats(
             averageThreadLoadPerExecutor.get(executorName).get(),
             executor.getTaskExecutionEWMA(),
             executor.getCurrentQueueSize(),
@@ -98,8 +133,12 @@ public class AverageSearchLoadSampler {
         );
     }
 
-    private void updateEWMAAlpha(double alpha) {
-        averageThreadLoadPerExecutor.forEach((s, averageLoad) -> averageLoad.updateEwmaAlpha(alpha));
+    private void updateEWMAAlpha(String executorName, double alpha) {
+        if (MONITORED_EXECUTORS.get(executorName) == null) {
+            throw new IllegalArgumentException("only the following executors are valid: " + MONITORED_EXECUTORS);
+        }
+        AverageLoad averageLoad = averageThreadLoadPerExecutor.get(executorName);
+        averageLoad.updateEwmaAlpha(alpha);
     }
 
     /**

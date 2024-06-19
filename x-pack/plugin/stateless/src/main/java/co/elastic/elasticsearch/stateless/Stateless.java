@@ -502,14 +502,12 @@ public class Stateless extends Plugin
         final ShardSizeCollector shardSizeCollector;
         if (hasSearchRole) {
             var averageSearchLoadSampler = AverageSearchLoadSampler.create(threadPool, settings, clusterService.getClusterSettings());
-            var searchLoadProbe = new SearchLoadProbe(
-                clusterService.getClusterSettings(),
-                averageSearchLoadSampler::getSearchExecutorStats
-            );
+            var searchLoadProbe = new SearchLoadProbe(clusterService.getClusterSettings(), averageSearchLoadSampler::getExecutorLoadStats);
             var searchLoadSampler = new SearchLoadSampler(
                 client,
                 averageSearchLoadSampler,
                 searchLoadProbe::getSearchLoad,
+                searchLoadProbe::getSearchLoadQuality,
                 EsExecutors.nodeProcessors(settings).count(),
                 clusterService.getClusterSettings(),
                 clusterService
@@ -651,7 +649,8 @@ public class Stateless extends Plugin
                 shardReadMaxThreads,
                 TimeValue.timeValueMinutes(5),
                 true,
-                SHARD_READ_THREAD_POOL_SETTING
+                SHARD_READ_THREAD_POOL_SETTING,
+                new EsExecutors.TaskTrackingConfig(true, 0.3)
             ),
             new ScalingExecutorBuilder(
                 TRANSLOG_THREAD_POOL,
@@ -781,12 +780,14 @@ public class Stateless extends Plugin
             SearchLoadSampler.SAMPLING_FREQUENCY_SETTING,
             SearchLoadSampler.MAX_TIME_BETWEEN_METRIC_PUBLICATIONS_SETTING,
             AverageSearchLoadSampler.SEARCH_LOAD_SAMPLER_EWMA_ALPHA_SETTING,
+            AverageSearchLoadSampler.SHARD_READ_SAMPLER_EWMA_ALPHA_SETTING,
             SearchMetricsService.ACCURATE_METRICS_WINDOW_SETTING,
             SearchMetricsService.STALE_METRICS_CHECK_INTERVAL_SETTING,
             ReplicasUpdaterService.REPLICA_UPDATER_INTERVAL,
             ReplicasUpdaterService.REPLICA_UPDATER_SCALEDOWN_REPETITIONS,
             SearchLoadProbe.MAX_TIME_TO_CLEAR_QUEUE,
             SearchLoadProbe.MAX_QUEUE_CONTRIBUTION_FACTOR,
+            SearchLoadProbe.SHARD_READ_LOAD_THRESHOLD_SETTING,
             StatelessCommitService.SHARD_INACTIVITY_DURATION_TIME_SETTING,
             StatelessCommitService.SHARD_INACTIVITY_MONITOR_INTERVAL_TIME_SETTING,
             StatelessCommitService.STATELESS_UPLOAD_DELAYED,

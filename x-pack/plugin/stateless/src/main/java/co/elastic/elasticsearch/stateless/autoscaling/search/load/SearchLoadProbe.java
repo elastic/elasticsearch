@@ -17,29 +17,48 @@
 
 package co.elastic.elasticsearch.stateless.autoscaling.search.load;
 
+import co.elastic.elasticsearch.stateless.autoscaling.MetricQuality;
+
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.core.TimeValue;
 
 import java.util.function.Function;
 
+import static co.elastic.elasticsearch.stateless.Stateless.SHARD_READ_THREAD_POOL;
+import static co.elastic.elasticsearch.stateless.autoscaling.search.load.AverageSearchLoadSampler.SEARCH_EXECUTOR;
+
 /**
  * This class computes the current node search load
  */
 public class SearchLoadProbe {
 
+    public static final TimeValue DEFAULT_MAX_TIME_TO_CLEAR_QUEUE = TimeValue.timeValueSeconds(30);
+
     /**
-     * MAX_TIME_TO_CLEAR_QUEUE is a threshold that defines the length of time that the current number of threads could take to clear up the
+     * MAX_TIME_TO_CLEAR_QUEUE is a threshold that defines the length of time that the current number of threads could take to clear the
      * queued work. In other words, the amount of work that is considered manageable using the current number of threads. For example,
      * MAX_TIME_TO_CLEAR_QUEUE = 30sec means, 30 seconds worth of tasks in the queue is considered manageable with the current number of
      * threads available.
      * <p>
      * Setting `MAX_TIME_TO_CLEAR_QUEUE = 0` disables using queuing in load calculations.
      */
-    public static final TimeValue DEFAULT_MAX_TIME_TO_CLEAR_QUEUE = TimeValue.timeValueSeconds(30);
     public static final Setting<TimeValue> MAX_TIME_TO_CLEAR_QUEUE = Setting.timeSetting(
         "serverless.autoscaling.search.sampler.max_time_to_clear_queue",
         DEFAULT_MAX_TIME_TO_CLEAR_QUEUE,
+        Setting.Property.NodeScope,
+        Setting.Property.OperatorDynamic
+    );
+
+    /**
+     * This setting is used to determine the threshold of load in the SHARD_READ_EXECUTOR under which the Search Load is considered valid.
+     * If the {@code shardReadLoad < SHARD_READ_LOAD_THRESHOLD_SETTING}, the Search Load is considered valid, as the SEARCH_EXECUTOR is not
+     * considered to be blocked on the blob-store contents being downloaded by the SHARD_READ_EXECUTOR.
+     */
+    public static final Setting<Double> SHARD_READ_LOAD_THRESHOLD_SETTING = Setting.doubleSetting(
+        "serverless.autoscaling.search.shard_read_load.threshold",
+        0.1,
+        0.0,
         Setting.Property.NodeScope,
         Setting.Property.OperatorDynamic
     );
@@ -55,38 +74,46 @@ public class SearchLoadProbe {
         Setting.Property.OperatorDynamic
     );
 
-    private final Function<String, SearchExecutorStats> searchExecutorStatsProvider;
+    private final Function<String, ExecutorLoadStats> searchExecutorStatsProvider;
     private volatile TimeValue maxTimeToClearQueue;
     private volatile float maxQueueContributionFactor;
+    private volatile double shardReadLoadThreshold;
 
-    public SearchLoadProbe(ClusterSettings clusterSettings, Function<String, SearchExecutorStats> searchExecutorStatsProvider) {
+    public SearchLoadProbe(ClusterSettings clusterSettings, Function<String, ExecutorLoadStats> searchExecutorStatsProvider) {
         this.searchExecutorStatsProvider = searchExecutorStatsProvider;
         clusterSettings.initializeAndWatch(MAX_TIME_TO_CLEAR_QUEUE, this::setMaxTimeToClearQueue);
         clusterSettings.initializeAndWatch(MAX_QUEUE_CONTRIBUTION_FACTOR, this::setMaxQueueContributionFactor);
+        clusterSettings.initializeAndWatch(SHARD_READ_LOAD_THRESHOLD_SETTING, this::setShardReadLoadThreshold);
     }
 
-    private void setMaxQueueContributionFactor(float maxQueueContributionFactor) {
-        this.maxQueueContributionFactor = maxQueueContributionFactor;
+    /**
+     * Reports the quality of the search load. The quality is only considered MetricQuality.EXACT when the SEARCH_EXECUTOR is not
+     *  blocked on the blob-store contents being downloaded by the SHARD_READ_EXECUTOR (The SHARD_READ_EXECUTOR load is below the
+     *  SHARD_READ_LOAD_THRESHOLD_SETTING).
+     */
+    public MetricQuality getSearchLoadQuality() {
+        var shardReadLoad = getExecutorLoad(SHARD_READ_THREAD_POOL);
+        return (shardReadLoad < shardReadLoadThreshold) ? MetricQuality.EXACT : MetricQuality.MINIMUM;
     }
 
     /**
      * Returns the current search load (number of processors needed to cope with the current search workload).
      */
     public double getSearchLoad() {
-        double totalSearchLoad = 0.0;
-        for (String executorName : AverageSearchLoadSampler.SEARCH_EXECUTORS) {
-            var searchExecutorStats = searchExecutorStatsProvider.apply(executorName);
-            totalSearchLoad += calculateSearchLoadForExecutor(
-                searchExecutorStats.threadsUsed(),
-                searchExecutorStats.averageTaskExecutionEWMA(),
-                searchExecutorStats.currentQueueSize(),
-                maxTimeToClearQueue,
-                maxQueueContributionFactor * searchExecutorStats.maxThreads(),
-                searchExecutorStats.numProcessors(),
-                searchExecutorStats.maxThreads()
-            );
-        }
-        return totalSearchLoad;
+        return getExecutorLoad(SEARCH_EXECUTOR);
+    }
+
+    private double getExecutorLoad(String executorName) {
+        var searchExecutorStats = searchExecutorStatsProvider.apply(executorName);
+        return calculateSearchLoadForExecutor(
+            searchExecutorStats.threadsUsed(),
+            searchExecutorStats.averageTaskExecutionEWMA(),
+            searchExecutorStats.currentQueueSize(),
+            maxTimeToClearQueue,
+            maxQueueContributionFactor * searchExecutorStats.maxThreads(),
+            searchExecutorStats.numProcessors(),
+            searchExecutorStats.maxThreads()
+        );
     }
 
     /**
@@ -135,7 +162,15 @@ public class SearchLoadProbe {
         return threadPoolLoad + queueLoad;
     }
 
-    public void setMaxTimeToClearQueue(TimeValue maxTimeToClearQueue) {
+    void setMaxTimeToClearQueue(TimeValue maxTimeToClearQueue) {
         this.maxTimeToClearQueue = maxTimeToClearQueue;
+    }
+
+    void setMaxQueueContributionFactor(float maxQueueContributionFactor) {
+        this.maxQueueContributionFactor = maxQueueContributionFactor;
+    }
+
+    void setShardReadLoadThreshold(double shardReadLoadThreshold) {
+        this.shardReadLoadThreshold = shardReadLoadThreshold;
     }
 }

@@ -17,7 +17,7 @@
 
 package co.elastic.elasticsearch.stateless.autoscaling.search.load;
 
-public record SearchExecutorStats(
+public record ExecutorLoadStats(
     double threadsUsed,
     double averageTaskExecutionEWMA,
     int currentQueueSize,

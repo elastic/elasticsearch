@@ -17,6 +17,8 @@
 
 package co.elastic.elasticsearch.stateless.autoscaling.search.load;
 
+import co.elastic.elasticsearch.stateless.autoscaling.MetricQuality;
+
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -34,6 +36,7 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.DoubleSupplier;
+import java.util.function.Supplier;
 
 import static co.elastic.elasticsearch.stateless.autoscaling.AutoscalingDataTransmissionLogging.getExceptionLogLevel;
 
@@ -69,6 +72,7 @@ public class SearchLoadSampler extends AbstractLifecycleComponent implements Clu
     private final Executor executor;
     private final AverageSearchLoadSampler averageSearchLoadSampler;
     private final DoubleSupplier currentSearchLoadSupplier;
+    private final Supplier<MetricQuality> searchLoadQualitySupplier;
     private final double numProcessors;
     private final Client client;
     private final ClusterService clusterService;
@@ -79,6 +83,7 @@ public class SearchLoadSampler extends AbstractLifecycleComponent implements Clu
     private volatile TimeValue maxTimeBetweenPublications;
     private volatile double searchLoad;
     private volatile double latestPublishedSearchLoad;
+    private volatile MetricQuality searchLoadQuality = MetricQuality.MINIMUM;
     private volatile SamplingTask samplingTask;
     private final AtomicLong lastPublicationRelativeTimeInMillis = new AtomicLong();
     private final AtomicReference<Object> inFlightPublicationTicket = new AtomicReference<>();
@@ -88,6 +93,7 @@ public class SearchLoadSampler extends AbstractLifecycleComponent implements Clu
         Client client,
         AverageSearchLoadSampler averageSearchLoadSampler,
         DoubleSupplier currentSearchLoadSupplier,
+        Supplier<MetricQuality> searchLoadQualitySupplier,
         double numProcessors,
         ClusterSettings clusterSettings,
         ClusterService clusterService
@@ -106,6 +112,7 @@ public class SearchLoadSampler extends AbstractLifecycleComponent implements Clu
         this.averageSearchLoadSampler = averageSearchLoadSampler;
         this.client = client;
         this.currentSearchLoadSupplier = currentSearchLoadSupplier;
+        this.searchLoadQualitySupplier = searchLoadQualitySupplier;
         // To ensure that the first sample is published right away
         lastPublicationRelativeTimeInMillis.set(threadPool.relativeTimeInMillis() - maxTimeBetweenPublications.getMillis());
         this.clusterService = clusterService;
@@ -144,14 +151,16 @@ public class SearchLoadSampler extends AbstractLifecycleComponent implements Clu
     }
 
     private void sampleSearchLoad(String nodeId) {
-        double previousReading = latestPublishedSearchLoad;
-        double currentReading = currentSearchLoadSupplier.getAsDouble();
-        this.searchLoad = currentReading;
+        this.searchLoadQuality = searchLoadQualitySupplier.get();
+        this.searchLoad = searchLoadQuality != MetricQuality.EXACT ? 0.0 : currentSearchLoadSupplier.getAsDouble();
 
-        var previousRatio = previousReading / numProcessors;
-        var currentRatio = currentReading / numProcessors;
-        if (currentRatio - previousRatio >= minSensitivityRatio
-            || timeSinceLastPublicationInMillis() >= maxTimeBetweenPublications.getMillis()) {
+        var previousLoadPerProcessor = latestPublishedSearchLoad / numProcessors;
+        var currentLoadPerProcessor = searchLoad / numProcessors;
+        boolean hasLoadIncreaseSurpassedSensitivityRatio = currentLoadPerProcessor - previousLoadPerProcessor >= minSensitivityRatio;
+
+        boolean wasMaxPublicationTimeSurpassed = timeSinceLastPublicationInMillis() >= maxTimeBetweenPublications.getMillis();
+
+        if (hasLoadIncreaseSurpassedSensitivityRatio || wasMaxPublicationTimeSurpassed) {
             publishCurrentLoad(nodeId);
         }
     }
@@ -163,8 +172,8 @@ public class SearchLoadSampler extends AbstractLifecycleComponent implements Clu
     /**
      * Non-private only for testing.
      */
-    void publishSearchLoad(double load, String nodeId, ActionListener<Void> listener) {
-        var request = new PublishNodeSearchLoadRequest(nodeId, seqNoSupplier.incrementAndGet(), load);
+    void publishSearchLoad(double load, MetricQuality quality, String nodeId, ActionListener<Void> listener) {
+        var request = new PublishNodeSearchLoadRequest(nodeId, seqNoSupplier.incrementAndGet(), load, quality);
         client.execute(TransportPublishSearchLoads.INSTANCE, request, listener.map(unused -> null));
     }
 
@@ -176,7 +185,7 @@ public class SearchLoadSampler extends AbstractLifecycleComponent implements Clu
             var ticket = new Object();
             if (inFlightPublicationTicket.compareAndSet(null, ticket)) {
                 final var publishedLoad = searchLoad;
-                publishSearchLoad(publishedLoad, nodeId, ActionListener.runAfter(new ActionListener<>() {
+                publishSearchLoad(publishedLoad, searchLoadQuality, nodeId, ActionListener.runAfter(new ActionListener<>() {
                     @Override
                     public void onResponse(Void unused) {
                         var previousPublicationTime = lastPublicationRelativeTimeInMillis.get();

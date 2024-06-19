@@ -7,39 +7,38 @@
 
 package org.elasticsearch.compute.aggregation;
 
-import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
-import org.elasticsearch.compute.operator.SequenceIntBlockSourceOperator;
+import org.elasticsearch.compute.operator.SequenceLongBlockSourceOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
 
 import java.util.List;
-import java.util.stream.Collectors;
-import java.util.stream.IntStream;
+import java.util.stream.LongStream;
 
-import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.contains;
 
-@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/109932")
-public class ValuesIntAggregatorFunctionTests extends AggregatorFunctionTestCase {
+public class TopListLongAggregatorFunctionTests extends AggregatorFunctionTestCase {
+    private static final int LIMIT = 100;
+
     @Override
     protected SourceOperator simpleInput(BlockFactory blockFactory, int size) {
-        return new SequenceIntBlockSourceOperator(blockFactory, IntStream.range(0, size).map(i -> randomInt()));
+        return new SequenceLongBlockSourceOperator(blockFactory, LongStream.range(0, size).map(l -> randomLong()));
     }
 
     @Override
     protected AggregatorFunctionSupplier aggregatorFunction(List<Integer> inputChannels) {
-        return new ValuesIntAggregatorFunctionSupplier(inputChannels);
+        return new TopListLongAggregatorFunctionSupplier(inputChannels, LIMIT, true);
     }
 
     @Override
     protected String expectedDescriptionOfAggregator() {
-        return "values of ints";
+        return "top_list of longs";
     }
 
     @Override
     public void assertSimpleOutput(List<Block> input, Block result) {
-        Object[] values = input.stream().flatMapToInt(b -> allInts(b)).boxed().collect(Collectors.toSet()).toArray(Object[]::new);
-        assertThat((List<?>) BlockUtils.toJavaObject(result, 0), containsInAnyOrder(values));
+        Object[] values = input.stream().flatMapToLong(b -> allLongs(b)).sorted().limit(LIMIT).boxed().toArray(Object[]::new);
+        assertThat((List<?>) BlockUtils.toJavaObject(result, 0), contains(values));
     }
 }

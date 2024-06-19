@@ -36,10 +36,11 @@ spotless {
   }
 }
 
-def prop(Type, type, TYPE, BYTES, Array, Hash) {
+def prop(Type, type, Wrapper, TYPE, BYTES, Array, Hash) {
   return [
     "Type" : Type,
     "type" : type,
+    "Wrapper": Wrapper,
     "TYPE" : TYPE,
     "BYTES" : BYTES,
     "Array" : Array,
@@ -55,12 +56,13 @@ def prop(Type, type, TYPE, BYTES, Array, Hash) {
 }
 
 tasks.named('stringTemplates').configure {
-  var intProperties      = prop("Int", "int", "INT", "Integer.BYTES", "IntArray", "LongHash")
-  var floatProperties    = prop("Float", "float", "FLOAT", "Float.BYTES", "FloatArray", "LongHash")
-  var longProperties     = prop("Long", "long", "LONG", "Long.BYTES", "LongArray", "LongHash")
-  var doubleProperties   = prop("Double", "double", "DOUBLE", "Double.BYTES", "DoubleArray", "LongHash")
-  var bytesRefProperties = prop("BytesRef", "BytesRef", "BYTES_REF", "org.apache.lucene.util.RamUsageEstimator.NUM_BYTES_OBJECT_REF", "", "BytesRefHash")
-  var booleanProperties  = prop("Boolean", "boolean", "BOOLEAN", "Byte.BYTES", "BitArray", "")
+  var intProperties      = prop("Int", "int", "Integer", "INT", "Integer.BYTES", "IntArray", "LongHash")
+  var floatProperties    = prop("Float", "float", "Float", "FLOAT", "Float.BYTES", "FloatArray", "LongHash")
+  var longProperties     = prop("Long", "long", "Long", "LONG", "Long.BYTES", "LongArray", "LongHash")
+  var doubleProperties   = prop("Double", "double", "Double", "DOUBLE", "Double.BYTES", "DoubleArray", "LongHash")
+  var bytesRefProperties = prop("BytesRef", "BytesRef", "", "BYTES_REF", "org.apache.lucene.util.RamUsageEstimator.NUM_BYTES_OBJECT_REF", "", "BytesRefHash")
+  var booleanProperties  = prop("Boolean", "boolean", "Boolean", "BOOLEAN", "Byte.BYTES", "BitArray", "")
+
   // primitive vectors
   File vectorInputFile = new File("${projectDir}/src/main/java/org/elasticsearch/compute/data/X-Vector.java.st")
   template {
@@ -500,6 +502,24 @@ tasks.named('stringTemplates').configure {
     it.outputFile = "org/elasticsearch/compute/aggregation/RateDoubleAggregator.java"
   }
 
+
+  File topListAggregatorInputFile = new File("${projectDir}/src/main/java/org/elasticsearch/compute/aggregation/X-TopListAggregator.java.st")
+  template {
+    it.properties = intProperties
+    it.inputFile =  topListAggregatorInputFile
+    it.outputFile = "org/elasticsearch/compute/aggregation/TopListIntAggregator.java"
+  }
+  template {
+    it.properties = longProperties
+    it.inputFile =  topListAggregatorInputFile
+    it.outputFile = "org/elasticsearch/compute/aggregation/TopListLongAggregator.java"
+  }
+  template {
+    it.properties = doubleProperties
+    it.inputFile =  topListAggregatorInputFile
+    it.outputFile = "org/elasticsearch/compute/aggregation/TopListDoubleAggregator.java"
+  }
+
   File multivalueDedupeInputFile = file("src/main/java/org/elasticsearch/compute/operator/mvdedupe/X-MultivalueDedupe.java.st")
   template {
     it.properties = intProperties
@@ -634,5 +654,22 @@ tasks.named('stringTemplates').configure {
     it.properties = floatProperties
     it.inputFile =  resultBuilderInputFile
     it.outputFile = "org/elasticsearch/compute/operator/topn/ResultBuilderForFloat.java"
+  }
+
+  File bucketedSortInputFile = new File("${projectDir}/src/main/java/org/elasticsearch/compute/data/sort/X-BucketedSort.java.st")
+  template {
+    it.properties = intProperties
+    it.inputFile =  bucketedSortInputFile
+    it.outputFile = "org/elasticsearch/compute/data/sort/IntBucketedSort.java"
+  }
+  template {
+    it.properties = longProperties
+    it.inputFile =  bucketedSortInputFile
+    it.outputFile = "org/elasticsearch/compute/data/sort/LongBucketedSort.java"
+  }
+  template {
+    it.properties = doubleProperties
+    it.inputFile =  bucketedSortInputFile
+    it.outputFile = "org/elasticsearch/compute/data/sort/DoubleBucketedSort.java"
   }
 }

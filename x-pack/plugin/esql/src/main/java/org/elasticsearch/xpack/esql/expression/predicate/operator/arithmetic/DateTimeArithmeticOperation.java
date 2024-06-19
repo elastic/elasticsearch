@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic;
 
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.ExceptionUtils;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -15,6 +16,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 
+import java.io.IOException;
 import java.time.Duration;
 import java.time.Period;
 import java.time.temporal.TemporalAmount;
@@ -49,6 +51,19 @@ public abstract class DateTimeArithmeticOperation extends EsqlArithmeticOperatio
         DatetimeArithmeticEvaluator datetimes
     ) {
         super(source, left, right, op, ints, longs, ulongs, doubles);
+        this.datetimes = datetimes;
+    }
+
+    DateTimeArithmeticOperation(
+        StreamInput in,
+        OperationSymbol op,
+        BinaryEvaluator ints,
+        BinaryEvaluator longs,
+        BinaryEvaluator ulongs,
+        BinaryEvaluator doubles,
+        DatetimeArithmeticEvaluator datetimes
+    ) throws IOException {
+        super(in, op, ints, longs, ulongs, doubles);
         this.datetimes = datetimes;
     }
 

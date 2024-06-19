@@ -23,7 +23,7 @@ import java.util.Set;
  * {@link RestNodesCapabilitiesAction} and we use them to enable tests.
  */
 public class EsqlCapabilities {
-    public enum Cap {
+    enum Cap {
         // Support for function {@code CBRT}. Done in #108574.
         FN_CBRT(false),
 

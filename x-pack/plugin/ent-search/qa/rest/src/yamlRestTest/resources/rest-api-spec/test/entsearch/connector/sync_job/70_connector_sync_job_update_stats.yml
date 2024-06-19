@@ -212,7 +212,7 @@ setup:
   - match: { deleted_document_count: 10 }
   - match: { indexed_document_count: 20 }
   - match: { indexed_document_volume: 1000 }
-  - match: { someKey1: test, someKey2: test2 }
+  - match: {  metadata: { someKey1: test, someKey2: test2 } }
 
 ---
 "Update the ingestion stats for a Connector Sync Job - Connector Sync Job does not exist":

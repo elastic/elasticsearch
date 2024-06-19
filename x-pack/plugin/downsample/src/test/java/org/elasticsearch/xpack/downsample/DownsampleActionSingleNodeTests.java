@@ -57,7 +57,7 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.plugins.PluginsService;
+import org.elasticsearch.plugins.loading.PluginsService;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchResponseUtils;

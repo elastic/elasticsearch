@@ -159,7 +159,7 @@ public abstract class ExactKnnQuery extends Query {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Bytes bytes = (Bytes) o;
-            return  Objects.equals(field, bytes.field) && Objects.deepEquals(query, bytes.query);
+            return Objects.equals(field, bytes.field) && Objects.deepEquals(query, bytes.query);
         }
 
         @Override
@@ -191,6 +191,7 @@ public abstract class ExactKnnQuery extends Query {
 
         @Override
         public float score() throws IOException {
+            assert iterator.docID() != -1;
             return vectorScorer.score();
         }
 

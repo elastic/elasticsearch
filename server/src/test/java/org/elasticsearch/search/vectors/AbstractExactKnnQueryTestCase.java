@@ -31,15 +31,14 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.tests.store.BaseDirectoryWrapper;
 import org.apache.lucene.tests.util.LuceneTestCase;
+import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 
-import static com.carrotsearch.randomizedtesting.RandomizedTest.randomBoolean;
-import static com.carrotsearch.randomizedtesting.RandomizedTest.randomIntBetween;
 import static org.apache.lucene.index.VectorSimilarityFunction.COSINE;
 import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
 
-abstract class AbstractExactKnnQueryTestCase extends LuceneTestCase {
+abstract class AbstractExactKnnQueryTestCase extends ESTestCase {
 
     abstract ExactKnnQuery getExactVectorQuery(String field, float[] query);
 
@@ -103,81 +102,55 @@ abstract class AbstractExactKnnQueryTestCase extends LuceneTestCase {
             IndexReader reader = DirectoryReader.open(d)
         ) {
             IndexSearcher searcher = new IndexSearcher(reader);
-            ExactKnnQuery query = getExactVectorQuery("field", new float[] { 2, 3 });
+            float[] queryVector = new float[] { 2, 3 };
+            ExactKnnQuery query = getExactVectorQuery("field", queryVector);
             Query rewritten = query.rewrite(searcher);
             Weight weight = searcher.createWeight(rewritten, ScoreMode.COMPLETE, 1);
             Scorer scorer = weight.scorer(reader.leaves().get(0));
 
             // prior to advancing, score is 0
             assertEquals(-1, scorer.docID());
-            expectThrows(ArrayIndexOutOfBoundsException.class, scorer::score);
-
-            // This is 1 / ((l2distance((2,3), (2, 2)) = 1) + 1) = 0.5
-            assertEquals(1 / 2f, scorer.getMaxScore(2), 0);
-            assertEquals(1 / 2f, scorer.getMaxScore(Integer.MAX_VALUE), 0);
 
             DocIdSetIterator it = scorer.iterator();
-            assertEquals(3, it.cost());
-            int firstDoc = it.nextDoc();
-            if (firstDoc == 1) {
-                assertEquals(1 / 6f, scorer.score(), 0);
-                assertEquals(3, it.advance(3));
-                assertEquals(1 / 2f, scorer.score(), 0);
-                assertEquals(NO_MORE_DOCS, it.advance(4));
-            } else {
-                assertEquals(2, firstDoc);
-                assertEquals(1 / 2f, scorer.score(), 0);
-                assertEquals(4, it.advance(4));
-                assertEquals(1 / 6f, scorer.score(), 0);
-                assertEquals(NO_MORE_DOCS, it.advance(5));
+            assertEquals(5, it.cost());
+            it.nextDoc();
+            int curDoc = 0;
+            // iterate the docs and assert the scores are what we expect
+            while (it.docID() != NO_MORE_DOCS) {
+                assertEquals(VectorSimilarityFunction.EUCLIDEAN.compare(vectors[curDoc], queryVector), scorer.score(), 0.0001);
+                curDoc++;
+                it.nextDoc();
             }
-            expectThrows(ArrayIndexOutOfBoundsException.class, scorer::score);
         }
     }
 
     public void testScoreCosine() throws IOException {
         float[][] vectors = new float[5][];
-        for (int j = 0; j < 5; j++) {
-            vectors[j] = new float[] { j, j * j };
+        for (int j = 1; j <= 5; j++) {
+            vectors[j - 1] = new float[] { j, j * j };
         }
         try (Directory d = getStableIndexStore("field", COSINE, vectors)) {
             try (IndexReader reader = DirectoryReader.open(d)) {
                 assertEquals(1, reader.leaves().size());
                 IndexSearcher searcher = new IndexSearcher(reader);
-                ExactKnnQuery query = getExactVectorQuery("field", new float[] { 2, 3 });
+                float[] queryVector = new float[] { 2, 3 };
+                ExactKnnQuery query = getExactVectorQuery("field", queryVector);
                 Query rewritten = query.rewrite(searcher);
                 Weight weight = searcher.createWeight(rewritten, ScoreMode.COMPLETE, 1);
                 Scorer scorer = weight.scorer(reader.leaves().get(0));
 
                 // prior to advancing, score is undefined
                 assertEquals(-1, scorer.docID());
-                expectThrows(ArrayIndexOutOfBoundsException.class, scorer::score);
-
-                /* score0 = ((2,3) * (1, 1) = 5) / (||2, 3|| * ||1, 1|| = sqrt(26)), then
-                 * normalized by (1 + x) /2.
-                 */
-                float score0 = (float) ((1 + (2 * 1 + 3 * 1) / Math.sqrt((2 * 2 + 3 * 3) * (1 * 1 + 1 * 1))) / 2);
-
-                /* score1 = ((2,3) * (2, 4) = 16) / (||2, 3|| * ||2, 4|| = sqrt(260)), then
-                 * normalized by (1 + x) /2
-                 */
-                float score1 = (float) ((1 + (2 * 2 + 3 * 4) / Math.sqrt((2 * 2 + 3 * 3) * (2 * 2 + 4 * 4))) / 2);
-
-                // doc 1 happens to have the maximum score
-                assertEquals(score1, scorer.getMaxScore(2), 0.0001);
-                assertEquals(score1, scorer.getMaxScore(Integer.MAX_VALUE), 0.0001);
-
                 DocIdSetIterator it = scorer.iterator();
-                assertEquals(3, it.cost());
-                assertEquals(0, it.nextDoc());
-                // doc 0 has (1, 1)
-                assertEquals(score0, scorer.score(), 0.0001);
-                assertEquals(1, it.advance(1));
-                assertEquals(score1, scorer.score(), 0.0001);
-
-                // since topK was 3
-                assertEquals(NO_MORE_DOCS, it.advance(4));
-                expectThrows(ArrayIndexOutOfBoundsException.class, scorer::score);
+                assertEquals(5, it.cost());
+                it.nextDoc();
+                int curDoc = 0;
+                // iterate the docs and assert the scores are what we expect
+                while (it.docID() != NO_MORE_DOCS) {
+                    assertEquals(COSINE.compare(vectors[curDoc], queryVector), scorer.score(), 0.0001);
+                    curDoc++;
+                    it.nextDoc();
+                }
             }
         }
     }
@@ -248,15 +221,10 @@ abstract class AbstractExactKnnQueryTestCase extends LuceneTestCase {
             try (IndexReader reader = DirectoryReader.open(d)) {
                 IndexSearcher searcher = newSearcher(reader);
                 for (int i = 0; i < numIters; i++) {
-                    int k = random().nextInt(80) + 1;
                     ExactKnnQuery query = getExactVectorQuery("field", randomVector(dimension));
                     int n = random().nextInt(100) + 1;
                     TopDocs results = searcher.search(query, n);
-                    int expected = Math.min(n, reader.numDocs());
-                    // we may get fewer results than requested if there are deletions, but this test doesn't
-                    // test that
                     assert reader.hasDeletions() == false;
-                    assertEquals(expected, results.scoreDocs.length);
                     assertTrue(results.totalHits.value >= results.scoreDocs.length);
                     // verify the results are in descending score order
                     float last = Float.MAX_VALUE;

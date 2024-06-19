@@ -9,8 +9,10 @@
 package org.elasticsearch.search.vectors;
 
 import org.apache.lucene.search.Query;
+import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.plugins.Plugin;
@@ -20,6 +22,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 
@@ -83,7 +86,13 @@ public class ExactKnnQueryBuilderTests extends AbstractQueryTestCase<ExactKnnQue
         assertTrue(query instanceof ExactKnnQuery.Floats);
         ExactKnnQuery.Floats exactKnnQuery = (ExactKnnQuery.Floats) query;
         assertEquals(VECTOR_FIELD, exactKnnQuery.field);
-        assertArrayEquals(queryBuilder.getQuery().asFloatVector(), exactKnnQuery.getQuery(), 0.0f);
+        float[] expected = Arrays.copyOf(queryBuilder.getQuery().asFloatVector(), queryBuilder.getQuery().asFloatVector().length);
+        if (context.getIndexSettings().getIndexVersionCreated().onOrAfter(IndexVersions.NORMALIZED_VECTOR_COSINE)) {
+            VectorUtil.l2normalize(expected);
+            assertArrayEquals(expected, exactKnnQuery.getQuery(), 0.0f);
+        } else {
+            assertArrayEquals(expected, exactKnnQuery.getQuery(), 0.0f);
+        }
     }
 
     @Override

@@ -92,6 +92,7 @@ public class EsqlCapabilities {
 
         if (Build.current().isSnapshot()) {
             caps.add(LOOKUP_COMMAND);
+            caps.add(TABLES_TYPES);
         }
 
         /*

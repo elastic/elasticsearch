@@ -129,7 +129,7 @@ The API returns the following response:
 
 [source,txt]
 ----
-health status index            uuid                   pri rep docs.count docs.deleted store.size pri.store.size dataset.size
+health status index            uuid                   pri rep docs.count docs.deleted store.size pri.store.size dataset.size searchable_snapshots.storage_type
 yellow open   my-index-000001  u8FNjxh8Rfy_awN11oDKYQ   1   1       1200            0      72171         72171         72171
 green  open   my-index-000002  nYFWZEO7TUiOjLQXBaYJpA   1   0          0            0        230          230            230
 ----
@@ -188,7 +188,8 @@ For example:
     "rep": "1",
     "docs.count": "0",
     "docs.deleted": "0",
-    "store.size": "650b"
+    "store.size": "650b",
+    "searchable_snapshots.storage_type": null
   }
 ]
 ----

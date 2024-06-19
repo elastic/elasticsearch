@@ -61,7 +61,7 @@ public abstract class AbstractNativeProcess implements NativeProcess {
     private volatile boolean processCloseInitiated;
     private volatile boolean processKilled;
     private volatile boolean isReady;
-    private volatile String controlMessageFilePath;
+    private volatile Path controlMessageFilePath;
 
     protected AbstractNativeProcess(
         String jobId,
@@ -351,11 +351,11 @@ public abstract class AbstractNativeProcess implements NativeProcess {
     }
 
     @Nullable
-    public String getControlMessageFilePath() {
+    public Path getControlMessageFilePath() {
         return controlMessageFilePath;
     }
 
-    public void setControlMessageFilePath(String controlMessageFilePath) {
+    public void setControlMessageFilePath(Path controlMessageFilePath) {
         this.controlMessageFilePath = controlMessageFilePath;
     }
 

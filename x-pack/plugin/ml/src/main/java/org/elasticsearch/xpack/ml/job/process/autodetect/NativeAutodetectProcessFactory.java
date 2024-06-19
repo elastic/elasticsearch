@@ -120,11 +120,10 @@ public class NativeAutodetectProcessFactory implements AutodetectProcessFactory 
         try {
             // check if jobs'custom settings contain the setting 'keep_job_data'
             // and if it is set to true, then we create the autodetect controll message file
-            // TODO Valeriy: store "keep_job_data" into a constant
             if (job.keepJobData()) {
                 FileUtils.recreateTempDirectoryIfNeeded(env.tmpFile());
                 Path controlMsgFile = Files.createTempFile(env.tmpFile(), "autodetect_control_msg", ".json");
-                autodetect.setControlMessageFilePath(controlMsgFile.toString());
+                autodetect.setControlMessageFilePath(controlMsgFile);
             }
             autodetect.start(executorService, stateProcessor);
             return autodetect;

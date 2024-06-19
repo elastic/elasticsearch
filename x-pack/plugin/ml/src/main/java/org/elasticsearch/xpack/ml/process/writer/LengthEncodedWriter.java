@@ -31,6 +31,8 @@ import java.util.List;
  */
 public class LengthEncodedWriter implements RecordWriter {
     private OutputStream outputStream;
+    // In case customer setting "keep_job_data" is set to true, we will write the data to a file
+    // additionally to the output stream.
     private OutputStream fileOutputStream;
     private ByteBuffer lengthBuffer;
 
@@ -44,13 +46,12 @@ public class LengthEncodedWriter implements RecordWriter {
         this(os, null);
     }
 
-    public LengthEncodedWriter(OutputStream os, String filePath) {
+    public LengthEncodedWriter(OutputStream os, Path filePath) {
         outputStream = os;
         try {
             if (filePath != null) {
-                Path file = Path.of(filePath);
                 logger.info("Opening file: " + filePath + " for writing.");
-                fileOutputStream = Files.newOutputStream(file);
+                fileOutputStream = Files.newOutputStream(filePath);
             } else {
                 fileOutputStream = null;
             }
@@ -68,9 +69,7 @@ public class LengthEncodedWriter implements RecordWriter {
             try {
                 fileOutputStream.close();
             } catch (IOException e) {
-                logger.error("Failed to close file output stream.");
-                // log error message and stack trace
-                logger.error(e.getMessage(), e);
+                logger.error("Failed to close file output stream.", e.getMessage(), e);
             }
         }
     }

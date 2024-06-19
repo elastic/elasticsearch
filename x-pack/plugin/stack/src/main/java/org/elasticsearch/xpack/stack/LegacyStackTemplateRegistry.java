@@ -142,7 +142,7 @@ public class LegacyStackTemplateRegistry extends IndexTemplateRegistry {
     @Override
     protected List<LifecyclePolicy> getLifecyclePolicies() {
         if (stackTemplateEnabled) {
-            return lifecyclePolicies;
+            return super.getLifecyclePolicies();
         } else {
             return Collections.emptyList();
         }

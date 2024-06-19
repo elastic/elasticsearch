@@ -164,7 +164,7 @@ public class MlIndexTemplateRegistry extends IndexTemplateRegistry {
         if (useIlm == false) {
             return List.of();
         }
-        return lifecyclePolicies;
+        return super.getLifecyclePolicies();
     }
 
     @Override

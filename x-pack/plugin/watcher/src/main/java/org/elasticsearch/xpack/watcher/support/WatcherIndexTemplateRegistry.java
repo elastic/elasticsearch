@@ -81,7 +81,7 @@ public class WatcherIndexTemplateRegistry extends IndexTemplateRegistry {
      */
     @Override
     protected List<LifecyclePolicy> getLifecyclePolicies() {
-        return Watcher.USE_ILM_INDEX_MANAGEMENT.get(settings) == false ? Collections.emptyList() : lifecyclePolicies;
+        return Watcher.USE_ILM_INDEX_MANAGEMENT.get(settings) == false ? Collections.emptyList() : super.getLifecyclePolicies();
     }
 
     @Override

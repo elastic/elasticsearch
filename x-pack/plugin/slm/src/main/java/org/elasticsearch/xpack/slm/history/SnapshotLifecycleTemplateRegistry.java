@@ -96,7 +96,7 @@ public class SnapshotLifecycleTemplateRegistry extends IndexTemplateRegistry {
         if (slmHistoryEnabled == false) {
             return Collections.emptyList();
         }
-        return lifecyclePolicies;
+        return super.getLifecyclePolicies();
     }
 
     @Override

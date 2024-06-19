@@ -79,6 +79,11 @@ public final class QueryRoleResponse extends ActionResponse implements ToXConten
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
+            // The role name is not normally stored in the role document (it is part of the doc id),
+            // so the "toXContent" method doesn't include it.
+            // But, for the query role API, we'd like to return the role name together with the
+            // other details of the role descriptor (in the same object).
+            builder.field("name", roleDescriptor.getName());
             roleDescriptor.innerToXContent(builder, params, false, false);
             if (sortValues != null && sortValues.length > 0) {
                 builder.array("_sort", sortValues);

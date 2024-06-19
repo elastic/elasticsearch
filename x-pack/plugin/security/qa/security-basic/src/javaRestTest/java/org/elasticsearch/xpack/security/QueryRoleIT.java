@@ -7,29 +7,62 @@
 
 package org.elasticsearch.xpack.security;
 
+import org.apache.http.HttpHeaders;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.ApplicationResourcePrivileges;
-import org.elasticsearch.xpack.core.security.user.User;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
+import static org.hamcrest.CoreMatchers.instanceOf;
+import static org.hamcrest.CoreMatchers.is;
+import static org.hamcrest.CoreMatchers.nullValue;
+import static org.hamcrest.Matchers.emptyIterable;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.iterableWithSize;
 
 public class QueryRoleIT extends SecurityInBasicRestTestCase {
 
     private static final String READ_SECURITY_USER_AUTH_HEADER = "Basic cmVhZF9zZWN1cml0eV91c2VyOnJlYWQtc2VjdXJpdHktcGFzc3dvcmQ=";
-    private static final String TEST_USER_NO_READ_USERS_AUTH_HEADER = "Basic c2VjdXJpdHlfdGVzdF91c2VyOnNlY3VyaXR5LXRlc3QtcGFzc3dvcmQ=";
 
-    public void testX() throws IOException {
-        RoleDescriptor x = createRole("x", "description", Map.of("m1", "v1"), new ApplicationResourcePrivileges[0]);
-        RoleDescriptor y = createRole("y", "description", Map.of("m1", "v1"), new ApplicationResourcePrivileges[0]);
+    public void testSimpleQueryAllRoles() throws IOException {
+        assertQuery("", roles -> assertThat(roles, emptyIterable()));
+        RoleDescriptor createdRole = createRandomRole();
+        assertQuery("", roles -> {
+            assertThat(roles, iterableWithSize(1));
+            assertRoleMap(roles.get(0), createdRole);
+        });
     }
 
+    private RoleDescriptor createRandomRole() throws IOException {
+        ApplicationResourcePrivileges[] applicationResourcePrivileges = randomArray(
+            0,
+            3,
+            ApplicationResourcePrivileges[]::new,
+            this::randomApplicationResourcePrivileges
+        );
+        return createRole(
+            randomAlphaOfLength(8),
+            randomBoolean() ? null : randomAlphaOfLength(8),
+            randomBoolean() ? null : randomMetadata(),
+            applicationResourcePrivileges.length == 0 && randomBoolean() ? null : applicationResourcePrivileges
+        );
+    }
+
+    @SuppressWarnings("unchecked")
     private RoleDescriptor createRole(
         String roleName,
         String description,
@@ -37,22 +70,22 @@ public class QueryRoleIT extends SecurityInBasicRestTestCase {
         ApplicationResourcePrivileges... applicationResourcePrivileges
     ) throws IOException {
         Request request = new Request("POST", "/_security/role/" + roleName);
-        BytesReference source = BytesReference.bytes(
-            jsonBuilder().map(
-                Map.of(
-                    RoleDescriptor.Fields.DESCRIPTION.getPreferredName(),
-                    description,
-                    RoleDescriptor.Fields.METADATA.getPreferredName(),
-                    metadata,
-                    RoleDescriptor.Fields.APPLICATIONS.getPreferredName(),
-                    applicationResourcePrivileges
-                )
-            )
-        );
+        Map<String, Object> requestMap = new HashMap<>();
+        if (description != null) {
+            requestMap.put(RoleDescriptor.Fields.DESCRIPTION.getPreferredName(), description);
+        }
+        if (metadata != null) {
+            requestMap.put(RoleDescriptor.Fields.METADATA.getPreferredName(), metadata);
+        }
+        if (applicationResourcePrivileges != null) {
+            requestMap.put(RoleDescriptor.Fields.APPLICATIONS.getPreferredName(), applicationResourcePrivileges);
+        }
+        BytesReference source = BytesReference.bytes(jsonBuilder().map(requestMap));
         request.setJsonEntity(source.utf8ToString());
         Response response = adminClient().performRequest(request);
         assertOK(response);
-        assertTrue((boolean) responseAsMap(response).get("created"));
+        Map<String, Object> responseMap = responseAsMap(response);
+        assertTrue((Boolean) ((Map<String, Object>) responseMap.get("role")).get("created"));
         return new RoleDescriptor(
             roleName,
             null,
@@ -67,5 +100,111 @@ public class QueryRoleIT extends SecurityInBasicRestTestCase {
             null,
             description
         );
+    }
+
+    private Request queryRoleRequestWithAuth() {
+        Request request = new Request(randomFrom("POST", "GET"), "/_security/_query/role");
+        request.setOptions(request.getOptions().toBuilder().addHeader(HttpHeaders.AUTHORIZATION, READ_SECURITY_USER_AUTH_HEADER));
+        return request;
+    }
+
+    private void assertQuery(String body, Consumer<List<Map<String, Object>>> roleVerifier) throws IOException {
+        Request request = queryRoleRequestWithAuth();
+        request.setJsonEntity(body);
+        Response response = client().performRequest(request);
+        assertOK(response);
+        Map<String, Object> responseMap = responseAsMap(response);
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> roles = (List<Map<String, Object>>) responseMap.get("roles");
+        assertThat(roles.size(), is(responseMap.get("count")));
+        roleVerifier.accept(roles);
+    }
+
+    @SuppressWarnings("unchecked")
+    private void assertRoleMap(Map<String, Object> roleMap, RoleDescriptor roleDescriptor) {
+        assertThat(roleMap.get("name"), equalTo(roleDescriptor.getName()));
+        if (Strings.isNullOrEmpty(roleDescriptor.getDescription())) {
+            assertThat(roleMap.get("description"), nullValue());
+        } else {
+            assertThat(roleMap.get("description"), equalTo(roleDescriptor.getDescription()));
+        }
+        // "applications" is always present
+        assertThat(roleMap.get("applications"), instanceOf(Iterable.class));
+        if (roleDescriptor.getApplicationPrivileges().length == 0) {
+            assertThat((Iterable<ApplicationResourcePrivileges>) roleMap.get("applications"), emptyIterable());
+        } else {
+            assertThat(
+                (Iterable<Map<String, Object>>) roleMap.get("applications"),
+                iterableWithSize(roleDescriptor.getApplicationPrivileges().length)
+            );
+            Iterator<Map<String, Object>> responseIterator = ((Iterable<Map<String, Object>>) roleMap.get("applications")).iterator();
+            Iterator<ApplicationResourcePrivileges> descriptorIterator = Arrays.asList(roleDescriptor.getApplicationPrivileges())
+                .iterator();
+            while (responseIterator.hasNext()) {
+                assertTrue(descriptorIterator.hasNext());
+                Map<String, Object> responsePrivilege = responseIterator.next();
+                ApplicationResourcePrivileges descriptorPrivilege = descriptorIterator.next();
+                assertThat(responsePrivilege.get("application"), equalTo(descriptorPrivilege.getApplication()));
+                assertThat(responsePrivilege.get("privileges"), equalTo(Arrays.asList(descriptorPrivilege.getPrivileges())));
+                assertThat(responsePrivilege.get("resources"), equalTo(Arrays.asList(descriptorPrivilege.getResources())));
+            }
+            assertFalse(descriptorIterator.hasNext());
+        }
+    }
+
+    private Map<String, Object> randomMetadata() {
+        return randomMetadata(3);
+    }
+
+    private Map<String, Object> randomMetadata(int maxLevel) {
+        int size = randomIntBetween(0, 5);
+        Map<String, Object> metadata = new HashMap<>(size);
+        for (int i = 0; i < size; i++) {
+            switch (randomFrom(1, 2, 3, 4, 5)) {
+                case 1:
+                    metadata.put(randomAlphaOfLength(4), randomAlphaOfLength(4));
+                    break;
+                case 2:
+                    metadata.put(randomAlphaOfLength(4), randomInt());
+                    break;
+                case 3:
+                    metadata.put(randomAlphaOfLength(4), randomList(0, 3, () -> randomAlphaOfLength(4)));
+                    break;
+                case 4:
+                    metadata.put(randomAlphaOfLength(4), randomList(0, 3, () -> randomInt(4)));
+                    break;
+                case 5:
+                    if (maxLevel > 0) {
+                        metadata.put(randomAlphaOfLength(4), randomMetadata(maxLevel - 1));
+                    }
+                    break;
+            }
+        }
+        return metadata;
+    }
+
+    private ApplicationResourcePrivileges randomApplicationResourcePrivileges() {
+        String applicationName;
+        if (randomBoolean()) {
+            applicationName = "*";
+        } else {
+            applicationName = randomAlphaOfLength(1).toLowerCase(Locale.ROOT) + randomAlphaOfLengthBetween(2, 10);
+        }
+        Supplier<String> privilegeNameSupplier = () -> randomAlphaOfLength(1).toLowerCase(Locale.ROOT) + randomAlphaOfLengthBetween(2, 8);
+        int size = randomIntBetween(1, 5);
+        List<String> resources = new ArrayList<>(size);
+        for (int i = 0; i < size; i++) {
+            if (randomBoolean()) {
+                String suffix = randomBoolean() ? "*" : randomAlphaOfLengthBetween(4, 9);
+                resources.add(randomAlphaOfLengthBetween(2, 5) + "/" + suffix);
+            } else {
+                resources.add(randomAlphaOfLength(1).toLowerCase(Locale.ROOT) + randomAlphaOfLengthBetween(2, 8));
+            }
+        }
+        return RoleDescriptor.ApplicationResourcePrivileges.builder()
+            .application(applicationName)
+            .resources(resources)
+            .privileges(randomList(1, 3, privilegeNameSupplier))
+            .build();
     }
 }

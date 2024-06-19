@@ -76,8 +76,6 @@ tests:
 - class: "org.elasticsearch.xpack.security.ScrollHelperIntegTests"
   issue: "https://github.com/elastic/elasticsearch/issues/109905"
   method: "testFetchAllEntities"
-- class: "org.elasticsearch.xpack.ml.integration.AutodetectMemoryLimitIT"
-  issue: "https://github.com/elastic/elasticsearch/issues/109904"
 
 # Examples:
 #

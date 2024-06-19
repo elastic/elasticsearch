@@ -14,6 +14,7 @@ import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.TestBlockFactory;
 import org.elasticsearch.core.Releasable;
@@ -353,6 +354,7 @@ public abstract class BucketedSortTestCase<T extends Releasable> extends ESTestC
             assertThat(block.getTotalValueCount(), equalTo(values.length));
 
             if (values.length == 0) {
+                assertThat(block.elementType(), equalTo(ElementType.NULL));
                 assertThat(block.isNull(0), equalTo(true));
             } else {
                 assertBlockTypeAndValues(block, values);

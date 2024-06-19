@@ -77,7 +77,7 @@ public enum EsqlCapabilities {
 
     private static Set<String> capabilities() {
         List<String> caps = new ArrayList<>();
-        for (EsqlCapabilities cap: EsqlCapabilities.values()) {
+        for (EsqlCapabilities cap : EsqlCapabilities.values()) {
             if (Build.current().isSnapshot() || cap.snapshotOnly == false) {
                 caps.add(cap.name);
             }
@@ -113,7 +113,7 @@ public enum EsqlCapabilities {
         this.snapshotOnly = snapshotOnly;
     }
 
-    EsqlCapabilities(String name){
+    EsqlCapabilities(String name) {
         this(name, false);
     }
 }

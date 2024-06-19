@@ -87,8 +87,8 @@ public class IgnoredSourceFieldMapperTests extends MapperServiceTestCase {
         String stringValue = randomAlphaOfLength(20);
         String syntheticSource = getSyntheticSourceWithFieldLimit(b -> {
             b.field("boolean_value", booleanValue);
-            b.field("string_value", stringValue);
             b.field("int_value", intValue);
+            b.field("string_value", stringValue);
         });
         assertEquals(String.format(Locale.ROOT, """
             {"boolean_value":%s,"int_value":%s,"string_value":"%s"}""", booleanValue, intValue, stringValue), syntheticSource);
@@ -626,6 +626,7 @@ public class IgnoredSourceFieldMapperTests extends MapperServiceTestCase {
         DocumentMapper documentMapper = createMapperService(syntheticSourceMapping(b -> {
             b.startObject("path").field("type", "nested");
             {
+                b.field("store_array_source", true);
                 b.startObject("properties");
                 {
                     b.startObject("foo").field("type", "keyword").endObject();
@@ -647,6 +648,7 @@ public class IgnoredSourceFieldMapperTests extends MapperServiceTestCase {
         DocumentMapper documentMapper = createMapperService(syntheticSourceMapping(b -> {
             b.startObject("path").field("type", "nested");
             {
+                b.field("store_array_source", true);
                 b.startObject("properties");
                 {
                     b.startObject("foo").field("type", "keyword").endObject();
@@ -679,6 +681,7 @@ public class IgnoredSourceFieldMapperTests extends MapperServiceTestCase {
                     b.startObject("int_value").field("type", "integer").endObject();
                     b.startObject("to").field("type", "nested");
                     {
+                        b.field("store_array_source", true);
                         b.startObject("properties");
                         {
                             b.startObject("foo").field("type", "keyword").endObject();
@@ -719,6 +722,7 @@ public class IgnoredSourceFieldMapperTests extends MapperServiceTestCase {
                     b.startObject("int_value").field("type", "integer").endObject();
                     b.startObject("to").field("type", "nested");
                     {
+                        b.field("store_array_source", true);
                         b.startObject("properties");
                         {
                             b.startObject("foo").field("type", "keyword").endObject();
@@ -758,7 +762,7 @@ public class IgnoredSourceFieldMapperTests extends MapperServiceTestCase {
 
     public void testNestedObjectIncludeInRoot() throws IOException {
         DocumentMapper documentMapper = createMapperService(syntheticSourceMapping(b -> {
-            b.startObject("path").field("type", "nested").field("include_in_root", true);
+            b.startObject("path").field("type", "nested").field("store_array_source", true).field("include_in_root", true);
             {
                 b.startObject("properties");
                 {

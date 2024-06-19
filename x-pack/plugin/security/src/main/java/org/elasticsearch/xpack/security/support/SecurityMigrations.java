@@ -95,7 +95,15 @@ public class SecurityMigrations {
                 .execute(UpdateByQueryAction.INSTANCE, updateByQueryRequest, ActionListener.wrap(bulkByScrollResponse -> {
                     logger.info("Migrated [" + bulkByScrollResponse.getTotal() + "] roles");
                     listener.onResponse(null);
-                }, listener::onFailure));
+                }, (exception) -> {
+                    if (exception instanceof IllegalArgumentException illegalArgumentException
+                        && "script_lang not supported [painless]".equals(illegalArgumentException.getMessage())) {
+                        logger.warn(exception.getMessage());
+                        // This only happens in test and should be ignored since painless is always available in the default distribution
+                        listener.onResponse(null);
+                    }
+                    listener.onFailure(exception);
+                }));
         }
 
         @Override

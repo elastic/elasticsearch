@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.application.connector;
 
 import java.util.Collections;
 import java.util.EnumSet;
-import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 

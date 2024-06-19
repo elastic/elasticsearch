@@ -9,8 +9,6 @@ package org.elasticsearch.xpack.application.connector;
 
 import org.elasticsearch.test.ESTestCase;
 
-import java.util.List;
-
 public class ConnectorStateMachineTests extends ESTestCase {
 
     public void testValidTransitionFromCreated() {

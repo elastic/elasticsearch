@@ -10,6 +10,7 @@ package org.elasticsearch.action.bulk;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.ingest.SimulateIndexResponse;
 import org.elasticsearch.action.support.ActionFilters;
@@ -72,7 +73,7 @@ public class TransportSimulateBulkAction extends TransportBulkAction {
         BulkRequest bulkRequest,
         Executor executor,
         ActionListener<BulkResponse> listener,
-        Map<String, Boolean> indicesToAutoCreate,
+        Map<String, CreateIndexRequest> indicesToAutoCreate,
         Set<String> dataStreamsToRollover,
         Set<String> failureStoresToBeRolledOver,
         long startTime

@@ -73,7 +73,7 @@ public final class XContentDataHelper {
      * passed build. The assumption is that the passed value has encoded using the function
      * {@link #encodeToken(XContentParser)} above.
      */
-    public static void decodeAndWrite(XContentBuilder b, BytesRef r) throws IOException {
+    static void decodeAndWrite(XContentBuilder b, BytesRef r) throws IOException {
         switch ((char) r.bytes[r.offset]) {
             case BINARY_ENCODING -> TypeUtils.EMBEDDED_OBJECT.decodeAndWrite(b, r);
             case CBOR_OBJECT_ENCODING, JSON_OBJECT_ENCODING, YAML_OBJECT_ENCODING, SMILE_OBJECT_ENCODING -> {

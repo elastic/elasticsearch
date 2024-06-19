@@ -130,7 +130,7 @@ public class CompositeSyntheticFieldLoader implements SourceLoader.SyntheticFiel
         private List<Object> values;
 
         public MalformedValuesLayer(String fieldName) {
-            this.fieldName = fieldName + "._ignore_malformed";
+            this.fieldName = IgnoreMalformedStoredValues.name(fieldName);
             this.values = emptyList();
         }
 

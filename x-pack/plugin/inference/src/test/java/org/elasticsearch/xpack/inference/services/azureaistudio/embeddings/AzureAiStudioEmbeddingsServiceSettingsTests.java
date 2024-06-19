@@ -7,15 +7,16 @@
 
 package org.elasticsearch.xpack.inference.services.azureaistudio.embeddings;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.SimilarityMeasure;
-import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioConstants;
@@ -34,7 +35,8 @@ import static org.elasticsearch.xpack.inference.services.ServiceFields.SIMILARIT
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
-public class AzureAiStudioEmbeddingsServiceSettingsTests extends AbstractWireSerializingTestCase<AzureAiStudioEmbeddingsServiceSettings> {
+public class AzureAiStudioEmbeddingsServiceSettingsTests extends AbstractBWCWireSerializationTestCase<
+    AzureAiStudioEmbeddingsServiceSettings> {
 
     public void testFromMap_Request_CreatesSettingsCorrectly() {
         var target = "http://sometarget.local";
@@ -352,6 +354,14 @@ public class AzureAiStudioEmbeddingsServiceSettingsTests extends AbstractWireSer
     @Override
     protected AzureAiStudioEmbeddingsServiceSettings mutateInstance(AzureAiStudioEmbeddingsServiceSettings instance) throws IOException {
         return randomValueOtherThan(instance, AzureAiStudioEmbeddingsServiceSettingsTests::createRandom);
+    }
+
+    @Override
+    protected AzureAiStudioEmbeddingsServiceSettings mutateInstanceForVersion(
+        AzureAiStudioEmbeddingsServiceSettings instance,
+        TransportVersion version
+    ) {
+        return instance;
     }
 
     private static AzureAiStudioEmbeddingsServiceSettings createRandom() {

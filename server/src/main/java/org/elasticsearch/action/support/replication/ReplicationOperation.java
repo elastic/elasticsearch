@@ -187,6 +187,8 @@ public class ReplicationOperation<
             @Override
             public void onFailure(Exception e) {
                 logger.trace("[{}] op [{}] post replication actions failed for [{}]", primary.routingEntry().shardId(), opType, request);
+                // TODO: fail shard? This will otherwise have the local / global checkpoint info lagging, or possibly have replicas
+                // go out of sync with the primary
                 // We update the checkpoints since a refresh might fail but the operations could be safely persisted, in the case that the
                 // fsync failed the local checkpoint won't advance and the engine will be marked as failed when the next indexing operation
                 // is appended into the translog.

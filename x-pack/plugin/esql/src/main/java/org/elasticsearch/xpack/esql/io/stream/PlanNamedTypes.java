@@ -48,20 +48,6 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
-import org.elasticsearch.xpack.esql.expression.function.aggregate.Avg;
-import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
-import org.elasticsearch.xpack.esql.expression.function.aggregate.CountDistinct;
-import org.elasticsearch.xpack.esql.expression.function.aggregate.Max;
-import org.elasticsearch.xpack.esql.expression.function.aggregate.Median;
-import org.elasticsearch.xpack.esql.expression.function.aggregate.MedianAbsoluteDeviation;
-import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
-import org.elasticsearch.xpack.esql.expression.function.aggregate.Percentile;
-import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialCentroid;
-import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
-import org.elasticsearch.xpack.esql.expression.function.aggregate.TopList;
-import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
-import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
-import org.elasticsearch.xpack.esql.expression.function.grouping.GroupingFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.UnaryScalarFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.ip.CIDRMatch;
@@ -255,28 +241,14 @@ public final class PlanNamedTypes {
             of(ScalarFunction.class, Right.class, PlanNamedTypes::writeRight, PlanNamedTypes::readRight),
             of(ScalarFunction.class, Split.class, PlanNamedTypes::writeSplit, PlanNamedTypes::readSplit),
             of(ScalarFunction.class, Tau.class, PlanNamedTypes::writeNoArgScalar, PlanNamedTypes::readNoArgScalar),
-            of(ScalarFunction.class, Replace.class, PlanNamedTypes::writeReplace, PlanNamedTypes::readReplace),
-            // GroupingFunctions
-            of(GroupingFunction.class, Bucket.class, PlanNamedTypes::writeBucket, PlanNamedTypes::readBucket),
-            // AggregateFunctions
-            of(AggregateFunction.class, Avg.class, PlanNamedTypes::writeAggFunction, PlanNamedTypes::readAggFunction),
-            of(AggregateFunction.class, Count.class, PlanNamedTypes::writeAggFunction, PlanNamedTypes::readAggFunction),
-            of(AggregateFunction.class, CountDistinct.class, PlanNamedTypes::writeCountDistinct, PlanNamedTypes::readCountDistinct),
-            of(AggregateFunction.class, Min.class, PlanNamedTypes::writeAggFunction, PlanNamedTypes::readAggFunction),
-            of(AggregateFunction.class, Max.class, PlanNamedTypes::writeAggFunction, PlanNamedTypes::readAggFunction),
-            of(AggregateFunction.class, Median.class, PlanNamedTypes::writeAggFunction, PlanNamedTypes::readAggFunction),
-            of(AggregateFunction.class, MedianAbsoluteDeviation.class, PlanNamedTypes::writeAggFunction, PlanNamedTypes::readAggFunction),
-            of(AggregateFunction.class, Percentile.class, PlanNamedTypes::writePercentile, PlanNamedTypes::readPercentile),
-            of(AggregateFunction.class, SpatialCentroid.class, PlanNamedTypes::writeAggFunction, PlanNamedTypes::readAggFunction),
-            of(AggregateFunction.class, Sum.class, PlanNamedTypes::writeAggFunction, PlanNamedTypes::readAggFunction),
-            of(AggregateFunction.class, TopList.class, (out, prefix) -> prefix.writeTo(out), TopList::readFrom),
-            of(AggregateFunction.class, Values.class, PlanNamedTypes::writeAggFunction, PlanNamedTypes::readAggFunction)
+            of(ScalarFunction.class, Replace.class, PlanNamedTypes::writeReplace, PlanNamedTypes::readReplace)
         );
         List<PlanNameRegistry.Entry> entries = new ArrayList<>(declared);
 
         // From NamedWriteables
         for (List<NamedWriteableRegistry.Entry> ee : List.of(
             AbstractMultivalueFunction.getNamedWriteables(),
+            AggregateFunction.getNamedWriteables(),
             EsqlArithmeticOperation.getNamedWriteables(),
             EsqlBinaryComparison.getNamedWriteables(),
             EsqlScalarFunction.getNamedWriteables(),
@@ -1034,36 +1006,6 @@ public final class PlanNamedTypes {
         out.writeExpression(atan2.x());
     }
 
-    static Bucket readBucket(PlanStreamInput in) throws IOException {
-        return new Bucket(
-            Source.readFrom(in),
-            in.readExpression(),
-            in.readExpression(),
-            in.readOptionalNamed(Expression.class),
-            in.readOptionalNamed(Expression.class)
-        );
-    }
-
-    static void writeBucket(PlanStreamOutput out, Bucket bucket) throws IOException {
-        bucket.source().writeTo(out);
-        out.writeExpression(bucket.field());
-        out.writeExpression(bucket.buckets());
-        out.writeOptionalExpression(bucket.from());
-        out.writeOptionalExpression(bucket.to());
-    }
-
-    static CountDistinct readCountDistinct(PlanStreamInput in) throws IOException {
-        return new CountDistinct(Source.readFrom(in), in.readExpression(), in.readOptionalNamed(Expression.class));
-    }
-
-    static void writeCountDistinct(PlanStreamOutput out, CountDistinct countDistinct) throws IOException {
-        List<Expression> fields = countDistinct.children();
-        assert fields.size() == 1 || fields.size() == 2;
-        Source.EMPTY.writeTo(out);
-        out.writeExpression(fields.get(0));
-        out.writeOptionalWriteable(fields.size() == 2 ? o -> out.writeExpression(fields.get(1)) : null);
-    }
-
     static SpatialIntersects readIntersects(PlanStreamInput in) throws IOException {
         return new SpatialIntersects(Source.EMPTY, in.readExpression(), in.readExpression());
     }
@@ -1103,18 +1045,6 @@ public final class PlanNamedTypes {
         pow.source().writeTo(out);
         out.writeExpression(pow.base());
         out.writeExpression(pow.exponent());
-    }
-
-    static Percentile readPercentile(PlanStreamInput in) throws IOException {
-        return new Percentile(Source.readFrom(in), in.readExpression(), in.readExpression());
-    }
-
-    static void writePercentile(PlanStreamOutput out, Percentile percentile) throws IOException {
-        List<Expression> fields = percentile.children();
-        assert fields.size() == 2 : "percentile() aggregation must have two arguments";
-        Source.EMPTY.writeTo(out);
-        out.writeExpression(fields.get(0));
-        out.writeExpression(fields.get(1));
     }
 
     static StartsWith readStartsWith(PlanStreamInput in) throws IOException {
@@ -1239,28 +1169,6 @@ public final class PlanNamedTypes {
         assert children.size() > 1;
         out.writeExpression(children.get(0));
         out.writeCollection(children.subList(1, children.size()), writerFromPlanWriter(PlanStreamOutput::writeExpression));
-    }
-
-    // -- Aggregations
-    static final Map<String, BiFunction<Source, Expression, AggregateFunction>> AGG_CTRS = Map.ofEntries(
-        entry(name(Avg.class), Avg::new),
-        entry(name(Count.class), Count::new),
-        entry(name(Sum.class), Sum::new),
-        entry(name(Min.class), Min::new),
-        entry(name(Max.class), Max::new),
-        entry(name(Median.class), Median::new),
-        entry(name(MedianAbsoluteDeviation.class), MedianAbsoluteDeviation::new),
-        entry(name(SpatialCentroid.class), SpatialCentroid::new),
-        entry(name(Values.class), Values::new)
-    );
-
-    static AggregateFunction readAggFunction(PlanStreamInput in, String name) throws IOException {
-        return AGG_CTRS.get(name).apply(Source.readFrom(in), in.readExpression());
-    }
-
-    static void writeAggFunction(PlanStreamOutput out, AggregateFunction aggregateFunction) throws IOException {
-        Source.EMPTY.writeTo(out);
-        out.writeExpression(aggregateFunction.field());
     }
 
     // -- ancillary supporting classes of plan nodes, etc

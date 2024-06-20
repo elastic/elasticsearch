@@ -73,14 +73,20 @@ public class SpatialWithin extends SpatialRelatesFunction implements SurrogateEx
     )
     public SpatialWithin(
         Source source,
-        @Param(name = "geomA", type = { "geo_point", "cartesian_point", "geo_shape", "cartesian_shape" }, description = """
-            Expression of type `geo_point`, `cartesian_point`, `geo_shape` or `cartesian_shape`.
-            If `null`, the function returns `null`.""") Expression left,
-        @Param(name = "geomB", type = { "geo_point", "cartesian_point", "geo_shape", "cartesian_shape" }, description = """
-            Expression of type `geo_point`, `cartesian_point`, `geo_shape` or `cartesian_shape`.
-            If `null`, the function returns `null`.
-            The second parameter must also have the same coordinate system as the first.
-            This means it is not possible to combine `geo_*` and `cartesian_*` parameters.""") Expression right
+        @Param(
+            name = "geomA",
+            type = { "geo_point", "cartesian_point", "geo_shape", "cartesian_shape" },
+            description = "Expression of type `geo_point`, `cartesian_point`, `geo_shape` or `cartesian_shape`. "
+                + "If `null`, the function returns `null`."
+        ) Expression left,
+        @Param(
+            name = "geomB",
+            type = { "geo_point", "cartesian_point", "geo_shape", "cartesian_shape" },
+            description = "Expression of type `geo_point`, `cartesian_point`, `geo_shape` or `cartesian_shape`. "
+                + "If `null`, the function returns `null`.\n"
+                + "The second parameter must also have the same coordinate system as the first.\n"
+                + "This means it is not possible to combine `geo_*` and `cartesian_*` parameters."
+        ) Expression right
     ) {
         this(source, left, right, false, false);
     }

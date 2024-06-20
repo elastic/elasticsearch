@@ -21,7 +21,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.shard.SearchOperationListener;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.plugins.loading.PluginsService;
+import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.search.SearchService;

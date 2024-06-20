@@ -230,7 +230,10 @@ public class SynonymsManagementAPIService {
             .execute(listener.delegateFailureAndWrap((searchListener, countResponse) -> {
                 long totalSynonymRules = countResponse.getHits().getTotalHits().value;
                 if (totalSynonymRules > maxSynonymsSets) {
-                    logger.warn("The number of synonym rules in the synonym set [{}] exceeds the maximum allowed", synonymSetId);
+                    logger.warn(
+                        "The number of synonym rules in the synonym set [{}] exceeds the maximum allowed. Inconsistent synonyms results may occur",
+                        synonymSetId
+                    );
                 }
                 getSynonymSetRules(synonymSetId, 0, MAX_SYNONYMS_SETS, listener);
             }));

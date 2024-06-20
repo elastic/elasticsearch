@@ -17,6 +17,36 @@ To use semantic reranking in Elasticsearch, you need to:
 * Choose a reranking model. Upload a model using Eland, or integrate with models provided by third-party services such as OpenAI, Cohere, and Hugging Face.
 * Create a `rerank` task using the <<put-inference-api,{es} Inference API>>.
 The Inference API creates an inference endpoint and configures your chosen machine learning model to perform the reranking task.
+* Define a `text_similarity_reranker` retriever in your search request.
+For example:
+
+[source,console]
+----
+POST _search
+{
+  "retriever": {
+    "text_similarity_reranker": {
+      "retriever": {
+        "standard": {
+          "query": {
+            "match": {
+              "text": "How often does the moon hide the sun?"
+            }
+          }
+        }
+      },
+      "field": "text",
+      "inference_id": "my-cohere-rerank-model-v3",
+      "inference_text": "How often does the moon hide the sun?",
+      "rank_window_size": 100,
+      "min_score": 0.5
+    }
+  },
+  "_source": ["title", "text"],
+  "size": 10
+}
+----
+// TEST[skip:TBD]
 
 ==== Benefits
 

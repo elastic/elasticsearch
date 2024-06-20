@@ -33,7 +33,7 @@ import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.THIRD;
-import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isFoldable;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNonNullFoldable;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 
@@ -109,9 +109,9 @@ public class TopList extends AggregateFunction implements ToAggregator, Surrogat
             sourceText(),
             FIRST,
             "numeric except unsigned_long or counter types"
-        ).and(isFoldable(limitField(), sourceText(), SECOND))
+        ).and(isNonNullFoldable(limitField(), sourceText(), SECOND))
             .and(isType(limitField(), dt -> dt == DataType.INTEGER, sourceText(), SECOND, "integer"))
-            .and(isFoldable(orderField(), sourceText(), THIRD))
+            .and(isNonNullFoldable(orderField(), sourceText(), THIRD))
             .and(isString(orderField(), sourceText(), THIRD));
 
         if (typeResolution.unresolved()) {

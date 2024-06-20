@@ -41,6 +41,7 @@ import java.util.function.LongFunction;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.CARTESIAN;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
@@ -1301,6 +1302,10 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
             return data.stream().filter(d -> d.forceLiteral == false).map(TypedData::data).collect(Collectors.toList());
         }
 
+        public List<Stream<Object>> getMultiRowDataValues() {
+            return data.stream().filter(d -> d.multiRow).map(TypedData::multiRowData).collect(Collectors.toList());
+        }
+
         public boolean canBuildEvaluator() {
             return canBuildEvaluator;
         }
@@ -1384,14 +1389,19 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         private final DataType type;
         private final String name;
         private final boolean forceLiteral;
+        private final boolean multiRow;
 
         /**
          * @param data value to test against
          * @param type type of the value, for building expressions
          * @param name a name for the value, used for generating test case names
          * @param forceLiteral should this data always be converted to a literal and <strong>never</strong> to a field reference?
+         * @param multiRow if true, data is expected to be a List of values, one per row
          */
-        private TypedData(Object data, DataType type, String name, boolean forceLiteral) {
+        private TypedData(Object data, DataType type, String name, boolean forceLiteral, boolean multiRow) {
+            assert multiRow == false || data instanceof Stream : "multiRow data must be a Stream";
+            assert multiRow == false || forceLiteral == false : "multiRow data can't be converted to a literal";
+
             if (type == DataType.UNSIGNED_LONG && data instanceof BigInteger b) {
                 this.data = NumericUtils.asLongUnsigned(b);
             } else {
@@ -1400,6 +1410,17 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
             this.type = type;
             this.name = name;
             this.forceLiteral = forceLiteral;
+            this.multiRow = multiRow;
+        }
+
+        /**
+         * @param data value to test against
+         * @param type type of the value, for building expressions
+         * @param name a name for the value, used for generating test case names
+         * @param forceLiteral should this data always be converted to a literal and <strong>never</strong> to a field reference?
+         */
+        private TypedData(Object data, DataType type, String name, boolean forceLiteral) {
+            this(data, type, name, forceLiteral, false);
         }
 
         /**
@@ -1421,6 +1442,16 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         }
 
         /**
+         * Create a TypedData object for field to be aggregated.
+         * @param data value to test against
+         * @param type type of the value, for building expressions
+         * @param name a name for the value, used for generating test case names
+         */
+        public static TypedData multiRow(Stream<?> data, DataType type, String name) {
+            return new TypedData(data, type, name, false, true);
+        }
+
+        /**
          * Return a {@link TypedData} that always returns a {@link Literal} from
          * {@link #asField} and {@link #asDeepCopyOfField}. Use this for things that
          * must be constants.
@@ -1434,6 +1465,13 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
          */
         public boolean isForceLiteral() {
             return forceLiteral;
+        }
+
+        /**
+         * If true, the data is expected to be a List of values, one per row.
+         */
+        public boolean isMultiRow() {
+            return multiRow;
         }
 
         /**
@@ -1484,6 +1522,14 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
          */
         public Object data() {
             return data;
+        }
+
+        /**
+         * Values to test against.
+         */
+        @SuppressWarnings("unchecked")
+        public Stream<Object> multiRowData() {
+            return (Stream<Object>) data;
         }
 
         /**

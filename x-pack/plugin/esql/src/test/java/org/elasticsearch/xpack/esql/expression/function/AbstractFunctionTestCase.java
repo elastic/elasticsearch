@@ -231,6 +231,31 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         return new Page(1, BlockUtils.fromListRow(TestBlockFactory.getNonBreakingInstance(), values));
     }
 
+    protected final Page rows(List<Stream<Object>> values) {
+        var listOfColumns = values.stream()
+            .map(Stream::toList)
+            .toList();
+
+        if (listOfColumns.isEmpty()) {
+            return new Page(0, BlockUtils.NO_BLOCKS);
+        }
+
+        var rowsCount = listOfColumns.get(0).size();
+
+        listOfColumns.stream().skip(1)
+            .forEach(l -> assertThat("All multi-row fields must have the same number of rows", l, hasSize(rowsCount)));
+
+        var rows = new ArrayList<List<Object>>();
+        for (int i = 0; i < rowsCount; i++) {
+            final int index = i;
+            rows.add(listOfColumns.stream().map(l -> l.get(index)).toList());
+        }
+
+        var blocks = BlockUtils.fromList(TestBlockFactory.getNonBreakingInstance(), rows);
+
+        return new Page(rowsCount, blocks);
+    }
+
     /**
      * Hack together a layout by scanning for Fields.
      * Those will show up in the layout in whatever order a depth first traversal finds them.
@@ -250,7 +275,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         assertThat(expression.dataType(), equalTo(expectedType));
     }
 
-    public final void testEvaluate() {
+    public void testEvaluate() {
         assumeTrue("Can't build evaluator", testCase.canBuildEvaluator());
         assumeTrue("Expected type must be representable to build an evaluator", EsqlDataTypes.isRepresentable(testCase.expectedType()));
         logger.info(
@@ -287,7 +312,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         }
     }
 
-    private Object toJavaObjectUnsignedLongAware(Block block, int position) {
+    protected Object toJavaObjectUnsignedLongAware(Block block, int position) {
         Object result;
         result = toJavaObject(block, position);
         if (result != null && testCase.expectedType() == DataType.UNSIGNED_LONG) {
@@ -304,7 +329,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
      * input pattern contained only a single value.
      * </p>
      */
-    public final void testEvaluateBlockWithoutNulls() {
+    public void testEvaluateBlockWithoutNulls() {
         assumeTrue("no warning is expected", testCase.getExpectedWarnings() == null);
         try {
             testEvaluateBlock(driverContext().blockFactory(), driverContext(), false);
@@ -318,7 +343,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
      * Evaluates a {@link Block} of values, all copied from the input pattern with
      * some null values inserted between.
      */
-    public final void testEvaluateBlockWithNulls() {
+    public void testEvaluateBlockWithNulls() {
         assumeTrue("no warning is expected", testCase.getExpectedWarnings() == null);
         try {
             testEvaluateBlock(driverContext().blockFactory(), driverContext(), true);
@@ -336,7 +361,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
      * input pattern contained only a single value.
      * </p>
      */
-    public final void testCrankyEvaluateBlockWithoutNulls() {
+    public void testCrankyEvaluateBlockWithoutNulls() {
         assumeTrue("sometimes the cranky breaker silences warnings, just skip these cases", testCase.getExpectedWarnings() == null);
         try {
             testEvaluateBlock(driverContext().blockFactory(), crankyContext(), false);
@@ -349,7 +374,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
      * Evaluates a {@link Block} of values, all copied from the input pattern with
      * some null values inserted between, using the {@link CrankyCircuitBreakerService} which fails randomly.
      */
-    public final void testCrankyEvaluateBlockWithNulls() {
+    public void testCrankyEvaluateBlockWithNulls() {
         assumeTrue("sometimes the cranky breaker silences warnings, just skip these cases", testCase.getExpectedWarnings() == null);
         try {
             testEvaluateBlock(driverContext().blockFactory(), crankyContext(), true);
@@ -473,7 +498,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         assertTrue("argument " + nullBlock + " is null", value.isNull(0));
     }
 
-    public final void testEvaluateInManyThreads() throws ExecutionException, InterruptedException {
+    public void testEvaluateInManyThreads() throws ExecutionException, InterruptedException {
         Expression expression = buildFieldExpression(testCase);
         if (testCase.getExpectedTypeError() != null) {
             assertTypeResolutionFailure(expression);
@@ -509,7 +534,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         }
     }
 
-    public final void testEvaluatorToString() {
+    public void testEvaluatorToString() {
         Expression expression = buildFieldExpression(testCase);
         if (testCase.getExpectedTypeError() != null) {
             assertTypeResolutionFailure(expression);
@@ -522,7 +547,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         }
     }
 
-    public final void testFactoryToString() {
+    public void testFactoryToString() {
         Expression expression = buildFieldExpression(testCase);
         if (testCase.getExpectedTypeError() != null) {
             assertTypeResolutionFailure(expression);
@@ -533,7 +558,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         assertThat(factory.toString(), testCase.evaluatorToString());
     }
 
-    public final void testFold() {
+    public void testFold() {
         Expression expression = buildLiteralExpression(testCase);
         if (testCase.getExpectedTypeError() != null) {
             assertTypeResolutionFailure(expression);

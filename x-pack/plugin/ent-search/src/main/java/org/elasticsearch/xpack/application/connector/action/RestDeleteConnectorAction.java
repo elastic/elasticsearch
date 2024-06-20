@@ -23,6 +23,8 @@ import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 @ServerlessScope(Scope.PUBLIC)
 public class RestDeleteConnectorAction extends BaseRestHandler {
 
+    private static final String CONNECTOR_ID_PARAM = "connector_id";
+
     @Override
     public String getName() {
         return "connector_delete_action";
@@ -30,7 +32,7 @@ public class RestDeleteConnectorAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(DELETE, "/" + EnterpriseSearch.CONNECTOR_API_ENDPOINT + "/{connector_id}"));
+        return List.of(new Route(DELETE, "/" + EnterpriseSearch.CONNECTOR_API_ENDPOINT + "/{" + CONNECTOR_ID_PARAM + "}"));
     }
 
     @Override

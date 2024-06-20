@@ -405,7 +405,7 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
                 IgnoredSourceFieldMapper.MappedNameValue mappedNameValue = IgnoredSourceFieldMapper.decodeAsMap(value);
                 Map<String, Object> transformedField = filter(mappedNameValue.map(), filter, 0);
                 if (transformedField.isEmpty() == false) {
-                    var topValue = transformedField.values().iterator().next();
+                    var topValue = mappedNameValue.map().values().iterator().next();
                     if (topValue instanceof Map<?, ?> || topValue instanceof List<?>) {
                         // The field value contains an object or an array, reconstruct it from filtered values.
                         visitor.binaryField(fieldInfo, IgnoredSourceFieldMapper.encodeFromMap(mappedNameValue, transformedField));

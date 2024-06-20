@@ -32,7 +32,7 @@ public class MapperMergeContextTests extends ESTestCase {
     }
 
     public void testMergeReasons() {
-        MapperService.MergeReason mergeReason = randomFrom(values());
+        MapperService.MergeReason mergeReason = randomFrom(MapperService.MergeReason.values());
         MapperMergeContext context = MapperMergeContext.root(false, false, mergeReason, Integer.MAX_VALUE);
         assertEquals(mergeReason, context.getMapperBuilderContext().getMergeReason());
     }

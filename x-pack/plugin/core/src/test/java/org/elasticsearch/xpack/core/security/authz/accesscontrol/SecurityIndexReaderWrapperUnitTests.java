@@ -14,9 +14,6 @@ import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
-import org.elasticsearch.index.mapper.SeqNoFieldMapper;
-import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesModule;
@@ -31,7 +28,6 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
 
@@ -44,14 +40,7 @@ import static org.mockito.Mockito.when;
 
 public class SecurityIndexReaderWrapperUnitTests extends ESTestCase {
 
-    private static final Set<String> META_FIELDS;
-    static {
-        final Set<String> metaFields = new HashSet<>(IndicesModule.getBuiltInMetadataFields());
-        metaFields.add(SourceFieldMapper.NAME);
-        metaFields.add(FieldNamesFieldMapper.NAME);
-        metaFields.add(SeqNoFieldMapper.NAME);
-        META_FIELDS = Collections.unmodifiableSet(metaFields);
-    }
+    private static final Set<String> META_FIELDS = Set.copyOf(IndicesModule.getBuiltInMetadataFields());
 
     private SecurityContext securityContext;
     private ScriptService scriptService;
@@ -85,7 +74,7 @@ public class SecurityIndexReaderWrapperUnitTests extends ESTestCase {
         esIn.close();
     }
 
-    public void testDefaultMetaFields() throws Exception {
+    public void testDefaultMetaFields() {
         securityIndexReaderWrapper = new SecurityIndexReaderWrapper(null, null, securityContext, licenseState, scriptService) {
             @Override
             protected IndicesAccessControl getIndicesAccessControl() {
@@ -111,18 +100,18 @@ public class SecurityIndexReaderWrapperUnitTests extends ESTestCase {
         assertThat(result.getFilter().run("_index"), is(true));
         assertThat(result.getFilter().run("_field_names"), is(true));
         assertThat(result.getFilter().run("_seq_no"), is(true));
-        assertThat(result.getFilter().run("_some_random_meta_field"), is(true));
+        assertThat(result.getFilter().run("_some_random_meta_field"), is(false));
         assertThat(result.getFilter().run("some_random_regular_field"), is(false));
     }
 
-    public void testWrapReaderWhenFeatureDisabled() throws Exception {
+    public void testWrapReaderWhenFeatureDisabled() {
         when(licenseState.isAllowed(DOCUMENT_LEVEL_SECURITY_FEATURE)).thenReturn(false);
         securityIndexReaderWrapper = new SecurityIndexReaderWrapper(null, null, securityContext, licenseState, scriptService);
         DirectoryReader reader = securityIndexReaderWrapper.apply(esIn);
         assertThat(reader, sameInstance(esIn));
     }
 
-    public void testWildcards() throws Exception {
+    public void testWildcards() {
         Set<String> expected = new HashSet<>(META_FIELDS);
         expected.add("field1_a");
         expected.add("field1_b");

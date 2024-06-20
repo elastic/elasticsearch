@@ -51,7 +51,7 @@ public class SearchLoadSamplerTests extends ESTestCase {
 
     public void testPublishingQuality() {
         // Alternates between EXACT and MINIMUM quality.
-        class TestSearchLoadSupplier implements Supplier<MetricQuality> {
+        class TestMetricQualitySupplier implements Supplier<MetricQuality> {
             int count = 0;
 
             @Override
@@ -64,7 +64,7 @@ public class SearchLoadSamplerTests extends ESTestCase {
         assertQuality(
             2,
             2,
-            new TestSearchLoadSupplier(),
+            new TestMetricQualitySupplier(),
             List.of(
                 // 1. Initial metric warrants publish.
                 new PublishedMetric(1, true, MetricQuality.EXACT),
@@ -75,7 +75,7 @@ public class SearchLoadSamplerTests extends ESTestCase {
         assertQuality(
             2,
             3,
-            new TestSearchLoadSupplier(),
+            new TestMetricQualitySupplier(),
             List.of(
                 // 1. Initial metric warrants publish
                 new PublishedMetric(1, true, MetricQuality.EXACT)
@@ -85,7 +85,7 @@ public class SearchLoadSamplerTests extends ESTestCase {
         assertQuality(
             3,
             3,
-            new TestSearchLoadSupplier(),
+            new TestMetricQualitySupplier(),
             List.of(
                 // 1. Initial metric warrants publish
                 new PublishedMetric(1, true, MetricQuality.EXACT),
@@ -97,7 +97,7 @@ public class SearchLoadSamplerTests extends ESTestCase {
         assertQuality(
             4,
             4,
-            new TestSearchLoadSupplier(),
+            new TestMetricQualitySupplier(),
             List.of(
                 // 1. Initial metric warrants publish
                 new PublishedMetric(1, true, MetricQuality.EXACT),
@@ -111,7 +111,7 @@ public class SearchLoadSamplerTests extends ESTestCase {
         assertQuality(
             5,
             4,
-            new TestSearchLoadSupplier(),
+            new TestMetricQualitySupplier(),
             List.of(
                 // 1. Initial metric warrants publish
                 new PublishedMetric(1, true, MetricQuality.EXACT),
@@ -120,7 +120,7 @@ public class SearchLoadSamplerTests extends ESTestCase {
                 // not exceeded: don't publish
                 // 4. Max samples between publishing exceeded, metric quality MINIMUM: publish
                 new PublishedMetric(4, false, MetricQuality.MINIMUM),
-                // 5. Last published metric was MINIMUM, now EXACT: publish
+                // 5. Last published metric had 0 load, now non-zero: publish
                 new PublishedMetric(5, true, MetricQuality.EXACT)
             )
         );
@@ -129,7 +129,7 @@ public class SearchLoadSamplerTests extends ESTestCase {
     private void assertQuality(
         int cyclesToRunFor,
         int maxSamplesBetweenMetricPublications,
-        Supplier<MetricQuality> searchLoadSupplier,
+        Supplier<MetricQuality> metricQualitySupplier,
         List<PublishedMetric> expectedResults
     ) {
         var deterministicTaskQueue = new DeterministicTaskQueue();
@@ -150,7 +150,8 @@ public class SearchLoadSamplerTests extends ESTestCase {
         );
 
         var numProcessors = randomIntBetween(2, 32);
-        var nodeSearchLoad = randomSearchLoad(numProcessors);
+        var lowestSearchLoadGTESensitivityRatio = numProcessors * minSensitivityRatio;
+        var nodeSearchLoad = randomDoubleBetween(lowestSearchLoadGTESensitivityRatio, numProcessors, true);
 
         var averageSearchLoadSampler = new RandomAverageSearchLoadSampler(threadPool);
 
@@ -160,7 +161,7 @@ public class SearchLoadSamplerTests extends ESTestCase {
             null,
             averageSearchLoadSampler,
             () -> nodeSearchLoad,
-            searchLoadSupplier,
+            metricQualitySupplier,
             numProcessors,
             clusterSettings,
             clusterService

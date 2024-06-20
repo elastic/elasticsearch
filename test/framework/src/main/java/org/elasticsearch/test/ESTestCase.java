@@ -2336,4 +2336,23 @@ public abstract class ESTestCase extends LuceneTestCase {
             () -> builder.get().decRef() // dec ref if we unexpectedly fail to not leak transport response
         );
     }
+
+    /**
+     * Call a supplier that might throw and fail if it throws, useful to avoid try/catch boilerplate or cumbersome
+     * propagation of checked exceptions around something you assume should never throw.
+     *
+     * @param throwingSupplier A supplier that may throw an exception
+     * @return The value returned by the supplier
+     */
+    protected static <T> T assertDoesNotThrow(ThrowingSupplier<T> throwingSupplier) {
+        try {
+            return throwingSupplier.get();
+        } catch (Exception e) {
+            return fail(e);
+        }
+    }
+
+    protected interface ThrowingSupplier<T> {
+        T get() throws Exception;
+    }
 }

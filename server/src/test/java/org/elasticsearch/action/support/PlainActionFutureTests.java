@@ -70,7 +70,6 @@ public class PlainActionFutureTests extends ESTestCase {
         assumeTrue("assertions required for this test", Assertions.ENABLED);
         final var future = new PlainActionFuture<>();
         expectThrows(AssertionError.class, future::result);
-        expectThrows(AssertionError.class, future::actionResult);
     }
 
     public void testUnwrapException() {
@@ -90,19 +89,17 @@ public class PlainActionFutureTests extends ESTestCase {
 
         assertEquals(actionGetException, expectThrows(RuntimeException.class, future::actionGet).getClass());
         assertEquals(actionGetException, expectThrows(RuntimeException.class, () -> future.actionGet(10, TimeUnit.SECONDS)).getClass());
-        assertEquals(actionGetException, expectThrows(RuntimeException.class, future::actionResult).getClass());
-        assertEquals(actionGetException, expectThrows(RuntimeException.class, expectIgnoresInterrupt(future::actionResult)).getClass());
         assertEquals(getException, expectThrows(ExecutionException.class, future::get).getCause().getClass());
         assertEquals(getException, expectThrows(ExecutionException.class, () -> future.get(10, TimeUnit.SECONDS)).getCause().getClass());
 
         if (exception instanceof RuntimeException) {
-            assertEquals(getException, expectThrows(Exception.class, future::result).getClass());
-            assertEquals(getException, expectThrows(Exception.class, expectIgnoresInterrupt(future::result)).getClass());
+            expectThrows(ExecutionException.class, getException, future::result);
+            expectThrows(ExecutionException.class, getException, expectIgnoresInterrupt(future::result));
             assertEquals(getException, expectThrows(Exception.class, () -> FutureUtils.get(future)).getClass());
             assertEquals(getException, expectThrows(Exception.class, () -> FutureUtils.get(future, 10, TimeUnit.SECONDS)).getClass());
         } else {
-            assertEquals(getException, expectThrowsWrapped(future::result).getClass());
-            assertEquals(getException, expectThrowsWrapped(expectIgnoresInterrupt(future::result)).getClass());
+            expectThrows(ExecutionException.class, getException, future::result);
+            expectThrows(ExecutionException.class, getException, expectIgnoresInterrupt(future::result));
             assertEquals(getException, expectThrowsWrapped(() -> FutureUtils.get(future)).getClass());
             assertEquals(getException, expectThrowsWrapped(() -> FutureUtils.get(future, 10, TimeUnit.SECONDS)).getClass());
         }
@@ -126,12 +123,10 @@ public class PlainActionFutureTests extends ESTestCase {
         assertCancellation(() -> future.get(10, TimeUnit.SECONDS));
         assertCancellation(() -> future.actionGet(10, TimeUnit.SECONDS));
         assertCancellation(future::result);
-        assertCancellation(future::actionResult);
 
         try {
             Thread.currentThread().interrupt();
             assertCancellation(future::result);
-            assertCancellation(future::actionResult);
         } finally {
             assertTrue(Thread.interrupted());
         }

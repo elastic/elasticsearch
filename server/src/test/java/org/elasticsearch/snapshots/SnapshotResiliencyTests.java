@@ -290,7 +290,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
             );
             deterministicTaskQueue.runAllRunnableTasks();
             assertTrue(future.isDone());
-            final var result = future.result();
+            final var result = assertDoesNotThrow(future::result);
             if (result != null) {
                 fail(result);
             }

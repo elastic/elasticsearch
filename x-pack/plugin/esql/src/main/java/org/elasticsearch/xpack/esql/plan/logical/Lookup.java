@@ -11,12 +11,10 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.core.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
@@ -90,17 +88,19 @@ public class Lookup extends UnaryPlan {
     }
 
     public JoinConfig joinConfig() {
-        List<Expression> conditions = new ArrayList<>(matchFields.size());
+        List<Attribute> leftFields = new ArrayList<>(matchFields.size());
+        List<Attribute> rightFields = new ArrayList<>(matchFields.size());
         List<Attribute> rhsOutput = Join.makeReference(localRelation.output());
-        for (NamedExpression lhs : matchFields) {
+        for (Attribute lhs : matchFields) {
             for (Attribute rhs : rhsOutput) {
                 if (lhs.name().equals(rhs.name())) {
-                    conditions.add(new Equals(source(), lhs, rhs));
+                    leftFields.add(lhs);
+                    rightFields.add(rhs);
                     break;
                 }
             }
         }
-        return new JoinConfig(JoinType.LEFT, matchFields, conditions);
+        return new JoinConfig(JoinType.LEFT, matchFields, leftFields, rightFields);
     }
 
     @Override

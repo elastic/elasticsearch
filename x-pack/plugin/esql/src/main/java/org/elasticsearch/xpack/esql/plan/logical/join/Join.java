@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.plan.logical.join;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
-import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.plan.logical.BinaryPlan;
@@ -39,9 +38,17 @@ public class Join extends BinaryPlan {
         this.config = config;
     }
 
-    public Join(Source source, LogicalPlan left, LogicalPlan right, JoinType type, List<Attribute> matchFields, List<Expression> conditions) {
+    public Join(
+        Source source,
+        LogicalPlan left,
+        LogicalPlan right,
+        JoinType type,
+        List<Attribute> matchFields,
+        List<Attribute> leftFields,
+        List<Attribute> rightFields
+    ) {
         super(source, left, right);
-        this.config = new JoinConfig(type, matchFields, conditions);
+        this.config = new JoinConfig(type, matchFields, leftFields, rightFields);
     }
 
     public Join(PlanStreamInput in) throws IOException {
@@ -64,7 +71,16 @@ public class Join extends BinaryPlan {
     protected NodeInfo<Join> info() {
         // Do not just add the JoinConfig as a whole - this would prevent correctly registering the
         // expressions and references.
-        return NodeInfo.create(this, Join::new, left(), right(), config.type(), config.matchFields(), config.conditions());
+        return NodeInfo.create(
+            this,
+            Join::new,
+            left(),
+            right(),
+            config.type(),
+            config.matchFields(),
+            config.leftFields(),
+            config.rightFields()
+        );
     }
 
     @Override

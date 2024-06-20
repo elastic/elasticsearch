@@ -249,7 +249,7 @@ languages:keyword | emp_no:integer
 ;
 
 shadowing
-required_capability: lookup_v3
+required_capability: lookup_v4
 FROM employees
 | KEEP emp_no
 | WHERE emp_no == 10001
@@ -262,7 +262,7 @@ emp_no:integer | left:keyword | int:integer | right:keyword | name:keyword
 ;
 
 shadowingMulti
-required_capability: lookup_v3
+required_capability: lookup_v4
 FROM employees
 | KEEP emp_no
 | WHERE emp_no == 10001

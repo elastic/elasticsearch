@@ -10,11 +10,9 @@ package org.elasticsearch.xpack.esql.plan.logical;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
-import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinConfig;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinType;
@@ -29,10 +27,12 @@ public class JoinTests extends ESTestCase {
         Row right = new Row(Source.EMPTY, rightAliases);
 
         List<Attribute> matchFields = List.of(leftAliases.get(0).toAttribute());
-        List<Expression> conditions = List.of(
-            new Equals(Source.EMPTY, leftAliases.get(0).toAttribute(), rightAliases.get(0).toAttribute())
+        JoinConfig joinConfig = new JoinConfig(
+            JoinType.LEFT,
+            matchFields,
+            List.of(leftAliases.get(0).toAttribute()),
+            List.of(rightAliases.get(0).toAttribute())
         );
-        JoinConfig joinConfig = new JoinConfig(JoinType.LEFT, matchFields, conditions);
         Join join = new Join(Source.EMPTY, left, right, joinConfig);
 
         assertEquals(2, join.references().size());

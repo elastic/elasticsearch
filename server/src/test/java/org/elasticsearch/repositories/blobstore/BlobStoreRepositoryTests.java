@@ -58,7 +58,6 @@ import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESSingleNodeTestCase;
-import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
@@ -516,39 +515,50 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
 
     public void testShardBlobsToDelete() {
         final var repo = setupRepo();
-        final var shardBlobsToDelete = repo.new ShardBlobsToDelete();
-        final var expectedShardGenerations = ShardGenerations.builder();
-        final var expectedBlobsToDelete = new HashSet<String>();
+        try (var shardBlobsToDelete = repo.new ShardBlobsToDelete()) {
+            final var expectedShardGenerations = ShardGenerations.builder();
+            final var expectedBlobsToDelete = new HashSet<String>();
 
-        final var countDownLatch = new CountDownLatch(1);
-        try (var refs = new RefCountingRunnable(countDownLatch::countDown)) {
-            for (int index = between(0, 10); index > 0; index--) {
-                final var indexId = new IndexId(randomIdentifier(), randomUUID());
-                for (int shard = between(1, 3); shard > 0; shard--) {
-                    final var shardId = shard;
-                    final var shardGeneration = new ShardGeneration(randomUUID());
-                    expectedShardGenerations.put(indexId, shard, shardGeneration);
-                    final var blobsToDelete = randomList(10, ESTestCase::randomIdentifier);
-                    final var indexPath = repo.basePath().add("indices").add(indexId.getId()).add(Integer.toString(shard)).buildAsString();
-                    for (final var blobToDelete : blobsToDelete) {
-                        expectedBlobsToDelete.add(indexPath + blobToDelete);
-                    }
-
-                    repo.threadPool()
-                        .generic()
-                        .execute(
-                            ActionRunnable.run(
-                                refs.acquireListener(),
-                                () -> shardBlobsToDelete.addShardDeleteResult(indexId, shardId, shardGeneration, blobsToDelete)
-                            )
+            final var countDownLatch = new CountDownLatch(1);
+            int blobCount = 0;
+            try (var refs = new RefCountingRunnable(countDownLatch::countDown)) {
+                for (int index = between(0, 1000); index > 0; index--) {
+                    final var indexId = new IndexId(randomIdentifier(), randomUUID());
+                    for (int shard = between(1, 30); shard > 0; shard--) {
+                        final var shardId = shard;
+                        final var shardGeneration = new ShardGeneration(randomUUID());
+                        expectedShardGenerations.put(indexId, shard, shardGeneration);
+                        final var blobsToDelete = randomList(
+                            100,
+                            () -> randomFrom("meta-", "index-", "snap-") + randomUUID() + randomFrom("", ".dat")
                         );
+                        blobCount += blobsToDelete.size();
+                        final var indexPath = repo.basePath()
+                            .add("indices")
+                            .add(indexId.getId())
+                            .add(Integer.toString(shard))
+                            .buildAsString();
+                        for (final var blobToDelete : blobsToDelete) {
+                            expectedBlobsToDelete.add(indexPath + blobToDelete);
+                        }
+
+                        repo.threadPool()
+                            .generic()
+                            .execute(
+                                ActionRunnable.run(
+                                    refs.acquireListener(),
+                                    () -> shardBlobsToDelete.addShardDeleteResult(indexId, shardId, shardGeneration, blobsToDelete)
+                                )
+                            );
+                    }
                 }
             }
+            safeAwait(countDownLatch);
+            assertEquals(expectedShardGenerations.build(), shardBlobsToDelete.getUpdatedShardGenerations());
+            shardBlobsToDelete.getBlobPaths().forEachRemaining(s -> assertTrue(expectedBlobsToDelete.remove(s)));
+            assertThat(expectedBlobsToDelete, empty());
+            assertThat(shardBlobsToDelete.sizeInBytes(), lessThanOrEqualTo(Math.max(ByteSizeUnit.KB.toIntBytes(1), 20 * blobCount)));
         }
-        safeAwait(countDownLatch);
-        assertEquals(expectedShardGenerations.build(), shardBlobsToDelete.getUpdatedShardGenerations());
-        shardBlobsToDelete.getBlobPaths().forEachRemaining(s -> assertTrue(expectedBlobsToDelete.remove(s)));
-        assertThat(expectedBlobsToDelete, empty());
     }
 
     public void testUuidCreationLogging() {

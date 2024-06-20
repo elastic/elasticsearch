@@ -431,6 +431,7 @@ module org.elasticsearch.server {
             org.elasticsearch.indices.IndicesFeatures,
             org.elasticsearch.action.admin.cluster.allocation.AllocationStatsFeatures,
             org.elasticsearch.index.mapper.MapperFeatures,
+            org.elasticsearch.script.ScriptFeatures,
             org.elasticsearch.search.retriever.RetrieversFeatures,
             org.elasticsearch.reservedstate.service.FileSettingsFeatures;
 

@@ -208,7 +208,11 @@ public final class IndexPrivilege extends Privilege {
         CROSS_CLUSTER_REPLICATION_INTERNAL_AUTOMATON
     );
 
-    @SuppressWarnings("unchecked")
+    /**
+     * If you are adding a new named index privilege, also add it to the
+     * <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-privileges.html#privileges-list-indices">docs</a>.
+     */
+    @SuppressWarnings({"unchecked"})
     private static final Map<String, IndexPrivilege> VALUES = sortByAccessLevel(
         Stream.of(
             entry("none", NONE),

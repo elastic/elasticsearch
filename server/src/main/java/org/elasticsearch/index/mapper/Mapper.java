@@ -24,22 +24,21 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
 
     public abstract static class Builder {
 
-        private String name;
+        private String leafName;
 
-        protected Builder(String name) {
-            setName(name);
+        protected Builder(String leafName) {
+            setLeafName(leafName);
         }
 
-        // TODO rename this to leafName?
-        public final String name() {
-            return this.name;
+        public final String leafName() {
+            return this.leafName;
         }
 
         /** Returns a newly built mapper. */
         public abstract Mapper build(MapperBuilderContext context);
 
-        void setName(String name) {
-            this.name = internFieldName(name);
+        void setLeafName(String leafName) {
+            this.leafName = internFieldName(leafName);
         }
     }
 

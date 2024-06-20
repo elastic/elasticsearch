@@ -82,7 +82,7 @@ public class NestedObjectMapper extends ObjectMapper {
                 }
                 parentTypeFilter = Queries.newNonNestedFilter(indexCreatedVersion);
             }
-            final String fullPath = context.buildFullName(name());
+            final String fullPath = context.buildFullName(leafName());
             final String nestedTypePath;
             if (indexCreatedVersion.before(IndexVersions.V_8_0_0)) {
                 nestedTypePath = "__" + fullPath;
@@ -91,14 +91,14 @@ public class NestedObjectMapper extends ObjectMapper {
             }
             final Query nestedTypeFilter = NestedPathFieldMapper.filter(indexCreatedVersion, nestedTypePath);
             NestedMapperBuilderContext nestedContext = new NestedMapperBuilderContext(
-                context.buildFullName(name()),
+                context.buildFullName(leafName()),
                 nestedTypeFilter,
                 parentIncludedInRoot,
                 context.getDynamic(dynamic),
                 context.getMergeReason()
             );
             return new NestedObjectMapper(
-                name(),
+                leafName(),
                 fullPath,
                 buildMappers(nestedContext),
                 enabled,

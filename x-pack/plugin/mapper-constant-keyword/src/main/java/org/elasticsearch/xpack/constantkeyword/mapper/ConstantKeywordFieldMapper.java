@@ -110,8 +110,8 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
                 );
             }
             return new ConstantKeywordFieldMapper(
-                name(),
-                new ConstantKeywordFieldType(context.buildFullName(name()), value.getValue(), meta.getValue())
+                leafName(),
+                new ConstantKeywordFieldType(context.buildFullName(leafName()), value.getValue(), meta.getValue())
             );
         }
     }

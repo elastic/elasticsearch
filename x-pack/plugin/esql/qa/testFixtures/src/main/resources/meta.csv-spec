@@ -112,6 +112,7 @@ double tau()
 "double|integer|long|date top_list(field:double|integer|long|date, limit:integer, order:keyword)"
 "keyword|text trim(string:keyword|text)"
 "boolean|date|double|integer|ip|keyword|long|text|version values(field:boolean|date|double|integer|ip|keyword|long|text|version)"
+"double weighted_avg(number:double|integer|long, weight:double|integer|long)"
 ;
 
 metaFunctionsArgs#[skip:-8.14.99]
@@ -230,6 +231,7 @@ to_version    |field                               |"keyword|text|version"      
 top_list      |[field, limit, order]               |["double|integer|long|date", integer, keyword]                                                                                    |[The field to collect the top values for.,The maximum number of values to collect.,The order to calculate the top values. Either `asc` or `desc`.]
 trim          |string                              |"keyword|text"                                                                                                                    |String expression. If `null`, the function returns `null`.
 values        |field                               |"boolean|date|double|integer|ip|keyword|long|text|version"                                                                        |[""]
+weighted_avg  |[number, weight]                    |["double|integer|long", "double|integer|long"]                                                                                    |[A numeric value., A numeric weight.]
 ;
 
 metaFunctionsDescription#[skip:-8.14.99]
@@ -349,6 +351,7 @@ to_version    |Converts an input string to a version value.
 top_list      |Collects the top values for a field. Includes repeated values.
 trim          |Removes leading and trailing whitespaces from a string.
 values        |Collect values for a field.
+weighted_avg  |The weighted average of a numeric field.
 ;
 
 metaFunctionsRemaining#[skip:-8.14.99]
@@ -469,6 +472,7 @@ to_version    |version                                                          
 top_list      |"double|integer|long|date"                                                                                                  |[false, false, false]       |false           |true
 trim          |"keyword|text"                                                                                                              |false                       |false           |false
 values        |"boolean|date|double|integer|ip|keyword|long|text|version"                                                                  |false                       |false           |true
+weighted_avg  |"double"                                                                                                                    |[false, false]              |false           |true
 ;
 
 metaFunctionsFiltered#[skip:-8.14.99]
@@ -487,5 +491,5 @@ countFunctions#[skip:-8.14.99, reason:BIN added]
 meta functions |  stats  a = count(*), b = count(*), c = count(*) |  mv_expand c;
 
 a:long | b:long | c:long
-110    | 110    | 110
+111    | 111    | 111
 ;

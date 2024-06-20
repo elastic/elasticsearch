@@ -87,6 +87,11 @@ public class EsqlCapabilities {
      */
     private static final String NAMED_POSITIONAL_PARAMETER = "named_positional_parameter";
 
+    /**
+     * Support for weighted_avg.
+     */
+    private static final String WEIGHTED_AVG = "weighted_avg";
+
     public static final Set<String> CAPABILITIES = capabilities();
 
     private static Set<String> capabilities() {
@@ -99,8 +104,10 @@ public class EsqlCapabilities {
         caps.add(METADATA_IGNORED_FIELD);
         caps.add(FN_MV_APPEND);
         caps.add(REPEAT);
+        caps.add(STRING_LITERAL_AUTO_CASTING_TO_DATETIME_ADD_SUB);
         caps.add(UNION_TYPES);
         caps.add(NAMED_POSITIONAL_PARAMETER);
+        caps.add(WEIGHTED_AVG);
 
         if (Build.current().isSnapshot()) {
             caps.add(LOOKUP_COMMAND);
@@ -115,7 +122,6 @@ public class EsqlCapabilities {
         for (NodeFeature feature : new EsqlFeatures().getHistoricalFeatures().keySet()) {
             caps.add(cap(feature));
         }
-        caps.add(STRING_LITERAL_AUTO_CASTING_TO_DATETIME_ADD_SUB);
         return Set.copyOf(caps);
     }
 

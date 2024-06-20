@@ -60,6 +60,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialCentroi
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.TopList;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.WeightedAvg;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
 import org.elasticsearch.xpack.esql.expression.function.grouping.GroupingFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
@@ -270,7 +271,8 @@ public final class PlanNamedTypes {
             of(AggregateFunction.class, SpatialCentroid.class, PlanNamedTypes::writeAggFunction, PlanNamedTypes::readAggFunction),
             of(AggregateFunction.class, Sum.class, PlanNamedTypes::writeAggFunction, PlanNamedTypes::readAggFunction),
             of(AggregateFunction.class, TopList.class, (out, prefix) -> prefix.writeTo(out), TopList::readFrom),
-            of(AggregateFunction.class, Values.class, PlanNamedTypes::writeAggFunction, PlanNamedTypes::readAggFunction)
+            of(AggregateFunction.class, Values.class, PlanNamedTypes::writeAggFunction, PlanNamedTypes::readAggFunction),
+            of(AggregateFunction.class, WeightedAvg.class, PlanNamedTypes::writeWeightedAvg, PlanNamedTypes::readWeightedAvg)
         );
         List<PlanNameRegistry.Entry> entries = new ArrayList<>(declared);
 
@@ -1315,5 +1317,17 @@ public final class PlanNamedTypes {
         assert fields.size() == 1 || fields.size() == 2;
         out.writeExpression(fields.get(0));
         out.writeOptionalWriteable(fields.size() == 2 ? o -> out.writeExpression(fields.get(1)) : null);
+    }
+
+    static WeightedAvg readWeightedAvg(PlanStreamInput in) throws IOException {
+        return new WeightedAvg(Source.readFrom(in), in.readExpression(), in.readExpression());
+    }
+
+    static void writeWeightedAvg(PlanStreamOutput out, WeightedAvg weightedAvg) throws IOException {
+        List<Expression> fields = weightedAvg.children();
+        assert fields.size() == 2 : "weighted average must have two arguments";
+        Source.EMPTY.writeTo(out);
+        out.writeExpression(fields.get(0));
+        out.writeExpression(fields.get(1));
     }
 }

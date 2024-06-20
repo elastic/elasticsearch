@@ -1697,3 +1697,36 @@ FROM employees | STATS min = min(salary) by languages | SORT min + CASE(language
 29175          |2              
 28336          |null           
 ;
+
+
+weightedAvg
+required_capability: weighted_avg
+from employees
+| stats w_avg_1 = weighted_avg(salary, 1), avg = avg(salary), w_avg_2 = weighted_avg(salary, height)
+;
+
+w_avg_1:double | avg:double | w_avg_2:double
+48248.55       | 48248.55   | 48473.84130754439
+;
+
+weightedAvgGrouping
+required_capability: weighted_avg
+// tag::weighted-avg[]
+FROM employees
+| STATS w_avg = WEIGHTED_AVG(salary, height) by languages
+| SORT languages
+// end::weighted-avg[]
+;
+
+// tag::weighted-avg-result[]
+w_avg:double       | languages:integer
+51464.29022324865  | 1
+48476.736181655215 | 2
+52379.18672890964  | 3
+47989.6137704918   | 4
+42119.368651714365 | 5
+52141.55113322277  | null
+// end::weighted-avg-result[]
+;
+
+

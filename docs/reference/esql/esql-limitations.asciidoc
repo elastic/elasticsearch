@@ -64,6 +64,7 @@ include::processing-commands/limit.asciidoc[tag=limitation]
 ** `ip_range`
 ** `long_range`
 ** `nested`
+** `object`
 ** `rank_feature`
 ** `rank_features`
 ** `search_as_you_type`

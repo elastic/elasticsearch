@@ -1,6 +1,9 @@
 [[infer-service-azure-openai]]
 === Azure OpenAI {infer} `service`
 
+Creates an {infer} endpoint to perform an {infer} task with the `azureopenai` service.
+
+
 [discrete]
 [[infer-service-azure-openai-api-request]]
 ==== {api-request-title}

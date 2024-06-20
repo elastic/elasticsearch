@@ -1,6 +1,9 @@
 [[infer-service-elasticsearch]]
 === Elasticsearch {infer} `service`
 
+Creates an {infer} endpoint to perform an {infer} task with the `elasticsearch` service.
+
+
 [discrete]
 [[infer-service-elasticsearch-api-request]]
 ==== {api-request-title}

@@ -1,6 +1,9 @@
 [[infer-service-mistral]]
 === Mistral {infer} `service`
 
+Creates an {infer} endpoint to perform an {infer} task with the `mistral` service.
+
+
 [discrete]
 [[infer-service-mistral-api-request]]
 ==== {api-request-title}

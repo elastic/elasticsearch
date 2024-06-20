@@ -1,6 +1,9 @@
 [[infer-service-hugging-face]]
 === HuggingFace {infer} `service`
 
+Creates an {infer} endpoint to perform an {infer} task with the `hugging_face` service.
+
+
 [discrete]
 [[infer-service-hugging-face-api-request]]
 ==== {api-request-title}

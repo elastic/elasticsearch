@@ -1,6 +1,9 @@
 [[infer-service-google-ai-studio]]
 === Google AI Studio {infer} `service`
 
+Creates an {infer} endpoint to perform an {infer} task with the `googleaistudio` service.
+
+
 [discrete]
 [[infer-service-google-ai-studio-api-request]]
 ==== {api-request-title}

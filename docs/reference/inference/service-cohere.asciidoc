@@ -1,6 +1,9 @@
 [[infer-service-cohere]]
 === Cohere {infer} `service`
 
+Creates an {infer} endpoint to perform an {infer} task with the `cohere` service.
+
+
 [discrete]
 [[infer-service-cohere-api-request]]
 ==== {api-request-title}
@@ -53,16 +56,6 @@ https://dashboard.cohere.com/api-keys[on the API keys settings page].
 include::inference-shared.asciidoc[tag=api-key-admonition]
 --
 
-`embedding_type`::
-(Optional, string)
-Only for `text_embedding`.
-Specifies the types of embeddings you want to get back.
-Defaults to `float`.
-Valid values are:
-* `byte`: use it for signed int8 embeddings (this is a synonym of `int8`).
-* `float`: use it for the default float embeddings.
-* `int8`: use it for signed int8 embeddings.
-
 `model_id`::
 (Optional, string)
 The name of the model to use for the {infer} task.
@@ -87,6 +80,21 @@ include::inference-shared.asciidoc[tag=request-per-minute-example]
 --
 More information about Cohere's rate limits can be found in https://docs.cohere.com/docs/going-live#production-key-specifications[Cohere's production key docs].
 --
++
+.`service_settings` for the `text_embedding` task type
+[%collapsible%closed]
+=====
+`embedding_type`:::
+(Optional, string)
+Only for `text_embedding`.
+Specifies the types of embeddings you want to get back.
+Defaults to `float`.
+Valid values are:
+* `byte`: use it for signed int8 embeddings (this is a synonym of `int8`).
+* `float`: use it for the default float embeddings.
+* `int8`: use it for signed int8 embeddings.
+=====
+
 
 `task_settings`::
 (Optional, object)

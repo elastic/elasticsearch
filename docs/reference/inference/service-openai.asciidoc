@@ -1,6 +1,9 @@
 [[infer-service-openai]]
 === OpenAI {infer} `service`
 
+Creates an {infer} endpoint to perform an {infer} task with the `openai` service.
+
+
 [discrete]
 [[infer-service-openai-api-request]]
 ==== {api-request-title}

@@ -12,29 +12,20 @@ import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.inference.ModelConfigurations;
-import org.elasticsearch.inference.ServiceSettings;
-import org.elasticsearch.inference.SimilarityMeasure;
-import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
+import org.elasticsearch.xpack.inference.services.ServiceUtils;
 
 import java.io.IOException;
-import java.util.EnumSet;
 import java.util.Map;
-import java.util.Objects;
 
-import static org.elasticsearch.xpack.inference.services.ServiceFields.DIMENSIONS;
-import static org.elasticsearch.xpack.inference.services.ServiceFields.ELEMENT_TYPE;
-import static org.elasticsearch.xpack.inference.services.ServiceFields.SIMILARITY;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalEnum;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalPositiveInteger;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractSimilarity;
-
-public class CustomElandInternalServiceSettings implements ServiceSettings {
+public class CustomElandInternalServiceSettings extends ElasticsearchInternalServiceSettings {
 
     public static final String NAME = "custom_eland_model_internal_service_settings";
+
+    public CustomElandInternalServiceSettings(int numAllocations, int numThreads, String modelId) {
+        super(numAllocations, numThreads, modelId);
+    }
 
     /**
      * Parse the CustomElandServiceSettings from map and validate the setting values.
@@ -45,126 +36,46 @@ public class CustomElandInternalServiceSettings implements ServiceSettings {
      * {@link ValidationException} is thrown.
      *
      * @param map Source map containing the config
-     * @param context The parser context, whether it is from an HTTP request or from persistent storage
      * @return The {@code CustomElandServiceSettings} builder
      */
-    public static CustomElandInternalServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
-        return switch (context) {
-            case REQUEST -> fromRequestMap(map);
-            case PERSISTENT -> fromPersistentMap(map);
-        };
-    }
+    public static CustomElandInternalServiceSettings fromMap(Map<String, Object> map) {
 
-    private static CustomElandInternalServiceSettings fromRequestMap(Map<String, Object> map) {
         ValidationException validationException = new ValidationException();
-        var commonFields = commonFieldsFromMap(map, validationException);
+        Integer numAllocations = ServiceUtils.removeAsType(map, NUM_ALLOCATIONS, Integer.class);
+        Integer numThreads = ServiceUtils.removeAsType(map, NUM_THREADS, Integer.class);
+
+        validateParameters(numAllocations, validationException, numThreads);
+
+        String modelId = ServiceUtils.extractRequiredString(map, MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
 
         if (validationException.validationErrors().isEmpty() == false) {
             throw validationException;
         }
 
-        return new CustomElandInternalServiceSettings(commonFields);
-    }
-
-    private static CustomElandInternalServiceSettings fromPersistentMap(Map<String, Object> map) {
-        var commonFields = commonFieldsFromMap(map);
-        Integer dims = extractOptionalPositiveInteger(map, DIMENSIONS, ModelConfigurations.SERVICE_SETTINGS, new ValidationException());
-
-        return new CustomElandInternalServiceSettings(commonFields, dims);
-    }
-
-    private record CommonFields(
-        ElasticsearchInternalServiceSettings internalServiceSettings,
-        SimilarityMeasure similarityMeasure,
-        DenseVectorFieldMapper.ElementType elementType
-    ) {}
-
-    private static CommonFields commonFieldsFromMap(Map<String, Object> map) {
-        return commonFieldsFromMap(map, new ValidationException());
-    }
-
-    private static CommonFields commonFieldsFromMap(Map<String, Object> map, ValidationException validationException) {
-        var internalSettings = ElasticsearchInternalServiceSettings.fromMap(map, validationException);
-        SimilarityMeasure similarity = extractSimilarity(map, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        DenseVectorFieldMapper.ElementType elementType = extractOptionalEnum(
-            map,
-            ELEMENT_TYPE,
-            ModelConfigurations.SERVICE_SETTINGS,
-            DenseVectorFieldMapper.ElementType::fromString,
-            EnumSet.of(DenseVectorFieldMapper.ElementType.BYTE, DenseVectorFieldMapper.ElementType.FLOAT),
-            validationException
-        );
-
-        return new CommonFields(internalSettings, similarity, elementType);
-    }
-
-    private final ElasticsearchInternalServiceSettings internalServiceSettings;
-    private final Integer dimensions;
-    private final SimilarityMeasure similarityMeasure;
-    private final DenseVectorFieldMapper.ElementType elementType;
-
-    public CustomElandInternalServiceSettings(int numAllocations, int numThreads, String modelId) {
-        this(numAllocations, numThreads, modelId, null, null, null);
-    }
-
-    public CustomElandInternalServiceSettings(
-        int numAllocations,
-        int numThreads,
-        String modelId,
-        Integer dimensions,
-        SimilarityMeasure similarityMeasure,
-        DenseVectorFieldMapper.ElementType elementType
-    ) {
-        internalServiceSettings = new ElasticsearchInternalServiceSettings(numAllocations, numThreads, modelId);
-        this.dimensions = dimensions;
-        this.similarityMeasure = similarityMeasure;
-        this.elementType = elementType;
-    }
-
-    public CustomElandInternalServiceSettings(StreamInput in) throws IOException {
-        internalServiceSettings = new ElasticsearchInternalServiceSettings(in);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_ELAND_SETTINGS_ADDED)) {
-            dimensions = in.readOptionalVInt();
-            similarityMeasure = in.readOptionalEnum(SimilarityMeasure.class);
-            elementType = in.readOptionalEnum(DenseVectorFieldMapper.ElementType.class);
-        } else {
-            dimensions = null;
-            similarityMeasure = null;
-            elementType = null;
-        }
-    }
-
-    private CustomElandInternalServiceSettings(CommonFields commonFields) {
-        this(commonFields, null);
-    }
-
-    private CustomElandInternalServiceSettings(CommonFields commonFields, Integer dimensions) {
-        internalServiceSettings = commonFields.internalServiceSettings;
-        this.dimensions = dimensions;
-        similarityMeasure = commonFields.similarityMeasure;
-        elementType = commonFields.elementType;
+        var builder = new Builder() {
+            @Override
+            public CustomElandInternalServiceSettings build() {
+                return new CustomElandInternalServiceSettings(getNumAllocations(), getNumThreads(), getModelId());
+            }
+        };
+        builder.setNumAllocations(numAllocations);
+        builder.setNumThreads(numThreads);
+        builder.setModelId(modelId);
+        return builder.build();
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
+        return super.toXContent(builder, params);
+    }
 
-        internalServiceSettings.toXContentFragment(builder, params);
+    public CustomElandInternalServiceSettings(StreamInput in) throws IOException {
+        super(in.readVInt(), in.readVInt(), in.readString());
+    }
 
-        if (dimensions != null) {
-            builder.field(DIMENSIONS, dimensions);
-        }
-
-        if (similarityMeasure != null) {
-            builder.field(SIMILARITY, similarityMeasure);
-        }
-
-        if (elementType != null) {
-            builder.field(ELEMENT_TYPE, elementType);
-        }
-
-        builder.endObject();
-        return builder;
+    @Override
+    public boolean isFragment() {
+        return super.isFragment();
     }
 
     @Override
@@ -179,53 +90,6 @@ public class CustomElandInternalServiceSettings implements ServiceSettings {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        internalServiceSettings.writeTo(out);
-
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_ELAND_SETTINGS_ADDED)) {
-            out.writeOptionalVInt(dimensions);
-            out.writeOptionalEnum(similarityMeasure);
-            out.writeOptionalEnum(elementType);
-        }
+        super.writeTo(out);
     }
-
-    public ElasticsearchInternalServiceSettings getElasticsearchInternalServiceSettings() {
-        return internalServiceSettings;
-    }
-
-    @Override
-    public DenseVectorFieldMapper.ElementType elementType() {
-        return elementType;
-    }
-
-    @Override
-    public SimilarityMeasure similarity() {
-        return similarityMeasure;
-    }
-
-    @Override
-    public Integer dimensions() {
-        return dimensions;
-    }
-
-    @Override
-    public ToXContentObject getFilteredXContentObject() {
-        return this;
-    }
-
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        CustomElandInternalServiceSettings that = (CustomElandInternalServiceSettings) o;
-        return Objects.equals(internalServiceSettings, that.internalServiceSettings)
-            && Objects.equals(dimensions, that.dimensions)
-            && Objects.equals(similarityMeasure, that.similarityMeasure)
-            && Objects.equals(elementType, that.elementType);
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(internalServiceSettings, dimensions, similarityMeasure, elementType);
-    }
-
 }

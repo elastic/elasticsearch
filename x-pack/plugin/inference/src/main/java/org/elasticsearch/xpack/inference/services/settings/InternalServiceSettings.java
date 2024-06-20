@@ -81,16 +81,15 @@ public abstract class InternalServiceSettings implements ServiceSettings {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        var fragmentBuilder = toXContentFragment(builder, params);
-        fragmentBuilder.endObject();
-        return fragmentBuilder;
+        addXContentFragment(builder, params);
+        builder.endObject();
+        return builder;
     }
 
-    public XContentBuilder toXContentFragment(XContentBuilder builder, Params params) throws IOException {
+    public void addXContentFragment(XContentBuilder builder, Params params) throws IOException {
         builder.field(NUM_ALLOCATIONS, getNumAllocations());
         builder.field(NUM_THREADS, getNumThreads());
         builder.field(MODEL_ID, getModelId());
-        return builder;
     }
 
     @Override

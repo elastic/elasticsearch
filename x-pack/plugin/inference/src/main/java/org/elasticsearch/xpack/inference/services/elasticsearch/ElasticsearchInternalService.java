@@ -16,7 +16,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.inference.ChunkedInferenceServiceResults;
 import org.elasticsearch.inference.ChunkingOptions;
 import org.elasticsearch.inference.InferenceResults;
@@ -26,7 +25,6 @@ import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
-import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.ClientHelper;
@@ -57,7 +55,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
 
@@ -132,21 +129,36 @@ public class ElasticsearchInternalService implements InferenceService {
                         + "]. You may need to load it into the cluster using eland."
                 );
             } else {
-                var customElandInternalServiceSettings = CustomElandInternalServiceSettings.fromMap(
+                var model = createCustomElandModel(
+                    inferenceEntityId,
+                    taskType,
                     serviceSettingsMap,
+                    taskSettingsMap,
                     ConfigurationParseContext.REQUEST
                 );
-                throwIfNotEmptyMap(serviceSettingsMap, name());
 
-                var taskSettings = CustomElandModel.taskSettingsFromMap(taskType, taskSettingsMap);
+                throwIfNotEmptyMap(serviceSettingsMap, name());
                 throwIfNotEmptyMap(taskSettingsMap, name());
 
-                var model = CustomElandModel.build(inferenceEntityId, taskType, name(), customElandInternalServiceSettings, taskSettings);
                 delegate.onResponse(model);
             }
         });
 
         client.execute(GetTrainedModelsAction.INSTANCE, request, getModelsListener);
+    }
+
+    private static CustomElandModel createCustomElandModel(
+        String inferenceEntityId,
+        TaskType taskType,
+        Map<String, Object> serviceSettings,
+        Map<String, Object> taskSettings,
+        ConfigurationParseContext context
+    ) {
+        return switch (taskType) {
+            case TEXT_EMBEDDING -> new CustomElandEmbeddingModel(inferenceEntityId, taskType, NAME, serviceSettings, context);
+            case RERANK -> new CustomElandRerankModel(inferenceEntityId, taskType, NAME, serviceSettings, taskSettings, context);
+            default -> throw new ElasticsearchStatusException(TaskType.unsupportedTaskTypeErrorMsg(taskType, NAME), RestStatus.BAD_REQUEST);
+        };
     }
 
     private void e5Case(
@@ -220,21 +232,24 @@ public class ElasticsearchInternalService implements InferenceService {
                 (MultilingualE5SmallInternalServiceSettings) MultilingualE5SmallInternalServiceSettings.fromMap(serviceSettingsMap).build()
             );
         } else {
-            var serviceSettings = CustomElandInternalServiceSettings.fromMap(serviceSettingsMap, ConfigurationParseContext.PERSISTENT);
-            var taskSettings = CustomElandModel.taskSettingsFromMap(taskType, taskSettingsMap);
-
-            return CustomElandModel.build(inferenceEntityId, taskType, name(), serviceSettings, taskSettings);
+            return createCustomElandModel(
+                inferenceEntityId,
+                taskType,
+                serviceSettingsMap,
+                taskSettingsMap,
+                ConfigurationParseContext.PERSISTENT
+            );
         }
     }
 
     @Override
     public void checkModelConfig(Model model, ActionListener<Model> listener) {
-        if (model instanceof CustomElandModel elandModel && elandModel.getTaskType() == TaskType.TEXT_EMBEDDING) {
+        if (model instanceof CustomElandEmbeddingModel elandModel && elandModel.getTaskType() == TaskType.TEXT_EMBEDDING) {
             // At this point the inference endpoint configuration has not been persisted yet, if we attempt to do inference using the
             // inference id we'll get an error because the trained model code needs to use the persisted inference endpoint to retrieve the
             // model id. To get around this we'll have the getEmbeddingSize() method use the model id instead of inference id. So we need
             // to create a temporary model that overrides the inference id with the model id.
-            var temporaryModelWithModelId = new CustomElandModel(
+            var temporaryModelWithModelId = new CustomElandEmbeddingModel(
                 elandModel.getModelId(),
                 elandModel.getTaskType(),
                 elandModel.getConfigurations().getService(),
@@ -251,17 +266,17 @@ public class ElasticsearchInternalService implements InferenceService {
         }
     }
 
-    private static CustomElandModel updateModelWithEmbeddingDetails(CustomElandModel model, int embeddingSize) {
-        CustomElandInternalServiceSettings serviceSettings = new CustomElandInternalServiceSettings(
+    private static CustomElandEmbeddingModel updateModelWithEmbeddingDetails(CustomElandEmbeddingModel model, int embeddingSize) {
+        CustomElandInternalTextEmbeddingServiceSettings serviceSettings = new CustomElandInternalTextEmbeddingServiceSettings(
             model.getServiceSettings().getElasticsearchInternalServiceSettings().getNumAllocations(),
             model.getServiceSettings().getElasticsearchInternalServiceSettings().getNumThreads(),
             model.getServiceSettings().getElasticsearchInternalServiceSettings().getModelId(),
             embeddingSize,
-            Objects.requireNonNullElse(model.getServiceSettings().similarity(), SimilarityMeasure.COSINE),
-            Objects.requireNonNullElse(model.getServiceSettings().elementType(), DenseVectorFieldMapper.ElementType.FLOAT)
+            model.getServiceSettings().similarity(),
+            model.getServiceSettings().elementType()
         );
 
-        return new CustomElandModel(
+        return new CustomElandEmbeddingModel(
             model.getInferenceEntityId(),
             model.getTaskType(),
             model.getConfigurations().getService(),
@@ -476,7 +491,7 @@ public class ElasticsearchInternalService implements InferenceService {
                     }
                 })
             );
-        } else if (model instanceof CustomElandModel) {
+        } else if (model instanceof CustomElandEmbeddingModel) {
             logger.info("Custom eland model detected, model must have been already loaded into the cluster with eland.");
             listener.onResponse(Boolean.TRUE);
         } else {

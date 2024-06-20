@@ -27,23 +27,30 @@ import static org.elasticsearch.xpack.inference.services.settings.InternalServic
 import static org.elasticsearch.xpack.inference.services.settings.InternalServiceSettings.NUM_THREADS;
 import static org.hamcrest.Matchers.is;
 
-public class CustomElandInternalServiceSettingsTests extends AbstractWireSerializingTestCase<CustomElandInternalServiceSettings> {
+public class CustomElandInternalTextEmbeddingServiceSettingsTests extends AbstractWireSerializingTestCase<
+    CustomElandInternalTextEmbeddingServiceSettings> {
 
-    public static CustomElandInternalServiceSettings createRandom() {
+    public static CustomElandInternalTextEmbeddingServiceSettings createRandom() {
         var numAllocations = randomIntBetween(1, 10);
         var numThreads = randomIntBetween(1, 10);
         var modelId = randomAlphaOfLength(8);
-        SimilarityMeasure similarityMeasure = null;
+        SimilarityMeasure similarityMeasure = SimilarityMeasure.COSINE;
         Integer dims = null;
-        var isTextEmbeddingModel = randomBoolean();
-        if (isTextEmbeddingModel) {
-            similarityMeasure = SimilarityMeasure.COSINE;
+        var setDimensions = randomBoolean();
+        if (setDimensions) {
             dims = 123;
         }
 
         var elementType = randomFrom(DenseVectorFieldMapper.ElementType.values());
 
-        return new CustomElandInternalServiceSettings(numAllocations, numThreads, modelId, dims, similarityMeasure, elementType);
+        return new CustomElandInternalTextEmbeddingServiceSettings(
+            numAllocations,
+            numThreads,
+            modelId,
+            dims,
+            similarityMeasure,
+            elementType
+        );
     }
 
     public void testFromMap_Request_CreatesSettingsCorrectly() {
@@ -51,7 +58,7 @@ public class CustomElandInternalServiceSettingsTests extends AbstractWireSeriali
         var similarity = SimilarityMeasure.DOT_PRODUCT.toString();
         var numAllocations = 1;
         var numThreads = 1;
-        var serviceSettings = CustomElandInternalServiceSettings.fromMap(
+        var serviceSettings = CustomElandInternalTextEmbeddingServiceSettings.fromMap(
             new HashMap<>(
                 Map.of(
                     ServiceFields.MODEL_ID,
@@ -72,7 +79,7 @@ public class CustomElandInternalServiceSettingsTests extends AbstractWireSeriali
         assertThat(
             serviceSettings,
             is(
-                new CustomElandInternalServiceSettings(
+                new CustomElandInternalTextEmbeddingServiceSettings(
                     numAllocations,
                     numThreads,
                     modelId,
@@ -88,12 +95,24 @@ public class CustomElandInternalServiceSettingsTests extends AbstractWireSeriali
         var modelId = "model-foo";
         var numAllocations = 1;
         var numThreads = 1;
-        var serviceSettings = CustomElandInternalServiceSettings.fromMap(
+        var serviceSettings = CustomElandInternalTextEmbeddingServiceSettings.fromMap(
             new HashMap<>(Map.of(ServiceFields.MODEL_ID, modelId, NUM_ALLOCATIONS, numAllocations, NUM_THREADS, numThreads)),
             ConfigurationParseContext.REQUEST
         );
 
-        assertThat(serviceSettings, is(new CustomElandInternalServiceSettings(numAllocations, numThreads, modelId, null, null, null)));
+        assertThat(
+            serviceSettings,
+            is(
+                new CustomElandInternalTextEmbeddingServiceSettings(
+                    numAllocations,
+                    numThreads,
+                    modelId,
+                    null,
+                    SimilarityMeasure.COSINE,
+                    DenseVectorFieldMapper.ElementType.FLOAT
+                )
+            )
+        );
     }
 
     public void testFromMap_Request_IgnoresDimensions() {
@@ -101,7 +120,7 @@ public class CustomElandInternalServiceSettingsTests extends AbstractWireSeriali
         var similarity = SimilarityMeasure.DOT_PRODUCT.toString();
         var numAllocations = 1;
         var numThreads = 1;
-        var serviceSettings = CustomElandInternalServiceSettings.fromMap(
+        var serviceSettings = CustomElandInternalTextEmbeddingServiceSettings.fromMap(
             new HashMap<>(
                 Map.of(
                     ServiceFields.MODEL_ID,
@@ -124,7 +143,7 @@ public class CustomElandInternalServiceSettingsTests extends AbstractWireSeriali
         assertThat(
             serviceSettings,
             is(
-                new CustomElandInternalServiceSettings(
+                new CustomElandInternalTextEmbeddingServiceSettings(
                     numAllocations,
                     numThreads,
                     modelId,
@@ -141,7 +160,7 @@ public class CustomElandInternalServiceSettingsTests extends AbstractWireSeriali
         var similarity = SimilarityMeasure.DOT_PRODUCT.toString();
         var numAllocations = 1;
         var numThreads = 1;
-        var serviceSettings = CustomElandInternalServiceSettings.fromMap(
+        var serviceSettings = CustomElandInternalTextEmbeddingServiceSettings.fromMap(
             new HashMap<>(
                 Map.of(
                     ServiceFields.MODEL_ID,
@@ -164,7 +183,7 @@ public class CustomElandInternalServiceSettingsTests extends AbstractWireSeriali
         assertThat(
             serviceSettings,
             is(
-                new CustomElandInternalServiceSettings(
+                new CustomElandInternalTextEmbeddingServiceSettings(
                     numAllocations,
                     numThreads,
                     modelId,
@@ -177,7 +196,7 @@ public class CustomElandInternalServiceSettingsTests extends AbstractWireSeriali
     }
 
     public void testToXContent_WritesAllValues() throws IOException {
-        var entity = new CustomElandInternalServiceSettings(
+        var entity = new CustomElandInternalTextEmbeddingServiceSettings(
             1,
             1,
             "model_id",
@@ -195,17 +214,18 @@ public class CustomElandInternalServiceSettingsTests extends AbstractWireSeriali
     }
 
     @Override
-    protected Writeable.Reader<CustomElandInternalServiceSettings> instanceReader() {
-        return CustomElandInternalServiceSettings::new;
+    protected Writeable.Reader<CustomElandInternalTextEmbeddingServiceSettings> instanceReader() {
+        return CustomElandInternalTextEmbeddingServiceSettings::new;
     }
 
     @Override
-    protected CustomElandInternalServiceSettings createTestInstance() {
+    protected CustomElandInternalTextEmbeddingServiceSettings createTestInstance() {
         return createRandom();
     }
 
     @Override
-    protected CustomElandInternalServiceSettings mutateInstance(CustomElandInternalServiceSettings instance) throws IOException {
-        return randomValueOtherThan(instance, CustomElandInternalServiceSettingsTests::createRandom);
+    protected CustomElandInternalTextEmbeddingServiceSettings mutateInstance(CustomElandInternalTextEmbeddingServiceSettings instance)
+        throws IOException {
+        return randomValueOtherThan(instance, CustomElandInternalTextEmbeddingServiceSettingsTests::createRandom);
     }
 }

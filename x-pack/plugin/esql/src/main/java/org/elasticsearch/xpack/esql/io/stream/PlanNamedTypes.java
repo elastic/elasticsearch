@@ -58,6 +58,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Percentile;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialCentroid;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.TopList;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
 import org.elasticsearch.xpack.esql.expression.function.grouping.GroupingFunction;
@@ -81,20 +82,6 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.math.Pow;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Round;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Tau;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.AbstractMultivalueFunction;
-import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvAppend;
-import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvAvg;
-import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvConcat;
-import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvCount;
-import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvDedupe;
-import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvFirst;
-import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvLast;
-import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMax;
-import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMedian;
-import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMin;
-import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvSlice;
-import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvSort;
-import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvSum;
-import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvZip;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialContains;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialDisjoint;
@@ -314,27 +301,14 @@ public final class PlanNamedTypes {
             of(AggregateFunction.class, Percentile.class, PlanNamedTypes::writePercentile, PlanNamedTypes::readPercentile),
             of(AggregateFunction.class, SpatialCentroid.class, PlanNamedTypes::writeAggFunction, PlanNamedTypes::readAggFunction),
             of(AggregateFunction.class, Sum.class, PlanNamedTypes::writeAggFunction, PlanNamedTypes::readAggFunction),
-            of(AggregateFunction.class, Values.class, PlanNamedTypes::writeAggFunction, PlanNamedTypes::readAggFunction),
-            // Multivalue functions
-            of(ScalarFunction.class, MvAppend.class, PlanNamedTypes::writeMvAppend, PlanNamedTypes::readMvAppend),
-            of(ScalarFunction.class, MvAvg.class, PlanNamedTypes::writeMvFunction, PlanNamedTypes::readMvFunction),
-            of(ScalarFunction.class, MvCount.class, PlanNamedTypes::writeMvFunction, PlanNamedTypes::readMvFunction),
-            of(ScalarFunction.class, MvConcat.class, PlanNamedTypes::writeMvConcat, PlanNamedTypes::readMvConcat),
-            of(ScalarFunction.class, MvDedupe.class, PlanNamedTypes::writeMvFunction, PlanNamedTypes::readMvFunction),
-            of(ScalarFunction.class, MvFirst.class, PlanNamedTypes::writeMvFunction, PlanNamedTypes::readMvFunction),
-            of(ScalarFunction.class, MvLast.class, PlanNamedTypes::writeMvFunction, PlanNamedTypes::readMvFunction),
-            of(ScalarFunction.class, MvMax.class, PlanNamedTypes::writeMvFunction, PlanNamedTypes::readMvFunction),
-            of(ScalarFunction.class, MvMedian.class, PlanNamedTypes::writeMvFunction, PlanNamedTypes::readMvFunction),
-            of(ScalarFunction.class, MvMin.class, PlanNamedTypes::writeMvFunction, PlanNamedTypes::readMvFunction),
-            of(ScalarFunction.class, MvSort.class, PlanNamedTypes::writeMvSort, PlanNamedTypes::readMvSort),
-            of(ScalarFunction.class, MvSlice.class, PlanNamedTypes::writeMvSlice, PlanNamedTypes::readMvSlice),
-            of(ScalarFunction.class, MvSum.class, PlanNamedTypes::writeMvFunction, PlanNamedTypes::readMvFunction),
-            of(ScalarFunction.class, MvZip.class, PlanNamedTypes::writeMvZip, PlanNamedTypes::readMvZip)
+            of(AggregateFunction.class, TopList.class, (out, prefix) -> prefix.writeTo(out), TopList::readFrom),
+            of(AggregateFunction.class, Values.class, PlanNamedTypes::writeAggFunction, PlanNamedTypes::readAggFunction)
         );
         List<PlanNameRegistry.Entry> entries = new ArrayList<>(declared);
 
         // From NamedWriteables
         for (List<NamedWriteableRegistry.Entry> ee : List.of(
+            AbstractMultivalueFunction.getNamedWriteables(),
             EsqlArithmeticOperation.getNamedWriteables(),
             EsqlBinaryComparison.getNamedWriteables(),
             FullTextPredicate.getNamedWriteables(),
@@ -1441,38 +1415,6 @@ public final class PlanNamedTypes {
         out.writeExpression(aggregateFunction.field());
     }
 
-    // -- Multivalue functions
-    static final Map<String, BiFunction<Source, Expression, AbstractMultivalueFunction>> MV_CTRS = Map.ofEntries(
-        entry(name(MvAvg.class), MvAvg::new),
-        entry(name(MvCount.class), MvCount::new),
-        entry(name(MvDedupe.class), MvDedupe::new),
-        entry(name(MvFirst.class), MvFirst::new),
-        entry(name(MvLast.class), MvLast::new),
-        entry(name(MvMax.class), MvMax::new),
-        entry(name(MvMedian.class), MvMedian::new),
-        entry(name(MvMin.class), MvMin::new),
-        entry(name(MvSum.class), MvSum::new)
-    );
-
-    static AbstractMultivalueFunction readMvFunction(PlanStreamInput in, String name) throws IOException {
-        return MV_CTRS.get(name).apply(Source.readFrom(in), in.readExpression());
-    }
-
-    static void writeMvFunction(PlanStreamOutput out, AbstractMultivalueFunction fn) throws IOException {
-        Source.EMPTY.writeTo(out);
-        out.writeExpression(fn.field());
-    }
-
-    static MvConcat readMvConcat(PlanStreamInput in) throws IOException {
-        return new MvConcat(Source.readFrom(in), in.readExpression(), in.readExpression());
-    }
-
-    static void writeMvConcat(PlanStreamOutput out, MvConcat fn) throws IOException {
-        Source.EMPTY.writeTo(out);
-        out.writeExpression(fn.left());
-        out.writeExpression(fn.right());
-    }
-
     // -- ancillary supporting classes of plan nodes, etc
 
     static EsQueryExec.FieldSort readFieldSort(PlanStreamInput in) throws IOException {
@@ -1525,55 +1467,5 @@ public final class PlanNamedTypes {
         assert fields.size() == 1 || fields.size() == 2;
         out.writeExpression(fields.get(0));
         out.writeOptionalWriteable(fields.size() == 2 ? o -> out.writeExpression(fields.get(1)) : null);
-    }
-
-    static MvSort readMvSort(PlanStreamInput in) throws IOException {
-        return new MvSort(Source.readFrom(in), in.readExpression(), in.readOptionalNamed(Expression.class));
-    }
-
-    static void writeMvSort(PlanStreamOutput out, MvSort mvSort) throws IOException {
-        mvSort.source().writeTo(out);
-        List<Expression> fields = mvSort.children();
-        assert fields.size() == 1 || fields.size() == 2;
-        out.writeExpression(fields.get(0));
-        out.writeOptionalWriteable(fields.size() == 2 ? o -> out.writeExpression(fields.get(1)) : null);
-    }
-
-    static MvSlice readMvSlice(PlanStreamInput in) throws IOException {
-        return new MvSlice(Source.readFrom(in), in.readExpression(), in.readExpression(), in.readOptionalNamed(Expression.class));
-    }
-
-    static void writeMvSlice(PlanStreamOutput out, MvSlice fn) throws IOException {
-        Source.EMPTY.writeTo(out);
-        List<Expression> fields = fn.children();
-        assert fields.size() == 2 || fields.size() == 3;
-        out.writeExpression(fields.get(0));
-        out.writeExpression(fields.get(1));
-        out.writeOptionalWriteable(fields.size() == 3 ? o -> out.writeExpression(fields.get(2)) : null);
-    }
-
-    static MvZip readMvZip(PlanStreamInput in) throws IOException {
-        return new MvZip(Source.readFrom(in), in.readExpression(), in.readExpression(), in.readOptionalNamed(Expression.class));
-    }
-
-    static void writeMvZip(PlanStreamOutput out, MvZip fn) throws IOException {
-        Source.EMPTY.writeTo(out);
-        List<Expression> fields = fn.children();
-        assert fields.size() == 2 || fields.size() == 3;
-        out.writeExpression(fields.get(0));
-        out.writeExpression(fields.get(1));
-        out.writeOptionalWriteable(fields.size() == 3 ? o -> out.writeExpression(fields.get(2)) : null);
-    }
-
-    static MvAppend readMvAppend(PlanStreamInput in) throws IOException {
-        return new MvAppend(Source.readFrom(in), in.readExpression(), in.readExpression());
-    }
-
-    static void writeMvAppend(PlanStreamOutput out, MvAppend fn) throws IOException {
-        Source.EMPTY.writeTo(out);
-        List<Expression> fields = fn.children();
-        assert fields.size() == 2;
-        out.writeExpression(fields.get(0));
-        out.writeExpression(fields.get(1));
     }
 }

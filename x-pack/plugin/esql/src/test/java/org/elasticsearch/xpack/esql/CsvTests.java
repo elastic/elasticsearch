@@ -223,6 +223,14 @@ public class CsvTests extends ESTestCase {
     public final void test() throws Throwable {
         try {
             assumeTrue("Test " + testName + " is not enabled", isEnabled(testName, Version.CURRENT));
+            /*
+             * The csv tests support all but a few features. The unsupported features
+             * are tested in integration tests.
+             */
+            assumeFalse("metadata fields aren't supported", testCase.requiredCapabilities.contains(cap(EsqlFeatures.METADATA_FIELDS)));
+            assumeFalse("enrich can't load fields in csv tests", testCase.requiredCapabilities.contains(cap(EsqlFeatures.ENRICH_LOAD)));
+            assumeFalse("can't load metrics in csv tests", testCase.requiredCapabilities.contains(cap(EsqlFeatures.METRICS_SYNTAX)));
+            assumeFalse("multiple indices aren't supported", testCase.requiredCapabilities.contains(EsqlCapabilities.UNION_TYPES));
 
             if (Build.current().isSnapshot()) {
                 assertThat(
@@ -231,14 +239,6 @@ public class CsvTests extends ESTestCase {
                     everyItem(in(EsqlCapabilities.CAPABILITIES))
                 );
             }
-
-            /*
-             * The csv tests support all but a few features. The unsupported features
-             * are tested in integration tests.
-             */
-            assumeFalse("metadata fields aren't supported", testCase.requiredCapabilities.contains(cap(EsqlFeatures.METADATA_FIELDS)));
-            assumeFalse("enrich can't load fields in csv tests", testCase.requiredCapabilities.contains(cap(EsqlFeatures.ENRICH_LOAD)));
-            assumeFalse("can't load metrics in csv tests", testCase.requiredCapabilities.contains(cap(EsqlFeatures.METRICS_SYNTAX)));
 
             doTest();
         } catch (Throwable th) {
@@ -335,7 +335,7 @@ public class CsvTests extends ESTestCase {
     private static CsvTestsDataLoader.TestsDataset testsDataset(LogicalPlan parsed) {
         var preAnalysis = new PreAnalyzer().preAnalyze(parsed);
         var indices = preAnalysis.indices;
-        if (indices.size() == 0) {
+        if (indices.isEmpty()) {
             /*
              * If the data set doesn't matter we'll just grab one we know works.
              * Employees is fine.
@@ -346,11 +346,23 @@ public class CsvTests extends ESTestCase {
         }
 
         String indexName = indices.get(0).id().index();
-        var dataset = CSV_DATASET_MAP.get(indexName);
-        if (dataset == null) {
+        List<CsvTestsDataLoader.TestsDataset> datasets = new ArrayList<>();
+        if (indexName.endsWith("*")) {
+            String indexPrefix = indexName.substring(0, indexName.length() - 1);
+            for (var entry : CSV_DATASET_MAP.entrySet()) {
+                if (entry.getKey().startsWith(indexPrefix)) {
+                    datasets.add(entry.getValue());
+                }
+            }
+        } else {
+            var dataset = CSV_DATASET_MAP.get(indexName);
+            datasets.add(dataset);
+        }
+        if (datasets.isEmpty()) {
             throw new IllegalArgumentException("unknown CSV dataset for table [" + indexName + "]");
         }
-        return dataset;
+        // TODO: Support multiple datasets
+        return datasets.get(0);
     }
 
     private static TestPhysicalOperationProviders testOperationProviders(CsvTestsDataLoader.TestsDataset dataset) throws Exception {

@@ -25,6 +25,10 @@ import java.util.List;
  */
 public interface DenseVector {
 
+    default void checkDimensions(int qvDims) {
+        checkDimensions(getDims(), qvDims);
+    }
+
     float[] getVector();
 
     float getMagnitude();
@@ -38,13 +42,13 @@ public interface DenseVector {
     @SuppressWarnings("unchecked")
     default double dotProduct(Object queryVector) {
         if (queryVector instanceof float[] floats) {
-            checkDimensions(getDims(), floats.length);
+            checkDimensions(floats.length);
             return dotProduct(floats);
         } else if (queryVector instanceof List<?> list) {
-            checkDimensions(getDims(), list.size());
+            checkDimensions(list.size());
             return dotProduct((List<Number>) list);
         } else if (queryVector instanceof byte[] bytes) {
-            checkDimensions(getDims(), bytes.length);
+            checkDimensions(bytes.length);
             return dotProduct(bytes);
         }
 
@@ -60,32 +64,14 @@ public interface DenseVector {
     @SuppressWarnings("unchecked")
     default double l1Norm(Object queryVector) {
         if (queryVector instanceof float[] floats) {
-            checkDimensions(getDims(), floats.length);
+            checkDimensions(floats.length);
             return l1Norm(floats);
         } else if (queryVector instanceof List<?> list) {
-            checkDimensions(getDims(), list.size());
+            checkDimensions(list.size());
             return l1Norm((List<Number>) list);
         } else if (queryVector instanceof byte[] bytes) {
-            checkDimensions(getDims(), bytes.length);
+            checkDimensions(bytes.length);
             return l1Norm(bytes);
-        }
-
-        throw new IllegalArgumentException(badQueryVectorType(queryVector));
-    }
-
-    int andBitCount(byte[] queryVector);
-
-    int andBitCount(List<Number> queryVector);
-
-    @SuppressWarnings("unchecked")
-    default int andBitCount(Object queryVector) {
-        if (queryVector instanceof List<?> list) {
-            checkDimensions(getDims(), list.size());
-            return andBitCount((List<Number>) list);
-        }
-        if (queryVector instanceof byte[] bytes) {
-            checkDimensions(getDims(), bytes.length);
-            return andBitCount(bytes);
         }
 
         throw new IllegalArgumentException(badQueryVectorType(queryVector));
@@ -98,11 +84,11 @@ public interface DenseVector {
     @SuppressWarnings("unchecked")
     default int hamming(Object queryVector) {
         if (queryVector instanceof List<?> list) {
-            checkDimensions(getDims(), list.size());
+            checkDimensions(list.size());
             return hamming((List<Number>) list);
         }
         if (queryVector instanceof byte[] bytes) {
-            checkDimensions(getDims(), bytes.length);
+            checkDimensions(bytes.length);
             return hamming(bytes);
         }
 
@@ -118,13 +104,13 @@ public interface DenseVector {
     @SuppressWarnings("unchecked")
     default double l2Norm(Object queryVector) {
         if (queryVector instanceof float[] floats) {
-            checkDimensions(getDims(), floats.length);
+            checkDimensions(floats.length);
             return l2Norm(floats);
         } else if (queryVector instanceof List<?> list) {
-            checkDimensions(getDims(), list.size());
+            checkDimensions(list.size());
             return l2Norm((List<Number>) list);
         } else if (queryVector instanceof byte[] bytes) {
-            checkDimensions(getDims(), bytes.length);
+            checkDimensions(bytes.length);
             return l2Norm(bytes);
         }
 
@@ -168,13 +154,13 @@ public interface DenseVector {
     @SuppressWarnings("unchecked")
     default double cosineSimilarity(Object queryVector) {
         if (queryVector instanceof float[] floats) {
-            checkDimensions(getDims(), floats.length);
+            checkDimensions(floats.length);
             return cosineSimilarity(floats);
         } else if (queryVector instanceof List<?> list) {
-            checkDimensions(getDims(), list.size());
+            checkDimensions(list.size());
             return cosineSimilarity((List<Number>) list);
         } else if (queryVector instanceof byte[] bytes) {
-            checkDimensions(getDims(), bytes.length);
+            checkDimensions(bytes.length);
             return cosineSimilarity(bytes);
         }
 
@@ -263,16 +249,6 @@ public interface DenseVector {
 
         @Override
         public double l1Norm(List<Number> queryVector) {
-            throw new IllegalArgumentException(MISSING_VECTOR_FIELD_MESSAGE);
-        }
-
-        @Override
-        public int andBitCount(byte[] queryVector) {
-            throw new IllegalArgumentException(MISSING_VECTOR_FIELD_MESSAGE);
-        }
-
-        @Override
-        public int andBitCount(List<Number> queryVector) {
             throw new IllegalArgumentException(MISSING_VECTOR_FIELD_MESSAGE);
         }
 

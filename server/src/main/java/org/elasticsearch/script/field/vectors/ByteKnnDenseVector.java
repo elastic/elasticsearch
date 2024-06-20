@@ -10,7 +10,6 @@ package org.elasticsearch.script.field.vectors;
 
 import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.core.SuppressForbidden;
-import org.elasticsearch.script.VectorScoreScriptUtils;
 
 import java.util.List;
 
@@ -100,20 +99,6 @@ public class ByteKnnDenseVector implements DenseVector {
             i++;
         }
         return result;
-    }
-
-    @Override
-    public int andBitCount(byte[] queryVector) {
-        return VectorScoreScriptUtils.andBitCount(queryVector, docVector);
-    }
-
-    @Override
-    public int andBitCount(List<Number> queryVector) {
-        int distance = 0;
-        for (int i = 0; i < queryVector.size(); i++) {
-            distance += Integer.bitCount((queryVector.get(i).intValue() & docVector[i]) & 0xFF);
-        }
-        return distance;
     }
 
     @Override

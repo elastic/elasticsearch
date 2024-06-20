@@ -21,7 +21,7 @@ import java.io.IOException;
 
 public class ES815HnswBitVectorsFormat extends KnnVectorsFormat {
 
-    public static final String NAME = "ES15HnswBitVectorsFormat";
+    static final String NAME = "ES815HnswBitVectorsFormat";
 
     static final int MAXIMUM_MAX_CONN = 512;
     static final int MAXIMUM_BEAM_WIDTH = 3200;
@@ -30,6 +30,10 @@ public class ES815HnswBitVectorsFormat extends KnnVectorsFormat {
     private final int beamWidth;
 
     private final FlatVectorsFormat flatVectorsFormat = new ES815BitFlatVectorsFormat();
+
+    public ES815HnswBitVectorsFormat() {
+        this(16, 100);
+    }
 
     public ES815HnswBitVectorsFormat(int maxConn, int beamWidth) {
         super(NAME);
@@ -55,5 +59,16 @@ public class ES815HnswBitVectorsFormat extends KnnVectorsFormat {
     @Override
     public KnnVectorsReader fieldsReader(SegmentReadState state) throws IOException {
         return new Lucene99HnswVectorsReader(state, flatVectorsFormat.fieldsReader(state));
+    }
+
+    @Override
+    public String toString() {
+        return "ES815HnswBitVectorsFormat(name=ES815HnswBitVectorsFormat, maxConn="
+            + maxConn
+            + ", beamWidth="
+            + beamWidth
+            + ", flatVectorFormat="
+            + flatVectorsFormat
+            + ")";
     }
 }

@@ -189,10 +189,12 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
                 queryVector[i] = randomByte();
                 floatQueryVector[i] = queryVector[i];
             }
-            Query query = field.createKnnQuery(queryVector, 10, null, null, producer);
+            VectorData vectorData = new VectorData(null, queryVector);
+            Query query = field.createKnnQuery(vectorData, 10, null, null, producer);
             assertThat(query, instanceOf(DiversifyingChildrenByteKnnVectorQuery.class));
 
-            query = field.createKnnQuery(floatQueryVector, 10, null, null, producer);
+            vectorData = new VectorData(floatQueryVector, null);
+            query = field.createKnnQuery(vectorData, 10, null, null, producer);
             assertThat(query, instanceOf(DiversifyingChildrenByteKnnVectorQuery.class));
         }
     }
@@ -343,7 +345,8 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
             for (int i = 0; i < 4096; i++) {
                 queryVector[i] = randomByte();
             }
-            Query query = fieldWith4096dims.createKnnQuery(queryVector, 10, null, null, null);
+            VectorData vectorData = new VectorData(null, queryVector);
+            Query query = fieldWith4096dims.createKnnQuery(vectorData, 10, null, null, null);
             assertThat(query, instanceOf(KnnByteVectorQuery.class));
         }
     }
@@ -381,7 +384,10 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
         );
         assertThat(e.getMessage(), containsString("The [cosine] similarity does not support vectors with zero magnitude."));
 
-        e = expectThrows(IllegalArgumentException.class, () -> cosineField.createKnnQuery(new byte[] { 0, 0, 0 }, 10, null, null, null));
+        e = expectThrows(
+            IllegalArgumentException.class,
+            () -> cosineField.createKnnQuery(new VectorData(null, new byte[] { 0, 0, 0 }), 10, null, null, null)
+        );
         assertThat(e.getMessage(), containsString("The [cosine] similarity does not support vectors with zero magnitude."));
     }
 }

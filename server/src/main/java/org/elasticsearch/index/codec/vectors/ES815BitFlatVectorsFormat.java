@@ -24,8 +24,6 @@ import org.apache.lucene.util.quantization.RandomAccessQuantizedByteVectorValues
 
 import java.io.IOException;
 
-import static org.elasticsearch.script.VectorScoreScriptUtils.andBitCount;
-
 class ES815BitFlatVectorsFormat extends FlatVectorsFormat {
 
     private final FlatVectorsFormat delegate = new Lucene99FlatVectorsFormat(FlatBitVectorScorer.INSTANCE);
@@ -63,8 +61,7 @@ class ES815BitFlatVectorsFormat extends FlatVectorsFormat {
             if (randomAccessVectorValues instanceof RandomAccessVectorValues.Bytes randomAccessVectorValuesBytes) {
                 assert randomAccessVectorValues instanceof RandomAccessQuantizedByteVectorValues == false;
                 return switch (vectorSimilarityFunction) {
-                    case DOT_PRODUCT, MAXIMUM_INNER_PRODUCT, COSINE -> new AndScorerSupplier(randomAccessVectorValuesBytes);
-                    case EUCLIDEAN -> new HammingScorerSupplier(randomAccessVectorValuesBytes);
+                    case DOT_PRODUCT, MAXIMUM_INNER_PRODUCT, COSINE, EUCLIDEAN -> new HammingScorerSupplier(randomAccessVectorValuesBytes);
                 };
             }
             throw new IllegalArgumentException("Unsupported vector type");
@@ -75,12 +72,14 @@ class ES815BitFlatVectorsFormat extends FlatVectorsFormat {
             VectorSimilarityFunction vectorSimilarityFunction,
             RandomAccessVectorValues randomAccessVectorValues,
             byte[] bytes
-        ) throws IOException {
+        ) {
             if (randomAccessVectorValues instanceof RandomAccessVectorValues.Bytes randomAccessVectorValuesBytes) {
                 checkDimensions(bytes.length, randomAccessVectorValuesBytes.dimension());
                 return switch (vectorSimilarityFunction) {
-                    case DOT_PRODUCT, MAXIMUM_INNER_PRODUCT, COSINE -> new AndVectorScorer(randomAccessVectorValuesBytes, bytes);
-                    case EUCLIDEAN -> new HammingVectorScorer(randomAccessVectorValuesBytes, bytes);
+                    case DOT_PRODUCT, MAXIMUM_INNER_PRODUCT, COSINE, EUCLIDEAN -> new HammingVectorScorer(
+                        randomAccessVectorValuesBytes,
+                        bytes
+                    );
                 };
             }
             throw new IllegalArgumentException("Unsupported vector type");
@@ -91,17 +90,13 @@ class ES815BitFlatVectorsFormat extends FlatVectorsFormat {
             VectorSimilarityFunction vectorSimilarityFunction,
             RandomAccessVectorValues randomAccessVectorValues,
             float[] floats
-        ) throws IOException {
+        ) {
             throw new IllegalArgumentException("Unsupported vector type");
         }
     }
 
     static float hammingScore(byte[] a, byte[] b) {
         return ((a.length * Byte.SIZE) - VectorUtil.xorBitCount(a, b)) / (float) (a.length * Byte.SIZE);
-    }
-
-    static float andScore(byte[] a, byte[] b) {
-        return andBitCount(a, b) / (float) (a.length * Byte.SIZE);
     }
 
     static class HammingVectorScorer extends RandomVectorScorer.AbstractRandomVectorScorer {
@@ -117,22 +112,6 @@ class ES815BitFlatVectorsFormat extends FlatVectorsFormat {
         @Override
         public float score(int i) throws IOException {
             return hammingScore(byteValues.vectorValue(i), query);
-        }
-    }
-
-    static class AndVectorScorer extends RandomVectorScorer.AbstractRandomVectorScorer {
-        private final byte[] query;
-        private final RandomAccessVectorValues.Bytes byteValues;
-
-        AndVectorScorer(RandomAccessVectorValues.Bytes byteValues, byte[] query) {
-            super(byteValues);
-            this.query = query;
-            this.byteValues = byteValues;
-        }
-
-        @Override
-        public float score(int i) throws IOException {
-            return andScore(byteValues.vectorValue(i), query);
         }
     }
 
@@ -155,28 +134,6 @@ class ES815BitFlatVectorsFormat extends FlatVectorsFormat {
         public RandomVectorScorerSupplier copy() throws IOException {
             return new HammingScorerSupplier(byteValues);
         }
-    }
-
-    static class AndScorerSupplier implements RandomVectorScorerSupplier {
-        private final RandomAccessVectorValues.Bytes byteValues, byteValues1, byteValues2;
-
-        AndScorerSupplier(RandomAccessVectorValues.Bytes byteValues) throws IOException {
-            this.byteValues = byteValues;
-            this.byteValues1 = byteValues.copy();
-            this.byteValues2 = byteValues.copy();
-        }
-
-        @Override
-        public RandomVectorScorer scorer(int i) throws IOException {
-            byte[] query = byteValues1.vectorValue(i);
-            return new AndVectorScorer(byteValues2, query);
-        }
-
-        @Override
-        public RandomVectorScorerSupplier copy() throws IOException {
-            return new AndScorerSupplier(byteValues);
-        }
-
     }
 
 }

@@ -57,13 +57,17 @@ public class ByteKnnDenseVectorDocValuesField extends DenseVectorDocValuesField 
         return vector == null;
     }
 
+    protected DenseVector getVector() {
+        return new ByteKnnDenseVector(vector);
+    }
+
     @Override
     public DenseVector get() {
         if (isEmpty()) {
             return DenseVector.EMPTY;
         }
 
-        return new ByteKnnDenseVector(vector);
+        return getVector();
     }
 
     @Override
@@ -72,7 +76,7 @@ public class ByteKnnDenseVectorDocValuesField extends DenseVectorDocValuesField 
             return defaultValue;
         }
 
-        return new ByteKnnDenseVector(vector);
+        return getVector();
     }
 
     @Override

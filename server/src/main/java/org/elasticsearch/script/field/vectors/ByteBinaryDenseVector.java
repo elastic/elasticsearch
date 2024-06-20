@@ -11,7 +11,6 @@ package org.elasticsearch.script.field.vectors;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.core.SuppressForbidden;
-import org.elasticsearch.script.VectorScoreScriptUtils;
 
 import java.nio.ByteBuffer;
 import java.util.List;
@@ -22,7 +21,7 @@ public class ByteBinaryDenseVector implements DenseVector {
 
     private final BytesRef docVector;
     private final byte[] vectorValue;
-    private final int dims;
+    protected final int dims;
 
     private float[] floatDocVector;
     private boolean magnitudeDecoded;
@@ -99,20 +98,6 @@ public class ByteBinaryDenseVector implements DenseVector {
             result += abs(vectorValue[i] - queryVector.get(i).intValue());
         }
         return result;
-    }
-
-    @Override
-    public int andBitCount(byte[] queryVector) {
-        return VectorScoreScriptUtils.andBitCount(queryVector, vectorValue);
-    }
-
-    @Override
-    public int andBitCount(List<Number> queryVector) {
-        int distance = 0;
-        for (int i = 0; i < queryVector.size(); i++) {
-            distance += Integer.bitCount((queryVector.get(i).intValue() & vectorValue[i]) & 0xFF);
-        }
-        return distance;
     }
 
     @Override

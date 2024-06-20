@@ -110,6 +110,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
     }
 
     public static final NodeFeature INT4_QUANTIZATION = new NodeFeature("mapper.vectors.int4_quantization");
+    public static final NodeFeature BIT_VECTORS = new NodeFeature("mapper.vectors.bit_vectors");
 
     public static final IndexVersion MAGNITUDE_STORED_INDEX_VERSION = IndexVersions.V_7_5_0;
     public static final IndexVersion INDEXED_BY_DEFAULT_INDEX_VERSION = IndexVersions.FIRST_DETACHED_INDEX_VERSION;
@@ -119,6 +120,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
     public static final String CONTENT_TYPE = "dense_vector";
     public static short MAX_DIMS_COUNT = 4096; // maximum allowed number of dimensions
+    public static int MAX_DIMS_COUNT_BIT = 4096 * Byte.SIZE; // maximum allowed number of dimensions
 
     public static short MIN_DIMS_FOR_DYNAMIC_FLOAT_MAPPING = 128; // minimum number of dims for floats to be dynamically mapped to vector
     public static final int MAGNITUDE_BYTES = 4;
@@ -144,16 +146,27 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 throw new MapperParsingException("Property [dims] on field [" + n + "] must be an integer but got [" + o + "]");
             }
             int dims = XContentMapValues.nodeIntegerValue(o);
-            if (dims < 1 || dims > MAX_DIMS_COUNT) {
+            int maxDims = elementType.getValue() == ElementType.BIT ? MAX_DIMS_COUNT_BIT : MAX_DIMS_COUNT;
+            int minDims = elementType.getValue() == ElementType.BIT ? Byte.SIZE : 1;
+            if (dims < minDims || dims > maxDims) {
                 throw new MapperParsingException(
                     "The number of dimensions for field ["
                         + n
-                        + "] should be in the range [1, "
-                        + MAX_DIMS_COUNT
+                        + "] should be in the range ["
+                        + minDims
+                        + ", "
+                        + maxDims
                         + "] but was ["
                         + dims
                         + "]"
                 );
+            }
+            if (elementType.getValue() == ElementType.BIT) {
+                if (dims % Byte.SIZE != 0) {
+                    throw new MapperParsingException(
+                        "The number of dimensions for field [" + n + "] should be a multiple of 8 but was [" + dims + "]"
+                    );
+                }
             }
             return dims;
         }, m -> toType(m).fieldType().dims, XContentBuilder::field, Object::toString).setSerializerCheck((id, ic, v) -> v != null)
@@ -187,7 +200,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             this.indexOptions = new Parameter<>(
                 "index_options",
                 true,
-                () -> defaultInt8Hnsw && elementType.getValue() != ElementType.BYTE && this.indexed.getValue()
+                () -> defaultInt8Hnsw && elementType.getValue() == ElementType.FLOAT && this.indexed.getValue()
                     ? new Int8HnswIndexOptions(
                         Lucene99HnswVectorsFormat.DEFAULT_MAX_CONN,
                         Lucene99HnswVectorsFormat.DEFAULT_BEAM_WIDTH,
@@ -816,13 +829,13 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     }
                     vector[index++] = (byte) value;
                 }
-                fieldMapper.checkDimensionMatches(index * 8, context);
+                fieldMapper.checkDimensionMatches(index * Byte.SIZE, context);
                 return VectorData.fromBytes(vector);
             }
 
             private VectorData parseHexEncodedVector(DocumentParserContext context, DenseVectorFieldMapper fieldMapper) throws IOException {
                 byte[] decodedVector = HexFormat.of().parseHex(context.parser().text());
-                fieldMapper.checkDimensionMatches(decodedVector.length * 8, context);
+                fieldMapper.checkDimensionMatches(decodedVector.length * Byte.SIZE, context);
                 return VectorData.fromBytes(decodedVector);
             }
 
@@ -852,8 +865,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
             @Override
             int getNumBytes(int dimensions) {
-                assert dimensions % 8 == 0;
-                return (int) (dimensions / 8.0);
+                assert dimensions % Byte.SIZE == 0;
+                return dimensions / Byte.SIZE;
             }
 
             @Override
@@ -870,17 +883,30 @@ public class DenseVectorFieldMapper extends FieldMapper {
                         for (Token token = context.parser().nextToken(); token != Token.END_ARRAY; token = context.parser().nextToken()) {
                             index++;
                         }
-                        yield index;
+                        yield index * Byte.SIZE;
                     }
                     case VALUE_STRING -> {
                         byte[] decodedVector = HexFormat.of().parseHex(context.parser().text());
-                        yield decodedVector.length;
+                        yield decodedVector.length * Byte.SIZE;
                     }
                     default -> throw new ParsingException(
                         context.parser().getTokenLocation(),
                         format("Unsupported type [%s] for provided value [%s]", currentToken, context.parser().text())
                     );
                 };
+            }
+
+            @Override
+            public void checkDimensions(int dvDims, int qvDims) {
+                if (dvDims != qvDims * Byte.SIZE) {
+                    throw new IllegalArgumentException(
+                        "The query vector has a different number of dimensions ["
+                            + qvDims * Byte.SIZE
+                            + "] than the document vectors ["
+                            + dvDims
+                            + "]."
+                    );
+                }
             }
         };
 
@@ -905,6 +931,14 @@ public class DenseVectorFieldMapper extends FieldMapper {
             Function<StringBuilder, StringBuilder> errorElementsAppender,
             float squaredMagnitude
         );
+
+        public void checkDimensions(int dvDims, int qvDims) {
+            if (dvDims != qvDims) {
+                throw new IllegalArgumentException(
+                    "The query vector has a different number of dimensions [" + qvDims + "] than the document vectors [" + dvDims + "]."
+                );
+            }
+        }
 
         int parseDimensionCount(DocumentParserContext context) throws IOException {
             int index = 0;
@@ -997,7 +1031,9 @@ public class DenseVectorFieldMapper extends FieldMapper {
         ElementType.BYTE.toString(),
         ElementType.BYTE,
         ElementType.FLOAT.toString(),
-        ElementType.FLOAT
+        ElementType.FLOAT,
+        ElementType.BIT.toString(),
+        ElementType.BIT
     );
 
     public enum VectorSimilarity {
@@ -1006,7 +1042,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             float score(float similarity, ElementType elementType, int dim) {
                 return switch (elementType) {
                     case BYTE, FLOAT -> 1f / (1f + similarity * similarity);
-                    case BIT -> (dim * 8 - similarity * (dim * 8));
+                    case BIT -> (dim * Byte.SIZE - (similarity * (dim * Byte.SIZE)));
                 };
             }
 
@@ -1020,7 +1056,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             float score(float similarity, ElementType elementType, int dim) {
                 return switch (elementType) {
                     case BYTE, FLOAT -> (1 + similarity) / 2f;
-                    case BIT -> similarity * (dim * 8);
+                    case BIT -> similarity * (dim * Byte.SIZE);
                 };
             }
 
@@ -1037,7 +1073,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 return switch (elementType) {
                     case BYTE -> 0.5f + similarity / (float) (dim * (1 << 15));
                     case FLOAT -> (1 + similarity) / 2f;
-                    case BIT -> similarity * (dim * 8);
+                    case BIT -> similarity * (dim * Byte.SIZE);
                 };
             }
 
@@ -1051,7 +1087,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             float score(float similarity, ElementType elementType, int dim) {
                 return switch (elementType) {
                     case BYTE, FLOAT -> similarity < 0 ? 1 / (1 + -1 * similarity) : similarity + 1;
-                    case BIT -> similarity * (dim * 8);
+                    case BIT -> similarity * (dim * Byte.SIZE);
                 };
             }
 
@@ -1237,7 +1273,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
         @Override
         boolean supportsElementType(ElementType elementType) {
-            return elementType != ElementType.BYTE;
+            return elementType == ElementType.FLOAT;
         }
 
         @Override
@@ -1346,7 +1382,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
         @Override
         boolean supportsElementType(ElementType elementType) {
-            return elementType != ElementType.BYTE;
+            return elementType == ElementType.FLOAT;
         }
 
         @Override
@@ -1407,7 +1443,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
         @Override
         boolean supportsElementType(ElementType elementType) {
-            return elementType != ElementType.BYTE;
+            return elementType == ElementType.FLOAT;
         }
 
         @Override
@@ -1483,7 +1519,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
         @Override
         boolean supportsElementType(ElementType elementType) {
-            return elementType != ElementType.BYTE;
+            return elementType == ElementType.FLOAT;
         }
 
         @Override
@@ -1637,48 +1673,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
             throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support term queries");
         }
 
-        public Query createKnnQuery(
-            byte[] queryVector,
-            int numCands,
-            Query filter,
-            Float similarityThreshold,
-            BitSetProducer parentFilter
-        ) {
-            if (isIndexed() == false) {
-                throw new IllegalArgumentException(
-                    "to perform knn search on field [" + name() + "], its mapping must have [index] set to [true]"
-                );
-            }
-
-            if (queryVector.length != dims) {
-                throw new IllegalArgumentException(
-                    "the query vector has a different dimension [" + queryVector.length + "] than the index vectors [" + dims + "]"
-                );
-            }
-
-            if (elementType != ElementType.BYTE) {
-                throw new IllegalArgumentException(
-                    "only [" + ElementType.BYTE + "] elements are supported when querying field [" + name() + "]"
-                );
-            }
-
-            if (similarity == VectorSimilarity.DOT_PRODUCT || similarity == VectorSimilarity.COSINE) {
-                float squaredMagnitude = VectorUtil.dotProduct(queryVector, queryVector);
-                elementType.checkVectorMagnitude(similarity, ElementType.errorByteElementsAppender(queryVector), squaredMagnitude);
-            }
-            Query knnQuery = parentFilter != null
-                ? new ESDiversifyingChildrenByteKnnVectorQuery(name(), queryVector, filter, numCands, parentFilter)
-                : new ESKnnByteVectorQuery(name(), queryVector, numCands, filter);
-            if (similarityThreshold != null) {
-                knnQuery = new VectorSimilarityQuery(
-                    knnQuery,
-                    similarityThreshold,
-                    similarity.score(similarityThreshold, elementType, dims)
-                );
-            }
-            return knnQuery;
-        }
-
         public Query createExactKnnQuery(VectorData queryVector) {
             if (isIndexed() == false) {
                 throw new IllegalArgumentException(
@@ -1718,9 +1712,13 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         private Query createExactKnnBitQuery(byte[] queryVector) {
-            if (queryVector.length * 8 != dims) {
+            if (queryVector.length * Byte.SIZE != dims) {
                 throw new IllegalArgumentException(
-                    "the query vector has a different dimension [" + queryVector.length * 8 + "] than the index vectors [" + dims + "]"
+                    "the query vector has a different dimension ["
+                        + queryVector.length * Byte.SIZE
+                        + "] than the index vectors ["
+                        + dims
+                        + "]"
                 );
             }
             // TODO correct and use flat vector scorer for the index
@@ -1804,11 +1802,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             Float similarityThreshold,
             BitSetProducer parentFilter
         ) {
-            if (queryVector.length * 8 != dims) {
-                throw new IllegalArgumentException(
-                    "the query vector has a different dimension [" + queryVector.length * 8 + "] than the index vectors [" + dims + "]"
-                );
-            }
+            elementType.checkDimensions(dims, queryVector.length);
             Query knnQuery = parentFilter != null
                 ? new ESDiversifyingChildrenByteKnnVectorQuery(name(), queryVector, filter, numCands, parentFilter)
                 : new ESKnnByteVectorQuery(name(), queryVector, numCands, filter);
@@ -1829,11 +1823,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             Float similarityThreshold,
             BitSetProducer parentFilter
         ) {
-            if (queryVector.length != dims) {
-                throw new IllegalArgumentException(
-                    "the query vector has a different dimension [" + queryVector.length + "] than the index vectors [" + dims + "]"
-                );
-            }
+            elementType.checkDimensions(dims, queryVector.length);
 
             if (similarity == VectorSimilarity.DOT_PRODUCT || similarity == VectorSimilarity.COSINE) {
                 float squaredMagnitude = VectorUtil.dotProduct(queryVector, queryVector);
@@ -1859,11 +1849,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             Float similarityThreshold,
             BitSetProducer parentFilter
         ) {
-            if (queryVector.length != dims) {
-                throw new IllegalArgumentException(
-                    "the query vector has a different dimension [" + queryVector.length + "] than the index vectors [" + dims + "]"
-                );
-            }
+            elementType.checkDimensions(dims, queryVector.length);
             elementType.checkVectorBounds(queryVector);
             if (similarity == VectorSimilarity.DOT_PRODUCT || similarity == VectorSimilarity.COSINE) {
                 float squaredMagnitude = VectorUtil.dotProduct(queryVector, queryVector);
@@ -2078,7 +2064,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
     public KnnVectorsFormat getKnnVectorsFormatForField(KnnVectorsFormat defaultFormat) {
         final KnnVectorsFormat format;
         if (indexOptions == null) {
-            format = defaultFormat;
+            format = fieldType().elementType == ElementType.BIT ? new ES815HnswBitVectorsFormat() : defaultFormat;
         } else {
             format = indexOptions.getVectorsFormat(fieldType().elementType);
         }

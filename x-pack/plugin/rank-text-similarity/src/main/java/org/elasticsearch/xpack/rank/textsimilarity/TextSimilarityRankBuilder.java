@@ -102,9 +102,9 @@ public class TextSimilarityRankBuilder extends RankBuilder {
     }
 
     public static TextSimilarityRankBuilder fromXContent(XContentParser parser) throws IOException {
-         if (TextSimilarityRankPlugin.RANK_TEXT_SIMILARITY_FEATURE.check(XPackPlugin.getSharedLicenseState()) == false) {
+        if (TextSimilarityRankPlugin.RANK_TEXT_SIMILARITY_FEATURE.check(XPackPlugin.getSharedLicenseState()) == false) {
             throw LicenseUtils.newComplianceException(TextSimilarityRankPlugin.NAME);
-         }
+        }
         return PARSER.parse(parser, null);
     }
 

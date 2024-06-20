@@ -30,9 +30,7 @@ public class TextSimilarityRankPlugin extends Plugin implements SearchPlugin {
 
     @Override
     public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
-        return List.of(
-            new NamedWriteableRegistry.Entry(RankBuilder.class, NAME, TextSimilarityRankBuilder::new)
-        );
+        return List.of(new NamedWriteableRegistry.Entry(RankBuilder.class, NAME, TextSimilarityRankBuilder::new));
     }
 
     @Override
@@ -42,8 +40,6 @@ public class TextSimilarityRankPlugin extends Plugin implements SearchPlugin {
 
     @Override
     public List<RetrieverSpec<?>> getRetrievers() {
-        return List.of(
-            new RetrieverSpec<>(new ParseField(NAME), TextSimilarityRankRetrieverBuilder::fromXContent)
-        );
+        return List.of(new RetrieverSpec<>(new ParseField(NAME), TextSimilarityRankRetrieverBuilder::fromXContent));
     }
 }

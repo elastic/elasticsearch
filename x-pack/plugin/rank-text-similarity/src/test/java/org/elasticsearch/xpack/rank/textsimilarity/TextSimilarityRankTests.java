@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.rank.textsimilarity;
 
-
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;

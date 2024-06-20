@@ -67,7 +67,14 @@ public class AdaptiveAllocationsScalerService implements ClusterStateListener {
         }
     }
 
+    /**
+     * The time interval between the adaptive allocations triggers.
+     */
     private static final int DEFAULT_TIME_INTERVAL_SECONDS = 10;
+    /**
+     * The time that has to pass after scaling up, before scaling down is allowed.
+     */
+    private static final long SCALE_UP_COOLDOWN_TIME_MILLIS = TimeValue.timeValueMinutes(5).getMillis();
 
     private static final Logger logger = LogManager.getLogger(AdaptiveAllocationsScalerService.class);
 
@@ -80,9 +87,10 @@ public class AdaptiveAllocationsScalerService implements ClusterStateListener {
     private final Map<String, Map<String, Stats>> lastInferenceStatsByDeploymentAndNode;
     private Long lastInferenceStatsTimestampMillis;
     private final Map<String, AdaptiveAllocationsScaler> scalers;
+    private final Map<String, Long> lastScaleUpTimesMillis;
 
     private volatile Scheduler.Cancellable cancellable;
-    private AtomicBoolean busy;
+    private final AtomicBoolean busy;
 
     public AdaptiveAllocationsScalerService(
         ThreadPool threadPool,
@@ -112,9 +120,9 @@ public class AdaptiveAllocationsScalerService implements ClusterStateListener {
 
         lastInferenceStatsByDeploymentAndNode = new HashMap<>();
         lastInferenceStatsTimestampMillis = null;
+        lastScaleUpTimesMillis = new HashMap<>();
         scalers = new HashMap<>();
         busy = new AtomicBoolean(false);
-
     }
 
     public synchronized void start() {
@@ -263,6 +271,16 @@ public class AdaptiveAllocationsScalerService implements ClusterStateListener {
             adaptiveAllocationsScaler.process(stats, statsTimeInterval, numberOfAllocations.get(deploymentId));
             Integer newNumberOfAllocations = adaptiveAllocationsScaler.scale();
             if (newNumberOfAllocations != null) {
+                Long lastScaleUpTimeMillis = lastScaleUpTimesMillis.get(deploymentId);
+                if (newNumberOfAllocations < numberOfAllocations.get(deploymentId)
+                    && lastScaleUpTimeMillis != null
+                    && now < lastScaleUpTimeMillis + SCALE_UP_COOLDOWN_TIME_MILLIS) {
+                    logger.debug("adaptive allocations scaler: skipping scaling down [{}] because of recent scaleup.", deploymentId);
+                    continue;
+                }
+                if (newNumberOfAllocations > numberOfAllocations.get(deploymentId)) {
+                    lastScaleUpTimesMillis.put(deploymentId, now);
+                }
                 UpdateTrainedModelDeploymentAction.Request updateRequest = new UpdateTrainedModelDeploymentAction.Request(deploymentId);
                 updateRequest.setNumberOfAllocations(newNumberOfAllocations);
                 ClientHelper.executeAsyncWithOrigin(

@@ -159,12 +159,12 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
         executor.execute(new ActionRunnable<>(releasingListener) {
             @Override
             protected void doRun() {
-                doInternalExecute(task, bulkRequest, executor, releasingListener);
+                applyPipelinesAndDoInternalExecute(task, bulkRequest, executor, releasingListener);
             }
         });
     }
 
-    protected boolean applyPipelines(Task task, BulkRequest bulkRequest, Executor executor, ActionListener<BulkResponse> listener) {
+    private boolean applyPipelines(Task task, BulkRequest bulkRequest, Executor executor, ActionListener<BulkResponse> listener) {
         boolean hasIndexRequestsWithPipelines = false;
         final Metadata metadata = clusterService.state().getMetadata();
         for (DocWriteRequest<?> actionRequest : bulkRequest.requests) {
@@ -241,7 +241,7 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
                         ActionRunnable<BulkResponse> runnable = new ActionRunnable<>(actionListener) {
                             @Override
                             protected void doRun() {
-                                doInternalExecute(task, bulkRequest, executor, actionListener);
+                                applyPipelinesAndDoInternalExecute(task, bulkRequest, executor, actionListener);
                             }
 
                             @Override
@@ -302,6 +302,24 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
         return TimeUnit.NANOSECONDS.toMillis(relativeTime() - startTimeNanos);
     }
 
-    protected abstract void doInternalExecute(Task task, BulkRequest bulkRequest, Executor executor, ActionListener<BulkResponse> listener);
+    private void applyPipelinesAndDoInternalExecute(
+        Task task,
+        BulkRequest bulkRequest,
+        Executor executor,
+        ActionListener<BulkResponse> listener
+    ) {
+        final long relativeStartTime = threadPool.relativeTimeInMillis();
+        if (applyPipelines(task, bulkRequest, executor, listener) == false) {
+            doInternalExecute(task, bulkRequest, executor, listener, relativeStartTime);
+        }
+    }
+
+    protected abstract void doInternalExecute(
+        Task task,
+        BulkRequest bulkRequest,
+        Executor executor,
+        ActionListener<BulkResponse> listener,
+        long relativeStartTime
+    );
 
 }

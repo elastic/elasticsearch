@@ -54,9 +54,13 @@ public class TransportSimulateBulkAction extends TransportAbstractBulkAction {
     }
 
     @Override
-    protected void doInternalExecute(Task task, BulkRequest bulkRequest, Executor executor, ActionListener<BulkResponse> listener) {
-        final long startTime = threadPool.relativeTimeInMillis();
-        if (applyPipelines(task, bulkRequest, threadPool.executor(ThreadPool.Names.WRITE), listener)) return;
+    protected void doInternalExecute(
+        Task task,
+        BulkRequest bulkRequest,
+        Executor executor,
+        ActionListener<BulkResponse> listener,
+        long relativeStartTime
+    ) {
         final AtomicArray<BulkItemResponse> responses = new AtomicArray<>(bulkRequest.requests.size());
         for (int i = 0; i < bulkRequest.requests.size(); i++) {
             DocWriteRequest<?> docRequest = bulkRequest.requests.get(i);
@@ -80,7 +84,9 @@ public class TransportSimulateBulkAction extends TransportAbstractBulkAction {
                 )
             );
         }
-        listener.onResponse(new BulkResponse(responses.toArray(new BulkItemResponse[responses.length()]), buildTookInMillis(startTime)));
+        listener.onResponse(
+            new BulkResponse(responses.toArray(new BulkItemResponse[responses.length()]), buildTookInMillis(relativeStartTime))
+        );
     }
 
     /*

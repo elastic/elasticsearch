@@ -191,11 +191,14 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
         });
     }
 
-    protected void doInternalExecute(Task task, BulkRequest bulkRequest, Executor executor, ActionListener<BulkResponse> listener) {
-        final long startTime = relativeTime();
-
-        if (applyPipelines(task, bulkRequest, executor, listener)) return;
-
+    @Override
+    protected void doInternalExecute(
+        Task task,
+        BulkRequest bulkRequest,
+        Executor executor,
+        ActionListener<BulkResponse> listener,
+        long relativeStartTime
+    ) {
         Map<String, CreateIndexRequest> indicesToAutoCreate = new HashMap<>();
         Set<String> dataStreamsToBeRolledOver = new HashSet<>();
         Set<String> failureStoresToBeRolledOver = new HashSet<>();
@@ -209,7 +212,7 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
             indicesToAutoCreate,
             dataStreamsToBeRolledOver,
             failureStoresToBeRolledOver,
-            startTime
+            relativeStartTime
         );
     }
 

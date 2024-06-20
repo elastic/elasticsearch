@@ -168,7 +168,7 @@ public class TransportSimulateBulkActionTests extends ESTestCase {
                 fail(e, "Unexpected error");
             }
         };
-        bulkAction.doInternalExecute(task, bulkRequest, r -> fail("executor is unused"), listener);
+        bulkAction.doInternalExecute(task, bulkRequest, r -> fail("executor is unused"), listener, randomLongBetween(0, Long.MAX_VALUE));
         assertThat(onResponseCalled.get(), equalTo(true));
     }
 }

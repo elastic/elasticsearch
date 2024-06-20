@@ -18,9 +18,9 @@ import org.elasticsearch.common.Strings;
  * dynamics model we simply fix how much we want to smooth in the steady state.
  * See also: <a href="https://en.wikipedia.org/wiki/Kalman_filter">Wikipedia</a>.
  */
-class KalmanFilter {
+class KalmanFilter1d {
 
-    private static final Logger logger = LogManager.getLogger(KalmanFilter.class);
+    private static final Logger logger = LogManager.getLogger(KalmanFilter1d.class);
 
     private final String name;
     private final double smoothingFactor;
@@ -30,7 +30,7 @@ class KalmanFilter {
     private double variance;
     private boolean dynamicsChangedLastTime;
 
-    KalmanFilter(String name, double smoothingFactor, boolean autodetectDynamicsChange) {
+    KalmanFilter1d(String name, double smoothingFactor, boolean autodetectDynamicsChange) {
         this.name = name;
         this.smoothingFactor = smoothingFactor;
         this.autodetectDynamicsChange = autodetectDynamicsChange;

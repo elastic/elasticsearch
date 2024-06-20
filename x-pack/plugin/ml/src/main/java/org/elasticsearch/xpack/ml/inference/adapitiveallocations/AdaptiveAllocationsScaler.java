@@ -19,8 +19,8 @@ public class AdaptiveAllocationsScaler {
     private static final Logger logger = LogManager.getLogger(AdaptiveAllocationsScaler.class);
 
     private final String deploymentId;
-    private final KalmanFilter requestRateEstimator;
-    private final KalmanFilter inferenceTimeEstimator;
+    private final KalmanFilter1d requestRateEstimator;
+    private final KalmanFilter1d inferenceTimeEstimator;
 
     private int numberOfAllocations;
     private Integer minNumberOfAllocations;
@@ -36,8 +36,8 @@ public class AdaptiveAllocationsScaler {
         // rate maybe change due to changed user behaviour.
         // For the inference time, don't use this auto-detection. The dynamics may change when
         // the number of allocations changes, which is passed explicitly to the estimator.
-        requestRateEstimator = new KalmanFilter(deploymentId + ":rate", 100, true);
-        inferenceTimeEstimator = new KalmanFilter(deploymentId + ":time", 100, false);
+        requestRateEstimator = new KalmanFilter1d(deploymentId + ":rate", 100, true);
+        inferenceTimeEstimator = new KalmanFilter1d(deploymentId + ":time", 100, false);
         this.numberOfAllocations = numberOfAllocations;
         this.minNumberOfAllocations = null;
         this.maxNumberOfAllocations = null;
@@ -63,11 +63,11 @@ public class AdaptiveAllocationsScaler {
         double requestRateVariance = Math.max(1.0, requestRateEstimate * timeIntervalSeconds) / Math.pow(timeIntervalSeconds, 2);
         requestRateEstimator.add(requestRate, requestRateVariance, false);
 
-        if (stats.requestCount() > 0) {
+        if (stats.requestCount() > 0 && Double.isNaN(stats.inferenceTime()) == false) {
             // The inference time distribution is unknown. For simplicity, we assume
             // a std.error equal to the mean, so that the variance equals the mean
-            // value squared. The measurement variance scales inversely proportional
-            // to the number of measurements.
+            // value squared. The variance of the mean is inversely proportional to
+            // the number of inference measurements it contains.
             // Again, the estimated inference time should be used for the variance
             // calculations to prevent biased estimates.
             double inferenceTime = stats.inferenceTime();

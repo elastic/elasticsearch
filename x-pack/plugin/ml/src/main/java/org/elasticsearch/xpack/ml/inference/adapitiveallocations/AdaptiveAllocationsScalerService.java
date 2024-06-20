@@ -57,9 +57,9 @@ public class AdaptiveAllocationsScalerService implements ClusterStateListener {
         }
 
         Stats sub(Stats value) {
-            long newSuccessCount = successCount - value.successCount;
-            long newPendingCount = pendingCount - value.pendingCount;
-            long newFailedCount = failedCount - value.failedCount;
+            long newSuccessCount = Math.max(0, successCount - value.successCount);
+            long newPendingCount = Math.max(0, pendingCount - value.pendingCount);
+            long newFailedCount = Math.max(0, failedCount - value.failedCount);
             double newInferenceTime = newSuccessCount > 0
                 ? (totalInferenceTime() - value.totalInferenceTime()) / newSuccessCount
                 : Double.NaN;

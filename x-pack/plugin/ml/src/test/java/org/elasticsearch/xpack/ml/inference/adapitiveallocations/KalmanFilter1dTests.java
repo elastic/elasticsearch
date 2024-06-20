@@ -13,10 +13,10 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.lessThan;
 
-public class KalmanFilterTests extends ESTestCase {
+public class KalmanFilter1dTests extends ESTestCase {
 
     public void testEstimation_equalValues() {
-        KalmanFilter filter = new KalmanFilter("test-filter", 100, false);
+        KalmanFilter1d filter = new KalmanFilter1d("test-filter", 100, false);
         assertThat(filter.hasValue(), equalTo(false));
 
         filter.add(42.0, 9.0, false);
@@ -37,7 +37,7 @@ public class KalmanFilterTests extends ESTestCase {
     }
 
     public void testEstimation_increasingValues() {
-        KalmanFilter filter = new KalmanFilter("test-filter", 100, false);
+        KalmanFilter1d filter = new KalmanFilter1d("test-filter", 100, false);
         filter.add(10.0, 1.0, false);
         assertThat(filter.estimate(), equalTo(10.0));
 
@@ -60,7 +60,7 @@ public class KalmanFilterTests extends ESTestCase {
     }
 
     public void testEstimation_bigJumpNoAutoDetectDynamicsChanges() {
-        KalmanFilter filter = new KalmanFilter("test-filter", 100, false);
+        KalmanFilter1d filter = new KalmanFilter1d("test-filter", 100, false);
         filter.add(0.0, 100.0, false);
         filter.add(0.0, 1.0, false);
         assertThat(filter.estimate(), equalTo(0.0));
@@ -73,7 +73,7 @@ public class KalmanFilterTests extends ESTestCase {
     }
 
     public void testEstimation_bigJumpWithAutoDetectDynamicsChanges() {
-        KalmanFilter filter = new KalmanFilter("test-filter", 100, true);
+        KalmanFilter1d filter = new KalmanFilter1d("test-filter", 100, true);
         filter.add(0.0, 100.0, false);
         filter.add(0.0, 1.0, false);
         assertThat(filter.estimate(), equalTo(0.0));
@@ -86,7 +86,7 @@ public class KalmanFilterTests extends ESTestCase {
     }
 
     public void testEstimation_bigJumpWithExternalDetectDynamicsChange() {
-        KalmanFilter filter = new KalmanFilter("test-filter", 100, false);
+        KalmanFilter1d filter = new KalmanFilter1d("test-filter", 100, false);
         filter.add(0.0, 100.0, false);
         filter.add(0.0, 1.0, false);
         assertThat(filter.estimate(), equalTo(0.0));
@@ -99,7 +99,7 @@ public class KalmanFilterTests extends ESTestCase {
     }
 
     public void testEstimation_differentSmoothing() {
-        KalmanFilter quickFilter = new KalmanFilter("test-filter", 1e-3, false);
+        KalmanFilter1d quickFilter = new KalmanFilter1d("test-filter", 1e-3, false);
         for (int i = 0; i < 100; i++) {
             quickFilter.add(42.0, 1.0, false);
         }
@@ -109,7 +109,7 @@ public class KalmanFilterTests extends ESTestCase {
         assertThat(quickFilter.estimate(), greaterThan(75.0));
         assertThat(quickFilter.estimate(), lessThan(77.0));
 
-        KalmanFilter slowFilter = new KalmanFilter("test-filter", 1e3, false);
+        KalmanFilter1d slowFilter = new KalmanFilter1d("test-filter", 1e3, false);
         for (int i = 0; i < 100; i++) {
             slowFilter.add(42.0, 1.0, false);
         }

@@ -43,6 +43,10 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.function.LongSupplier;
 
+/**
+ * This is an abstract base class for bulk actions. It traverses all indices that the request gets routed to, executes all applicable
+ * pipelines, and then delegates to the concrete implementation of #doInternalExecute to actually index the data.
+ */
 public abstract class TransportAbstractBulkAction extends HandledTransportAction<BulkRequest, BulkResponse> {
     private static final Logger logger = LogManager.getLogger(TransportAbstractBulkAction.class);
 
@@ -314,12 +318,20 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
         }
     }
 
+    /**
+     * This method creates any missing resources and actually applies the BulkRequest to the relevant indices
+     * @param task The task in which this work is being done
+     * @param bulkRequest The BulkRequest of changes to make to indices
+     * @param executor The executor for the thread pool in which the work is to be done
+     * @param listener The listener to be notified of results
+     * @param relativeStartTimeNanos The relative start time of this bulk load, to be used in computing the time taken for the BulkResponse
+     */
     protected abstract void doInternalExecute(
         Task task,
         BulkRequest bulkRequest,
         Executor executor,
         ActionListener<BulkResponse> listener,
-        long relativeStartTime
+        long relativeStartTimeNanos
     );
 
 }

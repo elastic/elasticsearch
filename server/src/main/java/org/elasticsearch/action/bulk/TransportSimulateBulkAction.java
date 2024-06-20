@@ -27,6 +27,11 @@ import org.elasticsearch.transport.TransportService;
 
 import java.util.concurrent.Executor;
 
+/**
+ * This action simulates bulk indexing data. Pipelines are executed for all indices that the request routes to, but no data is actually
+ * indexed and no state is changed. Unlike TransportBulkAction, this does not push the work out to the nodes where the shards live (since
+ * shards are not actually modified).
+ */
 public class TransportSimulateBulkAction extends TransportAbstractBulkAction {
 
     @Inject

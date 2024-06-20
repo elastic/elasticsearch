@@ -44,7 +44,7 @@ public class BackgroundRetentionLeaseSyncActionIT extends ESIntegTestCase {
             final Index testIndex = resolveIndex("test");
             final ShardId testIndexShardZero = new ShardId(testIndex, 0);
             final String testLeaseId = "test-lease/123";
-            RetentionLeases newLeases = createNewRetentionLeases(primary, testIndex, testLeaseId);
+            RetentionLeases newLeases = addTestLeaseToRetentionLeases(primary, testIndex, testLeaseId);
             internalCluster().getInstance(RetentionLeaseSyncer.class, primary)
                 .backgroundSync(
                     testIndexShardZero,
@@ -62,7 +62,7 @@ public class BackgroundRetentionLeaseSyncActionIT extends ESIntegTestCase {
         }
     }
 
-    private static RetentionLeases createNewRetentionLeases(String primaryNodeName, Index index, String leaseId) {
+    private static RetentionLeases addTestLeaseToRetentionLeases(String primaryNodeName, Index index, String leaseId) {
         IndicesService primaryIndicesService = internalCluster().getInstance(IndicesService.class, primaryNodeName);
         RetentionLeases currentLeases = primaryIndicesService.indexService(index).getShard(0).getRetentionLeases();
         RetentionLease newLease = new RetentionLease(leaseId, 0, System.currentTimeMillis(), "test source");

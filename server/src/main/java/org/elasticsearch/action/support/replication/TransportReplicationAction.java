@@ -92,7 +92,7 @@ public abstract class TransportReplicationAction<
 
     protected enum ActionFlags {
         /**
-         * Bypass queue-length checks when executing on the primary
+         * Bypass queue-length and indexing pressure checks when executing on the primary
          */
         ForceExecutionOnPrimary,
         /**

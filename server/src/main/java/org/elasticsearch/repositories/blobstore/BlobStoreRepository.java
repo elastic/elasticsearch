@@ -1580,13 +1580,18 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
         /**
          * <p>
-         *     Shard-level results, see {@link ShardSnapshotMetaDeleteResult}.
+         *     Shard-level results, i.e. a sequence of {@link ShardSnapshotMetaDeleteResult} objects, except serialized, concatenated, and
+         *     compressed in order to reduce the memory footprint by about 4x when compared with a list of bare objects. This can be GiBs in
+         *     size if we're deleting snapshots from a large repository, especially if earlier failures left behind lots of dangling blobs
+         *     for some reason.
          * </p>
          * <p>
-         *     Writes to this list are all synchronized (via {@link #addShardDeleteResult}), and happen-before it is read so the reads need
-         *     no further synchronization
+         *     Writes to this object are all synchronized (via {@link #addShardDeleteResult}), and happen-before it is read, so the reads
+         *     need no further synchronization.
          * </p>
          */
+        // If the size of this continues to be a problem even after compression, consider either a hard limit on its size (preferring leaked
+        // blobs over an OOME on the master) or else offloading it to disk or to the repository itself.
         private final BytesStreamOutput shardDeleteResults = new ReleasableBytesStreamOutput(bigArrays);
 
         private int resultCount = 0;

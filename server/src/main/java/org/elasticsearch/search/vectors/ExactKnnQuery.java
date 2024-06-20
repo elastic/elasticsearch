@@ -26,7 +26,7 @@ import java.util.Arrays;
 import java.util.Objects;
 
 /**
- * Exact knn query. Will iterate and score all documents that have the provided knn field in the index.
+ * Exact knn query. Will iterate and score all documents that have the provided dense vector field in the index.
  */
 public abstract class ExactKnnQuery extends Query {
 
@@ -43,10 +43,12 @@ public abstract class ExactKnnQuery extends Query {
 
     abstract static class ExactKnnWeight extends Weight {
         private final String field;
+        private final float boost;
 
-        protected ExactKnnWeight(ExactKnnQuery query) {
+        protected ExactKnnWeight(ExactKnnQuery query, float boost) {
             super(query);
             this.field = query.field;
+            this.boost = boost;
         }
 
         abstract VectorScorer vectorScorer(LeafReaderContext leafReaderContext) throws IOException;
@@ -60,7 +62,8 @@ public abstract class ExactKnnQuery extends Query {
             DocIdSetIterator iterator = vectorScorer.iterator();
             iterator.advance(i);
             if (iterator.docID() == i) {
-                return Explanation.match(vectorScorer.score(), "ExactKnnQuery");
+                float score = vectorScorer.score();
+                return Explanation.match(vectorScorer.score() * boost, "found vector with calculated similarity: " + score);
             }
             return Explanation.noMatch("Document not found in vector values for field: " + field);
         }
@@ -100,7 +103,7 @@ public abstract class ExactKnnQuery extends Query {
 
         @Override
         public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) throws IOException {
-            return new ExactKnnWeight(Floats.this) {
+            return new ExactKnnWeight(Floats.this, boost) {
                 @Override
                 VectorScorer vectorScorer(LeafReaderContext leafReaderContext) throws IOException {
                     FloatVectorValues vectorValues = leafReaderContext.reader().getFloatVectorValues(field);
@@ -137,12 +140,12 @@ public abstract class ExactKnnQuery extends Query {
 
         @Override
         public String toString(String field) {
-            return "ExactKnnQuery.Floats";
+            return "ExactKnnQuery.Bytes";
         }
 
         @Override
         public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) throws IOException {
-            return new ExactKnnWeight(Bytes.this) {
+            return new ExactKnnWeight(Bytes.this, boost) {
                 @Override
                 VectorScorer vectorScorer(LeafReaderContext leafReaderContext) throws IOException {
                     ByteVectorValues vectorValues = leafReaderContext.reader().getByteVectorValues(field);
@@ -172,11 +175,13 @@ public abstract class ExactKnnQuery extends Query {
 
         private final VectorScorer vectorScorer;
         private final DocIdSetIterator iterator;
+        private final float boost;
 
-        ExactKnnScorer(Weight weight, VectorScorer vectorScorer) {
+        ExactKnnScorer(ExactKnnWeight weight, VectorScorer vectorScorer) {
             super(weight);
             this.vectorScorer = vectorScorer;
             this.iterator = vectorScorer.iterator();
+            this.boost = weight.boost;
         }
 
         @Override
@@ -192,7 +197,7 @@ public abstract class ExactKnnQuery extends Query {
         @Override
         public float score() throws IOException {
             assert iterator.docID() != -1;
-            return vectorScorer.score();
+            return vectorScorer.score() * boost;
         }
 
         @Override

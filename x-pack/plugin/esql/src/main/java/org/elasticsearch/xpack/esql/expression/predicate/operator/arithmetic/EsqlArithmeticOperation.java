@@ -20,7 +20,6 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Cast;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
-import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeRegistry;
 
 import java.io.IOException;
@@ -125,13 +124,6 @@ public abstract class EsqlArithmeticOperation extends ArithmeticOperation implem
             ulongs,
             doubles
         );
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        source().writeTo(out);
-        ((PlanStreamOutput) out).writeExpression(left());
-        ((PlanStreamOutput) out).writeExpression(right());
     }
 
     @Override

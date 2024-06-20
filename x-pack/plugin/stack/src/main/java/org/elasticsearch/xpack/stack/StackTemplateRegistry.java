@@ -18,7 +18,6 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.features.NodeFeature;
-import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
@@ -35,7 +34,6 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Function;
 
 public class StackTemplateRegistry extends IndexTemplateRegistry {
     private static final Logger logger = LogManager.getLogger(StackTemplateRegistry.class);
@@ -71,17 +69,9 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
     private final ClusterService clusterService;
     private final FeatureService featureService;
     private final Map<String, ComponentTemplate> componentTemplateConfigs;
-    private final Map<String, ComposableIndexTemplate> composableIndexTemplateConfigs;
-    private final List<IngestPipelineConfig> ingestPipelineConfigs;
-    private final List<LifecyclePolicyConfig> lifecyclePolicyConfigs;
     private volatile boolean stackTemplateEnabled;
 
-    public static final Function<Settings, Map<String, String>> ADDITIONAL_TEMPLATE_VARIABLES = nodeSettings -> Map.of(
-        "xpack.stack.template.deprecated",
-        "false",
-        "xpack.stack.template.index.mode",
-        CLUSTER_LOGSDB_ENABLED.get(nodeSettings) ? IndexMode.LOGS.getName() : IndexMode.STANDARD.getName()
-    );
+    public static final Map<String, String> ADDITIONAL_TEMPLATE_VARIABLES = Map.of("xpack.stack.template.deprecated", "false");
 
     // General mappings conventions for any data that ends up in a data stream
     public static final String DATA_STREAMS_MAPPINGS_COMPONENT_TEMPLATE_NAME = "data-streams@mappings";
@@ -141,13 +131,10 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
         this.clusterService = clusterService;
         this.featureService = featureService;
         this.stackTemplateEnabled = STACK_TEMPLATES_ENABLED.get(nodeSettings);
-        this.componentTemplateConfigs = loadComponentTemplateConfigs(nodeSettings);
-        this.composableIndexTemplateConfigs = loadComposableTemplateConfigs(nodeSettings);
-        this.ingestPipelineConfigs = loadIngestPipelineConfigs(nodeSettings);
-        this.lifecyclePolicyConfigs = loadLifecyclePolicyConfigs(nodeSettings);
+        this.componentTemplateConfigs = loadComponentTemplateConfigs(CLUSTER_LOGSDB_ENABLED.get(nodeSettings));
     }
 
-    private Map<String, ComponentTemplate> loadComponentTemplateConfigs(final Settings nodeSettings) {
+    private Map<String, ComponentTemplate> loadComponentTemplateConfigs(boolean logsDbEnabled) {
         final Map<String, ComponentTemplate> componentTemplates = new HashMap<>();
         for (IndexTemplateConfig config : List.of(
             new IndexTemplateConfig(
@@ -155,70 +142,75 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
                 "/data-streams@mappings.json",
                 REGISTRY_VERSION,
                 TEMPLATE_VERSION_VARIABLE,
-                ADDITIONAL_TEMPLATE_VARIABLES.apply(nodeSettings)
+                ADDITIONAL_TEMPLATE_VARIABLES
             ),
             new IndexTemplateConfig(
                 LOGS_MAPPINGS_COMPONENT_TEMPLATE_NAME,
-                CLUSTER_LOGSDB_ENABLED.get(nodeSettings) ? "/logs@mappings-logsdb.json" : "/logs@mappings.json",
+                logsDbEnabled ? "/logs@mappings-logsdb.json" : "/logs@mappings.json",
                 REGISTRY_VERSION,
                 TEMPLATE_VERSION_VARIABLE,
-                ADDITIONAL_TEMPLATE_VARIABLES.apply(nodeSettings)
+                ADDITIONAL_TEMPLATE_VARIABLES
             ),
             new IndexTemplateConfig(
                 ECS_DYNAMIC_MAPPINGS_COMPONENT_TEMPLATE_NAME,
                 "/ecs@mappings.json",
                 REGISTRY_VERSION,
                 TEMPLATE_VERSION_VARIABLE,
-                ADDITIONAL_TEMPLATE_VARIABLES.apply(nodeSettings)
+                ADDITIONAL_TEMPLATE_VARIABLES
             ),
             new IndexTemplateConfig(
                 LOGS_SETTINGS_COMPONENT_TEMPLATE_NAME,
                 "/logs@settings.json",
                 REGISTRY_VERSION,
                 TEMPLATE_VERSION_VARIABLE,
-                ADDITIONAL_TEMPLATE_VARIABLES.apply(nodeSettings)
+                Map.of(
+                    "xpack.stack.template.deprecated",
+                    "false",
+                    "xpack.stack.template.logs.index.mode",
+                    logsDbEnabled ? "logs" : "standard"
+                )
             ),
             new IndexTemplateConfig(
                 METRICS_MAPPINGS_COMPONENT_TEMPLATE_NAME,
                 "/metrics@mappings.json",
                 REGISTRY_VERSION,
                 TEMPLATE_VERSION_VARIABLE,
-                ADDITIONAL_TEMPLATE_VARIABLES.apply(nodeSettings)
+                ADDITIONAL_TEMPLATE_VARIABLES
             ),
             new IndexTemplateConfig(
                 METRICS_SETTINGS_COMPONENT_TEMPLATE_NAME,
                 "/metrics@settings.json",
                 REGISTRY_VERSION,
                 TEMPLATE_VERSION_VARIABLE,
-                ADDITIONAL_TEMPLATE_VARIABLES.apply(nodeSettings)
+                ADDITIONAL_TEMPLATE_VARIABLES
             ),
             new IndexTemplateConfig(
                 METRICS_TSDB_SETTINGS_COMPONENT_TEMPLATE_NAME,
                 "/metrics@tsdb-settings.json",
                 REGISTRY_VERSION,
                 TEMPLATE_VERSION_VARIABLE,
-                ADDITIONAL_TEMPLATE_VARIABLES.apply(nodeSettings)
+                ADDITIONAL_TEMPLATE_VARIABLES
             ),
             new IndexTemplateConfig(
                 SYNTHETICS_MAPPINGS_COMPONENT_TEMPLATE_NAME,
                 "/synthetics@mappings.json",
                 REGISTRY_VERSION,
                 TEMPLATE_VERSION_VARIABLE,
-                ADDITIONAL_TEMPLATE_VARIABLES.apply(nodeSettings)
+                ADDITIONAL_TEMPLATE_VARIABLES
             ),
             new IndexTemplateConfig(
                 SYNTHETICS_SETTINGS_COMPONENT_TEMPLATE_NAME,
                 "/synthetics@settings.json",
                 REGISTRY_VERSION,
                 TEMPLATE_VERSION_VARIABLE,
-                ADDITIONAL_TEMPLATE_VARIABLES.apply(nodeSettings)
+                ADDITIONAL_TEMPLATE_VARIABLES
             ),
             new IndexTemplateConfig(
                 KIBANA_REPORTING_COMPONENT_TEMPLATE_NAME,
                 "/kibana-reporting@settings.json",
                 REGISTRY_VERSION,
                 TEMPLATE_VERSION_VARIABLE,
-                ADDITIONAL_TEMPLATE_VARIABLES.apply(nodeSettings)
+                ADDITIONAL_TEMPLATE_VARIABLES
             )
         )) {
             try {
@@ -231,97 +223,6 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
             }
         }
         return Map.copyOf(componentTemplates);
-    }
-
-    private Map<String, ComposableIndexTemplate> loadComposableTemplateConfigs(final Settings nodeSettings) {
-        return parseComposableTemplates(
-            new IndexTemplateConfig(
-                LOGS_INDEX_TEMPLATE_NAME,
-                "/logs@template.json",
-                REGISTRY_VERSION,
-                TEMPLATE_VERSION_VARIABLE,
-                ADDITIONAL_TEMPLATE_VARIABLES.apply(nodeSettings)
-            ),
-            new IndexTemplateConfig(
-                METRICS_INDEX_TEMPLATE_NAME,
-                "/metrics@template.json",
-                REGISTRY_VERSION,
-                TEMPLATE_VERSION_VARIABLE,
-                ADDITIONAL_TEMPLATE_VARIABLES.apply(nodeSettings)
-            ),
-            new IndexTemplateConfig(
-                SYNTHETICS_INDEX_TEMPLATE_NAME,
-                "/synthetics@template.json",
-                REGISTRY_VERSION,
-                TEMPLATE_VERSION_VARIABLE,
-                ADDITIONAL_TEMPLATE_VARIABLES.apply(nodeSettings)
-            ),
-            new IndexTemplateConfig(
-                KIBANA_REPORTING_INDEX_TEMPLATE_NAME,
-                "/kibana-reporting@template.json",
-                REGISTRY_VERSION,
-                TEMPLATE_VERSION_VARIABLE,
-                ADDITIONAL_TEMPLATE_VARIABLES.apply(nodeSettings)
-            )
-        );
-    }
-
-    private List<IngestPipelineConfig> loadIngestPipelineConfigs(final Settings nodeSettings) {
-        return List.of(
-            new JsonIngestPipelineConfig(
-                "logs@json-pipeline",
-                "/logs@json-pipeline.json",
-                REGISTRY_VERSION,
-                TEMPLATE_VERSION_VARIABLE,
-                List.of(),
-                ADDITIONAL_TEMPLATE_VARIABLES.apply(nodeSettings)
-            ),
-            new JsonIngestPipelineConfig(
-                "logs@default-pipeline",
-                "/logs@default-pipeline.json",
-                REGISTRY_VERSION,
-                TEMPLATE_VERSION_VARIABLE,
-                List.of(),
-                ADDITIONAL_TEMPLATE_VARIABLES.apply(nodeSettings)
-            )
-        );
-    }
-
-    private List<LifecyclePolicyConfig> loadLifecyclePolicyConfigs(final Settings nodeSettings) {
-        return List.of(
-            new LifecyclePolicyConfig(LOGS_ILM_POLICY_NAME, "/logs@lifecycle.json", ADDITIONAL_TEMPLATE_VARIABLES.apply(nodeSettings)),
-            new LifecyclePolicyConfig(
-                METRICS_ILM_POLICY_NAME,
-                "/metrics@lifecycle.json",
-                ADDITIONAL_TEMPLATE_VARIABLES.apply(nodeSettings)
-            ),
-            new LifecyclePolicyConfig(
-                SYNTHETICS_ILM_POLICY_NAME,
-                "/synthetics@lifecycle.json",
-                ADDITIONAL_TEMPLATE_VARIABLES.apply(nodeSettings)
-            ),
-            new LifecyclePolicyConfig(ILM_7_DAYS_POLICY_NAME, "/7-days@lifecycle.json", ADDITIONAL_TEMPLATE_VARIABLES.apply(nodeSettings)),
-            new LifecyclePolicyConfig(
-                ILM_30_DAYS_POLICY_NAME,
-                "/30-days@lifecycle.json",
-                ADDITIONAL_TEMPLATE_VARIABLES.apply(nodeSettings)
-            ),
-            new LifecyclePolicyConfig(
-                ILM_90_DAYS_POLICY_NAME,
-                "/90-days@lifecycle.json",
-                ADDITIONAL_TEMPLATE_VARIABLES.apply(nodeSettings)
-            ),
-            new LifecyclePolicyConfig(
-                ILM_180_DAYS_POLICY_NAME,
-                "/180-days@lifecycle.json",
-                ADDITIONAL_TEMPLATE_VARIABLES.apply(nodeSettings)
-            ),
-            new LifecyclePolicyConfig(
-                ILM_365_DAYS_POLICY_NAME,
-                "/365-days@lifecycle.json",
-                ADDITIONAL_TEMPLATE_VARIABLES.apply(nodeSettings)
-            )
-        );
     }
 
     @Override
@@ -343,9 +244,25 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
         }
     }
 
+    private static final List<LifecyclePolicyConfig> LIFECYCLE_POLICY_CONFIGS = List.of(
+        new LifecyclePolicyConfig(LOGS_ILM_POLICY_NAME, "/logs@lifecycle.json", ADDITIONAL_TEMPLATE_VARIABLES),
+        new LifecyclePolicyConfig(METRICS_ILM_POLICY_NAME, "/metrics@lifecycle.json", ADDITIONAL_TEMPLATE_VARIABLES),
+        new LifecyclePolicyConfig(SYNTHETICS_ILM_POLICY_NAME, "/synthetics@lifecycle.json", ADDITIONAL_TEMPLATE_VARIABLES),
+        new LifecyclePolicyConfig(ILM_7_DAYS_POLICY_NAME, "/7-days@lifecycle.json", ADDITIONAL_TEMPLATE_VARIABLES),
+        new LifecyclePolicyConfig(ILM_30_DAYS_POLICY_NAME, "/30-days@lifecycle.json", ADDITIONAL_TEMPLATE_VARIABLES),
+        new LifecyclePolicyConfig(ILM_90_DAYS_POLICY_NAME, "/90-days@lifecycle.json", ADDITIONAL_TEMPLATE_VARIABLES),
+        new LifecyclePolicyConfig(ILM_180_DAYS_POLICY_NAME, "/180-days@lifecycle.json", ADDITIONAL_TEMPLATE_VARIABLES),
+        new LifecyclePolicyConfig(ILM_365_DAYS_POLICY_NAME, "/365-days@lifecycle.json", ADDITIONAL_TEMPLATE_VARIABLES)
+    );
+
     @Override
     protected List<LifecyclePolicyConfig> getLifecycleConfigs() {
-        return lifecyclePolicyConfigs;
+        return LIFECYCLE_POLICY_CONFIGS;
+    }
+
+    @Override
+    protected List<LifecyclePolicy> getLifecyclePolicies() {
+        return lifecyclePolicies;
     }
 
     @Override
@@ -353,23 +270,68 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
         return componentTemplateConfigs;
     }
 
+    private static final Map<String, ComposableIndexTemplate> COMPOSABLE_INDEX_TEMPLATE_CONFIGS = parseComposableTemplates(
+        new IndexTemplateConfig(
+            LOGS_INDEX_TEMPLATE_NAME,
+            "/logs@template.json",
+            REGISTRY_VERSION,
+            TEMPLATE_VERSION_VARIABLE,
+            ADDITIONAL_TEMPLATE_VARIABLES
+        ),
+        new IndexTemplateConfig(
+            METRICS_INDEX_TEMPLATE_NAME,
+            "/metrics@template.json",
+            REGISTRY_VERSION,
+            TEMPLATE_VERSION_VARIABLE,
+            ADDITIONAL_TEMPLATE_VARIABLES
+        ),
+        new IndexTemplateConfig(
+            SYNTHETICS_INDEX_TEMPLATE_NAME,
+            "/synthetics@template.json",
+            REGISTRY_VERSION,
+            TEMPLATE_VERSION_VARIABLE,
+            ADDITIONAL_TEMPLATE_VARIABLES
+        ),
+        new IndexTemplateConfig(
+            KIBANA_REPORTING_INDEX_TEMPLATE_NAME,
+            "/kibana-reporting@template.json",
+            REGISTRY_VERSION,
+            TEMPLATE_VERSION_VARIABLE,
+            ADDITIONAL_TEMPLATE_VARIABLES
+        )
+    );
+
     @Override
     protected Map<String, ComposableIndexTemplate> getComposableTemplateConfigs() {
         if (stackTemplateEnabled) {
-            return composableIndexTemplateConfigs;
+            return COMPOSABLE_INDEX_TEMPLATE_CONFIGS;
         } else {
             return Map.of();
         }
     }
 
-    @Override
-    protected List<LifecyclePolicy> getLifecyclePolicies() {
-        return super.getLifecyclePolicies();
-    }
+    private static final List<IngestPipelineConfig> INGEST_PIPELINE_CONFIGS = List.of(
+        new JsonIngestPipelineConfig(
+            "logs@json-pipeline",
+            "/logs@json-pipeline.json",
+            REGISTRY_VERSION,
+            TEMPLATE_VERSION_VARIABLE,
+            List.of(),
+            ADDITIONAL_TEMPLATE_VARIABLES
+        ),
+        new JsonIngestPipelineConfig(
+            "logs@default-pipeline",
+            "/logs@default-pipeline.json",
+            REGISTRY_VERSION,
+            TEMPLATE_VERSION_VARIABLE,
+            List.of(),
+            ADDITIONAL_TEMPLATE_VARIABLES
+        )
+    );
 
     @Override
     protected List<IngestPipelineConfig> getIngestPipelines() {
-        return ingestPipelineConfigs;
+        return INGEST_PIPELINE_CONFIGS;
     }
 
     @Override

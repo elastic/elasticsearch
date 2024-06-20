@@ -86,6 +86,7 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
     protected final ConcurrentMap<String, AtomicBoolean> templateCreationsInProgress = new ConcurrentHashMap<>();
     protected final ConcurrentMap<String, AtomicBoolean> policyCreationsInProgress = new ConcurrentHashMap<>();
     protected final ConcurrentMap<String, AtomicBoolean> pipelineCreationsInProgress = new ConcurrentHashMap<>();
+    protected final List<LifecyclePolicy> lifecyclePolicies;
 
     @SuppressWarnings("this-escape")
     public IndexTemplateRegistry(
@@ -100,6 +101,13 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
         this.threadPool = threadPool;
         this.xContentRegistry = xContentRegistry;
         this.clusterService = clusterService;
+        if (isDataStreamsLifecycleOnlyMode(clusterService.getSettings()) == false) {
+            this.lifecyclePolicies = getLifecycleConfigs().stream()
+                .map(config -> config.load(LifecyclePolicyConfig.DEFAULT_X_CONTENT_REGISTRY))
+                .toList();
+        } else {
+            this.lifecyclePolicies = List.of();
+        }
     }
 
     /**
@@ -159,10 +167,7 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
      * @return The lifecycle policies that should be installed.
      */
     protected List<LifecyclePolicy> getLifecyclePolicies() {
-        if (isDataStreamsLifecycleOnlyMode(clusterService.getSettings()) == false) {
-            return getLifecycleConfigs().stream().map(config -> config.load(LifecyclePolicyConfig.DEFAULT_X_CONTENT_REGISTRY)).toList();
-        }
-        return Collections.emptyList();
+        return lifecyclePolicies;
     }
 
     /**

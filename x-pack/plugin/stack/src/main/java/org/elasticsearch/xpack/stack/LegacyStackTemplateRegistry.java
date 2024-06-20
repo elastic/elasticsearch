@@ -34,6 +34,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.stack.StackTemplateRegistry.CLUSTER_LOGSDB_ENABLED;
 import static org.elasticsearch.xpack.stack.StackTemplateRegistry.STACK_TEMPLATES_ENABLED;
 import static org.elasticsearch.xpack.stack.StackTemplateRegistry.STACK_TEMPLATES_FEATURE;
 
@@ -49,6 +50,7 @@ public class LegacyStackTemplateRegistry extends IndexTemplateRegistry {
 
     private final ClusterService clusterService;
     private final FeatureService featureService;
+    private final Map<String, ComponentTemplate> componentTemplateConfigs;
     private volatile boolean stackTemplateEnabled;
 
     private static final Map<String, String> ADDITIONAL_TEMPLATE_VARIABLES = Map.of("xpack.stack.template.deprecated", "true");
@@ -102,55 +104,10 @@ public class LegacyStackTemplateRegistry extends IndexTemplateRegistry {
         this.clusterService = clusterService;
         this.featureService = featureService;
         this.stackTemplateEnabled = STACK_TEMPLATES_ENABLED.get(nodeSettings);
+        this.componentTemplateConfigs = loadComponentTemplateConfigs(CLUSTER_LOGSDB_ENABLED.get(nodeSettings));
     }
 
-    @Override
-    public void initialize() {
-        super.initialize();
-        clusterService.getClusterSettings().addSettingsUpdateConsumer(STACK_TEMPLATES_ENABLED, this::updateEnabledSetting);
-    }
-
-    private void updateEnabledSetting(boolean newValue) {
-        if (newValue) {
-            this.stackTemplateEnabled = true;
-        } else {
-            logger.info(
-                "stack composable templates [{}] and component templates [{}] will not be installed or reinstalled",
-                String.join(",", getComposableTemplateConfigs().keySet()),
-                String.join(",", getComponentTemplateConfigs().keySet())
-            );
-            this.stackTemplateEnabled = false;
-        }
-    }
-
-    private static final List<LifecyclePolicyConfig> LIFECYCLE_POLICY_CONFIGS = List.of(
-        new LifecyclePolicyConfig(LOGS_ILM_POLICY_NAME, "/logs@lifecycle.json", ADDITIONAL_TEMPLATE_VARIABLES),
-        new LifecyclePolicyConfig(METRICS_ILM_POLICY_NAME, "/metrics@lifecycle.json", ADDITIONAL_TEMPLATE_VARIABLES),
-        new LifecyclePolicyConfig(SYNTHETICS_ILM_POLICY_NAME, "/synthetics@lifecycle.json", ADDITIONAL_TEMPLATE_VARIABLES),
-        new LifecyclePolicyConfig(ILM_7_DAYS_POLICY_NAME, "/7-days@lifecycle.json", ADDITIONAL_TEMPLATE_VARIABLES),
-        new LifecyclePolicyConfig(ILM_30_DAYS_POLICY_NAME, "/30-days@lifecycle.json", ADDITIONAL_TEMPLATE_VARIABLES),
-        new LifecyclePolicyConfig(ILM_90_DAYS_POLICY_NAME, "/90-days@lifecycle.json", ADDITIONAL_TEMPLATE_VARIABLES),
-        new LifecyclePolicyConfig(ILM_180_DAYS_POLICY_NAME, "/180-days@lifecycle.json", ADDITIONAL_TEMPLATE_VARIABLES),
-        new LifecyclePolicyConfig(ILM_365_DAYS_POLICY_NAME, "/365-days@lifecycle.json", ADDITIONAL_TEMPLATE_VARIABLES)
-    );
-
-    @Override
-    protected List<LifecyclePolicyConfig> getLifecycleConfigs() {
-        return LIFECYCLE_POLICY_CONFIGS;
-    }
-
-    @Override
-    protected List<LifecyclePolicy> getLifecyclePolicies() {
-        if (stackTemplateEnabled) {
-            return super.getLifecyclePolicies();
-        } else {
-            return Collections.emptyList();
-        }
-    }
-
-    private static final Map<String, ComponentTemplate> COMPONENT_TEMPLATE_CONFIGS;
-
-    static {
+    private Map<String, ComponentTemplate> loadComponentTemplateConfigs(boolean logsDbEnabled) {
         final Map<String, ComponentTemplate> componentTemplates = new HashMap<>();
         for (IndexTemplateConfig config : List.of(
             new IndexTemplateConfig(
@@ -162,7 +119,7 @@ public class LegacyStackTemplateRegistry extends IndexTemplateRegistry {
             ),
             new IndexTemplateConfig(
                 LOGS_MAPPINGS_COMPONENT_TEMPLATE_NAME,
-                "/logs@mappings.json",
+                logsDbEnabled ? "/logs@mappings-logsdb.json" : "/logs@mappings.json",
                 REGISTRY_VERSION,
                 TEMPLATE_VERSION_VARIABLE,
                 ADDITIONAL_TEMPLATE_VARIABLES
@@ -179,7 +136,12 @@ public class LegacyStackTemplateRegistry extends IndexTemplateRegistry {
                 "/logs@settings.json",
                 REGISTRY_VERSION,
                 TEMPLATE_VERSION_VARIABLE,
-                ADDITIONAL_TEMPLATE_VARIABLES
+                Map.of(
+                    "xpack.stack.template.deprecated",
+                    "false",
+                    "xpack.stack.template.logs.index.mode",
+                    logsDbEnabled ? "logs" : "standard"
+                )
             ),
             new IndexTemplateConfig(
                 METRICS_MAPPINGS_COMPONENT_TEMPLATE_NAME,
@@ -226,13 +188,57 @@ public class LegacyStackTemplateRegistry extends IndexTemplateRegistry {
                 throw new AssertionError(e);
             }
         }
-        COMPONENT_TEMPLATE_CONFIGS = Map.copyOf(componentTemplates);
+        return Map.copyOf(componentTemplates);
+    }
+
+    @Override
+    public void initialize() {
+        super.initialize();
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(STACK_TEMPLATES_ENABLED, this::updateEnabledSetting);
+    }
+
+    private void updateEnabledSetting(boolean newValue) {
+        if (newValue) {
+            this.stackTemplateEnabled = true;
+        } else {
+            logger.info(
+                "stack composable templates [{}] and component templates [{}] will not be installed or reinstalled",
+                String.join(",", getComposableTemplateConfigs().keySet()),
+                String.join(",", getComponentTemplateConfigs().keySet())
+            );
+            this.stackTemplateEnabled = false;
+        }
+    }
+
+    private static final List<LifecyclePolicyConfig> LIFECYCLE_POLICY_CONFIGS = List.of(
+        new LifecyclePolicyConfig(LOGS_ILM_POLICY_NAME, "/logs@lifecycle.json", ADDITIONAL_TEMPLATE_VARIABLES),
+        new LifecyclePolicyConfig(METRICS_ILM_POLICY_NAME, "/metrics@lifecycle.json", ADDITIONAL_TEMPLATE_VARIABLES),
+        new LifecyclePolicyConfig(SYNTHETICS_ILM_POLICY_NAME, "/synthetics@lifecycle.json", ADDITIONAL_TEMPLATE_VARIABLES),
+        new LifecyclePolicyConfig(ILM_7_DAYS_POLICY_NAME, "/7-days@lifecycle.json", ADDITIONAL_TEMPLATE_VARIABLES),
+        new LifecyclePolicyConfig(ILM_30_DAYS_POLICY_NAME, "/30-days@lifecycle.json", ADDITIONAL_TEMPLATE_VARIABLES),
+        new LifecyclePolicyConfig(ILM_90_DAYS_POLICY_NAME, "/90-days@lifecycle.json", ADDITIONAL_TEMPLATE_VARIABLES),
+        new LifecyclePolicyConfig(ILM_180_DAYS_POLICY_NAME, "/180-days@lifecycle.json", ADDITIONAL_TEMPLATE_VARIABLES),
+        new LifecyclePolicyConfig(ILM_365_DAYS_POLICY_NAME, "/365-days@lifecycle.json", ADDITIONAL_TEMPLATE_VARIABLES)
+    );
+
+    @Override
+    protected List<LifecyclePolicyConfig> getLifecycleConfigs() {
+        return LIFECYCLE_POLICY_CONFIGS;
+    }
+
+    @Override
+    protected List<LifecyclePolicy> getLifecyclePolicies() {
+        if (stackTemplateEnabled) {
+            return lifecyclePolicies;
+        } else {
+            return Collections.emptyList();
+        }
     }
 
     @Override
     protected Map<String, ComponentTemplate> getComponentTemplateConfigs() {
         if (stackTemplateEnabled) {
-            return COMPONENT_TEMPLATE_CONFIGS;
+            return componentTemplateConfigs;
         } else {
             return Map.of();
         }

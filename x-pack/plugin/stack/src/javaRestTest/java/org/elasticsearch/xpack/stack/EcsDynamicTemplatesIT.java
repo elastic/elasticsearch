@@ -12,7 +12,6 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.network.NetworkAddress;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
@@ -77,7 +76,7 @@ public class EcsDynamicTemplatesIT extends ESRestTestCase {
             "/" + ECS_DYNAMIC_TEMPLATES_FILE,
             Integer.toString(1),
             StackTemplateRegistry.TEMPLATE_VERSION_VARIABLE,
-            StackTemplateRegistry.ADDITIONAL_TEMPLATE_VARIABLES.apply(Settings.builder().build())
+            StackTemplateRegistry.ADDITIONAL_TEMPLATE_VARIABLES
         );
         Map<String, Object> ecsDynamicTemplatesRaw;
         try (

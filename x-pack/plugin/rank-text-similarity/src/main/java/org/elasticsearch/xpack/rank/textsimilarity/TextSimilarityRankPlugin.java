@@ -8,6 +8,8 @@
 package org.elasticsearch.xpack.rank.textsimilarity;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.license.License;
+import org.elasticsearch.license.LicensedFeature;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.rank.RankBuilder;
@@ -19,6 +21,12 @@ import java.util.List;
 public class TextSimilarityRankPlugin extends Plugin implements SearchPlugin {
 
     public static final String NAME = "text_similarity_reranker";
+
+    public static final LicensedFeature.Momentary RANK_TEXT_SIMILARITY_FEATURE = LicensedFeature.momentary(
+        null,
+        "rank-text-similarity",
+        License.OperationMode.PLATINUM
+    );
 
     @Override
     public List<NamedWriteableRegistry.Entry> getNamedWriteables() {

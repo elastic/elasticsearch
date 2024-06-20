@@ -14,6 +14,7 @@ import org.elasticsearch.TransportVersions;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.search.rank.RankBuilder;
 import org.elasticsearch.search.rank.RankDoc;
 import org.elasticsearch.search.rank.context.QueryPhaseRankCoordinatorContext;
@@ -27,6 +28,7 @@ import org.elasticsearch.search.rank.rerank.RerankingRankFeaturePhaseRankShardCo
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.core.XPackPlugin;
 
 import java.io.IOException;
 import java.util.List;
@@ -100,9 +102,9 @@ public class TextSimilarityRankBuilder extends RankBuilder {
     }
 
     public static TextSimilarityRankBuilder fromXContent(XContentParser parser) throws IOException {
-        // if (TextSimilarityRankRetrieverBuilder.RANK_RRF_FEATURE.check(XPackPlugin.getSharedLicenseState()) == false) {
-        // throw LicenseUtils.newComplianceException("Reciprocal Rank Fusion (RRF)");
-        // }
+         if (TextSimilarityRankPlugin.RANK_TEXT_SIMILARITY_FEATURE.check(XPackPlugin.getSharedLicenseState()) == false) {
+            throw LicenseUtils.newComplianceException(TextSimilarityRankPlugin.NAME);
+         }
         return PARSER.parse(parser, null);
     }
 

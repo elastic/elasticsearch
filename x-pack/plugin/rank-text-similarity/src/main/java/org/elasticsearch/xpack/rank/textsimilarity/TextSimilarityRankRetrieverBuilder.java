@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.rank.textsimilarity;
 
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.features.NodeFeature;
+import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.retriever.RetrieverBuilder;
 import org.elasticsearch.search.retriever.RetrieverParserContext;
@@ -16,6 +17,7 @@ import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.core.XPackPlugin;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -82,6 +84,9 @@ public class TextSimilarityRankRetrieverBuilder extends RetrieverBuilder {
         throws IOException {
         if (context.clusterSupportsFeature(NODE_FEATURE) == false) {
             throw new ParsingException(parser.getTokenLocation(), "unknown retriever [" + NAME + "]");
+        }
+        if (TextSimilarityRankPlugin.RANK_TEXT_SIMILARITY_FEATURE.check(XPackPlugin.getSharedLicenseState()) == false) {
+            throw LicenseUtils.newComplianceException(TextSimilarityRankPlugin.NAME);
         }
         return PARSER.apply(parser, context);
     }

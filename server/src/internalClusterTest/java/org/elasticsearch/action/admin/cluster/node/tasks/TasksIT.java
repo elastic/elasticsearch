@@ -510,6 +510,9 @@ public class TasksIT extends ESIntegTestCase {
 
         expectThrows(TaskCancelledException.class, future);
 
+        logger.info("--> waiting for all ongoing tasks to complete within a reasonable time");
+        safeGet(clusterAdmin().prepareListTasks().setActions(TEST_TASK_ACTION.name() + "*").setWaitForCompletion(true).execute());
+
         logger.info("--> checking that test tasks are not running");
         assertEquals(0, clusterAdmin().prepareListTasks().setActions(TEST_TASK_ACTION.name() + "*").get().getTasks().size());
     }

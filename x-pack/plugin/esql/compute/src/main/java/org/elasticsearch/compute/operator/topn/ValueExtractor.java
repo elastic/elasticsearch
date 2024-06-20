@@ -13,6 +13,7 @@ import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DocBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.compute.data.FloatBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
@@ -32,6 +33,7 @@ interface ValueExtractor {
             case BYTES_REF -> ValueExtractorForBytesRef.extractorFor(encoder, inKey, (BytesRefBlock) block);
             case INT -> ValueExtractorForInt.extractorFor(encoder, inKey, (IntBlock) block);
             case LONG -> ValueExtractorForLong.extractorFor(encoder, inKey, (LongBlock) block);
+            case FLOAT -> ValueExtractorForFloat.extractorFor(encoder, inKey, (FloatBlock) block);
             case DOUBLE -> ValueExtractorForDouble.extractorFor(encoder, inKey, (DoubleBlock) block);
             case NULL -> new ValueExtractorForNull();
             case DOC -> new ValueExtractorForDoc(encoder, ((DocBlock) block).asVector());

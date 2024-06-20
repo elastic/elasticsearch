@@ -101,7 +101,13 @@ public class Join extends BinaryPlan {
         AttributeSet matchFields,
         Set<String> matchFieldNames
     ) {
-        return attributes.stream().filter(attr -> matchFields.contains(attr) || matchFieldNames.contains(attr.name()) == false).toList();
+        List<Attribute> result = new ArrayList<>();
+        for (Attribute attr: attributes) {
+            if ((matchFields.contains(attr) || matchFieldNames.contains(attr.name())) == false) {
+                result.add(attr);
+            }
+        }
+        return result;
     }
 
     /**

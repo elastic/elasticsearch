@@ -495,5 +495,5 @@ countFunctions#[skip:-8.14.99, reason:BIN added]
 meta functions |  stats  a = count(*), b = count(*), c = count(*) |  mv_expand c;
 
 a:long | b:long | c:long
-111    | 111    | 111
+112    | 112    | 112
 ;

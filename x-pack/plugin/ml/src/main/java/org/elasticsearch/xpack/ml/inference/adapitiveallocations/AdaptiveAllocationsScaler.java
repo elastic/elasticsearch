@@ -13,7 +13,8 @@ import org.elasticsearch.common.Strings;
 
 public class AdaptiveAllocationsScaler {
 
-    private static final double SCALE_UP_THRESHOLD = 0.9;
+    // visible for testing
+    static final double SCALE_UP_THRESHOLD = 0.9;
     private static final double SCALE_DOWN_THRESHOLD = 0.85;
 
     private static final Logger logger = LogManager.getLogger(AdaptiveAllocationsScaler.class);
@@ -80,6 +81,18 @@ public class AdaptiveAllocationsScaler {
         dynamicsChanged = false;
     }
 
+    double getLoadLower() {
+        double requestRateLower = Math.max(0.0, requestRateEstimator.lower());
+        double inferenceTimeLower = Math.max(0.0, inferenceTimeEstimator.hasValue() ? inferenceTimeEstimator.lower() : 1.0);
+        return requestRateLower * inferenceTimeLower;
+    }
+
+    double getLoadUpper() {
+        double requestRateUpper = requestRateEstimator.upper();
+        double inferenceTimeUpper = inferenceTimeEstimator.hasValue() ? inferenceTimeEstimator.upper() : 1.0;
+        return requestRateUpper * inferenceTimeUpper;
+    }
+
     Integer scale() {
         if (requestRateEstimator.hasValue() == false) {
             return null;
@@ -87,16 +100,12 @@ public class AdaptiveAllocationsScaler {
 
         int oldNumberOfAllocations = numberOfAllocations;
 
-        double requestRateLower = Math.max(0.0, requestRateEstimator.lower());
-        double inferenceTimeLower = Math.max(0.0, inferenceTimeEstimator.hasValue() ? inferenceTimeEstimator.lower() : 1.0);
-        double loadLower = requestRateLower * inferenceTimeLower;
+        double loadLower = getLoadLower();
         while (loadLower / numberOfAllocations > SCALE_UP_THRESHOLD) {
             numberOfAllocations++;
         }
 
-        double requestRateUpper = requestRateEstimator.upper();
-        double inferenceTimeUpper = inferenceTimeEstimator.hasValue() ? inferenceTimeEstimator.upper() : 1.0;
-        double loadUpper = requestRateUpper * inferenceTimeUpper;
+        double loadUpper = getLoadUpper();
         while (numberOfAllocations > 1 && loadUpper / (numberOfAllocations - 1) < SCALE_DOWN_THRESHOLD) {
             numberOfAllocations--;
         }

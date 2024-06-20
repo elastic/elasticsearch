@@ -9,7 +9,11 @@ package org.elasticsearch.xpack.ml.inference.adapitiveallocations;
 
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.Random;
+
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.nullValue;
 
 public class AdaptiveAllocationsScalerTests extends ESTestCase {
@@ -91,5 +95,47 @@ public class AdaptiveAllocationsScalerTests extends ESTestCase {
         adaptiveAllocationsScaler.process(new AdaptiveAllocationsScalerService.Stats(0, 0, 0, 0.010), 10, 5);
         adaptiveAllocationsScaler.process(new AdaptiveAllocationsScalerService.Stats(0, 0, 0, 0.010), 10, 5);
         assertThat(adaptiveAllocationsScaler.scale(), equalTo(2));
+    }
+
+    public void testEstimation_highVariance() {
+        AdaptiveAllocationsScaler adaptiveAllocationsScaler = new AdaptiveAllocationsScaler("test-deployment", 1);
+
+        Random random = new Random(42);
+
+        double averageLoadMean = 0.0;
+        double averageLoadError = 0.0;
+
+        double time = 0.0;
+        for (int nextMeasurementTime = 1; nextMeasurementTime <= 100; nextMeasurementTime++) {
+            // Sample one second of data (until the next measurement time).
+            // This contains approximately 100 requests with high-variance inference times.
+            AdaptiveAllocationsScalerService.Stats stats = new AdaptiveAllocationsScalerService.Stats(0, 0, 0, 0);
+            while (time < nextMeasurementTime) {
+                // Draw inference times from a log-normal distribution, which has high variance.
+                // This distribution approximately has: mean=3.40, variance=98.4.
+                double inferenceTime = Math.exp(random.nextGaussian(0.1, 1.5));
+                stats = stats.add(new AdaptiveAllocationsScalerService.Stats(1, 0, 0, inferenceTime));
+
+                // The requests are Poisson distributed, which means the time inbetween
+                // requests follows an exponential distribution.
+                // This distribution has on average 100 requests per second.
+                double dt = 0.01 * random.nextExponential();
+                time += dt;
+            }
+
+            adaptiveAllocationsScaler.process(stats, 1, 1);
+            double lower = adaptiveAllocationsScaler.getLoadLower();
+            double upper = adaptiveAllocationsScaler.getLoadUpper();
+            averageLoadMean += (upper + lower) / 2.0;
+            averageLoadError += (upper - lower) / 2.0;
+        }
+
+        averageLoadMean /= 100;
+        averageLoadError /= 100;
+
+        double expectedLoad = 100 * 3.40;
+        assertThat(averageLoadMean - averageLoadError, lessThan(expectedLoad));
+        assertThat(averageLoadMean + averageLoadError, greaterThan(expectedLoad));
+        assertThat(averageLoadError / averageLoadMean, lessThan(1 - AdaptiveAllocationsScaler.SCALE_UP_THRESHOLD));
     }
 }

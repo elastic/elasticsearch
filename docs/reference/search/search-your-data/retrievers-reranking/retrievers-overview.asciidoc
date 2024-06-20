@@ -1,7 +1,5 @@
 [[retrievers-overview]]
-== Retrievers 
-
-// Will move to a top level "Retrievers and reranking" section once reranking is live
+=== Retrievers
 
 preview::[] 
 
@@ -18,7 +16,7 @@ For implementation details, including notable restrictions, check out the
 
 [discrete]
 [[retrievers-overview-types]]
-=== Retriever types 
+==== Retriever types 
 
 Retrievers come in various types, each tailored for different search operations.
 The following retrievers are currently available: 
@@ -36,6 +34,7 @@ the reciprocal rank fusion (RRF) algorithm. Allows you to combine multiple resul
 with different relevance indicators into a single result set.
 An RRF retriever is a *compound retriever*, where its `filter` element is 
 propagated to its sub retrievers.
+//* <<reranker-retriever,*`text_similarity_reranker` Retriever*>>. Reranks the top hits from a first-stage retriever.
 +
 Sub retrievers may not use elements that 
 are restricted by having a compound retriever as part of the retriever tree.
@@ -48,7 +47,7 @@ Stay tuned for more retriever types in future releases!
 ====
 
 [discrete]
-=== What makes retrievers useful? 
+==== What makes retrievers useful? 
 
 Here's an overview of what makes retrievers useful and how they differ from 
 regular queries. 
@@ -92,7 +91,7 @@ interdependent configurations.
 
 [discrete]
 [[retrievers-overview-example]]
-=== Example
+==== Example
 
 The following example demonstrates how using retrievers 
 simplify the composability of queries for RRF ranking.
@@ -177,7 +176,7 @@ GET example-index/_search
 
 [discrete]
 [[retrievers-overview-glossary]]
-=== Glossary
+==== Glossary
 
 Here are some important terms: 
 
@@ -189,11 +188,11 @@ produce top hits.
 enhancing document retrieval and ranking logic.
 * *Combiners*. Compound retrievers that merge top hits 
 from multiple sub-retrievers. 
-//* NOT YET *Rerankers*. Special compound retrievers that reorder hits and may adjust the number of hits, with distinctions between first-stage and second-stage rerankers.
+* *Rerankers*. Special compound retrievers that reorder hits and may adjust the number of hits, with distinctions between first-stage and second-stage rerankers.
 
 [discrete]
 [[retrievers-overview-play-in-search]]
-=== Retrievers in action
+==== Retrievers in action
 
 The Search Playground builds Elasticsearch queries using the retriever abstraction.
 It automatically detects the fields and types in your index and builds a retriever tree based on your selections.
@@ -201,7 +200,3 @@ It automatically detects the fields and types in your index and builds a retriev
 You can use the Playground to experiment with different retriever configurations and see how they affect search results.
 
 Refer to the {kibana-ref}/playground.html[Playground documentation] for more information.
-// Content coming in https://github.com/elastic/kibana/pull/182692
-
-
-

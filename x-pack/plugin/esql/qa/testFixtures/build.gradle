@@ -1,9 +1,9 @@
 apply plugin: 'elasticsearch.java'
-
+apply plugin: org.elasticsearch.gradle.dependencies.CompileOnlyResolvePlugin
 
 dependencies {
     implementation project(':x-pack:plugin:esql:compute')
-    compileOnly project(':x-pack:plugin:esql')
+    implementation project(':x-pack:plugin:esql')
     compileOnly project(path: xpackModule('core'))
     implementation project(":libs:elasticsearch-x-content")
     implementation project(':client:rest')
@@ -11,7 +11,14 @@ dependencies {
     implementation project(':test:framework')
     api(testArtifact(project(xpackModule('esql-core'))))
     implementation project(':server')
-    api "net.sf.supercsv:super-csv:${versions.supercsv}"
+    implementation "net.sf.supercsv:super-csv:${versions.supercsv}"
+}
+
+/**
+ * This is needed for CsvTestsDataLoaderTests to reflect the classpath that CsvTestsDataLoader actually uses when "main" method is executed.
+ */
+tasks.named("test").configure {
+  classpath = classpath - (configurations.resolveableCompileOnly - configurations.runtimeClasspath)
 }
 
 /**

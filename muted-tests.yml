@@ -67,8 +67,15 @@ tests:
 - class: "org.elasticsearch.xpack.shutdown.NodeShutdownReadinessIT"
   issue: "https://github.com/elastic/elasticsearch/issues/109838"
   method: "testShutdownReadinessService"
-- class: "org.elasticsearch.packaging.test.PackageTests"
-  issue: "https://github.com/elastic/elasticsearch/issues/109852"
+- class: "org.elasticsearch.xpack.security.ScrollHelperIntegTests"
+  issue: "https://github.com/elastic/elasticsearch/issues/109905"
+  method: "testFetchAllEntities"
+- class: "org.elasticsearch.xpack.ml.integration.AutodetectMemoryLimitIT"
+  issue: "https://github.com/elastic/elasticsearch/issues/109904"
+- class: "org.elasticsearch.xpack.esql.action.AsyncEsqlQueryActionIT"
+  issue: "https://github.com/elastic/elasticsearch/issues/109944"
+  method: "testBasicAsyncExecution"
+
 
 # Examples:
 #
@@ -93,3 +100,10 @@ tests:
 #  - class: org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToIPTests
 #    method: testCrankyEvaluateBlockWithoutNulls
 #    issue: https://github.com/elastic/elasticsearch/...
+#
+#  Mute a single test in an ES|QL csv-spec test file:
+#  - class: "org.elasticsearch.xpack.esql.CsvTests"
+#    method: "test {union_types.MultiIndexIpStringStatsInline}"
+#    issue: "https://github.com/elastic/elasticsearch/..."
+#  Note that this mutes for the unit-test-like CsvTests only.
+#  Muting for the integration tests needs to be done for each IT class individually.

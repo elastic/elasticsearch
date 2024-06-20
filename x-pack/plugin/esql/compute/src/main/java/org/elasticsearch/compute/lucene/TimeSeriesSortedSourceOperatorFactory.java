@@ -246,7 +246,7 @@ public class TimeSeriesSortedSourceOperatorFactory extends LuceneOperator.Factor
 
             TimeSeriesIterator(LuceneSlice slice) throws IOException {
                 this.slice = slice;
-                Weight weight = slice.weight().get();
+                Weight weight = slice.weight();
                 if (slice.numLeaves() == 1) {
                     queue = null;
                     leaf = new Leaf(weight, slice.getLeaf(0).leafReaderContext());

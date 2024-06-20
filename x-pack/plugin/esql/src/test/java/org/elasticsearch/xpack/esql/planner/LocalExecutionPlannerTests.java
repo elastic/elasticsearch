@@ -28,6 +28,7 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.cache.query.TrivialQueryCachingPolicy;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
+import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.xpack.esql.TestBlockFactory;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
@@ -164,7 +165,7 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
                 new EsPhysicalOperationProviders.DefaultShardContext(
                     i,
                     createSearchExecutionContext(createMapperService(mapping(b -> {})), searcher),
-                    null
+                    AliasFilter.EMPTY
                 )
             );
         }

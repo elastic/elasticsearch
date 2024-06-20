@@ -16,7 +16,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.nativeaccess.NativeAccess;
 import org.elasticsearch.plugins.Platforms;
 import org.elasticsearch.plugins.PluginDescriptor;
-import org.elasticsearch.plugins.loading.PluginsUtils;
+import org.elasticsearch.plugins.PluginsUtils;
 
 import java.io.BufferedReader;
 import java.io.Closeable;

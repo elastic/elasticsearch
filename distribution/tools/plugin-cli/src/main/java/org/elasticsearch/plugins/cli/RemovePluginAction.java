@@ -13,7 +13,7 @@ import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.plugins.loading.PluginsUtils;
+import org.elasticsearch.plugins.PluginsUtils;
 
 import java.io.IOException;
 import java.nio.file.FileAlreadyExistsException;

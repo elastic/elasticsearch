@@ -13,33 +13,87 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.cluster.local.AbstractLocalClusterSpecBuilder;
+import org.elasticsearch.test.cluster.local.DefaultEnvironmentProvider;
+import org.elasticsearch.test.cluster.local.DefaultLocalClusterFactory;
+import org.elasticsearch.test.cluster.local.DefaultLocalElasticsearchCluster;
+import org.elasticsearch.test.cluster.local.DefaultSettingsProvider;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
+import org.elasticsearch.test.cluster.local.distribution.LocalDistributionResolver;
+import org.elasticsearch.test.cluster.local.distribution.ReleasedDistributionResolver;
+import org.elasticsearch.test.cluster.local.distribution.SnapshotDistributionResolver;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.hamcrest.Matcher;
+import org.junit.AfterClass;
 import org.junit.ClassRule;
 
 import java.io.BufferedReader;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import java.util.regex.Pattern;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.hasToString;
+import static org.hamcrest.Matchers.matchesRegex;
 import static org.hamcrest.Matchers.not;
 
 public class JvmCrashIT extends ESRestTestCase {
 
+    private static class StdOutCatchingClusterBuilder extends AbstractLocalClusterSpecBuilder<ElasticsearchCluster> {
+
+        private StdOutCatchingClusterBuilder() {
+            this.settings(new DefaultSettingsProvider());
+            this.environment(new DefaultEnvironmentProvider());
+        }
+
+        @Override
+        public ElasticsearchCluster build() {
+            // redirect stdout before the nodes start up
+            // they are referenced directly by ProcessUtils, so can't be changed afterwards
+            redirectStdout();
+
+            return new DefaultLocalElasticsearchCluster<>(
+                this::buildClusterSpec,
+                new DefaultLocalClusterFactory(
+                    new LocalDistributionResolver(new SnapshotDistributionResolver(new ReleasedDistributionResolver()))
+                )
+            );
+        }
+    }
+
+    private static PrintStream originalOut;
+    private static ByteArrayOutputStream stdOutput;
+
+    private static void redirectStdout() {
+        if (originalOut == null) {
+            originalOut = System.out;
+            stdOutput = new ByteArrayOutputStream();
+            // this duplicates the crash messages, but not the log output. That's ok.
+            System.setOut(new TeePrintStream(originalOut, stdOutput));
+        }
+    }
+
     @ClassRule
-    public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
-        .distribution(DistributionType.INTEG_TEST)
+    public static ElasticsearchCluster cluster = new StdOutCatchingClusterBuilder().distribution(DistributionType.INTEG_TEST)
+        .nodes(1)
         .module("test-jvm-crash")
         .setting("xpack.security.enabled", "false")
         .jvmArg("-Djvm.crash=true")
         .build();
+
+    @AfterClass
+    public static void resetStdout() {
+        if (originalOut != null) {
+            System.setOut(originalOut);
+        }
+    }
 
     @Override
     protected String getTestRestCluster() {
@@ -50,12 +104,20 @@ public class JvmCrashIT extends ESRestTestCase {
         final long pid = getElasticsearchPid();
         assertJvmArgs(pid, containsString("-Djvm.crash=true"));
 
-        // As this is a JVM crash, it is very hard to get the actual output by the JVM
-        // so just see that it dies and is restarted
         expectThrows(IOException.class, () -> client().performRequest(new Request("GET", "/_crash")));
 
         // the Elasticsearch process should die
         assertBusy(() -> assertJvmArgs(pid, not(containsString("-Djvm.crash=true"))));
+
+        // parse the logs and ensure that Elasticsearch died with the expected cause
+        assertThat(
+            stdOutput,
+            hasToString(
+                matchesRegex(
+                    Pattern.compile(".*# A fatal error has been detected by the Java Runtime Environment:.*SIGSEGV.*", Pattern.DOTALL)
+                )
+            )
+        );
     }
 
     private Process startJcmd(long pid) throws IOException {
@@ -106,10 +168,6 @@ public class JvmCrashIT extends ESRestTestCase {
         try (BufferedReader in = new BufferedReader(new InputStreamReader(is, StandardCharsets.UTF_8))) {
             return in.lines().toList();
         }
-    }
-
-    private boolean containsAll(String line, String... subStrings) {
-        return Arrays.stream(subStrings).allMatch(line::matches);
     }
 
     @Override

@@ -564,7 +564,7 @@ public class VerifierTests extends ESTestCase {
             } else if (param instanceof String) {
                 parameters.add(new QueryParam(null, param, KEYWORD));
             } else if (param instanceof Number) {
-                parameters.add(new QueryParam(null, param, EsqlDataTypes.fromJava(param)));
+                parameters.add(new QueryParam(null, param, DataType.fromJava(param)));
             } else {
                 throw new IllegalArgumentException("VerifierTests don't support params of type " + param.getClass());
             }

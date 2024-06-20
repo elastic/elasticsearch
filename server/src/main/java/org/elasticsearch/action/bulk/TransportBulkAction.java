@@ -42,7 +42,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -197,7 +196,7 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
 
         if (applyPipelines(task, bulkRequest, executor, listener)) return;
 
-        Map<String, Boolean> indicesToAutoCreate = new HashMap<>();
+        Map<String, CreateIndexRequest> indicesToAutoCreate = new HashMap<>();
         Set<String> dataStreamsToBeRolledOver = new HashSet<>();
         Set<String> failureStoresToBeRolledOver = new HashSet<>();
         populateMissingTargets(bulkRequest, indicesToAutoCreate, dataStreamsToBeRolledOver, failureStoresToBeRolledOver);
@@ -220,19 +219,19 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
      * for lazy rollover.
      *
      * @param bulkRequest the bulk request
-     * @param indicesToAutoCreate a map of index names to whether they require a data stream
+     * @param indicesToAutoCreate a map of index names to their creation request that need to be auto-created
      * @param dataStreamsToBeRolledOver a set of data stream names that were marked for lazy rollover and thus need to be rolled over now
      * @param failureStoresToBeRolledOver a set of data stream names whose failure store was marked for lazy rollover and thus need to be
      * rolled over now
      */
     private void populateMissingTargets(
         BulkRequest bulkRequest,
-        Map<String, Boolean> indicesToAutoCreate,
+        Map<String, CreateIndexRequest> indicesToAutoCreate,
         Set<String> dataStreamsToBeRolledOver,
         Set<String> failureStoresToBeRolledOver
     ) {
         ClusterState state = clusterService.state();
-        // A map for memorizing which indices we already exist (or don't).
+        // A map for memorizing which indices exist.
         Map<String, Boolean> indexExistence = new HashMap<>();
         Function<String, Boolean> indexExistenceComputation = (index) -> indexNameExpressionResolver.hasIndexAbstraction(index, state);
         boolean lazyRolloverFeature = featureService.clusterHasFeature(state, LazyRolloverAction.DATA_STREAM_LAZY_ROLLOVER);
@@ -246,19 +245,36 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
                 && request.versionType() != VersionType.EXTERNAL_GTE) {
                 continue;
             }
+            boolean writeToFailureStore = request instanceof IndexRequest indexRequest && indexRequest.isWriteToFailureStore();
             boolean indexExists = indexExistence.computeIfAbsent(request.index(), indexExistenceComputation);
             if (indexExists == false) {
-                // We should only auto create an index if _none_ of the requests are requiring it to be an alias.
+                // We should only auto-create an index if _none_ of the requests are requiring it to be an alias.
                 if (request.isRequireAlias()) {
-                    // Remember that this a request required this index to be an alias.
+                    // Remember that this request required this index to be an alias.
                     if (indicesThatRequireAlias.add(request.index())) {
                         // If we didn't already know that, we remove the index from the list of indices to create (if present).
                         indicesToAutoCreate.remove(request.index());
                     }
                 } else if (indicesThatRequireAlias.contains(request.index()) == false) {
-                    Boolean requiresDataStream = indicesToAutoCreate.get(request.index());
-                    if (requiresDataStream == null || (requiresDataStream == false && request.isRequireDataStream())) {
-                        indicesToAutoCreate.put(request.index(), request.isRequireDataStream());
+                    CreateIndexRequest createIndexRequest = indicesToAutoCreate.get(request.index());
+                    // Create a new CreateIndexRequest if we didn't already have one.
+                    if (createIndexRequest == null) {
+                        createIndexRequest = new CreateIndexRequest(request.index()).cause("auto(bulk api)")
+                            .masterNodeTimeout(bulkRequest.timeout())
+                            .requireDataStream(request.isRequireDataStream())
+                            // If this IndexRequest is directed towards a failure store, but the data stream doesn't exist, we initialize
+                            // the failure store on data stream creation instead of lazily.
+                            .initializeFailureStore(writeToFailureStore);
+                        indicesToAutoCreate.put(request.index(), createIndexRequest);
+                    } else {
+                        // Track whether one of the index requests in this bulk request requires the target to be a data stream.
+                        if (createIndexRequest.isRequireDataStream() == false && request.isRequireDataStream()) {
+                            createIndexRequest.requireDataStream(true);
+                        }
+                        // Track whether one of the index requests in this bulk request is directed towards a failure store.
+                        if (createIndexRequest.isInitializeFailureStore() == false && writeToFailureStore) {
+                            createIndexRequest.initializeFailureStore(true);
+                        }
                     }
                 }
             }
@@ -266,7 +282,6 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
             if (lazyRolloverFeature) {
                 DataStream dataStream = state.metadata().dataStreams().get(request.index());
                 if (dataStream != null) {
-                    var writeToFailureStore = request instanceof IndexRequest indexRequest && indexRequest.isWriteToFailureStore();
                     if (writeToFailureStore == false && dataStream.getBackingIndices().isRolloverOnWrite()) {
                         dataStreamsToBeRolledOver.add(request.index());
                     } else if (lazyRolloverFailureStoreFeature
@@ -288,7 +303,7 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
         BulkRequest bulkRequest,
         Executor executor,
         ActionListener<BulkResponse> listener,
-        Map<String, Boolean> indicesToAutoCreate,
+        Map<String, CreateIndexRequest> indicesToAutoCreate,
         Set<String> dataStreamsToBeRolledOver,
         Set<String> failureStoresToBeRolledOver,
         long startTime
@@ -315,14 +330,14 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
 
     private void createIndices(
         BulkRequest bulkRequest,
-        Map<String, Boolean> indicesToAutoCreate,
+        Map<String, CreateIndexRequest> indicesToAutoCreate,
         Map<String, IndexNotFoundException> indicesThatCannotBeCreated,
         AtomicArray<BulkItemResponse> responses,
         RefCountingRunnable refs
     ) {
-        for (Map.Entry<String, Boolean> indexEntry : indicesToAutoCreate.entrySet()) {
+        for (Map.Entry<String, CreateIndexRequest> indexEntry : indicesToAutoCreate.entrySet()) {
             final String index = indexEntry.getKey();
-            createIndex(index, indexEntry.getValue(), bulkRequest.timeout(), ActionListener.releaseAfter(new ActionListener<>() {
+            createIndex(indexEntry.getValue(), ActionListener.releaseAfter(new ActionListener<>() {
                 @Override
                 public void onResponse(CreateIndexResponse createIndexResponse) {}
 
@@ -480,12 +495,7 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
         }
     }
 
-    void createIndex(String index, boolean requireDataStream, TimeValue timeout, ActionListener<CreateIndexResponse> listener) {
-        CreateIndexRequest createIndexRequest = new CreateIndexRequest();
-        createIndexRequest.index(index);
-        createIndexRequest.requireDataStream(requireDataStream);
-        createIndexRequest.cause("auto(bulk api)");
-        createIndexRequest.masterNodeTimeout(timeout);
+    void createIndex(CreateIndexRequest createIndexRequest, ActionListener<CreateIndexResponse> listener) {
         client.execute(AutoCreateAction.INSTANCE, createIndexRequest, listener);
     }
 

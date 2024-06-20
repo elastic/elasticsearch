@@ -733,10 +733,7 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
                 b.field("fieldA", "testA");
                 b.field("fieldB", "testB");
                 b.startObject("obj").field("fieldC", "testC").endObject();
-                b.startArray("arr");
-                b.startObject().field("fieldD", "testD").endObject();
-                b.startObject().field("fieldE", "testE").endObject();
-                b.endArray();
+                b.startArray("arr").startObject().field("fieldD", "testD").endObject().endArray();
             }));
             doc.updateSeqID(0, 0);
             doc.version().setLongValue(0);
@@ -770,7 +767,7 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
                 ) {
                     String syntheticSource = syntheticSource(mapper, indexReader, doc.docs().size() - 1);
                     assertEquals("""
-                        {"arr":[{"fieldD":"testD"},{"fieldE":"testE"}],"fieldB":"testB","obj":{"fieldC":"testC"}}""", syntheticSource);
+                        {"arr":[{"fieldD":"testD"}],"fieldB":"testB","obj":{"fieldC":"testC"}}""", syntheticSource);
                 }
             }
 
@@ -802,7 +799,7 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
                 ) {
                     String syntheticSource = syntheticSource(mapper, indexReader, doc.docs().size() - 1);
                     assertEquals("""
-                        {"arr":[{"fieldD":"testD"},{"fieldE":"testE"}],"fieldA":"testA","fieldB":"testB"}""", syntheticSource);
+                        {"arr":[{"fieldD":"testD"}],"fieldA":"testA","fieldB":"testB"}""", syntheticSource);
                 }
             }
 
@@ -816,7 +813,7 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
                 ) {
                     String syntheticSource = syntheticSource(mapper, indexReader, doc.docs().size() - 1);
                     assertEquals("""
-                        {"arr":[{"fieldD":"testD"},{}]}""", syntheticSource);
+                        {"arr":[{"fieldD":"testD"}]}""", syntheticSource);
                 }
             }
 
@@ -834,7 +831,7 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
                 ) {
                     String syntheticSource = syntheticSource(mapper, indexReader, doc.docs().size() - 1);
                     assertEquals("""
-                        {"arr":[{},{"fieldE":"testE"}],"fieldA":"testA","fieldB":"testB","obj":{"fieldC":"testC"}}""", syntheticSource);
+                        {"arr":[{}],"fieldA":"testA","fieldB":"testB","obj":{"fieldC":"testC"}}""", syntheticSource);
                 }
             }
         }

@@ -34,7 +34,9 @@ the reciprocal rank fusion (RRF) algorithm. Allows you to combine multiple resul
 with different relevance indicators into a single result set.
 An RRF retriever is a *compound retriever*, where its `filter` element is 
 propagated to its sub retrievers.
-//* <<reranker-retriever,*`text_similarity_reranker` Retriever*>>. Reranks the top hits from a first-stage retriever.
+* *`text_similarity_reranker` Retriever*. Used for <<semantic-reranking,semantic reranking>>.
+Requires first creating a `rerank` task using the <<put-inference-api,{es} Inference API>>.
+
 +
 Sub retrievers may not use elements that 
 are restricted by having a compound retriever as part of the retriever tree.

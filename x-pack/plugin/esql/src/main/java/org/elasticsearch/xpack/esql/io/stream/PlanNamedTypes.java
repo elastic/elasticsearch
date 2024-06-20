@@ -29,13 +29,13 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.Order;
 import org.elasticsearch.xpack.esql.core.expression.function.scalar.ScalarFunction;
+import org.elasticsearch.xpack.esql.core.expression.predicate.fulltext.FullTextPredicate;
 import org.elasticsearch.xpack.esql.core.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.core.expression.predicate.logical.BinaryLogic;
 import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.esql.core.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.core.expression.predicate.nulls.IsNull;
-import org.elasticsearch.xpack.esql.core.expression.predicate.operator.arithmetic.ArithmeticOperation;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RLikePattern;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RegexMatch;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPattern;
@@ -58,6 +58,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Percentile;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialCentroid;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.TopList;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
 import org.elasticsearch.xpack.esql.expression.function.grouping.GroupingFunction;
@@ -81,20 +82,6 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.math.Pow;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Round;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Tau;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.AbstractMultivalueFunction;
-import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvAppend;
-import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvAvg;
-import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvConcat;
-import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvCount;
-import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvDedupe;
-import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvFirst;
-import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvLast;
-import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMax;
-import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMedian;
-import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMin;
-import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvSlice;
-import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvSort;
-import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvSum;
-import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvZip;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialContains;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialDisjoint;
@@ -115,20 +102,10 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.string.Substring;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.ToLower;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.ToUpper;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.WildcardLike;
-import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
-import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div;
-import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mod;
-import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mul;
-import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Sub;
-import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.EsqlArithmeticOperation;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison;
-import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
-import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.InsensitiveEquals;
-import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
-import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
-import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect.Parser;
@@ -261,20 +238,6 @@ public final class PlanNamedTypes {
             of(LogicalPlan.class, OrderBy.class, PlanNamedTypes::writeOrderBy, PlanNamedTypes::readOrderBy),
             of(LogicalPlan.class, Project.class, PlanNamedTypes::writeProject, PlanNamedTypes::readProject),
             of(LogicalPlan.class, TopN.class, PlanNamedTypes::writeTopN, PlanNamedTypes::readTopN),
-            // BinaryComparison
-            of(EsqlBinaryComparison.class, Equals.class, PlanNamedTypes::writeBinComparison, PlanNamedTypes::readBinComparison),
-            of(EsqlBinaryComparison.class, NotEquals.class, PlanNamedTypes::writeBinComparison, PlanNamedTypes::readBinComparison),
-            of(EsqlBinaryComparison.class, GreaterThan.class, PlanNamedTypes::writeBinComparison, PlanNamedTypes::readBinComparison),
-            of(EsqlBinaryComparison.class, GreaterThanOrEqual.class, PlanNamedTypes::writeBinComparison, PlanNamedTypes::readBinComparison),
-            of(EsqlBinaryComparison.class, LessThan.class, PlanNamedTypes::writeBinComparison, PlanNamedTypes::readBinComparison),
-            of(EsqlBinaryComparison.class, LessThanOrEqual.class, PlanNamedTypes::writeBinComparison, PlanNamedTypes::readBinComparison),
-            // InsensitiveEquals
-            of(
-                InsensitiveEquals.class,
-                InsensitiveEquals.class,
-                PlanNamedTypes::writeInsensitiveEquals,
-                PlanNamedTypes::readInsensitiveEquals
-            ),
             // InComparison
             of(ScalarFunction.class, In.class, PlanNamedTypes::writeInComparison, PlanNamedTypes::readInComparison),
             // RegexMatch
@@ -323,12 +286,6 @@ public final class PlanNamedTypes {
             of(ScalarFunction.class, Replace.class, PlanNamedTypes::writeReplace, PlanNamedTypes::readReplace),
             of(ScalarFunction.class, ToLower.class, PlanNamedTypes::writeToLower, PlanNamedTypes::readToLower),
             of(ScalarFunction.class, ToUpper.class, PlanNamedTypes::writeToUpper, PlanNamedTypes::readToUpper),
-            // ArithmeticOperations
-            of(ArithmeticOperation.class, Add.class, PlanNamedTypes::writeArithmeticOperation, PlanNamedTypes::readArithmeticOperation),
-            of(ArithmeticOperation.class, Sub.class, PlanNamedTypes::writeArithmeticOperation, PlanNamedTypes::readArithmeticOperation),
-            of(ArithmeticOperation.class, Mul.class, PlanNamedTypes::writeArithmeticOperation, PlanNamedTypes::readArithmeticOperation),
-            of(ArithmeticOperation.class, Div.class, PlanNamedTypes::writeArithmeticOperation, PlanNamedTypes::readArithmeticOperation),
-            of(ArithmeticOperation.class, Mod.class, PlanNamedTypes::writeArithmeticOperation, PlanNamedTypes::readArithmeticOperation),
             // GroupingFunctions
             of(GroupingFunction.class, Bucket.class, PlanNamedTypes::writeBucket, PlanNamedTypes::readBucket),
             // AggregateFunctions
@@ -342,35 +299,25 @@ public final class PlanNamedTypes {
             of(AggregateFunction.class, Percentile.class, PlanNamedTypes::writePercentile, PlanNamedTypes::readPercentile),
             of(AggregateFunction.class, SpatialCentroid.class, PlanNamedTypes::writeAggFunction, PlanNamedTypes::readAggFunction),
             of(AggregateFunction.class, Sum.class, PlanNamedTypes::writeAggFunction, PlanNamedTypes::readAggFunction),
-            of(AggregateFunction.class, Values.class, PlanNamedTypes::writeAggFunction, PlanNamedTypes::readAggFunction),
-            // Multivalue functions
-            of(ScalarFunction.class, MvAppend.class, PlanNamedTypes::writeMvAppend, PlanNamedTypes::readMvAppend),
-            of(ScalarFunction.class, MvAvg.class, PlanNamedTypes::writeMvFunction, PlanNamedTypes::readMvFunction),
-            of(ScalarFunction.class, MvCount.class, PlanNamedTypes::writeMvFunction, PlanNamedTypes::readMvFunction),
-            of(ScalarFunction.class, MvConcat.class, PlanNamedTypes::writeMvConcat, PlanNamedTypes::readMvConcat),
-            of(ScalarFunction.class, MvDedupe.class, PlanNamedTypes::writeMvFunction, PlanNamedTypes::readMvFunction),
-            of(ScalarFunction.class, MvFirst.class, PlanNamedTypes::writeMvFunction, PlanNamedTypes::readMvFunction),
-            of(ScalarFunction.class, MvLast.class, PlanNamedTypes::writeMvFunction, PlanNamedTypes::readMvFunction),
-            of(ScalarFunction.class, MvMax.class, PlanNamedTypes::writeMvFunction, PlanNamedTypes::readMvFunction),
-            of(ScalarFunction.class, MvMedian.class, PlanNamedTypes::writeMvFunction, PlanNamedTypes::readMvFunction),
-            of(ScalarFunction.class, MvMin.class, PlanNamedTypes::writeMvFunction, PlanNamedTypes::readMvFunction),
-            of(ScalarFunction.class, MvSort.class, PlanNamedTypes::writeMvSort, PlanNamedTypes::readMvSort),
-            of(ScalarFunction.class, MvSlice.class, PlanNamedTypes::writeMvSlice, PlanNamedTypes::readMvSlice),
-            of(ScalarFunction.class, MvSum.class, PlanNamedTypes::writeMvFunction, PlanNamedTypes::readMvFunction),
-            of(ScalarFunction.class, MvZip.class, PlanNamedTypes::writeMvZip, PlanNamedTypes::readMvZip)
+            of(AggregateFunction.class, TopList.class, (out, prefix) -> prefix.writeTo(out), TopList::readFrom),
+            of(AggregateFunction.class, Values.class, PlanNamedTypes::writeAggFunction, PlanNamedTypes::readAggFunction)
         );
         List<PlanNameRegistry.Entry> entries = new ArrayList<>(declared);
 
         // From NamedWriteables
-        for (NamedWriteableRegistry.Entry e : UnaryScalarFunction.getNamedWriteables()) {
-            entries.add(of(ESQL_UNARY_SCLR_CLS, e));
+        for (List<NamedWriteableRegistry.Entry> ee : List.of(
+            AbstractMultivalueFunction.getNamedWriteables(),
+            EsqlArithmeticOperation.getNamedWriteables(),
+            EsqlBinaryComparison.getNamedWriteables(),
+            FullTextPredicate.getNamedWriteables(),
+            NamedExpression.getNamedWriteables(),
+            UnaryScalarFunction.getNamedWriteables(),
+            List.of(UnsupportedAttribute.ENTRY, InsensitiveEquals.ENTRY, Literal.ENTRY, org.elasticsearch.xpack.esql.expression.Order.ENTRY)
+        )) {
+            for (NamedWriteableRegistry.Entry e : ee) {
+                entries.add(of(Expression.class, e));
+            }
         }
-        for (NamedWriteableRegistry.Entry e : NamedExpression.getNamedWriteables()) {
-            entries.add(of(Expression.class, e));
-        }
-        entries.add(of(Expression.class, UnsupportedAttribute.ENTRY));
-        entries.add(of(Expression.class, Literal.ENTRY));
-        entries.add(of(Expression.class, org.elasticsearch.xpack.esql.expression.Order.ENTRY));
 
         return entries;
     }
@@ -998,40 +945,6 @@ public final class PlanNamedTypes {
         out.writeExpression(topN.limit());
     }
 
-    // -- BinaryComparison
-
-    public static EsqlBinaryComparison readBinComparison(PlanStreamInput in, String name) throws IOException {
-        var source = Source.readFrom(in);
-        EsqlBinaryComparison.BinaryComparisonOperation operation = EsqlBinaryComparison.BinaryComparisonOperation.readFromStream(in);
-        var left = in.readExpression();
-        var right = in.readExpression();
-        // TODO: Remove zoneId entirely
-        var zoneId = in.readOptionalZoneId();
-        return operation.buildNewInstance(source, left, right);
-    }
-
-    public static void writeBinComparison(PlanStreamOutput out, EsqlBinaryComparison binaryComparison) throws IOException {
-        binaryComparison.source().writeTo(out);
-        binaryComparison.getFunctionType().writeTo(out);
-        out.writeExpression(binaryComparison.left());
-        out.writeExpression(binaryComparison.right());
-        out.writeOptionalZoneId(binaryComparison.zoneId());
-    }
-
-    // -- InsensitiveEquals
-    static InsensitiveEquals readInsensitiveEquals(PlanStreamInput in, String name) throws IOException {
-        var source = Source.readFrom(in);
-        var left = in.readExpression();
-        var right = in.readExpression();
-        return new InsensitiveEquals(source, left, right);
-    }
-
-    static void writeInsensitiveEquals(PlanStreamOutput out, InsensitiveEquals eq) throws IOException {
-        eq.source().writeTo(out);
-        out.writeExpression(eq.left());
-        out.writeExpression(eq.right());
-    }
-
     // -- InComparison
 
     static In readInComparison(PlanStreamInput in) throws IOException {
@@ -1468,29 +1381,6 @@ public final class PlanNamedTypes {
         out.writeCollection(children.subList(1, children.size()), writerFromPlanWriter(PlanStreamOutput::writeExpression));
     }
 
-    // -- ArithmeticOperations
-
-    static final Map<String, TriFunction<Source, Expression, Expression, ArithmeticOperation>> ARITHMETIC_CTRS = Map.ofEntries(
-        entry(name(Add.class), Add::new),
-        entry(name(Sub.class), Sub::new),
-        entry(name(Mul.class), Mul::new),
-        entry(name(Div.class), Div::new),
-        entry(name(Mod.class), Mod::new)
-    );
-
-    static ArithmeticOperation readArithmeticOperation(PlanStreamInput in, String name) throws IOException {
-        var source = Source.readFrom(in);
-        var left = in.readExpression();
-        var right = in.readExpression();
-        return ARITHMETIC_CTRS.get(name).apply(source, left, right);
-    }
-
-    static void writeArithmeticOperation(PlanStreamOutput out, ArithmeticOperation arithmeticOperation) throws IOException {
-        arithmeticOperation.source().writeTo(out);
-        out.writeExpression(arithmeticOperation.left());
-        out.writeExpression(arithmeticOperation.right());
-    }
-
     // -- Aggregations
     static final Map<String, BiFunction<Source, Expression, AggregateFunction>> AGG_CTRS = Map.ofEntries(
         entry(name(Avg.class), Avg::new),
@@ -1511,38 +1401,6 @@ public final class PlanNamedTypes {
     static void writeAggFunction(PlanStreamOutput out, AggregateFunction aggregateFunction) throws IOException {
         Source.EMPTY.writeTo(out);
         out.writeExpression(aggregateFunction.field());
-    }
-
-    // -- Multivalue functions
-    static final Map<String, BiFunction<Source, Expression, AbstractMultivalueFunction>> MV_CTRS = Map.ofEntries(
-        entry(name(MvAvg.class), MvAvg::new),
-        entry(name(MvCount.class), MvCount::new),
-        entry(name(MvDedupe.class), MvDedupe::new),
-        entry(name(MvFirst.class), MvFirst::new),
-        entry(name(MvLast.class), MvLast::new),
-        entry(name(MvMax.class), MvMax::new),
-        entry(name(MvMedian.class), MvMedian::new),
-        entry(name(MvMin.class), MvMin::new),
-        entry(name(MvSum.class), MvSum::new)
-    );
-
-    static AbstractMultivalueFunction readMvFunction(PlanStreamInput in, String name) throws IOException {
-        return MV_CTRS.get(name).apply(Source.readFrom(in), in.readExpression());
-    }
-
-    static void writeMvFunction(PlanStreamOutput out, AbstractMultivalueFunction fn) throws IOException {
-        Source.EMPTY.writeTo(out);
-        out.writeExpression(fn.field());
-    }
-
-    static MvConcat readMvConcat(PlanStreamInput in) throws IOException {
-        return new MvConcat(Source.readFrom(in), in.readExpression(), in.readExpression());
-    }
-
-    static void writeMvConcat(PlanStreamOutput out, MvConcat fn) throws IOException {
-        Source.EMPTY.writeTo(out);
-        out.writeExpression(fn.left());
-        out.writeExpression(fn.right());
     }
 
     // -- ancillary supporting classes of plan nodes, etc
@@ -1597,55 +1455,5 @@ public final class PlanNamedTypes {
         assert fields.size() == 1 || fields.size() == 2;
         out.writeExpression(fields.get(0));
         out.writeOptionalWriteable(fields.size() == 2 ? o -> out.writeExpression(fields.get(1)) : null);
-    }
-
-    static MvSort readMvSort(PlanStreamInput in) throws IOException {
-        return new MvSort(Source.readFrom(in), in.readExpression(), in.readOptionalNamed(Expression.class));
-    }
-
-    static void writeMvSort(PlanStreamOutput out, MvSort mvSort) throws IOException {
-        mvSort.source().writeTo(out);
-        List<Expression> fields = mvSort.children();
-        assert fields.size() == 1 || fields.size() == 2;
-        out.writeExpression(fields.get(0));
-        out.writeOptionalWriteable(fields.size() == 2 ? o -> out.writeExpression(fields.get(1)) : null);
-    }
-
-    static MvSlice readMvSlice(PlanStreamInput in) throws IOException {
-        return new MvSlice(Source.readFrom(in), in.readExpression(), in.readExpression(), in.readOptionalNamed(Expression.class));
-    }
-
-    static void writeMvSlice(PlanStreamOutput out, MvSlice fn) throws IOException {
-        Source.EMPTY.writeTo(out);
-        List<Expression> fields = fn.children();
-        assert fields.size() == 2 || fields.size() == 3;
-        out.writeExpression(fields.get(0));
-        out.writeExpression(fields.get(1));
-        out.writeOptionalWriteable(fields.size() == 3 ? o -> out.writeExpression(fields.get(2)) : null);
-    }
-
-    static MvZip readMvZip(PlanStreamInput in) throws IOException {
-        return new MvZip(Source.readFrom(in), in.readExpression(), in.readExpression(), in.readOptionalNamed(Expression.class));
-    }
-
-    static void writeMvZip(PlanStreamOutput out, MvZip fn) throws IOException {
-        Source.EMPTY.writeTo(out);
-        List<Expression> fields = fn.children();
-        assert fields.size() == 2 || fields.size() == 3;
-        out.writeExpression(fields.get(0));
-        out.writeExpression(fields.get(1));
-        out.writeOptionalWriteable(fields.size() == 3 ? o -> out.writeExpression(fields.get(2)) : null);
-    }
-
-    static MvAppend readMvAppend(PlanStreamInput in) throws IOException {
-        return new MvAppend(Source.readFrom(in), in.readExpression(), in.readExpression());
-    }
-
-    static void writeMvAppend(PlanStreamOutput out, MvAppend fn) throws IOException {
-        Source.EMPTY.writeTo(out);
-        List<Expression> fields = fn.children();
-        assert fields.size() == 2;
-        out.writeExpression(fields.get(0));
-        out.writeExpression(fields.get(1));
     }
 }

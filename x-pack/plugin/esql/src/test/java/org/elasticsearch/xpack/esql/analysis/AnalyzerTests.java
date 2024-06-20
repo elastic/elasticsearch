@@ -85,6 +85,7 @@ import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.matchesRegex;
+import static org.hamcrest.Matchers.sameInstance;
 import static org.hamcrest.Matchers.startsWith;
 
 //@TestLogging(value = "org.elasticsearch.xpack.esql.analysis:TRACE", reason = "debug")
@@ -1979,6 +1980,49 @@ public class AnalyzerTests extends ESTestCase {
                  */
                 .item(containsString("name{r}"))
         );
+    }
+
+    public void testLookupTwice() {
+        String query = """
+              FROM test
+            | RENAME languages AS int
+            | LOOKUP int_number_names ON int
+            | RENAME name AS languages_name, int AS languages
+            | EVAL int = LENGTH(last_name)
+            | LOOKUP int_number_names ON int
+            | DROP int
+            | RENAME name AS height_int_name
+            """;
+        if (Build.current().isProductionRelease()) {
+            var e = expectThrows(VerificationException.class, () -> analyze(query));
+            assertThat(e.getMessage(), containsString("line 3:4: LOOKUP is in preview and only available in SNAPSHOT build"));
+            return;
+        }
+        LogicalPlan plan = analyze(query);
+        var limit = as(plan, Limit.class);
+        assertThat(limit.limit().fold(), equalTo(1000));
+
+        var project = as(limit.child(), EsqlProject.class);
+        project = as(project.child(), EsqlProject.class);
+        var lookup1 = as(project.child(), Lookup.class);
+        assertThat(lookup1.tableName().fold(), equalTo("int_number_names"));
+        assertMap(lookup1.matchFields().stream().map(Object::toString).toList(), matchesList().item(startsWith("int{r}")));
+
+        var eval = as(lookup1.child(), Eval.class);
+        project = as(eval.child(), EsqlProject.class);
+
+        var lookup2 = as(project.child(), Lookup.class);
+        assertThat(lookup2.tableName().fold(), equalTo("int_number_names"));
+        assertMap(lookup2.matchFields().stream().map(Object::toString).toList(), matchesList().item(startsWith("int{r}")));
+
+        /*
+         * Since lookup1 and lookup2 resolve to the
+         */
+        assertThat(lookup1.localRelation(), sameInstance(lookup2.localRelation()));
+
+        project = as(lookup2.child(), EsqlProject.class);
+        var esRelation = as(project.child(), EsRelation.class);
+        assertThat(esRelation.index().name(), equalTo("test"));
     }
 
     public void testLookupMissingField() {

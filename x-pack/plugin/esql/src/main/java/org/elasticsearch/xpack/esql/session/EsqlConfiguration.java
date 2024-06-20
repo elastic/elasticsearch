@@ -13,15 +13,25 @@ import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockStreamInput;
 import org.elasticsearch.xpack.esql.Column;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.session.Configuration;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
+import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.ZoneId;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
@@ -44,6 +54,11 @@ public class EsqlConfiguration extends Configuration implements Writeable {
     private final boolean profile;
 
     private final Map<String, Map<String, Column>> tables;
+
+    /**
+     * Lazy conversion of {@link #tables} to {@link LocalRelation}.
+     */
+    private final Map<String, LocalRelation> tablesFromLocalRelation = new HashMap<>();
 
     public EsqlConfiguration(
         ZoneId zi,
@@ -142,6 +157,36 @@ public class EsqlConfiguration extends Configuration implements Writeable {
      */
     public Map<String, Map<String, Column>> tables() {
         return tables;
+    }
+
+    /**
+     * Get a {@link LocalRelation} from the {@link #tables()} or {@code null}
+     * if there's no parameter with that name. This will cache the result so
+     * the same name will always return the same {@linkplain LocalRelation}.
+     * That isn't strictly needed, but it feels nice.
+     */
+    public LocalRelation localRelationFromTable(String name) {
+        LocalRelation localRelation = tablesFromLocalRelation.get(name);
+        if (localRelation != null) {
+            return localRelation;
+        }
+        Map<String, Column> table = tables.get(name);
+        if (table == null) {
+            return null;
+        }
+        Block[] blocks = new Block[table.size()];
+
+        List<Attribute> attributes = new ArrayList<>(blocks.length);
+        int i = 0;
+        for (Map.Entry<String, Column> entry : table.entrySet()) {
+            Column column = entry.getValue();
+            EsField field = new EsField(entry.getKey(), column.type(), Map.of(), false, false);
+            attributes.add(new FieldAttribute(Source.EMPTY, null, entry.getKey(), field));
+            blocks[i++] = column.values();
+        }
+        localRelation = new LocalRelation(Source.EMPTY, attributes, LocalSupplier.of(blocks));
+        tablesFromLocalRelation.put(name, localRelation);
+        return localRelation;
     }
 
     /**

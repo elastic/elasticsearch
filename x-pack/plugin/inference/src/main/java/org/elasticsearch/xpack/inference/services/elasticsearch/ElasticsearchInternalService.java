@@ -491,7 +491,7 @@ public class ElasticsearchInternalService implements InferenceService {
                     }
                 })
             );
-        } else if (model instanceof CustomElandEmbeddingModel) {
+        } else if (model instanceof CustomElandModel) {
             logger.info("Custom eland model detected, model must have been already loaded into the cluster with eland.");
             listener.onResponse(Boolean.TRUE);
         } else {

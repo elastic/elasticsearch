@@ -65,9 +65,9 @@ public class StDistance extends BinarySpatialFunction implements EvaluatorMapper
 
         @Override
         protected double distance(Point left, Point right) {
-           final double diffX = left.getX() - right.getX();
-           final double diffY = left.getY() - right.getY(); 
-           return Math.sqrt(diffX * diffX + diffY * diffY);
+            final double diffX = left.getX() - right.getX();
+            final double diffY = left.getY() - right.getY();
+            return Math.sqrt(diffX * diffX + diffY * diffY);
         }
     }
 

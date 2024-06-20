@@ -96,7 +96,7 @@ public abstract class TransportReplicationAction<
          */
         ForceExecutionOnPrimary,
         /**
-         * Sync the global checkpoint to the replicas after the action completes successfully on the primary
+         * Sync the global checkpoint to the replicas after the action completes successfully
          */
         SyncGlobalCheckpointAfterOperation,
         /**

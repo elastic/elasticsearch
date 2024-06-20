@@ -47,7 +47,7 @@ public class SynonymsTestUtils {
         return randomSynonymRule(randomBoolean() ? null : randomIdentifier());
     }
 
-    static SynonymRule randomSynonymRule(String id) {
+    public static SynonymRule randomSynonymRule(String id) {
         return new SynonymRule(id, String.join(", ", randomArray(1, 10, String[]::new, () -> randomAlphaOfLengthBetween(1, 10))));
     }
 

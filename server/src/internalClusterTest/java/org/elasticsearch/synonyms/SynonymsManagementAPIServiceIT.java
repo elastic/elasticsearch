@@ -8,7 +8,9 @@
 
 package org.elasticsearch.synonyms;
 
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.reindex.ReindexPlugin;
@@ -20,7 +22,12 @@ import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.action.synonyms.SynonymsTestUtils.randomSynonymRule;
 import static org.elasticsearch.action.synonyms.SynonymsTestUtils.randomSynonymsSet;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 
 public class SynonymsManagementAPIServiceIT extends ESIntegTestCase {
 
@@ -185,10 +192,45 @@ public class SynonymsManagementAPIServiceIT extends ESIntegTestCase {
             @Override
             public void onResponse(SynonymsManagementAPIService.SynonymsReloadResult synonymsReloadResult) {
                 // Updating a rule fails
-                synonymsManagementAPIService.putSynonymRule(synonymSetId, synonymsSet[0], new ActionListener<>() {
+                synonymsManagementAPIService.putSynonymRule(
+                    synonymSetId,
+                    synonymsSet[randomIntBetween(0, maxSynonymSets)],
+                    new ActionListener<>() {
+                        @Override
+                        public void onResponse(SynonymsManagementAPIService.SynonymsReloadResult synonymsReloadResult) {
+                            latch.countDown();
+                        }
+
+                        @Override
+                        public void onFailure(Exception e) {
+                            fail("Should update a rule that already exists at max capcity");
+                        }
+                    }
+                );
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                fail(e);
+            }
+        });
+
+        latch.await(5, TimeUnit.SECONDS);
+    }
+
+    public void testCreateRuleWithMaxSynonyms() throws InterruptedException {
+        CountDownLatch latch = new CountDownLatch(1);
+        String synonymSetId = randomIdentifier();
+        String ruleId = randomIdentifier();
+        SynonymRule[] synonymsSet = randomSynonymsSet(maxSynonymSets, maxSynonymSets);
+        synonymsManagementAPIService.putSynonymsSet(synonymSetId, synonymsSet, new ActionListener<>() {
+            @Override
+            public void onResponse(SynonymsManagementAPIService.SynonymsReloadResult synonymsReloadResult) {
+                // Updating a rule fails
+                synonymsManagementAPIService.putSynonymRule(synonymSetId, randomSynonymRule(ruleId), new ActionListener<>() {
                     @Override
                     public void onResponse(SynonymsManagementAPIService.SynonymsReloadResult synonymsReloadResult) {
-                        fail("Shouldn't have been able to update a rule with max synonyms");
+                        fail("Should not create a new rule that does not exist when at max capacity");
                     }
 
                     @Override
@@ -205,5 +247,45 @@ public class SynonymsManagementAPIServiceIT extends ESIntegTestCase {
         });
 
         latch.await(5, TimeUnit.SECONDS);
+    }
+
+    public void testTooManySynonymsOnIndexTriggersWarning() throws InterruptedException {
+        CountDownLatch insertLatch = new CountDownLatch(1);
+        String synonymSetId = randomIdentifier();
+        synonymsManagementAPIService.bulkUpdateSynonymsSet(
+            synonymSetId,
+            randomSynonymsSet(atLeast(maxSynonymSets + 1)),
+            new ActionListener<>() {
+                @Override
+                public void onResponse(BulkResponse bulkItemResponses) {
+                    insertLatch.countDown();
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    fail(e);
+                }
+            }
+        );
+
+        insertLatch.await(5, TimeUnit.SECONDS);
+        Logger logger = mock(Logger.class);
+        SynonymsManagementAPIService.logger = logger;
+
+        CountDownLatch readLatch = new CountDownLatch(1);
+        synonymsManagementAPIService.getSynonymSetRules(synonymSetId, new ActionListener<>() {
+            @Override
+            public void onResponse(PagedResult<SynonymRule> synonymRulePagedResult) {
+                readLatch.countDown();
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                fail("Should not have been able to retrieve synonyms");
+            }
+        });
+
+        readLatch.await(5, TimeUnit.SECONDS);
+        verify(logger).warn(anyString(), eq(synonymSetId));
     }
 }

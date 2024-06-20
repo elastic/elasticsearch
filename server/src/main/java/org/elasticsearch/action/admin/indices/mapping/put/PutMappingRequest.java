@@ -48,7 +48,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  */
 public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> implements IndicesRequest.Replaceable {
 
-    private static final Set<String> RESERVED_FIELDS = Set.of(
+    public static final Set<String> RESERVED_FIELDS = Set.of(
         "_uid",
         "_id",
         "_type",

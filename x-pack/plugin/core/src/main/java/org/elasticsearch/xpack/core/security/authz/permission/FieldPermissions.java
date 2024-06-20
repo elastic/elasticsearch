@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.core.security.authz.permission;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.RamUsageEstimator;
-import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.apache.lucene.util.automaton.MinimizationOperations;
@@ -35,6 +34,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import static org.apache.lucene.util.automaton.Operations.subsetOf;
+import static org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest.RESERVED_FIELDS;
 
 /**
  * Stores patterns to fields which access is granted or denied to and maintains an automaton that can be used to check if permission is
@@ -162,9 +162,8 @@ public final class FieldPermissions implements Accountable, CacheKey {
         if (grantedFields == null || Arrays.stream(grantedFields).anyMatch(Regex::isMatchAllPattern)) {
             grantedFieldsAutomaton = Automatons.MATCH_ALL;
         } else {
-            // an automaton that includes metadata fields, including join fields created by the _parent field such
-            // as _parent#type
-            Automaton metaFieldsAutomaton = Operations.concatenate(Automata.makeChar('_'), Automata.makeAnyString());
+            // an automaton that includes all reserved metadata fields
+            Automaton metaFieldsAutomaton = Regex.simpleMatchToAutomaton(RESERVED_FIELDS.toArray(new String[0]));
             grantedFieldsAutomaton = Operations.union(Automatons.patterns(grantedFields), metaFieldsAutomaton);
         }
 

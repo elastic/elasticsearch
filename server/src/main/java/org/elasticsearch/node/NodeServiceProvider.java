@@ -26,7 +26,7 @@ import org.elasticsearch.indices.ExecutorSelector;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.recovery.RecoverySettings;
-import org.elasticsearch.plugins.loading.PluginsService;
+import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.readiness.ReadinessService;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptEngine;

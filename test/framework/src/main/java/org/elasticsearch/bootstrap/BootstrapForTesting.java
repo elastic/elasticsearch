@@ -215,7 +215,7 @@ public class BootstrapForTesting {
     static Map<String, URL> getCodebases() {
         Map<String, URL> codebases = PolicyUtil.getCodebaseJarMap(JarHell.parseClassPath());
         // when testing server, the main elasticsearch code is not yet in a jar, so we need to manually add it
-        addClassCodebase(codebases, "elasticsearch", "org.elasticsearch.plugins.loading.PluginsService");
+        addClassCodebase(codebases, "elasticsearch", "org.elasticsearch.plugins.PluginsService");
         addClassCodebase(codebases, "elasticsearch-plugin-classloader", "org.elasticsearch.plugins.loader.ExtendedPluginsClassLoader");
         addClassCodebase(codebases, "elasticsearch-nio", "org.elasticsearch.nio.ChannelFactory");
         addClassCodebase(codebases, "elasticsearch-secure-sm", "org.elasticsearch.secure_sm.SecureSM");

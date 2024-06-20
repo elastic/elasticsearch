@@ -13,8 +13,8 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.util.Collections;
 
-import static org.elasticsearch.index.mapper.MapperService.MergeReason.MAPPING_UPDATE;
 import static org.elasticsearch.index.mapper.MapperService.MergeReason.INDEX_TEMPLATE;
+import static org.elasticsearch.index.mapper.MapperService.MergeReason.MAPPING_UPDATE;
 
 public final class ObjectMapperMergeTests extends ESTestCase {
 

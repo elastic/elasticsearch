@@ -331,7 +331,11 @@ public class RollupJobTaskTests extends ESTestCase {
                             RollupField.TASK_NAME,
                             job,
                             1,
-                            new PersistentTasksCustomMetadata.Assignment("foo", "foo")
+                            new PersistentTasksCustomMetadata.Assignment(
+                                "foo",
+                                "foo",
+                                PersistentTasksCustomMetadata.Explanation.ASSIGNMENT_SUCCESSFUL
+                            )
                         )
                     );
                     counter.incrementAndGet();
@@ -433,7 +437,11 @@ public class RollupJobTaskTests extends ESTestCase {
                         RollupField.TASK_NAME,
                         job,
                         1,
-                        new PersistentTasksCustomMetadata.Assignment("foo", "foo")
+                        new PersistentTasksCustomMetadata.Assignment(
+                            "foo",
+                            "foo",
+                            PersistentTasksCustomMetadata.Explanation.ASSIGNMENT_SUCCESSFUL
+                        )
                     )
                 );
             }
@@ -492,7 +500,11 @@ public class RollupJobTaskTests extends ESTestCase {
                         RollupField.TASK_NAME,
                         job,
                         1,
-                        new PersistentTasksCustomMetadata.Assignment("foo", "foo")
+                        new PersistentTasksCustomMetadata.Assignment(
+                            "foo",
+                            "foo",
+                            PersistentTasksCustomMetadata.Explanation.ASSIGNMENT_SUCCESSFUL
+                        )
                     )
                 );
             }
@@ -554,7 +566,11 @@ public class RollupJobTaskTests extends ESTestCase {
                         RollupField.TASK_NAME,
                         job,
                         1,
-                        new PersistentTasksCustomMetadata.Assignment("foo", "foo")
+                        new PersistentTasksCustomMetadata.Assignment(
+                            "foo",
+                            "foo",
+                            PersistentTasksCustomMetadata.Explanation.ASSIGNMENT_SUCCESSFUL
+                        )
                     )
                 );
             }
@@ -650,7 +666,11 @@ public class RollupJobTaskTests extends ESTestCase {
                             RollupField.TASK_NAME,
                             job,
                             1,
-                            new PersistentTasksCustomMetadata.Assignment("foo", "foo")
+                            new PersistentTasksCustomMetadata.Assignment(
+                                "foo",
+                                "foo",
+                                PersistentTasksCustomMetadata.Explanation.ASSIGNMENT_SUCCESSFUL
+                            )
                         )
                     );
                 } else if (counterValue == 1) {
@@ -759,7 +779,11 @@ public class RollupJobTaskTests extends ESTestCase {
                             RollupField.TASK_NAME,
                             job,
                             1,
-                            new PersistentTasksCustomMetadata.Assignment("foo", "foo")
+                            new PersistentTasksCustomMetadata.Assignment(
+                                "foo",
+                                "foo",
+                                PersistentTasksCustomMetadata.Explanation.ASSIGNMENT_SUCCESSFUL
+                            )
                         )
                     );
                 } else if (counterValue == 1) {
@@ -870,7 +894,11 @@ public class RollupJobTaskTests extends ESTestCase {
                             RollupField.TASK_NAME,
                             job,
                             1,
-                            new PersistentTasksCustomMetadata.Assignment("foo", "foo")
+                            new PersistentTasksCustomMetadata.Assignment(
+                                "foo",
+                                "foo",
+                                PersistentTasksCustomMetadata.Explanation.ASSIGNMENT_SUCCESSFUL
+                            )
                         )
                     );
                 } else if (counterValue == 1) {
@@ -992,7 +1020,11 @@ public class RollupJobTaskTests extends ESTestCase {
                             RollupField.TASK_NAME,
                             job,
                             1,
-                            new PersistentTasksCustomMetadata.Assignment("foo", "foo")
+                            new PersistentTasksCustomMetadata.Assignment(
+                                "foo",
+                                "foo",
+                                PersistentTasksCustomMetadata.Explanation.ASSIGNMENT_SUCCESSFUL
+                            )
                         )
                     );
                     counter.incrementAndGet();

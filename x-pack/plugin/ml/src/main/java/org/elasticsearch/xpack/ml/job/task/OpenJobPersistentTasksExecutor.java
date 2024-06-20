@@ -171,28 +171,34 @@ public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksEx
         return MlConfigVersion.getMlConfigVersionForNode(node).onOrAfter(job.getModelSnapshotMinVersion());
     }
 
-    public static String nodeFilter(DiscoveryNode node, Job job) {
+    public static JobNodeSelector.ExplanationAndDescription nodeFilter(DiscoveryNode node, Job job) {
 
         String jobId = job.getId();
 
         if (nodeSupportsModelSnapshotVersion(node, job) == false) {
-            return "Not opening job ["
-                + jobId
-                + "] on node ["
-                + JobNodeSelector.nodeNameAndVersion(node)
-                + "], because the job's model snapshot requires a node with ML config version ["
-                + job.getModelSnapshotMinVersion()
-                + "] or higher";
+            return new JobNodeSelector.ExplanationAndDescription(
+                PersistentTasksCustomMetadata.Explanation.CONFIG_VERSION_TOO_LOW,
+                "Not opening job ["
+                    + jobId
+                    + "] on node ["
+                    + JobNodeSelector.nodeNameAndVersion(node)
+                    + "], because the job's model snapshot requires a node with ML config version ["
+                    + job.getModelSnapshotMinVersion()
+                    + "] or higher"
+            );
         }
 
         if (Job.getCompatibleJobTypes(MlConfigVersion.getMlConfigVersionForNode(node)).contains(job.getJobType()) == false) {
-            return "Not opening job ["
-                + jobId
-                + "] on node ["
-                + JobNodeSelector.nodeNameAndVersion(node)
-                + "], because this node does not support jobs of type ["
-                + job.getJobType()
-                + "]";
+            return new JobNodeSelector.ExplanationAndDescription(
+                PersistentTasksCustomMetadata.Explanation.NODE_NOT_COMPATIBLE,
+                "Not opening job ["
+                    + jobId
+                    + "] on node ["
+                    + JobNodeSelector.nodeNameAndVersion(node)
+                    + "], because this node does not support jobs of type ["
+                    + job.getJobType()
+                    + "]"
+            );
         }
 
         return null;
@@ -230,7 +236,7 @@ public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksEx
         }
 
         if (assignment.getExecutorNode() == null && assignment.equals(AWAITING_LAZY_ASSIGNMENT) == false) {
-            throw makeNoSuitableNodesException(logger, params.getJobId(), assignment.getExplanation());
+            throw makeNoSuitableNodesException(logger, params.getJobId(), assignment.getExplanationCodesAndExplanation());
         }
     }
 
@@ -629,10 +635,10 @@ public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksEx
             // Assignment has failed on the master node despite passing our "fast fail" validation
             if (assignment.equals(AWAITING_UPGRADE)) {
                 return Optional.of(makeCurrentlyBeingUpgradedException(logger, jobId));
-            } else if (assignment.getExplanation().contains("[" + EnableAssignmentDecider.ALLOCATION_NONE_EXPLANATION + "]")) {
+            } else if (assignment.getExplanationCodes().contains(PersistentTasksCustomMetadata.Explanation.ASSIGNMENTS_NOT_ALLOWED)) {
                 return Optional.of(makeAssignmentsNotAllowedException(logger, jobId));
             } else {
-                return Optional.of(makeNoSuitableNodesException(logger, jobId, assignment.getExplanation()));
+                return Optional.of(makeNoSuitableNodesException(logger, jobId, assignment.getExplanationCodesAndExplanation()));
             }
         }
         return Optional.empty();

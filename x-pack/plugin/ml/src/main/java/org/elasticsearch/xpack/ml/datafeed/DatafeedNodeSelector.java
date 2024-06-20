@@ -40,11 +40,13 @@ public class DatafeedNodeSelector {
 
     public static final PersistentTasksCustomMetadata.Assignment AWAITING_JOB_ASSIGNMENT = new PersistentTasksCustomMetadata.Assignment(
         null,
-        "datafeed awaiting job assignment."
+        "datafeed awaiting job assignment.",
+        PersistentTasksCustomMetadata.Explanation.WAITING_FOR_INITIAL_ASSIGNMENT
     );
     public static final PersistentTasksCustomMetadata.Assignment AWAITING_JOB_RELOCATION = new PersistentTasksCustomMetadata.Assignment(
         null,
-        "datafeed awaiting job relocation."
+        "datafeed awaiting job relocation.",
+        PersistentTasksCustomMetadata.Explanation.AWAITING_REASSIGNMENT
     );
 
     private final String datafeedId;
@@ -75,7 +77,11 @@ public class DatafeedNodeSelector {
 
     public void checkDatafeedTaskCanBeCreated() {
         if (MlMetadata.getMlMetadata(clusterState).isUpgradeMode()) {
-            String msg = "Unable to start datafeed [" + datafeedId + "] explanation [" + AWAITING_UPGRADE.getExplanation() + "]";
+            String msg = "Unable to start datafeed ["
+                + datafeedId
+                + "] explanation ["
+                + AWAITING_UPGRADE.getExplanationCodesAndExplanation()
+                + "]";
             LOGGER.debug(msg);
             Exception detail = new IllegalStateException(msg);
             throw new ElasticsearchStatusException(
@@ -126,11 +132,12 @@ public class DatafeedNodeSelector {
             if (candidateNodes.stream().anyMatch(candidateNode -> candidateNode.getId().equals(jobNode)) == false) {
                 return AWAITING_JOB_RELOCATION;
             }
-            return new PersistentTasksCustomMetadata.Assignment(jobNode, "");
+            return new PersistentTasksCustomMetadata.Assignment(jobNode, PersistentTasksCustomMetadata.Explanation.ASSIGNMENT_SUCCESSFUL);
         }
         LOGGER.debug(assignmentFailure.reason);
-        assert assignmentFailure.reason.isEmpty() == false;
-        return new PersistentTasksCustomMetadata.Assignment(null, assignmentFailure.reason);
+        assert assignmentFailure.reason != null;
+        assert assignmentFailure.details.isEmpty() == false;
+        return new PersistentTasksCustomMetadata.Assignment(null, assignmentFailure.details, assignmentFailure.reason);
     }
 
     @Nullable
@@ -156,12 +163,14 @@ public class DatafeedNodeSelector {
                 + "] while state ["
                 + JobState.OPENED
                 + "] is required";
-            priorityFailureCollector.add(new AssignmentFailure(reason, true));
+            priorityFailureCollector.add(
+                new AssignmentFailure(PersistentTasksCustomMetadata.Explanation.DATAFEED_JOB_STATE_NOT_OPEN, reason, true)
+            );
         }
 
         if (jobTaskState != null && jobTaskState.isStatusStale(jobTask)) {
             String reason = "cannot start datafeed [" + datafeedId + "], because the job's [" + jobId + "] state is stale";
-            priorityFailureCollector.add(new AssignmentFailure(reason, true));
+            priorityFailureCollector.add(new AssignmentFailure(PersistentTasksCustomMetadata.Explanation.DATAFEED_JOB_STALE, reason, true));
         }
 
         return priorityFailureCollector.get();
@@ -183,6 +192,7 @@ public class DatafeedNodeSelector {
             // If we have remote indices we cannot check those. We should not fail as they may contain data.
             if (hasRemoteIndices == false && concreteIndices.length == 0) {
                 return new AssignmentFailure(
+                    PersistentTasksCustomMetadata.Explanation.DATAFEED_INDEX_NOT_FOUND,
                     "cannot start datafeed ["
                         + datafeedId
                         + "] because index ["
@@ -199,6 +209,7 @@ public class DatafeedNodeSelector {
             );
             LOGGER.debug("[" + datafeedId + "] " + msg, e);
             return new AssignmentFailure(
+                PersistentTasksCustomMetadata.Explanation.DATAFEED_RESOLVING_INDEX_THREW_EXCEPTION,
                 "cannot start datafeed [" + datafeedId + "] because it " + msg + " with exception [" + e.getMessage() + "]",
                 true
             );
@@ -210,6 +221,7 @@ public class DatafeedNodeSelector {
                 || routingTable.allPrimaryShardsActive() == false
                 || routingTable.readyForSearch(clusterState) == false) {
                 return new AssignmentFailure(
+                    PersistentTasksCustomMetadata.Explanation.PRIMARY_SHARDS_NOT_ACTIVE,
                     "cannot start datafeed ["
                         + datafeedId
                         + "] because index ["
@@ -223,11 +235,13 @@ public class DatafeedNodeSelector {
     }
 
     private static class AssignmentFailure {
-        private final String reason;
+        private final PersistentTasksCustomMetadata.Explanation reason;
+        private final String details;
         private final boolean isCriticalForTaskCreation;
 
-        private AssignmentFailure(String reason, boolean isCriticalForTaskCreation) {
+        private AssignmentFailure(PersistentTasksCustomMetadata.Explanation reason, String details, boolean isCriticalForTaskCreation) {
             this.reason = reason;
+            this.details = details;
             this.isCriticalForTaskCreation = isCriticalForTaskCreation;
         }
     }

@@ -24,6 +24,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata.Assignment;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -42,7 +43,9 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.emptyString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -64,7 +67,7 @@ public class TransportStartDataFrameAnalyticsActionTests extends ESTestCase {
 
         Assignment assignment = executor.getAssignment(params, clusterState.nodes().getAllNodes(), clusterState);
         assertThat(assignment.getExecutorNode(), is(nullValue()));
-        assertThat(assignment.getExplanation(), is(equalTo("persistent task cannot be assigned while upgrade mode is enabled.")));
+        assertThat(assignment.getExplanation(), containsString("persistent task cannot be assigned while upgrade mode is enabled."));
     }
 
     // Cannot assign the node because there are no existing nodes in the cluster state
@@ -77,6 +80,7 @@ public class TransportStartDataFrameAnalyticsActionTests extends ESTestCase {
 
         Assignment assignment = executor.getAssignment(params, clusterState.nodes().getAllNodes(), clusterState);
         assertThat(assignment.getExecutorNode(), is(nullValue()));
+        assertThat(assignment.getExplanationCodes(), empty());
         assertThat(assignment.getExplanation(), is(emptyString()));
     }
 
@@ -96,6 +100,7 @@ public class TransportStartDataFrameAnalyticsActionTests extends ESTestCase {
 
         Assignment assignment = executor.getAssignment(params, clusterState.nodes().getAllNodes(), clusterState);
         assertThat(assignment.getExecutorNode(), is(nullValue()));
+        assertThat(assignment.getExplanationCodes(), contains(PersistentTasksCustomMetadata.Explanation.NODE_NOT_COMPATIBLE));
         assertThat(
             assignment.getExplanation(),
             allOf(
@@ -118,6 +123,7 @@ public class TransportStartDataFrameAnalyticsActionTests extends ESTestCase {
 
         Assignment assignment = executor.getAssignment(params, clusterState.nodes().getAllNodes(), clusterState);
         assertThat(assignment.getExecutorNode(), is(equalTo("_node_id0")));
+        assertThat(assignment.getExplanationCodes(), contains(PersistentTasksCustomMetadata.Explanation.ASSIGNMENT_SUCCESSFUL));
         assertThat(assignment.getExplanation(), is(emptyString()));
     }
 

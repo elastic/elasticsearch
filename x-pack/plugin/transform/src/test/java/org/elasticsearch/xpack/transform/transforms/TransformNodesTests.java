@@ -56,13 +56,21 @@ public class TransformNodesTests extends ESTestCase {
             transformIdFoo,
             TransformField.TASK_NAME,
             new TransformTaskParams(transformIdFoo, TransformConfigVersion.CURRENT, null, false),
-            new PersistentTasksCustomMetadata.Assignment("node-1", "test assignment")
+            new PersistentTasksCustomMetadata.Assignment(
+                "node-1",
+                "test assignment",
+                PersistentTasksCustomMetadata.Explanation.ASSIGNMENT_SUCCESSFUL
+            )
         );
         tasksBuilder.addTask(
             transformIdBar,
             TransformField.TASK_NAME,
             new TransformTaskParams(transformIdBar, TransformConfigVersion.CURRENT, null, false),
-            new PersistentTasksCustomMetadata.Assignment("node-2", "test assignment")
+            new PersistentTasksCustomMetadata.Assignment(
+                "node-2",
+                "test assignment",
+                PersistentTasksCustomMetadata.Explanation.ASSIGNMENT_SUCCESSFUL
+            )
         );
         tasksBuilder.addTask("test-task1", "testTasks", new PersistentTaskParams() {
             @Override
@@ -84,24 +92,42 @@ public class TransformNodesTests extends ESTestCase {
             public XContentBuilder toXContent(XContentBuilder builder, Params params) {
                 return null;
             }
-        }, new PersistentTasksCustomMetadata.Assignment("node-3", "test assignment"));
+        },
+            new PersistentTasksCustomMetadata.Assignment(
+                "node-3",
+                "test assignment",
+                PersistentTasksCustomMetadata.Explanation.ASSIGNMENT_SUCCESSFUL
+            )
+        );
         tasksBuilder.addTask(
             transformIdFailed,
             TransformField.TASK_NAME,
             new TransformTaskParams(transformIdFailed, TransformConfigVersion.CURRENT, null, false),
-            new PersistentTasksCustomMetadata.Assignment(null, "awaiting reassignment after node loss")
+            new PersistentTasksCustomMetadata.Assignment(
+                null,
+                "awaiting reassignment after node loss",
+                PersistentTasksCustomMetadata.Explanation.AWAITING_REASSIGNMENT
+            )
         );
         tasksBuilder.addTask(
             transformIdBaz,
             TransformField.TASK_NAME,
             new TransformTaskParams(transformIdBaz, TransformConfigVersion.CURRENT, null, false),
-            new PersistentTasksCustomMetadata.Assignment("node-2", "test assignment")
+            new PersistentTasksCustomMetadata.Assignment(
+                "node-2",
+                "test assignment",
+                PersistentTasksCustomMetadata.Explanation.ASSIGNMENT_SUCCESSFUL
+            )
         );
         tasksBuilder.addTask(
             transformIdOther,
             TransformField.TASK_NAME,
             new TransformTaskParams(transformIdOther, TransformConfigVersion.CURRENT, null, false),
-            new PersistentTasksCustomMetadata.Assignment("node-3", "test assignment")
+            new PersistentTasksCustomMetadata.Assignment(
+                "node-3",
+                "test assignment",
+                PersistentTasksCustomMetadata.Explanation.ASSIGNMENT_SUCCESSFUL
+            )
         );
 
         ClusterState cs = ClusterState.builder(new ClusterName("_name"))
@@ -284,7 +310,8 @@ public class TransformNodesTests extends ESTestCase {
         );
         PersistentTasksCustomMetadata.Assignment assignment2 = new PersistentTasksCustomMetadata.Assignment(
             randomAlphaOfLengthBetween(1, 10),
-            randomAlphaOfLengthBetween(1, 10)
+            randomAlphaOfLengthBetween(1, 10),
+            PersistentTasksCustomMetadata.Explanation.ASSIGNMENT_SUCCESSFUL
         );
         ClusterState clusterState = ClusterState.builder(new ClusterName("some-cluster"))
             .metadata(

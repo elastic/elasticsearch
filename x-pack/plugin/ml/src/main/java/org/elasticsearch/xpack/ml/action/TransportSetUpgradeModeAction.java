@@ -308,10 +308,12 @@ public class TransportSetUpgradeModeAction extends AcknowledgedTransportMasterNo
         );
 
         for (PersistentTask<?> task : mlTasks) {
+            assert AWAITING_UPGRADE.getExplanationCodes().size() == 1;
             chainTaskExecutor.add(
                 chainedTask -> persistentTasksClusterService.unassignPersistentTask(
                     task.getId(),
                     task.getAllocationId(),
+                    AWAITING_UPGRADE.getExplanationCodes().iterator().next(),
                     AWAITING_UPGRADE.getExplanation(),
                     chainedTask
                 )

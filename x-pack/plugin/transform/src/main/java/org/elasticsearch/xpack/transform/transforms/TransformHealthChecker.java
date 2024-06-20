@@ -63,7 +63,7 @@ public final class TransformHealthChecker {
     ) {
         final Assignment assignment = TransformNodes.getAssignment(transformId, clusterState);
         final List<TransformHealthIssue> issues = new ArrayList<>(2);
-        issues.add(IssueType.ASSIGNMENT_FAILED.newIssue(assignment.getExplanation(), 1, null));
+        issues.add(IssueType.ASSIGNMENT_FAILED.newIssue(assignment.getExplanationCodesAndExplanation(), 1, null));
         if (AuthorizationState.isNullOrGreen(authState) == false) {
             issues.add(IssueType.PRIVILEGES_CHECK_FAILED.newIssue(authState.getLastAuthError(), 1, null));
         }

@@ -374,7 +374,7 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
                 // For some reason, the task is not assigned to a node, but is no longer in the `INITIAL_ASSIGNMENT` state
                 // Consider this a failure.
                 exception = new ElasticsearchStatusException(
-                    "Could not start transform, allocation explanation [" + assignment.getExplanation() + "]",
+                    "Could not start transform, allocation explanation [" + assignment.getExplanationCodesAndExplanation() + "]",
                     RestStatus.TOO_MANY_REQUESTS
                 );
                 return true;

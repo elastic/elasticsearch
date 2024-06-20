@@ -126,7 +126,11 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
                     UUIDs.base64UUID(),
                     TestPersistentTasksExecutor.NAME,
                     new TestParams("other_" + i),
-                    new Assignment("other_node_" + randomInt(nonLocalNodesCount), "test assignment on other node")
+                    new Assignment(
+                        "other_node_" + randomInt(nonLocalNodesCount),
+                        "test assignment on other node",
+                        PersistentTasksCustomMetadata.Explanation.ASSIGNMENT_SUCCESSFUL
+                    )
                 );
                 if (added == false && randomBoolean()) {
                     added = true;
@@ -134,7 +138,11 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
                         UUIDs.base64UUID(),
                         TestPersistentTasksExecutor.NAME,
                         new TestParams("this_param"),
-                        new Assignment("this_node", "test assignment on this node")
+                        new Assignment(
+                            "this_node",
+                            "test assignment on this node",
+                            PersistentTasksCustomMetadata.Explanation.ASSIGNMENT_SUCCESSFUL
+                        )
                     );
                 }
             }
@@ -238,7 +246,12 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
         PersistentTasksCustomMetadata.Builder tasks = PersistentTasksCustomMetadata.builder();
         String taskId = UUIDs.base64UUID();
         TestParams taskParams = new TestParams("other_0");
-        tasks.addTask(taskId, TestPersistentTasksExecutor.NAME, taskParams, new Assignment("this_node", "test assignment on other node"));
+        tasks.addTask(
+            taskId,
+            TestPersistentTasksExecutor.NAME,
+            taskParams,
+            new Assignment("this_node", "test assignment on other node", PersistentTasksCustomMetadata.Explanation.ASSIGNMENT_SUCCESSFUL)
+        );
         tasks.updateTaskState(taskId, taskState);
         Metadata.Builder metadata = Metadata.builder(state.metadata());
         metadata.putCustom(PersistentTasksCustomMetadata.TYPE, tasks.build());
@@ -517,7 +530,7 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
             UUIDs.base64UUID(),
             TestPersistentTasksExecutor.NAME,
             new TestParams("this_param"),
-            new Assignment("this_node", "test assignment on this node")
+            new Assignment("this_node", "test assignment on this node", PersistentTasksCustomMetadata.Explanation.ASSIGNMENT_SUCCESSFUL)
         );
 
         Metadata.Builder metadata = Metadata.builder(state.metadata());
@@ -541,7 +554,12 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
                 Metadata.builder(state.metadata())
                     .putCustom(
                         PersistentTasksCustomMetadata.TYPE,
-                        builder.addTask(UUIDs.base64UUID(), action, params, new Assignment(node, "test assignment")).build()
+                        builder.addTask(
+                            UUIDs.base64UUID(),
+                            action,
+                            params,
+                            new Assignment(node, "test assignment", PersistentTasksCustomMetadata.Explanation.ASSIGNMENT_SUCCESSFUL)
+                        ).build()
                     )
             )
             .build();
@@ -557,7 +575,10 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
                 Metadata.builder(state.metadata())
                     .putCustom(
                         PersistentTasksCustomMetadata.TYPE,
-                        builder.reassignTask(taskId, new Assignment(node, "test assignment")).build()
+                        builder.reassignTask(
+                            taskId,
+                            new Assignment(node, "test assignment", PersistentTasksCustomMetadata.Explanation.ASSIGNMENT_SUCCESSFUL)
+                        ).build()
                     )
             )
             .build();

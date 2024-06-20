@@ -88,12 +88,12 @@ public class SetUpgradeModeIT extends MlNativeAutodetectIntegTestCase {
 
         GetJobsStatsAction.Response.JobStats jobStats = getJobStats(jobId).get(0);
         assertThat(jobStats.getState(), is(equalTo(JobState.OPENED)));
-        assertThat(jobStats.getAssignmentExplanation(), is(equalTo(AWAITING_UPGRADE.getExplanation())));
+        assertThat(jobStats.getAssignmentExplanation(), containsString(AWAITING_UPGRADE.getExplanation()));
         assertThat(jobStats.getNode(), is(nullValue()));
 
         GetDatafeedsStatsAction.Response.DatafeedStats datafeedStats = getDatafeedStats(datafeedId);
         assertThat(datafeedStats.getDatafeedState(), is(equalTo(DatafeedState.STARTED)));
-        assertThat(datafeedStats.getAssignmentExplanation(), is(equalTo(AWAITING_UPGRADE.getExplanation())));
+        assertThat(datafeedStats.getAssignmentExplanation(), containsString(AWAITING_UPGRADE.getExplanation()));
         assertThat(datafeedStats.getNode(), is(nullValue()));
 
         // Disable the setting
@@ -117,11 +117,11 @@ public class SetUpgradeModeIT extends MlNativeAutodetectIntegTestCase {
 
         jobStats = getJobStats(jobId).get(0);
         assertThat(jobStats.getState(), is(equalTo(JobState.OPENED)));
-        assertThat(jobStats.getAssignmentExplanation(), is(not(equalTo(AWAITING_UPGRADE.getExplanation()))));
+        assertThat(jobStats.getAssignmentExplanation(), not(containsString(AWAITING_UPGRADE.getExplanation())));
 
         datafeedStats = getDatafeedStats(datafeedId);
         assertThat(datafeedStats.getDatafeedState(), is(equalTo(DatafeedState.STARTED)));
-        assertThat(datafeedStats.getAssignmentExplanation(), is(not(equalTo(AWAITING_UPGRADE.getExplanation()))));
+        assertThat(datafeedStats.getAssignmentExplanation(), not(containsString(AWAITING_UPGRADE.getExplanation())));
     }
 
     public void testJobOpenActionInUpgradeMode() {

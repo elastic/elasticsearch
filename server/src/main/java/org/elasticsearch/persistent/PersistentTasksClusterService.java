@@ -286,12 +286,14 @@ public final class PersistentTasksClusterService implements ClusterStateListener
      * @param taskId           the id of a persistent task
      * @param taskAllocationId the expected allocation id of the persistent task
      * @param reason           the reason for unassigning the task from any node
+     * @param reasonDetails    the detailed reason string for unassigning the task from any node
      * @param listener         the listener that will be called when task is unassigned
      */
     public void unassignPersistentTask(
         final String taskId,
         final long taskAllocationId,
-        final String reason,
+        final PersistentTasksCustomMetadata.Explanation reason,
+        final String reasonDetails,
         final ActionListener<PersistentTask<?>> listener
     ) {
         submitUnbatchedTask("unassign persistent task from any node", new ClusterStateUpdateTask() {
@@ -300,7 +302,7 @@ public final class PersistentTasksClusterService implements ClusterStateListener
                 PersistentTasksCustomMetadata.Builder tasksInProgress = builder(currentState);
                 if (tasksInProgress.hasTask(taskId, taskAllocationId)) {
                     logger.trace("Unassigning task {} with allocation id {}", taskId, taskAllocationId);
-                    return update(currentState, tasksInProgress.reassignTask(taskId, unassignedAssignment(reason)));
+                    return update(currentState, tasksInProgress.reassignTask(taskId, unassignedAssignment(reason, reasonDetails)));
                 } else {
                     throw new ResourceNotFoundException("the task with id {} and allocation id {} doesn't exist", taskId, taskAllocationId);
                 }
@@ -336,7 +338,10 @@ public final class PersistentTasksClusterService implements ClusterStateListener
 
         AssignmentDecision decision = enableDecider.canAssign();
         if (decision.getType() == AssignmentDecision.Type.NO) {
-            return unassignedAssignment("persistent task [" + taskName + "] cannot be assigned [" + decision.getReason() + "]");
+            return unassignedAssignment(
+                PersistentTasksCustomMetadata.Explanation.ASSIGNMENTS_NOT_ALLOWED,
+                "persistent task [" + taskName + "] cannot be assigned [" + decision.getReason() + "]"
+            );
         }
 
         // Filter all nodes that are marked as shutting down, because we do not
@@ -515,8 +520,8 @@ public final class PersistentTasksClusterService implements ClusterStateListener
         }
     }
 
-    private static Assignment unassignedAssignment(String reason) {
-        return new Assignment(null, reason);
+    private static Assignment unassignedAssignment(PersistentTasksCustomMetadata.Explanation reason, String details) {
+        return new Assignment(null, details, reason);
     }
 
     /**

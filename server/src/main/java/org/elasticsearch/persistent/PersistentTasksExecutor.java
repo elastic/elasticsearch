@@ -38,7 +38,11 @@ public abstract class PersistentTasksExecutor<Params extends PersistentTaskParam
         return taskName;
     }
 
-    public static final Assignment NO_NODE_FOUND = new Assignment(null, "no appropriate nodes found for the assignment");
+    public static final Assignment NO_NODE_FOUND = new Assignment(
+        null,
+        "no appropriate nodes found for the assignment",
+        PersistentTasksCustomMetadata.Explanation.NO_NODES_FOUND
+    );
 
     /**
      * Returns the node id where the params has to be executed,
@@ -50,7 +54,7 @@ public abstract class PersistentTasksExecutor<Params extends PersistentTaskParam
         if (discoveryNode == null) {
             return NO_NODE_FOUND;
         } else {
-            return new Assignment(discoveryNode.getId(), "");
+            return new Assignment(discoveryNode.getId(), PersistentTasksCustomMetadata.Explanation.ASSIGNMENT_SUCCESSFUL);
         }
     }
 

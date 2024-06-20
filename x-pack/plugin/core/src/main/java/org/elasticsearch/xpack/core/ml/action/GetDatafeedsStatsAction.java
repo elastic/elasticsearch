@@ -378,7 +378,7 @@ public class GetDatafeedsStatsAction extends ActionType<GetDatafeedsStatsAction.
                     }
                     return statsBuilder.setNode(node)
                         .setDatafeedState(datafeedState)
-                        .setAssignmentExplanation(maybeTask != null ? maybeTask.getAssignment().getExplanation() : null)
+                        .setAssignmentExplanation(maybeTask != null ? maybeTask.getAssignment().getExplanationCodesAndExplanation() : null)
                         .setTimingStats(timingStats)
                         .setRunningState(datafeedRuntimeState.getRunningState(statsBuilder.datafeedId).orElse(null))
                         .build();

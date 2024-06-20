@@ -7,6 +7,8 @@
  */
 package org.elasticsearch.persistent;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
@@ -36,6 +38,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  */
 public class CompletionPersistentTaskAction extends ActionType<PersistentTaskResponse> {
 
+    private static final Logger logger = LogManager.getLogger(CompletionPersistentTaskAction.class);
     public static final CompletionPersistentTaskAction INSTANCE = new CompletionPersistentTaskAction();
     public static final String NAME = "cluster:admin/persistent/completion";
 
@@ -157,9 +160,11 @@ public class CompletionPersistentTaskAction extends ActionType<PersistentTaskRes
             if (request.localAbortReason != null) {
                 assert request.exception == null
                     : "request has both exception " + request.exception + " and local abort reason " + request.localAbortReason;
+                logger.info("Persistent task unassigned due to local abort reason: [{}]", request.localAbortReason);
                 persistentTasksClusterService.unassignPersistentTask(
                     request.taskId,
                     request.allocationId,
+                    PersistentTasksCustomMetadata.Explanation.ABORTED_LOCALLY,
                     request.localAbortReason,
                     listener.map(PersistentTaskResponse::new)
                 );

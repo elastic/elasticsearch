@@ -150,7 +150,10 @@ public final class HealthNodeTaskExecutor extends PersistentTasksExecutor<Health
         if (discoveryNode == null) {
             return NO_NODE_FOUND;
         } else {
-            return new PersistentTasksCustomMetadata.Assignment(discoveryNode.getId(), "");
+            return new PersistentTasksCustomMetadata.Assignment(
+                discoveryNode.getId(),
+                PersistentTasksCustomMetadata.Explanation.ASSIGNMENT_SUCCESSFUL
+            );
         }
     }
 

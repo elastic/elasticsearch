@@ -76,7 +76,10 @@ public class TransportStopTransformActionTests extends ESTestCase {
                 "non-failed-task",
                 TransformTaskParams.NAME,
                 new TransformTaskParams("transform-task-1", TransformConfigVersion.CURRENT, null, false),
-                new PersistentTasksCustomMetadata.Assignment("current-data-node-with-1-tasks", "")
+                new PersistentTasksCustomMetadata.Assignment(
+                    "current-data-node-with-1-tasks",
+                    PersistentTasksCustomMetadata.Explanation.ASSIGNMENT_SUCCESSFUL
+                )
             );
         ClusterState.Builder csBuilder = ClusterState.builder(new ClusterName("_name")).metadata(buildMetadata(pTasksBuilder.build()));
 
@@ -96,7 +99,10 @@ public class TransportStopTransformActionTests extends ESTestCase {
             "failed-task",
             TransformTaskParams.NAME,
             new TransformTaskParams("transform-task-1", TransformConfigVersion.CURRENT, null, false),
-            new PersistentTasksCustomMetadata.Assignment("current-data-node-with-1-tasks", "")
+            new PersistentTasksCustomMetadata.Assignment(
+                "current-data-node-with-1-tasks",
+                PersistentTasksCustomMetadata.Explanation.ASSIGNMENT_SUCCESSFUL
+            )
         )
             .updateTaskState(
                 "failed-task",
@@ -128,7 +134,10 @@ public class TransportStopTransformActionTests extends ESTestCase {
             "failed-task-2",
             TransformTaskParams.NAME,
             new TransformTaskParams("transform-task-2", TransformConfigVersion.CURRENT, null, false),
-            new PersistentTasksCustomMetadata.Assignment("current-data-node-with-2-tasks", "")
+            new PersistentTasksCustomMetadata.Assignment(
+                "current-data-node-with-2-tasks",
+                PersistentTasksCustomMetadata.Explanation.ASSIGNMENT_SUCCESSFUL
+            )
         )
             .updateTaskState(
                 "failed-task-2",

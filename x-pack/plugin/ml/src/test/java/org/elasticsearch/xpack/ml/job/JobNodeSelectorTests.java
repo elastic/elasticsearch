@@ -51,6 +51,7 @@ import java.util.TreeMap;
 
 import static org.elasticsearch.xpack.ml.job.task.OpenJobPersistentTasksExecutor.nodeFilter;
 import static org.elasticsearch.xpack.ml.job.task.OpenJobPersistentTasksExecutorTests.jobWithRules;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -152,6 +153,7 @@ public class JobNodeSelectorTests extends ESTestCase {
             false
         );
         assertNull(result.getExecutorNode());
+        assertThat(result.getExplanationCodes(), contains(PersistentTasksCustomMetadata.Explanation.NODE_FULL));
         assertThat(
             result.getExplanation(),
             containsString(
@@ -210,6 +212,7 @@ public class JobNodeSelectorTests extends ESTestCase {
                     + "]"
             )
         );
+        assertThat(result.getExplanationCodes(), contains(PersistentTasksCustomMetadata.Explanation.NODE_FULL));
     }
 
     public void testSelectLeastLoadedMlNodeForAnomalyDetectorJob_maxCapacityMemoryLimiting() {
@@ -273,6 +276,7 @@ public class JobNodeSelectorTests extends ESTestCase {
                     + ")]"
             )
         );
+        assertThat(result.getExplanationCodes(), contains(PersistentTasksCustomMetadata.Explanation.INSUFFICIENT_MEMORY));
     }
 
     public void testSelectLeastLoadedMlNodeForDataFrameAnalyticsJob_givenTaskHasNullState() {
@@ -364,6 +368,7 @@ public class JobNodeSelectorTests extends ESTestCase {
                     + ")]"
             )
         );
+        assertThat(result.getExplanationCodes(), contains(PersistentTasksCustomMetadata.Explanation.INSUFFICIENT_MEMORY));
     }
 
     public void testSelectLeastLoadedMlNodeForDataFrameAnalyticsJob_maxCapacityMemoryLimiting() {
@@ -427,6 +432,7 @@ public class JobNodeSelectorTests extends ESTestCase {
                     + ")]"
             )
         );
+        assertThat(result.getExplanationCodes(), contains(PersistentTasksCustomMetadata.Explanation.INSUFFICIENT_MEMORY));
     }
 
     public void testSelectLeastLoadedMlNodeForDataFrameAnalyticsJob_firstJobTooBigMemoryLimiting() {
@@ -481,6 +487,7 @@ public class JobNodeSelectorTests extends ESTestCase {
                     + ")]"
             )
         );
+        assertThat(result.getExplanationCodes(), contains(PersistentTasksCustomMetadata.Explanation.INSUFFICIENT_MEMORY));
     }
 
     public void testSelectLeastLoadedMlNode_noMlNodes() {
@@ -528,6 +535,7 @@ public class JobNodeSelectorTests extends ESTestCase {
         );
         PersistentTasksCustomMetadata.Assignment result = jobNodeSelector.selectNode(20, 2, 30, MAX_JOB_BYTES, false);
         assertTrue(result.getExplanation().contains("node isn't a machine learning node"));
+        assertTrue(result.getExplanationCodes().contains(PersistentTasksCustomMetadata.Explanation.NODE_NOT_COMPATIBLE));
         assertNull(result.getExecutorNode());
     }
 
@@ -620,11 +628,16 @@ public class JobNodeSelectorTests extends ESTestCase {
         result = jobNodeSelector.selectNode(10, 2, 30, MAX_JOB_BYTES, false);
         assertNull("no node selected, because OPENING state", result.getExecutorNode());
         assertTrue(result.getExplanation().contains("Node exceeds [2] the maximum number of jobs [2] in opening state"));
+        assertTrue(result.getExplanationCodes().contains(PersistentTasksCustomMetadata.Explanation.MAX_CONCURRENT_EXECUTIONS_EXCEEDED));
 
         tasksBuilder = PersistentTasksCustomMetadata.builder(tasks);
         tasksBuilder.reassignTask(
             MlTasks.jobTaskId(job6.getId()),
-            new PersistentTasksCustomMetadata.Assignment("_node_id3", "test assignment")
+            new PersistentTasksCustomMetadata.Assignment(
+                "_node_id3",
+                "test assignment",
+                PersistentTasksCustomMetadata.Explanation.ASSIGNMENT_SUCCESSFUL
+            )
         );
         tasks = tasksBuilder.build();
 
@@ -643,6 +656,7 @@ public class JobNodeSelectorTests extends ESTestCase {
         result = jobNodeSelector.selectNode(10, 2, 30, MAX_JOB_BYTES, false);
         assertNull("no node selected, because stale task", result.getExecutorNode());
         assertTrue(result.getExplanation().contains("Node exceeds [2] the maximum number of jobs [2] in opening state"));
+        assertTrue(result.getExplanationCodes().contains(PersistentTasksCustomMetadata.Explanation.MAX_CONCURRENT_EXECUTIONS_EXCEEDED));
 
         tasksBuilder = PersistentTasksCustomMetadata.builder(tasks);
         tasksBuilder.updateTaskState(MlTasks.jobTaskId(job6.getId()), null);
@@ -663,6 +677,7 @@ public class JobNodeSelectorTests extends ESTestCase {
         result = jobNodeSelector.selectNode(10, 2, 30, MAX_JOB_BYTES, false);
         assertNull("no node selected, because null state", result.getExecutorNode());
         assertTrue(result.getExplanation().contains("Node exceeds [2] the maximum number of jobs [2] in opening state"));
+        assertTrue(result.getExplanationCodes().contains(PersistentTasksCustomMetadata.Explanation.MAX_CONCURRENT_EXECUTIONS_EXCEEDED));
     }
 
     public void testSelectLeastLoadedMlNode_concurrentOpeningJobsAndStaleFailedJob() {
@@ -709,7 +724,11 @@ public class JobNodeSelectorTests extends ESTestCase {
         // This will make the assignment stale for job_id1
         tasksBuilder.reassignTask(
             MlTasks.jobTaskId("job_id1"),
-            new PersistentTasksCustomMetadata.Assignment("_node_id1", "test assignment")
+            new PersistentTasksCustomMetadata.Assignment(
+                "_node_id1",
+                "test assignment",
+                PersistentTasksCustomMetadata.Explanation.ASSIGNMENT_SUCCESSFUL
+            )
         );
         OpenJobPersistentTasksExecutorTests.addJobTask("job_id2", "_node_id1", null, tasksBuilder);
         OpenJobPersistentTasksExecutorTests.addJobTask("job_id3", "_node_id2", null, tasksBuilder);
@@ -760,6 +779,7 @@ public class JobNodeSelectorTests extends ESTestCase {
         result = jobNodeSelector.selectNode(10, 2, 30, MAX_JOB_BYTES, false);
         assertNull("no node selected, because OPENING state", result.getExecutorNode());
         assertTrue(result.getExplanation().contains("Node exceeds [2] the maximum number of jobs [2] in opening state"));
+        assertTrue(result.getExplanationCodes().contains(PersistentTasksCustomMetadata.Explanation.MAX_CONCURRENT_EXECUTIONS_EXCEEDED));
     }
 
     public void testSelectLeastLoadedMlNode_noCompatibleJobTypeNodes() {
@@ -819,6 +839,7 @@ public class JobNodeSelectorTests extends ESTestCase {
         );
         PersistentTasksCustomMetadata.Assignment result = jobNodeSelector.selectNode(10, 2, 30, MAX_JOB_BYTES, false);
         assertThat(result.getExplanation(), containsString("node does not support jobs of type [incompatible_type]"));
+        assertThat(result.getExplanationCodes(), contains(PersistentTasksCustomMetadata.Explanation.NODE_NOT_COMPATIBLE));
         assertNull(result.getExecutorNode());
     }
 
@@ -880,7 +901,7 @@ public class JobNodeSelectorTests extends ESTestCase {
         PersistentTasksCustomMetadata.Assignment result = jobNodeSelector.selectNode(10, 2, 30, MAX_JOB_BYTES, false);
         assertThat(
             result.getExplanation(),
-            equalTo(
+            containsString(
                 "Not opening job [incompatible_type_job] on node [{_node_name1}{ML config version="
                     + MlConfigVersion.CURRENT
                     + "}], "
@@ -891,6 +912,7 @@ public class JobNodeSelectorTests extends ESTestCase {
                     + "because this node does not support jobs of type [incompatible_type]"
             )
         );
+        assertThat(result.getExplanationCodes(), contains(PersistentTasksCustomMetadata.Explanation.NODE_NOT_COMPATIBLE));
         assertNull(result.getExecutorNode());
     }
 
@@ -960,6 +982,7 @@ public class JobNodeSelectorTests extends ESTestCase {
             result.getExplanation(),
             containsString("job's model snapshot requires a node with ML config version [7.3.0] or higher")
         );
+        assertThat(result.getExplanationCodes(), contains(PersistentTasksCustomMetadata.Explanation.CONFIG_VERSION_TOO_LOW));
         assertNull(result.getExecutorNode());
     }
 
@@ -1110,10 +1133,10 @@ public class JobNodeSelectorTests extends ESTestCase {
             node -> nodeFilter(node, job)
         );
         PersistentTasksCustomMetadata.Assignment result = jobNodeSelector.considerLazyAssignment(
-            new PersistentTasksCustomMetadata.Assignment(null, "foo"),
+            new PersistentTasksCustomMetadata.Assignment(null, "foo", PersistentTasksCustomMetadata.Explanation.GENERIC_REASON),
             ByteSizeValue.ofGb(1).getBytes()
         );
-        assertEquals("foo", result.getExplanation());
+        assertThat(result.getExplanation(), containsString("foo"));
         assertNull(result.getExecutorNode());
     }
 
@@ -1153,10 +1176,10 @@ public class JobNodeSelectorTests extends ESTestCase {
             node -> nodeFilter(node, job)
         );
         PersistentTasksCustomMetadata.Assignment result = jobNodeSelector.considerLazyAssignment(
-            new PersistentTasksCustomMetadata.Assignment(null, "foo"),
+            new PersistentTasksCustomMetadata.Assignment(null, "foo", PersistentTasksCustomMetadata.Explanation.GENERIC_REASON),
             ByteSizeValue.ofGb(1).getBytes()
         );
-        assertEquals(JobNodeSelector.AWAITING_LAZY_ASSIGNMENT.getExplanation(), result.getExplanation());
+        assertEquals(JobNodeSelector.AWAITING_LAZY_ASSIGNMENT.getExplanationCodes(), result.getExplanationCodes());
         assertNull(result.getExecutorNode());
     }
 
@@ -1206,10 +1229,10 @@ public class JobNodeSelectorTests extends ESTestCase {
             node -> nodeFilter(node, job)
         );
         PersistentTasksCustomMetadata.Assignment result = jobNodeSelector.considerLazyAssignment(
-            new PersistentTasksCustomMetadata.Assignment(null, "foo"),
+            new PersistentTasksCustomMetadata.Assignment(null, "foo", PersistentTasksCustomMetadata.Explanation.GENERIC_REASON),
             ByteSizeValue.ofGb(64).getBytes()
         );
-        assertEquals(JobNodeSelector.AWAITING_LAZY_ASSIGNMENT.getExplanation(), result.getExplanation());
+        assertEquals(JobNodeSelector.AWAITING_LAZY_ASSIGNMENT.getExplanationCodes(), result.getExplanationCodes());
         assertNull(result.getExecutorNode());
     }
 
@@ -1257,6 +1280,7 @@ public class JobNodeSelectorTests extends ESTestCase {
                     + "[31458280] is greater than largest possible job size [3]"
             )
         );
+        assertThat(result.getExplanationCodes(), contains(PersistentTasksCustomMetadata.Explanation.LARGEST_POSSIBLE_JOB_SIZE_EXCEEDED));
     }
 
     public void testPerceivedCapacityAndMaxFreeMemory() {
@@ -1425,7 +1449,11 @@ public class JobNodeSelectorTests extends ESTestCase {
             MlTasks.dataFrameAnalyticsTaskId(id),
             MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME,
             new StartDataFrameAnalyticsAction.TaskParams(id, MlConfigVersion.CURRENT, allowLazyStart),
-            new PersistentTasksCustomMetadata.Assignment(nodeId, "test assignment")
+            new PersistentTasksCustomMetadata.Assignment(
+                nodeId,
+                "test assignment",
+                PersistentTasksCustomMetadata.Explanation.ASSIGNMENT_SUCCESSFUL
+            )
         );
         if (state != null) {
             builder.updateTaskState(

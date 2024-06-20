@@ -34,6 +34,8 @@ import java.util.List;
 import java.util.Objects;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFutureThrows;
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -328,12 +330,22 @@ public class PersistentTasksExecutorIT extends ESIntegTestCase {
         // Disallow re-assignment after it is unassigned to verify master and node state
         TestPersistentTasksExecutor.setNonClusterStateCondition(false);
 
-        persistentTasksClusterService.unassignPersistentTask(taskId, task.getAllocationId() + 1, "unassignment test", unassignmentFuture);
+        logger.info("unassigning persistent task");
+        persistentTasksClusterService.unassignPersistentTask(
+            taskId,
+            task.getAllocationId() + 1,
+            PersistentTasksCustomMetadata.Explanation.GENERIC_REASON,
+            "unassignment test",
+            unassignmentFuture
+        );
         PersistentTask<?> unassignedTask = unassignmentFuture.get();
         assertThat(unassignedTask.getId(), equalTo(taskId));
-        assertThat(unassignedTask.getAssignment().getExplanation(), equalTo("unassignment test"));
+        assertThat(
+            unassignedTask.getAssignment().getExplanationCodes(),
+            contains(PersistentTasksCustomMetadata.Explanation.GENERIC_REASON)
+        );
+        assertThat(unassignedTask.getAssignment().getExplanation(), containsString("unassignment test"));
         assertThat(unassignedTask.getAssignment().getExecutorNode(), is(nullValue()));
-
         assertBusy(() -> {
             // Verify that the task is NOT running on the node
             List<TaskInfo> tasks = clusterAdmin().prepareListTasks().setActions(TestPersistentTasksExecutor.NAME + "[c]").get().getTasks();
@@ -342,13 +354,14 @@ public class PersistentTasksExecutorIT extends ESIntegTestCase {
             // Verify that the task is STILL in internal cluster state
             assertClusterStateHasTask(taskId);
         });
+        logger.info("persistent task unassigned");
 
         // Allow it to be reassigned again to the same node
         TestPersistentTasksExecutor.setNonClusterStateCondition(true);
-
+        logger.info("task is allowed to start again");
         // Verify it starts again
         waitForTaskToStart();
-
+        logger.info("task has started again");
         assertClusterStateHasTask(taskId);
 
         // Complete or cancel the running task
@@ -406,6 +419,12 @@ public class PersistentTasksExecutorIT extends ESIntegTestCase {
                 task.getAssignment().getExplanation(),
                 either(equalTo("Simulating local abort")).or(equalTo("non cluster state condition prevents assignment"))
             );
+            assertThat(
+                task.getAssignment().getExplanationCodes(),
+                either(contains(PersistentTasksCustomMetadata.Explanation.ABORTED_LOCALLY)).or(
+                    contains(PersistentTasksCustomMetadata.Explanation.GENERIC_REASON)
+                )
+            );
         });
 
         // Allow it to be reassigned again
@@ -420,7 +439,7 @@ public class PersistentTasksExecutorIT extends ESIntegTestCase {
         // reason has not been published, hence the busy wait here.)
         assertBusy(() -> {
             PersistentTask<?> task = assertClusterStateHasTask(taskId);
-            assertThat(task.getAssignment().getExplanation(), not(equalTo("Simulating local abort")));
+            assertThat(task.getAssignment().getExplanation(), not(containsString("Simulating local abort")));
         });
 
         // Complete or cancel the running task

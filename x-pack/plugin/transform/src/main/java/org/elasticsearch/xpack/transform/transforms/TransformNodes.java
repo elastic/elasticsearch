@@ -180,7 +180,7 @@ public final class TransformNodes {
                     new ActionListenerResponseHandler<>(listener, reader, TransportResponseHandler.TRANSPORT_WORKER)
                 );
             } else {
-                Map<String, String> explain = new TreeMap<>();
+                Map<String, ExplanationAndDescription> explain = new TreeMap<>();
                 for (DiscoveryNode node : nodes) {
                     nodeCanRunThisTransform(node, null, requiresRemote, explain);
                 }
@@ -188,7 +188,10 @@ public final class TransformNodes {
                 listener.onFailure(
                     ExceptionsHelper.badRequestException(
                         "No appropriate node to run on, reasons [{}]",
-                        explain.entrySet().stream().map(e -> e.getKey() + ":" + e.getValue()).collect(Collectors.joining("|"))
+                        explain.entrySet()
+                            .stream()
+                            .map(e -> e.getKey() + ":" + e.getValue().explanation() + " - " + e.getValue().description())
+                            .collect(Collectors.joining("|"))
                     )
                 );
             }
@@ -214,17 +217,20 @@ public final class TransformNodes {
         DiscoveryNode node,
         TransformConfigVersion minRequiredVersion,
         boolean requiresRemote,
-        Map<String, String> explain
+        Map<String, ExplanationAndDescription> explain
     ) {
         // version of the transform run on a node that has at least the same version
         if (minRequiredVersion != null && TransformConfigVersion.fromNode(node).onOrAfter(minRequiredVersion) == false) {
             if (explain != null) {
                 explain.put(
                     node.getId(),
-                    "node supports transform config version: "
-                        + TransformConfigVersion.fromNode(node)
-                        + " but transform requires at least "
-                        + minRequiredVersion
+                    new ExplanationAndDescription(
+                        PersistentTasksCustomMetadata.Explanation.CONFIG_VERSION_TOO_LOW,
+                        "node supports transform config version: "
+                            + TransformConfigVersion.fromNode(node)
+                            + " but transform requires at least "
+                            + minRequiredVersion
+                    )
                 );
             }
             return false;
@@ -233,7 +239,10 @@ public final class TransformNodes {
         // transform enabled?
         if (node.getRoles().contains(DiscoveryNodeRole.TRANSFORM_ROLE) == false) {
             if (explain != null) {
-                explain.put(node.getId(), "not a transform node");
+                explain.put(
+                    node.getId(),
+                    new ExplanationAndDescription(PersistentTasksCustomMetadata.Explanation.NODE_NOT_COMPATIBLE, "not a transform node")
+                );
             }
             return false;
         }
@@ -243,7 +252,10 @@ public final class TransformNodes {
             if (explain != null) {
                 explain.put(
                     node.getId(),
-                    "transform requires a remote connection but the node does not have the remote_cluster_client role"
+                    new ExplanationAndDescription(
+                        PersistentTasksCustomMetadata.Explanation.REMOTE_NOT_ENABLED,
+                        "transform requires a remote connection but the node does not have the remote_cluster_client role"
+                    )
                 );
             }
             return false;
@@ -252,4 +264,11 @@ public final class TransformNodes {
         // we found no reason that the transform can not run on this node
         return true;
     }
+
+    /**
+     * Container for returning an explanation paired with a detailed description of why an assignment is not possible.
+     * @param explanation           High level enum explanation
+     * @param description           Detailed text description
+     */
+    public record ExplanationAndDescription(PersistentTasksCustomMetadata.Explanation explanation, String description) {}
 }

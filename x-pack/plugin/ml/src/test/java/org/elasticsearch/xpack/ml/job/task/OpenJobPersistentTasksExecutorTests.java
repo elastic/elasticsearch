@@ -167,11 +167,17 @@ public class OpenJobPersistentTasksExecutorTests extends ESTestCase {
 
         OpenJobAction.JobParams params = new OpenJobAction.JobParams("unavailable_index_with_lazy_node");
         params.setJob(mock(Job.class));
+        PersistentTasksCustomMetadata.Assignment assignment = executor.getAssignment(
+            params,
+            csBuilder.nodes().getAllNodes(),
+            csBuilder.build()
+        );
         assertEquals(
             "Not opening [unavailable_index_with_lazy_node], "
                 + "because not all primary shards are active for the following indices [.ml-state]",
-            executor.getAssignment(params, csBuilder.nodes().getAllNodes(), csBuilder.build()).getExplanation()
+            assignment.getExplanation()
         );
+        assertTrue(assignment.getExplanationCodes().contains(PersistentTasksCustomMetadata.Explanation.PRIMARY_SHARDS_NOT_ACTIVE));
     }
 
     public void testGetAssignment_GivenLazyJobAndNoGlobalLazyNodes() {
@@ -196,7 +202,7 @@ public class OpenJobPersistentTasksExecutorTests extends ESTestCase {
         );
         assertNotNull(assignment);
         assertNull(assignment.getExecutorNode());
-        assertEquals(JobNodeSelector.AWAITING_LAZY_ASSIGNMENT.getExplanation(), assignment.getExplanation());
+        assertEquals(JobNodeSelector.AWAITING_LAZY_ASSIGNMENT.getExplanationCodes(), assignment.getExplanationCodes());
     }
 
     public void testGetAssignment_GivenResetInProgress() {
@@ -217,7 +223,7 @@ public class OpenJobPersistentTasksExecutorTests extends ESTestCase {
         );
         assertNotNull(assignment);
         assertNull(assignment.getExecutorNode());
-        assertEquals(MlTasks.RESET_IN_PROGRESS.getExplanation(), assignment.getExplanation());
+        assertEquals(MlTasks.RESET_IN_PROGRESS.getExplanationCodes(), assignment.getExplanationCodes());
     }
 
     public static void addJobTask(String jobId, String nodeId, JobState jobState, PersistentTasksCustomMetadata.Builder builder) {
@@ -235,7 +241,11 @@ public class OpenJobPersistentTasksExecutorTests extends ESTestCase {
             MlTasks.jobTaskId(jobId),
             MlTasks.JOB_TASK_NAME,
             new OpenJobAction.JobParams(jobId),
-            new PersistentTasksCustomMetadata.Assignment(nodeId, "test assignment")
+            new PersistentTasksCustomMetadata.Assignment(
+                nodeId,
+                "test assignment",
+                PersistentTasksCustomMetadata.Explanation.ASSIGNMENT_SUCCESSFUL
+            )
         );
         if (jobState != null) {
             builder.updateTaskState(

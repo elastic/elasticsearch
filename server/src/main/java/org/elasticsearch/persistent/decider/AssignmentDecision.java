@@ -18,12 +18,12 @@ import java.util.Objects;
  */
 public final class AssignmentDecision {
 
-    public static final AssignmentDecision YES = new AssignmentDecision(Type.YES, "");
+    public static final AssignmentDecision YES = new AssignmentDecision(Type.YES, Reason.NO_REASON);
 
     private final Type type;
-    private final String reason;
+    private final Reason reason;
 
-    public AssignmentDecision(final Type type, final String reason) {
+    public AssignmentDecision(final Type type, final Reason reason) {
         this.type = Objects.requireNonNull(type);
         this.reason = Objects.requireNonNull(reason);
     }
@@ -32,7 +32,7 @@ public final class AssignmentDecision {
         return type;
     }
 
-    public String getReason() {
+    public Reason getReason() {
         return reason;
     }
 
@@ -58,5 +58,10 @@ public final class AssignmentDecision {
         public static Type resolve(final String s) {
             return Type.valueOf(s.toUpperCase(Locale.ROOT));
         }
+    }
+
+    public enum Reason {
+        NO_REASON,
+        PERSISTENT_TASK_ASSIGNMENTS_NOT_ALLOWED
     }
 }

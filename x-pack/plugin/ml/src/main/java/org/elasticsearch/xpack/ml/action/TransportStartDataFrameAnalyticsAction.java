@@ -553,7 +553,7 @@ public class TransportStartDataFrameAnalyticsAction extends TransportMasterNodeA
             if (assignment != null
                 && assignment.equals(PersistentTasksCustomMetadata.INITIAL_ASSIGNMENT) == false
                 && assignment.isAssigned() == false) {
-                assignmentExplanation = assignment.getExplanation();
+                assignmentExplanation = assignment.getExplanationCodesAndExplanation();
                 // Assignment failed due to primary shard check.
                 // This is hopefully intermittent and we should allow another assignment attempt.
                 if (assignmentExplanation.contains(PRIMARY_SHARDS_INACTIVE)) {
@@ -562,7 +562,7 @@ public class TransportStartDataFrameAnalyticsAction extends TransportMasterNodeA
                 exception = new ElasticsearchStatusException(
                     "Could not start data frame analytics task, allocation explanation [{}]",
                     RestStatus.TOO_MANY_REQUESTS,
-                    assignment.getExplanation()
+                    assignment.getExplanationCodesAndExplanation()
                 );
                 return true;
             }
@@ -803,17 +803,20 @@ public class TransportStartDataFrameAnalyticsAction extends TransportMasterNodeA
             );
         }
 
-        public static String nodeFilter(DiscoveryNode node, TaskParams params) {
+        public static JobNodeSelector.ExplanationAndDescription nodeFilter(DiscoveryNode node, TaskParams params) {
             String id = params.getId();
 
             if (MlConfigVersion.fromNode(node).before(TaskParams.VERSION_INTRODUCED)) {
-                return "Not opening job ["
-                    + id
-                    + "] on node ["
-                    + JobNodeSelector.nodeNameAndVersion(node)
-                    + "], because the data frame analytics requires a node with ML config version ["
-                    + TaskParams.VERSION_INTRODUCED
-                    + "] or higher";
+                return new JobNodeSelector.ExplanationAndDescription(
+                    PersistentTasksCustomMetadata.Explanation.CONFIG_VERSION_TOO_LOW,
+                    "Not opening job ["
+                        + id
+                        + "] on node ["
+                        + JobNodeSelector.nodeNameAndVersion(node)
+                        + "], because the data frame analytics requires a node with ML config version ["
+                        + TaskParams.VERSION_INTRODUCED
+                        + "] or higher"
+                );
             }
 
             return null;

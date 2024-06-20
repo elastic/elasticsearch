@@ -22,6 +22,7 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.downsample.DownsampleShardTask;
@@ -36,6 +37,8 @@ import java.util.concurrent.Executor;
 
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.elasticsearch.cluster.routing.TestShardRouting.shardRoutingBuilder;
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
 
@@ -110,7 +113,8 @@ public class DownsampleShardPersistentTaskExecutorTests extends ESTestCase {
         );
         var result = executor.getAssignment(params, Set.of(node), clusterState);
         assertThat(result.getExecutorNode(), equalTo(node.getId()));
-        assertThat(result.getExplanation(), equalTo("a node to fail and stop this persistent task"));
+        assertThat(result.getExplanation(), containsString("a node to fail and stop this persistent task"));
+        assertThat(result.getExplanationCodes(), contains(PersistentTasksCustomMetadata.Explanation.SOURCE_INDEX_REMOVED));
     }
 
     private static DiscoveryNode newNode() {

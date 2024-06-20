@@ -57,6 +57,7 @@ import static org.elasticsearch.xpack.ml.job.task.OpenJobPersistentTasksExecutor
 import static org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase.createDatafeed;
 import static org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase.createScheduledJob;
 import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -175,10 +176,11 @@ public class DatafeedNodeSelectorTests extends ESTestCase {
         assertNull(result.getExecutorNode());
         assertThat(
             result.getExplanation(),
-            equalTo(
+            containsString(
                 "cannot start datafeed [datafeed_id], because the job's [job_id] state is " + "[closed] while state [opened] is required"
             )
         );
+        assertThat(result.getExplanationCodes(), contains(PersistentTasksCustomMetadata.Explanation.DATAFEED_JOB_STATE_NOT_OPEN));
 
         ElasticsearchException e = expectThrows(
             ElasticsearchException.class,
@@ -224,6 +226,7 @@ public class DatafeedNodeSelectorTests extends ESTestCase {
             "cannot start datafeed [datafeed_id], because the job's [job_id] state is [" + jobState + "] while state [opened] is required",
             result.getExplanation()
         );
+        assertThat(result.getExplanationCodes(), contains(PersistentTasksCustomMetadata.Explanation.DATAFEED_JOB_STATE_NOT_OPEN));
 
         ElasticsearchException e = expectThrows(
             ElasticsearchException.class,
@@ -273,8 +276,9 @@ public class DatafeedNodeSelectorTests extends ESTestCase {
         assertNull(result.getExecutorNode());
         assertThat(
             result.getExplanation(),
-            equalTo("cannot start datafeed [datafeed_id] because index [foo] " + "does not have all primary shards active yet.")
+            containsString("cannot start datafeed [datafeed_id] because index [foo] " + "does not have all primary shards active yet.")
         );
+        assertThat(result.getExplanationCodes(), contains(PersistentTasksCustomMetadata.Explanation.PRIMARY_SHARDS_NOT_ACTIVE));
 
         new DatafeedNodeSelector(clusterState, resolver, df.getId(), df.getJobId(), df.getIndices(), SearchRequest.DEFAULT_INDICES_OPTIONS)
             .checkDatafeedTaskCanBeCreated();
@@ -307,8 +311,9 @@ public class DatafeedNodeSelectorTests extends ESTestCase {
         assertNull(result.getExecutorNode());
         assertThat(
             result.getExplanation(),
-            equalTo("cannot start datafeed [datafeed_id] because index [foo] " + "does not have all primary shards active yet.")
+            containsString("cannot start datafeed [datafeed_id] because index [foo] " + "does not have all primary shards active yet.")
         );
+        assertThat(result.getExplanationCodes(), contains(PersistentTasksCustomMetadata.Explanation.PRIMARY_SHARDS_NOT_ACTIVE));
 
         new DatafeedNodeSelector(clusterState, resolver, df.getId(), df.getJobId(), df.getIndices(), SearchRequest.DEFAULT_INDICES_OPTIONS)
             .checkDatafeedTaskCanBeCreated();
@@ -337,14 +342,14 @@ public class DatafeedNodeSelectorTests extends ESTestCase {
             result.getExplanation(),
             anyOf(
                 // TODO remove this first option and only allow the second once the failure store functionality is permanently switched on
-                equalTo(
+                containsString(
                     "cannot start datafeed [datafeed_id] because it failed resolving indices given [not_foo] and "
                         + "indices_options [IndicesOptions[ignore_unavailable=false, allow_no_indices=true, expand_wildcards_open=true, "
                         + "expand_wildcards_closed=false, expand_wildcards_hidden=false, allow_aliases_to_multiple_indices=true, "
                         + "forbid_closed_indices=true, ignore_aliases=false, ignore_throttled=true]] "
                         + "with exception [no such index [not_foo]]"
                 ),
-                equalTo(
+                containsString(
                     "cannot start datafeed [datafeed_id] because it failed resolving indices given [not_foo] and "
                         + "indices_options [IndicesOptions[ignore_unavailable=false, allow_no_indices=true, expand_wildcards_open=true, "
                         + "expand_wildcards_closed=false, expand_wildcards_hidden=false, allow_aliases_to_multiple_indices=true, "
@@ -352,6 +357,10 @@ public class DatafeedNodeSelectorTests extends ESTestCase {
                         + "include_failure_indices=false, allow_failure_indices=true]] with exception [no such index [not_foo]]"
                 )
             )
+        );
+        assertThat(
+            result.getExplanationCodes(),
+            contains(PersistentTasksCustomMetadata.Explanation.DATAFEED_RESOLVING_INDEX_THREW_EXCEPTION)
         );
 
         ElasticsearchException e = expectThrows(
@@ -482,6 +491,7 @@ public class DatafeedNodeSelectorTests extends ESTestCase {
         ).selectNode(candidateNodes);
         assertNull(result.getExecutorNode());
         assertEquals("cannot start datafeed [datafeed_id], because the job's [job_id] state is stale", result.getExplanation());
+        assertEquals(result.getExplanationCodes(), contains(PersistentTasksCustomMetadata.Explanation.DATAFEED_JOB_STALE));
 
         ElasticsearchException e = expectThrows(
             ElasticsearchException.class,
@@ -656,6 +666,7 @@ public class DatafeedNodeSelectorTests extends ESTestCase {
         ).selectNode(makeCandidateNodes("other_node_id"));
         assertNull(result.getExecutorNode());
         assertEquals("datafeed awaiting job relocation.", result.getExplanation());
+        assertEquals(result.getExplanationCodes(), contains(PersistentTasksCustomMetadata.Explanation.AWAITING_REASSIGNMENT));
 
         // This is different to the pattern of the other tests - we allow the datafeed task to be
         // created even though it cannot be assigned. The reason is that it would be perverse for

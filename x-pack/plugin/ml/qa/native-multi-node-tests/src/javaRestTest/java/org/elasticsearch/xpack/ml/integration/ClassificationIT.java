@@ -61,6 +61,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResp
 import static org.elasticsearch.xpack.core.ml.MlTasks.AWAITING_UPGRADE;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.emptyString;
 import static org.hamcrest.Matchers.equalTo;
@@ -768,7 +769,7 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         assertBusy(() -> {
             try {
                 GetDataFrameAnalyticsStatsAction.Response.Stats analyticsStats = getAnalyticsStats(jobId);
-                assertThat(analyticsStats.getAssignmentExplanation(), is(equalTo(AWAITING_UPGRADE.getExplanation())));
+                assertThat(analyticsStats.getAssignmentExplanation(), containsString(AWAITING_UPGRADE.getExplanation()));
                 assertThat(analyticsStats.getNode(), is(nullValue()));
             } catch (ElasticsearchException e) {
                 logger.error(() -> "[" + jobId + "] Encountered exception while fetching analytics stats", e);
@@ -783,7 +784,7 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         assertBusy(() -> {
             try {
                 GetDataFrameAnalyticsStatsAction.Response.Stats analyticsStats = getAnalyticsStats(jobId);
-                assertThat(analyticsStats.getAssignmentExplanation(), is(not(equalTo(AWAITING_UPGRADE.getExplanation()))));
+                assertThat(analyticsStats.getAssignmentExplanation(), not(containsString(AWAITING_UPGRADE.getExplanation())));
             } catch (ElasticsearchException e) {
                 logger.error(() -> "[" + jobId + "] Encountered exception while fetching analytics stats", e);
                 fail(e.getDetailedMessage());

@@ -69,6 +69,8 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
@@ -148,8 +150,9 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
         assertNull(assignment.getExecutorNode());
         assertThat(
             assignment.getExplanation(),
-            equalTo("Not starting transform [new-task-id], reasons [current-data-node-with-transform-disabled:not a transform node]")
+            containsString("Not starting transform [new-task-id], reasons [current-data-node-with-transform-disabled:not a transform node]")
         );
+        assertThat(assignment.getExplanationCodes(), contains(PersistentTasksCustomMetadata.Explanation.NODE_NOT_COMPATIBLE));
 
         // dedicated transform node
         nodes = buildNodes(true, false, false, false, true);
@@ -185,6 +188,7 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
                     + "]"
             )
         );
+        assertThat(assignment.getExplanationCodes(), contains(PersistentTasksCustomMetadata.Explanation.CONFIG_VERSION_TOO_LOW));
 
         assignment = executor.getAssignment(
             new TransformTaskParams("new-task-id", TransformConfigVersion.V_7_5_0, null, false),
@@ -214,6 +218,7 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
                     + "]"
             )
         );
+        assertThat(assignment.getExplanationCodes(), contains(PersistentTasksCustomMetadata.Explanation.REMOTE_NOT_ENABLED));
 
         assignment = executor.getAssignment(
             new TransformTaskParams("new-task-id", TransformConfigVersion.CURRENT, null, false),
@@ -245,6 +250,8 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
                     + "]"
             )
         );
+        assertThat(assignment.getExplanationCodes(), contains(PersistentTasksCustomMetadata.Explanation.NODE_NOT_COMPATIBLE));
+
         // old node, we do not know if remote is enabled
         nodes = buildNodes(false, true, false, true, false);
         cs = buildClusterState(nodes);
@@ -518,19 +525,28 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
                 "transform-task-1",
                 TransformTaskParams.NAME,
                 new TransformTaskParams("transform-task-1", TransformConfigVersion.CURRENT, null, false),
-                new PersistentTasksCustomMetadata.Assignment("current-data-node-with-1-tasks", "")
+                new PersistentTasksCustomMetadata.Assignment(
+                    "current-data-node-with-1-tasks",
+                    PersistentTasksCustomMetadata.Explanation.ASSIGNMENT_SUCCESSFUL
+                )
             )
             .addTask(
                 "transform-task-2",
                 TransformTaskParams.NAME,
                 new TransformTaskParams("transform-task-2", TransformConfigVersion.CURRENT, null, false),
-                new PersistentTasksCustomMetadata.Assignment("current-data-node-with-2-tasks", "")
+                new PersistentTasksCustomMetadata.Assignment(
+                    "current-data-node-with-2-tasks",
+                    PersistentTasksCustomMetadata.Explanation.ASSIGNMENT_SUCCESSFUL
+                )
             )
             .addTask(
                 "transform-task-3",
                 TransformTaskParams.NAME,
                 new TransformTaskParams("transform-task-3", TransformConfigVersion.CURRENT, null, false),
-                new PersistentTasksCustomMetadata.Assignment("current-data-node-with-2-tasks", "")
+                new PersistentTasksCustomMetadata.Assignment(
+                    "current-data-node-with-2-tasks",
+                    PersistentTasksCustomMetadata.Explanation.ASSIGNMENT_SUCCESSFUL
+                )
             );
 
         PersistentTasksCustomMetadata pTasks = pTasksBuilder.build();

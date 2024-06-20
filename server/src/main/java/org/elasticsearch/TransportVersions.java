@@ -212,6 +212,7 @@ public class TransportVersions {
     public static final TransportVersion ML_INFERENCE_DONT_DELETE_WHEN_SEMANTIC_TEXT_EXISTS = def(8_703_00_0);
     public static final TransportVersion INFERENCE_ADAPTIVE_ALLOCATIONS = def(8_704_00_0);
     public static final TransportVersion INDEX_REQUEST_UPDATE_BY_SCRIPT_ORIGIN = def(8_705_00_0);
+    public static final TransportVersion PERSISTENT_TASK_CUSTOM_METADATA_ASSIGNMENT_REASON_ENUM = def(8_706_00_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,
@@ -276,7 +277,7 @@ public class TransportVersions {
      * Reference to the minimum transport version that can be used with CCS.
      * This should be the transport version used by the previous minor release.
      */
-    public static final TransportVersion MINIMUM_CCS_VERSION = SHUTDOWN_REQUEST_TIMEOUTS_FIX_8_14;
+    public static final TransportVersion MINIMUM_CCS_VERSION = V_8_13_0;
 
     static final NavigableMap<Integer, TransportVersion> VERSION_IDS = getAllVersionIds(TransportVersions.class);
 

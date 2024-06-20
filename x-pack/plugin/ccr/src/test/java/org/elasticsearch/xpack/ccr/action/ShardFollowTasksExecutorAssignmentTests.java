@@ -19,6 +19,7 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
+import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata.Assignment;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -31,6 +32,8 @@ import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Supplier;
 
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -60,7 +63,8 @@ public class ShardFollowTasksExecutorAssignmentTests extends ESTestCase {
     private void runNoAssignmentTest(final Set<DiscoveryNodeRole> roles) {
         runAssignmentTest(roles, 0, Set::of, (theSpecial, assignment) -> {
             assertFalse(assignment.isAssigned());
-            assertThat(assignment.getExplanation(), equalTo("no nodes found with data and remote cluster client roles"));
+            assertThat(assignment.getExplanation(), containsString("no nodes found with data and remote cluster client roles"));
+            assertThat(assignment.getExplanationCodes(), contains(PersistentTasksCustomMetadata.Explanation.NO_NODES_FOUND));
         });
     }
 

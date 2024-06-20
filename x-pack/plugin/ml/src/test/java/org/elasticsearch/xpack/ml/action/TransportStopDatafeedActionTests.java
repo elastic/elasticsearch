@@ -100,7 +100,11 @@ public class TransportStopDatafeedActionTests extends ESTestCase {
             MlTasks.datafeedTaskId(datafeedId),
             MlTasks.DATAFEED_TASK_NAME,
             new StartDatafeedAction.DatafeedParams(datafeedId, startTime),
-            new PersistentTasksCustomMetadata.Assignment(nodeId, "test assignment")
+            new PersistentTasksCustomMetadata.Assignment(
+                nodeId,
+                "test assignment",
+                PersistentTasksCustomMetadata.Explanation.ASSIGNMENT_SUCCESSFUL
+            )
         );
         taskBuilder.updateTaskState(MlTasks.datafeedTaskId(datafeedId), state);
     }

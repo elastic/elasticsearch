@@ -15,6 +15,7 @@ import java.util.Locale;
 
 import static org.elasticsearch.common.settings.Setting.Property.Dynamic;
 import static org.elasticsearch.common.settings.Setting.Property.NodeScope;
+import static org.elasticsearch.persistent.decider.AssignmentDecision.Reason.PERSISTENT_TASK_ASSIGNMENTS_NOT_ALLOWED;
 
 /**
  * {@link EnableAssignmentDecider} is used to allow/disallow the persistent tasks
@@ -37,7 +38,6 @@ public final class EnableAssignmentDecider {
         Dynamic,
         NodeScope
     );
-    public static final String ALLOCATION_NONE_EXPLANATION = "no persistent task assignments are allowed due to cluster settings";
 
     private volatile Allocation enableAssignment;
 
@@ -59,7 +59,7 @@ public final class EnableAssignmentDecider {
      */
     public AssignmentDecision canAssign() {
         if (enableAssignment == Allocation.NONE) {
-            return new AssignmentDecision(AssignmentDecision.Type.NO, ALLOCATION_NONE_EXPLANATION);
+            return new AssignmentDecision(AssignmentDecision.Type.NO, PERSISTENT_TASK_ASSIGNMENTS_NOT_ALLOWED);
         }
         return AssignmentDecision.YES;
     }

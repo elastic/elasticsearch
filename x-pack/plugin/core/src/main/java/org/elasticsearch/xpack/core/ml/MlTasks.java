@@ -57,11 +57,13 @@ public final class MlTasks {
 
     public static final PersistentTasksCustomMetadata.Assignment AWAITING_UPGRADE = new PersistentTasksCustomMetadata.Assignment(
         null,
-        "persistent task cannot be assigned while upgrade mode is enabled."
+        "persistent task cannot be assigned while upgrade mode is enabled.",
+        PersistentTasksCustomMetadata.Explanation.AWAITING_UPGRADE
     );
     public static final PersistentTasksCustomMetadata.Assignment RESET_IN_PROGRESS = new PersistentTasksCustomMetadata.Assignment(
         null,
-        "persistent task will not be assigned as a feature reset is in progress."
+        "persistent task will not be assigned as a feature reset is in progress.",
+        PersistentTasksCustomMetadata.Explanation.FEATURE_RESET_IN_PROGRESS
     );
 
     // When a master node action is executed and there is no master node the transport will wait

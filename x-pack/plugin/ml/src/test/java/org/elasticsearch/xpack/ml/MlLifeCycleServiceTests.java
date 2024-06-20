@@ -84,25 +84,41 @@ public class MlLifeCycleServiceTests extends ESTestCase {
             MlTasks.jobTaskId("job-1"),
             MlTasks.JOB_TASK_NAME,
             new OpenJobAction.JobParams("job-1"),
-            new PersistentTasksCustomMetadata.Assignment("node-1", "test assignment")
+            new PersistentTasksCustomMetadata.Assignment(
+                "node-1",
+                "test assignment",
+                PersistentTasksCustomMetadata.Explanation.ASSIGNMENT_SUCCESSFUL
+            )
         );
         tasksBuilder.addTask(
             MlTasks.datafeedTaskId("df1"),
             MlTasks.DATAFEED_TASK_NAME,
             new StartDatafeedAction.DatafeedParams("df1", 0L),
-            new PersistentTasksCustomMetadata.Assignment("node-1", "test assignment")
+            new PersistentTasksCustomMetadata.Assignment(
+                "node-1",
+                "test assignment",
+                PersistentTasksCustomMetadata.Explanation.ASSIGNMENT_SUCCESSFUL
+            )
         );
         tasksBuilder.addTask(
             MlTasks.dataFrameAnalyticsTaskId("job-2"),
             MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME,
             new StartDataFrameAnalyticsAction.TaskParams("foo-2", MlConfigVersion.CURRENT, true),
-            new PersistentTasksCustomMetadata.Assignment("node-2", "test assignment")
+            new PersistentTasksCustomMetadata.Assignment(
+                "node-2",
+                "test assignment",
+                PersistentTasksCustomMetadata.Explanation.ASSIGNMENT_SUCCESSFUL
+            )
         );
         tasksBuilder.addTask(
             MlTasks.snapshotUpgradeTaskId("job-3", "snapshot-3"),
             MlTasks.JOB_SNAPSHOT_UPGRADE_TASK_NAME,
             new SnapshotUpgradeTaskParams("job-3", "snapshot-3"),
-            new PersistentTasksCustomMetadata.Assignment("node-3", "test assignment")
+            new PersistentTasksCustomMetadata.Assignment(
+                "node-3",
+                "test assignment",
+                PersistentTasksCustomMetadata.Explanation.ASSIGNMENT_SUCCESSFUL
+            )
         );
 
         Metadata metadata = Metadata.builder().putCustom(PersistentTasksCustomMetadata.TYPE, tasksBuilder.build()).build();
@@ -145,14 +161,22 @@ public class MlLifeCycleServiceTests extends ESTestCase {
             MlTasks.jobTaskId("job-1"),
             MlTasks.JOB_TASK_NAME,
             new OpenJobAction.JobParams("job-1"),
-            new PersistentTasksCustomMetadata.Assignment("node-1", "test assignment")
+            new PersistentTasksCustomMetadata.Assignment(
+                "node-1",
+                "test assignment",
+                PersistentTasksCustomMetadata.Explanation.ASSIGNMENT_SUCCESSFUL
+            )
         );
         tasksBuilder.updateTaskState(MlTasks.jobTaskId("job-1"), new JobTaskState(JobState.FAILED, 1, "testing", Instant.now()));
         tasksBuilder.addTask(
             MlTasks.dataFrameAnalyticsTaskId("job-2"),
             MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME,
             new StartDataFrameAnalyticsAction.TaskParams("foo-2", MlConfigVersion.CURRENT, true),
-            new PersistentTasksCustomMetadata.Assignment("node-2", "test assignment")
+            new PersistentTasksCustomMetadata.Assignment(
+                "node-2",
+                "test assignment",
+                PersistentTasksCustomMetadata.Explanation.ASSIGNMENT_SUCCESSFUL
+            )
         );
         tasksBuilder.updateTaskState(
             MlTasks.dataFrameAnalyticsTaskId("job-2"),
@@ -162,7 +186,11 @@ public class MlLifeCycleServiceTests extends ESTestCase {
             MlTasks.snapshotUpgradeTaskId("job-3", "snapshot-3"),
             MlTasks.JOB_SNAPSHOT_UPGRADE_TASK_NAME,
             new SnapshotUpgradeTaskParams("job-3", "snapshot-3"),
-            new PersistentTasksCustomMetadata.Assignment("node-3", "test assignment")
+            new PersistentTasksCustomMetadata.Assignment(
+                "node-3",
+                "test assignment",
+                PersistentTasksCustomMetadata.Explanation.ASSIGNMENT_SUCCESSFUL
+            )
         );
         tasksBuilder.updateTaskState(
             MlTasks.snapshotUpgradeTaskId("job-3", "snapshot-3"),

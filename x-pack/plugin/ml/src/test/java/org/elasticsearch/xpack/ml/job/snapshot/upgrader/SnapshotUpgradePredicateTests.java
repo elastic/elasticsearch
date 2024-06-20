@@ -27,7 +27,7 @@ public class SnapshotUpgradePredicateTests extends ESTestCase {
             MlTasks.JOB_SNAPSHOT_UPGRADE_TASK_NAME,
             new SnapshotUpgradeTaskParams("job", "snapshot"),
             1,
-            new PersistentTasksCustomMetadata.Assignment("test-node", "")
+            new PersistentTasksCustomMetadata.Assignment("test-node", PersistentTasksCustomMetadata.Explanation.ASSIGNMENT_SUCCESSFUL)
         );
         {
             SnapshotUpgradePredicate snapshotUpgradePredicate = new SnapshotUpgradePredicate(true, logger);
@@ -65,7 +65,7 @@ public class SnapshotUpgradePredicateTests extends ESTestCase {
             MlTasks.JOB_SNAPSHOT_UPGRADE_TASK_NAME,
             new SnapshotUpgradeTaskParams("job", "snapshot"),
             1,
-            new PersistentTasksCustomMetadata.Assignment("test-node", "")
+            new PersistentTasksCustomMetadata.Assignment("test-node", PersistentTasksCustomMetadata.Explanation.ASSIGNMENT_SUCCESSFUL)
         );
         {
             SnapshotUpgradePredicate snapshotUpgradePredicate = new SnapshotUpgradePredicate(false, logger);

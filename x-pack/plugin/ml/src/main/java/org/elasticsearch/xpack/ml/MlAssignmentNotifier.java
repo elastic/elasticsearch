@@ -157,7 +157,7 @@ public class MlAssignmentNotifier implements ClusterStateListener {
                     if (anomalyDetectionAuditor.includeNodeInfo()) {
                         anomalyDetectionAuditor.warning(
                             jobId,
-                            "No node found to open job. Reasons [" + currentAssignment.getExplanation() + "]"
+                            "No node found to open job. Reasons [" + currentAssignment.getExplanationCodesAndExplanation() + "]"
                         );
                     } else {
                         anomalyDetectionAuditor.warning(jobId, "Awaiting capacity to open job.");
@@ -189,7 +189,7 @@ public class MlAssignmentNotifier implements ClusterStateListener {
                                     "No node found to start datafeed ["
                                         + datafeedParams.getDatafeedId()
                                         + "]. Reasons ["
-                                        + currentAssignment.getExplanation()
+                                        + currentAssignment.getExplanationCodesAndExplanation()
                                         + "]"
                                 );
                             } else {
@@ -213,7 +213,7 @@ public class MlAssignmentNotifier implements ClusterStateListener {
                                 "[{}] No node found to start datafeed [{}]. Reasons [{}]",
                                 jobId,
                                 datafeedParams.getDatafeedId(),
-                                currentAssignment.getExplanation()
+                                currentAssignment.getExplanationCodesAndExplanation()
                             );
                         }
                     }
@@ -231,7 +231,7 @@ public class MlAssignmentNotifier implements ClusterStateListener {
                     if (anomalyDetectionAuditor.includeNodeInfo()) {
                         dataFrameAnalyticsAuditor.warning(
                             id,
-                            "No node found to start analytics. Reasons [" + currentAssignment.getExplanation() + "]"
+                            "No node found to start analytics. Reasons [" + currentAssignment.getExplanationCodesAndExplanation() + "]"
                         );
                     } else {
                         dataFrameAnalyticsAuditor.warning(id, "Awaiting capacity to start analytics.");

@@ -375,7 +375,7 @@ public class TransportGetDataFrameAnalyticsStatsAction extends TransportTasksAct
         String assignmentExplanation = null;
         if (analyticsTask != null) {
             node = analyticsTask.getExecutorNode() != null ? clusterState.nodes().get(analyticsTask.getExecutorNode()) : null;
-            assignmentExplanation = analyticsTask.getAssignment().getExplanation();
+            assignmentExplanation = analyticsTask.getAssignment().getExplanationCodesAndExplanation();
         }
         return new GetDataFrameAnalyticsStatsAction.Response.Stats(
             concreteAnalyticsId,

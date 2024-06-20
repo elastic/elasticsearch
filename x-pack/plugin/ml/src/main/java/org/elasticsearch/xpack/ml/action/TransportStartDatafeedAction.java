@@ -732,7 +732,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
                 if (assignment.equals(PersistentTasksCustomMetadata.INITIAL_ASSIGNMENT) == false && assignment.isAssigned() == false) {
                     // Assignment has failed despite passing our "fast fail" validation
                     exception = new ElasticsearchStatusException(
-                        "Could not start datafeed, allocation explanation [" + assignment.getExplanation() + "]",
+                        "Could not start datafeed, allocation explanation [" + assignment.getExplanationCodesAndExplanation() + "]",
                         RestStatus.TOO_MANY_REQUESTS
                     );
                     return true;

@@ -492,7 +492,11 @@ public class JobConfigProviderIT extends MlSingleNodeTestCase {
             MlTasks.jobTaskId("foo-2"),
             MlTasks.JOB_TASK_NAME,
             new OpenJobAction.JobParams("foo-2"),
-            new PersistentTasksCustomMetadata.Assignment("node-1", "test assignment")
+            new PersistentTasksCustomMetadata.Assignment(
+                "node-1",
+                "test assignment",
+                PersistentTasksCustomMetadata.Explanation.ASSIGNMENT_SUCCESSFUL
+            )
         );
 
         PersistentTasksCustomMetadata tasks = tasksBuilder.build();

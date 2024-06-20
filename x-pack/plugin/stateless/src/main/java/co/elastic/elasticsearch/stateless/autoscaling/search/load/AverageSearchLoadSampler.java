@@ -69,7 +69,7 @@ public class AverageSearchLoadSampler {
 
     private final ThreadPool threadPool;
     private final Map<String, AverageLoad> averageThreadLoadPerExecutor = new HashMap<>();
-    private final int numProcessors;
+    private final double numProcessors;
 
     public static AverageSearchLoadSampler create(ThreadPool threadPool, Settings settings, ClusterSettings clusterSettings) {
         assert MONITORED_EXECUTORS.keySet()
@@ -83,7 +83,7 @@ public class AverageSearchLoadSampler {
             threadPool,
             SearchLoadSampler.SAMPLING_FREQUENCY_SETTING.get(settings),
             threadPoolsAndEWMAAlpha,
-            EsExecutors.allocatedProcessors(settings)
+            EsExecutors.nodeProcessors(settings).count()
         );
         MONITORED_EXECUTORS.forEach(
             (name, setting) -> clusterSettings.addSettingsUpdateConsumer(setting, value -> sampler.updateEWMAAlpha(name, value))
@@ -95,7 +95,7 @@ public class AverageSearchLoadSampler {
         ThreadPool threadPool,
         TimeValue samplingFrequency,
         Map<String, Double> threadPoolToAlphaValue,
-        int numProcessors
+        double numProcessors
     ) {
         assert threadPoolToAlphaValue.keySet().equals(MONITORED_EXECUTORS.keySet())
             : "threadPoolToAlphaValue must contain a single entry for each of the monitored executors: " + MONITORED_EXECUTORS;

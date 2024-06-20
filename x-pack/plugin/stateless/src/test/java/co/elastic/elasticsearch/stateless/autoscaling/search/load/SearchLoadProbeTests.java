@@ -185,6 +185,8 @@ public class SearchLoadProbeTests extends ESTestCase {
         assertSearchLoadNoQueuing(2, 1, 0.5);
         assertSearchLoadNoQueuing(2, 2, 1.0);
         assertSearchLoadNoQueuing(2, 0.001, 0.0005);
+        assertSearchLoadNoQueuing(1.5, 2, 0.75);
+        assertSearchLoadNoQueuing(3.5, 7, 3.5);
     }
 
     public void testSearchLoadJustQueuing() {
@@ -217,7 +219,7 @@ public class SearchLoadProbeTests extends ESTestCase {
 
     public void testMaxTimeToClearQueueSetting() {}
 
-    private void assertSearchLoadNoQueuing(int numProcessors, double searchPoolThreadsUsed, double expectedTotalReportedLoad) {
+    private void assertSearchLoadNoQueuing(double numProcessors, double searchPoolThreadsUsed, double expectedTotalReportedLoad) {
         assertSearchLoad(numProcessors, 1000, searchPoolThreadsUsed, 100, 0, expectedTotalReportedLoad);
     }
 
@@ -232,7 +234,7 @@ public class SearchLoadProbeTests extends ESTestCase {
     }
 
     private void assertSearchLoad(
-        int numProcessors,
+        double numProcessors,
         int maxTimeToClearQueueMillis,
         double searchPoolThreadsUsed,
         int searchTaskTimeMillis,
@@ -259,7 +261,7 @@ public class SearchLoadProbeTests extends ESTestCase {
                 searchPoolThreadsUsed,
                 timeValueMillis(searchTaskTimeMillis).nanos(),
                 searchQueueSize,
-                searchOrGetThreadPoolSize(numProcessors),
+                searchOrGetThreadPoolSize((int) Math.ceil(numProcessors)),
                 numProcessors
             )
         );

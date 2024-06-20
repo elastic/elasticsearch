@@ -133,7 +133,7 @@ public class SearchLoadProbe {
         long currentQueueSize,
         TimeValue maxTimeToClearQueue,
         double maxThreadsToHandleQueue,
-        int numProcessors,
+        double numProcessors,
         int threadPoolSize
     ) {
         assert maxThreadsToHandleQueue > 0.0;
@@ -141,7 +141,7 @@ public class SearchLoadProbe {
 
         var maxTimeToClearQueueNanos = maxTimeToClearQueue.nanos();
 
-        double processorPerThread = (double) numProcessors / threadPoolSize;
+        double processorPerThread = numProcessors / threadPoolSize;
         double threadPoolLoad = threadsUsed * processorPerThread;
 
         // Protect from divide by zero errors.

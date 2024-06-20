@@ -1042,6 +1042,6 @@ public class CompatCalendarNameProvider extends CalendarNameProvider {
 
     @Override
     public Locale[] getAvailableLocales() {
-        return LOCALE_DATA.keySet().toArray(Locale[]::new);
+        return ENABLE_SHIM ? LOCALE_DATA.keySet().toArray(Locale[]::new) : new Locale[0];
     }
 }

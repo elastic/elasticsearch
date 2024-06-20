@@ -30,13 +30,11 @@ final class BigFloatArray extends AbstractBigByteArray implements FloatArray {
     }
 
     @Override
-    public float set(long index, float value) {
+    public void set(long index, float value) {
         final int pageIndex = pageIndex(index);
         final int indexInPage = indexInPage(index);
         final byte[] page = getPageForWriting(pageIndex);
-        final float ret = (float) VH_PLATFORM_NATIVE_FLOAT.get(page, indexInPage << 2);
         VH_PLATFORM_NATIVE_FLOAT.set(page, indexInPage << 2, value);
-        return ret;
     }
 
     @Override

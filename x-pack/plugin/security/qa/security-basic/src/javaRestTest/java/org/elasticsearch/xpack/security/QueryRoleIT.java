@@ -47,8 +47,8 @@ public class QueryRoleIT extends SecurityInBasicRestTestCase {
         });
     }
 
-    public void testMetadataSearch() throws IOException {
-        int nroles = randomIntBetween(1, 20);
+    public void testSimpleMetadataSearch() throws IOException {
+        int nroles = randomIntBetween(1, 3);
         for (int i = 0; i < nroles; i++) {
             createRandomRole();
         }
@@ -56,6 +56,18 @@ public class QueryRoleIT extends SecurityInBasicRestTestCase {
             "match_this",
             randomBoolean() ? null : randomAlphaOfLength(8),
             Map.of("matchSimpleKey", "matchSimpleValue"),
+            randomApplicationPrivileges()
+        );
+        createRole(
+            "other",
+            randomBoolean() ? null : randomAlphaOfLength(8),
+            Map.of("matchSimpleKey", "other"),
+            randomApplicationPrivileges()
+        );
+        createRole(
+            "other2",
+            randomBoolean() ? null : randomAlphaOfLength(8),
+            Map.of("other", "matchSimpleValue"),
             randomApplicationPrivileges()
         );
         assertQuery("""

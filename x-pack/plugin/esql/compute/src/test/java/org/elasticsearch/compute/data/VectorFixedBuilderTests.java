@@ -119,6 +119,7 @@ public class VectorFixedBuilderTests extends ESTestCase {
             case NULL, BYTES_REF, DOC, COMPOSITE, UNKNOWN -> throw new UnsupportedOperationException();
             case BOOLEAN -> blockFactory.newBooleanVectorFixedBuilder(size);
             case DOUBLE -> blockFactory.newDoubleVectorFixedBuilder(size);
+            case FLOAT -> blockFactory.newFloatVectorFixedBuilder(size);
             case INT -> blockFactory.newIntVectorFixedBuilder(size);
             case LONG -> blockFactory.newLongVectorFixedBuilder(size);
         };
@@ -130,6 +131,11 @@ public class VectorFixedBuilderTests extends ESTestCase {
             case BOOLEAN -> {
                 for (int p = 0; p < from.getPositionCount(); p++) {
                     ((BooleanVector.FixedBuilder) builder).appendBoolean(((BooleanVector) from).getBoolean(p));
+                }
+            }
+            case FLOAT -> {
+                for (int p = 0; p < from.getPositionCount(); p++) {
+                    ((FloatVector.Builder) builder).appendFloat(((FloatVector) from).getFloat(p));
                 }
             }
             case DOUBLE -> {

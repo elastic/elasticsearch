@@ -102,5 +102,21 @@ public class StatelessPrimaryRelocationAction {
         public int hashCode() {
             return Objects.hash(recoveryId, shardId, targetNode, targetAllocationId, clusterStateVersion);
         }
+
+        @Override
+        public String toString() {
+            return "Request{"
+                + "shardId="
+                + shardId
+                + ", targetNode="
+                + targetNode.descriptionWithoutAttributes()
+                + ", recoveryId="
+                + recoveryId
+                + ", targetAllocationId='"
+                + targetAllocationId
+                + "', clusterStateVersion="
+                + clusterStateVersion
+                + '}';
+        }
     }
 }

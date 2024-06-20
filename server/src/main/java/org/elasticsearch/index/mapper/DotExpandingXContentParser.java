@@ -50,6 +50,8 @@ class DotExpandingXContentParser extends FilterXContentParserWrapper {
         public Token nextToken() throws IOException {
             Token token;
             XContentParser delegate;
+            // cache object field (even when final this is a valid optimization, see https://openjdk.org/jeps/8132243)
+            var parsers = this.parsers;
             while ((token = (delegate = parsers.peek()).nextToken()) == null) {
                 parsers.pop();
                 if (parsers.isEmpty()) {

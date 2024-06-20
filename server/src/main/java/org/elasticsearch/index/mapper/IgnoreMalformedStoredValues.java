@@ -25,8 +25,28 @@ import static java.util.Collections.emptyList;
  * {@code _source}.
  */
 public abstract class IgnoreMalformedStoredValues {
+    /**
+     * Creates a stored field that stores malformed data to be used in synthetic source.
+     * Name of the stored field is original name of the field with added conventional suffix.
+     * @param name original name of the field
+     * @param parser parser to grab field content from
+     * @return
+     * @throws IOException
+     */
     public static StoredField storedField(String name, XContentParser parser) throws IOException {
         return XContentDataHelper.storedField(name(name), parser);
+    }
+
+    /**
+     * Creates a stored field that stores malformed data to be used in synthetic source.
+     * Name of the stored field is original name of the field with added conventional suffix.
+     * @param name original name of the field
+     * @param builder malformed data
+     * @return
+     * @throws IOException
+     */
+    public static StoredField storedField(String name, XContentBuilder builder) throws IOException {
+        return XContentDataHelper.storedField(name(name), builder);
     }
 
     /**
@@ -108,7 +128,7 @@ public abstract class IgnoreMalformedStoredValues {
         }
     }
 
-    private static String name(String fieldName) {
+    public static String name(String fieldName) {
         return fieldName + "._ignore_malformed";
     }
 }

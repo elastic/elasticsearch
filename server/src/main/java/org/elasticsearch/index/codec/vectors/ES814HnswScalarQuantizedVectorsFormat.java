@@ -16,14 +16,11 @@ import org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsReader;
 import org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsWriter;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
-import org.apache.lucene.search.TaskExecutor;
 
 import java.io.IOException;
-import java.util.concurrent.ExecutorService;
 
 import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat.DEFAULT_BEAM_WIDTH;
 import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat.DEFAULT_MAX_CONN;
-import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat.DEFAULT_NUM_MERGE_WORKER;
 
 public final class ES814HnswScalarQuantizedVectorsFormat extends KnnVectorsFormat {
 
@@ -39,20 +36,11 @@ public final class ES814HnswScalarQuantizedVectorsFormat extends KnnVectorsForma
     /** The format for storing, reading, merging vectors on disk */
     private final FlatVectorsFormat flatVectorsFormat;
 
-    private final int numMergeWorkers;
-    private final TaskExecutor mergeExec;
-
     public ES814HnswScalarQuantizedVectorsFormat() {
-        this(DEFAULT_MAX_CONN, DEFAULT_BEAM_WIDTH, DEFAULT_NUM_MERGE_WORKER, null, null);
+        this(DEFAULT_MAX_CONN, DEFAULT_BEAM_WIDTH, null, 7, false);
     }
 
-    public ES814HnswScalarQuantizedVectorsFormat(
-        int maxConn,
-        int beamWidth,
-        int numMergeWorkers,
-        Float confidenceInterval,
-        ExecutorService mergeExec
-    ) {
+    public ES814HnswScalarQuantizedVectorsFormat(int maxConn, int beamWidth, Float confidenceInterval, int bits, boolean compress) {
         super(NAME);
         if (maxConn <= 0 || maxConn > MAXIMUM_MAX_CONN) {
             throw new IllegalArgumentException(
@@ -66,24 +54,12 @@ public final class ES814HnswScalarQuantizedVectorsFormat extends KnnVectorsForma
         }
         this.maxConn = maxConn;
         this.beamWidth = beamWidth;
-        if (numMergeWorkers > 1 && mergeExec == null) {
-            throw new IllegalArgumentException("No executor service passed in when " + numMergeWorkers + " merge workers are requested");
-        }
-        if (numMergeWorkers == 1 && mergeExec != null) {
-            throw new IllegalArgumentException("No executor service is needed as we'll use single thread to merge");
-        }
-        this.numMergeWorkers = numMergeWorkers;
-        if (mergeExec != null) {
-            this.mergeExec = new TaskExecutor(mergeExec);
-        } else {
-            this.mergeExec = null;
-        }
-        this.flatVectorsFormat = new ES814ScalarQuantizedVectorsFormat(confidenceInterval);
+        this.flatVectorsFormat = new ES814ScalarQuantizedVectorsFormat(confidenceInterval, bits, compress);
     }
 
     @Override
     public KnnVectorsWriter fieldsWriter(SegmentWriteState state) throws IOException {
-        return new Lucene99HnswVectorsWriter(state, maxConn, beamWidth, flatVectorsFormat.fieldsWriter(state), numMergeWorkers, mergeExec);
+        return new Lucene99HnswVectorsWriter(state, maxConn, beamWidth, flatVectorsFormat.fieldsWriter(state), 1, null);
     }
 
     @Override

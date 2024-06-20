@@ -7,16 +7,21 @@
 
 package org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic;
 
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 
+import java.io.IOException;
+
 import static org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.EsqlArithmeticOperation.OperationSymbol.MOD;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.longToUnsignedLong;
 
 public class Mod extends EsqlArithmeticOperation {
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Mod", Mod::new);
 
     public Mod(Source source, Expression left, Expression right) {
         super(
@@ -27,8 +32,24 @@ public class Mod extends EsqlArithmeticOperation {
             ModIntsEvaluator.Factory::new,
             ModLongsEvaluator.Factory::new,
             ModUnsignedLongsEvaluator.Factory::new,
-            (s, lhs, rhs) -> new ModDoublesEvaluator.Factory(source, lhs, rhs)
+            ModDoublesEvaluator.Factory::new
         );
+    }
+
+    private Mod(StreamInput in) throws IOException {
+        super(
+            in,
+            MOD,
+            ModIntsEvaluator.Factory::new,
+            ModLongsEvaluator.Factory::new,
+            ModUnsignedLongsEvaluator.Factory::new,
+            ModDoublesEvaluator.Factory::new
+        );
+    }
+
+    @Override
+    public String getWriteableName() {
+        return ENTRY.name;
     }
 
     @Override

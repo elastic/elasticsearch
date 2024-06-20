@@ -16,8 +16,6 @@ public class TextSimilarityRankFeatures implements FeatureSpecification {
 
     @Override
     public Set<NodeFeature> getFeatures() {
-        return Set.of(
-            TextSimilarityRankRetrieverBuilder.NODE_FEATURE
-        );
+        return Set.of(TextSimilarityRankRetrieverBuilder.NODE_FEATURE);
     }
 }

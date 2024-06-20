@@ -24,7 +24,7 @@ import static org.elasticsearch.search.rank.RankBuilder.DEFAULT_RANK_WINDOW_SIZE
 import static org.elasticsearch.xpack.rank.textsimilarity.TextSimilarityRankPlugin.NAME;
 
 public class TextSimilarityRankRetrieverBuilder extends RetrieverBuilder {
-    public static final NodeFeature NODE_FEATURE = new NodeFeature(NAME + "_retriever");
+    public static final NodeFeature NODE_FEATURE = new NodeFeature("text_similarity_rank_retriever_supported");
 
     public static final ParseField RETRIEVER_FIELD = new ParseField("retriever");
     public static final ParseField FIELD_FIELD = new ParseField("field");

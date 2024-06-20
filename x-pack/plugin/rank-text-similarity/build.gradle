@@ -13,19 +13,19 @@ esplugin {
   name 'rank-text-similarity'
   description 'Text similarity reranking in search.'
   classname 'org.elasticsearch.xpack.rank.textsimilarity.TextSimilarityRankPlugin'
-  extendedPlugins = ['x-pack-core', 'x-pack-inference']
+  extendedPlugins = ['x-pack-inference']
 }
 
 dependencies {
-//  compileOnly project(path: xpackModule('core'))
-//  compileOnly project(path: xpackModule('inference'))
-  compileOnly project(':x-pack:plugin:core')
-  compileOnly project(':x-pack:plugin:inference')
-  compileOnly project(':x-pack:plugin:ml')
+  compileOnly project(path: xpackModule('core'))
+  compileOnly project(path: xpackModule('inference'))
+//  compileOnly project(':x-pack:plugin:core')
+//  compileOnly project(':x-pack:plugin:inference')
+//  compileOnly project(':x-pack:plugin:ml')
 
   testImplementation(testArtifact(project(xpackModule('core'))))
   testImplementation project(path: xpackModule('inference'))
 
-//  clusterModules project(xpackModule('rank-rrf'))
+  clusterModules project(xpackModule('rank-text-similarity'))
 //  clusterModules project(':modules:lang-painless')
 }

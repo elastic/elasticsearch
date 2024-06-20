@@ -1134,6 +1134,22 @@ public class StatementParserTests extends AbstractStatementParserTests {
         );
     }
 
+    public void testIntervalParam() {
+        LogicalPlan stm = statement(
+            "row x = ?1::datetime | eval y = ?1::datetime + ?2::date_period",
+            new QueryParams(List.of(new QueryParam("datetime", "2024-01-01", KEYWORD), new QueryParam("date_period", "3 days", KEYWORD)))
+        );
+        assertThat(stm, instanceOf(Eval.class));
+        Eval eval = (Eval) stm;
+        assertThat(eval.fields().size(), is(1));
+
+        NamedExpression field = eval.fields().get(0);
+        assertThat(field.name(), is("y"));
+        assertThat(field, instanceOf(Alias.class));
+        assertThat(((Literal) ((Add) eval.fields().get(0).child()).left().children().get(0)).value(), equalTo("2024-01-01"));
+        assertThat(((Literal) ((Add) eval.fields().get(0).child()).right().children().get(0)).value(), equalTo("3 days"));
+    }
+
     public void testFieldContainingDotsAndNumbers() {
         LogicalPlan where = processingCommand("where `a.b.1m.4321`");
         assertThat(where, instanceOf(Filter.class));

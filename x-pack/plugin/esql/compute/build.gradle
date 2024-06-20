@@ -535,6 +535,11 @@ tasks.named('stringTemplates').configure {
     it.outputFile = "org/elasticsearch/compute/aggregation/TopListLongAggregator.java"
   }
   template {
+    it.properties = floatProperties
+    it.inputFile =  topListAggregatorInputFile
+    it.outputFile = "org/elasticsearch/compute/aggregation/TopListFloatAggregator.java"
+  }
+  template {
     it.properties = doubleProperties
     it.inputFile =  topListAggregatorInputFile
     it.outputFile = "org/elasticsearch/compute/aggregation/TopListDoubleAggregator.java"
@@ -686,6 +691,11 @@ tasks.named('stringTemplates').configure {
     it.properties = longProperties
     it.inputFile =  bucketedSortInputFile
     it.outputFile = "org/elasticsearch/compute/data/sort/LongBucketedSort.java"
+  }
+  template {
+    it.properties = floatProperties
+    it.inputFile =  bucketedSortInputFile
+    it.outputFile = "org/elasticsearch/compute/data/sort/FloatBucketedSort.java"
   }
   template {
     it.properties = doubleProperties

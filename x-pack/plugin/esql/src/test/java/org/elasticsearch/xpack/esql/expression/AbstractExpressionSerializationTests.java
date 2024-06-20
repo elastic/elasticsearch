@@ -78,6 +78,10 @@ public abstract class AbstractExpressionSerializationTests<T extends Expression>
 
     protected abstract List<NamedWriteableRegistry.Entry> getNamedWriteables();
 
+    public EsqlConfiguration configuration() {
+        return config;
+    }
+
     @Override
     protected final NamedWriteableRegistry getNamedWriteableRegistry() {
         List<NamedWriteableRegistry.Entry> entries = new ArrayList<>(NamedExpression.getNamedWriteables());

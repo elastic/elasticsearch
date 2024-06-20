@@ -21,6 +21,9 @@ dockerFixtures {
 }
 
 configurations {
+  all {
+    exclude group: 'org.hamcrest', module: 'hamcrest-core'
+  }
   krb5ConfHdfsFile {
     canBeConsumed = true
     canBeResolved = false
@@ -42,7 +45,7 @@ dependencies {
     transitive = false
   }
   implementation "org.slf4j:slf4j-api:${versions.slf4j}"
-  implementation "com.github.docker-java:docker-java-api:${versions.dockerJava}"
+ // implementation "com.github.docker-java:docker-java-api:${versions.dockerJava}"
   implementation "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}"
 
   // ensure we have proper logging during when used in tests

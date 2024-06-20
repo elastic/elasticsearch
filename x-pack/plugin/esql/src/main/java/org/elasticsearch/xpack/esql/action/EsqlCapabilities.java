@@ -27,37 +27,37 @@ public class EsqlCapabilities {
         /**
          * Support for function {@code CBRT}. Done in #108574.
          */
-        FN_CBRT(false),
+        FN_CBRT,
 
         /**
          * Support for {@code MV_APPEND} function. #107001
          */
-        FN_MV_APPEND(false),
+        FN_MV_APPEND,
 
         /**
          * Support for function {@code IP_PREFIX}.
          */
-        FN_IP_PREFIX(false),
+        FN_IP_PREFIX,
 
         /**
          * Fix on function {@code SUBSTRING} that makes it not return null on empty strings.
          */
-        FN_SUBSTRING_EMPTY_NULL(false),
+        FN_SUBSTRING_EMPTY_NULL,
 
         /**
          * Support for aggregation function {@code TOP_LIST}.
          */
-        AGG_TOP_LIST(false),
+        AGG_TOP_LIST,
 
         /**
          * Optimization for ST_CENTROID changed some results in cartesian data. #108713
          */
-        ST_CENTROID_AGG_OPTIMIZED(false),
+        ST_CENTROID_AGG_OPTIMIZED,
 
         /**
          * Support for requesting the "_ignored" metadata field.
          */
-        METADATA_IGNORED_FIELD(false),
+        METADATA_IGNORED_FIELD,
 
         /**
          * Support for the "LOOKUP" command.
@@ -72,22 +72,26 @@ public class EsqlCapabilities {
         /**
          * Support for requesting the "REPEAT" command.
          */
-        REPEAT(false),
+        REPEAT,
 
         /**
          * Cast string literals to datetime in addition and subtraction when the other side is a date or time interval.
          */
-        STRING_LITERAL_AUTO_CASTING_TO_DATETIME_ADD_SUB(false),
+        STRING_LITERAL_AUTO_CASTING_TO_DATETIME_ADD_SUB,
 
         /**
          * Support for named or positional parameters in EsqlQueryRequest.
          */
-        NAMED_POSITIONAL_PARAMETER(false),
+        NAMED_POSITIONAL_PARAMETER,
 
         /**
          * Support multiple field mappings if appropriate conversion function is used (union types)
          */
-        UNION_TYPES(false);
+        UNION_TYPES;
+
+        Cap() {
+            snapshotOnly = false;
+        };
 
         Cap(boolean snapshotOnly) {
             this.snapshotOnly = snapshotOnly;

@@ -24,6 +24,7 @@ import co.elastic.elasticsearch.stateless.engine.IndexEngine;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
@@ -51,8 +52,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexShard;
-import org.elasticsearch.index.shard.IndexShardNotStartedException;
-import org.elasticsearch.index.shard.IndexShardState;
+import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.node.NodeClosedException;
@@ -121,7 +121,7 @@ public class TransportGetVirtualBatchedCompoundCommitChunkAction extends Transpo
                 transportService.getThreadPool(),
                 TimeValue.timeValueMillis(1),
                 TimeValue.timeValueSeconds(5),
-                TimeValue.timeValueMinutes(5),
+                TimeValue.MAX_VALUE,
                 l,
                 EsExecutors.DIRECT_EXECUTOR_SERVICE
             ) {
@@ -141,13 +141,7 @@ public class TransportGetVirtualBatchedCompoundCommitChunkAction extends Transpo
                     final boolean shouldRetry = indexService != null && indexService.hasShard(request.getShardId().id());
 
                     return shouldRetry
-                        && ExceptionsHelper.unwrap(
-                            e,
-                            ConnectTransportException.class,
-                            CircuitBreakingException.class,
-                            NodeClosedException.class,
-                            IndexShardNotStartedException.class
-                        ) != null;
+                        && ExceptionsHelper.unwrap(e, ConnectTransportException.class, CircuitBreakingException.class) != null;
                 }
             };
             retryableAction.run();
@@ -173,11 +167,15 @@ public class TransportGetVirtualBatchedCompoundCommitChunkAction extends Transpo
             transportPrimaryAction,
             request,
             TransportRequestOptions.EMPTY,
-            new ActionListenerResponseHandler<>(
-                listener,
-                GetVirtualBatchedCompoundCommitChunkResponse::new,
-                transportService.getThreadPool().generic()
-            )
+            new ActionListenerResponseHandler<>(listener.delegateResponse((l, e) -> {
+                var cause = ExceptionsHelper.unwrapCause(e);
+                // We don't want to retry on this exception, but still want to convert it to recoverable ResourceNotFoundException
+                if (cause instanceof NodeClosedException) {
+                    l.onFailure(new ResourceNotFoundException("Unable to get virtual batched compound commit chunk", e));
+                } else {
+                    l.onFailure(e);
+                }
+            }), GetVirtualBatchedCompoundCommitChunkResponse::new, transportService.getThreadPool().generic())
         );
     }
 
@@ -195,9 +193,6 @@ public class TransportGetVirtualBatchedCompoundCommitChunkAction extends Transpo
         if (shard.indexSettings().getIndexMetadata().getState() == IndexMetadata.State.CLOSE) {
             throw new IndexClosedException(request.getShardId().getIndex());
         }
-        if (shard.state() != IndexShardState.STARTED) {
-            throw new IndexShardNotStartedException(shard.shardId(), shard.state()); // trigger retry logic on search node
-        }
         if (request.getPrimaryTerm() != shard.getOperationPrimaryTerm()) {
             // The primary term of the shard has changed since the request was sent. Send exception to signify the blob has been uploaded.
             final var exception = new ResourceNotFoundException(
@@ -206,7 +201,9 @@ public class TransportGetVirtualBatchedCompoundCommitChunkAction extends Transpo
             throw exception;
         }
         final Engine engine = shard.getEngineOrNull();
-        assert engine != null : "engine not started";
+        if (engine == null) {
+            throw new ShardNotFoundException(shard.shardId(), "engine not started");
+        }
         if (engine instanceof IndexEngine == false) {
             final var exception = new ElasticsearchException("expecting IndexEngine but got " + engine);
             logger.error("unexpected", exception);
@@ -227,6 +224,8 @@ public class TransportGetVirtualBatchedCompoundCommitChunkAction extends Transpo
                 var transfer = new ReleasableBytesReference(output.bytes(), output);
                 output = null;
                 ActionListener.respondAndRelease(listener, new GetVirtualBatchedCompoundCommitChunkResponse(transfer));
+            } catch (AlreadyClosedException e) {
+                throw new ShardNotFoundException(shard.shardId(), "Engine already closed", e);
             } finally {
                 Releasables.close(output);
             }

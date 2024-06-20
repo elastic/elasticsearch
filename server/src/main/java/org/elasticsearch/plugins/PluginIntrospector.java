@@ -6,30 +6,9 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.plugins.loading;
+package org.elasticsearch.plugins;
 
 import org.elasticsearch.core.SuppressForbidden;
-import org.elasticsearch.plugins.ActionPlugin;
-import org.elasticsearch.plugins.AnalysisPlugin;
-import org.elasticsearch.plugins.CircuitBreakerPlugin;
-import org.elasticsearch.plugins.ClusterPlugin;
-import org.elasticsearch.plugins.DiscoveryPlugin;
-import org.elasticsearch.plugins.EnginePlugin;
-import org.elasticsearch.plugins.ExtensiblePlugin;
-import org.elasticsearch.plugins.HealthPlugin;
-import org.elasticsearch.plugins.IndexStorePlugin;
-import org.elasticsearch.plugins.IngestPlugin;
-import org.elasticsearch.plugins.MapperPlugin;
-import org.elasticsearch.plugins.NetworkPlugin;
-import org.elasticsearch.plugins.PersistentTaskPlugin;
-import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.plugins.RecoveryPlannerPlugin;
-import org.elasticsearch.plugins.ReloadablePlugin;
-import org.elasticsearch.plugins.RepositoryPlugin;
-import org.elasticsearch.plugins.ScriptPlugin;
-import org.elasticsearch.plugins.SearchPlugin;
-import org.elasticsearch.plugins.ShutdownAwarePlugin;
-import org.elasticsearch.plugins.SystemIndexPlugin;
 
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;

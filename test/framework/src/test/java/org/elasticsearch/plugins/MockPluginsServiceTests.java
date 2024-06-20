@@ -12,7 +12,6 @@ import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
-import org.elasticsearch.plugins.loading.MockPluginsService;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 

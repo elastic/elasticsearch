@@ -50,7 +50,7 @@ import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.plugin.scanner.NamedComponentScanner;
 import org.elasticsearch.plugins.Platforms;
 import org.elasticsearch.plugins.PluginDescriptor;
-import org.elasticsearch.plugins.loading.PluginTestUtil;
+import org.elasticsearch.plugins.PluginTestUtil;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.PosixPermissionsResetter;
 import org.elasticsearch.test.compiler.InMemoryJavaCompiler;

@@ -8,13 +8,20 @@
 package org.elasticsearch.xpack.ml.rest.inference;
 
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.test.rest.RestActionTestCase;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ml.action.CreateTrainedModelAssignmentAction;
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignmentTests;
+
+import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
 
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.equalTo;
@@ -62,6 +69,30 @@ public class RestStartTrainedModelDeploymentActionTests extends RestActionTestCa
             .build();
         dispatchRequest(inferenceRequest);
         assertThat(executeCalled.get(), equalTo(true));
+    }
+
+    public void testExceptionFromDifferentParamsInQueryAndBody() throws IOException {
+        SetOnce<Boolean> executeCalled = new SetOnce<>();
+        controller().registerHandler(new RestStartTrainedModelDeploymentAction(false));
+        verifyingClient.setExecuteVerifier(((actionType, actionRequest) -> {
+            assertThat(actionRequest, instanceOf(StartTrainedModelDeploymentAction.Request.class));
+            executeCalled.set(true);
+            return createResponse();
+        }));
+
+        Map<String, String> paramsMap = new HashMap<>(1);
+        paramsMap.put("cache_size", "1mb");
+        RestRequest inferenceRequest = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.POST)
+            .withPath("_ml/trained_models/test_id/deployment/_start")
+            .withParams(paramsMap)
+            .withContent(
+                BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field("cache_size", "2mb").endObject()),
+                XContentType.JSON
+            )
+            .build();
+        dispatchRequest(inferenceRequest);
+        assertThat(executeCalled.get(), equalTo(null)); // the duplicate parameter should cause an exception, but the exception isn't
+                                                        // visible here, so we just check that the request failed
     }
 
     private static CreateTrainedModelAssignmentAction.Response createResponse() {

@@ -192,7 +192,6 @@ public class EmbeddingRequestChunker {
                 case FLOAT -> handleFloatResults(inferenceServiceResults);
                 case BYTE -> handleByteResults(inferenceServiceResults);
             }
-            ;
         }
 
         private void handleFloatResults(InferenceServiceResults inferenceServiceResults) {

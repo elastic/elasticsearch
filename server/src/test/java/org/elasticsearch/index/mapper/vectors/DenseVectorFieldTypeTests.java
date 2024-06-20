@@ -8,11 +8,6 @@
 
 package org.elasticsearch.index.mapper.vectors;
 
-import org.apache.lucene.queries.function.FunctionQuery;
-import org.apache.lucene.queries.function.valuesource.ByteVectorSimilarityFunction;
-import org.apache.lucene.queries.function.valuesource.FloatVectorSimilarityFunction;
-import org.apache.lucene.search.BooleanClause;
-import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.KnnByteVectorQuery;
 import org.apache.lucene.search.KnnFloatVectorQuery;
 import org.apache.lucene.search.Query;
@@ -25,6 +20,7 @@ import org.elasticsearch.index.mapper.FieldTypeTestCase;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.DenseVectorFieldType;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.VectorSimilarity;
+import org.elasticsearch.search.vectors.DenseVectorQuery;
 import org.elasticsearch.search.vectors.VectorData;
 
 import java.io.IOException;
@@ -220,16 +216,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
                 queryVector[i] = randomFloat();
             }
             Query query = field.createExactKnnQuery(VectorData.fromFloats(queryVector));
-            assertTrue(query instanceof BooleanQuery);
-            BooleanQuery booleanQuery = (BooleanQuery) query;
-            boolean foundFunction = false;
-            for (BooleanClause clause : booleanQuery) {
-                if (clause.getQuery() instanceof FunctionQuery functionQuery) {
-                    foundFunction = true;
-                    assertTrue(functionQuery.getValueSource() instanceof FloatVectorSimilarityFunction);
-                }
-            }
-            assertTrue("Unable to find FloatVectorSimilarityFunction in created BooleanQuery", foundFunction);
+            assertTrue(query instanceof DenseVectorQuery.Floats);
         }
         {
             DenseVectorFieldType field = new DenseVectorFieldType(
@@ -247,16 +234,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
                 queryVector[i] = randomByte();
             }
             Query query = field.createExactKnnQuery(VectorData.fromBytes(queryVector));
-            assertTrue(query instanceof BooleanQuery);
-            BooleanQuery booleanQuery = (BooleanQuery) query;
-            boolean foundFunction = false;
-            for (BooleanClause clause : booleanQuery) {
-                if (clause.getQuery() instanceof FunctionQuery functionQuery) {
-                    foundFunction = true;
-                    assertTrue(functionQuery.getValueSource() instanceof ByteVectorSimilarityFunction);
-                }
-            }
-            assertTrue("Unable to find FloatVectorSimilarityFunction in created BooleanQuery", foundFunction);
+            assertTrue(query instanceof DenseVectorQuery.Bytes);
         }
     }
 

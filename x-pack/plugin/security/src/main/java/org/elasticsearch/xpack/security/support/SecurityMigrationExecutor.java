@@ -46,10 +46,16 @@ public class SecurityMigrationExecutor extends PersistentTasksExecutor<SecurityM
 
     @Override
     protected void nodeOperation(AllocatedPersistentTask task, SecurityMigrationTaskParams params, PersistentTaskState state) {
-        applyOutstandingMigrations(task, params.getMigrationVersion(), ActionListener.wrap((res) -> task.markAsCompleted(), (exception) -> {
+        ActionListener<Void> listener = ActionListener.wrap((res) -> task.markAsCompleted(), (exception) -> {
             logger.warn("Security migration failed: " + exception);
             task.markAsFailed(exception);
-        }));
+        });
+
+        if (params.isMigrationNeeded() == false) {
+            updateMigrationVersion(params.getMigrationVersion(), securityIndexManager.getConcreteIndexName(), listener);
+        }
+
+        applyOutstandingMigrations(task, params.getMigrationVersion(), listener);
     }
 
     private void applyOutstandingMigrations(AllocatedPersistentTask task, int currentMigrationVersion, ActionListener<Void> listener) {

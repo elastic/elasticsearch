@@ -27,27 +27,33 @@ public class SecurityMigrationTaskParams implements PersistentTaskParams {
 
     private final int migrationVersion;
 
+    private final boolean migrationNeeded;
+
     public static final ConstructingObjectParser<SecurityMigrationTaskParams, Void> PARSER = new ConstructingObjectParser<>(
         TASK_NAME,
         true,
-        (arr) -> new SecurityMigrationTaskParams((int) arr[0])
+        (arr) -> new SecurityMigrationTaskParams((int) arr[0], (boolean) arr[1])
     );
 
     static {
         PARSER.declareInt(constructorArg(), new ParseField("migration_version"));
+        PARSER.declareBoolean(constructorArg(), new ParseField("migration_needed"));
     }
 
-    public SecurityMigrationTaskParams(int migrationVersion) {
+    public SecurityMigrationTaskParams(int migrationVersion, boolean migrationNeeded) {
         this.migrationVersion = migrationVersion;
+        this.migrationNeeded = migrationNeeded;
     }
 
     public SecurityMigrationTaskParams(StreamInput in) throws IOException {
         this.migrationVersion = in.readInt();
+        this.migrationNeeded = in.readBoolean();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeInt(migrationVersion);
+        out.writeBoolean(migrationNeeded);
     }
 
     @Override
@@ -64,6 +70,7 @@ public class SecurityMigrationTaskParams implements PersistentTaskParams {
     public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
         builder.startObject();
         builder.field("migration_version", migrationVersion);
+        builder.field("migration_needed", migrationNeeded);
         builder.endObject();
         return builder;
     }
@@ -74,5 +81,9 @@ public class SecurityMigrationTaskParams implements PersistentTaskParams {
 
     public int getMigrationVersion() {
         return migrationVersion;
+    }
+
+    public boolean isMigrationNeeded() {
+        return migrationNeeded;
     }
 }

@@ -451,6 +451,7 @@ import static org.elasticsearch.xpack.core.XPackSettings.HTTP_SSL_ENABLED;
 import static org.elasticsearch.xpack.core.security.SecurityField.FIELD_LEVEL_SECURITY_FEATURE;
 import static org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore.INCLUDED_RESERVED_ROLES_SETTING;
 import static org.elasticsearch.xpack.security.operator.OperatorPrivileges.OPERATOR_PRIVILEGES_ENABLED;
+import static org.elasticsearch.xpack.security.support.SecurityIndexManager.State.UNRECOVERED_STATE;
 import static org.elasticsearch.xpack.security.transport.SSLEngineUtils.extractClientCertificates;
 
 public class Security extends Plugin
@@ -788,8 +789,8 @@ public class Security extends Plugin
         this.persistentTasksService.set(persistentTasksService);
 
         systemIndices.getMainIndexManager().addStateListener((oldState, newState) -> {
-            if (clusterService.state().nodes().isLocalNodeElectedMaster()) {
-                applyPendingSecurityMigrations(newState);
+            if (clusterService.state().nodes().isLocalNodeElectedMaster() && oldState != UNRECOVERED_STATE) {
+                applyPendingSecurityMigrations(oldState, newState);
             }
         });
 
@@ -1202,7 +1203,13 @@ public class Security extends Plugin
         return components;
     }
 
-    private void applyPendingSecurityMigrations(SecurityIndexManager.State newState) {
+    private void applyPendingSecurityMigrations(SecurityIndexManager.State oldState, SecurityIndexManager.State newState) {
+        if (oldState.creationTime == null) {
+            // Bypass migrations for when the security index is new
+            submitPersistentMigrationTask(SecurityMigrations.MIGRATIONS_BY_VERSION.lastKey(), false);
+            return;
+        }
+
         Map.Entry<Integer, SecurityMigrations.SecurityMigration> nextMigration = SecurityMigrations.MIGRATIONS_BY_VERSION.higherEntry(
             newState.migrationsVersion
         );
@@ -1218,26 +1225,34 @@ public class Security extends Plugin
         } else if (nodeLocalMigrationRetryCount.get() > MAX_SECURITY_MIGRATION_RETRY_COUNT) {
             logger.warn("Security migration failed [" + nodeLocalMigrationRetryCount.get() + "] times, restart node to retry again.");
         } else if (systemIndices.getMainIndexManager().isReadyForSecurityMigration(nextMigration.getValue())) {
-            nodeLocalMigrationRetryCount.incrementAndGet();
-            persistentTasksService.get()
-                .sendStartRequest(
-                    SecurityMigrationTaskParams.TASK_NAME,
-                    SecurityMigrationTaskParams.TASK_NAME,
-                    new SecurityMigrationTaskParams(newState.migrationsVersion),
-                    null,
-                    ActionListener.wrap((response) -> {
-                        logger.debug("Security migration task submitted");
-                    }, (exception) -> {
-                        // Do nothing if the task is already in progress
-                        if (ExceptionsHelper.unwrapCause(exception) instanceof ResourceAlreadyExistsException) {
-                            // Do not count ResourceAlreadyExistsException as failure
-                            nodeLocalMigrationRetryCount.decrementAndGet();
-                        } else {
-                            logger.warn("Submit security migration task failed: " + exception.getCause());
-                        }
-                    })
-                );
+            submitPersistentMigrationTask(newState.migrationsVersion);
         }
+    }
+
+    private void submitPersistentMigrationTask(int migrationsVersion) {
+        submitPersistentMigrationTask(migrationsVersion, true);
+    }
+
+    private void submitPersistentMigrationTask(int migrationsVersion, boolean securityMigrationNeeded) {
+        nodeLocalMigrationRetryCount.incrementAndGet();
+        persistentTasksService.get()
+            .sendStartRequest(
+                SecurityMigrationTaskParams.TASK_NAME,
+                SecurityMigrationTaskParams.TASK_NAME,
+                new SecurityMigrationTaskParams(migrationsVersion, securityMigrationNeeded),
+                null,
+                ActionListener.wrap((response) -> {
+                    logger.debug("Security migration task submitted");
+                }, (exception) -> {
+                    // Do nothing if the task is already in progress
+                    if (ExceptionsHelper.unwrapCause(exception) instanceof ResourceAlreadyExistsException) {
+                        // Do not count ResourceAlreadyExistsException as failure
+                        nodeLocalMigrationRetryCount.decrementAndGet();
+                    } else {
+                        logger.warn("Submit security migration task failed: " + exception.getCause());
+                    }
+                })
+            );
     }
 
     private AuthorizationEngine getAuthorizationEngine() {

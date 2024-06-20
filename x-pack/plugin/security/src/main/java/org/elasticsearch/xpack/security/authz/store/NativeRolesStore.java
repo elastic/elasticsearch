@@ -339,26 +339,28 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
         try {
             IndexRequest indexRequest = createRoleIndexRequest(role);
             indexRequest.setRefreshPolicy(refreshPolicy);
+            securityIndex.prepareIndexIfNeededThenExecute(
+                listener::onFailure,
+                () -> executeAsyncWithOrigin(
+                    client.threadPool().getThreadContext(),
+                    SECURITY_ORIGIN,
+                    indexRequest,
+                    new ActionListener<DocWriteResponse>() {
+                        @Override
+                        public void onResponse(DocWriteResponse indexResponse) {
+                            final boolean created = indexResponse.getResult() == DocWriteResponse.Result.CREATED;
+                            logger.trace("Created role: [{}]", indexRequest);
+                            clearRoleCache(role.getName(), listener, created);
+                        }
 
-            executeAsyncWithOrigin(
-                client.threadPool().getThreadContext(),
-                SECURITY_ORIGIN,
-                indexRequest,
-                new ActionListener<DocWriteResponse>() {
-                    @Override
-                    public void onResponse(DocWriteResponse indexResponse) {
-                        final boolean created = indexResponse.getResult() == DocWriteResponse.Result.CREATED;
-                        logger.trace("Created role: [{}]", indexRequest);
-                        clearRoleCache(role.getName(), listener, created);
-                    }
-
-                    @Override
-                    public void onFailure(Exception e) {
-                        logger.error(() -> "failed to put role [" + role.getName() + "]", e);
-                        listener.onFailure(e);
-                    }
-                },
-                client::index
+                        @Override
+                        public void onFailure(Exception e) {
+                            logger.error(() -> "failed to put role [" + role.getName() + "]", e);
+                            listener.onFailure(e);
+                        }
+                    },
+                    client::index
+                )
             );
         } catch (IOException exception) {
             listener.onFailure(exception);
@@ -402,40 +404,48 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
             listener.onResponse(bulkPutRolesResponseBuilder.build());
             return;
         }
+        securityIndex.prepareIndexIfNeededThenExecute(
+            listener::onFailure,
+            () -> executeAsyncWithOrigin(
+                client.threadPool().getThreadContext(),
+                SECURITY_ORIGIN,
+                bulkRequest,
+                new ActionListener<BulkResponse>() {
+                    @Override
+                    public void onResponse(BulkResponse bulkResponse) {
+                        List<String> rolesToRefreshInCache = new ArrayList<>(roles.size());
 
-        executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN, bulkRequest, new ActionListener<BulkResponse>() {
-            @Override
-            public void onResponse(BulkResponse bulkResponse) {
-                List<String> rolesToRefreshInCache = new ArrayList<>(roles.size());
+                        Iterator<BulkItemResponse> bulkItemResponses = bulkResponse.iterator();
+                        BulkPutRolesResponse.Builder bulkPutRolesResponseBuilder = new BulkPutRolesResponse.Builder();
 
-                Iterator<BulkItemResponse> bulkItemResponses = bulkResponse.iterator();
-                BulkPutRolesResponse.Builder bulkPutRolesResponseBuilder = new BulkPutRolesResponse.Builder();
+                        roles.stream().map(RoleDescriptor::getName).map(roleName -> {
+                            if (validationErrorByRoleName.containsKey(roleName)) {
+                                return BulkPutRolesResponse.Item.failure(roleName, validationErrorByRoleName.get(roleName));
+                            }
+                            BulkItemResponse resp = bulkItemResponses.next();
+                            if (resp.isFailed()) {
+                                return BulkPutRolesResponse.Item.failure(roleName, resp.getFailure().getCause());
+                            }
+                            if (UPDATE_ROLES_REFRESH_CACHE_RESULTS.contains(resp.getResponse().getResult())) {
+                                rolesToRefreshInCache.add(roleName);
+                            }
+                            return BulkPutRolesResponse.Item.success(roleName, resp.getResponse().getResult());
+                        }).forEach(bulkPutRolesResponseBuilder::addItem);
 
-                roles.stream().map(RoleDescriptor::getName).map(roleName -> {
-                    if (validationErrorByRoleName.containsKey(roleName)) {
-                        return BulkPutRolesResponse.Item.failure(roleName, validationErrorByRoleName.get(roleName));
+                        clearRoleCache(rolesToRefreshInCache.toArray(String[]::new), ActionListener.wrap(res -> {
+                            listener.onResponse(bulkPutRolesResponseBuilder.build());
+                        }, listener::onFailure), bulkResponse);
                     }
-                    BulkItemResponse resp = bulkItemResponses.next();
-                    if (resp.isFailed()) {
-                        return BulkPutRolesResponse.Item.failure(roleName, resp.getFailure().getCause());
-                    }
-                    if (UPDATE_ROLES_REFRESH_CACHE_RESULTS.contains(resp.getResponse().getResult())) {
-                        rolesToRefreshInCache.add(roleName);
-                    }
-                    return BulkPutRolesResponse.Item.success(roleName, resp.getResponse().getResult());
-                }).forEach(bulkPutRolesResponseBuilder::addItem);
 
-                clearRoleCache(rolesToRefreshInCache.toArray(String[]::new), ActionListener.wrap(res -> {
-                    listener.onResponse(bulkPutRolesResponseBuilder.build());
-                }, listener::onFailure), bulkResponse);
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                logger.error(() -> "failed to put roles", e);
-                listener.onFailure(e);
-            }
-        }, client::bulk);
+                    @Override
+                    public void onFailure(Exception e) {
+                        logger.error(() -> "failed to put roles", e);
+                        listener.onFailure(e);
+                    }
+                },
+                client::bulk
+            )
+        );
     }
 
     private IndexRequest createRoleIndexRequest(final RoleDescriptor role) throws IOException {

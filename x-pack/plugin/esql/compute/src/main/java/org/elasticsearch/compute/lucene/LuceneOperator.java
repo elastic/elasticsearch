@@ -140,7 +140,7 @@ public abstract class LuceneOperator extends SourceOperator {
             logger.trace("Starting {}", partialLeaf);
             final LeafReaderContext leaf = partialLeaf.leafReaderContext();
             if (currentScorer == null || currentScorer.leafReaderContext() != leaf) {
-                final Weight weight = currentSlice.weight().get();
+                final Weight weight = currentSlice.weight();
                 processedQueries.add(weight.getQuery());
                 currentScorer = new LuceneScorer(currentSlice.shardContext(), weight, leaf);
             }

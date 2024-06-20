@@ -10,7 +10,6 @@ package org.elasticsearch.plugins.internal;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.ReloadablePlugin;
-import org.elasticsearch.plugins.loading.PluginsService;
 
 /**
  * A plugin that may receive a {@link ReloadablePlugin} in order to
@@ -23,7 +22,7 @@ public interface ReloadAwarePlugin {
      *
      * <p>This callback is in the form of an implementation of {@link ReloadablePlugin},
      * but the implementation does not need to be a {@link org.elasticsearch.plugins.Plugin},
-     * or be registered with {@link PluginsService}.
+     * or be registered with {@link org.elasticsearch.plugins.PluginsService}.
      *
      * @param reloadablePlugin A plugin that this plugin may be able to reload
      */

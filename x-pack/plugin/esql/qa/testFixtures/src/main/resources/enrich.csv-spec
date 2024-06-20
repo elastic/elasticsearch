@@ -31,7 +31,6 @@ FROM sample_data
 median_duration:double | env:keyword
 ;
 
-//TODO: align lookup, grok, dissect, eval tests
 shadowing
 ROW left = "left", client_ip = "127.0.0.1", env = "env", right = "right"
 | ENRICH clientip_policy ON client_ip

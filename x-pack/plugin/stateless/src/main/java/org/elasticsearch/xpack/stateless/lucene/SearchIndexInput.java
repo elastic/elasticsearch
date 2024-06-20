@@ -139,7 +139,12 @@ public final class SearchIndexInput extends BlobCacheBufferedIndexInput {
         } catch (Exception e) {
             logger.debug("fast-path read failed to acquire cache page", e);
         }
-        readInternalSlow(b, position, length);
+        try {
+            readInternalSlow(b, position, length);
+        } catch (NoSuchFileException ex) {
+            logger.warn(() -> this + " did not find file", ex); // includes the file name of the SearchIndexInput
+            throw ex;
+        }
     }
 
     private void readInternalSlow(ByteBuffer b, long position, int length) throws Exception {
@@ -195,9 +200,6 @@ public final class SearchIndexInput extends BlobCacheBufferedIndexInput {
                             cacheBlobReader.getClass().getSimpleName()
                         );
                         SharedBytes.copyToCacheFileAligned(channel, in, channelPos, progressUpdater, writeBuffer.get().clear());
-                    } catch (NoSuchFileException ex) {
-                        logger.warn(() -> this + " did not find file", ex); // includes the file name of the SearchIndexInput
-                        throw ex;
                     }
                 });
                 byteBufferReference.finish(bytesRead);

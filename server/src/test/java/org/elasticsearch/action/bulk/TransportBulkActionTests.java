@@ -189,24 +189,6 @@ public class TransportBulkActionTests extends ESTestCase {
         assertTrue(bulkAction.indexCreated);
     }
 
-    public void testGetIndexWriteRequest() throws Exception {
-        IndexRequest indexRequest = new IndexRequest("index").id("id1").source(Collections.emptyMap());
-        UpdateRequest upsertRequest = new UpdateRequest("index", "id1").upsert(indexRequest).script(mockScript("1"));
-        UpdateRequest docAsUpsertRequest = new UpdateRequest("index", "id2").doc(indexRequest).docAsUpsert(true);
-        UpdateRequest scriptedUpsert = new UpdateRequest("index", "id2").upsert(indexRequest).script(mockScript("1")).scriptedUpsert(true);
-
-        assertEquals(TransportBulkAction.getIndexWriteRequest(indexRequest), indexRequest);
-        assertEquals(TransportBulkAction.getIndexWriteRequest(upsertRequest), indexRequest);
-        assertEquals(TransportBulkAction.getIndexWriteRequest(docAsUpsertRequest), indexRequest);
-        assertEquals(TransportBulkAction.getIndexWriteRequest(scriptedUpsert), indexRequest);
-
-        DeleteRequest deleteRequest = new DeleteRequest("index", "id");
-        assertNull(TransportBulkAction.getIndexWriteRequest(deleteRequest));
-
-        UpdateRequest badUpsertRequest = new UpdateRequest("index", "id1");
-        assertNull(TransportBulkAction.getIndexWriteRequest(badUpsertRequest));
-    }
-
     public void testProhibitAppendWritesInBackingIndices() throws Exception {
         String dataStreamName = "logs-foobar";
         ClusterState clusterState = createDataStream(dataStreamName);

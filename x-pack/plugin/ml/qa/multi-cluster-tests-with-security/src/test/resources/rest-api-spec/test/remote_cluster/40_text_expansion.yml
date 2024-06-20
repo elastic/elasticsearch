@@ -296,6 +296,7 @@ teardown:
 ---
 "Test weighted tokens search with default pruning config":
   - requires:
+      test_runner_features: [ "allowed_warnings" ]
       cluster_features: [ "gte_v8.13.0" ]
       reason: "weighted token search introduced in 8.13.0"
 

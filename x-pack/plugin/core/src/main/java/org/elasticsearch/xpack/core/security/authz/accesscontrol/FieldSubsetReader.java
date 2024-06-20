@@ -414,7 +414,7 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
                         // any subfield has been filtered out.
                         visitor.binaryField(fieldInfo, IgnoredSourceFieldMapper.encodeFromMap(mappedNameValue, transformedField));
                     } else {
-                        // The field contains a leaf value, and it hasn't been filtered out. Use the original value.
+                        // The field contains a leaf value, and it hasn't been filtered out. It is safe to propagate the original value.
                         visitor.binaryField(fieldInfo, value);
                     }
                 }

@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.Diffable;
 import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.cluster.NamedDiffableValueSerializer;
+import org.elasticsearch.cluster.ProjectId;
 import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.common.Strings;
@@ -94,6 +95,8 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
     /*TODO private*/ static final NamedDiffableValueSerializer<ProjectCustom> PROJECT_CUSTOM_VALUE_SERIALIZER =
         new NamedDiffableValueSerializer<>(ProjectCustom.class);
 
+    private final ProjectId projectId;
+
     private final ImmutableOpenMap<String, IndexMetadata> indices;
     private final ImmutableOpenMap<String, Set<Index>> aliasedIndices;
     private final ImmutableOpenMap<String, IndexTemplateMetadata> templates;
@@ -125,6 +128,7 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
     }
 
     ProjectMetadata(
+        ProjectId id,
         int totalNumberOfShards,
         int totalOpenIndexShards,
         ImmutableOpenMap<String, IndexMetadata> indices,
@@ -141,6 +145,7 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
         Map<String, MappingMetadata> mappingsByHash,
         IndexVersion oldestIndexVersion
     ) {
+        this.projectId = id;
         this.indices = indices;
         this.aliasedIndices = aliasedIndices;
         this.templates = templates;
@@ -219,6 +224,7 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
         // have changed, and hence it is expensive -- since we are changing so little about the metadata
         // (and at a leaf in the object tree), we can bypass that validation for efficiency's sake
         return new ProjectMetadata(
+            projectId,
             totalNumberOfShards,
             totalOpenIndexShards,
             builder.build(),
@@ -250,6 +256,7 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
             );
         });
         return new ProjectMetadata(
+            projectId,
             totalNumberOfShards,
             totalOpenIndexShards,
             builder.build(),
@@ -283,6 +290,7 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
         final var updatedIndicesBuilder = ImmutableOpenMap.builder(indices);
         updatedIndicesBuilder.putAllFromMap(updates);
         return new ProjectMetadata(
+            projectId,
             totalNumberOfShards,
             totalOpenIndexShards,
             updatedIndicesBuilder.build(),
@@ -370,6 +378,7 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
             Builder.validateAlias(entry.getKey(), aliasIndices);
         }
         return new ProjectMetadata(
+            projectId,
             totalNumberOfShards + index.getTotalNumberOfShards(),
             totalOpenIndexShards + (index.getState() == IndexMetadata.State.OPEN ? index.getTotalNumberOfShards() : 0),
             indicesMap,
@@ -1150,6 +1159,7 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
     }
 
     public void writeTo(StreamOutput out) throws IOException {
+        out.writeString(projectId.id());
         out.writeMapValues(mappingsByHash);
         out.writeVInt(indices.size());
         for (IndexMetadata indexMetadata : this) {
@@ -1161,6 +1171,7 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
 
     public static ProjectMetadata readFrom(StreamInput in) throws IOException {
         var builder = new Builder();
+        builder.id(new ProjectId(in.readString()));
 
         final Map<String, MappingMetadata> mappingMetadataMap = in.readMapValues(MappingMetadata::new, MappingMetadata::getSha256);
         final Function<String, MappingMetadata> mappingLookup;
@@ -1283,6 +1294,7 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
             // mappings in the builder
             final var updatedIndices = indices.apply(part.indices);
             var builder = new Builder(part.mappingsByHash, updatedIndices.size());
+            builder.id(part.projectId);
             builder.indices(updatedIndices);
             builder.templates(templates.apply(part.templates));
             builder.customs(customs.apply(part.customs));
@@ -1320,6 +1332,7 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
     }
 
     public static class Builder {
+        private ProjectId id;
         private final ImmutableOpenMap.Builder<String, IndexMetadata> indices;
         private final ImmutableOpenMap.Builder<String, Set<Index>> aliasedIndices;
         private final ImmutableOpenMap.Builder<String, IndexTemplateMetadata> templates;
@@ -1340,6 +1353,7 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
         }
 
         Builder(ProjectMetadata metadata) {
+            this.id = metadata.projectId;
             this.indices = ImmutableOpenMap.builder(metadata.indices);
             this.aliasedIndices = ImmutableOpenMap.builder(metadata.aliasedIndices);
             this.templates = ImmutableOpenMap.builder(metadata.templates);
@@ -1370,6 +1384,15 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
                 previousIndicesLookup = null;
             }
             maybeSetMappingPurgeFlag(previous, indexMetadata);
+            return this;
+        }
+
+        public ProjectId id() {
+            return id;
+        }
+
+        public Builder id(ProjectId id) {
+            this.id = id;
             return this;
         }
 
@@ -1848,6 +1871,7 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
             String[] visibleClosedIndicesArray = visibleClosedIndices.toArray(Strings.EMPTY_ARRAY);
 
             return new ProjectMetadata(
+                id == null ? new ProjectId("_na_") : id, // TODO, we shouldn't default this, but need to for now.
                 totalNumberOfShards,
                 totalOpenIndexShards,
                 indicesMap,
@@ -2173,6 +2197,10 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
                     } else {
                         parseCustoms(parser, currentFieldName, builder);
                     }
+                } else if (token == XContentParser.Token.VALUE_STRING) {
+                    if ("id".equals(currentFieldName)) {
+                        builder.id(new ProjectId(parser.text()));
+                    }
                 } else {
                     throw new IllegalArgumentException("Unexpected token " + token);
                 }
@@ -2258,6 +2286,9 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
             )
         );
 
-        return Iterators.concat(templates, indices, customs);
+        final Iterator<ToXContent> id = context == Metadata.XContentContext.API
+            ? Collections.emptyIterator()
+            : ChunkedToXContentHelper.field("id", projectId.id());
+        return Iterators.concat(id, templates, indices, customs);
     }
 }

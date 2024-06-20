@@ -10,6 +10,7 @@ package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.admin.indices.rollover.RolloverInfo;
+import org.elasticsearch.cluster.ProjectId;
 import org.elasticsearch.cluster.coordination.CoordinationMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -258,6 +259,7 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
                   "index.version.created" : "%s"
                 },
                 "project" : {
+                  "id" : "pr0j3ct",
                   "templates" : {
                     "template" : {
                       "order" : 0,
@@ -440,6 +442,7 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
                   "index.version.created" : "%s"
                 },
                 "project" : {
+                  "id" : "pr0j3ct",
                   "templates" : {
                     "template" : {
                       "order" : 0,
@@ -863,7 +866,7 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
     }
 
     private Metadata buildMetadata() throws IOException {
-        return Metadata.builder()
+        final Metadata.Builder builder = Metadata.builder()
             .clusterUUID("clusterUUID")
             .coordinationMetadata(
                 CoordinationMetadata.builder()
@@ -894,8 +897,9 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
                     .settings(Settings.builder().put(SETTING_VERSION_CREATED, IndexVersion.current()))
                     .putMapping("type", "{ \"key1\": {} }")
                     .build()
-            )
-            .build();
+            );
+        builder.project().id(new ProjectId("pr0j3ct"));
+        return builder.build();
     }
 
     public static class CustomMetadata extends TestClusterCustomMetadata {

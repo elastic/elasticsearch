@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.cluster.DiffableUtils.MapDiff;
 import org.elasticsearch.cluster.NamedDiffable;
 import org.elasticsearch.cluster.NamedDiffableValueSerializer;
+import org.elasticsearch.cluster.ProjectId;
 import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -267,6 +268,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
             clusterCustoms,
             reservedStateMetadata,
             new ProjectMetadata(
+                new ProjectId(clusterUUID),
                 totalNumberOfShards,
                 totalOpenIndexShards,
                 indices,
@@ -1165,6 +1167,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
         Builder builder = new Builder();
         builder.version = in.readLong();
         builder.clusterUUID = in.readString();
+        builder.project.id(new ProjectId(builder.clusterUUID));
         builder.clusterUUIDCommitted = in.readBoolean();
         builder.coordinationMetadata(new CoordinationMetadata(in));
         builder.transientSettings(readSettingsFromStream(in));
@@ -1335,6 +1338,10 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
             clusterCustoms = ImmutableOpenMap.builder();
             reservedStateMetadata = new HashMap<>();
             project = new ProjectMetadata.Builder(mappingsByHash, indexCountHint);
+        }
+
+        public ProjectMetadata.Builder project() {
+            return project;
         }
 
         public Builder put(IndexMetadata.Builder indexMetadataBuilder) {
@@ -1605,6 +1612,9 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
 
         public Builder clusterUUID(String clusterUUID) {
             this.clusterUUID = clusterUUID;
+            if (project.id() == null) {
+                project.id(new ProjectId(clusterUUID));
+            }
             return this;
         }
 

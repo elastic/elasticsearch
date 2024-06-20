@@ -12,14 +12,14 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.KnnByteVectorField;
 import org.apache.lucene.index.VectorSimilarityFunction;
 
-public class ExactKnnQueryBytesTests extends AbstractExactKnnQueryTestCase {
+public class DenseVectorQueryBytesTests extends AbstractDenseVectorQueryTestCase {
     @Override
-    ExactKnnQuery getExactVectorQuery(String field, float[] query) {
+    DenseVectorQuery getDenseVectorQuery(String field, float[] query) {
         byte[] bytes = new byte[query.length];
         for (int i = 0; i < query.length; i++) {
             bytes[i] = (byte) query[i];
         }
-        return new ExactKnnQuery.Bytes(bytes, field);
+        return new DenseVectorQuery.Bytes(bytes, field);
     }
 
     @Override

@@ -58,11 +58,11 @@ import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
+import org.elasticsearch.search.vectors.DenseVectorQuery;
 import org.elasticsearch.search.vectors.ESDiversifyingChildrenByteKnnVectorQuery;
 import org.elasticsearch.search.vectors.ESDiversifyingChildrenFloatKnnVectorQuery;
 import org.elasticsearch.search.vectors.ESKnnByteVectorQuery;
 import org.elasticsearch.search.vectors.ESKnnFloatVectorQuery;
-import org.elasticsearch.search.vectors.ExactKnnQuery;
 import org.elasticsearch.search.vectors.VectorData;
 import org.elasticsearch.search.vectors.VectorSimilarityQuery;
 import org.elasticsearch.xcontent.ToXContent;
@@ -1476,7 +1476,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 float squaredMagnitude = VectorUtil.dotProduct(queryVector, queryVector);
                 elementType.checkVectorMagnitude(similarity, ElementType.errorByteElementsAppender(queryVector), squaredMagnitude);
             }
-            return new ExactKnnQuery.Bytes(queryVector, name());
+            return new DenseVectorQuery.Bytes(queryVector, name());
         }
 
         private Query createExactKnnFloatQuery(float[] queryVector) {
@@ -1499,7 +1499,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     }
                 }
             }
-            return new ExactKnnQuery.Floats(queryVector, name());
+            return new DenseVectorQuery.Floats(queryVector, name());
         }
 
         Query createKnnQuery(float[] queryVector, int numCands, Query filter, Float similarityThreshold, BitSetProducer parentFilter) {

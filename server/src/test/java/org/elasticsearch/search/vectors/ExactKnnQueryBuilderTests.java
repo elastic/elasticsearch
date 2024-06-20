@@ -83,15 +83,15 @@ public class ExactKnnQueryBuilderTests extends AbstractQueryTestCase<ExactKnnQue
 
     @Override
     protected void doAssertLuceneQuery(ExactKnnQueryBuilder queryBuilder, Query query, SearchExecutionContext context) throws IOException {
-        assertTrue(query instanceof ExactKnnQuery.Floats);
-        ExactKnnQuery.Floats exactKnnQuery = (ExactKnnQuery.Floats) query;
-        assertEquals(VECTOR_FIELD, exactKnnQuery.field);
+        assertTrue(query instanceof DenseVectorQuery.Floats);
+        DenseVectorQuery.Floats denseVectorQuery = (DenseVectorQuery.Floats) query;
+        assertEquals(VECTOR_FIELD, denseVectorQuery.field);
         float[] expected = Arrays.copyOf(queryBuilder.getQuery().asFloatVector(), queryBuilder.getQuery().asFloatVector().length);
         if (context.getIndexSettings().getIndexVersionCreated().onOrAfter(IndexVersions.NORMALIZED_VECTOR_COSINE)) {
             VectorUtil.l2normalize(expected);
-            assertArrayEquals(expected, exactKnnQuery.getQuery(), 0.0f);
+            assertArrayEquals(expected, denseVectorQuery.getQuery(), 0.0f);
         } else {
-            assertArrayEquals(expected, exactKnnQuery.getQuery(), 0.0f);
+            assertArrayEquals(expected, denseVectorQuery.getQuery(), 0.0f);
         }
     }
 

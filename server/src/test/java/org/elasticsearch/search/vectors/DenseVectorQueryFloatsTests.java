@@ -12,12 +12,10 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.KnnFloatVectorField;
 import org.apache.lucene.index.VectorSimilarityFunction;
 
-import static org.elasticsearch.test.ESTestCase.randomFloat;
-
-public class ExactKnnQueryFloatsTests extends AbstractExactKnnQueryTestCase {
+public class DenseVectorQueryFloatsTests extends AbstractDenseVectorQueryTestCase {
     @Override
-    ExactKnnQuery getExactVectorQuery(String field, float[] query) {
-        return new ExactKnnQuery.Floats(query, field);
+    DenseVectorQuery getDenseVectorQuery(String field, float[] query) {
+        return new DenseVectorQuery.Floats(query, field);
     }
 
     @Override

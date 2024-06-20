@@ -28,11 +28,11 @@ import java.util.Objects;
 /**
  * Exact knn query. Will iterate and score all documents that have the provided dense vector field in the index.
  */
-public abstract class ExactKnnQuery extends Query {
+public abstract class DenseVectorQuery extends Query {
 
     protected final String field;
 
-    public ExactKnnQuery(String field) {
+    public DenseVectorQuery(String field) {
         this.field = field;
     }
 
@@ -41,11 +41,11 @@ public abstract class ExactKnnQuery extends Query {
         queryVisitor.visitLeaf(this);
     }
 
-    abstract static class ExactKnnWeight extends Weight {
+    abstract static class DenseVectorWeight extends Weight {
         private final String field;
         private final float boost;
 
-        protected ExactKnnWeight(ExactKnnQuery query, float boost) {
+        protected DenseVectorWeight(DenseVectorQuery query, float boost) {
             super(query);
             this.field = query.field;
             this.boost = boost;
@@ -74,7 +74,7 @@ public abstract class ExactKnnQuery extends Query {
             if (vectorScorer == null) {
                 return null;
             }
-            return new ExactKnnScorer(this, vectorScorer);
+            return new DenseVectorScorer(this, vectorScorer);
         }
 
         @Override
@@ -83,7 +83,7 @@ public abstract class ExactKnnQuery extends Query {
         }
     }
 
-    public static class Floats extends ExactKnnQuery {
+    public static class Floats extends DenseVectorQuery {
 
         private final float[] query;
 
@@ -98,12 +98,12 @@ public abstract class ExactKnnQuery extends Query {
 
         @Override
         public String toString(String field) {
-            return "ExactKnnQuery.Floats";
+            return "DenseVectorQuery.Floats";
         }
 
         @Override
         public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) throws IOException {
-            return new ExactKnnWeight(Floats.this, boost) {
+            return new DenseVectorWeight(Floats.this, boost) {
                 @Override
                 VectorScorer vectorScorer(LeafReaderContext leafReaderContext) throws IOException {
                     FloatVectorValues vectorValues = leafReaderContext.reader().getFloatVectorValues(field);
@@ -129,7 +129,7 @@ public abstract class ExactKnnQuery extends Query {
         }
     }
 
-    public static class Bytes extends ExactKnnQuery {
+    public static class Bytes extends DenseVectorQuery {
 
         private final byte[] query;
 
@@ -140,12 +140,12 @@ public abstract class ExactKnnQuery extends Query {
 
         @Override
         public String toString(String field) {
-            return "ExactKnnQuery.Bytes";
+            return "DenseVectorQuery.Bytes";
         }
 
         @Override
         public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) throws IOException {
-            return new ExactKnnWeight(Bytes.this, boost) {
+            return new DenseVectorWeight(Bytes.this, boost) {
                 @Override
                 VectorScorer vectorScorer(LeafReaderContext leafReaderContext) throws IOException {
                     ByteVectorValues vectorValues = leafReaderContext.reader().getByteVectorValues(field);
@@ -171,13 +171,13 @@ public abstract class ExactKnnQuery extends Query {
         }
     }
 
-    static class ExactKnnScorer extends Scorer {
+    static class DenseVectorScorer extends Scorer {
 
         private final VectorScorer vectorScorer;
         private final DocIdSetIterator iterator;
         private final float boost;
 
-        ExactKnnScorer(ExactKnnWeight weight, VectorScorer vectorScorer) {
+        DenseVectorScorer(DenseVectorWeight weight, VectorScorer vectorScorer) {
             super(weight);
             this.vectorScorer = vectorScorer;
             this.iterator = vectorScorer.iterator();
@@ -191,6 +191,7 @@ public abstract class ExactKnnQuery extends Query {
 
         @Override
         public float getMaxScore(int i) throws IOException {
+            // TODO: can we optimize this at all?
             return Float.POSITIVE_INFINITY;
         }
 

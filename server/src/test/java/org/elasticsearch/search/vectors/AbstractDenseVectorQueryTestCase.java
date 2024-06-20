@@ -38,31 +38,31 @@ import java.io.IOException;
 import static org.apache.lucene.index.VectorSimilarityFunction.COSINE;
 import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
 
-abstract class AbstractExactKnnQueryTestCase extends ESTestCase {
+abstract class AbstractDenseVectorQueryTestCase extends ESTestCase {
 
-    abstract ExactKnnQuery getExactVectorQuery(String field, float[] query);
+    abstract DenseVectorQuery getDenseVectorQuery(String field, float[] query);
 
     abstract float[] randomVector(int dim);
 
     abstract Field getKnnVectorField(String name, float[] vector, VectorSimilarityFunction similarityFunction);
 
     public void testEquals() {
-        ExactKnnQuery q1 = getExactVectorQuery("f1", new float[] { 0, 1 });
-        ExactKnnQuery q2 = getExactVectorQuery("f1", new float[] { 0, 1 });
+        DenseVectorQuery q1 = getDenseVectorQuery("f1", new float[] { 0, 1 });
+        DenseVectorQuery q2 = getDenseVectorQuery("f1", new float[] { 0, 1 });
 
         assertEquals(q2, q1);
 
         assertNotEquals(null, q1);
         assertNotEquals(q1, new TermQuery(new Term("f1", "x")));
 
-        assertNotEquals(q1, getExactVectorQuery("f2", new float[] { 0, 1 }));
-        assertNotEquals(q1, getExactVectorQuery("f1", new float[] { 1, 1 }));
+        assertNotEquals(q1, getDenseVectorQuery("f2", new float[] { 0, 1 }));
+        assertNotEquals(q1, getDenseVectorQuery("f1", new float[] { 1, 1 }));
     }
 
     public void testEmptyIndex() throws IOException {
         try (Directory indexStore = getIndexStore("field"); IndexReader reader = DirectoryReader.open(indexStore)) {
             IndexSearcher searcher = newSearcher(reader);
-            ExactKnnQuery kvq = getExactVectorQuery("field", new float[] { 1, 2 });
+            DenseVectorQuery kvq = getDenseVectorQuery("field", new float[] { 1, 2 });
             assertMatches(searcher, kvq, 0);
         }
     }
@@ -74,7 +74,7 @@ abstract class AbstractExactKnnQueryTestCase extends ESTestCase {
             IndexReader reader = DirectoryReader.open(indexStore)
         ) {
             IndexSearcher searcher = newSearcher(reader);
-            ExactKnnQuery kvq = getExactVectorQuery("field", new float[] { 0 });
+            DenseVectorQuery kvq = getDenseVectorQuery("field", new float[] { 0 });
             IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> searcher.search(kvq, 10));
             assertEquals("vector query dimension: 1 differs from field dimension: 2", e.getMessage());
         }
@@ -87,8 +87,8 @@ abstract class AbstractExactKnnQueryTestCase extends ESTestCase {
             IndexReader reader = DirectoryReader.open(indexStore)
         ) {
             IndexSearcher searcher = newSearcher(reader);
-            assertMatches(searcher, getExactVectorQuery("xyzzy", new float[] { 0 }), 0);
-            assertMatches(searcher, getExactVectorQuery("id", new float[] { 0 }), 0);
+            assertMatches(searcher, getDenseVectorQuery("xyzzy", new float[] { 0 }), 0);
+            assertMatches(searcher, getDenseVectorQuery("id", new float[] { 0 }), 0);
         }
     }
 
@@ -103,7 +103,7 @@ abstract class AbstractExactKnnQueryTestCase extends ESTestCase {
         ) {
             IndexSearcher searcher = new IndexSearcher(reader);
             float[] queryVector = new float[] { 2, 3 };
-            ExactKnnQuery query = getExactVectorQuery("field", queryVector);
+            DenseVectorQuery query = getDenseVectorQuery("field", queryVector);
             Query rewritten = query.rewrite(searcher);
             Weight weight = searcher.createWeight(rewritten, ScoreMode.COMPLETE, 1);
             Scorer scorer = weight.scorer(reader.leaves().get(0));
@@ -134,7 +134,7 @@ abstract class AbstractExactKnnQueryTestCase extends ESTestCase {
                 assertEquals(1, reader.leaves().size());
                 IndexSearcher searcher = new IndexSearcher(reader);
                 float[] queryVector = new float[] { 2, 3 };
-                ExactKnnQuery query = getExactVectorQuery("field", queryVector);
+                DenseVectorQuery query = getDenseVectorQuery("field", queryVector);
                 Query rewritten = query.rewrite(searcher);
                 Weight weight = searcher.createWeight(rewritten, ScoreMode.COMPLETE, 1);
                 Scorer scorer = weight.scorer(reader.leaves().get(0));
@@ -167,7 +167,7 @@ abstract class AbstractExactKnnQueryTestCase extends ESTestCase {
             IndexReader reader = DirectoryReader.open(indexStore)
         ) {
             IndexSearcher searcher = newSearcher(reader);
-            ExactKnnQuery kvq = getExactVectorQuery("field", new float[] { 0, -1 });
+            DenseVectorQuery kvq = getDenseVectorQuery("field", new float[] { 0, -1 });
             assertMatches(searcher, kvq, 3);
             ScoreDoc[] scoreDocs = searcher.search(kvq, 3).scoreDocs;
             assertIdMatches(reader, "id2", scoreDocs[0]);
@@ -188,7 +188,7 @@ abstract class AbstractExactKnnQueryTestCase extends ESTestCase {
         try (Directory d = getStableIndexStore("field", VectorSimilarityFunction.EUCLIDEAN, vectors)) {
             try (IndexReader reader = DirectoryReader.open(d)) {
                 IndexSearcher searcher = new IndexSearcher(reader);
-                ExactKnnQuery query = getExactVectorQuery("field", new float[] { 2, 3 });
+                DenseVectorQuery query = getDenseVectorQuery("field", new float[] { 2, 3 });
                 Explanation matched = searcher.explain(query, 2);
                 assertTrue(matched.isMatch());
                 assertEquals(1 / 2f, matched.getValue());
@@ -197,7 +197,7 @@ abstract class AbstractExactKnnQueryTestCase extends ESTestCase {
                 Explanation nomatch = searcher.explain(query, 6);
                 assertFalse(nomatch.isMatch());
 
-                nomatch = searcher.explain(getExactVectorQuery("someMissingField", new float[] { 2, 3 }), 6);
+                nomatch = searcher.explain(getDenseVectorQuery("someMissingField", new float[] { 2, 3 }), 6);
                 assertFalse(nomatch.isMatch());
             }
         }
@@ -221,7 +221,7 @@ abstract class AbstractExactKnnQueryTestCase extends ESTestCase {
             try (IndexReader reader = DirectoryReader.open(d)) {
                 IndexSearcher searcher = newSearcher(reader);
                 for (int i = 0; i < numIters; i++) {
-                    ExactKnnQuery query = getExactVectorQuery("field", randomVector(dimension));
+                    DenseVectorQuery query = getDenseVectorQuery("field", randomVector(dimension));
                     int n = random().nextInt(100) + 1;
                     TopDocs results = searcher.search(query, n);
                     assert reader.hasDeletions() == false;

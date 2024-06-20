@@ -161,7 +161,7 @@ class S3BlobStore implements BlobStore {
             final AWSRequestMetrics awsRequestMetrics = request.getAWSRequestMetrics();
             final TimingInfo timingInfo = awsRequestMetrics.getTimingInfo();
             final long requestCount = getCountForMetric(timingInfo, AWSRequestMetrics.Field.RequestCount);
-            long exceptionCount = getCountForMetric(timingInfo, AWSRequestMetrics.Field.Exception);
+            final long exceptionCount = getCountForMetric(timingInfo, AWSRequestMetrics.Field.Exception);
             final long throttleCount = getCountForMetric(timingInfo, AWSRequestMetrics.Field.ThrottleException);
 
             // For stats reported by API, do not collect stats for null response for BWC.

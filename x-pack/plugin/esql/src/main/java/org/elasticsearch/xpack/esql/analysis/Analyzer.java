@@ -867,9 +867,11 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
         @Override
         protected LogicalPlan rule(LogicalPlan plan, AnalyzerContext context) {
+            // Allow resolving snapshot-only functions, but do not include them in the documentation
+            final FunctionRegistry snapshotRegistry = context.functionRegistry().snapshotRegistry();
             return plan.transformExpressionsOnly(
                 UnresolvedFunction.class,
-                uf -> resolveFunction(uf, context.configuration(), context.functionRegistry())
+                uf -> resolveFunction(uf, context.configuration(), snapshotRegistry)
             );
         }
 

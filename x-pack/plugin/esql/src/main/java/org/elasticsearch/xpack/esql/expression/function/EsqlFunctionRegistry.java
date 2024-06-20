@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.expression.function;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.xpack.esql.core.expression.function.Function;
 import org.elasticsearch.xpack.esql.core.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.core.expression.function.FunctionRegistry;
@@ -20,6 +21,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Median;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.MedianAbsoluteDeviation;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Percentile;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Rate;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialCentroid;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.TopList;
@@ -141,7 +143,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSUPPORTED;
 import static org.elasticsearch.xpack.esql.core.type.DataType.VERSION;
 
-public final class EsqlFunctionRegistry extends FunctionRegistry {
+public class EsqlFunctionRegistry extends FunctionRegistry {
 
     private static final Map<Class<? extends Function>, List<DataType>> dataTypesForStringLiteralConversion = new LinkedHashMap<>();
 
@@ -168,6 +170,8 @@ public final class EsqlFunctionRegistry extends FunctionRegistry {
             dataTypeCastingPriority.put(typePriorityList.get(i), i);
         }
     }
+
+    private SnapshotFunctionRegistry snapshotRegistry = null;
 
     public EsqlFunctionRegistry() {
         register(functions());
@@ -301,9 +305,21 @@ public final class EsqlFunctionRegistry extends FunctionRegistry {
                 def(Split.class, Split::new, "split") } };
     }
 
+    private static FunctionDefinition[][] snapshotFunctions() {
+        return new FunctionDefinition[][] { new FunctionDefinition[] { def(Rate.class, Rate::withUnresolvedTimestamp, "rate") } };
+    }
+
     @Override
-    protected String normalize(String name) {
-        return normalizeName(name);
+    public FunctionRegistry snapshotRegistry() {
+        if (Build.current().isSnapshot() == false) {
+            return this;
+        }
+        var snapshotRegistry = this.snapshotRegistry;
+        if (snapshotRegistry == null) {
+            snapshotRegistry = new SnapshotFunctionRegistry(functions(), snapshotFunctions());
+            this.snapshotRegistry = snapshotRegistry;
+        }
+        return snapshotRegistry;
     }
 
     public static String normalizeName(String name) {
@@ -442,5 +458,15 @@ public final class EsqlFunctionRegistry extends FunctionRegistry {
 
     public List<DataType> getDataTypeForStringLiteralConversion(Class<? extends Function> clazz) {
         return dataTypesForStringLiteralConversion.get(clazz);
+    }
+
+    private static class SnapshotFunctionRegistry extends FunctionRegistry {
+        SnapshotFunctionRegistry(FunctionDefinition[][] functions, FunctionDefinition[][] snapshotFunctions) {
+            if (Build.current().isSnapshot() == false) {
+                throw new IllegalStateException("build snapshot function registry for non-snapshot build");
+            }
+            register(functions);
+            register(snapshotFunctions);
+        }
     }
 }

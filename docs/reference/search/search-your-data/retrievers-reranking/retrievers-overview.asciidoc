@@ -200,3 +200,9 @@ It automatically detects the fields and types in your index and builds a retriev
 You can use the Playground to experiment with different retriever configurations and see how they affect search results.
 
 Refer to the {kibana-ref}/playground.html[Playground documentation] for more information.
+
+[discrete]
+[[retrievers-overview-api-reference]]
+==== API reference
+
+For implementation details, including notable restrictions, check out the <<retriever,reference documentation>> in the Search API docs.

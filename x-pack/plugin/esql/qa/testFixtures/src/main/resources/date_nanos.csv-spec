@@ -1,0 +1,6 @@
+simple
+from date_nanos | sort millis desc | keep millis, nanos | limit 1;
+
+millis:date              | nanos:date_nanos
+2023-10-23T13:55:01.543Z | 2023-10-23T13:55:01.543123456Z
+;

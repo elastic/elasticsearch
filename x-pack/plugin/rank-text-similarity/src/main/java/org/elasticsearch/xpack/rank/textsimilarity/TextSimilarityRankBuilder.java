@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.rank.textsimilarity;
 
-
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.TransportVersion;
@@ -25,7 +24,9 @@ import org.elasticsearch.search.rank.feature.RankFeatureDoc;
 import org.elasticsearch.search.rank.rerank.RerankingQueryPhaseRankCoordinatorContext;
 import org.elasticsearch.search.rank.rerank.RerankingQueryPhaseRankShardContext;
 import org.elasticsearch.search.rank.rerank.RerankingRankFeaturePhaseRankShardContext;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.List;
@@ -37,6 +38,25 @@ import static org.elasticsearch.xpack.rank.textsimilarity.TextSimilarityRankRetr
 import static org.elasticsearch.xpack.rank.textsimilarity.TextSimilarityRankRetrieverBuilder.MIN_SCORE_FIELD;
 
 public class TextSimilarityRankBuilder extends RankBuilder {
+
+    static final ConstructingObjectParser<TextSimilarityRankBuilder, Void> PARSER = new ConstructingObjectParser<>(
+        TextSimilarityRankPlugin.NAME,
+        args -> {
+            String inferenceId = (String) args[0];
+            String inferenceText = (String) args[1];
+            String field = (String) args[2];
+            Float minScore = args[3] == null ? null : (Float) args[3];
+
+            return new TextSimilarityRankBuilder(field, inferenceId, inferenceText, DEFAULT_RANK_WINDOW_SIZE, minScore);
+        }
+    );
+
+    static {
+        PARSER.declareString(ConstructingObjectParser.constructorArg(), INFERENCE_ID_FIELD);
+        PARSER.declareString(ConstructingObjectParser.constructorArg(), INFERENCE_TEXT_FIELD);
+        PARSER.declareString(ConstructingObjectParser.constructorArg(), FIELD_FIELD);
+        PARSER.declareFloat(ConstructingObjectParser.optionalConstructorArg(), MIN_SCORE_FIELD);
+    }
 
     public static final String NAME = "text_similarity_rank_builder";
 
@@ -77,6 +97,13 @@ public class TextSimilarityRankBuilder extends RankBuilder {
         out.writeString(inferenceText);
         out.writeString(field);
         out.writeOptionalFloat(minScore);
+    }
+
+    public static TextSimilarityRankBuilder fromXContent(XContentParser parser) throws IOException {
+        // if (TextSimilarityRankRetrieverBuilder.RANK_RRF_FEATURE.check(XPackPlugin.getSharedLicenseState()) == false) {
+        // throw LicenseUtils.newComplianceException("Reciprocal Rank Fusion (RRF)");
+        // }
+        return PARSER.parse(parser, null);
     }
 
     @Override

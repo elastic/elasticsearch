@@ -11,6 +11,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.rank.RankBuilder;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
 
 import java.util.List;
@@ -26,10 +27,10 @@ public class TextSimilarityRankPlugin extends Plugin implements SearchPlugin {
         );
     }
 
-//    @Override
-//    public List<NamedXContentRegistry.Entry> getNamedXContent() {
-//        return List.of(new NamedXContentRegistry.Entry(RankBuilder.class, new ParseField(NAME), TextSimilarityRankBuilder::fromXContent));
-//    }
+    @Override
+    public List<NamedXContentRegistry.Entry> getNamedXContent() {
+        return List.of(new NamedXContentRegistry.Entry(RankBuilder.class, new ParseField(NAME), TextSimilarityRankBuilder::fromXContent));
+    }
 
     @Override
     public List<RetrieverSpec<?>> getRetrievers() {

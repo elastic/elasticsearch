@@ -29,6 +29,7 @@
  * functions, designed to run over a {@link org.elasticsearch.compute.data.Block} </li>
  * <li>{@link org.elasticsearch.xpack.esql.session.EsqlSession} - manages state across a query</li>
  * <li>{@link org.elasticsearch.xpack.esql.expression.function.scalar} - Guide to writing scalar functions</li>
+ * <li>{@link org.elasticsearch.xpack.esql.expression.function.aggregate} - Guide to writing aggregation functions</li>
  * <li>{@link org.elasticsearch.xpack.esql.analysis.Analyzer} - The first step in query processing</li>
  * <li>{@link org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer} - Coordinator level logical optimizations</li>
  * <li>{@link org.elasticsearch.xpack.esql.optimizer.LocalLogicalPlanOptimizer} - Data node level logical optimizations</li>

@@ -32,16 +32,16 @@ public final class StDWithinCartesianFieldAndConstantAndConstantEvaluator implem
 
   private final Point rightValue;
 
-  private final double distance;
+  private final double argValue;
 
   private final DriverContext driverContext;
 
   public StDWithinCartesianFieldAndConstantAndConstantEvaluator(Source source,
-      EvalOperator.ExpressionEvaluator leftValue, Point rightValue, double distance,
+      EvalOperator.ExpressionEvaluator leftValue, Point rightValue, double argValue,
       DriverContext driverContext) {
     this.leftValue = leftValue;
     this.rightValue = rightValue;
-    this.distance = distance;
+    this.argValue = argValue;
     this.driverContext = driverContext;
     this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
   }
@@ -73,7 +73,7 @@ public final class StDWithinCartesianFieldAndConstantAndConstantEvaluator implem
           continue position;
         }
         try {
-          result.appendBoolean(StDWithin.processCartesianFieldAndConstant(leftValueBlock.getBytesRef(leftValueBlock.getFirstValueIndex(p), leftValueScratch), rightValue, distance));
+          result.appendBoolean(StDWithin.processCartesianFieldAndConstant(leftValueBlock.getBytesRef(leftValueBlock.getFirstValueIndex(p), leftValueScratch), rightValue, argValue));
         } catch (IllegalArgumentException | IOException e) {
           warnings.registerException(e);
           result.appendNull();
@@ -88,7 +88,7 @@ public final class StDWithinCartesianFieldAndConstantAndConstantEvaluator implem
       BytesRef leftValueScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
         try {
-          result.appendBoolean(StDWithin.processCartesianFieldAndConstant(leftValueVector.getBytesRef(p, leftValueScratch), rightValue, distance));
+          result.appendBoolean(StDWithin.processCartesianFieldAndConstant(leftValueVector.getBytesRef(p, leftValueScratch), rightValue, argValue));
         } catch (IllegalArgumentException | IOException e) {
           warnings.registerException(e);
           result.appendNull();
@@ -100,7 +100,7 @@ public final class StDWithinCartesianFieldAndConstantAndConstantEvaluator implem
 
   @Override
   public String toString() {
-    return "StDWithinCartesianFieldAndConstantAndConstantEvaluator[" + "leftValue=" + leftValue + ", rightValue=" + rightValue + ", distance=" + distance + "]";
+    return "StDWithinCartesianFieldAndConstantAndConstantEvaluator[" + "leftValue=" + leftValue + ", rightValue=" + rightValue + ", argValue=" + argValue + "]";
   }
 
   @Override
@@ -115,24 +115,24 @@ public final class StDWithinCartesianFieldAndConstantAndConstantEvaluator implem
 
     private final Point rightValue;
 
-    private final double distance;
+    private final double argValue;
 
     public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory leftValue,
-        Point rightValue, double distance) {
+        Point rightValue, double argValue) {
       this.source = source;
       this.leftValue = leftValue;
       this.rightValue = rightValue;
-      this.distance = distance;
+      this.argValue = argValue;
     }
 
     @Override
     public StDWithinCartesianFieldAndConstantAndConstantEvaluator get(DriverContext context) {
-      return new StDWithinCartesianFieldAndConstantAndConstantEvaluator(source, leftValue.get(context), rightValue, distance, context);
+      return new StDWithinCartesianFieldAndConstantAndConstantEvaluator(source, leftValue.get(context), rightValue, argValue, context);
     }
 
     @Override
     public String toString() {
-      return "StDWithinCartesianFieldAndConstantAndConstantEvaluator[" + "leftValue=" + leftValue + ", rightValue=" + rightValue + ", distance=" + distance + "]";
+      return "StDWithinCartesianFieldAndConstantAndConstantEvaluator[" + "leftValue=" + leftValue + ", rightValue=" + rightValue + ", argValue=" + argValue + "]";
     }
   }
 }

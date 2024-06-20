@@ -35,16 +35,16 @@ public final class StDWithinCartesianPointDocValuesAndFieldAndFieldEvaluator imp
 
   private final EvalOperator.ExpressionEvaluator rightValue;
 
-  private final EvalOperator.ExpressionEvaluator distance;
+  private final EvalOperator.ExpressionEvaluator argValue;
 
   private final DriverContext driverContext;
 
   public StDWithinCartesianPointDocValuesAndFieldAndFieldEvaluator(Source source,
       EvalOperator.ExpressionEvaluator leftValue, EvalOperator.ExpressionEvaluator rightValue,
-      EvalOperator.ExpressionEvaluator distance, DriverContext driverContext) {
+      EvalOperator.ExpressionEvaluator argValue, DriverContext driverContext) {
     this.leftValue = leftValue;
     this.rightValue = rightValue;
-    this.distance = distance;
+    this.argValue = argValue;
     this.driverContext = driverContext;
     this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
   }
@@ -53,27 +53,27 @@ public final class StDWithinCartesianPointDocValuesAndFieldAndFieldEvaluator imp
   public Block eval(Page page) {
     try (LongBlock leftValueBlock = (LongBlock) leftValue.eval(page)) {
       try (BytesRefBlock rightValueBlock = (BytesRefBlock) rightValue.eval(page)) {
-        try (DoubleBlock distanceBlock = (DoubleBlock) distance.eval(page)) {
+        try (DoubleBlock argValueBlock = (DoubleBlock) argValue.eval(page)) {
           LongVector leftValueVector = leftValueBlock.asVector();
           if (leftValueVector == null) {
-            return eval(page.getPositionCount(), leftValueBlock, rightValueBlock, distanceBlock);
+            return eval(page.getPositionCount(), leftValueBlock, rightValueBlock, argValueBlock);
           }
           BytesRefVector rightValueVector = rightValueBlock.asVector();
           if (rightValueVector == null) {
-            return eval(page.getPositionCount(), leftValueBlock, rightValueBlock, distanceBlock);
+            return eval(page.getPositionCount(), leftValueBlock, rightValueBlock, argValueBlock);
           }
-          DoubleVector distanceVector = distanceBlock.asVector();
-          if (distanceVector == null) {
-            return eval(page.getPositionCount(), leftValueBlock, rightValueBlock, distanceBlock);
+          DoubleVector argValueVector = argValueBlock.asVector();
+          if (argValueVector == null) {
+            return eval(page.getPositionCount(), leftValueBlock, rightValueBlock, argValueBlock);
           }
-          return eval(page.getPositionCount(), leftValueVector, rightValueVector, distanceVector).asBlock();
+          return eval(page.getPositionCount(), leftValueVector, rightValueVector, argValueVector).asBlock();
         }
       }
     }
   }
 
   public BooleanBlock eval(int positionCount, LongBlock leftValueBlock,
-      BytesRefBlock rightValueBlock, DoubleBlock distanceBlock) {
+      BytesRefBlock rightValueBlock, DoubleBlock argValueBlock) {
     try(BooleanBlock.Builder result = driverContext.blockFactory().newBooleanBlockBuilder(positionCount)) {
       BytesRef rightValueScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
@@ -99,29 +99,29 @@ public final class StDWithinCartesianPointDocValuesAndFieldAndFieldEvaluator imp
           result.appendNull();
           continue position;
         }
-        if (distanceBlock.isNull(p)) {
+        if (argValueBlock.isNull(p)) {
           result.appendNull();
           continue position;
         }
-        if (distanceBlock.getValueCount(p) != 1) {
-          if (distanceBlock.getValueCount(p) > 1) {
+        if (argValueBlock.getValueCount(p) != 1) {
+          if (argValueBlock.getValueCount(p) > 1) {
             warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
           }
           result.appendNull();
           continue position;
         }
-        result.appendBoolean(StDWithin.processCartesianPointDocValuesAndFieldAndField(leftValueBlock.getLong(leftValueBlock.getFirstValueIndex(p)), rightValueBlock.getBytesRef(rightValueBlock.getFirstValueIndex(p), rightValueScratch), distanceBlock.getDouble(distanceBlock.getFirstValueIndex(p))));
+        result.appendBoolean(StDWithin.processCartesianPointDocValuesAndFieldAndField(leftValueBlock.getLong(leftValueBlock.getFirstValueIndex(p)), rightValueBlock.getBytesRef(rightValueBlock.getFirstValueIndex(p), rightValueScratch), argValueBlock.getDouble(argValueBlock.getFirstValueIndex(p))));
       }
       return result.build();
     }
   }
 
   public BooleanVector eval(int positionCount, LongVector leftValueVector,
-      BytesRefVector rightValueVector, DoubleVector distanceVector) {
+      BytesRefVector rightValueVector, DoubleVector argValueVector) {
     try(BooleanVector.FixedBuilder result = driverContext.blockFactory().newBooleanVectorFixedBuilder(positionCount)) {
       BytesRef rightValueScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendBoolean(p, StDWithin.processCartesianPointDocValuesAndFieldAndField(leftValueVector.getLong(p), rightValueVector.getBytesRef(p, rightValueScratch), distanceVector.getDouble(p)));
+        result.appendBoolean(p, StDWithin.processCartesianPointDocValuesAndFieldAndField(leftValueVector.getLong(p), rightValueVector.getBytesRef(p, rightValueScratch), argValueVector.getDouble(p)));
       }
       return result.build();
     }
@@ -129,12 +129,12 @@ public final class StDWithinCartesianPointDocValuesAndFieldAndFieldEvaluator imp
 
   @Override
   public String toString() {
-    return "StDWithinCartesianPointDocValuesAndFieldAndFieldEvaluator[" + "leftValue=" + leftValue + ", rightValue=" + rightValue + ", distance=" + distance + "]";
+    return "StDWithinCartesianPointDocValuesAndFieldAndFieldEvaluator[" + "leftValue=" + leftValue + ", rightValue=" + rightValue + ", argValue=" + argValue + "]";
   }
 
   @Override
   public void close() {
-    Releasables.closeExpectNoException(leftValue, rightValue, distance);
+    Releasables.closeExpectNoException(leftValue, rightValue, argValue);
   }
 
   static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
@@ -144,25 +144,25 @@ public final class StDWithinCartesianPointDocValuesAndFieldAndFieldEvaluator imp
 
     private final EvalOperator.ExpressionEvaluator.Factory rightValue;
 
-    private final EvalOperator.ExpressionEvaluator.Factory distance;
+    private final EvalOperator.ExpressionEvaluator.Factory argValue;
 
     public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory leftValue,
         EvalOperator.ExpressionEvaluator.Factory rightValue,
-        EvalOperator.ExpressionEvaluator.Factory distance) {
+        EvalOperator.ExpressionEvaluator.Factory argValue) {
       this.source = source;
       this.leftValue = leftValue;
       this.rightValue = rightValue;
-      this.distance = distance;
+      this.argValue = argValue;
     }
 
     @Override
     public StDWithinCartesianPointDocValuesAndFieldAndFieldEvaluator get(DriverContext context) {
-      return new StDWithinCartesianPointDocValuesAndFieldAndFieldEvaluator(source, leftValue.get(context), rightValue.get(context), distance.get(context), context);
+      return new StDWithinCartesianPointDocValuesAndFieldAndFieldEvaluator(source, leftValue.get(context), rightValue.get(context), argValue.get(context), context);
     }
 
     @Override
     public String toString() {
-      return "StDWithinCartesianPointDocValuesAndFieldAndFieldEvaluator[" + "leftValue=" + leftValue + ", rightValue=" + rightValue + ", distance=" + distance + "]";
+      return "StDWithinCartesianPointDocValuesAndFieldAndFieldEvaluator[" + "leftValue=" + leftValue + ", rightValue=" + rightValue + ", argValue=" + argValue + "]";
     }
   }
 }

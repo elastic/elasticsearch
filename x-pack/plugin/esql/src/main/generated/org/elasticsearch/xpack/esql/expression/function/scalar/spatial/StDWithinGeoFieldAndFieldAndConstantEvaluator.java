@@ -31,16 +31,16 @@ public final class StDWithinGeoFieldAndFieldAndConstantEvaluator implements Eval
 
   private final EvalOperator.ExpressionEvaluator rightValue;
 
-  private final double distance;
+  private final double argValue;
 
   private final DriverContext driverContext;
 
   public StDWithinGeoFieldAndFieldAndConstantEvaluator(Source source,
       EvalOperator.ExpressionEvaluator leftValue, EvalOperator.ExpressionEvaluator rightValue,
-      double distance, DriverContext driverContext) {
+      double argValue, DriverContext driverContext) {
     this.leftValue = leftValue;
     this.rightValue = rightValue;
-    this.distance = distance;
+    this.argValue = argValue;
     this.driverContext = driverContext;
     this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
   }
@@ -91,7 +91,7 @@ public final class StDWithinGeoFieldAndFieldAndConstantEvaluator implements Eval
           continue position;
         }
         try {
-          result.appendBoolean(StDWithin.processGeoFieldAndField(leftValueBlock.getBytesRef(leftValueBlock.getFirstValueIndex(p), leftValueScratch), rightValueBlock.getBytesRef(rightValueBlock.getFirstValueIndex(p), rightValueScratch), distance));
+          result.appendBoolean(StDWithin.processGeoFieldAndField(leftValueBlock.getBytesRef(leftValueBlock.getFirstValueIndex(p), leftValueScratch), rightValueBlock.getBytesRef(rightValueBlock.getFirstValueIndex(p), rightValueScratch), argValue));
         } catch (IllegalArgumentException | IOException e) {
           warnings.registerException(e);
           result.appendNull();
@@ -108,7 +108,7 @@ public final class StDWithinGeoFieldAndFieldAndConstantEvaluator implements Eval
       BytesRef rightValueScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
         try {
-          result.appendBoolean(StDWithin.processGeoFieldAndField(leftValueVector.getBytesRef(p, leftValueScratch), rightValueVector.getBytesRef(p, rightValueScratch), distance));
+          result.appendBoolean(StDWithin.processGeoFieldAndField(leftValueVector.getBytesRef(p, leftValueScratch), rightValueVector.getBytesRef(p, rightValueScratch), argValue));
         } catch (IllegalArgumentException | IOException e) {
           warnings.registerException(e);
           result.appendNull();
@@ -120,7 +120,7 @@ public final class StDWithinGeoFieldAndFieldAndConstantEvaluator implements Eval
 
   @Override
   public String toString() {
-    return "StDWithinGeoFieldAndFieldAndConstantEvaluator[" + "leftValue=" + leftValue + ", rightValue=" + rightValue + ", distance=" + distance + "]";
+    return "StDWithinGeoFieldAndFieldAndConstantEvaluator[" + "leftValue=" + leftValue + ", rightValue=" + rightValue + ", argValue=" + argValue + "]";
   }
 
   @Override
@@ -135,24 +135,24 @@ public final class StDWithinGeoFieldAndFieldAndConstantEvaluator implements Eval
 
     private final EvalOperator.ExpressionEvaluator.Factory rightValue;
 
-    private final double distance;
+    private final double argValue;
 
     public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory leftValue,
-        EvalOperator.ExpressionEvaluator.Factory rightValue, double distance) {
+        EvalOperator.ExpressionEvaluator.Factory rightValue, double argValue) {
       this.source = source;
       this.leftValue = leftValue;
       this.rightValue = rightValue;
-      this.distance = distance;
+      this.argValue = argValue;
     }
 
     @Override
     public StDWithinGeoFieldAndFieldAndConstantEvaluator get(DriverContext context) {
-      return new StDWithinGeoFieldAndFieldAndConstantEvaluator(source, leftValue.get(context), rightValue.get(context), distance, context);
+      return new StDWithinGeoFieldAndFieldAndConstantEvaluator(source, leftValue.get(context), rightValue.get(context), argValue, context);
     }
 
     @Override
     public String toString() {
-      return "StDWithinGeoFieldAndFieldAndConstantEvaluator[" + "leftValue=" + leftValue + ", rightValue=" + rightValue + ", distance=" + distance + "]";
+      return "StDWithinGeoFieldAndFieldAndConstantEvaluator[" + "leftValue=" + leftValue + ", rightValue=" + rightValue + ", argValue=" + argValue + "]";
     }
   }
 }

@@ -33,90 +33,122 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.isNull;
  * This provides common support for type resolution and validation. Ensuring that both arguments are spatial types
  * and of compatible CRS. For example geo_point and geo_shape can be compared, but not geo_point and cartesian_point.
  */
-public abstract class BinarySpatialFunction extends BinaryScalarFunction implements SpatialEvaluatorFactory.SpatialSourceSupplier {
+public abstract class BinarySpatialFunction extends BinaryScalarFunction implements SpatialEvaluatorFactory.SpatialSourceResolution {
+    private final SpatialTypeResolver spatialTypeResolver;
     protected SpatialCrsType crsType;
     protected final boolean leftDocValues;
     protected final boolean rightDocValues;
 
-    protected BinarySpatialFunction(Source source, Expression left, Expression right, boolean leftDocValues, boolean rightDocValues) {
+    protected BinarySpatialFunction(
+        Source source,
+        Expression left,
+        Expression right,
+        boolean leftDocValues,
+        boolean rightDocValues,
+        boolean pointsOnly
+    ) {
         super(source, left, right);
         this.leftDocValues = leftDocValues;
         this.rightDocValues = rightDocValues;
-    }
-
-    @Override
-    public boolean foldable() {
-        return left().foldable() && right().foldable();
+        this.spatialTypeResolver = new SpatialTypeResolver(this, pointsOnly);
     }
 
     @Override
     protected TypeResolution resolveType() {
-        if (left().foldable() && right().foldable() == false || isNull(left().dataType())) {
-            // Left is literal, but right is not, check the left field's type against the right field
-            return resolveType(right(), left(), SECOND, FIRST);
-        } else {
-            // All other cases check the right against the left
-            return resolveType(left(), right(), FIRST, SECOND);
+        return spatialTypeResolver.resolveType();
+    }
+
+    static class SpatialTypeResolver {
+        private final SpatialEvaluatorFactory.SpatialSourceResolution supplier;
+        private final boolean pointsOnly;
+
+        SpatialTypeResolver(SpatialEvaluatorFactory.SpatialSourceResolution supplier, boolean pointsOnly) {
+            this.supplier = supplier;
+            this.pointsOnly = pointsOnly;
+        }
+
+        public Expression left() {
+            return supplier.left();
+        }
+
+        public Expression right() {
+            return supplier.right();
+        }
+
+        public String sourceText() {
+            return supplier.source().text();
+        }
+
+        protected TypeResolution resolveType() {
+            if (left().foldable() && right().foldable() == false || isNull(left().dataType())) {
+                // Left is literal, but right is not, check the left field's type against the right field
+                return resolveType(right(), left(), SECOND, FIRST);
+            } else {
+                // All other cases check the right against the left
+                return resolveType(left(), right(), FIRST, SECOND);
+            }
+        }
+
+        protected Expression.TypeResolution isSpatial(Expression e, TypeResolutions.ParamOrdinal paramOrd) {
+            return pointsOnly
+                ? EsqlTypeResolutions.isSpatialPoint(e, sourceText(), paramOrd)
+                : EsqlTypeResolutions.isSpatial(e, sourceText(), paramOrd);
+        }
+
+        private TypeResolution resolveType(
+            Expression leftExpression,
+            Expression rightExpression,
+            TypeResolutions.ParamOrdinal leftOrdinal,
+            TypeResolutions.ParamOrdinal rightOrdinal
+        ) {
+            TypeResolution leftResolution = isSpatial(leftExpression, leftOrdinal);
+            TypeResolution rightResolution = isSpatial(rightExpression, rightOrdinal);
+            if (leftResolution.resolved()) {
+                return resolveType(leftExpression, rightExpression, rightOrdinal);
+            } else if (rightResolution.resolved()) {
+                return resolveType(rightExpression, leftExpression, leftOrdinal);
+            } else {
+                return leftResolution;
+            }
+        }
+
+        protected TypeResolution resolveType(
+            Expression spatialExpression,
+            Expression otherExpression,
+            TypeResolutions.ParamOrdinal otherParamOrdinal
+        ) {
+            if (isNull(spatialExpression.dataType())) {
+                return isSpatial(otherExpression, otherParamOrdinal);
+            }
+            TypeResolution resolution = isSameSpatialType(spatialExpression.dataType(), otherExpression, sourceText(), otherParamOrdinal);
+            if (resolution.unresolved()) {
+                return resolution;
+            }
+            supplier.setCrsType(spatialExpression.dataType());
+            return TypeResolution.TYPE_RESOLVED;
+        }
+
+        protected TypeResolution isSameSpatialType(
+            DataType spatialDataType,
+            Expression expression,
+            String operationName,
+            TypeResolutions.ParamOrdinal paramOrd
+        ) {
+            return pointsOnly
+                ? isType(expression, dt -> dt == spatialDataType, operationName, paramOrd, compatibleTypeNames(spatialDataType))
+                : isType(
+                    expression,
+                    dt -> EsqlDataTypes.isSpatial(dt) && spatialCRSCompatible(spatialDataType, dt),
+                    operationName,
+                    paramOrd,
+                    compatibleTypeNames(spatialDataType)
+                );
         }
     }
 
-    /**
-     * Override this to change what types are acceptable, for example if only points are supported.
-     */
-    protected Expression.TypeResolution isSpatial(Expression e, TypeResolutions.ParamOrdinal paramOrd) {
-        return EsqlTypeResolutions.isSpatial(e, sourceText(), paramOrd);
-    }
-
-    private TypeResolution resolveType(
-        Expression leftExpression,
-        Expression rightExpression,
-        TypeResolutions.ParamOrdinal leftOrdinal,
-        TypeResolutions.ParamOrdinal rightOrdinal
-    ) {
-        TypeResolution leftResolution = isSpatial(leftExpression, leftOrdinal);
-        TypeResolution rightResolution = isSpatial(rightExpression, rightOrdinal);
-        if (leftResolution.resolved()) {
-            return resolveType(leftExpression, rightExpression, rightOrdinal);
-        } else if (rightResolution.resolved()) {
-            return resolveType(rightExpression, leftExpression, leftOrdinal);
-        } else {
-            return leftResolution;
-        }
-    }
-
-    protected TypeResolution resolveType(
-        Expression spatialExpression,
-        Expression otherExpression,
-        TypeResolutions.ParamOrdinal otherParamOrdinal
-    ) {
-        if (isNull(spatialExpression.dataType())) {
-            return isSpatial(otherExpression, otherParamOrdinal);
-        }
-        TypeResolution resolution = isSameSpatialType(spatialExpression.dataType(), otherExpression, sourceText(), otherParamOrdinal);
-        if (resolution.unresolved()) {
-            return resolution;
-        }
-        setCrsType(spatialExpression.dataType());
-        return TypeResolution.TYPE_RESOLVED;
-    }
-
-    protected void setCrsType(DataType dataType) {
+    @Override
+    public void setCrsType(DataType dataType) {
         crsType = SpatialCrsType.fromDataType(dataType);
-    }
-
-    protected TypeResolution isSameSpatialType(
-        DataType spatialDataType,
-        Expression expression,
-        String operationName,
-        TypeResolutions.ParamOrdinal paramOrd
-    ) {
-        return isType(
-            expression,
-            dt -> EsqlDataTypes.isSpatial(dt) && spatialCRSCompatible(spatialDataType, dt),
-            operationName,
-            paramOrd,
-            compatibleTypeNames(spatialDataType)
-        );
     }
 
     private static final String[] GEO_TYPE_NAMES = new String[] { GEO_POINT.typeName(), GEO_SHAPE.typeName() };
@@ -147,7 +179,11 @@ public abstract class BinarySpatialFunction extends BinaryScalarFunction impleme
         return rightDocValues;
     }
 
-    protected enum SpatialCrsType {
+    /**
+     * For most spatial functions we only need to know if the CRS is geo or cartesian, not whether the type is point or shape.
+     * This enum captures this knowledge.
+     */
+    public enum SpatialCrsType {
         GEO,
         CARTESIAN,
         UNSPECIFIED;

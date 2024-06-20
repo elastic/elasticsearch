@@ -34,16 +34,16 @@ public final class StDWithinGeoFieldAndConstantAndFieldEvaluator implements Eval
 
   private final Point rightValue;
 
-  private final EvalOperator.ExpressionEvaluator distance;
+  private final EvalOperator.ExpressionEvaluator argValue;
 
   private final DriverContext driverContext;
 
   public StDWithinGeoFieldAndConstantAndFieldEvaluator(Source source,
       EvalOperator.ExpressionEvaluator leftValue, Point rightValue,
-      EvalOperator.ExpressionEvaluator distance, DriverContext driverContext) {
+      EvalOperator.ExpressionEvaluator argValue, DriverContext driverContext) {
     this.leftValue = leftValue;
     this.rightValue = rightValue;
-    this.distance = distance;
+    this.argValue = argValue;
     this.driverContext = driverContext;
     this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
   }
@@ -51,22 +51,22 @@ public final class StDWithinGeoFieldAndConstantAndFieldEvaluator implements Eval
   @Override
   public Block eval(Page page) {
     try (BytesRefBlock leftValueBlock = (BytesRefBlock) leftValue.eval(page)) {
-      try (DoubleBlock distanceBlock = (DoubleBlock) distance.eval(page)) {
+      try (DoubleBlock argValueBlock = (DoubleBlock) argValue.eval(page)) {
         BytesRefVector leftValueVector = leftValueBlock.asVector();
         if (leftValueVector == null) {
-          return eval(page.getPositionCount(), leftValueBlock, distanceBlock);
+          return eval(page.getPositionCount(), leftValueBlock, argValueBlock);
         }
-        DoubleVector distanceVector = distanceBlock.asVector();
-        if (distanceVector == null) {
-          return eval(page.getPositionCount(), leftValueBlock, distanceBlock);
+        DoubleVector argValueVector = argValueBlock.asVector();
+        if (argValueVector == null) {
+          return eval(page.getPositionCount(), leftValueBlock, argValueBlock);
         }
-        return eval(page.getPositionCount(), leftValueVector, distanceVector);
+        return eval(page.getPositionCount(), leftValueVector, argValueVector);
       }
     }
   }
 
   public BooleanBlock eval(int positionCount, BytesRefBlock leftValueBlock,
-      DoubleBlock distanceBlock) {
+      DoubleBlock argValueBlock) {
     try(BooleanBlock.Builder result = driverContext.blockFactory().newBooleanBlockBuilder(positionCount)) {
       BytesRef leftValueScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
@@ -81,19 +81,19 @@ public final class StDWithinGeoFieldAndConstantAndFieldEvaluator implements Eval
           result.appendNull();
           continue position;
         }
-        if (distanceBlock.isNull(p)) {
+        if (argValueBlock.isNull(p)) {
           result.appendNull();
           continue position;
         }
-        if (distanceBlock.getValueCount(p) != 1) {
-          if (distanceBlock.getValueCount(p) > 1) {
+        if (argValueBlock.getValueCount(p) != 1) {
+          if (argValueBlock.getValueCount(p) > 1) {
             warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
           }
           result.appendNull();
           continue position;
         }
         try {
-          result.appendBoolean(StDWithin.processGeoFieldAndConstantAndField(leftValueBlock.getBytesRef(leftValueBlock.getFirstValueIndex(p), leftValueScratch), rightValue, distanceBlock.getDouble(distanceBlock.getFirstValueIndex(p))));
+          result.appendBoolean(StDWithin.processGeoFieldAndConstantAndField(leftValueBlock.getBytesRef(leftValueBlock.getFirstValueIndex(p), leftValueScratch), rightValue, argValueBlock.getDouble(argValueBlock.getFirstValueIndex(p))));
         } catch (IllegalArgumentException | IOException e) {
           warnings.registerException(e);
           result.appendNull();
@@ -104,12 +104,12 @@ public final class StDWithinGeoFieldAndConstantAndFieldEvaluator implements Eval
   }
 
   public BooleanBlock eval(int positionCount, BytesRefVector leftValueVector,
-      DoubleVector distanceVector) {
+      DoubleVector argValueVector) {
     try(BooleanBlock.Builder result = driverContext.blockFactory().newBooleanBlockBuilder(positionCount)) {
       BytesRef leftValueScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
         try {
-          result.appendBoolean(StDWithin.processGeoFieldAndConstantAndField(leftValueVector.getBytesRef(p, leftValueScratch), rightValue, distanceVector.getDouble(p)));
+          result.appendBoolean(StDWithin.processGeoFieldAndConstantAndField(leftValueVector.getBytesRef(p, leftValueScratch), rightValue, argValueVector.getDouble(p)));
         } catch (IllegalArgumentException | IOException e) {
           warnings.registerException(e);
           result.appendNull();
@@ -121,12 +121,12 @@ public final class StDWithinGeoFieldAndConstantAndFieldEvaluator implements Eval
 
   @Override
   public String toString() {
-    return "StDWithinGeoFieldAndConstantAndFieldEvaluator[" + "leftValue=" + leftValue + ", rightValue=" + rightValue + ", distance=" + distance + "]";
+    return "StDWithinGeoFieldAndConstantAndFieldEvaluator[" + "leftValue=" + leftValue + ", rightValue=" + rightValue + ", argValue=" + argValue + "]";
   }
 
   @Override
   public void close() {
-    Releasables.closeExpectNoException(leftValue, distance);
+    Releasables.closeExpectNoException(leftValue, argValue);
   }
 
   static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
@@ -136,24 +136,24 @@ public final class StDWithinGeoFieldAndConstantAndFieldEvaluator implements Eval
 
     private final Point rightValue;
 
-    private final EvalOperator.ExpressionEvaluator.Factory distance;
+    private final EvalOperator.ExpressionEvaluator.Factory argValue;
 
     public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory leftValue,
-        Point rightValue, EvalOperator.ExpressionEvaluator.Factory distance) {
+        Point rightValue, EvalOperator.ExpressionEvaluator.Factory argValue) {
       this.source = source;
       this.leftValue = leftValue;
       this.rightValue = rightValue;
-      this.distance = distance;
+      this.argValue = argValue;
     }
 
     @Override
     public StDWithinGeoFieldAndConstantAndFieldEvaluator get(DriverContext context) {
-      return new StDWithinGeoFieldAndConstantAndFieldEvaluator(source, leftValue.get(context), rightValue, distance.get(context), context);
+      return new StDWithinGeoFieldAndConstantAndFieldEvaluator(source, leftValue.get(context), rightValue, argValue.get(context), context);
     }
 
     @Override
     public String toString() {
-      return "StDWithinGeoFieldAndConstantAndFieldEvaluator[" + "leftValue=" + leftValue + ", rightValue=" + rightValue + ", distance=" + distance + "]";
+      return "StDWithinGeoFieldAndConstantAndFieldEvaluator[" + "leftValue=" + leftValue + ", rightValue=" + rightValue + ", argValue=" + argValue + "]";
     }
   }
 }

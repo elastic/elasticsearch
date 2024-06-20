@@ -86,6 +86,13 @@ abstract class SpatialEvaluatorFactory<V, T> {
         boolean rightDocValues();
     }
 
+    /**
+     * When performing type resolution we need also write access to the SpatialSourceSupplier for setting the CRS
+     */
+    interface SpatialSourceResolution extends SpatialSourceSupplier {
+        void setCrsType(DataType dataType);
+    }
+
     protected static class SwappedSpatialSourceSupplier implements SpatialSourceSupplier {
         private final SpatialSourceSupplier delegate;
 

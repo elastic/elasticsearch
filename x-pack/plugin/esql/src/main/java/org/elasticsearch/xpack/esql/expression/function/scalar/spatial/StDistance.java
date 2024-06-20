@@ -17,13 +17,11 @@ import org.elasticsearch.geometry.Point;
 import org.elasticsearch.lucene.spatial.CoordinateEncoder;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
-import org.elasticsearch.xpack.esql.expression.EsqlTypeResolutions;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
@@ -31,7 +29,6 @@ import org.elasticsearch.xpack.esql.expression.function.Param;
 import java.io.IOException;
 import java.util.function.Function;
 
-import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
 import static org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesUtils.makeGeometryFromLiteral;
 
@@ -42,7 +39,7 @@ import static org.elasticsearch.xpack.esql.expression.function.scalar.spatial.Sp
  * The function `st_distance` is defined in the <a href="https://www.ogc.org/standard/sfs/">OGC Simple Feature Access</a> standard.
  * Alternatively it is described in PostGIS documentation at <a href="https://postgis.net/docs/ST_Distance.html">PostGIS:ST_Distance</a>.
  */
-public class StDistance extends BinarySpatialFunction implements EvaluatorMapper, SpatialEvaluatorFactory.SpatialSourceSupplier {
+public class StDistance extends BinarySpatialFunction implements EvaluatorMapper {
     // public for test access with reflection
     public static final DistanceCalculator GEO = new GeoDistanceCalculator();
     // public for test access with reflection
@@ -126,28 +123,11 @@ public class StDistance extends BinarySpatialFunction implements EvaluatorMapper
             The second parameter must also have the same coordinate system as the first.
             This means it is not possible to combine `geo_point` and `cartesian_point` parameters.""") Expression right
     ) {
-        super(source, left, right, false, false);
+        super(source, left, right, false, false, true);
     }
 
     protected StDistance(Source source, Expression left, Expression right, boolean leftDocValues, boolean rightDocValues) {
-        super(source, left, right, leftDocValues, rightDocValues);
-    }
-
-    @Override
-    protected Expression.TypeResolution isSpatial(Expression e, TypeResolutions.ParamOrdinal paramOrd) {
-        // We currently only support points for ST_DISTANCE
-        return EsqlTypeResolutions.isSpatialPoint(e, sourceText(), paramOrd);
-    }
-
-    @Override
-    protected TypeResolution isSameSpatialType(
-        DataType spatialDataType,
-        Expression expression,
-        String operationName,
-        TypeResolutions.ParamOrdinal paramOrd
-    ) {
-        // We currently only support points for ST_DISTANCE
-        return isType(expression, dt -> dt == spatialDataType, operationName, paramOrd, compatibleTypeNames(spatialDataType));
+        super(source, left, right, leftDocValues, rightDocValues, true);
     }
 
     @Override

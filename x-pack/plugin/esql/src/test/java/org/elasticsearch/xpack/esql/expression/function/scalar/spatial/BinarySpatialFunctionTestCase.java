@@ -23,6 +23,9 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+import java.util.function.BinaryOperator;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import static org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesFunction.compatibleTypeNames;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.isSpatial;
@@ -61,6 +64,10 @@ public abstract class BinarySpatialFunctionTestCase extends AbstractFunctionTest
         }
     }
 
+    /**
+     * Binary spatial functions that take two spatial arguments
+     * should use this to generate combinations of test cases.
+     */
     protected static void addSpatialCombinations(
         List<TestCaseSupplier> suppliers,
         DataType[] dataTypes,
@@ -87,7 +94,43 @@ public abstract class BinarySpatialFunctionTestCase extends AbstractFunctionTest
     }
 
     /**
+     * Ternary spatial functions that take two spatial arguments and one numerical argument
+     * should use this to generate combinations of test cases.
+     */
+    protected static void addSpatialCombinations(
+        List<TestCaseSupplier> suppliers,
+        List<TestCaseSupplier.TypedDataSupplier> argDataSuppliers,
+        DataType[] dataTypes,
+        DataType returnType,
+        BinaryOperator<Object> argProcessor,
+        boolean pointsOnly
+    ) {
+        for (DataType leftType : dataTypes) {
+            TestCaseSupplier.TypedDataSupplier leftDataSupplier = testCaseSupplier(leftType, pointsOnly);
+            for (DataType rightType : dataTypes) {
+                if (typeCompatible(leftType, rightType)) {
+                    TestCaseSupplier.TypedDataSupplier rightDataSupplier = testCaseSupplier(rightType, pointsOnly);
+                    for (TestCaseSupplier.TypedDataSupplier argDataSupplier : argDataSuppliers) {
+                        suppliers.add(
+                            TestCaseSupplier.testCaseSupplier(
+                                leftDataSupplier,
+                                rightDataSupplier,
+                                argDataSupplier,
+                                BinarySpatialFunctionTestCase::spatialEvaluatorString,
+                                returnType,
+                                (l, r, a) -> expected(l, leftType, r, rightType, a, argProcessor)
+                            )
+                        );
+                    }
+                }
+            }
+        }
+    }
+
+    /**
      * Build the expected error message for an invalid type signature.
+     * For two args, this assumes they are both spatial.
+     * For three args, we assume two spatial and one additional numerical argument, treated differently.
      */
     protected static String typeErrorMessage(
         boolean includeOrdinal,
@@ -95,15 +138,26 @@ public abstract class BinarySpatialFunctionTestCase extends AbstractFunctionTest
         List<DataType> types,
         boolean pointsOnly
     ) {
+        boolean argInvalid = false;
         List<Integer> badArgPositions = new ArrayList<>();
         for (int i = 0; i < types.size(); i++) {
             if (validPerPosition.get(i).contains(types.get(i)) == false) {
-                badArgPositions.add(i);
+                if (i == 2) {
+                    argInvalid = true;
+                } else {
+                    badArgPositions.add(i);
+                }
             }
         }
-        if (badArgPositions.isEmpty()) {
-            return oneInvalid(1, 0, includeOrdinal, types, pointsOnly);
-        } else if (badArgPositions.size() == 1) {
+        if (badArgPositions.isEmpty() && types.get(0) != DataType.NULL && types.get(1) != DataType.NULL) {
+            // First two arguments are valid spatial types, but it is still possible they are incompatible
+            var leftCrs = BinarySpatialFunction.SpatialCrsType.fromDataType(types.get(0));
+            var rightCrs = BinarySpatialFunction.SpatialCrsType.fromDataType(types.get(1));
+            if (leftCrs != rightCrs) {
+                badArgPositions.add(1);
+            }
+        }
+        if (badArgPositions.size() == 1) {
             int badArgPosition = badArgPositions.get(0);
             int goodArgPosition = badArgPosition == 0 ? 1 : 0;
             if (isSpatial(types.get(goodArgPosition)) == false) {
@@ -111,9 +165,23 @@ public abstract class BinarySpatialFunctionTestCase extends AbstractFunctionTest
             } else {
                 return oneInvalid(badArgPosition, goodArgPosition, includeOrdinal, types, pointsOnly);
             }
+        } else if (argInvalid && badArgPositions.size() != 2) {
+            return invalidArg(types.get(2));
         } else {
             return oneInvalid(0, -1, includeOrdinal, types, pointsOnly);
         }
+    }
+
+    private static String invalidArg(DataType invalidType) {
+        return String.format(
+            Locale.ROOT,
+            "%s argument of [%s] must be [%s], found value [%s] type [%s]",
+            TypeResolutions.ParamOrdinal.fromIndex(2).toString().toLowerCase(Locale.ROOT),
+            "",
+            "double",
+            invalidType.typeName(),
+            invalidType.typeName()
+        );
     }
 
     private static String oneInvalid(
@@ -147,6 +215,25 @@ public abstract class BinarySpatialFunctionTestCase extends AbstractFunctionTest
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
+    }
+
+    /**
+     * When two spatial arguments are processed and then compared with a third argument,
+     * we need to process this argument too, before producing the final result.
+     */
+    protected static Object expected(
+        Object left,
+        DataType leftType,
+        Object right,
+        DataType rightType,
+        Object arg,
+        BinaryOperator<Object> argProcessor
+    ) {
+        Object result = expected(left, leftType, right, rightType);
+        if (result == null) {
+            return null;
+        }
+        return argProcessor.apply(result, arg);
     }
 
     private static BinarySpatialFunction.BinarySpatialComparator<?> getRelationsField(String name) {
@@ -214,9 +301,18 @@ public abstract class BinarySpatialFunctionTestCase extends AbstractFunctionTest
 
     private static Matcher<String> spatialEvaluatorString(DataType leftType, DataType rightType) {
         String crsType = isSpatialGeo(pickSpatialType(leftType, rightType)) ? "Geo" : "Cartesian";
-        return equalTo(
-            getFunctionClassName() + crsType + "SourceAndSourceEvaluator[leftValue=Attribute[channel=0], rightValue=Attribute[channel=1]]"
-        );
+        String channels = channelsText("leftValue", "rightValue");
+        return equalTo(getFunctionClassName() + crsType + "SourceAndSourceEvaluator[" + channels + "]");
+    }
+
+    private static Matcher<String> spatialEvaluatorString(DataType leftType, DataType rightType, DataType argType) {
+        String crsType = isSpatialGeo(pickSpatialType(leftType, rightType)) ? "Geo" : "Cartesian";
+        String channels = channelsText("leftValue", "rightValue", "argValue");
+        return equalTo(getFunctionClassName() + crsType + "FieldAndFieldAndFieldEvaluator[" + channels + "]");
+    }
+
+    private static String channelsText(String... args) {
+        return IntStream.range(0, args.length).mapToObj(i -> args[i] + "=Attribute[channel=" + i + "]").collect(Collectors.joining(", "));
     }
 
     private static int countGeo(DataType... types) {

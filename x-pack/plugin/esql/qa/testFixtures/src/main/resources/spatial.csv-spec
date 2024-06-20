@@ -970,7 +970,7 @@ airportsDWithinCopenhagenTrainStation
 required_capability: st_distance
 
 FROM airports
-| WHERE ST_DWITHIN(location, TO_GEOPOINT("POINT(12.565 55.673)"), 600000)
+| WHERE ST_DWITHIN(location, TO_GEOPOINT("POINT(12.565 55.673)"), 600000.0)
 | EVAL distance = ROUND(ST_DISTANCE(location, TO_GEOPOINT("POINT(12.565 55.673)"))/1000,2)
 | EVAL city_distance = ROUND(ST_DISTANCE(city_location, TO_GEOPOINT("POINT(12.565 55.673)"))/1000,2)
 | KEEP abbrev, name, location, country, city, city_location, distance, city_distance
@@ -999,7 +999,7 @@ required_capability: st_distance
 
 // tag::st_dwithin-airports[]
 FROM airports
-| WHERE ST_DWITHIN(location, TO_GEOPOINT("POINT(12.565 55.673)"), 500000)
+| WHERE ST_DWITHIN(location, TO_GEOPOINT("POINT(12.565 55.673)"), 500000.0)
 | STATS count=COUNT() BY country
 | SORT count DESC, country ASC
 // end::st_dwithin-airports[]
@@ -1955,7 +1955,7 @@ airportsDWithinCopenhagenTrainStationCartesian
 required_capability: st_distance
 
 FROM airports_web
-| WHERE ST_DWITHIN(location, TO_CARTESIANPOINT("POINT(1402900 7490000)"), 1000000)
+| WHERE ST_DWITHIN(location, TO_CARTESIANPOINT("POINT(1402900 7490000)"), 1000000.0)
 | EVAL distance = ROUND(ST_DISTANCE(location, TO_CARTESIANPOINT("POINT(1402900 7490000)"))/1000,2)
 | KEEP abbrev, name, location, distance
 | SORT distance ASC
@@ -1980,7 +1980,7 @@ airportsDWithinCopenhagenTrainStationCloseCartesian
 required_capability: st_distance
 
 FROM airports_web
-| WHERE ST_DWITHIN(location, TO_CARTESIANPOINT("POINT(1402900 7490000)"), 1000000)
+| WHERE ST_DWITHIN(location, TO_CARTESIANPOINT("POINT(1402900 7490000)"), 1000000.0)
 | STATS count=COUNT()
 | SORT count DESC
 ;

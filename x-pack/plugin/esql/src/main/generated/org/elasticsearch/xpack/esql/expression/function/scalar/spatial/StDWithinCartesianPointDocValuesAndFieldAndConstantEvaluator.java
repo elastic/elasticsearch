@@ -33,16 +33,16 @@ public final class StDWithinCartesianPointDocValuesAndFieldAndConstantEvaluator 
 
   private final EvalOperator.ExpressionEvaluator rightValue;
 
-  private final double distance;
+  private final double argValue;
 
   private final DriverContext driverContext;
 
   public StDWithinCartesianPointDocValuesAndFieldAndConstantEvaluator(Source source,
       EvalOperator.ExpressionEvaluator leftValue, EvalOperator.ExpressionEvaluator rightValue,
-      double distance, DriverContext driverContext) {
+      double argValue, DriverContext driverContext) {
     this.leftValue = leftValue;
     this.rightValue = rightValue;
-    this.distance = distance;
+    this.argValue = argValue;
     this.driverContext = driverContext;
     this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
   }
@@ -91,7 +91,7 @@ public final class StDWithinCartesianPointDocValuesAndFieldAndConstantEvaluator 
           result.appendNull();
           continue position;
         }
-        result.appendBoolean(StDWithin.processCartesianPointDocValuesAndField(leftValueBlock.getLong(leftValueBlock.getFirstValueIndex(p)), rightValueBlock.getBytesRef(rightValueBlock.getFirstValueIndex(p), rightValueScratch), distance));
+        result.appendBoolean(StDWithin.processCartesianPointDocValuesAndField(leftValueBlock.getLong(leftValueBlock.getFirstValueIndex(p)), rightValueBlock.getBytesRef(rightValueBlock.getFirstValueIndex(p), rightValueScratch), argValue));
       }
       return result.build();
     }
@@ -102,7 +102,7 @@ public final class StDWithinCartesianPointDocValuesAndFieldAndConstantEvaluator 
     try(BooleanVector.FixedBuilder result = driverContext.blockFactory().newBooleanVectorFixedBuilder(positionCount)) {
       BytesRef rightValueScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendBoolean(p, StDWithin.processCartesianPointDocValuesAndField(leftValueVector.getLong(p), rightValueVector.getBytesRef(p, rightValueScratch), distance));
+        result.appendBoolean(p, StDWithin.processCartesianPointDocValuesAndField(leftValueVector.getLong(p), rightValueVector.getBytesRef(p, rightValueScratch), argValue));
       }
       return result.build();
     }
@@ -110,7 +110,7 @@ public final class StDWithinCartesianPointDocValuesAndFieldAndConstantEvaluator 
 
   @Override
   public String toString() {
-    return "StDWithinCartesianPointDocValuesAndFieldAndConstantEvaluator[" + "leftValue=" + leftValue + ", rightValue=" + rightValue + ", distance=" + distance + "]";
+    return "StDWithinCartesianPointDocValuesAndFieldAndConstantEvaluator[" + "leftValue=" + leftValue + ", rightValue=" + rightValue + ", argValue=" + argValue + "]";
   }
 
   @Override
@@ -125,24 +125,24 @@ public final class StDWithinCartesianPointDocValuesAndFieldAndConstantEvaluator 
 
     private final EvalOperator.ExpressionEvaluator.Factory rightValue;
 
-    private final double distance;
+    private final double argValue;
 
     public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory leftValue,
-        EvalOperator.ExpressionEvaluator.Factory rightValue, double distance) {
+        EvalOperator.ExpressionEvaluator.Factory rightValue, double argValue) {
       this.source = source;
       this.leftValue = leftValue;
       this.rightValue = rightValue;
-      this.distance = distance;
+      this.argValue = argValue;
     }
 
     @Override
     public StDWithinCartesianPointDocValuesAndFieldAndConstantEvaluator get(DriverContext context) {
-      return new StDWithinCartesianPointDocValuesAndFieldAndConstantEvaluator(source, leftValue.get(context), rightValue.get(context), distance, context);
+      return new StDWithinCartesianPointDocValuesAndFieldAndConstantEvaluator(source, leftValue.get(context), rightValue.get(context), argValue, context);
     }
 
     @Override
     public String toString() {
-      return "StDWithinCartesianPointDocValuesAndFieldAndConstantEvaluator[" + "leftValue=" + leftValue + ", rightValue=" + rightValue + ", distance=" + distance + "]";
+      return "StDWithinCartesianPointDocValuesAndFieldAndConstantEvaluator[" + "leftValue=" + leftValue + ", rightValue=" + rightValue + ", argValue=" + argValue + "]";
     }
   }
 }

@@ -43,7 +43,7 @@ public abstract class SpatialRelatesFunction extends BinarySpatialFunction
         SpatialEvaluatorFactory.SpatialSourceSupplier {
 
     protected SpatialRelatesFunction(Source source, Expression left, Expression right, boolean leftDocValues, boolean rightDocValues) {
-        super(source, left, right, leftDocValues, rightDocValues);
+        super(source, left, right, leftDocValues, rightDocValues, false);
     }
 
     public abstract ShapeField.QueryRelation queryRelation();

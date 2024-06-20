@@ -90,6 +90,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialIn
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialWithin;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StDWithin;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StDistance;
+import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.TernarySpatialFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Concat;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.EndsWith;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Left;
@@ -279,7 +280,7 @@ public final class PlanNamedTypes {
             of(ScalarFunction.class, SpatialContains.class, PlanNamedTypes::writeBinarySpatialFunction, PlanNamedTypes::readContains),
             of(ScalarFunction.class, SpatialWithin.class, PlanNamedTypes::writeBinarySpatialFunction, PlanNamedTypes::readWithin),
             of(ScalarFunction.class, StDistance.class, PlanNamedTypes::writeBinarySpatialFunction, PlanNamedTypes::readDistance),
-            of(ScalarFunction.class, StDWithin.class, PlanNamedTypes::writeDWithin, PlanNamedTypes::readDWithin),
+            of(ScalarFunction.class, StDWithin.class, PlanNamedTypes::writeTernarySpatialFunction, PlanNamedTypes::readDWithin),
             of(ScalarFunction.class, Substring.class, PlanNamedTypes::writeSubstring, PlanNamedTypes::readSubstring),
             of(ScalarFunction.class, Locate.class, PlanNamedTypes::writeLocate, PlanNamedTypes::readLocate),
             of(ScalarFunction.class, Left.class, PlanNamedTypes::writeLeft, PlanNamedTypes::readLeft),
@@ -1213,9 +1214,10 @@ public final class PlanNamedTypes {
         return new StDWithin(Source.EMPTY, in.readExpression(), in.readExpression(), in.readExpression());
     }
 
-    static void writeDWithin(PlanStreamOutput out, StDWithin stDWithin) throws IOException {
-        writeBinarySpatialFunction(out, stDWithin);
-        out.writeExpression(stDWithin.distance());
+    static void writeTernarySpatialFunction(PlanStreamOutput out, TernarySpatialFunction ternarySpatialFunction) throws IOException {
+        out.writeExpression(ternarySpatialFunction.left());
+        out.writeExpression(ternarySpatialFunction.right());
+        out.writeExpression(ternarySpatialFunction.arg());
     }
 
     static Now readNow(PlanStreamInput in) throws IOException {

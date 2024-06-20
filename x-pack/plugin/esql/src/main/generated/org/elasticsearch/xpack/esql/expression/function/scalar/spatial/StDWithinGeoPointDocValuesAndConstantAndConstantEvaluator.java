@@ -30,16 +30,16 @@ public final class StDWithinGeoPointDocValuesAndConstantAndConstantEvaluator imp
 
   private final Point rightValue;
 
-  private final double distance;
+  private final double argValue;
 
   private final DriverContext driverContext;
 
   public StDWithinGeoPointDocValuesAndConstantAndConstantEvaluator(Source source,
-      EvalOperator.ExpressionEvaluator leftValue, Point rightValue, double distance,
+      EvalOperator.ExpressionEvaluator leftValue, Point rightValue, double argValue,
       DriverContext driverContext) {
     this.leftValue = leftValue;
     this.rightValue = rightValue;
-    this.distance = distance;
+    this.argValue = argValue;
     this.driverContext = driverContext;
     this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
   }
@@ -70,7 +70,7 @@ public final class StDWithinGeoPointDocValuesAndConstantAndConstantEvaluator imp
           continue position;
         }
         try {
-          result.appendBoolean(StDWithin.processGeoPointDocValuesAndConstant(leftValueBlock.getLong(leftValueBlock.getFirstValueIndex(p)), rightValue, distance));
+          result.appendBoolean(StDWithin.processGeoPointDocValuesAndConstant(leftValueBlock.getLong(leftValueBlock.getFirstValueIndex(p)), rightValue, argValue));
         } catch (IllegalArgumentException e) {
           warnings.registerException(e);
           result.appendNull();
@@ -84,7 +84,7 @@ public final class StDWithinGeoPointDocValuesAndConstantAndConstantEvaluator imp
     try(BooleanBlock.Builder result = driverContext.blockFactory().newBooleanBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
         try {
-          result.appendBoolean(StDWithin.processGeoPointDocValuesAndConstant(leftValueVector.getLong(p), rightValue, distance));
+          result.appendBoolean(StDWithin.processGeoPointDocValuesAndConstant(leftValueVector.getLong(p), rightValue, argValue));
         } catch (IllegalArgumentException e) {
           warnings.registerException(e);
           result.appendNull();
@@ -96,7 +96,7 @@ public final class StDWithinGeoPointDocValuesAndConstantAndConstantEvaluator imp
 
   @Override
   public String toString() {
-    return "StDWithinGeoPointDocValuesAndConstantAndConstantEvaluator[" + "leftValue=" + leftValue + ", rightValue=" + rightValue + ", distance=" + distance + "]";
+    return "StDWithinGeoPointDocValuesAndConstantAndConstantEvaluator[" + "leftValue=" + leftValue + ", rightValue=" + rightValue + ", argValue=" + argValue + "]";
   }
 
   @Override
@@ -111,24 +111,24 @@ public final class StDWithinGeoPointDocValuesAndConstantAndConstantEvaluator imp
 
     private final Point rightValue;
 
-    private final double distance;
+    private final double argValue;
 
     public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory leftValue,
-        Point rightValue, double distance) {
+        Point rightValue, double argValue) {
       this.source = source;
       this.leftValue = leftValue;
       this.rightValue = rightValue;
-      this.distance = distance;
+      this.argValue = argValue;
     }
 
     @Override
     public StDWithinGeoPointDocValuesAndConstantAndConstantEvaluator get(DriverContext context) {
-      return new StDWithinGeoPointDocValuesAndConstantAndConstantEvaluator(source, leftValue.get(context), rightValue, distance, context);
+      return new StDWithinGeoPointDocValuesAndConstantAndConstantEvaluator(source, leftValue.get(context), rightValue, argValue, context);
     }
 
     @Override
     public String toString() {
-      return "StDWithinGeoPointDocValuesAndConstantAndConstantEvaluator[" + "leftValue=" + leftValue + ", rightValue=" + rightValue + ", distance=" + distance + "]";
+      return "StDWithinGeoPointDocValuesAndConstantAndConstantEvaluator[" + "leftValue=" + leftValue + ", rightValue=" + rightValue + ", argValue=" + argValue + "]";
     }
   }
 }

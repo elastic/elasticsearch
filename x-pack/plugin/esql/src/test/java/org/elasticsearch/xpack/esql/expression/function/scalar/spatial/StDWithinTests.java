@@ -45,7 +45,12 @@ public class StDWithinTests extends BinarySpatialFunctionTestCase {
     }
 
     protected static void addSpatialCombinations(List<TestCaseSupplier> suppliers, DataType[] dataTypes) {
-        addSpatialCombinations(suppliers, dataTypes, DataType.DOUBLE, true);
+        List<TestCaseSupplier.TypedDataSupplier> argSupplier = TestCaseSupplier.doubleCases(0.0, 1e10, true);
+        addSpatialCombinations(suppliers, argSupplier, dataTypes, DataType.BOOLEAN, StDWithinTests::compareDistances, true);
+    }
+
+    private static boolean compareDistances(Object result, Object argument) {
+        return ((Number) result).doubleValue() < ((Number) argument).doubleValue();
     }
 
     protected static String typeErrorMessage(boolean includeOrdinal, List<Set<DataType>> validPerPosition, List<DataType> types) {

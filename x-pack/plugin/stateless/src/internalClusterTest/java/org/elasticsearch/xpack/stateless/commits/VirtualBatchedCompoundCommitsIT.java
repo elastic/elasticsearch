@@ -58,7 +58,6 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.indices.IndicesService;
-import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.node.PluginComponentBinding;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.internal.DocumentParsingProvider;
@@ -672,8 +671,7 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessIntegTestC
                     channel.sendResponse(
                         randomFrom(
                             new ConnectTransportException(transportService.getLocalNode(), "simulated"),
-                            new CircuitBreakingException("Simulated", CircuitBreaker.Durability.TRANSIENT),
-                            new NodeClosedException(transportService.getLocalNode())
+                            new CircuitBreakingException("Simulated", CircuitBreaker.Durability.TRANSIENT)
                         )
                     );
                 } else {
@@ -1000,5 +998,33 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessIntegTestC
         ensureGreen(indexName);
         safeAwait(searchCompletionLatch);
         searchThread.join();
+    }
+
+    public void testSearchEngineDoesNotFailOnCircuitBreakerExceptionsDuringIndexing() throws Exception {
+        startMasterOnlyNode();
+        var indexNode = startIndexNode();
+        startSearchNode();
+        var indexName = randomIdentifier();
+        createIndex(indexName, 1, 1);
+        ensureGreen(indexName);
+
+        AtomicInteger exceptionsCounter = new AtomicInteger();
+        int maxAttempts = randomIntBetween(1, 8);
+        var indexNodeTransportService = MockTransportService.getInstance(indexNode);
+        indexNodeTransportService.addRequestHandlingBehavior(
+            TransportGetVirtualBatchedCompoundCommitChunkAction.NAME + "[p]",
+            (handler, request, channel, task) -> {
+                if (exceptionsCounter.getAndIncrement() <= maxAttempts) {
+                    channel.sendResponse(new CircuitBreakingException("Simulated", CircuitBreaker.Durability.TRANSIENT));
+                } else {
+                    handler.messageReceived(request, channel, task);
+                }
+            }
+        );
+
+        // We should retry indefinitely on CircuitBreakingException during indexing, eventually make progress and and
+        // don't fail the search shard
+        indexDocsAndRefresh(indexName);
+        ensureSearchable(indexName);
     }
 }

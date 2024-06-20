@@ -8,10 +8,17 @@
 package org.elasticsearch.xpack.ml.integration;
 
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.client.RestClient;
+import org.elasticsearch.client.WarningFailureException;
+import org.elasticsearch.client.WarningsHandler;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.xpack.core.ml.utils.MapHelper;
+import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
+import org.elasticsearch.xpack.ml.queries.TextExpansionQueryBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -269,6 +276,8 @@ public class TextExpansionQueryIT extends PyTorchModelRestTestCase {
 
     protected Response textExpansionSearch(String index, String modelText, String modelId, String fieldName) throws IOException {
         Request request = new Request("GET", index + "/_search?error_trace=true");
+        // Handle REST deprecation for text_expansion query
+        request.setOptions(RequestOptions.DEFAULT.toBuilder().setWarningsHandler(WarningsHandler.PERMISSIVE));
 
         request.setJsonEntity(Strings.format("""
             {
@@ -281,6 +290,7 @@ public class TextExpansionQueryIT extends PyTorchModelRestTestCase {
                   }
                 }
             }""", fieldName, modelId, modelText));
+
         return client().performRequest(request);
     }
 

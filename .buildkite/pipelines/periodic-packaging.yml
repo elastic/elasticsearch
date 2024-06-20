@@ -46,6 +46,7 @@ steps:
           image: family/elasticsearch-{{matrix.image}}
           machineType: custom-16-32768
           buildDirectory: /dev/shm/bk
+          diskSizeGb: 250
         env:
           BWC_VERSION: 6.0.1
 
@@ -62,6 +63,7 @@ steps:
           image: family/elasticsearch-{{matrix.image}}
           machineType: custom-16-32768
           buildDirectory: /dev/shm/bk
+          diskSizeGb: 250
         env:
           BWC_VERSION: 6.1.4
 
@@ -78,6 +80,7 @@ steps:
           image: family/elasticsearch-{{matrix.image}}
           machineType: custom-16-32768
           buildDirectory: /dev/shm/bk
+          diskSizeGb: 250
         env:
           BWC_VERSION: 6.2.4
 
@@ -94,6 +97,7 @@ steps:
           image: family/elasticsearch-{{matrix.image}}
           machineType: custom-16-32768
           buildDirectory: /dev/shm/bk
+          diskSizeGb: 250
         env:
           BWC_VERSION: 6.3.2
 
@@ -110,6 +114,7 @@ steps:
           image: family/elasticsearch-{{matrix.image}}
           machineType: custom-16-32768
           buildDirectory: /dev/shm/bk
+          diskSizeGb: 250
         env:
           BWC_VERSION: 6.4.3
 
@@ -126,6 +131,7 @@ steps:
           image: family/elasticsearch-{{matrix.image}}
           machineType: custom-16-32768
           buildDirectory: /dev/shm/bk
+          diskSizeGb: 250
         env:
           BWC_VERSION: 6.5.4
 
@@ -142,6 +148,7 @@ steps:
           image: family/elasticsearch-{{matrix.image}}
           machineType: custom-16-32768
           buildDirectory: /dev/shm/bk
+          diskSizeGb: 250
         env:
           BWC_VERSION: 6.6.2
 
@@ -158,6 +165,7 @@ steps:
           image: family/elasticsearch-{{matrix.image}}
           machineType: custom-16-32768
           buildDirectory: /dev/shm/bk
+          diskSizeGb: 250
         env:
           BWC_VERSION: 6.7.2
 
@@ -174,6 +182,7 @@ steps:
           image: family/elasticsearch-{{matrix.image}}
           machineType: custom-16-32768
           buildDirectory: /dev/shm/bk
+          diskSizeGb: 250
         env:
           BWC_VERSION: 6.8.23
 
@@ -190,6 +199,7 @@ steps:
           image: family/elasticsearch-{{matrix.image}}
           machineType: custom-16-32768
           buildDirectory: /dev/shm/bk
+          diskSizeGb: 250
         env:
           BWC_VERSION: 7.0.1
 
@@ -206,6 +216,7 @@ steps:
           image: family/elasticsearch-{{matrix.image}}
           machineType: custom-16-32768
           buildDirectory: /dev/shm/bk
+          diskSizeGb: 250
         env:
           BWC_VERSION: 7.1.1
 
@@ -222,6 +233,7 @@ steps:
           image: family/elasticsearch-{{matrix.image}}
           machineType: custom-16-32768
           buildDirectory: /dev/shm/bk
+          diskSizeGb: 250
         env:
           BWC_VERSION: 7.2.1
 
@@ -238,6 +250,7 @@ steps:
           image: family/elasticsearch-{{matrix.image}}
           machineType: custom-16-32768
           buildDirectory: /dev/shm/bk
+          diskSizeGb: 250
         env:
           BWC_VERSION: 7.3.2
 
@@ -254,6 +267,7 @@ steps:
           image: family/elasticsearch-{{matrix.image}}
           machineType: custom-16-32768
           buildDirectory: /dev/shm/bk
+          diskSizeGb: 250
         env:
           BWC_VERSION: 7.4.2
 
@@ -270,6 +284,7 @@ steps:
           image: family/elasticsearch-{{matrix.image}}
           machineType: custom-16-32768
           buildDirectory: /dev/shm/bk
+          diskSizeGb: 250
         env:
           BWC_VERSION: 7.5.2
 
@@ -286,6 +301,7 @@ steps:
           image: family/elasticsearch-{{matrix.image}}
           machineType: custom-16-32768
           buildDirectory: /dev/shm/bk
+          diskSizeGb: 250
         env:
           BWC_VERSION: 7.6.2
 
@@ -302,6 +318,7 @@ steps:
           image: family/elasticsearch-{{matrix.image}}
           machineType: custom-16-32768
           buildDirectory: /dev/shm/bk
+          diskSizeGb: 250
         env:
           BWC_VERSION: 7.7.1
 
@@ -318,6 +335,7 @@ steps:
           image: family/elasticsearch-{{matrix.image}}
           machineType: custom-16-32768
           buildDirectory: /dev/shm/bk
+          diskSizeGb: 250
         env:
           BWC_VERSION: 7.8.1
 
@@ -334,6 +352,7 @@ steps:
           image: family/elasticsearch-{{matrix.image}}
           machineType: custom-16-32768
           buildDirectory: /dev/shm/bk
+          diskSizeGb: 250
         env:
           BWC_VERSION: 7.9.3
 
@@ -350,6 +369,7 @@ steps:
           image: family/elasticsearch-{{matrix.image}}
           machineType: custom-16-32768
           buildDirectory: /dev/shm/bk
+          diskSizeGb: 250
         env:
           BWC_VERSION: 7.10.2
 
@@ -366,6 +386,7 @@ steps:
           image: family/elasticsearch-{{matrix.image}}
           machineType: custom-16-32768
           buildDirectory: /dev/shm/bk
+          diskSizeGb: 250
         env:
           BWC_VERSION: 7.11.2
 
@@ -382,6 +403,7 @@ steps:
           image: family/elasticsearch-{{matrix.image}}
           machineType: custom-16-32768
           buildDirectory: /dev/shm/bk
+          diskSizeGb: 250
         env:
           BWC_VERSION: 7.12.1
 
@@ -398,6 +420,7 @@ steps:
           image: family/elasticsearch-{{matrix.image}}
           machineType: custom-16-32768
           buildDirectory: /dev/shm/bk
+          diskSizeGb: 250
         env:
           BWC_VERSION: 7.13.4
 
@@ -414,6 +437,7 @@ steps:
           image: family/elasticsearch-{{matrix.image}}
           machineType: custom-16-32768
           buildDirectory: /dev/shm/bk
+          diskSizeGb: 250
         env:
           BWC_VERSION: 7.14.2
 
@@ -430,6 +454,7 @@ steps:
           image: family/elasticsearch-{{matrix.image}}
           machineType: custom-16-32768
           buildDirectory: /dev/shm/bk
+          diskSizeGb: 250
         env:
           BWC_VERSION: 7.15.2
 
@@ -446,6 +471,7 @@ steps:
           image: family/elasticsearch-{{matrix.image}}
           machineType: custom-16-32768
           buildDirectory: /dev/shm/bk
+          diskSizeGb: 250
         env:
           BWC_VERSION: 7.16.3
 
@@ -462,6 +488,7 @@ steps:
           image: family/elasticsearch-{{matrix.image}}
           machineType: custom-16-32768
           buildDirectory: /dev/shm/bk
+          diskSizeGb: 250
         env:
           BWC_VERSION: 7.17.22
 

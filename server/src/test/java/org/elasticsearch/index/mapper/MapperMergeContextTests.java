@@ -10,7 +10,7 @@ package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.test.ESTestCase;
 
-import static org.elasticsearch.index.mapper.MapperService.MergeReason.*;
+import static org.elasticsearch.index.mapper.MapperService.MergeReason.MAPPING_UPDATE;
 
 public class MapperMergeContextTests extends ESTestCase {
 

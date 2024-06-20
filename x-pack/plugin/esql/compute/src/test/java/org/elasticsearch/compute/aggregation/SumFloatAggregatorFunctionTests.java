@@ -112,7 +112,7 @@ public class SumFloatAggregatorFunctionTests extends AggregatorFunctionTestCase 
         assertEquals(sum, results.get(0).<DoubleBlock>getBlock(0).getDouble(0), 1e-10);
         assertDriverContext(driverContext);
 
-        // Summing up some big double values and expect infinity result
+        // Summing up some big float values and expect a big double result
         results.clear();
         n = randomIntBetween(5, 10);
         Float[] largeValues = new Float[n];

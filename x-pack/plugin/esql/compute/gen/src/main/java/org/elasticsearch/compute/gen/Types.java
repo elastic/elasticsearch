@@ -255,7 +255,7 @@ public class Types {
             return FLOAT_BLOCK_BUILDER;
         }
         if (resultType.equals(FLOAT_VECTOR)) {
-            return DOUBLE_VECTOR_BUILDER;
+            return FLOAT_VECTOR_BUILDER;
         }
         throw new IllegalArgumentException("unknown builder type for [" + resultType + "]");
     }

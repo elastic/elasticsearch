@@ -37,7 +37,7 @@ public class MaxFloatAggregatorFunctionTests extends AggregatorFunctionTestCase 
 
     @Override
     public void assertSimpleOutput(List<Block> input, Block result) {
-        Float max = input.stream().flatMap(AggregatorFunctionTestCase::allFloats).map(Float.class::cast).max(floatComparator()).get();
+        Float max = input.stream().flatMap(AggregatorFunctionTestCase::allFloats).max(floatComparator()).get();
         assertThat(((FloatBlock) result).getFloat(0), equalTo(max));
     }
 }

@@ -94,6 +94,40 @@ public abstract class BinarySpatialFunctionTestCase extends AbstractFunctionTest
     }
 
     /**
+     * Ternary spatial functions that take two spatial arguments and one numerical argument
+     * should use this to generate combinations of test cases.
+     */
+    protected static void addSpatialCombinations(
+        List<TestCaseSupplier> suppliers,
+        List<TestCaseSupplier.TypedDataSupplier> argDataSuppliers,
+        DataType[] dataTypes,
+        DataType returnType,
+        BinaryOperator<Object> argProcessor,
+        boolean pointsOnly
+    ) {
+        for (DataType leftType : dataTypes) {
+            TestCaseSupplier.TypedDataSupplier leftDataSupplier = testCaseSupplier(leftType, pointsOnly);
+            for (DataType rightType : dataTypes) {
+                if (typeCompatible(leftType, rightType)) {
+                    TestCaseSupplier.TypedDataSupplier rightDataSupplier = testCaseSupplier(rightType, pointsOnly);
+                    for (TestCaseSupplier.TypedDataSupplier argDataSupplier : argDataSuppliers) {
+                        suppliers.add(
+                            TestCaseSupplier.testCaseSupplier(
+                                leftDataSupplier,
+                                rightDataSupplier,
+                                argDataSupplier,
+                                BinarySpatialFunctionTestCase::spatialEvaluatorString,
+                                returnType,
+                                (l, r, a) -> expected(l, leftType, r, rightType, a, argProcessor)
+                            )
+                        );
+                    }
+                }
+            }
+        }
+    }
+
+    /**
      * Build the expected error message for an invalid type signature.
      * For two args, this assumes they are both spatial.
      * For three args, we assume two spatial and one additional numerical argument, treated differently.

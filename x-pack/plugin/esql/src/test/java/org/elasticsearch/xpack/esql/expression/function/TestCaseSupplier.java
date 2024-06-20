@@ -276,6 +276,57 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         });
     }
 
+    @FunctionalInterface
+    public interface TriFunction<T, U, V, R> {
+        R apply(T t, U u, V v);
+    }
+
+    public static TestCaseSupplier testCaseSupplier(
+        TypedDataSupplier lhsSupplier,
+        TypedDataSupplier rhsSupplier,
+        TypedDataSupplier argSupplier,
+        TriFunction<DataType, DataType, DataType, Matcher<String>> evaluatorToString,
+        DataType expectedType,
+        TriFunction<Object, Object, Object, Object> expectedValue
+    ) {
+        return testCaseSupplier(
+            lhsSupplier,
+            rhsSupplier,
+            argSupplier,
+            evaluatorToString,
+            expectedType,
+            expectedValue,
+            (lhs, rhs, arg) -> List.of()
+        );
+    }
+
+    private static TestCaseSupplier testCaseSupplier(
+        TypedDataSupplier lhsSupplier,
+        TypedDataSupplier rhsSupplier,
+        TypedDataSupplier argSupplier,
+        TriFunction<DataType, DataType, DataType, Matcher<String>> evaluatorToString,
+        DataType expectedType,
+        TriFunction<Object, Object, Object, Object> expectedValue,
+        TriFunction<TypedData, TypedData, TypedData, List<String>> warnings
+    ) {
+        String caseName = lhsSupplier.name() + ", " + rhsSupplier.name() + ", " + argSupplier.name();
+        return new TestCaseSupplier(caseName, List.of(lhsSupplier.type(), rhsSupplier.type(), argSupplier.type()), () -> {
+            TypedData lhsTyped = lhsSupplier.get();
+            TypedData rhsTyped = rhsSupplier.get();
+            TypedData argTyped = argSupplier.get();
+            TestCase testCase = new TestCase(
+                List.of(lhsTyped, rhsTyped, argTyped),
+                evaluatorToString.apply(lhsSupplier.type(), rhsSupplier.type(), argSupplier.type()),
+                expectedType,
+                equalTo(expectedValue.apply(lhsTyped.getValue(), rhsTyped.getValue(), argTyped.getValue()))
+            );
+            for (String warning : warnings.apply(lhsTyped, rhsTyped, argTyped)) {
+                testCase = testCase.withWarning(warning);
+            }
+            return testCase;
+        });
+    }
+
     public static List<TypedDataSupplier> castToDoubleSuppliersFromRange(Double Min, Double Max) {
         List<TypedDataSupplier> suppliers = new ArrayList<>();
         suppliers.addAll(intCases(Min.intValue(), Max.intValue(), true));

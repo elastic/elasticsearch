@@ -87,7 +87,12 @@ public class EsqlCapabilities {
         /**
          * Support for function {@code ST_DISTANCE}. Done in #108764.
          */
-        ST_DISTANCE;
+        ST_DISTANCE,
+
+        /**
+         * Support for function {@code ST_DWITHIN}. Done in #109985.
+         */
+        ST_DWITHIN;
 
         Cap() {
             snapshotOnly = false;

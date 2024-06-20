@@ -966,6 +966,34 @@ ARN      | Arlanda                 | POINT(17.9307299016916 59.6511203397372) | 
 SVG      | Stavanger Sola          | POINT (5.6298103297218 58.8821564842185) | Norway    | Sandnes         | POINT (5.7361 58.8517)  | 548.26     | 541.35
 ;
 
+airportsDWithinCopenhagenTrainStation
+required_capability: st_dwithin
+
+FROM airports
+| WHERE ST_DWITHIN(location, TO_GEOPOINT("POINT(12.565 55.673)"), 600000.0)
+| EVAL distance = ROUND(ST_DISTANCE(location, TO_GEOPOINT("POINT(12.565 55.673)"))/1000,2)
+| EVAL city_distance = ROUND(ST_DISTANCE(city_location, TO_GEOPOINT("POINT(12.565 55.673)"))/1000,2)
+| KEEP abbrev, name, location, country, city, city_location, distance, city_distance
+| SORT distance ASC
+;
+
+abbrev:k | name:text               | location:geo_point                       | country:k | city:k          | city_location:geo_point | distance:d | city_distance:d    
+CPH      | Copenhagen              | POINT(12.6493508684508 55.6285017221528) | Denmark   | Copenhagen      | POINT(12.5683 55.6761)  | 7.24       | 0.4
+GOT      | Gothenburg              | POINT(12.2938269092573 57.6857493534879) | Sweden    | Gothenburg      | POINT(11.9675 57.7075)  | 224.42     | 229.15
+HAM      | Hamburg                 | POINT(10.005647830925 53.6320011640866)  | Germany   | Norderstedt     | POINT(10.0103 53.7064)  | 280.34     | 273.42
+TXL      | Berlin-Tegel Int'l      | POINT(13.2903090925074 52.5544287044101) | Germany   | Hohen Neuendorf | POINT(13.2833 52.6667)  | 349.97     | 337.53
+BRE      | Bremen                  | POINT(8.7858617703132 53.052287104156)   | Germany   | Bremen          | POINT(8.8 53.0833)      | 380.5      | 377.22
+NRK      | Norrköping Airport      | POINT(16.2339407695814 58.5833805017541) | Sweden    | Norrköping      | POINT(16.2 58.6)        | 392.0      | 392.35
+GDN      | Gdansk Lech Walesa      | POINT(18.4684422165911 54.3807025352925) | Poland    | Gdańsk          | POINT(18.6453 54.3475)  | 402.61     | 414.59
+NYO      | Stockholm-Skavsta       | POINT(16.9216055584254 58.7851041303448) | Sweden    | Nyköping        | POINT(17.0086 58.7531)  | 433.99     | 434.43
+OSL      | Oslo Gardermoen         | POINT(11.0991032762581 60.1935783171386) | Norway    | Oslo            | POINT(10.7389 59.9133)  | 510.03     | 483.71
+DRS      | Dresden                 | POINT(13.7649671440047 51.1250912428871) | Germany   | Dresden         | POINT(13.74 51.05)      | 511.9      | 519.91
+BMA      | Bromma                  | POINT(17.9456175406145 59.3555902065112) | Sweden    | Stockholm       | POINT(18.0686 59.3294)  | 520.18     | 522.54
+PLQ      | Palanga Int'l           | POINT(21.0974463986251 55.9713426235358) | Lithuania | Klaipėda        | POINT(21.1667 55.75)    | 533.67     | 538.56
+ARN      | Arlanda                 | POINT(17.9307299016916 59.6511203397372) | Sweden    | Stockholm       | POINT(18.0686 59.3294)  | 545.09     | 522.54
+SVG      | Stavanger Sola          | POINT (5.6298103297218 58.8821564842185) | Norway    | Sandnes         | POINT (5.7361 58.8517)  | 548.26     | 541.35
+;
+
 airportsWithinDistanceCopenhagenTrainStationCount
 required_capability: st_distance
 
@@ -980,6 +1008,26 @@ count:long | country:k
 3          | Sweden
 1          | Denmark
 1          | Poland
+;
+
+airportsDWithinCopenhagenTrainStationCount
+required_capability: st_dwithin
+
+// tag::st_dwithin-airports[]
+FROM airports
+| WHERE ST_DWITHIN(location, TO_GEOPOINT("POINT(12.565 55.673)"), 500000.0)
+| STATS count=COUNT() BY country
+| SORT count DESC, country ASC
+// end::st_dwithin-airports[]
+;
+
+// tag::st_dwithin-airports-result[]
+count:long | country:k
+3          | Germany
+3          | Sweden
+1          | Denmark
+1          | Poland
+// end::st_dwithin-airports-result[]
 ;
 
 airportsSortDistanceFromCopenhagenTrainStation
@@ -1919,11 +1967,49 @@ OSL      | Oslo Gardermoen         | POINT(1235546.524975006 8442962.64811417)  
 BMA      | Bromma                  | POINT(1997697.0065920444 8257643.750388128) | 971.11
 ;
 
+airportsDWithinCopenhagenTrainStationCartesian
+required_capability: st_dwithin
+
+FROM airports_web
+| WHERE ST_DWITHIN(location, TO_CARTESIANPOINT("POINT(1402900 7490000)"), 1000000.0)
+| EVAL distance = ROUND(ST_DISTANCE(location, TO_CARTESIANPOINT("POINT(1402900 7490000)"))/1000,2)
+| KEEP abbrev, name, location, distance
+| SORT distance ASC
+;
+
+abbrev:k | name:text               | location:cartesian_point                    | distance:d
+CPH      | Copenhagen              | POINT(1408119.2975413958 7484813.53657096)  | 7.36
+GOT      | Gothenburg              | POINT(1368542.5514391668 7901590.990691348) | 413.02
+HAM      | Hamburg                 | POINT(1113823.6215953932 7100767.499507231) | 484.84
+TXL      | Berlin-Tegel Int'l      | POINT(1479470.4406631375 6901000.847325224) | 593.96
+BRE      | Bremen                  | POINT(978037.6584513546 6992675.481947904)  | 654.09
+GDN      | Gdansk Lech Walesa      | POINT(2055897.583295918 7242589.051225524)  | 698.3
+NRK      | Norrköping Airport      | POINT(1807154.0200379654 8090879.147781534) | 724.21
+NYO      | Stockholm-Skavsta       | POINT(1883704.5141685435 8134083.898609498) | 803.75
+DRS      | Dresden                 | POINT(1532309.1332567444 6643450.815136505) | 856.38
+PLQ      | Palanga Int'l           | POINT(2348556.9901333293 7552712.896849933) | 947.73
+OSL      | Oslo Gardermoen         | POINT(1235546.524975006 8442962.64811417)   | 967.55
+BMA      | Bromma                  | POINT(1997697.0065920444 8257643.750388128) | 971.11
+;
+
 airportsWithinDistanceCopenhagenTrainStationCountCartesian
 required_capability: st_distance
 
 FROM airports_web
 | WHERE ST_DISTANCE(location, TO_CARTESIANPOINT("POINT(1402900 7490000)")) < 1000000
+| STATS count=COUNT()
+| SORT count DESC
+;
+
+count:long
+12
+;
+
+airportsDWithinCopenhagenTrainStationCountCartesian
+required_capability: st_dwithin
+
+FROM airports_web
+| WHERE ST_DWITHIN(location, TO_CARTESIANPOINT("POINT(1402900 7490000)"), 1000000.0)
 | STATS count=COUNT()
 | SORT count DESC
 ;

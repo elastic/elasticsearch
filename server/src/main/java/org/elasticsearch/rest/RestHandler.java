@@ -126,6 +126,8 @@ public interface RestHandler {
         return request.getXContentType() != null;
     }
 
+    default String getName() { return this.getClass().getSimpleName(); }
+
     class Route {
 
         private final Method method;

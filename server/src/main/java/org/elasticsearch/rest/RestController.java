@@ -332,12 +332,11 @@ public class RestController implements HttpServerTransport.Dispatcher {
     @Override
     public void dispatchRequest(RestRequest request, RestChannel channel, ThreadContext threadContext) {
         threadContext.addResponseHeader(ELASTIC_PRODUCT_HTTP_HEADER, ELASTIC_PRODUCT_HTTP_HEADER_VALUE);
-        var decoratedChannel = new MeteringRestChannelDecorator(channel, requestsCounter);
         try {
-            tryAllHandlers(request, decoratedChannel, threadContext);
+            tryAllHandlers(request, channel, threadContext);
         } catch (Exception e) {
             try {
-                sendFailure(decoratedChannel, e);
+                sendFailure(channel, e);
             } catch (Exception inner) {
                 inner.addSuppressed(e);
                 logger.error(() -> "failed to send failure response for uri [" + request.uri() + "]", inner);
@@ -348,7 +347,6 @@ public class RestController implements HttpServerTransport.Dispatcher {
     @Override
     public void dispatchBadRequest(final RestChannel channel, final ThreadContext threadContext, final Throwable cause) {
         threadContext.addResponseHeader(ELASTIC_PRODUCT_HTTP_HEADER, ELASTIC_PRODUCT_HTTP_HEADER_VALUE);
-        var decoratedChannel = new MeteringRestChannelDecorator(channel, requestsCounter);
         try {
             final Exception e;
             if (cause == null) {
@@ -361,16 +359,18 @@ public class RestController implements HttpServerTransport.Dispatcher {
             // unless it's a http headers validation error, we consider any exceptions encountered so far during request processing
             // to be a problem of invalid/malformed request (hence the RestStatus#BAD_REQEST (400) HTTP response code)
             if (e instanceof HttpHeadersValidationException) {
-                sendFailure(decoratedChannel, (Exception) e.getCause());
+                sendFailure(channel, (Exception) e.getCause());
             } else {
-                decoratedChannel.sendResponse(new RestResponse(decoratedChannel, BAD_REQUEST, e));
+                channel.sendResponse(new RestResponse(channel, BAD_REQUEST, e));
+                recordRequestMetric(BAD_REQUEST, requestsCounter);
             }
         } catch (final IOException e) {
             if (cause != null) {
                 e.addSuppressed(cause);
             }
             logger.warn("failed to send bad request response", e);
-            decoratedChannel.sendResponse(new RestResponse(INTERNAL_SERVER_ERROR, RestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY));
+            channel.sendResponse(new RestResponse(INTERNAL_SERVER_ERROR, RestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY));
+            recordRequestMetric(INTERNAL_SERVER_ERROR, requestsCounter);
         }
     }
 
@@ -511,8 +511,10 @@ public class RestController implements HttpServerTransport.Dispatcher {
     @SuppressWarnings("unused")
     protected void validateRequest(RestRequest request, RestHandler handler, NodeClient client) throws ElasticsearchStatusException {}
 
-    private static void sendFailure(RestChannel responseChannel, Exception e) throws IOException {
-        responseChannel.sendResponse(new RestResponse(responseChannel, e));
+    private void sendFailure(RestChannel responseChannel, Exception e) throws IOException {
+        var restResponse = new RestResponse(responseChannel, e);
+        responseChannel.sendResponse(restResponse);
+        recordRequestMetric(restResponse.status(), requestsCounter);
     }
 
     /**
@@ -611,6 +613,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
         } catch (IllegalArgumentException e) {
             startTrace(threadContext, channel);
             channel.sendResponse(RestResponse.createSimpleErrorResponse(channel, BAD_REQUEST, e.getMessage()));
+            recordRequestMetric(BAD_REQUEST, requestsCounter);
             return;
         }
 
@@ -638,7 +641,8 @@ public class RestController implements HttpServerTransport.Dispatcher {
                     }
                 } else {
                     startTrace(threadContext, channel, handlers.getPath());
-                    dispatchRequest(request, channel, handler, handlers, threadContext);
+                    var decoratedChannel = new MeteringRestChannelDecorator(channel, requestsCounter, handler.getConcreteRestHandler());
+                    dispatchRequest(request, decoratedChannel, handler, handlers, threadContext);
                     return;
                 }
             }
@@ -698,7 +702,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
      * <a href="https://tools.ietf.org/html/rfc2616#section-10.4.6">HTTP/1.1 -
      * 10.4.6 - 405 Method Not Allowed</a>).
      */
-    private static void handleUnsupportedHttpMethod(
+    private void handleUnsupportedHttpMethod(
         String uri,
         @Nullable RestRequest.Method method,
         final RestChannel channel,
@@ -721,9 +725,11 @@ public class RestController implements HttpServerTransport.Dispatcher {
                 restResponse.addHeader("Allow", Strings.collectionToDelimitedString(validMethodSet, ","));
             }
             channel.sendResponse(restResponse);
+            recordRequestMetric(METHOD_NOT_ALLOWED, requestsCounter);
         } catch (final IOException e) {
             logger.warn("failed to send bad request response", e);
             channel.sendResponse(new RestResponse(INTERNAL_SERVER_ERROR, RestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY));
+            recordRequestMetric(INTERNAL_SERVER_ERROR, requestsCounter);
         }
     }
 
@@ -734,7 +740,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
      * <a href="https://tools.ietf.org/html/rfc2616#section-9.2">HTTP/1.1 - 9.2
      * - Options</a>).
      */
-    private static void handleOptionsRequest(RestChannel channel, Set<RestRequest.Method> validMethodSet) {
+    private void handleOptionsRequest(RestChannel channel, Set<RestRequest.Method> validMethodSet) {
         RestResponse restResponse = new RestResponse(OK, TEXT_CONTENT_TYPE, BytesArray.EMPTY);
         // When we have an OPTIONS HTTP request and no valid handlers, simply send OK by default (with the Access Control Origin header
         // which gets automatically added).
@@ -742,13 +748,14 @@ public class RestController implements HttpServerTransport.Dispatcher {
             restResponse.addHeader("Allow", Strings.collectionToDelimitedString(validMethodSet, ","));
         }
         channel.sendResponse(restResponse);
+        recordRequestMetric(OK, requestsCounter);
     }
 
     /**
      * Handle a requests with no candidate handlers (return a 400 Bad Request
      * error).
      */
-    public static void handleBadRequest(String uri, RestRequest.Method method, RestChannel channel) throws IOException {
+    private void handleBadRequest(String uri, RestRequest.Method method, RestChannel channel) throws IOException {
         try (XContentBuilder builder = channel.newErrorBuilder()) {
             builder.startObject();
             {
@@ -756,10 +763,11 @@ public class RestController implements HttpServerTransport.Dispatcher {
             }
             builder.endObject();
             channel.sendResponse(new RestResponse(BAD_REQUEST, builder));
+            recordRequestMetric(BAD_REQUEST, requestsCounter);
         }
     }
 
-    public static void handleServerlessRequestToProtectedResource(String uri, RestRequest.Method method, RestChannel channel)
+    private void handleServerlessRequestToProtectedResource(String uri, RestRequest.Method method, RestChannel channel)
         throws IOException {
         String msg = "uri [" + uri + "] with method [" + method + "] exists but is not available when running in serverless mode";
         sendFailure(channel, new ApiNotAvailableException(msg));
@@ -780,14 +788,36 @@ public class RestController implements HttpServerTransport.Dispatcher {
         return validMethods;
     }
 
+    private static void recordRequestMetric(RestStatus statusCode, String handlerName, String requestMethod, LongCounter requestsCounter) {
+        try {
+            Map<String, Object> attributes = Map.of("es_rest_status_code", statusCode.getStatus(),
+                "es_rest_handler_name", handlerName,
+                "es_rest_request_method", requestMethod);
+            requestsCounter.incrementBy(1, attributes);
+        } catch (Exception ex) {
+            logger.error("Cannot track request status code", ex);
+        }
+    }
+
+    private static void recordRequestMetric(RestStatus statusCode, LongCounter requestsCounter) {
+        try {
+            Map<String, Object> attributes = Map.of("es_rest_status_code", statusCode.getStatus());
+            requestsCounter.incrementBy(1, attributes);
+        } catch (Exception ex) {
+            logger.error("Cannot track request status code", ex);
+        }
+    }
+
     private static final class MeteringRestChannelDecorator implements RestChannel {
 
         private final RestChannel delegate;
-        private final LongCounter requestCounter;
+        private final LongCounter requestsCounter;
+        private final RestHandler restHandler;
 
-        private MeteringRestChannelDecorator(RestChannel delegate, LongCounter requestCounter) {
+        private MeteringRestChannelDecorator(RestChannel delegate, LongCounter requestCounter, RestHandler restHandler) {
             this.delegate = delegate;
-            this.requestCounter = requestCounter;
+            this.requestsCounter = requestCounter;
+            this.restHandler = restHandler;
         }
 
         @Override
@@ -844,14 +874,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
         @Override
         public void sendResponse(RestResponse response) {
             delegate.sendResponse(response);
-            try {
-                Map<String, Object> attributes = Map.of("es.rest.status_code", response.status().getStatus(),
-                    "es.rest.request_path", request().path(),
-                    "es.rest.request_method", request().method().name());
-                requestCounter.incrementBy(1, attributes);
-            } catch (Exception ex) {
-                logger.error("Cannot track request status code", ex);
-            }
+            recordRequestMetric(response.status(), restHandler.getName(), request().method().name(), requestsCounter);
         }
     }
 

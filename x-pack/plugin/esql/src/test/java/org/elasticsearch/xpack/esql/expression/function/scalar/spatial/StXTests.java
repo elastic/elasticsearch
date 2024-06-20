@@ -36,7 +36,7 @@ public class StXTests extends AbstractFunctionTestCase {
         final List<TestCaseSupplier> suppliers = new ArrayList<>();
         TestCaseSupplier.forUnaryGeoPoint(suppliers, expectedEvaluator, DOUBLE, StXTests::valueOf, List.of());
         TestCaseSupplier.forUnaryCartesianPoint(suppliers, expectedEvaluator, DOUBLE, StXTests::valueOf, List.of());
-        return parameterSuppliersFromTypedData(errorsForCasesWithoutExamples(anyNullIsNull(true, suppliers)));
+        return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers);
     }
 
     private static double valueOf(BytesRef wkb) {

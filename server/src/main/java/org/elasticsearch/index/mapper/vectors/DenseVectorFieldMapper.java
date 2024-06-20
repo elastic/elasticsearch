@@ -1678,12 +1678,13 @@ public class DenseVectorFieldMapper extends FieldMapper {
             };
         }
 
+        private Query createExactKnnBitQuery(byte[] queryVector) {
+            elementType.checkDimensions(dims, queryVector.length);
+            return new DenseVectorQuery.Bytes(queryVector, name());
+        }
+
         private Query createExactKnnByteQuery(byte[] queryVector) {
-            if (queryVector.length != dims) {
-                throw new IllegalArgumentException(
-                    "the query vector has a different dimension [" + queryVector.length + "] than the index vectors [" + dims + "]"
-                );
-            }
+            elementType.checkDimensions(dims, queryVector.length);
             if (similarity == VectorSimilarity.DOT_PRODUCT || similarity == VectorSimilarity.COSINE) {
                 float squaredMagnitude = VectorUtil.dotProduct(queryVector, queryVector);
                 elementType.checkVectorMagnitude(similarity, ElementType.errorByteElementsAppender(queryVector), squaredMagnitude);
@@ -1691,38 +1692,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
             return new DenseVectorQuery.Bytes(queryVector, name());
         }
 
-        private Query createExactKnnBitQuery(byte[] queryVector) {
-            if (queryVector.length * Byte.SIZE != dims) {
-                throw new IllegalArgumentException(
-                    "the query vector has a different dimension ["
-                        + queryVector.length * Byte.SIZE
-                        + "] than the index vectors ["
-                        + dims
-                        + "]"
-                );
-            }
-            // TODO correct and use flat vector scorer for the index
-            VectorSimilarityFunction vectorSimilarityFunction = similarity.vectorSimilarityFunction(indexVersionCreated, elementType);
-            return new BooleanQuery.Builder().add(new FieldExistsQuery(name()), BooleanClause.Occur.FILTER)
-                .add(
-                    new FunctionQuery(
-                        new ByteVectorSimilarityFunction(
-                            vectorSimilarityFunction,
-                            new ByteKnnVectorFieldSource(name()),
-                            new ConstKnnByteVectorValueSource(queryVector)
-                        )
-                    ),
-                    BooleanClause.Occur.SHOULD
-                )
-                .build();
-        }
-
         private Query createExactKnnFloatQuery(float[] queryVector) {
-            if (queryVector.length != dims) {
-                throw new IllegalArgumentException(
-                    "the query vector has a different dimension [" + queryVector.length + "] than the index vectors [" + dims + "]"
-                );
-            }
+            elementType.checkDimensions(dims, queryVector.length);
             elementType.checkVectorBounds(queryVector);
             if (similarity == VectorSimilarity.DOT_PRODUCT || similarity == VectorSimilarity.COSINE) {
                 float squaredMagnitude = VectorUtil.dotProduct(queryVector, queryVector);

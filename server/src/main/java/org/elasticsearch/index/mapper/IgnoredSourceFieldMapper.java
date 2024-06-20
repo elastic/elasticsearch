@@ -153,7 +153,7 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
     public record MappedNameValue(NameValue nameValue, XContentType type, Map<String, Object> map) {}
 
     /**
-     * Parses the passed byte array as a NameValue and coverts its decoded value to a map of maps that corresponds to the field-value
+     * Parses the passed byte array as a NameValue and converts its decoded value to a map of maps that corresponds to the field-value
      * subtree. There is only a single pair at the top level, with the key corresponding to the field name. If the field contains a single
      * value, the map contains a single key-value pair. Otherwise, the value of the first pair will be another map etc.
      * @param value encoded NameValue

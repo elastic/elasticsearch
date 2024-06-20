@@ -161,6 +161,10 @@ Fields under a disabled object - uses _ignored_source:
           - '{"name": "A", "object": [ { "secret":"mission1", "public":"interest1" }, { "secret":"mission2", "public":"interest2" } ] }'
           - '{"create": { }}'
           - '{"name": "B", "object": { "secret":"mission", "public":"interest" } }'
+          - '{"create": { }}'
+          - '{"name": "C", "object": { "foo":"bar", "public":"interest" } }'
+          - '{"create": { }}'
+          - '{"name": "D", "object": [10, 20, 30, 40] }'
   - match: { errors: false }
 
   - do:
@@ -195,6 +199,11 @@ Fields under a disabled object - uses _ignored_source:
   - match: { hits.hits.1._source.name: B }
   - match: { hits.hits.1._source.object.secret: mission }
   - match: { hits.hits.1._source.object.public: interest }
+  - match: { hits.hits.2._source.name: C }
+  - match: { hits.hits.2._source.object.foo: bar }
+  - match: { hits.hits.2._source.object.public: interest }
+  - match: { hits.hits.3._source.name: D }
+  - match: { hits.hits.3._source.object: [ 10, 20, 30, 40] }
 
   # With FLS API Key
   - do:
@@ -211,6 +220,11 @@ Fields under a disabled object - uses _ignored_source:
   - match: { hits.hits.1._source.name: "B" }
   - match: { hits.hits.1._source.object.public: interest }
   - is_false: "hits.hits.1._source.object.secret"
+  - match: { hits.hits.2._source.name: C }
+  - match: { hits.hits.2._source.object.foo: bar }
+  - match: { hits.hits.2._source.object.public: interest }
+  - match: { hits.hits.3._source.name: D }
+  - match: { hits.hits.3._source.object: [ 10, 20, 30, 40 ] }
 
 
 ---

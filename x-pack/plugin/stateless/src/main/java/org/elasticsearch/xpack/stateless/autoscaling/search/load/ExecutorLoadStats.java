@@ -22,5 +22,5 @@ public record ExecutorLoadStats(
     double averageTaskExecutionEWMA,
     int currentQueueSize,
     int maxThreads,
-    int numProcessors
+    double numProcessors
 ) {}

@@ -57,11 +57,10 @@ public class Lookup extends UnaryPlan {
         this.localRelation = localRelation;
     }
 
-    @SuppressWarnings("unchecked")
     public Lookup(PlanStreamInput in) throws IOException {
         super(Source.readFrom(in), in.readLogicalPlanNode());
         this.tableName = in.readExpression();
-        this.matchFields = (List<Attribute>) (List) in.readNamedWriteableCollectionAsList(NamedExpression.class);
+        this.matchFields = in.readNamedWriteableCollectionAsList(Attribute.class);
         this.localRelation = in.readBoolean() ? new LocalRelation(in) : null;
     }
 

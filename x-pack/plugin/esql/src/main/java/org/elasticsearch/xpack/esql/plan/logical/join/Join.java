@@ -102,7 +102,7 @@ public class Join extends BinaryPlan {
         Set<String> matchFieldNames
     ) {
         List<Attribute> result = new ArrayList<>();
-        for (Attribute attr: attributes) {
+        for (Attribute attr : attributes) {
             if ((matchFields.contains(attr) || matchFieldNames.contains(attr.name())) == false) {
                 result.add(attr);
             }

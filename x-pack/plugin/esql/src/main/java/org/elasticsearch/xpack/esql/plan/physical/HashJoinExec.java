@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.plan.physical;
 
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
-import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
@@ -49,11 +48,10 @@ public class HashJoinExec extends UnaryExec implements EstimatesRowSize {
         this.output = output;
     }
 
-    @SuppressWarnings("unchecked")
     public HashJoinExec(PlanStreamInput in) throws IOException {
         super(Source.readFrom(in), in.readPhysicalPlanNode());
         this.joinData = new LocalSourceExec(in);
-        this.matchFields = (List<Attribute>) (List) in.readNamedWriteableCollectionAsList(NamedExpression.class);
+        this.matchFields = in.readNamedWriteableCollectionAsList(Attribute.class);
         this.conditions = in.readCollectionAsList(i -> (Equals) EsqlBinaryComparison.readFrom(in));
         this.output = in.readNamedWriteableCollectionAsList(Attribute.class);
     }

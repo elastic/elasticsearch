@@ -51,6 +51,11 @@ public final class FieldPermissions implements Accountable, CacheKey {
     private static final long BASE_FIELD_PERM_DEF_BYTES = RamUsageEstimator.shallowSizeOf(new FieldPermissionsDefinition(null, null));
     private static final long BASE_FIELD_GROUP_BYTES = RamUsageEstimator.shallowSizeOf(new FieldGrantExcludeGroup(null, null));
     private static final long BASE_HASHSET_ENTRY_SIZE;
+    // an automaton that includes all reserved metadata fields; these are always granted access to regardless of the field permissions
+    private static final Automaton RESERVED_METADATA_FIELDS_AUTOMATON = Regex.simpleMatchToAutomaton(
+        RESERVED_FIELDS.toArray(new String[0])
+    );
+
     static {
         HashMap<String, Object> map = new HashMap<>();
         map.put(FieldPermissions.class.getName(), new Object());
@@ -162,9 +167,7 @@ public final class FieldPermissions implements Accountable, CacheKey {
         if (grantedFields == null || Arrays.stream(grantedFields).anyMatch(Regex::isMatchAllPattern)) {
             grantedFieldsAutomaton = Automatons.MATCH_ALL;
         } else {
-            // an automaton that includes all reserved metadata fields
-            Automaton metaFieldsAutomaton = Regex.simpleMatchToAutomaton(RESERVED_FIELDS.toArray(new String[0]));
-            grantedFieldsAutomaton = Operations.union(Automatons.patterns(grantedFields), metaFieldsAutomaton);
+            grantedFieldsAutomaton = Operations.union(Automatons.patterns(grantedFields), RESERVED_METADATA_FIELDS_AUTOMATON);
         }
 
         Automaton deniedFieldsAutomaton;

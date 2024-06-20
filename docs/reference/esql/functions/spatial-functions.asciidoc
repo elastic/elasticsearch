@@ -15,7 +15,6 @@
 * experimental:[] <<esql-st_x>>
 * experimental:[] <<esql-st_y>>
 * experimental:[] <<esql-st_distance>>
-* experimental:[] <<esql-st_dwithin>>
 // end::spatial_list[]
 
 include::layout/st_intersects.asciidoc[]
@@ -25,4 +24,3 @@ include::layout/st_within.asciidoc[]
 include::layout/st_x.asciidoc[]
 include::layout/st_y.asciidoc[]
 include::layout/st_distance.asciidoc[]
-include::layout/st_dwithin.asciidoc[]

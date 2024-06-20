@@ -106,7 +106,7 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
         logger.info("-->  creating repository");
         AcknowledgedResponse putRepositoryResponse = client.admin()
             .cluster()
-            .preparePutRepository(TEST_REPO_NAME)
+            .preparePutRepository(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, TEST_REPO_NAME)
             .setType(REPO_TYPE)
             .setSettings(Settings.builder().put(node().settings()).put("location", location))
             .get();
@@ -126,7 +126,7 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
         logger.info("--> create first snapshot");
         CreateSnapshotResponse createSnapshotResponse = client.admin()
             .cluster()
-            .prepareCreateSnapshot(TEST_REPO_NAME, "test-snap-1")
+            .prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, TEST_REPO_NAME, "test-snap-1")
             .setWaitForCompletion(true)
             .setIndices(indexName)
             .get();
@@ -135,7 +135,7 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
         logger.info("--> create second snapshot");
         createSnapshotResponse = client.admin()
             .cluster()
-            .prepareCreateSnapshot(TEST_REPO_NAME, "test-snap-2")
+            .prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, TEST_REPO_NAME, "test-snap-2")
             .setWaitForCompletion(true)
             .setIndices(indexName)
             .get();
@@ -256,7 +256,7 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
             RepositoryException.class,
             () -> client.admin()
                 .cluster()
-                .preparePutRepository(TEST_REPO_NAME)
+                .preparePutRepository(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, TEST_REPO_NAME)
                 .setType(REPO_TYPE)
                 .setSettings(
                     Settings.builder()
@@ -286,10 +286,11 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
         );
 
         final long beforeStartTime = getInstanceFromNode(ThreadPool.class).absoluteTimeInMillis();
-        final CreateSnapshotResponse createSnapshotResponse = clusterAdmin().prepareCreateSnapshot(repositoryName, "test-snap-1")
-            .setWaitForCompletion(true)
-            .setPartial(true)
-            .get();
+        final CreateSnapshotResponse createSnapshotResponse = clusterAdmin().prepareCreateSnapshot(
+            TEST_REQUEST_TIMEOUT,
+            repositoryName,
+            "test-snap-1"
+        ).setWaitForCompletion(true).setPartial(true).get();
         final long afterEndTime = System.currentTimeMillis();
 
         assertThat(createSnapshotResponse.getSnapshotInfo().state(), equalTo(SnapshotState.PARTIAL));
@@ -347,7 +348,7 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
         }
         AcknowledgedResponse putRepositoryResponse = client.admin()
             .cluster()
-            .preparePutRepository(TEST_REPO_NAME)
+            .preparePutRepository(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, TEST_REPO_NAME)
             .setType(REPO_TYPE)
             .setSettings(repoSettings)
             .setVerify(false) // prevent eager reading of repo data
@@ -364,7 +365,10 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
     @After
     public void removeRepo() {
         try {
-            client().admin().cluster().prepareDeleteRepository(TEST_REPO_NAME).get(TimeValue.timeValueSeconds(10));
+            client().admin()
+                .cluster()
+                .prepareDeleteRepository(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, TEST_REPO_NAME)
+                .get(TimeValue.timeValueSeconds(10));
         } catch (RepositoryMissingException e) {
             // ok, not all tests create the test repo
         }
@@ -555,7 +559,10 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
 
         MockLog.assertThatLogger(
             () -> safeGet(
-                client().execute(TransportCreateSnapshotAction.TYPE, new CreateSnapshotRequest(repoName, snapshot).waitForCompletion(true))
+                client().execute(
+                    TransportCreateSnapshotAction.TYPE,
+                    new CreateSnapshotRequest(TEST_REQUEST_TIMEOUT, repoName, snapshot).waitForCompletion(true)
+                )
             ),
             BlobStoreRepository.class,
             new MockLog.SeenEventExpectation(
@@ -569,14 +576,21 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
         MockLog.assertThatLogger(
             // no more "Generated" messages ...
             () -> {
-                safeGet(client().execute(TransportDeleteRepositoryAction.TYPE, new DeleteRepositoryRequest(repoName)));
+                safeGet(
+                    client().execute(
+                        TransportDeleteRepositoryAction.TYPE,
+                        new DeleteRepositoryRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, repoName)
+                    )
+                );
 
                 // we get a "Registering" message when re-registering the repository with ?verify=true (the default)
                 MockLog.assertThatLogger(
                     () -> safeGet(
                         client().execute(
                             TransportPutRepositoryAction.TYPE,
-                            new PutRepositoryRequest(repoName).type("fs").verify(true).settings(repoMetadata.settings())
+                            new PutRepositoryRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, repoName).type("fs")
+                                .verify(true)
+                                .settings(repoMetadata.settings())
                         )
                     ),
                     RepositoriesService.class,
@@ -591,23 +605,31 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
                 safeGet(
                     client().execute(
                         TransportCreateSnapshotAction.TYPE,
-                        new CreateSnapshotRequest(repoName, randomIdentifier()).waitForCompletion(true)
+                        new CreateSnapshotRequest(TEST_REQUEST_TIMEOUT, repoName, randomIdentifier()).waitForCompletion(true)
                     )
                 );
                 assertTrue(
-                    safeGet(client().execute(TransportGetSnapshotsAction.TYPE, new GetSnapshotsRequest(repoName))).getSnapshots()
+                    safeGet(client().execute(TransportGetSnapshotsAction.TYPE, new GetSnapshotsRequest(TEST_REQUEST_TIMEOUT, repoName)))
+                        .getSnapshots()
                         .stream()
                         .anyMatch(snapshotInfo -> snapshotInfo.snapshotId().getName().equals(snapshot))
                 );
 
-                safeGet(client().execute(TransportDeleteRepositoryAction.TYPE, new DeleteRepositoryRequest(repoName)));
+                safeGet(
+                    client().execute(
+                        TransportDeleteRepositoryAction.TYPE,
+                        new DeleteRepositoryRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, repoName)
+                    )
+                );
 
                 // No "Registering" message with ?verify=false because we don't read the repo data yet
                 MockLog.assertThatLogger(
                     () -> safeGet(
                         client().execute(
                             TransportPutRepositoryAction.TYPE,
-                            new PutRepositoryRequest(repoName).type("fs").verify(false).settings(repoMetadata.settings())
+                            new PutRepositoryRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, repoName).type("fs")
+                                .verify(false)
+                                .settings(repoMetadata.settings())
                         )
                     ),
                     RepositoriesService.class,
@@ -624,7 +646,7 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
                     () -> safeGet(
                         client().execute(
                             TransportCreateSnapshotAction.TYPE,
-                            new CreateSnapshotRequest(repoName, randomIdentifier()).waitForCompletion(true)
+                            new CreateSnapshotRequest(TEST_REQUEST_TIMEOUT, repoName, randomIdentifier()).waitForCompletion(true)
                         )
                     ),
                     RepositoriesService.class,

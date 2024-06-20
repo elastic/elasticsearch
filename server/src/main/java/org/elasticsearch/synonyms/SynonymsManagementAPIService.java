@@ -231,7 +231,8 @@ public class SynonymsManagementAPIService {
                 long totalSynonymRules = countResponse.getHits().getTotalHits().value;
                 if (totalSynonymRules > maxSynonymsSets) {
                     logger.warn(
-                        "The number of synonym rules in the synonym set [{}] exceeds the maximum allowed. Inconsistent synonyms results may occur",
+                        "The number of synonym rules in the synonym set [{}] exceeds the maximum allowed."
+                            + " Inconsistent synonyms results may occur",
                         synonymSetId
                     );
                 }

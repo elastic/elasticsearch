@@ -52,11 +52,12 @@ public class BackgroundRetentionLeaseSyncActionIT extends ESIntegTestCase {
                     state.term(),
                     newLeases
                 );
+
+            // Wait for test lease to appear on replica
             IndicesService replicaIndicesService = internalCluster().getInstance(IndicesService.class, replica);
             assertBusy(() -> {
                 RetentionLeases retentionLeases = replicaIndicesService.indexService(testIndex).getShard(0).getRetentionLeases();
                 assertTrue(retentionLeases.contains(testLeaseId));
-                logger.info(retentionLeases.toString());
             });
         }
     }
@@ -64,7 +65,7 @@ public class BackgroundRetentionLeaseSyncActionIT extends ESIntegTestCase {
     private static RetentionLeases createNewRetentionLeases(String primaryNodeName, Index index, String leaseId) {
         IndicesService primaryIndicesService = internalCluster().getInstance(IndicesService.class, primaryNodeName);
         RetentionLeases currentLeases = primaryIndicesService.indexService(index).getShard(0).getRetentionLeases();
-        RetentionLease newLease = new RetentionLease(leaseId, 999, System.currentTimeMillis(), "test source");
+        RetentionLease newLease = new RetentionLease(leaseId, 0, System.currentTimeMillis(), "test source");
         return new RetentionLeases(
             currentLeases.primaryTerm(),
             currentLeases.version() + 1,

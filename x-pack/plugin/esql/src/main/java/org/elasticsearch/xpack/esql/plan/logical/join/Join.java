@@ -11,7 +11,6 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.plan.logical.BinaryPlan;
@@ -40,7 +39,7 @@ public class Join extends BinaryPlan {
         this.config = config;
     }
 
-    public Join(Source source, LogicalPlan left, LogicalPlan right, JoinType type, List<NamedExpression> matchFields, List<Expression> conditions) {
+    public Join(Source source, LogicalPlan left, LogicalPlan right, JoinType type, List<Attribute> matchFields, List<Expression> conditions) {
         super(source, left, right);
         this.config = new JoinConfig(type, matchFields, conditions);
     }

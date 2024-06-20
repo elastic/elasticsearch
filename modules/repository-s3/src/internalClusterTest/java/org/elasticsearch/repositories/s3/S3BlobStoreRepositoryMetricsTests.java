@@ -39,7 +39,6 @@ import java.util.concurrent.LinkedBlockingQueue;
 
 import static org.elasticsearch.repositories.RepositoriesMetrics.HTTP_REQUEST_TIME_IN_MICROS_HISTOGRAM;
 import static org.elasticsearch.repositories.RepositoriesMetrics.METRIC_EXCEPTIONS_HISTOGRAM;
-import static org.elasticsearch.repositories.RepositoriesMetrics.METRIC_EXCEPTIONS_REQUEST_RANGE_NOT_SATISFIED_HISTOGRAM;
 import static org.elasticsearch.repositories.RepositoriesMetrics.METRIC_EXCEPTIONS_REQUEST_RANGE_NOT_SATISFIED_TOTAL;
 import static org.elasticsearch.repositories.RepositoriesMetrics.METRIC_EXCEPTIONS_TOTAL;
 import static org.elasticsearch.repositories.RepositoriesMetrics.METRIC_OPERATIONS_TOTAL;
@@ -146,10 +145,6 @@ public class S3BlobStoreRepositoryMetricsTests extends S3BlobStoreRepositoryTest
 
             // Make sure we don't hit the request range not satisfied counters
             assertThat(getLongCounterValue(plugin, METRIC_EXCEPTIONS_REQUEST_RANGE_NOT_SATISFIED_TOTAL, Operation.GET_OBJECT), equalTo(0L));
-            assertThat(
-                getLongHistogramValue(plugin, METRIC_EXCEPTIONS_REQUEST_RANGE_NOT_SATISFIED_HISTOGRAM, Operation.GET_OBJECT),
-                equalTo(0L)
-            );
         }
 
         // List retry exhausted
@@ -209,10 +204,6 @@ public class S3BlobStoreRepositoryMetricsTests extends S3BlobStoreRepositoryTest
             assertThat(getLongHistogramValue(plugin, METRIC_EXCEPTIONS_HISTOGRAM, Operation.GET_OBJECT), equalTo(batch));
             assertThat(
                 getLongCounterValue(plugin, METRIC_EXCEPTIONS_REQUEST_RANGE_NOT_SATISFIED_TOTAL, Operation.GET_OBJECT),
-                equalTo(batch)
-            );
-            assertThat(
-                getLongHistogramValue(plugin, METRIC_EXCEPTIONS_REQUEST_RANGE_NOT_SATISFIED_HISTOGRAM, Operation.GET_OBJECT),
                 equalTo(batch)
             );
             assertThat(getLongCounterValue(plugin, METRIC_THROTTLES_TOTAL, Operation.GET_OBJECT), equalTo(2 * batch));

@@ -10,6 +10,8 @@ package org.elasticsearch.xpack.esql.plan.logical.join;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.plan.logical.BinaryPlan;
@@ -31,13 +33,16 @@ import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutp
 public class Join extends BinaryPlan {
 
     private final JoinConfig config;
-    // TODO: The matching attributes from the left and right logical plans should become part of the `expressions()`
-    // so that `references()` returns the attributes we actually rely on.
     private List<Attribute> lazyOutput;
 
     public Join(Source source, LogicalPlan left, LogicalPlan right, JoinConfig config) {
         super(source, left, right);
         this.config = config;
+    }
+
+    public Join(Source source, LogicalPlan left, LogicalPlan right, JoinType type, List<NamedExpression> matchFields, List<Expression> conditions) {
+        super(source, left, right);
+        this.config = new JoinConfig(type, matchFields, conditions);
     }
 
     public Join(PlanStreamInput in) throws IOException {
@@ -58,7 +63,9 @@ public class Join extends BinaryPlan {
 
     @Override
     protected NodeInfo<Join> info() {
-        return NodeInfo.create(this, Join::new, left(), right(), config);
+        // Do not just add the JoinConfig as a whole - this would prevent correctly registering the
+        // expressions and references.
+        return NodeInfo.create(this, Join::new, left(), right(), config.type(), config.matchFields(), config.conditions());
     }
 
     @Override

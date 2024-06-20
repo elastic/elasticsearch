@@ -43,6 +43,11 @@ public class EsqlCapabilities {
     private static final String FN_SUBSTRING_EMPTY_NULL = "fn_substring_empty_null";
 
     /**
+     * Support for aggregation function {@code TOP_LIST}.
+     */
+    private static final String AGG_TOP_LIST = "agg_top_list";
+
+    /**
      * Optimization for ST_CENTROID changed some results in cartesian data. #108713
      */
     private static final String ST_CENTROID_AGG_OPTIMIZED = "st_centroid_agg_optimized";
@@ -73,6 +78,11 @@ public class EsqlCapabilities {
     public static final String STRING_LITERAL_AUTO_CASTING_TO_DATETIME_ADD_SUB = "string_literal_auto_casting_to_datetime_add_sub";
 
     /**
+     * Support multiple field mappings if appropriate conversion function is used (union types)
+     */
+    public static final String UNION_TYPES = "union_types";
+
+    /**
      * Support for named or positional parameters in EsqlQueryRequest.
      */
     private static final String NAMED_POSITIONAL_PARAMETER = "named_positional_parameter";
@@ -89,10 +99,12 @@ public class EsqlCapabilities {
         caps.add(FN_CBRT);
         caps.add(FN_IP_PREFIX);
         caps.add(FN_SUBSTRING_EMPTY_NULL);
+        caps.add(AGG_TOP_LIST);
         caps.add(ST_CENTROID_AGG_OPTIMIZED);
         caps.add(METADATA_IGNORED_FIELD);
         caps.add(FN_MV_APPEND);
         caps.add(REPEAT);
+        caps.add(UNION_TYPES);
         caps.add(NAMED_POSITIONAL_PARAMETER);
         caps.add(CAST_STRING_LITERAL_TO_TEMPORAL_AMOUNT);
 

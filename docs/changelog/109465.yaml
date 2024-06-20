@@ -1,20 +1,24 @@
 pr: 109465
-summary: Switch to the CLDR locale database
+summary: Switch to the CLDR locale database when run on JDK 23.
 area: Infra/Core
 type: upgrade
 issues:
  - 109003
 highlight:
-  title: Switch to the CLDR locale database
+  title: Switch to the CLDR locale database when run on JDK 23.
   body: |-
     The COMPAT locale data provider has been removed in JDK23. This means Elasticsearch
-    needs to switch to the JDK-provided CLDR locale database. For consistency, this PR changes
-    the locale database for all JDK versions.
+    needs to switch to the JDK-provided CLDR locale database when running on
+    JDK version 23 and above.
 
-    There are several significant differences between the COMPAT locale database and CLDR.
+    There are several significant differences between the COMPAT locale database and CLDR,
+    largely around day-of-week and month names. This means that if you have date formatters
+    that use textual dayor month names, the strings used for parsing and formatting
+    may be different when run on JDK 23.
     To ease migration, a shim has been added to maintain the existing era, day-of-week, month,
     and am/pm names from COMPAT, where they differ from CLDR.
+    Some aspects of the locale database (eg year quarter names) cannot be overridden in this way.
 
-    To continue to use the COMPAT locale database on previous Java versions,
-    set ES_CLI_OPTS="-Dcompat.locales=true", but this will not work on Java version 23 and above.
+    For compatibility, COMPAT will continue to be used when Elasticsearch is run on JDK versions 22 and below,
+    however this option will be removed in Elasticsearch v9, and only CLDR will be used.
   notable: false

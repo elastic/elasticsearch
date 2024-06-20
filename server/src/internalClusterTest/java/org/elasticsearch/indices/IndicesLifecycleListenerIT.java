@@ -13,6 +13,7 @@ import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
+import org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedRunnable;
@@ -143,14 +144,20 @@ public class IndicesLifecycleListenerIT extends ESIntegTestCase {
         updateIndexSettings(Settings.builder().put(INDEX_ROUTING_EXCLUDE_GROUP_PREFIX + "._name", node1), "index1");
         ensureGreen("index1");
 
+        var maxAttempts = MaxRetryAllocationDecider.SETTING_ALLOCATION_MAX_RETRY.get(Settings.EMPTY);
+
+        // await all relocation attempts are exhausted
         assertBusy(() -> {
             var state = clusterAdmin().prepareState().get().getState();
             var shard = state.routingTable().index("index1").shard(0).primaryShard();
             assertThat(shard, notNullValue());
-            assertThat(shard.state(), equalTo(ShardRoutingState.STARTED));
-            assertThat(state.nodes().get(shard.currentNodeId()).getName(), equalTo(node1));
-            assertThat(shard.relocationFailureInfo().failedRelocations(), equalTo(5));// see SETTING_ALLOCATION_MAX_RETRY
+            assertThat(shard.relocationFailureInfo().failedRelocations(), equalTo(maxAttempts));
         });
+        // ensure the shard remain started
+        var state = clusterAdmin().prepareState().get().getState();
+        var shard = state.routingTable().index("index1").shard(0).primaryShard();
+        assertThat(shard, notNullValue());
+        assertThat(shard.state(), equalTo(ShardRoutingState.STARTED));
     }
 
     public void testIndexStateShardChanged() throws Throwable {

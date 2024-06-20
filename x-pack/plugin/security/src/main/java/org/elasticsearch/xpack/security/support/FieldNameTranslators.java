@@ -75,8 +75,8 @@ public final class FieldNameTranslators {
             idemFieldNameTranslator("name"),
             idemFieldNameTranslator("description"),
             idemFieldNameTranslator("applications.application"),
-            new SimpleFieldNameTranslator("applications.resources", "applications.resource"),
-            new SimpleFieldNameTranslator("applications.privileges", "applications.privilege"),
+            idemFieldNameTranslator("applications.resources"),
+            idemFieldNameTranslator("applications.privileges"),
             // allows querying on any non-wildcard sub-fields under the "metadata." prefix
             // also allows querying on the "metadata" field itself (including by specifying patterns)
             new FlattenedFieldNameTranslator(FLATTENED_METADATA_INDEX_FIELD_NAME, "metadata")

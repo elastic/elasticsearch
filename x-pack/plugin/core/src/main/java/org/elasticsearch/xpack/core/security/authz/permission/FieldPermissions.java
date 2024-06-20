@@ -20,6 +20,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.plugins.FieldPredicate;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.FieldSubsetReader;
@@ -56,7 +57,11 @@ public final class FieldPermissions implements Accountable, CacheKey {
     // an automaton that includes all reserved metadata fields; these are always granted access to regardless of the field permissions
     private static final Automaton RESERVED_METADATA_FIELDS_AUTOMATON = Regex.simpleMatchToAutomaton(
         // TODO what about MapperPlugins?
-        Sets.union(PutMappingRequest.RESERVED_FIELDS, IndicesModule.getBuiltInMetadataFields()).toArray(new String[0])
+        Sets.union(
+            PutMappingRequest.RESERVED_FIELDS,
+            IndicesModule.getBuiltInMetadataFields(),
+            Set.of(SeqNoFieldMapper.PRIMARY_TERM_NAME) // TODO does this go in RESERVED_FIELDS?
+        ).toArray(new String[0])
     );
 
     static {

@@ -61,7 +61,11 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
         "_size",
         "_timestamp",
         "_ttl",
-        "_field_names"
+        "_field_names",
+        // concurrency control fields -- these might not belong here
+        "_version",
+        "_seq_no",
+        "_primary_term"
     );
 
     private String[] indices;

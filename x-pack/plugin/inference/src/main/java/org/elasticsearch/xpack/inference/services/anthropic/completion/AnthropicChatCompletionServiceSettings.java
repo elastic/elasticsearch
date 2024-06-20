@@ -23,18 +23,11 @@ import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObjec
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
 import java.io.IOException;
-import java.net.URI;
 import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MODEL_ID;
-import static org.elasticsearch.xpack.inference.services.ServiceFields.URL;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.convertToUri;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.createOptionalUri;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalString;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredPositiveInteger;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredString;
-import static org.elasticsearch.xpack.inference.services.anthropic.AnthropicServiceFields.MAX_TOKENS;
 
 /**
  * Defines the service settings for interacting with Anthropic's chat completion models.
@@ -55,11 +48,6 @@ public class AnthropicChatCompletionServiceSettings extends FilteredXContentObje
 
         String modelId = extractRequiredString(map, MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
 
-        String url = extractOptionalString(map, URL, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        URI uri = convertToUri(url, URL, ModelConfigurations.SERVICE_SETTINGS, validationException);
-
-        Integer maxTokens = extractRequiredPositiveInteger(map, MAX_TOKENS, ModelConfigurations.SERVICE_SETTINGS, validationException);
-
         RateLimitSettings rateLimitSettings = RateLimitSettings.of(
             map,
             DEFAULT_RATE_LIMIT_SETTINGS,
@@ -72,41 +60,20 @@ public class AnthropicChatCompletionServiceSettings extends FilteredXContentObje
             throw validationException;
         }
 
-        return new AnthropicChatCompletionServiceSettings(modelId, uri, maxTokens, rateLimitSettings);
+        return new AnthropicChatCompletionServiceSettings(modelId, rateLimitSettings);
     }
 
     private final String modelId;
 
-    private final URI uri;
-
-    private final Integer maxTokens;
     private final RateLimitSettings rateLimitSettings;
 
-    public AnthropicChatCompletionServiceSettings(
-        String modelId,
-        @Nullable URI uri,
-        @Nullable Integer maxTokens,
-        @Nullable RateLimitSettings ratelimitSettings
-    ) {
+    public AnthropicChatCompletionServiceSettings(String modelId, @Nullable RateLimitSettings ratelimitSettings) {
         this.modelId = modelId;
-        this.uri = uri;
-        this.maxTokens = maxTokens;
         this.rateLimitSettings = Objects.requireNonNullElse(ratelimitSettings, DEFAULT_RATE_LIMIT_SETTINGS);
-    }
-
-    AnthropicChatCompletionServiceSettings(
-        String modelId,
-        @Nullable String uri,
-        @Nullable Integer maxTokens,
-        @Nullable RateLimitSettings rateLimitSettings
-    ) {
-        this(modelId, createOptionalUri(uri), maxTokens, rateLimitSettings);
     }
 
     public AnthropicChatCompletionServiceSettings(StreamInput in) throws IOException {
         this.modelId = in.readString();
-        this.uri = createOptionalUri(in.readOptionalString());
-        this.maxTokens = in.readOptionalVInt();
         rateLimitSettings = new RateLimitSettings(in);
     }
 
@@ -118,15 +85,6 @@ public class AnthropicChatCompletionServiceSettings extends FilteredXContentObje
     @Override
     public String modelId() {
         return modelId;
-    }
-
-    @Override
-    public URI uri() {
-        return uri;
-    }
-
-    public Integer maxTokens() {
-        return maxTokens;
     }
 
     @Override
@@ -142,14 +100,6 @@ public class AnthropicChatCompletionServiceSettings extends FilteredXContentObje
     @Override
     protected XContentBuilder toXContentFragmentOfExposedFields(XContentBuilder builder, Params params) throws IOException {
         builder.field(MODEL_ID, modelId);
-
-        if (uri != null) {
-            builder.field(URL, uri.toString());
-        }
-
-        if (maxTokens != null) {
-            builder.field(MAX_TOKENS, maxTokens);
-        }
 
         rateLimitSettings.toXContent(builder, params);
 
@@ -169,8 +119,6 @@ public class AnthropicChatCompletionServiceSettings extends FilteredXContentObje
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(modelId);
-        out.writeOptionalString(uri != null ? uri.toString() : null);
-        out.writeOptionalVInt(maxTokens);
         rateLimitSettings.writeTo(out);
     }
 
@@ -179,14 +127,11 @@ public class AnthropicChatCompletionServiceSettings extends FilteredXContentObje
         if (this == object) return true;
         if (object == null || getClass() != object.getClass()) return false;
         AnthropicChatCompletionServiceSettings that = (AnthropicChatCompletionServiceSettings) object;
-        return Objects.equals(modelId, that.modelId)
-            && Objects.equals(uri, that.uri)
-            && Objects.equals(maxTokens, that.maxTokens)
-            && Objects.equals(rateLimitSettings, that.rateLimitSettings);
+        return Objects.equals(modelId, that.modelId) && Objects.equals(rateLimitSettings, that.rateLimitSettings);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(modelId, uri, maxTokens, rateLimitSettings);
+        return Objects.hash(modelId, rateLimitSettings);
     }
 }

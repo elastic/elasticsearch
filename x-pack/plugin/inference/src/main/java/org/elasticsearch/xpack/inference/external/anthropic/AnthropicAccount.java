@@ -7,22 +7,16 @@
 
 package org.elasticsearch.xpack.inference.external.anthropic;
 
-import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.xpack.inference.services.anthropic.AnthropicModel;
 
 import java.net.URI;
-import java.net.URISyntaxException;
 import java.util.Objects;
-
-import static org.elasticsearch.xpack.inference.external.request.RequestUtils.buildUri;
 
 public record AnthropicAccount(URI uri, SecureString apiKey) {
 
-    public static AnthropicAccount of(AnthropicModel model, CheckedSupplier<URI, URISyntaxException> uriBuilder) {
-        var uri = buildUri(model.rateLimitServiceSettings().uri(), "Anthropic", uriBuilder);
-
-        return new AnthropicAccount(uri, model.apiKey());
+    public static AnthropicAccount of(AnthropicModel model) {
+        return new AnthropicAccount(model.getUri(), model.apiKey());
     }
 
     public AnthropicAccount {

@@ -9,15 +9,11 @@ package org.elasticsearch.xpack.inference.services.anthropic;
 
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
-import java.net.URI;
-
 /**
  * The service setting fields for openai that determine how to rate limit requests.
  */
 public interface AnthropicRateLimitServiceSettings {
     String modelId();
-
-    URI uri();
 
     RateLimitSettings rateLimitSettings();
 }

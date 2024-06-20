@@ -12,64 +12,84 @@ import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.core.Nullable;
+import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeAsType;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredPositiveInteger;
+import static org.elasticsearch.xpack.inference.services.anthropic.AnthropicServiceFields.MAX_TOKENS;
 
 public class AnthropicChatCompletionTaskSettings implements TaskSettings {
 
     public static final String NAME = "anthropic_completion_task_settings";
 
-    public static AnthropicChatCompletionTaskSettings fromMap(Map<String, Object> map) {
+    public static AnthropicChatCompletionTaskSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
+        return switch (context) {
+            case REQUEST -> fromRequestMap(map);
+            case PERSISTENT -> fromPersistedMap(map);
+        };
+    }
+
+    public static AnthropicChatCompletionTaskSettings fromRequestMap(Map<String, Object> map) {
         ValidationException validationException = new ValidationException();
 
-        @SuppressWarnings("unchecked")
-        Map<String, Object> optionalSettings = (Map<String, Object>) removeAsType(map, "optional_settings", Map.class);
+        var commonFields = fromMap(map, validationException);
 
         if (validationException.validationErrors().isEmpty() == false) {
             throw validationException;
         }
 
-        return new AnthropicChatCompletionTaskSettings(optionalSettings);
+        return new AnthropicChatCompletionTaskSettings(commonFields);
     }
 
-    private final Map<String, Object> optionalSettings;
+    public static AnthropicChatCompletionTaskSettings fromPersistedMap(Map<String, Object> map) {
+        var commonFields = fromMap(map, new ValidationException());
 
-    public AnthropicChatCompletionTaskSettings(@Nullable Map<String, Object> optionalSettings) {
-        this.optionalSettings = optionalSettings;
+        return new AnthropicChatCompletionTaskSettings(commonFields);
     }
 
-    public AnthropicChatCompletionTaskSettings(StreamInput in) throws IOException {
-        this.optionalSettings = in.readGenericMap();
+    private record CommonFields(int maxTokens) {}
+
+    private static CommonFields fromMap(Map<String, Object> map, ValidationException validationException) {
+        Integer maxTokens = extractRequiredPositiveInteger(map, MAX_TOKENS, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        return new CommonFields(Objects.requireNonNullElse(maxTokens, -1));
     }
 
     public static AnthropicChatCompletionTaskSettings of(
         AnthropicChatCompletionTaskSettings originalSettings,
         AnthropicChatCompletionRequestTaskSettings requestSettings
     ) {
-        var mergedTaskSettings = new HashMap<>(originalSettings.optionalSettings);
-        mergedTaskSettings.putAll(Objects.requireNonNullElse(requestSettings.optionalSettings(), Map.of()));
-        return new AnthropicChatCompletionTaskSettings(mergedTaskSettings);
+        return new AnthropicChatCompletionTaskSettings(Objects.requireNonNullElse(requestSettings.maxTokens(), originalSettings.maxTokens));
     }
 
-    public Map<String, Object> optionalSettings() {
-        return optionalSettings;
+    private final int maxTokens;
+
+    public AnthropicChatCompletionTaskSettings(int maxTokens) {
+        this.maxTokens = maxTokens;
+    }
+
+    public AnthropicChatCompletionTaskSettings(StreamInput in) throws IOException {
+        this.maxTokens = in.readVInt();
+    }
+
+    private AnthropicChatCompletionTaskSettings(CommonFields commonFields) {
+        this(commonFields.maxTokens);
+    }
+
+    public int maxTokens() {
+        return maxTokens;
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
 
-        if (optionalSettings != null) {
-            builder.field("optional_settings", optionalSettings);
-        }
+        builder.field("maxTokens", maxTokens);
 
         builder.endObject();
 
@@ -88,7 +108,7 @@ public class AnthropicChatCompletionTaskSettings implements TaskSettings {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeGenericMap(optionalSettings);
+        out.writeVInt(maxTokens);
     }
 
     @Override
@@ -96,11 +116,11 @@ public class AnthropicChatCompletionTaskSettings implements TaskSettings {
         if (this == object) return true;
         if (object == null || getClass() != object.getClass()) return false;
         AnthropicChatCompletionTaskSettings that = (AnthropicChatCompletionTaskSettings) object;
-        return Objects.equals(optionalSettings, that.optionalSettings);
+        return Objects.equals(maxTokens, that.maxTokens);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(optionalSettings);
+        return Objects.hash(maxTokens);
     }
 }

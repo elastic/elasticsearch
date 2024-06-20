@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.inference.external.request.anthropic;
 
 import org.apache.http.HttpHeaders;
 import org.apache.http.client.methods.HttpPost;
-import org.apache.http.client.utils.URIBuilder;
 import org.apache.http.entity.ByteArrayEntity;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.xcontent.XContentType;
@@ -20,7 +19,6 @@ import org.elasticsearch.xpack.inference.external.request.openai.OpenAiRequest;
 import org.elasticsearch.xpack.inference.services.anthropic.completion.AnthropicChatCompletionModel;
 
 import java.net.URI;
-import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Objects;
@@ -34,7 +32,7 @@ public class AnthropicChatCompletionRequest implements OpenAiRequest {
     private final AnthropicChatCompletionModel model;
 
     public AnthropicChatCompletionRequest(List<String> input, AnthropicChatCompletionModel model) {
-        this.account = AnthropicAccount.of(model, AnthropicChatCompletionRequest::buildDefaultUri);
+        this.account = AnthropicAccount.of(model);
         this.input = Objects.requireNonNull(input);
         this.model = Objects.requireNonNull(model);
     }
@@ -78,10 +76,4 @@ public class AnthropicChatCompletionRequest implements OpenAiRequest {
         return model.getInferenceEntityId();
     }
 
-    public static URI buildDefaultUri() throws URISyntaxException {
-        return new URIBuilder().setScheme("https")
-            .setHost(AnthropicRequestUtils.HOST)
-            .setPathSegments(AnthropicRequestUtils.API_VERSION_1, AnthropicRequestUtils.MESSAGES_PATH)
-            .build();
-    }
 }

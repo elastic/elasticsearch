@@ -7,16 +7,21 @@
 
 package org.elasticsearch.xpack.inference.services.anthropic.completion;
 
+import org.apache.http.client.utils.URIBuilder;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.external.action.anthropic.AnthropicActionVisitor;
+import org.elasticsearch.xpack.inference.external.request.anthropic.AnthropicRequestUtils;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
+import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.anthropic.AnthropicModel;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.util.Map;
 
 public class AnthropicChatCompletionModel extends AnthropicModel {
@@ -47,7 +52,7 @@ public class AnthropicChatCompletionModel extends AnthropicModel {
             taskType,
             service,
             AnthropicChatCompletionServiceSettings.fromMap(serviceSettings, context),
-            AnthropicChatCompletionTaskSettings.fromMap(taskSettings),
+            AnthropicChatCompletionTaskSettings.fromMap(taskSettings, context),
             DefaultSecretSettings.fromMap(secrets)
         );
     }
@@ -64,6 +69,25 @@ public class AnthropicChatCompletionModel extends AnthropicModel {
             new ModelConfigurations(modelId, taskType, service, serviceSettings, taskSettings),
             new ModelSecrets(secrets),
             serviceSettings,
+            AnthropicChatCompletionModel::buildDefaultUri,
+            secrets
+        );
+    }
+
+    AnthropicChatCompletionModel(
+        String modelId,
+        TaskType taskType,
+        String service,
+        String url,
+        AnthropicChatCompletionServiceSettings serviceSettings,
+        AnthropicChatCompletionTaskSettings taskSettings,
+        @Nullable DefaultSecretSettings secrets
+    ) {
+        super(
+            new ModelConfigurations(modelId, taskType, service, serviceSettings, taskSettings),
+            new ModelSecrets(secrets),
+            serviceSettings,
+            () -> ServiceUtils.createUri(url),
             secrets
         );
     }
@@ -90,5 +114,12 @@ public class AnthropicChatCompletionModel extends AnthropicModel {
     @Override
     public ExecutableAction accept(AnthropicActionVisitor creator, Map<String, Object> taskSettings) {
         return creator.create(this, taskSettings);
+    }
+
+    private static URI buildDefaultUri() throws URISyntaxException {
+        return new URIBuilder().setScheme("https")
+            .setHost(AnthropicRequestUtils.HOST)
+            .setPathSegments(AnthropicRequestUtils.API_VERSION_1, AnthropicRequestUtils.MESSAGES_PATH)
+            .build();
     }
 }

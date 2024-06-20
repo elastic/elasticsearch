@@ -44,10 +44,6 @@ public class AnthropicChatCompletionRequestEntity implements ToXContentObject {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
 
-        if (taskSettings.optionalSettings() != null) {
-            builder.mapContents(taskSettings.optionalSettings());
-        }
-
         builder.startArray(MESSAGES_FIELD);
         {
             for (String message : messages) {
@@ -64,11 +60,7 @@ public class AnthropicChatCompletionRequestEntity implements ToXContentObject {
         builder.endArray();
 
         builder.field(MODEL_FIELD, serviceSettings.modelId());
-        builder.field(MAX_TOKENS_FIELD, serviceSettings.maxTokens());
-
-        // if (Strings.isNullOrEmpty(user) == false) {
-        // builder.field(USER_FIELD, user);
-        // }
+        builder.field(MAX_TOKENS_FIELD, taskSettings.maxTokens());
 
         builder.endObject();
 

@@ -233,11 +233,7 @@ public final class ServiceUtils {
 
     public static URI convertToUri(@Nullable String url, String settingName, String settingScope, ValidationException validationException) {
         try {
-            if (url == null) {
-                return null;
-            }
-
-            return createUri(url);
+            return createOptionalUri(url);
         } catch (IllegalArgumentException cause) {
             validationException.addValidationError(ServiceUtils.invalidUrlErrorMsg(url, settingName, settingScope, cause.getMessage()));
             return null;

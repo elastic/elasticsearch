@@ -39,27 +39,49 @@ public class QueryRoleIT extends SecurityInBasicRestTestCase {
     private static final String READ_SECURITY_USER_AUTH_HEADER = "Basic cmVhZF9zZWN1cml0eV91c2VyOnJlYWQtc2VjdXJpdHktcGFzc3dvcmQ=";
 
     public void testSimpleQueryAllRoles() throws IOException {
-        assertQuery("", roles -> assertThat(roles, emptyIterable()));
+        assertQuery("", 0, roles -> assertThat(roles, emptyIterable()));
         RoleDescriptor createdRole = createRandomRole();
-        assertQuery("", roles -> {
+        assertQuery("", 1, roles -> {
             assertThat(roles, iterableWithSize(1));
             assertRoleMap(roles.get(0), createdRole);
         });
     }
 
+    public void testMetadataSearch() throws IOException {
+        int nroles = randomIntBetween(1, 20);
+        for (int i = 0; i < nroles; i++) {
+            createRandomRole();
+        }
+        RoleDescriptor matchThisRole = createRole(
+            "match_this",
+            randomBoolean() ? null : randomAlphaOfLength(8),
+            Map.of("matchSimpleKey", "matchSimpleValue"),
+            randomApplicationPrivileges()
+        );
+        assertQuery("""
+            {"query":{"term":{"metadata.matchSimpleKey":"matchSimpleValue"}}}""", 1, roles -> {
+            assertThat(roles, iterableWithSize(1));
+            assertRoleMap(roles.get(0), matchThisRole);
+        });
+    }
+
     private RoleDescriptor createRandomRole() throws IOException {
+        return createRole(
+            randomAlphaOfLength(8),
+            randomBoolean() ? null : randomAlphaOfLength(8),
+            randomBoolean() ? null : randomMetadata(),
+            randomApplicationPrivileges()
+        );
+    }
+
+    private ApplicationResourcePrivileges[] randomApplicationPrivileges() {
         ApplicationResourcePrivileges[] applicationResourcePrivileges = randomArray(
             0,
             3,
             ApplicationResourcePrivileges[]::new,
             this::randomApplicationResourcePrivileges
         );
-        return createRole(
-            randomAlphaOfLength(8),
-            randomBoolean() ? null : randomAlphaOfLength(8),
-            randomBoolean() ? null : randomMetadata(),
-            applicationResourcePrivileges.length == 0 && randomBoolean() ? null : applicationResourcePrivileges
-        );
+        return applicationResourcePrivileges.length == 0 && randomBoolean() ? null : applicationResourcePrivileges;
     }
 
     @SuppressWarnings("unchecked")
@@ -108,12 +130,13 @@ public class QueryRoleIT extends SecurityInBasicRestTestCase {
         return request;
     }
 
-    private void assertQuery(String body, Consumer<List<Map<String, Object>>> roleVerifier) throws IOException {
+    private void assertQuery(String body, int total, Consumer<List<Map<String, Object>>> roleVerifier) throws IOException {
         Request request = queryRoleRequestWithAuth();
         request.setJsonEntity(body);
         Response response = client().performRequest(request);
         assertOK(response);
         Map<String, Object> responseMap = responseAsMap(response);
+        assertThat(responseMap.get("total"), is(total));
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> roles = (List<Map<String, Object>>) responseMap.get("roles");
         assertThat(roles.size(), is(responseMap.get("count")));

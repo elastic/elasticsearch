@@ -165,7 +165,9 @@ public class MetadataMigrateToDataStreamService {
             req,
             backingIndices,
             currentState.metadata().index(writeIndex),
-            listener
+            listener,
+            // No need to initialize the failure store when migrating to a data stream.
+            false
         );
     }
 

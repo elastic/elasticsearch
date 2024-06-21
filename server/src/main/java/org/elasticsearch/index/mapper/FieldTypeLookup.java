@@ -99,7 +99,7 @@ final class FieldTypeLookup {
         for (PassThroughObjectMapper passThroughMapper : passThroughMappers) {
             for (Mapper subfield : passThroughMapper.mappers.values()) {
                 if (subfield instanceof FieldMapper fieldMapper) {
-                    String name = fieldMapper.simpleName();
+                    String name = fieldMapper.leafName();
                     // Check for conflict between PassThroughObjectMapper subfields.
                     PassThroughObjectMapper conflict = passThroughFieldAliases.put(name, passThroughMapper);
                     if (conflict != null) {

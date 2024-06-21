@@ -137,7 +137,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
             super.merge(mergeWith, conflicts, mapperMergeContext);
             conflicts.check();
             var semanticMergeWith = (SemanticTextFieldMapper) mergeWith;
-            var context = mapperMergeContext.createChildContext(mergeWith.simpleName(), ObjectMapper.Dynamic.FALSE);
+            var context = mapperMergeContext.createChildContext(mergeWith.leafName(), ObjectMapper.Dynamic.FALSE);
             var inferenceField = inferenceFieldBuilder.apply(context.getMapperBuilderContext());
             var mergedInferenceField = inferenceField.merge(semanticMergeWith.fieldType().getInferenceField(), context);
             inferenceFieldBuilder = c -> mergedInferenceField;
@@ -146,16 +146,16 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
         @Override
         public SemanticTextFieldMapper build(MapperBuilderContext context) {
             if (copyTo.copyToFields().isEmpty() == false) {
-                throw new IllegalArgumentException(CONTENT_TYPE + " field [" + name() + "] does not support [copy_to]");
+                throw new IllegalArgumentException(CONTENT_TYPE + " field [" + leafName() + "] does not support [copy_to]");
             }
             if (multiFieldsBuilder.hasMultiFields()) {
-                throw new IllegalArgumentException(CONTENT_TYPE + " field [" + name() + "] does not support multi-fields");
+                throw new IllegalArgumentException(CONTENT_TYPE + " field [" + leafName() + "] does not support multi-fields");
             }
-            final String fullName = context.buildFullName(name());
-            var childContext = context.createChildContext(name(), ObjectMapper.Dynamic.FALSE);
+            final String fullName = context.buildFullName(leafName());
+            var childContext = context.createChildContext(leafName(), ObjectMapper.Dynamic.FALSE);
             final ObjectMapper inferenceField = inferenceFieldBuilder.apply(childContext);
             return new SemanticTextFieldMapper(
-                name(),
+                leafName(),
                 new SemanticTextFieldType(
                     fullName,
                     inferenceId.getValue(),
@@ -182,7 +182,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(simpleName(), fieldType().indexVersionCreated, fieldType().getChunksField().bitsetProducer()).init(this);
+        return new Builder(leafName(), fieldType().indexVersionCreated, fieldType().getChunksField().bitsetProducer()).init(this);
     }
 
     @Override
@@ -221,7 +221,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
         if (fieldType().getModelSettings() == null) {
             context.path().remove();
             Builder builder = (Builder) new Builder(
-                simpleName(),
+                leafName(),
                 fieldType().indexVersionCreated,
                 fieldType().getChunksField().bitsetProducer()
             ).init(this);
@@ -231,7 +231,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                     .build(context.createDynamicMapperBuilderContext());
                 context.addDynamicMapper(mapper);
             } finally {
-                context.path().add(simpleName());
+                context.path().add(leafName());
             }
         } else {
             Conflicts conflicts = new Conflicts(fullFieldName);

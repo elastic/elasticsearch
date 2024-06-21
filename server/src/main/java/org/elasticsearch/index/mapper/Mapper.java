@@ -24,22 +24,21 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
 
     public abstract static class Builder {
 
-        private String name;
+        private String leafName;
 
-        protected Builder(String name) {
-            setName(name);
+        protected Builder(String leafName) {
+            setLeafName(leafName);
         }
 
-        // TODO rename this to leafName?
-        public final String name() {
-            return this.name;
+        public final String leafName() {
+            return this.leafName;
         }
 
         /** Returns a newly built mapper. */
         public abstract Mapper build(MapperBuilderContext context);
 
-        void setName(String name) {
-            this.name = internFieldName(name);
+        void setLeafName(String leafName) {
+            this.leafName = internFieldName(leafName);
         }
     }
 
@@ -54,18 +53,15 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
         }
     }
 
-    private final String simpleName;
+    private final String leafName;
 
-    public Mapper(String simpleName) {
-        Objects.requireNonNull(simpleName);
-        this.simpleName = internFieldName(simpleName);
+    public Mapper(String leafName) {
+        Objects.requireNonNull(leafName);
+        this.leafName = internFieldName(leafName);
     }
 
-    /** Returns the simple name, which identifies this mapper against other mappers at the same level in the mappers hierarchy
-     * TODO: make this protected once Mapper and FieldMapper are merged together */
-    // TODO rename this to leafName?
-    public final String simpleName() {
-        return simpleName;
+    public final String leafName() {
+        return leafName;
     }
 
     /** Returns the canonical name which uniquely identifies the mapper against other mappers in a type. */

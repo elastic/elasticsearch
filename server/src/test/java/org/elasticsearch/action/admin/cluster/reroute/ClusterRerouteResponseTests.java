@@ -186,6 +186,7 @@ public class ClusterRerouteResponseTests extends ESTestCase {
                                 "0": []
                               },
                               "rollover_info": {},
+                              "mappings_updated_version" : %s,
                               "system": false,
                               "timestamp_range": {
                                 "shards": []
@@ -213,6 +214,7 @@ public class ClusterRerouteResponseTests extends ESTestCase {
                 Version.CURRENT,
                 IndexVersions.MINIMUM_COMPATIBLE,
                 IndexVersion.current(),
+                IndexVersion.current(),
                 IndexVersion.current()
             ),
             """
@@ -225,7 +227,7 @@ public class ClusterRerouteResponseTests extends ESTestCase {
         assertXContent(
             createClusterRerouteResponse(createClusterState()),
             new ToXContent.MapParams(Map.of("metric", "metadata", "settings_filter", "index.number*,index.version.created")),
-            """
+            Strings.format("""
                 {
                   "acknowledged" : true,
                   "state" : {
@@ -265,6 +267,7 @@ public class ClusterRerouteResponseTests extends ESTestCase {
                             "0" : [ ]
                           },
                           "rollover_info" : { },
+                          "mappings_updated_version" : %s,
                           "system" : false,
                           "timestamp_range" : {
                             "shards" : [ ]
@@ -277,7 +280,7 @@ public class ClusterRerouteResponseTests extends ESTestCase {
                       "reserved_state":{}
                     }
                   }
-                }""",
+                }""", IndexVersion.current()),
             """
                 The [state] field in the response to the reroute API is deprecated and will be removed in a future version. \
                 Specify ?metric=none to adopt the future behaviour."""

@@ -2606,7 +2606,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
         Mapper baz = ((ObjectMapper) barMapper).getMapper("baz");
         assertNotNull(baz);
         assertEquals("foo.bar.baz", baz.name());
-        assertEquals("baz", baz.simpleName());
+        assertEquals("baz", baz.leafName());
         List<IndexableField> fields = doc.rootDoc().getFields("foo.bar.baz");
         assertEquals(2, fields.size());
         String[] fieldStrings = fields.stream().map(Object::toString).toArray(String[]::new);
@@ -3245,7 +3245,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
 
             @Override
             public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
-                return new StringStoredFieldFieldLoader(name(), simpleName(), null) {
+                return new StringStoredFieldFieldLoader(name(), leafName(), null) {
                     @Override
                     protected void write(XContentBuilder b, Object value) throws IOException {
                         BytesRef ref = (BytesRef) value;

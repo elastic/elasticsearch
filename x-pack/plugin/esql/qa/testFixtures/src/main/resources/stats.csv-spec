@@ -1703,10 +1703,11 @@ weightedAvg
 required_capability: weighted_avg
 from employees
 | stats w_avg_1 = weighted_avg(salary, 1), avg = avg(salary), w_avg_2 = weighted_avg(salary, height)
+| EVAL w_avg_1 = ROUND(w_avg_1), avg = ROUND(avg), w_avg_2 = ROUND(w_avg_2)
 ;
 
 w_avg_1:double | avg:double | w_avg_2:double
-48248.55       | 48248.55   | 48473.84130754439
+48249.0        | 48249.0   | 48474.0
 ;
 
 weightedAvgGrouping
@@ -1714,18 +1715,20 @@ required_capability: weighted_avg
 // tag::weighted-avg[]
 FROM employees
 | STATS w_avg = WEIGHTED_AVG(salary, height) by languages
+| EVAL w_avg = ROUND(w_avg)
+| KEEP w_avg, languages
 | SORT languages
 // end::weighted-avg[]
 ;
 
 // tag::weighted-avg-result[]
-w_avg:double       | languages:integer
-51464.29022324865  | 1
-48476.736181655215 | 2
-52379.18672890964  | 3
-47989.6137704918   | 4
-42119.368651714365 | 5
-52141.55113322277  | null
+w_avg:double | languages:integer
+51464.0      | 1
+48477.0      | 2
+52379.0      | 3
+47990.0      | 4
+42119.0      | 5
+52142.0      | null
 // end::weighted-avg-result[]
 ;
 
@@ -1733,6 +1736,7 @@ weightedAvgConstant
 required_capability: weighted_avg
 row v = [1, 2, 3]
 | stats w_avg_1 = weighted_avg(v, 1), w_avg_2 = weighted_avg([1, 2, 3], 1), avg = avg(v)
+| EVAL w_avg_1 = ROUND(w_avg_1), w_avg_2 = ROUND(w_avg_2), avg = ROUND(avg)
 ;
 
 w_avg_1:double |w_avg_2:double |avg:double

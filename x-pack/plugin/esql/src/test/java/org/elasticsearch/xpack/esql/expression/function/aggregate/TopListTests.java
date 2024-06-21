@@ -31,70 +31,58 @@ public class TopListTests extends AbstractAggregationTestCase {
     public static Iterable<Object[]> parameters() {
         var suppliers = List.of(
             // All types
-            new TestCaseSupplier(
-                List.of(DataType.INTEGER, DataType.INTEGER, DataType.KEYWORD),
-                () -> {
-                    var limit = randomIntBetween(2, 4);
-                    return new TestCaseSupplier.TestCase(
-                        List.of(
-                            TestCaseSupplier.TypedData.multiRow(List.of(5, 8, -2, 0, 200), DataType.INTEGER, "field"),
-                            new TestCaseSupplier.TypedData(limit, DataType.INTEGER, "limit").forceLiteral(),
-                            new TestCaseSupplier.TypedData(new BytesRef("desc"), DataType.KEYWORD, "order").forceLiteral()
-                        ),
-                        "TopList[field=Attribute[channel=0], limit=Attribute[channel=1], order=Attribute[channel=2]]",
-                        DataType.INTEGER,
-                        equalTo(List.of(200, 8, 5, 0).subList(0, limit))
-                    );
-                }
-            ),
-            new TestCaseSupplier(
-                List.of(DataType.LONG, DataType.INTEGER, DataType.KEYWORD),
-                () -> {
-                    var limit = randomIntBetween(2, 4);
-                    return new TestCaseSupplier.TestCase(
-                        List.of(
-                            TestCaseSupplier.TypedData.multiRow(List.of(5L, 8L, -2L, 0L, 200L), DataType.LONG, "field"),
-                            new TestCaseSupplier.TypedData(limit, DataType.INTEGER, "limit").forceLiteral(),
-                            new TestCaseSupplier.TypedData(new BytesRef("desc"), DataType.KEYWORD, "order").forceLiteral()
-                        ),
-                        "TopList[field=Attribute[channel=0], limit=Attribute[channel=1], order=Attribute[channel=2]]",
-                        DataType.LONG,
-                        equalTo(List.of(200L, 8L, 5L, 0L).subList(0, limit))
-                    );
-                }
-            ),
-            new TestCaseSupplier(
-                List.of(DataType.DOUBLE, DataType.INTEGER, DataType.KEYWORD),
-                () -> {
-                    var limit = randomIntBetween(2, 4);
-                    return new TestCaseSupplier.TestCase(
-                        List.of(
-                            TestCaseSupplier.TypedData.multiRow(List.of(5., 8., -2., 0., 200.), DataType.DOUBLE, "field"),
-                            new TestCaseSupplier.TypedData(limit, DataType.INTEGER, "limit").forceLiteral(),
-                            new TestCaseSupplier.TypedData(new BytesRef("desc"), DataType.KEYWORD, "order").forceLiteral()
-                        ),
-                        "TopList[field=Attribute[channel=0], limit=Attribute[channel=1], order=Attribute[channel=2]]",
-                        DataType.DOUBLE,
-                        equalTo(List.of(200., 8., 5., 0.).subList(0, limit))
-                    );
-                }
-            ),
-            new TestCaseSupplier(
-                List.of(DataType.DATETIME, DataType.INTEGER, DataType.KEYWORD),
-                () -> {
-                    var limit = randomIntBetween(2, 4);
-                    return new TestCaseSupplier.TestCase(
-                        List.of(
-                            TestCaseSupplier.TypedData.multiRow(List.of(5L, 8L, -2L, 0L, 200L), DataType.DATETIME, "field"),
-                            new TestCaseSupplier.TypedData(limit, DataType.INTEGER, "limit").forceLiteral(),
-                            new TestCaseSupplier.TypedData(new BytesRef("desc"), DataType.KEYWORD, "order").forceLiteral()
-                        ),
-                        "TopList[field=Attribute[channel=0], limit=Attribute[channel=1], order=Attribute[channel=2]]",
-                        DataType.DATETIME,
-                        equalTo(List.of(200L, 8L, 5L, 0L).subList(0, limit))
-                    );
-                }
-            ),
+            new TestCaseSupplier(List.of(DataType.INTEGER, DataType.INTEGER, DataType.KEYWORD), () -> {
+                var limit = randomIntBetween(2, 4);
+                return new TestCaseSupplier.TestCase(
+                    List.of(
+                        TestCaseSupplier.TypedData.multiRow(List.of(5, 8, -2, 0, 200), DataType.INTEGER, "field"),
+                        new TestCaseSupplier.TypedData(limit, DataType.INTEGER, "limit").forceLiteral(),
+                        new TestCaseSupplier.TypedData(new BytesRef("desc"), DataType.KEYWORD, "order").forceLiteral()
+                    ),
+                    "TopList[field=Attribute[channel=0], limit=Attribute[channel=1], order=Attribute[channel=2]]",
+                    DataType.INTEGER,
+                    equalTo(List.of(200, 8, 5, 0).subList(0, limit))
+                );
+            }),
+            new TestCaseSupplier(List.of(DataType.LONG, DataType.INTEGER, DataType.KEYWORD), () -> {
+                var limit = randomIntBetween(2, 4);
+                return new TestCaseSupplier.TestCase(
+                    List.of(
+                        TestCaseSupplier.TypedData.multiRow(List.of(5L, 8L, -2L, 0L, 200L), DataType.LONG, "field"),
+                        new TestCaseSupplier.TypedData(limit, DataType.INTEGER, "limit").forceLiteral(),
+                        new TestCaseSupplier.TypedData(new BytesRef("desc"), DataType.KEYWORD, "order").forceLiteral()
+                    ),
+                    "TopList[field=Attribute[channel=0], limit=Attribute[channel=1], order=Attribute[channel=2]]",
+                    DataType.LONG,
+                    equalTo(List.of(200L, 8L, 5L, 0L).subList(0, limit))
+                );
+            }),
+            new TestCaseSupplier(List.of(DataType.DOUBLE, DataType.INTEGER, DataType.KEYWORD), () -> {
+                var limit = randomIntBetween(2, 4);
+                return new TestCaseSupplier.TestCase(
+                    List.of(
+                        TestCaseSupplier.TypedData.multiRow(List.of(5., 8., -2., 0., 200.), DataType.DOUBLE, "field"),
+                        new TestCaseSupplier.TypedData(limit, DataType.INTEGER, "limit").forceLiteral(),
+                        new TestCaseSupplier.TypedData(new BytesRef("desc"), DataType.KEYWORD, "order").forceLiteral()
+                    ),
+                    "TopList[field=Attribute[channel=0], limit=Attribute[channel=1], order=Attribute[channel=2]]",
+                    DataType.DOUBLE,
+                    equalTo(List.of(200., 8., 5., 0.).subList(0, limit))
+                );
+            }),
+            new TestCaseSupplier(List.of(DataType.DATETIME, DataType.INTEGER, DataType.KEYWORD), () -> {
+                var limit = randomIntBetween(2, 4);
+                return new TestCaseSupplier.TestCase(
+                    List.of(
+                        TestCaseSupplier.TypedData.multiRow(List.of(5L, 8L, -2L, 0L, 200L), DataType.DATETIME, "field"),
+                        new TestCaseSupplier.TypedData(limit, DataType.INTEGER, "limit").forceLiteral(),
+                        new TestCaseSupplier.TypedData(new BytesRef("desc"), DataType.KEYWORD, "order").forceLiteral()
+                    ),
+                    "TopList[field=Attribute[channel=0], limit=Attribute[channel=1], order=Attribute[channel=2]]",
+                    DataType.DATETIME,
+                    equalTo(List.of(200L, 8L, 5L, 0L).subList(0, limit))
+                );
+            }),
 
             // Surrogates
             new TestCaseSupplier(

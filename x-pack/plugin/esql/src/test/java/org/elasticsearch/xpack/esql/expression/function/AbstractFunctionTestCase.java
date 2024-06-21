@@ -323,8 +323,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
 
         var rowsCount = values.get(0).size();
 
-        values.stream().skip(1)
-            .forEach(l -> assertThat("All multi-row fields must have the same number of rows", l, hasSize(rowsCount)));
+        values.stream().skip(1).forEach(l -> assertThat("All multi-row fields must have the same number of rows", l, hasSize(rowsCount)));
 
         var rows = new ArrayList<List<Object>>();
         for (int i = 0; i < rowsCount; i++) {
@@ -472,7 +471,9 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     }
 
     private void testEvaluateBlock(BlockFactory inputBlockFactory, DriverContext context, boolean insertNulls) {
-        Expression expression = randomBoolean() ? buildDeepCopyOfFieldEvaluableExpression(testCase) : buildFieldEvaluableExpression(testCase);
+        Expression expression = randomBoolean()
+            ? buildDeepCopyOfFieldEvaluableExpression(testCase)
+            : buildFieldEvaluableExpression(testCase);
         if (testCase.getExpectedTypeError() != null) {
             assertTypeResolutionFailure(expression);
             return;

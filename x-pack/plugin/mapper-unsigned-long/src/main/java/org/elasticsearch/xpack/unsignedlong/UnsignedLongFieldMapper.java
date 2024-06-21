@@ -631,7 +631,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
                     if (ignoreMalformed.value()) {
                         addIgnoredField(context);
                     } else {
-                        throw new IllegalArgumentException("Unable to parse object as an unsigned long field");
+                        throw new IllegalArgumentException("Unable to parse object as a " + mappedFieldType.name() + " field");
                     }
                 } else if (parser.currentToken() == XContentParser.Token.VALUE_NUMBER) {
                     numericValue = parseUnsignedLong(parser.numberValue());

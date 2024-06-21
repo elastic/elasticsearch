@@ -79,7 +79,7 @@ public class QueryRoleIT extends SecurityInBasicRestTestCase {
 
     private RoleDescriptor createRandomRole() throws IOException {
         return createRole(
-            randomAlphaOfLength(8),
+            randomUUID(),
             randomBoolean() ? null : randomAlphaOfLength(8),
             randomBoolean() ? null : randomMetadata(),
             randomApplicationPrivileges()

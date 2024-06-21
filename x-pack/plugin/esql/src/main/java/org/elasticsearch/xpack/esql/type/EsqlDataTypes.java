@@ -39,7 +39,7 @@ public final class EsqlDataTypes {
     private EsqlDataTypes() {}
 
     public static DataType fromTypeName(String name) {
-        return NAME_TO_TYPE.get(name.toLowerCase(Locale.ROOT));
+        return DataType.fromTypeName(name.toLowerCase(Locale.ROOT));
     }
 
     public static DataType fromName(String name) {

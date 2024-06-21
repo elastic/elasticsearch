@@ -59,7 +59,9 @@ import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectTransportException;
+import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.TransportRequestOptions;
+import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.FileNotFoundException;
@@ -175,7 +177,10 @@ public class TransportGetVirtualBatchedCompoundCommitChunkAction extends Transpo
                 } else {
                     l.onFailure(e);
                 }
-            }), GetVirtualBatchedCompoundCommitChunkResponse::new, transportService.getThreadPool().generic())
+            }).delegateFailure((l, r) -> {
+                assert ThreadPool.assertCurrentThreadPool(TcpTransport.TRANSPORT_WORKER_THREAD_NAME_PREFIX);
+                listener.onResponse(r);
+            }), GetVirtualBatchedCompoundCommitChunkResponse::new, TransportResponseHandler.TRANSPORT_WORKER)
         );
     }
 

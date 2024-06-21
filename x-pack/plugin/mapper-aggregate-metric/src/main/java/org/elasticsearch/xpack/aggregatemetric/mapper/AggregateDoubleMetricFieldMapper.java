@@ -143,7 +143,7 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
             return parsedMetrics;
         }, m -> toType(m).metrics, XContentBuilder::enumSet, Objects::toString).addValidator(v -> {
             if (v == null || v.isEmpty()) {
-                throw new IllegalArgumentException("Property [" + Names.METRICS + "] is required for field [" + name() + "].");
+                throw new IllegalArgumentException("Property [" + Names.METRICS + "] is required for field [" + leafName() + "].");
             }
         });
 
@@ -209,21 +209,23 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
                 }
 
                 if (metrics.getValue().contains(defaultMetric.getValue()) == false) {
-                    throw new IllegalArgumentException("Property [" + Names.DEFAULT_METRIC + "] is required for field [" + name() + "].");
+                    throw new IllegalArgumentException(
+                        "Property [" + Names.DEFAULT_METRIC + "] is required for field [" + leafName() + "]."
+                    );
                 }
             }
 
             if (metrics.getValue().contains(defaultMetric.getValue()) == false) {
                 // The default_metric is not defined in the "metrics" field
                 throw new IllegalArgumentException(
-                    "Default metric [" + defaultMetric.getValue() + "] is not defined in the metrics of field [" + name() + "]."
+                    "Default metric [" + defaultMetric.getValue() + "] is not defined in the metrics of field [" + leafName() + "]."
                 );
             }
 
             EnumMap<Metric, NumberFieldMapper> metricMappers = new EnumMap<>(Metric.class);
             // Instantiate one NumberFieldMapper instance for each metric
             for (Metric m : this.metrics.getValue()) {
-                String fieldName = subfieldName(name(), m);
+                String fieldName = subfieldName(leafName(), m);
                 NumberFieldMapper.Builder builder;
 
                 if (m == Metric.value_count) {
@@ -259,14 +261,14 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
                 }, () -> new EnumMap<>(Metric.class)));
 
             AggregateDoubleMetricFieldType metricFieldType = new AggregateDoubleMetricFieldType(
-                context.buildFullName(name()),
+                context.buildFullName(leafName()),
                 meta.getValue(),
                 timeSeriesMetric.getValue()
             );
             metricFieldType.setMetricFields(metricFields);
             metricFieldType.setDefaultMetric(defaultMetric.getValue());
 
-            return new AggregateDoubleMetricFieldMapper(name(), metricFieldType, metricMappers, this);
+            return new AggregateDoubleMetricFieldMapper(leafName(), metricFieldType, metricMappers, this);
         }
     }
 
@@ -586,7 +588,7 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
 
     @Override
     protected void parseCreateField(DocumentParserContext context) throws IOException {
-        context.path().add(simpleName());
+        context.path().add(leafName());
         XContentParser.Token token;
         XContentSubParser subParser = null;
         EnumMap<Metric, Number> metricsParsed = new EnumMap<>(Metric.class);
@@ -705,7 +707,7 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(simpleName(), ignoreMalformedByDefault, indexCreatedVersion, indexMode).metric(metricType).init(this);
+        return new Builder(leafName(), ignoreMalformedByDefault, indexCreatedVersion, indexMode).metric(metricType).init(this);
     }
 
     @Override
@@ -716,9 +718,9 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
     @Override
     public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
         return new CompositeSyntheticFieldLoader(
-            simpleName(),
+            leafName(),
             name(),
-            new AggregateMetricSyntheticFieldLoader(name(), simpleName(), metrics),
+            new AggregateMetricSyntheticFieldLoader(name(), leafName(), metrics),
             new CompositeSyntheticFieldLoader.MalformedValuesLayer(name())
         );
     }

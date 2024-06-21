@@ -151,7 +151,7 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
         final Settings.Builder settingsBuilder = Settings.builder()
             .put(IndexMetadata.SETTING_INDEX_PROVIDED_NAME, followerIndex)
             .put(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), true);
-        return new RestoreSnapshotRequest(leaderClusterRepoName, CcrRepository.LATEST).indexSettings(settingsBuilder)
+        return new RestoreSnapshotRequest(TEST_REQUEST_TIMEOUT, leaderClusterRepoName, CcrRepository.LATEST).indexSettings(settingsBuilder)
             .indices(leaderIndex)
             .indicesOptions(indicesOptions)
             .renamePattern("^(.*)$")

@@ -87,6 +87,7 @@ import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.SlowLogFieldProvider;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.bulk.stats.BulkStats;
@@ -1793,6 +1794,11 @@ public class IndicesService extends AbstractLifecycleComponent
      */
     public Function<String, FieldPredicate> getFieldFilter() {
         return mapperRegistry.getFieldFilter();
+    }
+
+    public Set<String> metadataFieldNames() {
+        // TODO hack hack hack
+        return mapperRegistry.getMetadataMapperParsers(IndexVersion.current()).keySet();
     }
 
     private void setIdFieldDataEnabled(boolean value) {

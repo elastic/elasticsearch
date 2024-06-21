@@ -18,8 +18,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.util.CollectionUtils;
-import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.plugins.FieldPredicate;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.FieldSubsetReader;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsDefinition.FieldGrantExcludeGroup;
@@ -33,6 +31,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import static org.apache.lucene.util.automaton.Operations.subsetOf;
@@ -52,11 +51,6 @@ public final class FieldPermissions implements Accountable, CacheKey {
     private static final long BASE_FIELD_PERM_DEF_BYTES = RamUsageEstimator.shallowSizeOf(new FieldPermissionsDefinition(null, null));
     private static final long BASE_FIELD_GROUP_BYTES = RamUsageEstimator.shallowSizeOf(new FieldGrantExcludeGroup(null, null));
     private static final long BASE_HASHSET_ENTRY_SIZE;
-    // an automaton that includes all reserved metadata fields; these are always granted access to regardless of the field permissions
-    private static final Automaton RESERVED_METADATA_FIELDS_AUTOMATON = Regex.simpleMatchToAutomaton(
-        Sets.union(IndicesModule.getBuiltInMetadataFields(), Set.of("_primary_term", "_uid", "_type", "_timestamp", "_ttl", "_size"))
-            .toArray(new String[0])
-    );
 
     static {
         HashMap<String, Object> map = new HashMap<>();
@@ -169,7 +163,7 @@ public final class FieldPermissions implements Accountable, CacheKey {
         if (grantedFields == null || Arrays.stream(grantedFields).anyMatch(Regex::isMatchAllPattern)) {
             grantedFieldsAutomaton = Automatons.MATCH_ALL;
         } else {
-            grantedFieldsAutomaton = Operations.union(Automatons.patterns(grantedFields), RESERVED_METADATA_FIELDS_AUTOMATON);
+            grantedFieldsAutomaton = Automatons.patterns(grantedFields);
         }
 
         Automaton deniedFieldsAutomaton;
@@ -249,11 +243,11 @@ public final class FieldPermissions implements Accountable, CacheKey {
     }
 
     /** Return a wrapped reader that only exposes allowed fields. */
-    public DirectoryReader filter(DirectoryReader reader) throws IOException {
+    public DirectoryReader filter(DirectoryReader reader, Predicate<String> isMetadataField) throws IOException {
         if (hasFieldLevelSecurity() == false) {
             return reader;
         }
-        return FieldSubsetReader.wrap(reader, permittedFieldsAutomaton);
+        return FieldSubsetReader.wrap(reader, permittedFieldsAutomaton, isMetadataField);
     }
 
     Automaton getIncludeAutomaton() {

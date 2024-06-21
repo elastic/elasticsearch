@@ -87,11 +87,14 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Predicate;
 
 import static org.hamcrest.Matchers.equalTo;
 
 /** Simple tests for this filterreader */
 public class FieldSubsetReaderTests extends MapperServiceTestCase {
+
+    static final Predicate<String> IS_METADATA_FIELD = f -> f.startsWith("_");
 
     /**
      * test filtering two string fields

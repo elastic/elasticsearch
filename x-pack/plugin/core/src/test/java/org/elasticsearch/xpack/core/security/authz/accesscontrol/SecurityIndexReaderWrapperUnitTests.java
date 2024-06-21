@@ -14,6 +14,7 @@ import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesModule;
@@ -35,15 +36,16 @@ import static java.util.Collections.singletonMap;
 import static org.elasticsearch.xpack.core.security.SecurityField.DOCUMENT_LEVEL_SECURITY_FEATURE;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.sameInstance;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class SecurityIndexReaderWrapperUnitTests extends ESTestCase {
 
     private static final Set<String> META_FIELDS = Set.copyOf(IndicesModule.getBuiltInMetadataFields());
-
     private SecurityContext securityContext;
     private ScriptService scriptService;
+    private MapperService mapperService;
     private SecurityIndexReaderWrapper securityIndexReaderWrapper;
     private ElasticsearchDirectoryReader esIn;
     private MockLicenseState licenseState;
@@ -52,6 +54,11 @@ public class SecurityIndexReaderWrapperUnitTests extends ESTestCase {
     public void setup() throws Exception {
         Index index = new Index("_index", "testUUID");
         scriptService = mock(ScriptService.class);
+        mapperService = mock(MapperService.class);
+        when(mapperService.isMetadataField(anyString())).thenAnswer(invocation -> {
+            final String arg = invocation.getArgument(0);
+            return META_FIELDS.contains(arg) || Set.of("_primary_term", "_uid", "_type", "_timestamp", "_ttl").contains(arg);
+        });
 
         ShardId shardId = new ShardId(index, 0);
         licenseState = mock(MockLicenseState.class);
@@ -75,7 +82,14 @@ public class SecurityIndexReaderWrapperUnitTests extends ESTestCase {
     }
 
     public void testDefaultMetaFields() {
-        securityIndexReaderWrapper = new SecurityIndexReaderWrapper(null, null, securityContext, licenseState, scriptService) {
+        securityIndexReaderWrapper = new SecurityIndexReaderWrapper(
+            null,
+            null,
+            securityContext,
+            licenseState,
+            scriptService,
+            mapperService
+        ) {
             @Override
             protected IndicesAccessControl getIndicesAccessControl() {
                 IndicesAccessControl.IndexAccessControl indexAccessControl = new IndicesAccessControl.IndexAccessControl(
@@ -106,7 +120,14 @@ public class SecurityIndexReaderWrapperUnitTests extends ESTestCase {
 
     public void testWrapReaderWhenFeatureDisabled() {
         when(licenseState.isAllowed(DOCUMENT_LEVEL_SECURITY_FEATURE)).thenReturn(false);
-        securityIndexReaderWrapper = new SecurityIndexReaderWrapper(null, null, securityContext, licenseState, scriptService);
+        securityIndexReaderWrapper = new SecurityIndexReaderWrapper(
+            null,
+            null,
+            securityContext,
+            licenseState,
+            scriptService,
+            mapperService
+        );
         DirectoryReader reader = securityIndexReaderWrapper.apply(esIn);
         assertThat(reader, sameInstance(esIn));
     }
@@ -138,8 +159,8 @@ public class SecurityIndexReaderWrapperUnitTests extends ESTestCase {
         }
     }
 
-    public void testFieldPermissionsWithFieldExceptions() throws Exception {
-        securityIndexReaderWrapper = new SecurityIndexReaderWrapper(null, null, securityContext, licenseState, null);
+    public void testFieldPermissionsWithFieldExceptions() {
+        securityIndexReaderWrapper = new SecurityIndexReaderWrapper(null, null, securityContext, licenseState, null, mapperService);
         String[] grantedFields = new String[] {};
         String[] deniedFields;
         Set<String> expected = new HashSet<>(META_FIELDS);

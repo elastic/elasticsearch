@@ -15,6 +15,7 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardUtils;
@@ -28,7 +29,9 @@ import org.elasticsearch.xpack.core.security.user.User;
 
 import java.io.IOException;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.Function;
+import java.util.function.Predicate;
 
 import static org.elasticsearch.xpack.core.security.SecurityField.DOCUMENT_LEVEL_SECURITY_FEATURE;
 
@@ -51,19 +54,22 @@ public class SecurityIndexReaderWrapper implements CheckedFunction<DirectoryRead
     private final XPackLicenseState licenseState;
     private final SecurityContext securityContext;
     private final ScriptService scriptService;
+    private final MapperService mapperService;
 
     public SecurityIndexReaderWrapper(
         Function<ShardId, SearchExecutionContext> searchExecutionContextProvider,
         DocumentSubsetBitsetCache bitsetCache,
         SecurityContext securityContext,
         XPackLicenseState licenseState,
-        ScriptService scriptService
+        ScriptService scriptService,
+        MapperService mapperService
     ) {
         this.scriptService = scriptService;
         this.searchExecutionContextProvider = searchExecutionContextProvider;
         this.bitsetCache = bitsetCache;
         this.securityContext = securityContext;
         this.licenseState = licenseState;
+        this.mapperService = mapperService;
     }
 
     @Override
@@ -96,7 +102,13 @@ public class SecurityIndexReaderWrapper implements CheckedFunction<DirectoryRead
                 }
             }
 
-            return permissions.getFieldPermissions().filter(wrappedReader);
+            return permissions.getFieldPermissions()
+                .filter(
+                    wrappedReader,
+                    ((Predicate<String>) mapperService::isMetadataField).or(
+                        Set.of("_primary_term", "_uid", "_type", "_timestamp", "_ttl")::contains
+                    )
+                );
         } catch (IOException e) {
             logger.error("Unable to apply field level security");
             throw ExceptionsHelper.convertToElastic(e);

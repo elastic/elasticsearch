@@ -356,6 +356,7 @@ Field with ignored_malformed:
         Authorization: "ApiKey ${credentials}"
       search:
         index: index_fls
+        sort: name
   - match: { hits.hits.0._source.name: A }
   - is_false: "hits.hits.0._source.secret"
   - match: { hits.hits.1._source.name: B }

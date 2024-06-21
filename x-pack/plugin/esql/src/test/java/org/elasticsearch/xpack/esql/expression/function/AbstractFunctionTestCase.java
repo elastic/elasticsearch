@@ -666,7 +666,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         }
     }
 
-    public final void testSerializationOfSimple() {
+    public void testSerializationOfSimple() {
         assertSerialization(buildFieldExpression(testCase));
     }
 
@@ -1723,7 +1723,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     }
 
     @After
-    public final void allMemoryReleased() {
+    public void allMemoryReleased() {
         for (CircuitBreaker breaker : breakers) {
             assertThat(breaker.getUsed(), equalTo(0L));
         }

@@ -306,7 +306,7 @@ public class MvSliceTests extends AbstractFunctionTestCase {
         }));
 
         suppliers.add(new TestCaseSupplier(List.of(DataType.GEO_SHAPE, DataType.INTEGER, DataType.INTEGER), () -> {
-            List<Object> field = randomList(1, 5, () -> new BytesRef(GEO.asWkt(GeometryTestUtils.randomGeometry(randomBoolean()))));
+            var field = randomList(1, 5, () -> new BytesRef(GEO.asWkt(GeometryTestUtils.randomGeometry(randomBoolean(), 500))));
             int length = field.size();
             int start = randomIntBetween(0, length - 1);
             int end = randomIntBetween(start, length - 1);
@@ -323,7 +323,7 @@ public class MvSliceTests extends AbstractFunctionTestCase {
         }));
 
         suppliers.add(new TestCaseSupplier(List.of(DataType.CARTESIAN_SHAPE, DataType.INTEGER, DataType.INTEGER), () -> {
-            List<Object> field = randomList(1, 5, () -> new BytesRef(CARTESIAN.asWkt(ShapeTestUtils.randomGeometry(randomBoolean()))));
+            var field = randomList(1, 5, () -> new BytesRef(CARTESIAN.asWkt(GeometryTestUtils.randomGeometry(randomBoolean(), 500))));
             int length = field.size();
             int start = randomIntBetween(0, length - 1);
             int end = randomIntBetween(start, length - 1);

@@ -28,15 +28,6 @@ import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
-import org.apache.lucene.queries.function.FunctionQuery;
-import org.apache.lucene.queries.function.valuesource.ByteKnnVectorFieldSource;
-import org.apache.lucene.queries.function.valuesource.ByteVectorSimilarityFunction;
-import org.apache.lucene.queries.function.valuesource.ConstKnnByteVectorValueSource;
-import org.apache.lucene.queries.function.valuesource.ConstKnnFloatValueSource;
-import org.apache.lucene.queries.function.valuesource.FloatKnnVectorFieldSource;
-import org.apache.lucene.queries.function.valuesource.FloatVectorSimilarityFunction;
-import org.apache.lucene.search.BooleanClause;
-import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.BitSetProducer;
@@ -67,6 +58,7 @@ import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
+import org.elasticsearch.search.vectors.DenseVectorQuery;
 import org.elasticsearch.search.vectors.ESDiversifyingChildrenByteKnnVectorQuery;
 import org.elasticsearch.search.vectors.ESDiversifyingChildrenFloatKnnVectorQuery;
 import org.elasticsearch.search.vectors.ESKnnByteVectorQuery;
@@ -253,9 +245,9 @@ public class DenseVectorFieldMapper extends FieldMapper {
         @Override
         public DenseVectorFieldMapper build(MapperBuilderContext context) {
             return new DenseVectorFieldMapper(
-                name(),
+                leafName(),
                 new DenseVectorFieldType(
-                    context.buildFullName(name()),
+                    context.buildFullName(leafName()),
                     indexVersionCreated,
                     elementType.getValue(),
                     dims.getValue(),
@@ -1484,19 +1476,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 float squaredMagnitude = VectorUtil.dotProduct(queryVector, queryVector);
                 elementType.checkVectorMagnitude(similarity, ElementType.errorByteElementsAppender(queryVector), squaredMagnitude);
             }
-            VectorSimilarityFunction vectorSimilarityFunction = similarity.vectorSimilarityFunction(indexVersionCreated, elementType);
-            return new BooleanQuery.Builder().add(new FieldExistsQuery(name()), BooleanClause.Occur.FILTER)
-                .add(
-                    new FunctionQuery(
-                        new ByteVectorSimilarityFunction(
-                            vectorSimilarityFunction,
-                            new ByteKnnVectorFieldSource(name()),
-                            new ConstKnnByteVectorValueSource(queryVector)
-                        )
-                    ),
-                    BooleanClause.Occur.SHOULD
-                )
-                .build();
+            return new DenseVectorQuery.Bytes(queryVector, name());
         }
 
         private Query createExactKnnFloatQuery(float[] queryVector) {
@@ -1519,19 +1499,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     }
                 }
             }
-            VectorSimilarityFunction vectorSimilarityFunction = similarity.vectorSimilarityFunction(indexVersionCreated, elementType);
-            return new BooleanQuery.Builder().add(new FieldExistsQuery(name()), BooleanClause.Occur.FILTER)
-                .add(
-                    new FunctionQuery(
-                        new FloatVectorSimilarityFunction(
-                            vectorSimilarityFunction,
-                            new FloatKnnVectorFieldSource(name()),
-                            new ConstKnnFloatValueSource(queryVector)
-                        )
-                    ),
-                    BooleanClause.Occur.SHOULD
-                )
-                .build();
+            return new DenseVectorQuery.Floats(queryVector, name());
         }
 
         Query createKnnQuery(float[] queryVector, int numCands, Query filter, Float similarityThreshold, BitSetProducer parentFilter) {
@@ -1698,7 +1666,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 fieldType().meta()
             );
             Mapper update = new DenseVectorFieldMapper(
-                simpleName(),
+                leafName(),
                 updatedDenseVectorFieldType,
                 indexOptions,
                 indexCreatedVersion,
@@ -1789,7 +1757,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(simpleName(), indexCreatedVersion).init(this);
+        return new Builder(leafName(), indexCreatedVersion).init(this);
     }
 
     private static IndexOptions parseIndexOptions(String fieldName, Object propNode) {
@@ -1915,7 +1883,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             if (hasMagnitude) {
                 magnitude = Float.intBitsToFloat((int) magnitudeReader.longValue());
             }
-            b.startArray(simpleName());
+            b.startArray(leafName());
             if (values != null) {
                 for (float v : values.vectorValue()) {
                     if (hasMagnitude) {
@@ -1975,7 +1943,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             if (false == hasValue) {
                 return;
             }
-            b.startArray(simpleName());
+            b.startArray(leafName());
             BytesRef ref = values.binaryValue();
             ByteBuffer byteBuffer = ByteBuffer.wrap(ref.bytes, ref.offset, ref.length);
             if (indexCreatedVersion.onOrAfter(LITTLE_ENDIAN_FLOAT_STORED_INDEX_VERSION)) {

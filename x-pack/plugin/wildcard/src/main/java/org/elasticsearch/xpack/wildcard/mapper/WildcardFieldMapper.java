@@ -238,8 +238,14 @@ public class WildcardFieldMapper extends FieldMapper {
         @Override
         public WildcardFieldMapper build(MapperBuilderContext context) {
             return new WildcardFieldMapper(
-                name(),
-                new WildcardFieldType(context.buildFullName(name()), nullValue.get(), ignoreAbove.get(), indexVersionCreated, meta.get()),
+                leafName(),
+                new WildcardFieldType(
+                    context.buildFullName(leafName()),
+                    nullValue.get(),
+                    ignoreAbove.get(),
+                    indexVersionCreated,
+                    meta.get()
+                ),
                 ignoreAbove.get(),
                 context.isSourceSynthetic(),
                 multiFieldsBuilder.build(this, context),
@@ -982,7 +988,7 @@ public class WildcardFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(simpleName(), indexVersionCreated).init(this);
+        return new Builder(leafName(), indexVersionCreated).init(this);
     }
 
     @Override
@@ -1047,10 +1053,10 @@ public class WildcardFieldMapper extends FieldMapper {
                 case 0:
                     return;
                 case 1:
-                    b.field(simpleName());
+                    b.field(leafName());
                     break;
                 default:
-                    b.startArray(simpleName());
+                    b.startArray(leafName());
             }
             for (int i = 0; i < docValueCount; i++) {
                 int length = docValuesStream.readVInt();

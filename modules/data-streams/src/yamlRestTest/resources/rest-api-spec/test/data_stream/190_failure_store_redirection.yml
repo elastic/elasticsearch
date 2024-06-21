@@ -181,7 +181,7 @@ teardown:
   - match: { data_streams.0.indices.0.index_name: '/\.ds-logs-foobar-(\d{4}\.\d{2}\.\d{2}-)?000001/' }
   - match: { data_streams.0.failure_store.enabled: true }
   - length: { data_streams.0.failure_store.indices: 1 }
-  - match: { data_streams.0.failure_store.indices.0.index_name: '/\.fs-logs-foobar-(\d{4}\.\d{2}\.\d{2}-)?000001/' }
+  - match: { data_streams.0.failure_store.indices.0.index_name: '/\.fs-logs-foobar-(\d{4}\.\d{2}\.\d{2}-)?000002/' }
 
   - do:
       search:
@@ -193,7 +193,7 @@ teardown:
       search:
         index: .fs-logs-foobar-*
   - length:   { hits.hits: 1  }
-  - match: { hits.hits.0._index: "/\\.fs-logs-foobar-(\\d{4}\\.\\d{2}\\.\\d{2}-)?000001/" }
+  - match: { hits.hits.0._index: "/\\.fs-logs-foobar-(\\d{4}\\.\\d{2}\\.\\d{2}-)?000002/" }
   - exists: hits.hits.0._source.@timestamp
   - not_exists: hits.hits.0._source.count
   - match: { hits.hits.0._source.document.index: 'logs-foobar' }

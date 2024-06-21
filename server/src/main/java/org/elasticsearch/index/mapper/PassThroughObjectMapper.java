@@ -77,11 +77,11 @@ public class PassThroughObjectMapper extends ObjectMapper {
         @Override
         public PassThroughObjectMapper build(MapperBuilderContext context) {
             return new PassThroughObjectMapper(
-                name(),
-                context.buildFullName(name()),
+                leafName(),
+                context.buildFullName(leafName()),
                 enabled,
                 dynamic,
-                buildMappers(context.createChildContext(name(), timeSeriesDimensionSubFields.value(), dynamic)),
+                buildMappers(context.createChildContext(leafName(), timeSeriesDimensionSubFields.value(), dynamic)),
                 timeSeriesDimensionSubFields,
                 priority
             );

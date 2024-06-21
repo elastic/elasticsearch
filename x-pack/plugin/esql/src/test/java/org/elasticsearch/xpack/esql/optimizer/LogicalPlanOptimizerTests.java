@@ -205,16 +205,16 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
     private static EnrichResolution enrichResolution;
     private static final LiteralsOnTheRight LITERALS_ON_THE_RIGHT = new LiteralsOnTheRight();
 
-    private static class SubstitutionOnlyOptimizer extends LogicalPlanOptimizer {
-        static SubstitutionOnlyOptimizer INSTANCE = new SubstitutionOnlyOptimizer(new LogicalOptimizerContext(EsqlTestUtils.TEST_CFG));
+    private static class TransformStatsOnlyOptimizer extends LogicalPlanOptimizer {
+        static TransformStatsOnlyOptimizer INSTANCE = new TransformStatsOnlyOptimizer(new LogicalOptimizerContext(EsqlTestUtils.TEST_CFG));
 
-        SubstitutionOnlyOptimizer(LogicalOptimizerContext optimizerContext) {
+        TransformStatsOnlyOptimizer(LogicalOptimizerContext optimizerContext) {
             super(optimizerContext);
         }
 
         @Override
         protected List<Batch<LogicalPlan>> batches() {
-            return List.of(substitutions());
+            return List.of(transformStats());
         }
     }
 
@@ -3759,7 +3759,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
                     s_null = count(null)
                     by w = emp_no % 2
             | keep s, s_expr, s_null, w
-            """, SubstitutionOnlyOptimizer.INSTANCE);
+            """, TransformStatsOnlyOptimizer.INSTANCE);
 
         var limit = as(plan, Limit.class);
         var esqlProject = as(limit.child(), EsqlProject.class);
@@ -3829,7 +3829,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
                     s_null = sum(null)
                     by w = emp_no % 2
             | keep s, s_expr, s_null, w
-            """, SubstitutionOnlyOptimizer.INSTANCE);
+            """, TransformStatsOnlyOptimizer.INSTANCE);
 
         var limit = as(plan, Limit.class);
         var esqlProject = as(limit.child(), EsqlProject.class);
@@ -3934,7 +3934,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             );
             String query = LoggerMessageFormat.format(null, queryWithoutValues, "[1,2]", "314.0/100", "null");
 
-            var plan = plan(query, SubstitutionOnlyOptimizer.INSTANCE);
+            var plan = plan(query, TransformStatsOnlyOptimizer.INSTANCE);
 
             var limit = as(plan, Limit.class);
             var esqlProject = as(limit.child(), EsqlProject.class);
@@ -3980,7 +3980,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             );
             String query = LoggerMessageFormat.format(null, queryWithoutValues, "[1,2]", "314.0/100", "null");
 
-            var plan = plan(query, SubstitutionOnlyOptimizer.INSTANCE);
+            var plan = plan(query, TransformStatsOnlyOptimizer.INSTANCE);
 
             var limit = as(plan, Limit.class);
             var esqlProject = as(limit.child(), EsqlProject.class);

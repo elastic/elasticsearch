@@ -158,7 +158,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
                 parseUnsignedLong(o); // confirm that null_value is a proper unsigned_long
                 return (o instanceof BytesRef) ? ((BytesRef) o).utf8ToString() : o.toString();
             } catch (Exception e) {
-                throw new MapperParsingException("Error parsing [null_value] on field [" + name() + "]: " + e.getMessage(), e);
+                throw new MapperParsingException("Error parsing [null_value] on field [" + leafName() + "]: " + e.getMessage(), e);
             }
         }
 
@@ -200,7 +200,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
                 dimension.setValue(true);
             }
             UnsignedLongFieldType fieldType = new UnsignedLongFieldType(
-                context.buildFullName(name()),
+                context.buildFullName(leafName()),
                 indexed.getValue(),
                 stored.getValue(),
                 hasDocValues.getValue(),
@@ -211,7 +211,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
                 indexMode
             );
             return new UnsignedLongFieldMapper(
-                name(),
+                leafName(),
                 fieldType,
                 multiFieldsBuilder.build(this, context),
                 copyTo,

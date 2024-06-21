@@ -151,8 +151,8 @@ public final class FieldAliasMapper extends Mapper {
 
         @Override
         public FieldAliasMapper build(MapperBuilderContext context) {
-            String fullName = context.buildFullName(name());
-            return new FieldAliasMapper(name(), fullName, path);
+            String fullName = context.buildFullName(leafName());
+            return new FieldAliasMapper(leafName(), fullName, path);
         }
     }
 

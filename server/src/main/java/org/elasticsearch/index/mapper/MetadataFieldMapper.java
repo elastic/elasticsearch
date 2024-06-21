@@ -188,7 +188,7 @@ public abstract class MetadataFieldMapper extends FieldMapper {
         if (mergeBuilder == null || mergeBuilder.isConfigured() == false) {
             return builder;
         }
-        builder.startObject(simpleName());
+        builder.startObject(leafName());
         getMergeBuilder().toXContent(builder, params);
         return builder.endObject();
     }

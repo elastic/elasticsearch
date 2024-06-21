@@ -284,7 +284,7 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
     @Override
     public FieldMapper.Builder getMergeBuilder() {
         return new Builder(
-            simpleName(),
+            leafName(),
             builder.scriptCompiler,
             builder.ignoreMalformed.getDefaultValue().value(),
             indexCreatedVersion,
@@ -636,7 +636,7 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
                 "field [" + name() + "] of type [" + typeName() + "] doesn't support synthetic source because it declares copy_to"
             );
         }
-        return new SortedNumericDocValuesSyntheticFieldLoader(name(), simpleName(), ignoreMalformed()) {
+        return new SortedNumericDocValuesSyntheticFieldLoader(name(), leafName(), ignoreMalformed()) {
             final GeoPoint point = new GeoPoint();
 
             @Override

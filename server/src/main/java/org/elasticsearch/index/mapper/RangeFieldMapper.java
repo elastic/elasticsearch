@@ -364,7 +364,7 @@ public class RangeFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(simpleName(), type, coerceByDefault).init(this);
+        return new Builder(leafName(), type, coerceByDefault).init(this);
     }
 
     @Override
@@ -488,11 +488,11 @@ public class RangeFieldMapper extends FieldMapper {
                     case 0:
                         return;
                     case 1:
-                        b.field(simpleName());
+                        b.field(leafName());
                         ranges.get(0).toXContent(b, fieldType().dateTimeFormatter);
                         break;
                     default:
-                        b.startArray(simpleName());
+                        b.startArray(leafName());
                         for (var range : ranges) {
                             range.toXContent(b, fieldType().dateTimeFormatter);
                         }

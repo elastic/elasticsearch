@@ -1265,7 +1265,7 @@ public final class TextFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(simpleName(), indexCreatedVersion, indexAnalyzers, isSyntheticSourceEnabledViaIndexMode).init(this);
+        return new Builder(leafName(), indexCreatedVersion, indexAnalyzers, isSyntheticSourceEnabledViaIndexMode).init(this);
     }
 
     @Override
@@ -1459,7 +1459,7 @@ public final class TextFieldMapper extends FieldMapper {
             );
         }
         if (store) {
-            return new StringStoredFieldFieldLoader(name(), simpleName(), null) {
+            return new StringStoredFieldFieldLoader(name(), leafName(), null) {
                 @Override
                 protected void write(XContentBuilder b, Object value) throws IOException {
                     b.value((String) value);
@@ -1469,7 +1469,7 @@ public final class TextFieldMapper extends FieldMapper {
 
         var kwd = SyntheticSourceHelper.getKeywordFieldMapperForSyntheticSource(this);
         if (kwd != null) {
-            return kwd.syntheticFieldLoader(simpleName());
+            return kwd.syntheticFieldLoader(leafName());
         }
 
         throw new IllegalArgumentException(

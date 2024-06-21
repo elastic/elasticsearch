@@ -138,7 +138,7 @@ public class HistogramFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(simpleName(), ignoreMalformedByDefault).init(this);
+        return new Builder(leafName(), ignoreMalformedByDefault).init(this);
     }
 
     @Override
@@ -289,7 +289,7 @@ public class HistogramFieldMapper extends FieldMapper {
 
     @Override
     public void parse(DocumentParserContext context) throws IOException {
-        context.path().add(simpleName());
+        context.path().add(leafName());
 
         boolean shouldStoreMalformedDataForSyntheticSource = context.mappingLookup().isSourceSynthetic() && ignoreMalformed();
         XContentParser.Token token;
@@ -521,7 +521,7 @@ public class HistogramFieldMapper extends FieldMapper {
         }
 
         return new CompositeSyntheticFieldLoader(
-            simpleName(),
+            leafName(),
             name(),
             new HistogramSyntheticFieldLoader(),
             new CompositeSyntheticFieldLoader.MalformedValuesLayer(name())

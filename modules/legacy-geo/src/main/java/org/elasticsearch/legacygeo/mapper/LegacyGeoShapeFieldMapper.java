@@ -610,7 +610,7 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
     @Override
     public FieldMapper.Builder getMergeBuilder() {
         return new Builder(
-            simpleName(),
+            leafName(),
             indexCreatedVersion,
             builder.ignoreMalformed.getDefaultValue().value(),
             builder.coerce.getDefaultValue().value()

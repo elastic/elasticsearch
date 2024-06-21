@@ -161,7 +161,7 @@ public class RootObjectMapper extends ObjectMapper {
     @Override
     RootObjectMapper withoutMappers() {
         return new RootObjectMapper(
-            simpleName(),
+            leafName(),
             enabled,
             subobjects,
             storeArraySource,
@@ -277,7 +277,7 @@ public class RootObjectMapper extends ObjectMapper {
         }
 
         return new RootObjectMapper(
-            simpleName(),
+            leafName(),
             mergeResult.enabled(),
             mergeResult.subObjects(),
             mergeResult.trackArraySource(),

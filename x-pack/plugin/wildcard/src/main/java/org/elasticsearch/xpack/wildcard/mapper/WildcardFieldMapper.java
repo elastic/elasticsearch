@@ -988,7 +988,7 @@ public class WildcardFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(simpleName(), indexVersionCreated).init(this);
+        return new Builder(leafName(), indexVersionCreated).init(this);
     }
 
     @Override
@@ -1053,10 +1053,10 @@ public class WildcardFieldMapper extends FieldMapper {
                 case 0:
                     return;
                 case 1:
-                    b.field(simpleName());
+                    b.field(leafName());
                     break;
                 default:
-                    b.startArray(simpleName());
+                    b.startArray(leafName());
             }
             for (int i = 0; i < docValueCount; i++) {
                 int length = docValuesStream.readVInt();

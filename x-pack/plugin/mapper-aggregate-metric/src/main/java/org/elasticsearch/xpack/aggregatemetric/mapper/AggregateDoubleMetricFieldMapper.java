@@ -588,7 +588,7 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
 
     @Override
     protected void parseCreateField(DocumentParserContext context) throws IOException {
-        context.path().add(simpleName());
+        context.path().add(leafName());
         XContentParser.Token token;
         XContentSubParser subParser = null;
         EnumMap<Metric, Number> metricsParsed = new EnumMap<>(Metric.class);
@@ -707,7 +707,7 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(simpleName(), ignoreMalformedByDefault, indexCreatedVersion, indexMode).metric(metricType).init(this);
+        return new Builder(leafName(), ignoreMalformedByDefault, indexCreatedVersion, indexMode).metric(metricType).init(this);
     }
 
     @Override
@@ -718,9 +718,9 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
     @Override
     public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
         return new CompositeSyntheticFieldLoader(
-            simpleName(),
+            leafName(),
             name(),
-            new AggregateMetricSyntheticFieldLoader(name(), simpleName(), metrics),
+            new AggregateMetricSyntheticFieldLoader(name(), leafName(), metrics),
             new CompositeSyntheticFieldLoader.MalformedValuesLayer(name())
         );
     }

@@ -442,7 +442,7 @@ public class VersionStringFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(simpleName()).init(this);
+        return new Builder(leafName()).init(this);
     }
 
     @Override
@@ -457,7 +457,7 @@ public class VersionStringFieldMapper extends FieldMapper {
                 "field [" + name() + "] of type [" + typeName() + "] doesn't support synthetic source because it declares copy_to"
             );
         }
-        return new SortedSetDocValuesSyntheticFieldLoader(name(), simpleName(), null, false) {
+        return new SortedSetDocValuesSyntheticFieldLoader(name(), leafName(), null, false) {
             @Override
             protected BytesRef convert(BytesRef value) {
                 return VersionEncoder.decodeVersion(value);

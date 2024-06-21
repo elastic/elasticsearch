@@ -194,7 +194,7 @@ public abstract class FieldMapper extends Mapper {
     }
 
     private void doParseMultiFields(DocumentParserContext context) throws IOException {
-        context.path().add(simpleName());
+        context.path().add(leafName());
         for (FieldMapper mapper : multiFields.mappers) {
             mapper.parse(context);
         }
@@ -416,7 +416,7 @@ public abstract class FieldMapper extends Mapper {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(simpleName());
+        builder.startObject(leafName());
         doXContentBody(builder, params);
         return builder.endObject();
     }
@@ -526,7 +526,7 @@ public abstract class FieldMapper extends Mapper {
             }
 
             private void add(FieldMapper mapper) {
-                mapperBuilders.put(mapper.simpleName(), context -> mapper);
+                mapperBuilders.put(mapper.leafName(), context -> mapper);
 
                 if (mapper instanceof KeywordFieldMapper kwd) {
                     if (kwd.hasNormalizer() == false && (kwd.fieldType().hasDocValues() || kwd.fieldType().isStored())) {
@@ -536,12 +536,12 @@ public abstract class FieldMapper extends Mapper {
             }
 
             private void update(FieldMapper toMerge, MapperMergeContext context) {
-                if (mapperBuilders.containsKey(toMerge.simpleName()) == false) {
+                if (mapperBuilders.containsKey(toMerge.leafName()) == false) {
                     if (context.decrementFieldBudgetIfPossible(toMerge.getTotalFieldsCount())) {
                         add(toMerge);
                     }
                 } else {
-                    FieldMapper existing = mapperBuilders.get(toMerge.simpleName()).apply(context.getMapperBuilderContext());
+                    FieldMapper existing = mapperBuilders.get(toMerge.leafName()).apply(context.getMapperBuilderContext());
                     add(existing.merge(toMerge, context));
                 }
             }
@@ -584,7 +584,7 @@ public abstract class FieldMapper extends Mapper {
             if (mappers.length == 0) {
                 return;
             }
-            context.path().add(mainField.simpleName());
+            context.path().add(mainField.leafName());
             for (FieldMapper mapper : mappers) {
                 mapper.parse(multiFieldContextSupplier.get());
             }
@@ -1314,7 +1314,7 @@ public abstract class FieldMapper extends Mapper {
             for (Parameter<?> param : getParameters()) {
                 param.merge(in, conflicts);
             }
-            MapperMergeContext childContext = mapperMergeContext.createChildContext(in.simpleName(), null);
+            MapperMergeContext childContext = mapperMergeContext.createChildContext(in.leafName(), null);
             for (FieldMapper newSubField : in.multiFields.mappers) {
                 multiFieldsBuilder.update(newSubField, childContext);
             }

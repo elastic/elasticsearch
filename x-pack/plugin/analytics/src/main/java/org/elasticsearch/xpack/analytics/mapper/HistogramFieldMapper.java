@@ -97,8 +97,8 @@ public class HistogramFieldMapper extends FieldMapper {
         @Override
         public HistogramFieldMapper build(MapperBuilderContext context) {
             return new HistogramFieldMapper(
-                name(),
-                new HistogramFieldType(context.buildFullName(name()), meta.getValue()),
+                leafName(),
+                new HistogramFieldType(context.buildFullName(leafName()), meta.getValue()),
                 multiFieldsBuilder.build(this, context),
                 copyTo,
                 this

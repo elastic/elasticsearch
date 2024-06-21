@@ -139,7 +139,7 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
                 wrapAnalyzer(analyzers.getSearchQuoteAnalyzer())
             );
             return new AnnotatedTextFieldType(
-                context.buildFullName(name()),
+                context.buildFullName(leafName()),
                 store.getValue(),
                 tsi,
                 context.isSourceSynthetic(),
@@ -158,12 +158,12 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
             if (analyzers.positionIncrementGap.isConfigured()) {
                 if (fieldType.indexOptions().compareTo(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS) < 0) {
                     throw new IllegalArgumentException(
-                        "Cannot set position_increment_gap on field [" + name() + "] without positions enabled"
+                        "Cannot set position_increment_gap on field [" + leafName() + "] without positions enabled"
                     );
                 }
             }
             return new AnnotatedTextFieldMapper(
-                name(),
+                leafName(),
                 fieldType,
                 buildFieldType(fieldType, context, multiFields),
                 multiFields,

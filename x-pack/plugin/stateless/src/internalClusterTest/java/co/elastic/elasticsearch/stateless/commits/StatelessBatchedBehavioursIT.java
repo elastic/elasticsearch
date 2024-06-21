@@ -64,6 +64,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import java.util.stream.IntStream;
 
+import static co.elastic.elasticsearch.stateless.IndexingDiskController.INDEXING_DISK_INTERVAL_TIME_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertExists;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
@@ -99,6 +100,7 @@ public class StatelessBatchedBehavioursIT extends AbstractStatelessIntegTestCase
             Settings.builder()
                 .put(StatelessCommitService.STATELESS_UPLOAD_DELAYED.getKey(), true)
                 .put(StatelessCommitService.STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.getKey(), 2)
+                .put(INDEXING_DISK_INTERVAL_TIME_SETTING.getKey(), -1)
                 .build()
         );
         final String indexName = randomIdentifier();

@@ -100,8 +100,9 @@ public class PercolatorFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(simpleName(), searchExecutionContext, mapUnmappedFieldsAsText, indexCreatedVersion, clusterTransportVersion)
-            .init(this);
+        return new Builder(leafName(), searchExecutionContext, mapUnmappedFieldsAsText, indexCreatedVersion, clusterTransportVersion).init(
+            this
+        );
     }
 
     static class Builder extends FieldMapper.Builder {

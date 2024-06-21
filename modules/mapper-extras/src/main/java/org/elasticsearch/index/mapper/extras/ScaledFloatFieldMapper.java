@@ -511,7 +511,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(simpleName(), ignoreMalformedByDefault, coerceByDefault, indexMode).metric(metricType).init(this);
+        return new Builder(leafName(), ignoreMalformedByDefault, coerceByDefault, indexMode).metric(metricType).init(this);
     }
 
     @Override
@@ -729,7 +729,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
                 "field [" + name() + "] of type [" + typeName() + "] doesn't support synthetic source because it declares copy_to"
             );
         }
-        return new SortedNumericDocValuesSyntheticFieldLoader(name(), simpleName(), ignoreMalformed.value()) {
+        return new SortedNumericDocValuesSyntheticFieldLoader(name(), leafName(), ignoreMalformed.value()) {
             @Override
             protected void writeValue(XContentBuilder b, long value) throws IOException {
                 b.value(decodeForSyntheticSource(value, scalingFactor));

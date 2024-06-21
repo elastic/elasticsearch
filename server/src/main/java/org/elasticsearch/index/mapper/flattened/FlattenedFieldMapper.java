@@ -801,7 +801,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(simpleName()).init(this);
+        return new Builder(leafName()).init(this);
     }
 
     @Override
@@ -815,7 +815,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
             return SourceLoader.SyntheticFieldLoader.NOTHING;
         }
         if (fieldType().hasDocValues()) {
-            return new FlattenedSortedSetDocValuesSyntheticFieldLoader(name() + "._keyed", simpleName());
+            return new FlattenedSortedSetDocValuesSyntheticFieldLoader(name() + "._keyed", leafName());
         }
 
         throw new IllegalArgumentException(

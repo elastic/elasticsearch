@@ -589,7 +589,7 @@ public class IpFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(simpleName(), scriptCompiler, ignoreMalformedByDefault, indexCreatedVersion).dimension(dimension).init(this);
+        return new Builder(leafName(), scriptCompiler, ignoreMalformedByDefault, indexCreatedVersion).dimension(dimension).init(this);
     }
 
     @Override
@@ -621,7 +621,7 @@ public class IpFieldMapper extends FieldMapper {
                 "field [" + name() + "] of type [" + typeName() + "] doesn't support synthetic source because it declares copy_to"
             );
         }
-        return new SortedSetDocValuesSyntheticFieldLoader(name(), simpleName(), null, ignoreMalformed) {
+        return new SortedSetDocValuesSyntheticFieldLoader(name(), leafName(), null, ignoreMalformed) {
             @Override
             protected BytesRef convert(BytesRef value) {
                 byte[] bytes = Arrays.copyOfRange(value.bytes, value.offset, value.offset + value.length);

@@ -995,8 +995,7 @@ public final class KeywordFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(simpleName(), indexAnalyzers, scriptCompiler, indexCreatedVersion).dimension(fieldType().isDimension())
-            .init(this);
+        return new Builder(leafName(), indexAnalyzers, scriptCompiler, indexCreatedVersion).dimension(fieldType().isDimension()).init(this);
     }
 
     @Override
@@ -1028,7 +1027,7 @@ public final class KeywordFieldMapper extends FieldMapper {
 
     @Override
     public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
-        return syntheticFieldLoader(simpleName());
+        return syntheticFieldLoader(leafName());
     }
 
     public SourceLoader.SyntheticFieldLoader syntheticFieldLoader(String simpleName) {

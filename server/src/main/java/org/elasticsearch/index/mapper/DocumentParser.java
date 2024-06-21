@@ -295,7 +295,7 @@ public final class DocumentParser {
                 context.addIgnoredField(
                     new IgnoredSourceFieldMapper.NameValue(
                         context.parent().name(),
-                        context.parent().fullPath().indexOf(context.parent().simpleName()),
+                        context.parent().fullPath().indexOf(context.parent().leafName()),
                         XContentDataHelper.encodeXContentBuilder(tuple.v2()),
                         context.doc()
                     )
@@ -429,7 +429,7 @@ public final class DocumentParser {
         } else if (mapper instanceof FieldMapper fieldMapper) {
             if (shouldFlattenObject(context, fieldMapper)) {
                 // we pass the mapper's simpleName as parentName to the new DocumentParserContext
-                String currentFieldName = fieldMapper.simpleName();
+                String currentFieldName = fieldMapper.leafName();
                 context.path().remove();
                 parseObjectOrNested(context.createFlattenContext(currentFieldName));
                 context.path().add(currentFieldName);
@@ -562,7 +562,7 @@ public final class DocumentParser {
                     throw new DocumentParsingException(
                         context.parser().getTokenLocation(),
                         "Tried to add nested object ["
-                            + dynamicObjectMapper.simpleName()
+                            + dynamicObjectMapper.leafName()
                             + "] to object ["
                             + context.parent().name()
                             + "] which does not support subobjects"

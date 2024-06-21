@@ -114,7 +114,7 @@ public class MappingLookupInferenceFieldMapperTests extends MapperServiceTestCas
 
         @Override
         public Builder getMergeBuilder() {
-            return new Builder(simpleName());
+            return new Builder(leafName());
         }
 
         @Override

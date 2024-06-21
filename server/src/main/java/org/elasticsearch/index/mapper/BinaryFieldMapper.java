@@ -192,7 +192,7 @@ public class BinaryFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new BinaryFieldMapper.Builder(simpleName(), isSyntheticSourceEnabledViaIndexMode).init(this);
+        return new BinaryFieldMapper.Builder(leafName(), isSyntheticSourceEnabledViaIndexMode).init(this);
     }
 
     @Override
@@ -229,10 +229,10 @@ public class BinaryFieldMapper extends FieldMapper {
                     case 0:
                         return;
                     case 1:
-                        b.field(simpleName());
+                        b.field(leafName());
                         break;
                     default:
-                        b.startArray(simpleName());
+                        b.startArray(leafName());
                 }
 
                 for (int i = 0; i < count; i++) {

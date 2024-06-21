@@ -249,7 +249,7 @@ public final class ParentJoinFieldMapper extends FieldMapper {
 
     @Override
     public void parse(DocumentParserContext context) throws IOException {
-        context.path().add(simpleName());
+        context.path().add(leafName());
         XContentParser.Token token = context.parser().currentToken();
         String name = null;
         String parent = null;
@@ -329,7 +329,7 @@ public final class ParentJoinFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(simpleName()).init(this);
+        return new Builder(leafName()).init(this);
     }
 
     @Override

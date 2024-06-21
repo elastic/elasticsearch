@@ -564,7 +564,7 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
     @Override
     public FieldMapper.Builder getMergeBuilder() {
         return new Builder(
-            simpleName(),
+            leafName(),
             builder.indexCreatedVersion,
             builder.analyzers.indexAnalyzers,
             builder.isSyntheticSourceEnabledViaIndexMode
@@ -584,7 +584,7 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
             );
         }
         if (fieldType.stored()) {
-            return new StringStoredFieldFieldLoader(name(), simpleName(), null) {
+            return new StringStoredFieldFieldLoader(name(), leafName(), null) {
                 @Override
                 protected void write(XContentBuilder b, Object value) throws IOException {
                     b.value((String) value);
@@ -594,7 +594,7 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
 
         var kwd = TextFieldMapper.SyntheticSourceHelper.getKeywordFieldMapperForSyntheticSource(this);
         if (kwd != null) {
-            return kwd.syntheticFieldLoader(simpleName());
+            return kwd.syntheticFieldLoader(leafName());
         }
 
         throw new IllegalArgumentException(

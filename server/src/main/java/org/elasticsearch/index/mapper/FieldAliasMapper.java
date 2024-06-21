@@ -71,7 +71,7 @@ public final class FieldAliasMapper extends Mapper {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return builder.startObject(simpleName()).field("type", CONTENT_TYPE).field(Names.PATH, path).endObject();
+        return builder.startObject(leafName()).field("type", CONTENT_TYPE).field(Names.PATH, path).endObject();
     }
 
     @Override

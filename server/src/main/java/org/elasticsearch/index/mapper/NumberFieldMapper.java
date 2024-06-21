@@ -1970,7 +1970,7 @@ public class NumberFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(simpleName(), type, scriptCompiler, ignoreMalformedByDefault, coerceByDefault, indexCreatedVersion, indexMode)
+        return new Builder(leafName(), type, scriptCompiler, ignoreMalformedByDefault, coerceByDefault, indexCreatedVersion, indexMode)
             .dimension(dimension)
             .metric(metricType)
             .allowMultipleValues(allowMultipleValues)
@@ -2006,7 +2006,7 @@ public class NumberFieldMapper extends FieldMapper {
                 "field [" + name() + "] of type [" + typeName() + "] doesn't support synthetic source because it declares copy_to"
             );
         }
-        return type.syntheticFieldLoader(name(), simpleName(), ignoreMalformed.value());
+        return type.syntheticFieldLoader(name(), leafName(), ignoreMalformed.value());
     }
 
     // For testing only:

@@ -137,7 +137,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
             super.merge(mergeWith, conflicts, mapperMergeContext);
             conflicts.check();
             var semanticMergeWith = (SemanticTextFieldMapper) mergeWith;
-            var context = mapperMergeContext.createChildContext(mergeWith.simpleName(), ObjectMapper.Dynamic.FALSE);
+            var context = mapperMergeContext.createChildContext(mergeWith.leafName(), ObjectMapper.Dynamic.FALSE);
             var inferenceField = inferenceFieldBuilder.apply(context.getMapperBuilderContext());
             var mergedInferenceField = inferenceField.merge(semanticMergeWith.fieldType().getInferenceField(), context);
             inferenceFieldBuilder = c -> mergedInferenceField;
@@ -182,7 +182,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(simpleName(), fieldType().indexVersionCreated, fieldType().getChunksField().bitsetProducer()).init(this);
+        return new Builder(leafName(), fieldType().indexVersionCreated, fieldType().getChunksField().bitsetProducer()).init(this);
     }
 
     @Override
@@ -221,7 +221,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
         if (fieldType().getModelSettings() == null) {
             context.path().remove();
             Builder builder = (Builder) new Builder(
-                simpleName(),
+                leafName(),
                 fieldType().indexVersionCreated,
                 fieldType().getChunksField().bitsetProducer()
             ).init(this);
@@ -231,7 +231,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                     .build(context.createDynamicMapperBuilderContext());
                 context.addDynamicMapper(mapper);
             } finally {
-                context.path().add(simpleName());
+                context.path().add(leafName());
             }
         } else {
             Conflicts conflicts = new Conflicts(fullFieldName);

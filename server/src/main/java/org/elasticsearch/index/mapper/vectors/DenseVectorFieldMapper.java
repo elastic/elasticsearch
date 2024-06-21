@@ -1666,7 +1666,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 fieldType().meta()
             );
             Mapper update = new DenseVectorFieldMapper(
-                simpleName(),
+                leafName(),
                 updatedDenseVectorFieldType,
                 indexOptions,
                 indexCreatedVersion,
@@ -1757,7 +1757,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(simpleName(), indexCreatedVersion).init(this);
+        return new Builder(leafName(), indexCreatedVersion).init(this);
     }
 
     private static IndexOptions parseIndexOptions(String fieldName, Object propNode) {
@@ -1883,7 +1883,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             if (hasMagnitude) {
                 magnitude = Float.intBitsToFloat((int) magnitudeReader.longValue());
             }
-            b.startArray(simpleName());
+            b.startArray(leafName());
             if (values != null) {
                 for (float v : values.vectorValue()) {
                     if (hasMagnitude) {
@@ -1943,7 +1943,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             if (false == hasValue) {
                 return;
             }
-            b.startArray(simpleName());
+            b.startArray(leafName());
             BytesRef ref = values.binaryValue();
             ByteBuffer byteBuffer = ByteBuffer.wrap(ref.bytes, ref.offset, ref.length);
             if (indexCreatedVersion.onOrAfter(LITTLE_ENDIAN_FLOAT_STORED_INDEX_VERSION)) {

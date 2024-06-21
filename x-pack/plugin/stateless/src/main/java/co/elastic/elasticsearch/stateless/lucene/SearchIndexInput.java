@@ -28,6 +28,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.blobcache.BlobCacheUtils;
 import org.elasticsearch.blobcache.common.BlobCacheBufferedIndexInput;
 import org.elasticsearch.blobcache.common.ByteBufferReference;
@@ -36,6 +37,7 @@ import org.elasticsearch.blobcache.shared.SharedBytes;
 import org.elasticsearch.core.Streams;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
@@ -141,8 +143,10 @@ public final class SearchIndexInput extends BlobCacheBufferedIndexInput {
         }
         try {
             readInternalSlow(b, position, length);
-        } catch (NoSuchFileException ex) {
-            logger.warn(() -> this + " did not find file", ex); // includes the file name of the SearchIndexInput
+        } catch (Exception ex) {
+            if (ExceptionsHelper.unwrap(ex, FileNotFoundException.class, NoSuchFileException.class) != null) {
+                logger.warn(() -> this + " did not find file", ex); // includes the file name of the SearchIndexInput
+            }
             throw ex;
         }
     }

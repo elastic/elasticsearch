@@ -8,12 +8,8 @@ package org.elasticsearch.xpack.esql.type;
 
 import org.elasticsearch.xpack.esql.core.type.DataType;
 
-import java.util.Collections;
 import java.util.Locale;
-import java.util.Map;
 
-import static java.util.stream.Collectors.toMap;
-import static java.util.stream.Collectors.toUnmodifiableMap;
 import static org.elasticsearch.xpack.esql.core.type.DataType.BYTE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_PERIOD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.FLOAT;
@@ -31,10 +27,6 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.UNSUPPORTED;
 import static org.elasticsearch.xpack.esql.core.type.DataType.isNull;
 
 public final class EsqlDataTypes {
-
-    private static final Map<String, DataType> NAME_TO_TYPE = DataType.types()
-        .stream()
-        .collect(toUnmodifiableMap(DataType::typeName, t -> t));
 
     private EsqlDataTypes() {}
 

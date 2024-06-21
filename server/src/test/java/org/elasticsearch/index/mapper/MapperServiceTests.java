@@ -273,7 +273,7 @@ public class MapperServiceTests extends MapperServiceTestCase {
 
         DocumentMapper documentMapper = mapperService.merge("_doc", mapping, MergeReason.MAPPING_RECOVERY);
 
-        assertEquals(testString, documentMapper.mappers().getMapper(testString).simpleName());
+        assertEquals(testString, documentMapper.mappers().getMapper(testString).leafName());
     }
 
     public void testIsMetadataField() throws IOException {

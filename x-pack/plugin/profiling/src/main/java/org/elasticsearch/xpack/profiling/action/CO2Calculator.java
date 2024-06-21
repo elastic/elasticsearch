@@ -82,6 +82,7 @@ final class CO2Calculator {
             logger.warning("Host or host architecture is null for host: " + host);
             return DEFAULT_KILOWATTS_PER_CORE;
         }
+
         return switch (host.hostArchitecture) {
             // For OTEL semantic conventions, "arm64" and "amd64" are reported as the host architecture
             case "arm64", "aarch64" -> customKilowattsPerCoreARM64;

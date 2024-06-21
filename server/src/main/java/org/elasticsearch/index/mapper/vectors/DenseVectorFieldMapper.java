@@ -819,6 +819,17 @@ public class DenseVectorFieldMapper extends FieldMapper {
                                 + "];"
                         );
                     }
+                    if (index >= vector.length) {
+                        throw new IllegalArgumentException(
+                            "The number of dimensions for field ["
+                                + fieldMapper.fieldType().name()
+                                + "] should be ["
+                                + fieldMapper.fieldType().dims
+                                + "] but found ["
+                                + (index + 1) * Byte.SIZE
+                                + "]"
+                        );
+                    }
                     vector[index++] = (byte) value;
                 }
                 fieldMapper.checkDimensionMatches(index * Byte.SIZE, context);

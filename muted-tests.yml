@@ -10,6 +10,9 @@ tests:
 - class: "org.elasticsearch.xpack.esql.EsqlAsyncSecurityIT"
   issue: "https://github.com/elastic/elasticsearch/issues/109806"
   method: "testInsufficientPrivilege"
+- class: "org.elasticsearch.action.admin.indices.rollover.RolloverIT"
+  issue: "https://github.com/elastic/elasticsearch/issues/110034"
+  method: "testRolloverWithClosedWriteIndex"
 
 # Examples:
 #

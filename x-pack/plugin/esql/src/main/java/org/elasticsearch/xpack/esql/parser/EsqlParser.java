@@ -114,18 +114,17 @@ public class EsqlParser {
      * with actual values.
      */
     private static class ParametrizedTokenSource implements TokenSource {
-
-        private TokenSource delegate;
-        private int param;
-        private QueryParams params;
-        private BitSet paramTypes = new BitSet(3);
         private static String message = "Inconsistent parameter declaration, "
             + "use one of positional, named or anonymous params but not a combination of ";
+
+        private TokenSource delegate;
+        private QueryParams params;
+        private BitSet paramTypes = new BitSet(3);
+        private int param = 1;
 
         ParametrizedTokenSource(TokenSource delegate, QueryParams params) {
             this.delegate = delegate;
             this.params = params;
-            param = 0;
         }
 
         @Override
@@ -133,7 +132,7 @@ public class EsqlParser {
             Token token = delegate.nextToken();
             if (token.getType() == EsqlBaseLexer.PARAM) {
                 checkAnonymousParam(token);
-                if (param >= params.size()) {
+                if (param > params.size()) {
                     throw new ParsingException(source(token), "Not enough actual parameters {}", params.size());
                 }
                 params.addTokenParam(token, params.get(param));

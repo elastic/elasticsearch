@@ -22,6 +22,4 @@ dependencies {
 
   testImplementation(testArtifact(project(xpackModule('core'))))
   testImplementation project(path: xpackModule('inference'))
-
-  clusterModules project(xpackModule('rank-text-similarity'))
 }

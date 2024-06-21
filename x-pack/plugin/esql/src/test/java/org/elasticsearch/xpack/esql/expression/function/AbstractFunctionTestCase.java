@@ -53,6 +53,8 @@ import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
+import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Greatest;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.AbstractMultivalueFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
@@ -103,6 +105,7 @@ import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
@@ -209,6 +212,41 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     /**
      * Build an {@link Expression} where all inputs are field references,
      * <strong>except</strong> those that have been marked with {@link TestCaseSupplier.TypedData#forceLiteral()}.
+     * <p>Test is ignored if the expression is an aggregation.</p>
+     */
+    protected final Expression buildFieldEvaluableExpression(TestCaseSupplier.TestCase testCase) {
+        var expression = resolveSurrogates(buildFieldExpression(testCase));
+
+        assumeFalse("Resolved expression is not an evaluable function", expression instanceof AggregateFunction);
+
+        return expression;
+    }
+
+    /**
+     * Build an {@link Expression} where all inputs are anonymous functions
+     * that make a copy of the values from a field <strong>except</strong>
+     * those that have been marked with {@link TestCaseSupplier.TypedData#forceLiteral()}.
+     * <p>Test is ignored if the expression is an aggregation.</p>
+     */
+    protected final Expression buildDeepCopyOfFieldEvaluableExpression(TestCaseSupplier.TestCase testCase) {
+        var expression = resolveSurrogates(buildDeepCopyOfFieldExpression(testCase));
+
+        assumeFalse("Resolved expression is not an evaluable function", expression instanceof AggregateFunction);
+
+        return expression;
+    }
+
+    protected final Expression buildLiteralEvaluableExpression(TestCaseSupplier.TestCase testCase) {
+        var expression = resolveSurrogates(buildLiteralExpression(testCase));
+
+        assumeFalse("Resolved expression is not an evaluable function", expression instanceof AggregateFunction);
+
+        return expression;
+    }
+
+    /**
+     * Build an {@link Expression} where all inputs are field references,
+     * <strong>except</strong> those that have been marked with {@link TestCaseSupplier.TypedData#forceLiteral()}.
      */
     protected final Expression buildFieldExpression(TestCaseSupplier.TestCase testCase) {
         return build(testCase.getSource(), testCase.getDataAsFields());
@@ -224,7 +262,36 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     }
 
     protected final Expression buildLiteralExpression(TestCaseSupplier.TestCase testCase) {
+        assumeTrue("Data can't be converted to literals", testCase.canGetDataAsLiterals());
         return build(testCase.getSource(), testCase.getDataAsLiterals());
+    }
+
+    /**
+     * Resolves surrogates of aggregations until a non-surrogate expression is found.
+     * No-op on non-aggregations.
+     */
+    private Expression resolveSurrogates(Expression expression) {
+        if (isAggregation() == false) {
+            return expression;
+        }
+
+        for (int i = 0;; i++) {
+            assertThat("Potential infinite loop detected in surrogates", i, lessThan(10));
+
+            if (expression instanceof SurrogateExpression == false) {
+                break;
+            }
+
+            var surrogate = ((SurrogateExpression) expression).surrogate();
+
+            if (surrogate == null) {
+                break;
+            }
+
+            expression = surrogate;
+        }
+
+        return expression;
     }
 
     /**
@@ -249,24 +316,20 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         return new Page(1, BlockUtils.fromListRow(TestBlockFactory.getNonBreakingInstance(), values));
     }
 
-    protected final Page rows(List<Stream<Object>> values) {
-        var listOfColumns = values.stream()
-            .map(Stream::toList)
-            .toList();
-
-        if (listOfColumns.isEmpty()) {
+    protected final Page rows(List<List<Object>> values) {
+        if (values.isEmpty()) {
             return new Page(0, BlockUtils.NO_BLOCKS);
         }
 
-        var rowsCount = listOfColumns.get(0).size();
+        var rowsCount = values.get(0).size();
 
-        listOfColumns.stream().skip(1)
+        values.stream().skip(1)
             .forEach(l -> assertThat("All multi-row fields must have the same number of rows", l, hasSize(rowsCount)));
 
         var rows = new ArrayList<List<Object>>();
         for (int i = 0; i < rowsCount; i++) {
             final int index = i;
-            rows.add(listOfColumns.stream().map(l -> l.get(index)).toList());
+            rows.add(values.stream().map(l -> l.get(index)).toList());
         }
 
         var blocks = BlockUtils.fromList(TestBlockFactory.getNonBreakingInstance(), rows);
@@ -300,7 +363,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             "Test Values: " + testCase.getData().stream().map(TestCaseSupplier.TypedData::toString).collect(Collectors.joining(","))
         );
         boolean readFloating = randomBoolean();
-        Expression expression = readFloating ? buildDeepCopyOfFieldExpression(testCase) : buildFieldExpression(testCase);
+        Expression expression = readFloating ? buildDeepCopyOfFieldEvaluableExpression(testCase) : buildFieldEvaluableExpression(testCase);
         if (testCase.getExpectedTypeError() != null) {
             assertTypeResolutionFailure(expression);
             return;
@@ -409,7 +472,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     }
 
     private void testEvaluateBlock(BlockFactory inputBlockFactory, DriverContext context, boolean insertNulls) {
-        Expression expression = randomBoolean() ? buildDeepCopyOfFieldExpression(testCase) : buildFieldExpression(testCase);
+        Expression expression = randomBoolean() ? buildDeepCopyOfFieldEvaluableExpression(testCase) : buildFieldEvaluableExpression(testCase);
         if (testCase.getExpectedTypeError() != null) {
             assertTypeResolutionFailure(expression);
             return;
@@ -471,7 +534,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     }
 
     public void testSimpleWithNulls() { // TODO replace this with nulls inserted into the test case like anyNullIsNull
-        Expression expression = buildFieldExpression(testCase);
+        Expression expression = buildFieldEvaluableExpression(testCase);
         if (testCase.getExpectedTypeError() != null) {
             assertTypeResolutionFailure(expression);
             return;
@@ -517,7 +580,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     }
 
     public void testEvaluateInManyThreads() throws ExecutionException, InterruptedException {
-        Expression expression = buildFieldExpression(testCase);
+        Expression expression = buildFieldEvaluableExpression(testCase);
         if (testCase.getExpectedTypeError() != null) {
             assertTypeResolutionFailure(expression);
             return;
@@ -553,7 +616,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     }
 
     public void testEvaluatorToString() {
-        Expression expression = buildFieldExpression(testCase);
+        Expression expression = buildFieldEvaluableExpression(testCase);
         if (testCase.getExpectedTypeError() != null) {
             assertTypeResolutionFailure(expression);
             return;
@@ -566,18 +629,18 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     }
 
     public void testFactoryToString() {
-        Expression expression = buildFieldExpression(testCase);
+        Expression expression = buildFieldEvaluableExpression(testCase);
         if (testCase.getExpectedTypeError() != null) {
             assertTypeResolutionFailure(expression);
             return;
         }
         assumeTrue("Can't build evaluator", testCase.canBuildEvaluator());
-        var factory = evaluator(buildFieldExpression(testCase));
+        var factory = evaluator(buildFieldEvaluableExpression(testCase));
         assertThat(factory.toString(), testCase.evaluatorToString());
     }
 
     public void testFold() {
-        Expression expression = buildLiteralExpression(testCase);
+        Expression expression = buildLiteralEvaluableExpression(testCase);
         if (testCase.getExpectedTypeError() != null) {
             assertTypeResolutionFailure(expression);
             return;
@@ -700,13 +763,8 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                     System.arraycopy(bytesRef.bytes, bytesRef.offset, newBytesArray, offset, bytesRef.length);
 
                     var newBytesRef = new BytesRef(newBytesArray, offset, bytesRef.length);
-                    var newTypedData = new TestCaseSupplier.TypedData(newBytesRef, typedData.type(), typedData.name());
 
-                    if (typedData.isForceLiteral()) {
-                        newTypedData.forceLiteral();
-                    }
-
-                    return newTypedData;
+                    return typedData.withData(newBytesRef);
                 }
                 return typedData;
             }).toList();
@@ -751,7 +809,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                     TestCaseSupplier.TestCase oc = original.get();
                     List<TestCaseSupplier.TypedData> data = IntStream.range(0, oc.getData().size()).mapToObj(i -> {
                         TestCaseSupplier.TypedData od = oc.getData().get(i);
-                        return i == finalNullPosition ? od.forceValueToNull() : od;
+                        return i == finalNullPosition ? od.withData(null) : od;
                     }).toList();
                     TestCaseSupplier.TypedData nulledData = oc.getData().get(finalNullPosition);
                     return new TestCaseSupplier.TestCase(
@@ -1493,7 +1551,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             "comment",
             "This is generated by ESQL's AbstractFunctionTestCase. Do no edit it. See ../README.md for how to regenerate it."
         );
-        builder.field("type", "eval"); // TODO aggs in here too
+        builder.field("type", isAggregation() ? "agg" : "eval");
         builder.field("name", name);
         builder.field("description", removeAsciidocLinks(info.description()));
         if (Strings.isNullOrEmpty(info.note()) == false) {
@@ -1685,5 +1743,9 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
      */
     protected static DataType[] strings() {
         return DataType.types().stream().filter(DataType::isString).toArray(DataType[]::new);
+    }
+
+    private static boolean isAggregation() {
+        return AbstractAggregationTestCase.class.isAssignableFrom(getTestClass());
     }
 }

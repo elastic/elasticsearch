@@ -641,6 +641,8 @@ public final class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatc
                         zeroTermsQuery = ZeroTermsQueryOption.NONE;
                     } else if ("all".equalsIgnoreCase(zeroTermsValue)) {
                         zeroTermsQuery = ZeroTermsQueryOption.ALL;
+                    } else if ("remove".equalsIgnoreCase(zeroTermsValue)) {
+                        zeroTermsQuery = ZeroTermsQueryOption.NULL;
                     } else {
                         throw new ParsingException(
                             parser.getTokenLocation(),

@@ -238,8 +238,14 @@ public class WildcardFieldMapper extends FieldMapper {
         @Override
         public WildcardFieldMapper build(MapperBuilderContext context) {
             return new WildcardFieldMapper(
-                name(),
-                new WildcardFieldType(context.buildFullName(name()), nullValue.get(), ignoreAbove.get(), indexVersionCreated, meta.get()),
+                leafName(),
+                new WildcardFieldType(
+                    context.buildFullName(leafName()),
+                    nullValue.get(),
+                    ignoreAbove.get(),
+                    indexVersionCreated,
+                    meta.get()
+                ),
                 ignoreAbove.get(),
                 context.isSourceSynthetic(),
                 multiFieldsBuilder.build(this, context),

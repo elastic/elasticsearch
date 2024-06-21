@@ -38,6 +38,7 @@ import org.elasticsearch.index.search.stats.SearchStats;
 import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.shard.DenseVectorStats;
 import org.elasticsearch.index.shard.DocsStats;
+import org.elasticsearch.index.shard.SparseVectorStats;
 import org.elasticsearch.index.store.StoreStats;
 import org.elasticsearch.index.warmer.WarmerStats;
 import org.elasticsearch.rest.RestRequest;
@@ -253,7 +254,11 @@ public class RestShardsAction extends AbstractCatAction {
         );
         table.addCell(
             "dense_vector.value_count",
-            "alias:dvc,denseVectorCount;default:false;text-align:right;desc:total count of indexed dense vector"
+            "alias:dvc,denseVectorCount;default:false;text-align:right;desc:number of indexed dense vectors in shard"
+        );
+        table.addCell(
+            "sparse_vector.value_count",
+            "alias:svc,sparseVectorCount;default:false;text-align:right;desc:number of indexed sparse vectors in shard"
         );
 
         table.endHeaders();
@@ -420,6 +425,7 @@ public class RestShardsAction extends AbstractCatAction {
             table.addCell(getOrNull(commonStats, CommonStats::getBulk, BulkStats::getAvgSizeInBytes));
 
             table.addCell(getOrNull(commonStats, CommonStats::getDenseVectorStats, DenseVectorStats::getValueCount));
+            table.addCell(getOrNull(commonStats, CommonStats::getSparseVectorStats, SparseVectorStats::getValueCount));
 
             table.endRow();
         }

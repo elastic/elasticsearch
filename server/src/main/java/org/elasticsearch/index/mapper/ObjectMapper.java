@@ -188,13 +188,13 @@ public class ObjectMapper extends Mapper {
         @Override
         public ObjectMapper build(MapperBuilderContext context) {
             return new ObjectMapper(
-                name(),
-                context.buildFullName(name()),
+                leafName(),
+                context.buildFullName(leafName()),
                 enabled,
                 subobjects,
                 storeArraySource,
                 dynamic,
-                buildMappers(context.createChildContext(name(), dynamic))
+                buildMappers(context.createChildContext(leafName(), dynamic))
             );
         }
     }
@@ -325,7 +325,7 @@ public class ObjectMapper extends Mapper {
                             "Tried to add nested object ["
                                 + fieldName
                                 + "] to object ["
-                                + objBuilder.name()
+                                + objBuilder.leafName()
                                 + "] which does not support subobjects"
                         );
                     }
@@ -660,7 +660,7 @@ public class ObjectMapper extends Mapper {
         for (Mapper mapper : mappers.values()) {
             if (mapper instanceof FieldMapper fieldMapper) {
                 FieldMapper.Builder fieldBuilder = fieldMapper.getMergeBuilder();
-                fieldBuilder.setName(path.pathAsText(mapper.simpleName()));
+                fieldBuilder.setLeafName(path.pathAsText(mapper.simpleName()));
                 flattenedMappers.add(fieldBuilder.build(context));
             } else if (mapper instanceof ObjectMapper objectMapper) {
                 objectMapper.asFlattenedFieldMappers(context, flattenedMappers, path);
@@ -756,12 +756,16 @@ public class ObjectMapper extends Mapper {
 
     }
 
-    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader(Stream<Mapper> mappers) {
+    protected SourceLoader.SyntheticFieldLoader syntheticFieldLoader(Stream<Mapper> mappers, boolean isFragment) {
         var fields = mappers.sorted(Comparator.comparing(Mapper::name))
             .map(Mapper::syntheticFieldLoader)
             .filter(l -> l != SourceLoader.SyntheticFieldLoader.NOTHING)
             .toList();
-        return new SyntheticSourceFieldLoader(fields);
+        return new SyntheticSourceFieldLoader(fields, isFragment);
+    }
+
+    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader(Stream<Mapper> mappers) {
+        return syntheticFieldLoader(mappers, false);
     }
 
     @Override
@@ -771,11 +775,13 @@ public class ObjectMapper extends Mapper {
 
     private class SyntheticSourceFieldLoader implements SourceLoader.SyntheticFieldLoader {
         private final List<SourceLoader.SyntheticFieldLoader> fields;
+        private final boolean isFragment;
         private boolean hasValue;
         private List<IgnoredSourceFieldMapper.NameValue> ignoredValues;
 
-        private SyntheticSourceFieldLoader(List<SourceLoader.SyntheticFieldLoader> fields) {
+        private SyntheticSourceFieldLoader(List<SourceLoader.SyntheticFieldLoader> fields, boolean isFragment) {
             this.fields = fields;
+            this.isFragment = isFragment;
         }
 
         @Override
@@ -830,18 +836,21 @@ public class ObjectMapper extends Mapper {
             if (hasValue == false) {
                 return;
             }
-            if (isRoot()) {
-                if (isEnabled() == false) {
-                    // If the root object mapper is disabled, it is expected to contain
-                    // the source encapsulated within a single ignored source value.
-                    assert ignoredValues.size() == 1 : ignoredValues.size();
-                    XContentDataHelper.decodeAndWrite(b, ignoredValues.get(0).value());
-                    ignoredValues = null;
-                    return;
+            if (isRoot() && isEnabled() == false) {
+                // If the root object mapper is disabled, it is expected to contain
+                // the source encapsulated within a single ignored source value.
+                assert ignoredValues.size() == 1 : ignoredValues.size();
+                XContentDataHelper.decodeAndWrite(b, ignoredValues.get(0).value());
+                ignoredValues = null;
+                return;
+            }
+
+            if (isFragment == false) {
+                if (isRoot()) {
+                    b.startObject();
+                } else {
+                    b.startObject(simpleName());
                 }
-                b.startObject();
-            } else {
-                b.startObject(simpleName());
             }
 
             if (ignoredValues != null && ignoredValues.isEmpty() == false) {
@@ -868,7 +877,9 @@ public class ObjectMapper extends Mapper {
                 }
             }
             hasValue = false;
-            b.endObject();
+            if (isFragment == false) {
+                b.endObject();
+            }
         }
 
         @Override

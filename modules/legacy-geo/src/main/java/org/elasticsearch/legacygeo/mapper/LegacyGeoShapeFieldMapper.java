@@ -58,7 +58,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -324,7 +323,7 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
 
         private GeoShapeFieldType buildFieldType(LegacyGeoShapeParser parser, MapperBuilderContext context) {
             GeoShapeFieldType ft = new GeoShapeFieldType(
-                context.buildFullName(name()),
+                context.buildFullName(leafName()),
                 indexed.get(),
                 orientation.get().value(),
                 parser,
@@ -353,7 +352,7 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
         public LegacyGeoShapeFieldMapper build(MapperBuilderContext context) {
             LegacyGeoShapeParser parser = new LegacyGeoShapeParser();
             GeoShapeFieldType ft = buildFieldType(parser, context);
-            return new LegacyGeoShapeFieldMapper(name(), ft, multiFieldsBuilder.build(this, context), copyTo, parser, this);
+            return new LegacyGeoShapeFieldMapper(leafName(), ft, multiFieldsBuilder.build(this, context), copyTo, parser, this);
         }
     }
 
@@ -379,18 +378,18 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
         public void parse(
             XContentParser parser,
             CheckedConsumer<ShapeBuilder<?, ?, ?>, IOException> consumer,
-            Consumer<Exception> onMalformed
+            MalformedValueHandler malformedHandler
         ) throws IOException {
             try {
                 if (parser.currentToken() == XContentParser.Token.START_ARRAY) {
                     while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
-                        parse(parser, consumer, onMalformed);
+                        parse(parser, consumer, malformedHandler);
                     }
                 } else {
                     consumer.accept(ShapeParser.parse(parser));
                 }
             } catch (ElasticsearchParseException e) {
-                onMalformed.accept(e);
+                malformedHandler.notify(e);
             }
         }
 

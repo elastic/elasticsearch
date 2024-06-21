@@ -187,7 +187,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         @Override
         public ScaledFloatFieldMapper build(MapperBuilderContext context) {
             ScaledFloatFieldType type = new ScaledFloatFieldType(
-                context.buildFullName(name()),
+                context.buildFullName(leafName()),
                 indexed.getValue(),
                 stored.getValue(),
                 hasDocValues.getValue(),
@@ -198,7 +198,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
                 indexMode
             );
             return new ScaledFloatFieldMapper(
-                name(),
+                leafName(),
                 type,
                 multiFieldsBuilder.build(this, context),
                 copyTo,

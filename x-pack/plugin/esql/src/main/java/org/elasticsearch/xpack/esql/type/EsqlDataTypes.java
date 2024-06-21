@@ -36,16 +36,6 @@ public final class EsqlDataTypes {
         .stream()
         .collect(toUnmodifiableMap(DataType::typeName, t -> t));
 
-    private static final Map<String, DataType> ES_TO_TYPE;
-
-    static {
-        Map<String, DataType> map = DataType.types().stream().filter(e -> e.esType() != null).collect(toMap(DataType::esType, t -> t));
-        // ES calls this 'point', but ESQL calls it 'cartesian_point'
-        map.put("point", DataType.CARTESIAN_POINT);
-        map.put("shape", DataType.CARTESIAN_SHAPE);
-        ES_TO_TYPE = Collections.unmodifiableMap(map);
-    }
-
     private EsqlDataTypes() {}
 
     public static DataType fromTypeName(String name) {
@@ -53,8 +43,7 @@ public final class EsqlDataTypes {
     }
 
     public static DataType fromName(String name) {
-        DataType type = ES_TO_TYPE.get(name);
-        return type != null ? type : UNSUPPORTED;
+        return DataType.fromEs(name);
     }
 
     public static boolean isUnsupported(DataType type) {

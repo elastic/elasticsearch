@@ -63,7 +63,7 @@ public class ToIPTests extends AbstractFunctionTestCase {
         );
 
         // add null as parameter
-        return parameterSuppliersFromTypedData(errorsForCasesWithoutExamples(anyNullIsNull(true, suppliers)));
+        return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers);
     }
 
     @Override

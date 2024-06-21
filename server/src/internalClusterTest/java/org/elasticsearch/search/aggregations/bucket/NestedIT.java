@@ -10,7 +10,6 @@ package org.elasticsearch.search.aggregations.bucket;
 import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequestBuilder;
-import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.index.query.InnerHitBuilder;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
@@ -851,33 +850,33 @@ public class NestedIT extends ESIntegTestCase {
     }
 
     public void testSyntheticSource() throws Exception {
-        assertAcked(prepareCreate("synthetic").setMapping(jsonBuilder().startObject()
-                .startObject("_source")
-                .field("mode", "synthetic")
-                .endObject()
-                .startObject("properties")
-                .startObject("nested")
-                .field("type", "nested")
-                .startObject("properties")
-                .startObject("number")
-                .field("type", "long")
-                .field("ignore_malformed", true)
-                .endObject()
-                .endObject()
-                .endObject()
-                .endObject()
-            .endObject()));
+        assertAcked(
+            prepareCreate("synthetic").setMapping(
+                jsonBuilder().startObject()
+                    .startObject("_source")
+                    .field("mode", "synthetic")
+                    .endObject()
+                    .startObject("properties")
+                    .startObject("nested")
+                    .field("type", "nested")
+                    .startObject("properties")
+                    .startObject("number")
+                    .field("type", "long")
+                    .field("ignore_malformed", true)
+                    .endObject()
+                    .endObject()
+                    .endObject()
+                    .endObject()
+                    .endObject()
+            )
+        );
         ensureGreen("synthetic");
 
-        prepareIndex("synthetic").setId("1").setSource(
-            jsonBuilder().startObject()
-                .startArray("nested")
-                .startObject()
-                .field("number", "a")
-                .endObject()
-                .endArray()
-                .endObject()
-        ).get();
+        prepareIndex("synthetic").setId("1")
+            .setSource(
+                jsonBuilder().startObject().startArray("nested").startObject().field("number", "a").endObject().endArray().endObject()
+            )
+            .get();
         refresh("synthetic");
 
         assertResponse(client().prepareSearch("synthetic").addFetchField("_ignored"), searchResponse -> {
@@ -885,6 +884,9 @@ public class NestedIT extends ESIntegTestCase {
             assertEquals(1, searchResponse.getHits().getHits().length);
             SearchHit searchHit = searchResponse.getHits().getAt(0);
             assertEquals("nested.number", searchHit.getFields().get("_ignored").getValue());
+            @SuppressWarnings("unchecked")
+            Map<String, ?> nested = (Map<String, ?>) searchHit.getSourceAsMap().get("nested");
+            assertEquals("a", nested.get("number"));
         });
     }
 }

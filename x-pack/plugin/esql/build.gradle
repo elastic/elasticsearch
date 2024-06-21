@@ -28,7 +28,9 @@ dependencies {
   // Also contains a dummy processor to allow compilation with unused annotations.
   annotationProcessor project('compute:gen')
 
-  testImplementation project('qa:testFixtures')
+  testImplementation(project('qa:testFixtures')) {
+    exclude(group:"org.elasticsearch.plugin", module: "esql")
+  }
   testImplementation project(':test:framework')
   testImplementation(testArtifact(project(xpackModule('core'))))
   testImplementation project(path: xpackModule('enrich'))

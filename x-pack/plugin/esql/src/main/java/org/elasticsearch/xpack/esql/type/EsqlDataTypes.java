@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.esql.type;
 
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 
 import java.util.Collections;
@@ -15,15 +14,11 @@ import java.util.Map;
 
 import static java.util.stream.Collectors.toMap;
 import static java.util.stream.Collectors.toUnmodifiableMap;
-import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
 import static org.elasticsearch.xpack.esql.core.type.DataType.BYTE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_PERIOD;
-import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.FLOAT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.HALF_FLOAT;
-import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
-import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.NESTED;
 import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
 import static org.elasticsearch.xpack.esql.core.type.DataType.OBJECT;
@@ -60,32 +55,6 @@ public final class EsqlDataTypes {
     public static DataType fromName(String name) {
         DataType type = ES_TO_TYPE.get(name);
         return type != null ? type : UNSUPPORTED;
-    }
-
-    public static DataType fromJava(Object value) {
-        if (value == null) {
-            return NULL;
-        }
-        if (value instanceof Boolean) {
-            return BOOLEAN;
-        }
-        if (value instanceof Integer) {
-            return INTEGER;
-        }
-        if (value instanceof Long) {
-            return LONG;
-        }
-        if (value instanceof Double) {
-            return DOUBLE;
-        }
-        if (value instanceof Float) {
-            return FLOAT;
-        }
-        if (value instanceof String || value instanceof Character || value instanceof BytesRef) {
-            return KEYWORD;
-        }
-
-        return null;
     }
 
     public static boolean isUnsupported(DataType type) {
@@ -154,7 +123,7 @@ public final class EsqlDataTypes {
             && t != SCALED_FLOAT
             && t != SOURCE
             && t != HALF_FLOAT
-            && isCounterType(t) == false;
+            && t.isCounter() == false;
     }
 
     public static boolean areCompatible(DataType left, DataType right) {
@@ -163,28 +132,5 @@ public final class EsqlDataTypes {
         } else {
             return (left == NULL || right == NULL) || (isString(left) && isString(right)) || (left.isNumeric() && right.isNumeric());
         }
-    }
-
-    public static DataType widenSmallNumericTypes(DataType type) {
-        if (type == BYTE || type == SHORT) {
-            return INTEGER;
-        }
-        if (type == HALF_FLOAT || type == FLOAT || type == SCALED_FLOAT) {
-            return DOUBLE;
-        }
-        return type;
-    }
-
-    public static DataType getCounterType(String typeName) {
-        final DataType rootType = widenSmallNumericTypes(fromName(typeName));
-        if (rootType == UNSUPPORTED) {
-            return rootType;
-        }
-        assert rootType == LONG || rootType == INTEGER || rootType == DOUBLE : rootType;
-        return fromTypeName("counter_" + rootType.typeName());
-    }
-
-    public static boolean isCounterType(DataType dt) {
-        return dt == DataType.COUNTER_LONG || dt == DataType.COUNTER_INTEGER || dt == DataType.COUNTER_DOUBLE;
     }
 }

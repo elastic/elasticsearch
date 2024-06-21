@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Percentile;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialCentroid;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.TopList;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
@@ -94,6 +95,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialCo
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialDisjoint;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialIntersects;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialWithin;
+import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StDistance;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StX;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StY;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Concat;
@@ -192,6 +194,7 @@ public final class EsqlFunctionRegistry extends FunctionRegistry {
                 def(Min.class, Min::new, "min"),
                 def(Percentile.class, Percentile::new, "percentile"),
                 def(Sum.class, Sum::new, "sum"),
+                def(TopList.class, TopList::new, "top_list"),
                 def(Values.class, Values::new, "values") },
             // math
             new FunctionDefinition[] {
@@ -252,6 +255,7 @@ public final class EsqlFunctionRegistry extends FunctionRegistry {
                 def(SpatialDisjoint.class, SpatialDisjoint::new, "st_disjoint"),
                 def(SpatialIntersects.class, SpatialIntersects::new, "st_intersects"),
                 def(SpatialWithin.class, SpatialWithin::new, "st_within"),
+                def(StDistance.class, StDistance::new, "st_distance"),
                 def(StX.class, StX::new, "st_x"),
                 def(StY.class, StY::new, "st_y") },
             // conditional

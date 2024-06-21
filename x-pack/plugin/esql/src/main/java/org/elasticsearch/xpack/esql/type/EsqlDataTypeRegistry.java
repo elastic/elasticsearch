@@ -35,16 +35,13 @@ public class EsqlDataTypeRegistry implements DataTypeRegistry {
 
     @Override
     public DataType fromEs(String typeName, TimeSeriesParams.MetricType metricType) {
-        if (metricType == TimeSeriesParams.MetricType.COUNTER) {
-            return EsqlDataTypes.getCounterType(typeName);
-        } else {
-            return EsqlDataTypes.fromName(typeName);
-        }
+        DataType type = EsqlDataTypes.fromName(typeName);
+        return metricType == TimeSeriesParams.MetricType.COUNTER ? type.widenSmallNumeric().counter() : type;
     }
 
     @Override
     public DataType fromJava(Object value) {
-        return EsqlDataTypes.fromJava(value);
+        return DataType.fromJava(value);
     }
 
     @Override

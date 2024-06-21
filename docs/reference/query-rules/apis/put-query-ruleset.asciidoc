@@ -2,8 +2,6 @@
 [[put-query-ruleset]]
 === Create or update query ruleset
 
-preview::[]
-
 ++++
 <titleabbrev>Create or update query ruleset</titleabbrev>
 ++++

@@ -1,0 +1,4 @@
+---
+pull_request: "https://github.com/elastic/elasticsearch/pull/110020"
+description: "Fix NullPointerException in CO2Calculator.getKiloWattsPerCore"
+label: "bug"

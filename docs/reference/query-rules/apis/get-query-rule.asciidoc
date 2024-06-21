@@ -31,7 +31,7 @@ Requires the `manage_search_query_rules` privilege.
 ==== {api-response-codes-title}
 
 `400`::
-One or more of `ruleset_id` or `rule_id` was not provided.
+Missing `ruleset_id` or `rule_id`, or both.
 
 `404` (Missing resources)::
 Either no query ruleset matching `ruleset_id` could be found, or no rule matching `rule_id` could be found within that ruleset.

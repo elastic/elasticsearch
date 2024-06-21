@@ -14,6 +14,7 @@ import org.elasticsearch.cli.Command;
 import org.elasticsearch.cli.ProcessInfo;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.settings.KeyStoreWrapper;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.env.Environment;
 
 import java.io.InputStream;
@@ -46,8 +47,20 @@ public class UpgradeKeyStoreCommandTests extends KeyStoreCommandTestCase {
         assertKeystoreUpgrade("/format-v4-elasticsearch.keystore", KeyStoreWrapper.V4_VERSION);
     }
 
+    public void testKeystoreUpgradeV5() throws Exception {
+        assertKeystoreUpgradeWithPassword("/format-v5-with-password-elasticsearch.keystore", KeyStoreWrapper.LE_VERSION);
+    }
+
     private void assertKeystoreUpgrade(String file, int version) throws Exception {
         assumeFalse("Cannot open unprotected keystore on FIPS JVM", inFipsJvm());
+        assertKeystoreUpgrade(file, version, null);
+    }
+
+    private void assertKeystoreUpgradeWithPassword(String file, int version) throws Exception {
+        assertKeystoreUpgrade(file, version, "keystorepassword");
+    }
+
+    private void assertKeystoreUpgrade(String file, int version, @Nullable String password) throws Exception {
         final Path keystore = KeyStoreWrapper.keystorePath(env.configFile());
         try (InputStream is = KeyStoreWrapperTests.class.getResourceAsStream(file); OutputStream os = Files.newOutputStream(keystore)) {
             is.transferTo(os);
@@ -56,11 +69,17 @@ public class UpgradeKeyStoreCommandTests extends KeyStoreCommandTestCase {
             assertNotNull(beforeUpgrade);
             assertThat(beforeUpgrade.getFormatVersion(), equalTo(version));
         }
+        if (password != null) {
+            terminal.addSecretInput(password);
+            terminal.addSecretInput(password);
+        }
         execute();
+        terminal.reset();
+
         try (KeyStoreWrapper afterUpgrade = KeyStoreWrapper.load(env.configFile())) {
             assertNotNull(afterUpgrade);
             assertThat(afterUpgrade.getFormatVersion(), equalTo(KeyStoreWrapper.CURRENT_VERSION));
-            afterUpgrade.decrypt(new char[0]);
+            afterUpgrade.decrypt(password != null ? password.toCharArray() : new char[0]);
             assertThat(afterUpgrade.getSettingNames(), hasItem(KeyStoreWrapper.SEED_SETTING.getKey()));
         }
     }
@@ -69,5 +88,4 @@ public class UpgradeKeyStoreCommandTests extends KeyStoreCommandTestCase {
         final UserException e = expectThrows(UserException.class, this::execute);
         assertThat(e, hasToString(containsString("keystore not found at [" + KeyStoreWrapper.keystorePath(env.configFile()) + "]")));
     }
-
 }

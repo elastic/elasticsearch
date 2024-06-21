@@ -20,7 +20,6 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.health.HealthFeatures;
 import org.elasticsearch.persistent.PersistentTaskState;
@@ -37,6 +36,7 @@ import org.junit.BeforeClass;
 import java.util.Collections;
 import java.util.List;
 
+import static org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata.Type.SIGTERM;
 import static org.elasticsearch.persistent.PersistentTasksExecutor.NO_NODE_FOUND;
 import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
 import static org.mockito.ArgumentMatchers.any;
@@ -198,11 +198,7 @@ public class HealthNodeTaskExecutorTests extends ESTestCase {
                     .setReason("shutdown for a unit test")
                     .setType(type)
                     .setStartedAtMillis(randomNonNegativeLong())
-                    .setGracePeriod(
-                        type == SingleNodeShutdownMetadata.Type.SIGTERM
-                            ? TimeValue.parseTimeValue(randomTimeValue(), this.getTestName())
-                            : null
-                    )
+                    .setGracePeriod(type == SIGTERM ? randomTimeValue() : null)
                     .build()
             )
         );

@@ -84,10 +84,6 @@ public class UpdateConnectorSyncJobIngestionStatsAction {
             this.lastSeen = lastSeen;
         }
 
-        public static UpdateConnectorSyncJobIngestionStatsAction.Request parse(XContentParser parser) {
-            return PARSER.apply(parser, null);
-        }
-
         public String getConnectorSyncJobId() {
             return connectorSyncJobId;
         }

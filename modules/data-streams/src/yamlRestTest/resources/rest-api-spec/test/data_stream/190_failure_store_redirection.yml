@@ -17,15 +17,20 @@ teardown:
 
   - do:
       ingest.delete_pipeline:
+        id: "parent_failing_pipeline"
+        ignore: 404
+
+  - do:
+      ingest.delete_pipeline:
         id: "failing_pipeline"
         ignore: 404
 
 ---
 "Redirect ingest failure in data stream to failure store":
-  - skip:
-      version: " - 8.12.99"
-      reason: "data stream failure stores only redirect ingest failures in 8.13+"
-      features: [allowed_warnings, contains]
+  - requires:
+      cluster_features: ["gte_v8.15.0"]
+      reason: "data stream failure stores REST structure changed in 8.15+"
+      test_runner_features: [allowed_warnings, contains]
 
   - do:
       ingest.put_pipeline:
@@ -35,8 +40,24 @@ teardown:
             "description": "_description",
             "processors": [
               {
-                "fail" : {
-                  "message" : "error_message"
+                "fail": {
+                  "message" : "error_message",
+                  "tag": "foo-tag"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      ingest.put_pipeline:
+        id: "parent_failing_pipeline"
+        body:  >
+          {
+            "processors": [
+              {
+                "pipeline": {
+                  "name": "failing_pipeline"
                 }
               }
             ]
@@ -57,7 +78,7 @@ teardown:
               number_of_shards:   1
               number_of_replicas: 1
               index:
-                default_pipeline: "failing_pipeline"
+                default_pipeline: "parent_failing_pipeline"
 
   - do:
       index:
@@ -74,9 +95,9 @@ teardown:
   - match: { data_streams.0.timestamp_field.name: '@timestamp' }
   - length: { data_streams.0.indices: 1 }
   - match: { data_streams.0.indices.0.index_name: '/\.ds-logs-foobar-(\d{4}\.\d{2}\.\d{2}-)?000001/' }
-  - match: { data_streams.0.failure_store: true }
-  - length: { data_streams.0.failure_indices: 1 }
-  - match: { data_streams.0.failure_indices.0.index_name: '/\.fs-logs-foobar-(\d{4}\.\d{2}\.\d{2}-)?000001/' }
+  - match: { data_streams.0.failure_store.enabled: true }
+  - length: { data_streams.0.failure_store.indices: 1 }
+  - match: { data_streams.0.failure_store.indices.0.index_name: '/\.fs-logs-foobar-(\d{4}\.\d{2}\.\d{2}-)?000001/' }
 
   - do:
       search:
@@ -98,6 +119,12 @@ teardown:
   - match: { hits.hits.0._source.error.type: 'fail_processor_exception' }
   - match: { hits.hits.0._source.error.message: 'error_message' }
   - contains: { hits.hits.0._source.error.stack_trace: 'org.elasticsearch.ingest.common.FailProcessorException: error_message' }
+  - length: { hits.hits.0._source.error.pipeline_trace: 2 }
+  - match: { hits.hits.0._source.error.pipeline_trace.0: 'parent_failing_pipeline' }
+  - match: { hits.hits.0._source.error.pipeline_trace.1: 'failing_pipeline' }
+  - match: { hits.hits.0._source.error.pipeline: 'failing_pipeline' }
+  - match: { hits.hits.0._source.error.processor_tag: 'foo-tag' }
+  - match: { hits.hits.0._source.error.processor_type: 'fail' }
 
   - do:
       indices.delete_data_stream:
@@ -111,10 +138,10 @@ teardown:
 
 ---
 "Redirect shard failure in data stream to failure store":
-  - skip:
-      version: " - 8.13.99"
+  - requires:
+      cluster_features: ["gte_v8.14.0"]
       reason: "data stream failure stores only redirect shard failures in 8.14+"
-      features: [allowed_warnings, contains]
+      test_runner_features: [allowed_warnings, contains]
 
   - do:
       allowed_warnings:
@@ -152,9 +179,9 @@ teardown:
   - match: { data_streams.0.timestamp_field.name: '@timestamp' }
   - length: { data_streams.0.indices: 1 }
   - match: { data_streams.0.indices.0.index_name: '/\.ds-logs-foobar-(\d{4}\.\d{2}\.\d{2}-)?000001/' }
-  - match: { data_streams.0.failure_store: true }
-  - length: { data_streams.0.failure_indices: 1 }
-  - match: { data_streams.0.failure_indices.0.index_name: '/\.fs-logs-foobar-(\d{4}\.\d{2}\.\d{2}-)?000001/' }
+  - match: { data_streams.0.failure_store.enabled: true }
+  - length: { data_streams.0.failure_store.indices: 1 }
+  - match: { data_streams.0.failure_store.indices.0.index_name: '/\.fs-logs-foobar-(\d{4}\.\d{2}\.\d{2}-)?000002/' }
 
   - do:
       search:
@@ -166,7 +193,7 @@ teardown:
       search:
         index: .fs-logs-foobar-*
   - length:   { hits.hits: 1  }
-  - match: { hits.hits.0._index: "/\\.fs-logs-foobar-(\\d{4}\\.\\d{2}\\.\\d{2}-)?000001/" }
+  - match: { hits.hits.0._index: "/\\.fs-logs-foobar-(\\d{4}\\.\\d{2}\\.\\d{2}-)?000002/" }
   - exists: hits.hits.0._source.@timestamp
   - not_exists: hits.hits.0._source.count
   - match: { hits.hits.0._source.document.index: 'logs-foobar' }

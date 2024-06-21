@@ -12,6 +12,7 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.TimeValue;
 
 import java.io.IOException;
 
@@ -31,14 +32,13 @@ public class DeleteRepositoryRequest extends AcknowledgedRequest<DeleteRepositor
         name = in.readString();
     }
 
-    public DeleteRepositoryRequest() {}
-
     /**
      * Constructs a new unregister repository request with the provided name.
      *
      * @param name name of the repository
      */
-    public DeleteRepositoryRequest(String name) {
+    public DeleteRepositoryRequest(TimeValue masterNodeTimeout, TimeValue ackTimeout, String name) {
+        super(masterNodeTimeout, ackTimeout);
         this.name = name;
     }
 

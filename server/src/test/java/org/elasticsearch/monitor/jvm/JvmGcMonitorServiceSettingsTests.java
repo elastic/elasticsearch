@@ -10,12 +10,12 @@ package org.elasticsearch.monitor.jvm;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.Scheduler.Cancellable;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 
-import java.util.AbstractMap;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.Executor;
@@ -48,7 +48,7 @@ public class JvmGcMonitorServiceSettingsTests extends ESTestCase {
 
     public void testNegativeSetting() throws InterruptedException {
         String collector = randomAlphaOfLength(5);
-        final String timeValue = "-" + randomTimeValue(2, 1000); // -1 is handled separately
+        final String timeValue = "-" + randomTimeValue(2, 1000).getStringRep(); // -1 is handled separately
         Settings settings = Settings.builder().put("monitor.jvm.gc.collector." + collector + ".warn", timeValue).build();
         execute(settings, (command, interval, name) -> null, e -> {
             assertThat(e, instanceOf(IllegalArgumentException.class));
@@ -88,15 +88,15 @@ public class JvmGcMonitorServiceSettingsTests extends ESTestCase {
 
     public void testMissingSetting() throws InterruptedException {
         String collector = randomAlphaOfLength(5);
-        Set<AbstractMap.SimpleEntry<String, String>> entries = new HashSet<>();
-        entries.add(new AbstractMap.SimpleEntry<>("monitor.jvm.gc.collector." + collector + ".warn", randomPositiveTimeValue()));
-        entries.add(new AbstractMap.SimpleEntry<>("monitor.jvm.gc.collector." + collector + ".info", randomPositiveTimeValue()));
-        entries.add(new AbstractMap.SimpleEntry<>("monitor.jvm.gc.collector." + collector + ".debug", randomPositiveTimeValue()));
+        Set<Tuple<String, String>> entries = new HashSet<>();
+        entries.add(Tuple.tuple("monitor.jvm.gc.collector." + collector + ".warn", randomPositiveTimeValue().getStringRep()));
+        entries.add(Tuple.tuple("monitor.jvm.gc.collector." + collector + ".info", randomPositiveTimeValue().getStringRep()));
+        entries.add(Tuple.tuple("monitor.jvm.gc.collector." + collector + ".debug", randomPositiveTimeValue().getStringRep()));
         Settings.Builder builder = Settings.builder();
 
         // drop a random setting or two
-        for (AbstractMap.SimpleEntry<String, String> entry : randomSubsetOf(randomIntBetween(1, 2), entries)) {
-            builder.put(entry.getKey(), entry.getValue());
+        for (final var entry : randomSubsetOf(randomIntBetween(1, 2), entries)) {
+            builder.put(entry.v1(), entry.v2());
         }
 
         // we should get an exception that a setting is missing

@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.core;
 import org.elasticsearch.Version;
 import org.elasticsearch.features.FeatureSpecification;
 import org.elasticsearch.features.NodeFeature;
+import org.elasticsearch.license.License;
 import org.elasticsearch.xpack.core.datatiers.NodesDataTiersUsageTransportAction;
 
 import java.util.Map;
@@ -23,7 +24,8 @@ public class XPackFeatures implements FeatureSpecification {
     @Override
     public Set<NodeFeature> getFeatures() {
         return Set.of(
-            NodesDataTiersUsageTransportAction.LOCALLY_PRECALCULATED_STATS_FEATURE // Added in 8.12
+            NodesDataTiersUsageTransportAction.LOCALLY_PRECALCULATED_STATS_FEATURE, // Added in 8.12
+            License.INDEPENDENT_TRIAL_VERSION_FEATURE // 8.14.0
         );
     }
 

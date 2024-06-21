@@ -13,41 +13,49 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
-public interface InferenceServiceRegistry extends Closeable {
-    void init(Client client);
+public class InferenceServiceRegistry implements Closeable {
 
-    Map<String, InferenceService> getServices();
+    private final Map<String, InferenceService> services;
+    private final List<NamedWriteableRegistry.Entry> namedWriteables = new ArrayList<>();
 
-    Optional<InferenceService> getService(String serviceName);
+    public InferenceServiceRegistry(
+        List<InferenceServiceExtension> inferenceServicePlugins,
+        InferenceServiceExtension.InferenceServiceFactoryContext factoryContext
+    ) {
+        // TODO check names are unique
+        services = inferenceServicePlugins.stream()
+            .flatMap(r -> r.getInferenceServiceFactories().stream())
+            .map(factory -> factory.create(factoryContext))
+            .collect(Collectors.toMap(InferenceService::name, Function.identity()));
+    }
 
-    List<NamedWriteableRegistry.Entry> getNamedWriteables();
+    public void init(Client client) {
+        services.values().forEach(s -> s.init(client));
+    }
 
-    class NoopInferenceServiceRegistry implements InferenceServiceRegistry {
-        public NoopInferenceServiceRegistry() {}
+    public Map<String, InferenceService> getServices() {
+        return services;
+    }
 
-        @Override
-        public void init(Client client) {}
+    public Optional<InferenceService> getService(String serviceName) {
+        return Optional.ofNullable(services.get(serviceName));
+    }
 
-        @Override
-        public Map<String, InferenceService> getServices() {
-            return Map.of();
+    public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
+        return namedWriteables;
+    }
+
+    @Override
+    public void close() throws IOException {
+        for (var service : services.values()) {
+            service.close();
         }
-
-        @Override
-        public Optional<InferenceService> getService(String serviceName) {
-            return Optional.empty();
-        }
-
-        @Override
-        public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
-            return List.of();
-        }
-
-        @Override
-        public void close() throws IOException {}
     }
 }

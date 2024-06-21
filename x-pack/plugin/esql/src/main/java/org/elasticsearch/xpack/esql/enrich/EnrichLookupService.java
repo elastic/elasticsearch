@@ -29,15 +29,18 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockStreamInput;
+import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.compute.data.IntBlock;
+import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LocalCircuitBreaker;
+import org.elasticsearch.compute.data.OrdinalBytesRefBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.ValuesSourceReaderOperator;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.OutputOperator;
-import org.elasticsearch.compute.operator.ProjectOperator;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasables;
@@ -71,6 +74,9 @@ import org.elasticsearch.xpack.core.security.support.Exceptions;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
+import org.elasticsearch.xpack.esql.core.expression.Alias;
+import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.io.stream.PlanNameRegistry;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
@@ -78,9 +84,6 @@ import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
-import org.elasticsearch.xpack.ql.expression.Alias;
-import org.elasticsearch.xpack.ql.expression.NamedExpression;
-import org.elasticsearch.xpack.ql.type.DataType;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -92,9 +95,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
-
-import static org.elasticsearch.xpack.esql.io.stream.PlanNameRegistry.PlanReader.readerFromPlanReader;
-import static org.elasticsearch.xpack.esql.io.stream.PlanNameRegistry.PlanWriter.writerFromPlanWriter;
 
 /**
  * {@link EnrichLookupService} performs enrich lookup for a given input page. The lookup process consists of three stages:
@@ -247,6 +247,15 @@ public class EnrichLookupService {
         ActionListener<Page> listener
     ) {
         Block inputBlock = inputPage.getBlock(0);
+        final IntBlock selectedPositions;
+        final OrdinalBytesRefBlock ordinalsBytesRefBlock;
+        if (inputBlock instanceof BytesRefBlock bytesRefBlock && (ordinalsBytesRefBlock = bytesRefBlock.asOrdinals()) != null) {
+            inputBlock = ordinalsBytesRefBlock.getDictionaryVector().asBlock();
+            selectedPositions = ordinalsBytesRefBlock.getOrdinalsBlock();
+            selectedPositions.mustIncRef();
+        } else {
+            selectedPositions = IntVector.range(0, inputBlock.getPositionCount(), blockFactory).asBlock();
+        }
         LocalCircuitBreaker localBreaker = null;
         try {
             if (inputBlock.areAllValuesNull()) {
@@ -271,6 +280,7 @@ public class EnrichLookupService {
             };
             var queryOperator = new EnrichQuerySourceOperator(
                 driverContext.blockFactory(),
+                EnrichQuerySourceOperator.DEFAULT_MAX_PAGE_SIZE,
                 queryList,
                 searchExecutionContext.getIndexReader()
             );
@@ -318,22 +328,10 @@ public class EnrichLookupService {
                     0
                 )
             );
-
-            // drop docs block
-            intermediateOperators.add(droppingBlockOperator(extractFields.size() + 2, 0));
-            boolean singleLeaf = searchContext.searcher().getLeafContexts().size() == 1;
-
             // merging field-values by position
-            final int[] mergingChannels = IntStream.range(0, extractFields.size()).map(i -> i + 1).toArray();
+            final int[] mergingChannels = IntStream.range(0, extractFields.size()).map(i -> i + 2).toArray();
             intermediateOperators.add(
-                new MergePositionsOperator(
-                    singleLeaf,
-                    inputPage.getPositionCount(),
-                    0,
-                    mergingChannels,
-                    mergingTypes,
-                    driverContext.blockFactory()
-                )
+                new MergePositionsOperator(1, mergingChannels, mergingTypes, selectedPositions, driverContext.blockFactory())
             );
             AtomicReference<Page> result = new AtomicReference<>();
             OutputOperator outputOperator = new OutputOperator(List.of(), Function.identity(), result::set);
@@ -374,7 +372,7 @@ public class EnrichLookupService {
         } catch (Exception e) {
             listener.onFailure(e);
         } finally {
-            Releasables.close(localBreaker);
+            Releasables.close(selectedPositions, localBreaker);
         }
     }
 
@@ -390,17 +388,6 @@ public class EnrichLookupService {
                 Releasables.close(blocks);
             }
         }
-    }
-
-    private static Operator droppingBlockOperator(int totalBlocks, int droppingPosition) {
-        var size = totalBlocks - 1;
-        var projection = new ArrayList<Integer>(size);
-        for (int i = 0; i < totalBlocks; i++) {
-            if (i != droppingPosition) {
-                projection.add(i);
-            }
-        }
-        return new ProjectOperator(projection);
     }
 
     private class TransportHandler implements TransportRequestHandler<LookupRequest> {
@@ -470,7 +457,7 @@ public class EnrichLookupService {
             }
             this.toRelease = inputPage;
             PlanStreamInput planIn = new PlanStreamInput(in, PlanNameRegistry.INSTANCE, in.namedWriteableRegistry(), null);
-            this.extractFields = planIn.readCollectionAsList(readerFromPlanReader(PlanStreamInput::readNamedExpression));
+            this.extractFields = planIn.readNamedWriteableCollectionAsList(NamedExpression.class);
         }
 
         @Override
@@ -484,8 +471,8 @@ public class EnrichLookupService {
             out.writeString(matchType);
             out.writeString(matchField);
             out.writeWriteable(inputPage);
-            PlanStreamOutput planOut = new PlanStreamOutput(out, PlanNameRegistry.INSTANCE);
-            planOut.writeCollection(extractFields, writerFromPlanWriter(PlanStreamOutput::writeNamedExpression));
+            PlanStreamOutput planOut = new PlanStreamOutput(out, PlanNameRegistry.INSTANCE, null);
+            planOut.writeNamedWriteableCollection(extractFields);
         }
 
         @Override

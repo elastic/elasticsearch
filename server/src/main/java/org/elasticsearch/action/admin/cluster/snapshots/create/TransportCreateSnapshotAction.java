@@ -9,6 +9,7 @@
 package org.elasticsearch.action.admin.cluster.snapshots.create;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
@@ -28,6 +29,7 @@ import org.elasticsearch.transport.TransportService;
  * Transport action for create snapshot operation
  */
 public class TransportCreateSnapshotAction extends TransportMasterNodeAction<CreateSnapshotRequest, CreateSnapshotResponse> {
+    public static final ActionType<CreateSnapshotResponse> TYPE = new ActionType<>("cluster:admin/snapshot/create");
     private final SnapshotsService snapshotsService;
 
     @Inject
@@ -40,7 +42,7 @@ public class TransportCreateSnapshotAction extends TransportMasterNodeAction<Cre
         IndexNameExpressionResolver indexNameExpressionResolver
     ) {
         super(
-            CreateSnapshotAction.NAME,
+            TYPE.name(),
             transportService,
             clusterService,
             threadPool,

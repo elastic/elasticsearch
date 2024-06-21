@@ -36,8 +36,7 @@ import java.util.List;
  * No user code is executed in this phase.</li>
  * <li>Dynamic injection. In this phase, we call user code. We inject members that requested
  * injection. This may require user's objects be created and their providers be called. And we
- * create eager singletons. In this phase, user code may have started other threads. This phase
- * is not executed for injectors created using {@link Stage#TOOL the tool stage}</li>
+ * create eager singletons. In this phase, user code may have started other threads.
  * </ol>
  *
  * @author crazybob@google.com (Bob Lee)
@@ -136,27 +135,26 @@ class InjectorBuilder {
         errors.throwCreationExceptionIfErrorsExist();
 
         for (InjectorShell shell : shells) {
-            loadEagerSingletons(shell.getInjector(), Stage.DEVELOPMENT, errors);
+            loadEagerSingletons(shell.getInjector(), errors);
         }
         stopwatch.resetAndLog("Preloading singletons");
         errors.throwCreationExceptionIfErrorsExist();
     }
 
     /**
-     * Loads eager singletons, or all singletons if we're in Stage.PRODUCTION. Bindings discovered
-     * while we're binding these singletons are not be eager.
+     * Loads eager singletons. Bindings discovered while we're binding these singletons are not be eager.
      */
-    public static void loadEagerSingletons(InjectorImpl injector, Stage stage, Errors errors) {
+    public static void loadEagerSingletons(InjectorImpl injector, Errors errors) {
         for (final Binding<?> binding : injector.state.getExplicitBindingsThisLevel().values()) {
-            loadEagerSingletons(injector, stage, errors, (BindingImpl<?>) binding);
+            loadEagerSingletons(injector, errors, (BindingImpl<?>) binding);
         }
         for (final BindingImpl<?> binding : injector.jitBindings.values()) {
-            loadEagerSingletons(injector, stage, errors, binding);
+            loadEagerSingletons(injector, errors, binding);
         }
     }
 
-    private static void loadEagerSingletons(InjectorImpl injector, Stage stage, final Errors errors, BindingImpl<?> binding) {
-        if (binding.getScoping().isEagerSingleton(stage)) {
+    private static void loadEagerSingletons(InjectorImpl injector, final Errors errors, BindingImpl<?> binding) {
+        if (binding.getScoping().isEagerSingleton()) {
             try {
                 injector.callInContext(new ContextualCallable<Void>() {
                     final Dependency<?> dependency = Dependency.get(binding.getKey());

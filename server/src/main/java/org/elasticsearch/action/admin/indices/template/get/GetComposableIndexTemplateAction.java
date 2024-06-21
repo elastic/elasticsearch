@@ -16,7 +16,6 @@ import org.elasticsearch.action.admin.indices.rollover.RolloverConfiguration;
 import org.elasticsearch.action.support.master.MasterNodeReadRequest;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStreamGlobalRetention;
-import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
@@ -50,6 +49,7 @@ public class GetComposableIndexTemplateAction extends ActionType<GetComposableIn
          * @param name A template name or pattern, or {@code null} to retrieve all templates.
          */
         public Request(@Nullable String name) {
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
             if (name != null && name.contains(",")) {
                 throw new IllegalArgumentException("template name may not contain ','");
             }
@@ -140,10 +140,8 @@ public class GetComposableIndexTemplateAction extends ActionType<GetComposableIn
             }
         }
 
-        public Response(Map<String, ComposableIndexTemplate> indexTemplates) {
-            this.indexTemplates = indexTemplates;
-            this.rolloverConfiguration = null;
-            this.globalRetention = null;
+        public Response(Map<String, ComposableIndexTemplate> indexTemplates, @Nullable DataStreamGlobalRetention globalRetention) {
+            this(indexTemplates, null, globalRetention);
         }
 
         public Response(
@@ -158,6 +156,10 @@ public class GetComposableIndexTemplateAction extends ActionType<GetComposableIn
 
         public Map<String, ComposableIndexTemplate> indexTemplates() {
             return indexTemplates;
+        }
+
+        public DataStreamGlobalRetention getGlobalRetention() {
+            return globalRetention;
         }
 
         @Override
@@ -188,14 +190,13 @@ public class GetComposableIndexTemplateAction extends ActionType<GetComposableIn
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            Params withEffectiveRetentionParams = new DelegatingMapParams(DataStreamLifecycle.INCLUDE_EFFECTIVE_RETENTION_PARAMS, params);
             builder.startObject();
             builder.startArray(INDEX_TEMPLATES.getPreferredName());
             for (Map.Entry<String, ComposableIndexTemplate> indexTemplate : this.indexTemplates.entrySet()) {
                 builder.startObject();
                 builder.field(NAME.getPreferredName(), indexTemplate.getKey());
                 builder.field(INDEX_TEMPLATE.getPreferredName());
-                indexTemplate.getValue().toXContent(builder, withEffectiveRetentionParams, rolloverConfiguration, globalRetention);
+                indexTemplate.getValue().toXContent(builder, params, rolloverConfiguration);
                 builder.endObject();
             }
             builder.endArray();

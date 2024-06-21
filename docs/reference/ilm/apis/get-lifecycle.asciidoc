@@ -36,7 +36,7 @@ modified date. If no policy is specified, returns all defined policies.
 [[ilm-get-lifecycle-query-params]]
 ==== {api-query-parms-title}
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 
 [[ilm-get-lifecycle-example]]
 ==== {api-examples-title}

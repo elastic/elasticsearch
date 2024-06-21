@@ -109,6 +109,8 @@ CONCAT(
 
 *Description*: Returns a character string that is the result of concatenating `string_exp1` to `string_exp2`.
 
+The resulting string cannot exceed a byte length of 1 MB.
+
 [source, sql]
 --------------------------------------------------
 include-tagged::{sql-specs}/docs/docs.csv-spec[stringConcat]
@@ -136,6 +138,8 @@ INSERT(
 *Output*: string
 
 *Description*: Returns a string where `length` characters have been deleted from `source`, beginning at `start`, and where `replacement` has been inserted into `source`, beginning at `start`.
+
+The resulting string cannot exceed a byte length of 1 MB.
 
 [source, sql]
 --------------------------------------------------
@@ -330,6 +334,8 @@ REPEAT(
 
 *Description*: Returns a character string composed of `string_exp` repeated `count` times.
 
+The resulting string cannot exceed a byte length of 1 MB.
+
 [source, sql]
 --------------------------------------------------
 include-tagged::{sql-specs}/docs/docs.csv-spec[stringRepeat]
@@ -355,6 +361,8 @@ REPLACE(
 *Output*: string
 
 *Description*: Search `source` for occurrences of `pattern`, and replace with `replacement`.
+
+The resulting string cannot exceed a byte length of 1 MB.
 
 [source, sql]
 --------------------------------------------------
@@ -422,6 +430,8 @@ SPACE(count) <1>
 *Output*: string
 
 *Description*: Returns a character string consisting of `count` spaces.
+
+The resulting string cannot exceed a byte length of 1 MB.
 
 [source, sql]
 --------------------------------------------------

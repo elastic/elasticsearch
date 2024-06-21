@@ -8,10 +8,8 @@
 
 package org.elasticsearch.test.rest;
 
-import java.util.Set;
-
 public interface TestFeatureService {
-    boolean clusterHasFeature(String featureId);
+    TestFeatureService ALL_FEATURES = feature -> true;
 
-    Set<String> getAllSupportedFeatures();
+    boolean clusterHasFeature(String featureId);
 }

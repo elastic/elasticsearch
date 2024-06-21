@@ -76,9 +76,10 @@ public class DataStreamGlobalRetentionTests extends SimpleDiffableWireSerializat
 
     public static DataStreamGlobalRetention randomGlobalRetention() {
         boolean withDefault = randomBoolean();
+        boolean withMax = randomBoolean();
         return new DataStreamGlobalRetention(
             withDefault == false ? null : TimeValue.timeValueDays(randomIntBetween(1, 1000)),
-            withDefault && randomBoolean() ? null : TimeValue.timeValueDays(randomIntBetween(1000, 2000))
+            withMax == false ? null : TimeValue.timeValueDays(randomIntBetween(1000, 2000))
         );
     }
 
@@ -94,5 +95,7 @@ public class DataStreamGlobalRetentionTests extends SimpleDiffableWireSerializat
                 TimeValue.timeValueDays(randomIntBetween(1, 1000))
             )
         );
+        expectThrows(IllegalArgumentException.class, () -> new DataStreamGlobalRetention(TimeValue.ZERO, null));
+        expectThrows(IllegalArgumentException.class, () -> new DataStreamGlobalRetention(null, TimeValue.ZERO));
     }
 }

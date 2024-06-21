@@ -46,7 +46,7 @@ public class TSDBRestEsqlIT extends ESRestTestCase {
         var settings = Settings.builder()
             .loadFromStream("tsdb-settings.json", TSDBRestEsqlIT.class.getResourceAsStream("/tsdb-settings.json"), false)
             .build();
-        String mapping = CsvTestsDataLoader.readTextFile(TSDBRestEsqlIT.class.getResource("/tsdb-mapping.json"));
+        String mapping = CsvTestsDataLoader.readTextFile(TSDBRestEsqlIT.class.getResource("/tsdb-k8s-mapping.json"));
         createIndex("k8s", settings, mapping);
 
         Request bulk = new Request("POST", "/k8s/_bulk");
@@ -61,9 +61,8 @@ public class TSDBRestEsqlIT extends ESRestTestCase {
         Response response = client().performRequest(bulk);
         assertEquals("{\"errors\":false}", EntityUtils.toString(response.getEntity(), StandardCharsets.UTF_8));
 
-        RestEsqlTestCase.RequestObjectBuilder builder = new RestEsqlTestCase.RequestObjectBuilder().query(
-            "FROM k8s | KEEP k8s.pod.name, @timestamp"
-        );
+        RestEsqlTestCase.RequestObjectBuilder builder = RestEsqlTestCase.requestObjectBuilder()
+            .query("FROM k8s | KEEP k8s.pod.name, @timestamp | SORT @timestamp, k8s.pod.name");
         builder.pragmas(Settings.builder().put("time_series", true).build());
         Map<String, Object> result = runEsqlSync(builder);
         @SuppressWarnings("unchecked")
@@ -76,24 +75,28 @@ public class TSDBRestEsqlIT extends ESRestTestCase {
         @SuppressWarnings("unchecked")
         List<List<?>> values = (List<List<?>>) result.get("values");
         assertEquals(8, values.size());
-        assertEquals("hamster", values.get(0).get(0));
-        assertEquals("2021-04-29T17:29:22.470Z", values.get(0).get(1));
-        assertEquals("hamster", values.get(1).get(0));
-        assertEquals("2021-04-29T17:29:12.470Z", values.get(1).get(1));
+        assertEquals("2021-04-29T17:29:12.470Z", values.get(0).get(1));
+        assertEquals("cat", values.get(0).get(0));
 
-        assertEquals("rat", values.get(2).get(0));
-        assertEquals("2021-04-29T17:29:22.470Z", values.get(2).get(1));
+        assertEquals("2021-04-29T17:29:12.470Z", values.get(0).get(1));
+        assertEquals("cow", values.get(1).get(0));
+
+        assertEquals("2021-04-29T17:29:12.470Z", values.get(0).get(1));
+        assertEquals("hamster", values.get(2).get(0));
+
+        assertEquals("2021-04-29T17:29:12.470Z", values.get(0).get(1));
         assertEquals("rat", values.get(3).get(0));
-        assertEquals("2021-04-29T17:29:12.470Z", values.get(3).get(1));
 
-        assertEquals("cow", values.get(4).get(0));
+        assertEquals("2021-04-29T17:29:22.470Z", values.get(4).get(1));
+        assertEquals("cat", values.get(4).get(0));
+
         assertEquals("2021-04-29T17:29:22.470Z", values.get(4).get(1));
         assertEquals("cow", values.get(5).get(0));
-        assertEquals("2021-04-29T17:29:12.470Z", values.get(5).get(1));
 
-        assertEquals("cat", values.get(6).get(0));
-        assertEquals("2021-04-29T17:29:22.470Z", values.get(6).get(1));
-        assertEquals("cat", values.get(7).get(0));
-        assertEquals("2021-04-29T17:29:12.470Z", values.get(7).get(1));
+        assertEquals("2021-04-29T17:29:22.470Z", values.get(4).get(1));
+        assertEquals("hamster", values.get(6).get(0));
+
+        assertEquals("2021-04-29T17:29:22.470Z", values.get(4).get(1));
+        assertEquals("rat", values.get(7).get(0));
     }
 }

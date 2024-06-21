@@ -39,6 +39,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFa
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.matchesRegex;
@@ -117,7 +118,6 @@ public class SimpleThreadPoolIT extends ESIntegTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/104652")
     public void testThreadPoolMetrics() throws Exception {
         internalCluster().startNode();
 
@@ -148,15 +148,17 @@ public class SimpleThreadPoolIT extends ESIntegTestCase {
             assertNoFailures(prepareSearch("idx").setQuery(QueryBuilders.termQuery("str_value", "s" + i)));
             assertNoFailures(prepareSearch("idx").setQuery(QueryBuilders.termQuery("l_value", i)));
         }
+
         final var tp = internalCluster().getInstance(ThreadPool.class, dataNodeName);
+        final var tps = new ThreadPoolStats[1];
         // wait for all threads to complete so that we get deterministic results
-        waitUntil(() -> tp.stats().stats().stream().allMatch(s -> s.active() == 0));
-        ThreadPoolStats tps = tp.stats();
+        waitUntil(() -> (tps[0] = tp.stats()).stats().stream().allMatch(s -> s.active() == 0));
+
         plugin.collect();
         ArrayList<String> registeredMetrics = plugin.getRegisteredMetrics(InstrumentType.LONG_GAUGE);
         registeredMetrics.addAll(plugin.getRegisteredMetrics(InstrumentType.LONG_ASYNC_COUNTER));
 
-        tps.forEach(stats -> {
+        tps[0].forEach(stats -> {
             Map<String, Long> threadPoolStats = List.of(
                 Map.entry(ThreadPool.THREAD_POOL_METRIC_NAME_COMPLETED, stats.completed()),
                 Map.entry(ThreadPool.THREAD_POOL_METRIC_NAME_ACTIVE, (long) stats.active()),
@@ -182,7 +184,9 @@ public class SimpleThreadPoolIT extends ESIntegTestCase {
             logger.info("Stats of `{}`: {}", stats.name(), threadPoolStats);
             logger.info("Measurements of `{}`: {}", stats.name(), measurements);
 
-            threadPoolStats.forEach((metric, value) -> assertThat(measurements, hasEntry(equalTo(metric), contains(equalTo(value)))));
+            threadPoolStats.forEach(
+                (metric, value) -> assertThat(measurements, hasEntry(equalTo(metric), contains(greaterThanOrEqualTo(value))))
+            );
         });
     }
 

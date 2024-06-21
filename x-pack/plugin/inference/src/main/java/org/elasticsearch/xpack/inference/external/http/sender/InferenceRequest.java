@@ -19,9 +19,14 @@ import java.util.function.Supplier;
 public interface InferenceRequest {
 
     /**
-     * Returns the creator that handles building an executable request based on the input provided.
+     * Returns the manager that handles building and executing an inference request.
      */
-    ExecutableRequestCreator getRequestCreator();
+    RequestManager getRequestManager();
+
+    /**
+     * Returns the query associated with this request. Used for Rerank tasks.
+     */
+    String getQuery();
 
     /**
      * Returns the text input associated with this request.

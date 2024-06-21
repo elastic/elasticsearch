@@ -18,10 +18,6 @@ package org.elasticsearch.common.inject.internal;
 
 import org.elasticsearch.common.inject.Scope;
 import org.elasticsearch.common.inject.Scopes;
-import org.elasticsearch.common.inject.Singleton;
-import org.elasticsearch.common.inject.Stage;
-
-import java.lang.annotation.Annotation;
 
 /**
  * References a scope, either directly (as a scope instance), or indirectly (as a scope annotation).
@@ -49,34 +45,6 @@ public abstract class Scoping {
 
     };
 
-    public static final Scoping SINGLETON_ANNOTATION = new Scoping() {
-
-        @Override
-        public Class<? extends Annotation> getScopeAnnotation() {
-            return Singleton.class;
-        }
-
-        @Override
-        public String toString() {
-            return Singleton.class.getName();
-        }
-
-    };
-
-    public static final Scoping SINGLETON_INSTANCE = new Scoping() {
-
-        @Override
-        public Scope getScopeInstance() {
-            return Scopes.SINGLETON;
-        }
-
-        @Override
-        public String toString() {
-            return Scopes.SINGLETON.toString();
-        }
-
-    };
-
     public static final Scoping EAGER_SINGLETON = new Scoping() {
 
         @Override
@@ -90,46 +58,6 @@ public abstract class Scoping {
         }
 
     };
-
-    public static Scoping forAnnotation(final Class<? extends Annotation> scopingAnnotation) {
-        if (scopingAnnotation == Singleton.class) {
-            return SINGLETON_ANNOTATION;
-        }
-
-        return new Scoping() {
-
-            @Override
-            public Class<? extends Annotation> getScopeAnnotation() {
-                return scopingAnnotation;
-            }
-
-            @Override
-            public String toString() {
-                return scopingAnnotation.getName();
-            }
-
-        };
-    }
-
-    public static Scoping forInstance(final Scope scope) {
-        if (scope == Scopes.SINGLETON) {
-            return SINGLETON_INSTANCE;
-        }
-
-        return new Scoping() {
-
-            @Override
-            public Scope getScopeInstance() {
-                return scope;
-            }
-
-            @Override
-            public String toString() {
-                return scope.toString();
-            }
-
-        };
-    }
 
     /**
      * Returns true if this scope was explicitly applied. If no scope was explicitly applied then the
@@ -150,29 +78,14 @@ public abstract class Scoping {
     /**
      * Returns true if this scope is a singleton that should be loaded eagerly in {@code stage}.
      */
-    public boolean isEagerSingleton(Stage stage) {
-        if (this == EAGER_SINGLETON) {
-            return true;
-        }
-
-        if (stage == Stage.PRODUCTION) {
-            return this == SINGLETON_ANNOTATION || this == SINGLETON_INSTANCE;
-        }
-
-        return false;
+    public boolean isEagerSingleton() {
+        return this == EAGER_SINGLETON;
     }
 
     /**
      * Returns the scope instance, or {@code null} if that isn't known for this instance.
      */
     public Scope getScopeInstance() {
-        return null;
-    }
-
-    /**
-     * Returns the scope annotation, or {@code null} if that isn't known for this instance.
-     */
-    public Class<? extends Annotation> getScopeAnnotation() {
         return null;
     }
 

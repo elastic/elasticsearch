@@ -153,14 +153,18 @@ public class SearchableSnapshotsPrewarmingIntegTests extends ESSingleNodeTestCas
         }
 
         logger.debug("--> registering repository");
-        assertAcked(clusterAdmin().preparePutRepository("repository").setType(FsRepository.TYPE).setSettings(repositorySettings.build()));
+        assertAcked(
+            clusterAdmin().preparePutRepository(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "repository")
+                .setType(FsRepository.TYPE)
+                .setSettings(repositorySettings.build())
+        );
 
         logger.debug("--> snapshotting indices");
-        final CreateSnapshotResponse createSnapshotResponse = clusterAdmin().prepareCreateSnapshot("repository", "snapshot")
-            .setIncludeGlobalState(false)
-            .setIndices("index-*")
-            .setWaitForCompletion(true)
-            .get();
+        final CreateSnapshotResponse createSnapshotResponse = clusterAdmin().prepareCreateSnapshot(
+            TEST_REQUEST_TIMEOUT,
+            "repository",
+            "snapshot"
+        ).setIncludeGlobalState(false).setIndices("index-*").setWaitForCompletion(true).get();
 
         final int totalShards = shardsPerIndex.values().stream().mapToInt(i -> i).sum();
         assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), equalTo(totalShards));
@@ -172,11 +176,14 @@ public class SearchableSnapshotsPrewarmingIntegTests extends ESSingleNodeTestCas
         assertAcked(indicesAdmin().prepareDelete("index-*"));
 
         logger.debug("--> deleting repository");
-        assertAcked(clusterAdmin().prepareDeleteRepository("repository"));
+        assertAcked(clusterAdmin().prepareDeleteRepository(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "repository"));
 
         logger.debug("--> registering tracking repository");
         assertAcked(
-            clusterAdmin().preparePutRepository("repository").setType("tracking").setVerify(false).setSettings(repositorySettings.build())
+            clusterAdmin().preparePutRepository(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "repository")
+                .setType("tracking")
+                .setVerify(false)
+                .setSettings(repositorySettings.build())
         );
 
         TrackingRepositoryPlugin tracker = getTrackingRepositoryPlugin();
@@ -215,6 +222,7 @@ public class SearchableSnapshotsPrewarmingIntegTests extends ESSingleNodeTestCas
                     final RestoreSnapshotResponse restoreSnapshotResponse = client().execute(
                         MountSearchableSnapshotAction.INSTANCE,
                         new MountSearchableSnapshotRequest(
+                            TEST_REQUEST_TIMEOUT,
                             indexName,
                             "repository",
                             "snapshot",
@@ -447,13 +455,6 @@ public class SearchableSnapshotsPrewarmingIntegTests extends ESSingleNodeTestCas
             return Collections.singletonMap(
                 "tracking",
                 (metadata) -> new FsRepository(metadata, env, namedXContentRegistry, clusterService, bigArrays, recoverySettings) {
-
-                    @Override
-                    protected void assertSnapshotOrGenericThread() {
-                        if (enabled.get()) {
-                            super.assertSnapshotOrGenericThread();
-                        }
-                    }
 
                     @Override
                     protected BlobStore createBlobStore() throws Exception {

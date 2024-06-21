@@ -13,6 +13,7 @@ import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -34,17 +35,8 @@ public class SnapshotsStatusRequest extends MasterNodeRequest<SnapshotsStatusReq
 
     private boolean ignoreUnavailable;
 
-    public SnapshotsStatusRequest() {}
-
-    /**
-     * Constructs a new get snapshots request with given repository name and list of snapshots
-     *
-     * @param repository repository name
-     * @param snapshots  list of snapshots
-     */
-    public SnapshotsStatusRequest(String repository, String[] snapshots) {
-        this.repository = repository;
-        this.snapshots = snapshots;
+    public SnapshotsStatusRequest(TimeValue masterNodeTimeout) {
+        super(masterNodeTimeout);
     }
 
     public SnapshotsStatusRequest(StreamInput in) throws IOException {
@@ -67,7 +59,8 @@ public class SnapshotsStatusRequest extends MasterNodeRequest<SnapshotsStatusReq
      *
      * @param repository repository name
      */
-    public SnapshotsStatusRequest(String repository) {
+    public SnapshotsStatusRequest(TimeValue masterNodeTimeout, String repository) {
+        this(masterNodeTimeout);
         this.repository = repository;
     }
 

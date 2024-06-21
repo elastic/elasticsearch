@@ -131,7 +131,7 @@ public class IpFieldMapper extends FieldMapper {
                 return InetAddresses.forString(nullValueAsString);
             } catch (Exception e) {
                 if (indexCreatedVersion.onOrAfter(IndexVersions.V_8_0_0)) {
-                    throw new MapperParsingException("Error parsing [null_value] on field [" + name() + "]: " + e.getMessage(), e);
+                    throw new MapperParsingException("Error parsing [null_value] on field [" + leafName() + "]: " + e.getMessage(), e);
                 } else {
                     DEPRECATION_LOGGER.warn(
                         DeprecationCategory.MAPPINGS,
@@ -139,7 +139,7 @@ public class IpFieldMapper extends FieldMapper {
                         "Error parsing ["
                             + nullValue.getValue()
                             + "] as IP in [null_value] on field ["
-                            + name()
+                            + leafName()
                             + "]); [null_value] will be ignored"
                     );
                     return null;
@@ -154,7 +154,7 @@ public class IpFieldMapper extends FieldMapper {
             IpFieldScript.Factory factory = scriptCompiler.compile(this.script.get(), IpFieldScript.CONTEXT);
             return factory == null
                 ? null
-                : (lookup, ctx, doc, consumer) -> factory.newFactory(name(), script.get().getParams(), lookup, OnScriptError.FAIL)
+                : (lookup, ctx, doc, consumer) -> factory.newFactory(leafName(), script.get().getParams(), lookup, OnScriptError.FAIL)
                     .newInstance(ctx)
                     .runForDoc(doc, consumer);
         }
@@ -170,9 +170,9 @@ public class IpFieldMapper extends FieldMapper {
                 dimension.setValue(true);
             }
             return new IpFieldMapper(
-                name(),
+                leafName(),
                 new IpFieldType(
-                    context.buildFullName(name()),
+                    context.buildFullName(leafName()),
                     indexed.getValue() && indexCreatedVersion.isLegacyIndexVersion() == false,
                     stored.getValue(),
                     hasDocValues.getValue(),
@@ -599,6 +599,11 @@ public class IpFieldMapper extends FieldMapper {
                 TimeSeriesParams.TIME_SERIES_DIMENSION_PARAM + " can't be configured in nested field [" + name() + "]"
             );
         }
+    }
+
+    @Override
+    protected SyntheticSourceMode syntheticSourceMode() {
+        return SyntheticSourceMode.NATIVE;
     }
 
     @Override

@@ -30,11 +30,11 @@ import java.util.Map;
 public class RankEvalResponse extends ActionResponse implements ToXContentObject {
 
     /** The overall evaluation result. */
-    private double metricScore;
+    private final double metricScore;
     /** details about individual ranking evaluation queries, keyed by their id */
-    private Map<String, EvalQueryQuality> details;
+    private final Map<String, EvalQueryQuality> details;
     /** exceptions for specific ranking evaluation queries, keyed by their id */
-    private Map<String, Exception> failures;
+    private final Map<String, Exception> failures;
 
     public RankEvalResponse(double metricScore, Map<String, EvalQueryQuality> partialResults, Map<String, Exception> failures) {
         this.metricScore = metricScore;

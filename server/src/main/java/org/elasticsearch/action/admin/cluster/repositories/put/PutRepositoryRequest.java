@@ -13,6 +13,7 @@ import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
@@ -47,12 +48,15 @@ public class PutRepositoryRequest extends AcknowledgedRequest<PutRepositoryReque
         verify = in.readBoolean();
     }
 
-    public PutRepositoryRequest() {}
+    public PutRepositoryRequest(TimeValue masterNodeTimeout, TimeValue ackTimeout) {
+        super(masterNodeTimeout, ackTimeout);
+    }
 
     /**
      * Constructs a new put repository request with the provided name.
      */
-    public PutRepositoryRequest(String name) {
+    public PutRepositoryRequest(TimeValue masterNodeTimeout, TimeValue ackTimeout, String name) {
+        this(masterNodeTimeout, ackTimeout);
         this.name = name;
     }
 

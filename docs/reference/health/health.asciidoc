@@ -302,6 +302,9 @@ details have contents and a structure that is unique to each indicator.
 `creating_primaries`::
     (int) The number of primary shards that are unassigned because they have been very recently created.
 
+`creating_replicas`::
+    (int) The number of replica shards that are unassigned because they have been very recently created. 
+
 `restarting_primaries`::
     (int) The number of primary shards that are relocating because of a node shutdown operation.
 

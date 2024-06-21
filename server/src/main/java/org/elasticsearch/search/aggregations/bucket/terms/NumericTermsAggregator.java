@@ -7,7 +7,9 @@
  */
 package org.elasticsearch.search.aggregations.bucket.terms;
 
+import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.util.NumericUtils;
@@ -86,33 +88,50 @@ public final class NumericTermsAggregator extends TermsAggregator {
 
     @Override
     public LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx, LeafBucketCollector sub) throws IOException {
-        SortedNumericDocValues values = resultStrategy.getValues(aggCtx.getLeafReaderContext());
-        return resultStrategy.wrapCollector(new LeafBucketCollectorBase(sub, values) {
+        final SortedNumericDocValues values = resultStrategy.getValues(aggCtx.getLeafReaderContext());
+        final NumericDocValues singleton = DocValues.unwrapSingleton(values);
+        return resultStrategy.wrapCollector(singleton != null ? getLeafCollector(singleton, sub) : getLeafCollector(values, sub));
+    }
+
+    private LeafBucketCollector getLeafCollector(SortedNumericDocValues values, LeafBucketCollector sub) {
+        return new LeafBucketCollectorBase(sub, values) {
             @Override
             public void collect(int doc, long owningBucketOrd) throws IOException {
                 if (values.advanceExact(doc)) {
-                    int valuesCount = values.docValueCount();
-
                     long previous = Long.MAX_VALUE;
-                    for (int i = 0; i < valuesCount; ++i) {
+                    for (int i = 0; i < values.docValueCount(); ++i) {
                         long val = values.nextValue();
                         if (previous != val || i == 0) {
-                            if ((longFilter == null) || (longFilter.accept(val))) {
-                                long bucketOrdinal = bucketOrds.add(owningBucketOrd, val);
-                                if (bucketOrdinal < 0) { // already seen
-                                    bucketOrdinal = -1 - bucketOrdinal;
-                                    collectExistingBucket(sub, doc, bucketOrdinal);
-                                } else {
-                                    collectBucket(sub, doc, bucketOrdinal);
-                                }
-                            }
-
+                            collectValue(val, doc, owningBucketOrd, sub);
                             previous = val;
                         }
                     }
                 }
             }
-        });
+        };
+    }
+
+    private LeafBucketCollector getLeafCollector(NumericDocValues values, LeafBucketCollector sub) {
+        return new LeafBucketCollectorBase(sub, values) {
+            @Override
+            public void collect(int doc, long owningBucketOrd) throws IOException {
+                if (values.advanceExact(doc)) {
+                    collectValue(values.longValue(), doc, owningBucketOrd, sub);
+                }
+            }
+        };
+    }
+
+    private void collectValue(long val, int doc, long owningBucketOrd, LeafBucketCollector sub) throws IOException {
+        if (longFilter == null || longFilter.accept(val)) {
+            long bucketOrdinal = bucketOrds.add(owningBucketOrd, val);
+            if (bucketOrdinal < 0) { // already seen
+                bucketOrdinal = -1 - bucketOrdinal;
+                collectExistingBucket(sub, doc, bucketOrdinal);
+            } else {
+                collectBucket(sub, doc, bucketOrdinal);
+            }
+        }
     }
 
     @Override

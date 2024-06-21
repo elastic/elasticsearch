@@ -1,0 +1,28 @@
+{
+  "profiling.topn_functions":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/observability/current/universal-profiling.html",
+      "description":"Extracts a list of topN functions from Universal Profiling."
+    },
+    "stability":"stable",
+    "visibility":"private",
+    "headers":{
+      "accept": ["application/json"],
+      "content_type": ["application/json"]
+    },
+    "url":{
+      "paths":[
+        {
+          "path":"/_profiling/topn/functions",
+          "methods":[
+            "POST"
+          ]
+        }
+      ]
+    },
+    "body":{
+      "description":"The filter conditions for stacktraces",
+      "required":true
+    }
+  }
+}

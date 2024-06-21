@@ -29,7 +29,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.UpdateForV9;
-import org.elasticsearch.features.FeatureSpecification;
 import org.elasticsearch.test.ClasspathUtils;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.TestFeatureService;
@@ -193,11 +192,6 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
         adminExecutionContext.clear();
 
         restTestExecutionContext.clear();
-    }
-
-    @Override
-    protected List<FeatureSpecification> createAdditionalFeatureSpecifications() {
-        return List.of(new YamlTestLegacyFeatures());
     }
 
     /**
@@ -469,8 +463,7 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
         ClientYamlTestResponse restTestResponse = new ClientYamlTestResponse(response);
         SortedSet<String> osPrettyNames = new TreeSet<>();
 
-        @SuppressWarnings("unchecked")
-        final Map<String, Object> nodes = (Map<String, Object>) restTestResponse.evaluate("nodes");
+        final Map<String, Object> nodes = restTestResponse.evaluate("nodes");
 
         for (Entry<String, Object> node : nodes.entrySet()) {
             @SuppressWarnings("unchecked")

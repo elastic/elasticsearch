@@ -37,6 +37,8 @@ import java.nio.file.Paths;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CancellationException;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
@@ -66,6 +68,7 @@ public class ServerProcessTests extends ESTestCase {
     Settings.Builder nodeSettings;
     ProcessValidator processValidator;
     MainMethod mainCallback;
+    Runnable forceStopCallback;
     MockElasticsearchProcess process;
     SecureSettings secrets;
 
@@ -93,6 +96,7 @@ public class ServerProcessTests extends ESTestCase {
         nodeSettings = Settings.builder();
         processValidator = null;
         mainCallback = null;
+        forceStopCallback = null;
         secrets = KeyStoreWrapper.create();
     }
 
@@ -162,6 +166,8 @@ public class ServerProcessTests extends ESTestCase {
                 main.get();
             } catch (ExecutionException e) {
                 throw new AssertionError(e);
+            } catch (CancellationException e) {
+                return 137; // process killed
             }
             if (processException.get() != null) {
                 throw new AssertionError("Process failed", processException.get());
@@ -187,6 +193,8 @@ public class ServerProcessTests extends ESTestCase {
 
         public Process destroyForcibly() {
             main.cancel(true);
+            IOUtils.closeWhileHandlingException(stdin, stderr);
+            forceStopCallback.run();
             return this;
         }
     }
@@ -361,6 +369,22 @@ public class ServerProcessTests extends ESTestCase {
         assertThat(terminal.getErrorOutput(), containsString("final message"));
     }
 
+    public void testForceStop() throws Exception {
+        CountDownLatch blockMain = new CountDownLatch(1);
+        CountDownLatch inMain = new CountDownLatch(1);
+        mainCallback = (args, stdin, stderr, exitCode) -> {
+            stderr.println(SERVER_READY_MARKER);
+            inMain.countDown();
+            nonInterruptibleVoid(blockMain::await);
+        };
+        var server = startProcess(false, false);
+        nonInterruptibleVoid(inMain::await);
+        forceStopCallback = blockMain::countDown;
+        server.forceStop();
+
+        assertThat(process.main.isCancelled(), is(true)); // stop should have waited
+    }
+
     public void testWaitFor() throws Exception {
         CountDownLatch mainReady = new CountDownLatch(1);
         mainCallback = (args, stdin, stderr, exitCode) -> {
@@ -370,15 +394,24 @@ public class ServerProcessTests extends ESTestCase {
             stderr.println("final message");
         };
         var server = startProcess(false, false);
+
+        CompletableFuture<Void> stopping = new CompletableFuture<>();
         new Thread(() -> {
-            // simulate stop run as shutdown hook in another thread, eg from Ctrl-C
-            nonInterruptibleVoid(mainReady::await);
-            server.stop();
+            try {
+                // simulate stop run as shutdown hook in another thread, eg from Ctrl-C
+                nonInterruptibleVoid(mainReady::await);
+                server.stop();
+                stopping.complete(null);
+            } catch (Throwable e) {
+                stopping.completeExceptionally(e);
+            }
         }).start();
         int exitCode = server.waitFor();
         assertThat(process.main.isDone(), is(true));
         assertThat(exitCode, equalTo(0));
         assertThat(terminal.getErrorOutput(), containsString("final message"));
+        // rethrow any potential exception observed while stopping
+        stopping.get();
     }
 
     public void testProcessDies() throws Exception {

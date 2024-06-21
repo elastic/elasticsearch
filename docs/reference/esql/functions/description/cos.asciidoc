@@ -2,4 +2,4 @@
 
 *Description*
 
-Returns the trigonometric cosine of an angle
+Returns the {wikipedia}/Sine_and_cosine[cosine] of an angle.

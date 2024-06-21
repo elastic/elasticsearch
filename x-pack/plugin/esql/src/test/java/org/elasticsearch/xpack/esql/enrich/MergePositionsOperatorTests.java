@@ -18,7 +18,9 @@ import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
+import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.List;
@@ -31,12 +33,12 @@ public class MergePositionsOperatorTests extends ESTestCase {
         BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofGb(1)).withCircuitBreaking();
         CircuitBreaker breaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
         BlockFactory blockFactory = new BlockFactory(breaker, bigArrays);
+        IntVector selected = IntVector.range(0, 7, blockFactory);
         MergePositionsOperator mergeOperator = new MergePositionsOperator(
-            randomBoolean(),
-            7,
             0,
             new int[] { 1, 2 },
             new ElementType[] { ElementType.BYTES_REF, ElementType.INT },
+            selected.asBlock(),
             blockFactory
         );
         {
@@ -124,8 +126,7 @@ public class MergePositionsOperatorTests extends ESTestCase {
         assertTrue(f2.isNull(4));
         assertThat(BlockUtils.toJavaObject(f2, 5), equalTo(2023));
         assertTrue(f2.isNull(6));
-        mergeOperator.close();
-        out.releaseBlocks();
+        Releasables.close(mergeOperator, selected, out::releaseBlocks);
         MockBigArrays.ensureAllArraysAreReleased();
     }
 }

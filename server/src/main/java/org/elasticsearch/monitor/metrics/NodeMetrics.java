@@ -15,6 +15,7 @@ import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.util.SingleObjectCache;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.stats.IndexingPressureStats;
 import org.elasticsearch.monitor.jvm.GcNames;
 import org.elasticsearch.monitor.jvm.JvmStats;
 import org.elasticsearch.node.NodeService;
@@ -528,6 +529,20 @@ public class NodeMetrics extends AbstractLifecycleComponent {
 
         metrics.add(
             registry.registerLongAsyncCounter(
+                "es.indexing.coordinating_operations.requests.total",
+                "Total number of coordinating requests",
+                "operations",
+                () -> new LongWithAttributes(
+                    Optional.ofNullable(stats.getOrRefresh())
+                        .map(NodeStats::getIndexingPressureStats)
+                        .map(IndexingPressureStats::getTotalCoordinatingRequests)
+                        .orElse(0L)
+                )
+            )
+        );
+
+        metrics.add(
+            registry.registerLongAsyncCounter(
                 "es.indexing.primary_operations.size",
                 "Total number of memory bytes consumed by primary operations",
                 "bytes",
@@ -597,6 +612,20 @@ public class NodeMetrics extends AbstractLifecycleComponent {
         );
 
         metrics.add(
+            registry.registerLongAsyncCounter(
+                "es.indexing.primary_operations.document.rejections.total",
+                "Total number of rejected indexing documents",
+                "operations",
+                () -> new LongWithAttributes(
+                    Optional.ofNullable(stats.getOrRefresh())
+                        .map(NodeStats::getIndexingPressureStats)
+                        .map(IndexingPressureStats::getPrimaryDocumentRejections)
+                        .orElse(0L)
+                )
+            )
+        );
+
+        metrics.add(
             registry.registerLongGauge(
                 "es.indexing.memory.limit.size",
                 "Current memory limit for primary and coordinating operations",
@@ -607,6 +636,29 @@ public class NodeMetrics extends AbstractLifecycleComponent {
             )
         );
 
+        metrics.add(
+            registry.registerLongAsyncCounter(
+                "es.flush.total.time",
+                "The total time flushes have been executed excluding waiting time on locks",
+                "milliseconds",
+                () -> new LongWithAttributes(
+                    stats.getOrRefresh() != null ? stats.getOrRefresh().getIndices().getFlush().getTotalTimeInMillis() : 0L
+                )
+            )
+        );
+
+        metrics.add(
+            registry.registerLongAsyncCounter(
+                "es.flush.total_excluding_lock_waiting.time",
+                "The total time flushes have been executed excluding waiting time on locks",
+                "milliseconds",
+                () -> new LongWithAttributes(
+                    stats.getOrRefresh() != null
+                        ? stats.getOrRefresh().getIndices().getFlush().getTotalTimeExcludingWaitingOnLockMillis()
+                        : 0L
+                )
+            )
+        );
     }
 
     /**
@@ -636,6 +688,7 @@ public class NodeMetrics extends AbstractLifecycleComponent {
     private NodeStats getNodeStats() {
         CommonStatsFlags flags = new CommonStatsFlags(
             CommonStatsFlags.Flag.Indexing,
+            CommonStatsFlags.Flag.Flush,
             CommonStatsFlags.Flag.Get,
             CommonStatsFlags.Flag.Search,
             CommonStatsFlags.Flag.Merge,

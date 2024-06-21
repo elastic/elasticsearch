@@ -9,7 +9,7 @@
 package org.elasticsearch.http.snapshots;
 
 import org.apache.http.client.methods.HttpGet;
-import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusAction;
+import org.elasticsearch.action.admin.cluster.snapshots.status.TransportSnapshotsStatusAction;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Cancellable;
 import org.elasticsearch.client.Request;
@@ -54,13 +54,13 @@ public class RestSnapshotsStatusCancellationIT extends AbstractSnapshotRestTestC
         final Cancellable cancellable = getRestClient().performRequestAsync(request, wrapAsRestResponseListener(future));
 
         assertFalse(future.isDone());
-        awaitTaskWithPrefix(SnapshotsStatusAction.NAME);
+        awaitTaskWithPrefix(TransportSnapshotsStatusAction.TYPE.name());
         assertBusy(() -> assertTrue(repository.blocked()), 30L, TimeUnit.SECONDS);
         cancellable.cancel();
-        assertAllCancellableTasksAreCancelled(SnapshotsStatusAction.NAME);
+        assertAllCancellableTasksAreCancelled(TransportSnapshotsStatusAction.TYPE.name());
         repository.unblock();
         expectThrows(CancellationException.class, future::actionGet);
 
-        assertAllTasksHaveFinished(SnapshotsStatusAction.NAME);
+        assertAllTasksHaveFinished(TransportSnapshotsStatusAction.TYPE.name());
     }
 }

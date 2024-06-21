@@ -8,6 +8,7 @@
 package org.elasticsearch.common.lucene.store;
 
 import org.apache.lucene.store.IndexInput;
+import org.apache.lucene.store.RandomAccessInput;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.Settings;
@@ -83,6 +84,35 @@ public class ESIndexInputTestCase extends ESTestCase {
                         readPos += Short.BYTES;
                     } else {
                         output[readPos++] = indexInput.readByte();
+                    }
+                    if (indexInput instanceof RandomAccessInput randomAccessInput && randomBoolean()) {
+                        final var randomAccessReadStart = between(0, length - 1);
+                        final int randomAccessReadEnd;
+                        if (length - randomAccessReadStart >= Long.BYTES && randomBoolean()) {
+                            ByteBuffer.wrap(output, randomAccessReadStart, Long.BYTES)
+                                .order(ByteOrder.LITTLE_ENDIAN)
+                                .putLong(randomAccessInput.readLong(randomAccessReadStart));
+                            randomAccessReadEnd = randomAccessReadStart + Long.BYTES;
+                        } else if (length - randomAccessReadStart >= Integer.BYTES && randomBoolean()) {
+                            ByteBuffer.wrap(output, randomAccessReadStart, Integer.BYTES)
+                                .order(ByteOrder.LITTLE_ENDIAN)
+                                .putInt(randomAccessInput.readInt(randomAccessReadStart));
+                            randomAccessReadEnd = randomAccessReadStart + Integer.BYTES;
+                        } else if (length - randomAccessReadStart >= Short.BYTES && randomBoolean()) {
+                            ByteBuffer.wrap(output, randomAccessReadStart, Short.BYTES)
+                                .order(ByteOrder.LITTLE_ENDIAN)
+                                .putShort(randomAccessInput.readShort(randomAccessReadStart));
+                            randomAccessReadEnd = randomAccessReadStart + Short.BYTES;
+                        } else {
+                            output[randomAccessReadStart] = randomAccessInput.readByte(randomAccessReadStart);
+                            randomAccessReadEnd = randomAccessReadStart + 1;
+                        }
+                        if (randomAccessReadStart <= readPos && readPos <= randomAccessReadEnd && randomBoolean()) {
+                            readPos = between(readPos, randomAccessReadEnd);
+                            indexInput.seek(readPos);
+                        }
+
+                        indexInput.seek(readPos); // BUG these random-access reads shouldn't affect the current position
                     }
                     break;
                 case 4:

@@ -31,7 +31,7 @@ configuration objects. For more information, see
 
 `<filter_id>`::
 (Required, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=filter-id]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=filter-id]
 
 [[ml-put-filter-request-body]]
 == {api-request-body-title}

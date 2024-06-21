@@ -9,7 +9,6 @@
 package org.elasticsearch.action.admin.cluster.node.reload;
 
 import org.elasticsearch.TransportVersions;
-import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.support.nodes.BaseNodesRequest;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Strings;
@@ -45,8 +44,8 @@ public class NodesReloadSecureSettingsRequest extends BaseNodesRequest<NodesRelo
 
     private final RefCounted refs = LeakTracker.wrap(AbstractRefCounted.of(() -> Releasables.close(secureSettingsPassword)));
 
-    public NodesReloadSecureSettingsRequest() {
-        super((String[]) null);
+    public NodesReloadSecureSettingsRequest(String[] nodeIds) {
+        super(nodeIds);
     }
 
     public void setSecureStorePassword(SecureString secureStorePassword) {
@@ -55,11 +54,6 @@ public class NodesReloadSecureSettingsRequest extends BaseNodesRequest<NodesRelo
 
     boolean hasPassword() {
         return this.secureSettingsPassword != null && this.secureSettingsPassword.length() > 0;
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        TransportAction.localOnly();
     }
 
     @Override
@@ -97,7 +91,7 @@ public class NodesReloadSecureSettingsRequest extends BaseNodesRequest<NodesRelo
         NodeRequest(StreamInput in) throws IOException {
             super(in);
 
-            if (in.getTransportVersion().before(TransportVersions.SMALLER_RELOAD_SECURE_SETTINGS_REQUEST)) {
+            if (in.getTransportVersion().before(TransportVersions.V_8_13_0)) {
                 TaskId.readFromStream(in);
                 in.readStringArray();
                 in.readOptionalArray(DiscoveryNode::new, DiscoveryNode[]::new);
@@ -131,7 +125,7 @@ public class NodesReloadSecureSettingsRequest extends BaseNodesRequest<NodesRelo
             assert hasReferences();
             super.writeTo(out);
 
-            if (out.getTransportVersion().before(TransportVersions.SMALLER_RELOAD_SECURE_SETTINGS_REQUEST)) {
+            if (out.getTransportVersion().before(TransportVersions.V_8_13_0)) {
                 TaskId.EMPTY_TASK_ID.writeTo(out);
                 out.writeStringArray(Strings.EMPTY_ARRAY);
                 out.writeOptionalArray(StreamOutput::writeWriteable, null);

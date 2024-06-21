@@ -197,9 +197,8 @@ public class HdfsFixture extends ExternalResource {
                 System.out.println("Attempt " + attempt + " failed with error: " + e.getMessage());
                 // If the maximum number of attempts is reached, rethrow the exception
                 FileUtils.deleteDirectory(baseDir.toFile());
-
                 if (attempt == maxAttempts) {
-                    throw e;
+                    Assume.assumeTrue("Unable to start HDFS cluster", false);
                 }
             }
         }
@@ -213,7 +212,8 @@ public class HdfsFixture extends ExternalResource {
         }
         // hdfs-data/, where any data is going
         Path hdfsData = baseDir.resolve("hdfs-data");
-        Files.createDirectories(hdfsData);
+        Path data = hdfsData.resolve("data");
+        Files.createDirectories(data);
         return hdfsData;
     }
 

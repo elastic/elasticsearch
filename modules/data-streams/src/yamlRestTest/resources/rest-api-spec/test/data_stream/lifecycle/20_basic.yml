@@ -1,7 +1,7 @@
 setup:
   - skip:
       features: allowed_warnings
-      version: " - 8.10.99"
+      cluster_features: ["gte_v8.11.0"]
       reason: "Data stream lifecycles only supported in 8.11+"
   - do:
       allowed_warnings:
@@ -52,8 +52,7 @@ setup:
 ---
 "Get data stream with default lifecycle":
   - skip:
-      version: all
-      reason: https://github.com/elastic/elasticsearch/pull/100187
+      awaits_fix: https://github.com/elastic/elasticsearch/pull/100187
 
   - do:
       indices.get_data_lifecycle:
@@ -91,14 +90,14 @@ setup:
         name: "*"
   - length: { data_streams: 2 }
   - match: { data_streams.0.name: data-stream-with-lifecycle }
-  - match: { data_streams.0.lifecycle.data_retention: '30d' }
+  - match: { data_streams.0.lifecycle.data_retention: "30d" }
   - match: { data_streams.0.lifecycle.enabled: false}
   - match: { data_streams.0.lifecycle.downsampling.0.after: '10d'}
   - match: { data_streams.0.lifecycle.downsampling.0.fixed_interval: '1h'}
   - match: { data_streams.0.lifecycle.downsampling.1.after: '100d'}
   - match: { data_streams.0.lifecycle.downsampling.1.fixed_interval: '10h'}
   - match: { data_streams.1.name: simple-data-stream1 }
-  - match: { data_streams.1.lifecycle.data_retention: '30d' }
+  - match: { data_streams.1.lifecycle.data_retention: "30d" }
   - match: { data_streams.1.lifecycle.enabled: false}
   - match: { data_streams.1.lifecycle.downsampling.0.after: '10d'}
   - match: { data_streams.1.lifecycle.downsampling.0.fixed_interval: '1h'}
@@ -123,7 +122,7 @@ setup:
   - match: { data_streams.0.lifecycle.data_retention: '30d' }
   - match: { data_streams.0.lifecycle.enabled: true}
   - match: { data_streams.1.name: simple-data-stream1 }
-  - match: { data_streams.1.lifecycle.data_retention: '30d' }
+  - match: { data_streams.1.lifecycle.data_retention: "30d" }
   - match: { data_streams.1.lifecycle.enabled: true}
 
 
@@ -136,7 +135,7 @@ setup:
         include_defaults: true
   - length: { data_streams: 1}
   - match: { data_streams.0.name: data-stream-with-lifecycle }
-  - match: { data_streams.0.lifecycle.data_retention: '10d' }
+  - match: { data_streams.0.lifecycle.data_retention: "10d" }
   - is_true: data_streams.0.lifecycle.rollover
 
 ---
@@ -153,7 +152,7 @@ setup:
         name: "simple-data-stream1"
   - length: { data_streams: 1 }
   - match: { data_streams.0.name: simple-data-stream1 }
-  - match: { data_streams.0.lifecycle.data_retention: '30d' }
+  - match: { data_streams.0.lifecycle.data_retention: "30d" }
   - match: { data_streams.0.lifecycle.enabled: true }
 
   - do:

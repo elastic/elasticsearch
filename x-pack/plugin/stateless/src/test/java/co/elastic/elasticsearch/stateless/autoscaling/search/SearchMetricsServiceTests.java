@@ -547,13 +547,13 @@ public class SearchMetricsServiceTests extends ESTestCase {
             new PublishShardSizesRequest("search_node_1", Map.of(new ShardId(indexMetadata.getIndex(), 0), new ShardSize(1024, 1024, ZERO)))
         );
 
-        // should use min replicas when computing disk sizes
+        // use the configured number of replicas and ignore auto-expand as it is no-op for stateless indices. Replicas are auto managed.
         assertThat(
             service.getSearchTierMetrics(),
             equalTo(
                 new SearchTierMetrics(
                     FIXED_MEMORY_METRICS,
-                    new MaxShardCopies(1, MetricQuality.EXACT),
+                    new MaxShardCopies(5, MetricQuality.EXACT),
                     new StorageMetrics(1024, 1024, 2048, MetricQuality.EXACT),
                     List.of(new NodeSearchLoadSnapshot("search_node_1", 0.0, MetricQuality.MISSING))
                 )

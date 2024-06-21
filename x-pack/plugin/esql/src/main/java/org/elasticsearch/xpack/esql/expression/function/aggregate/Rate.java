@@ -64,8 +64,8 @@ public class Rate extends AggregateFunction implements OptionalArgument, ToAggre
     public static Rate readRate(PlanStreamInput in) throws IOException {
         Source source = Source.readFrom(in);
         Expression field = in.readExpression();
-        Expression timestamp = in.readExpression();
-        Expression unit = in.readBoolean() ? in.readExpression() : null;
+        Expression timestamp = in.readOptionalWriteable(i -> in.readExpression());
+        Expression unit = in.readOptionalNamed(Expression.class);
         return new Rate(source, field, timestamp, unit);
     }
 
@@ -73,12 +73,7 @@ public class Rate extends AggregateFunction implements OptionalArgument, ToAggre
         rate.source().writeTo(out);
         out.writeExpression(rate.field());
         out.writeExpression(rate.timestamp);
-        if (rate.unit != null) {
-            out.writeBoolean(true);
-            out.writeExpression(rate.unit);
-        } else {
-            out.writeBoolean(false);
-        }
+        out.writeOptionalExpression(rate.unit);
     }
 
     @Override
@@ -88,8 +83,19 @@ public class Rate extends AggregateFunction implements OptionalArgument, ToAggre
 
     @Override
     public Rate replaceChildren(List<Expression> newChildren) {
-        final Expression unit = newChildren.size() >= 3 ? newChildren.get(2) : null;
-        return new Rate(source(), newChildren.get(0), newChildren.get(1), unit);
+        if (unit != null) {
+            if (newChildren.size() == 3) {
+                return new Rate(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2));
+            }
+            assert false : "expected 3 children for field, @timestamp, and unit; got " + newChildren;
+            throw new IllegalArgumentException("expected 3 children for field, @timestamp, and unit; got " + newChildren);
+        } else {
+            if (newChildren.size() == 2) {
+                return new Rate(source(), newChildren.get(0), newChildren.get(1), null);
+            }
+            assert false : "expected 2 children for field and @timestamp; got " + newChildren;
+            throw new IllegalArgumentException("expected 2 children for field and @timestamp; got " + newChildren);
+        }
     }
 
     @Override
@@ -131,15 +137,14 @@ public class Rate extends AggregateFunction implements OptionalArgument, ToAggre
         }
         if (foldValue instanceof Duration duration) {
             return duration.toMillis();
-        } else {
-            throw new IllegalArgumentException("function [" + sourceText() + "] has invalid unit [" + unit.sourceText() + "]");
         }
+        throw new IllegalArgumentException("function [" + sourceText() + "] has invalid unit [" + unit.sourceText() + "]");
     }
 
     @Override
     public AggregatorFunctionSupplier supplier(List<Integer> inputChannels) {
         if (inputChannels.size() != 2 && inputChannels.size() != 3) {
-            throw new IllegalArgumentException("rate() requires two or three channels; got " + inputChannels);
+            throw new IllegalArgumentException("rate requires two for raw input or three channels for partial input; got " + inputChannels);
         }
         final long unitInMillis = unitInMillis();
         final DataType type = field().dataType();

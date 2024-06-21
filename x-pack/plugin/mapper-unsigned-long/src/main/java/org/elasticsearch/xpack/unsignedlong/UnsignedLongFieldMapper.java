@@ -626,7 +626,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
             numericValue = null;
         } else {
             try {
-                if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
+                if (parser.currentToken().isValue() == false) {
                     numericValue = null;
                     if (ignoreMalformed.value()) {
                         addIgnoredField(context);

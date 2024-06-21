@@ -44,7 +44,7 @@ The type of service supported for the specified task type. In this case,
 include::inference-shared.asciidoc[tag=service-settings]
 +
 --
-These settings are specific to the `service` you specified which is `cohere` in this case.
+These settings are specific to the `cohere` service.
 --
 
 `api_key`:::
@@ -56,16 +56,6 @@ https://dashboard.cohere.com/api-keys[on the API keys settings page].
 --
 include::inference-shared.asciidoc[tag=api-key-admonition]
 --
-
-`model_id`::
-(Optional, string)
-The name of the model to use for the {infer} task.
-To review the available `rerank` models, refer to the
-https://docs.cohere.com/reference/rerank-1[Cohere docs].
-
-To review the available `text_embedding` models, refer to the
-https://docs.cohere.com/reference/embed[Cohere docs].
-The default value for `text_embedding` is `embed-english-v2.0`.
 
 `rate_limit`:::
 (Optional, object)
@@ -82,19 +72,42 @@ include::inference-shared.asciidoc[tag=request-per-minute-example]
 More information about Cohere's rate limits can be found in https://docs.cohere.com/docs/going-live#production-key-specifications[Cohere's production key docs].
 --
 +
+.`service_settings` for the `completion` task type
+[%collapsible%closed]
+=====
+
+=====
++
+.`service_settings` for the `rerank` task type
+[%collapsible%closed]
+=====
+`model_id`::
+(Optional, string)
+The name of the model to use for the {infer} task.
+To review the available `rerank` models, refer to the
+https://docs.cohere.com/reference/rerank-1[Cohere docs].
+=====
++
 .`service_settings` for the `text_embedding` task type
 [%collapsible%closed]
 =====
 `embedding_type`:::
 (Optional, string)
-Only for `text_embedding`.
 Specifies the types of embeddings you want to get back.
 Defaults to `float`.
 Valid values are:
 * `byte`: use it for signed int8 embeddings (this is a synonym of `int8`).
 * `float`: use it for the default float embeddings.
 * `int8`: use it for signed int8 embeddings.
+
+`model_id`::
+(Optional, string)
+The name of the model to use for the {infer} task.
+To review the available `text_embedding` models, refer to the
+https://docs.cohere.com/reference/embed[Cohere docs].
+The default value for `text_embedding` is `embed-english-v2.0`.
 =====
+
 
 
 `task_settings`::

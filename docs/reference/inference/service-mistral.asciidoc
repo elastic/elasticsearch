@@ -42,8 +42,9 @@ The type of service supported for the specified task type. In this case,
 include::inference-shared.asciidoc[tag=service-settings]
 +
 --
-These settings are specific to the `service` you specified which is `mistral` in this case.
+These settings are specific to the `mistral` service.
 --
+
 `api_key`:::
 (Required, string)
 A valid API key for your Mistral account.

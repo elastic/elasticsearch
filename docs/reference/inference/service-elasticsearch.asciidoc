@@ -43,7 +43,7 @@ The type of service supported for the specified task type. In this case,
 include::inference-shared.asciidoc[tag=service-settings]
 +
 --
-These settings are specific to the `service` you specified which is `elasticsearch` in this case.
+These settings are specific to the `elasticsearch` service.
 --
 
 `model_id`:::

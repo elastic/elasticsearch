@@ -42,8 +42,9 @@ The type of service supported for the specified task type. In this case,
 include::inference-shared.asciidoc[tag=service-settings]
 +
 --
-These settings are specific to the `service` you specified which is `hugging_face` in this case.
+These settings are specific to the `hugging_face` service.
 --
+
 `api_key`:::
 (Required, string)
 A valid access token of your Hugging Face account.

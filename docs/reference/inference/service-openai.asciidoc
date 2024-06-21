@@ -43,8 +43,9 @@ The type of service supported for the specified task type. In this case,
 include::inference-shared.asciidoc[tag=service-settings]
 +
 --
-These settings are specific to the `service` you specified which is `openai` in this case.
+These settings are specific to the `openai` service.
 --
+
 `api_key`:::
 (Required, string)
 A valid API key of your OpenAI account.

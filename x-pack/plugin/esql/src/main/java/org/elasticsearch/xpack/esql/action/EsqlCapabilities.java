@@ -60,11 +60,6 @@ public class EsqlCapabilities {
         METADATA_IGNORED_FIELD,
 
         /**
-         * Support for the "LOOKUP" command.
-         */
-        LOOKUP_COMMAND(true),
-
-        /**
          * Support for the syntax {@code "tables": {"type": [<values>]}}.
          */
         TABLES_TYPES(true),

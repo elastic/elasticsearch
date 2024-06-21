@@ -67,17 +67,16 @@ tests:
 - class: "org.elasticsearch.xpack.shutdown.NodeShutdownReadinessIT"
   issue: "https://github.com/elastic/elasticsearch/issues/109838"
   method: "testShutdownReadinessService"
-- class: "org.elasticsearch.packaging.test.RpmPreservationTests"
-  issue: "https://github.com/elastic/elasticsearch/issues/109898"
-  method: "test30PreserveConfig"
 - class: "org.elasticsearch.xpack.security.ScrollHelperIntegTests"
   issue: "https://github.com/elastic/elasticsearch/issues/109905"
   method: "testFetchAllEntities"
 - class: "org.elasticsearch.xpack.ml.integration.AutodetectMemoryLimitIT"
   issue: "https://github.com/elastic/elasticsearch/issues/109904"
-- class: "org.elasticsearch.compute.operator.topn.TopNOperatorTests"
-  issue: "https://github.com/elastic/elasticsearch/issues/109915"
-  method: "testRandomMultiValuesTopN"
+- class: "org.elasticsearch.xpack.esql.action.AsyncEsqlQueryActionIT"
+  issue: "https://github.com/elastic/elasticsearch/issues/109944"
+  method: "testBasicAsyncExecution"
+- class: "org.elasticsearch.xpack.security.authz.store.NativePrivilegeStoreCacheTests"
+  issue: "https://github.com/elastic/elasticsearch/issues/110015"
 
 
 # Examples:

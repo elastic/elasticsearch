@@ -64,6 +64,14 @@ Must be a power of 2. Max allowed value is 32.
 `task_settings`::
 (Optional, object)
 include::inference-shared.asciidoc[tag=task-settings]
++
+.`task_settings` for the `rerank` task type
+[%collapsible%closed]
+=====
+`return_documents`:::
+(Optional, Boolean)
+Returns the document instead of only the index. Defaults to `true`.
+=====
 
 
 [discrete]

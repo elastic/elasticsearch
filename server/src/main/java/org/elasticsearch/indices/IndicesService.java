@@ -56,7 +56,6 @@ import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
@@ -1626,7 +1625,7 @@ public class IndicesService extends AbstractLifecycleComponent
         }
     }
 
-    public ByteSizeValue getTotalIndexingBufferBytes() {
+    public long getTotalIndexingBufferBytes() {
         return indexingMemoryController.indexingBufferSize();
     }
 

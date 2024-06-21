@@ -162,6 +162,24 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     }
 
     /**
+     * Converts a list of test cases into a list of parameter suppliers.
+     * Also, adds a default set of extra test cases.
+     * <p>
+     *     Use if possible, as this method may get updated with new checks in the future.
+     * </p>
+     *
+     * @param entirelyNullPreservesType See {@link #anyNullIsNull(boolean, List)}
+     */
+    protected static Iterable<Object[]> parameterSuppliersFromTypedDataWithDefaultChecks(
+        boolean entirelyNullPreservesType,
+        List<TestCaseSupplier> suppliers
+    ) {
+        return parameterSuppliersFromTypedData(
+            errorsForCasesWithoutExamples(anyNullIsNull(entirelyNullPreservesType, randomizeBytesRefsOffset(suppliers)))
+        );
+    }
+
+    /**
      * Build an {@link Attribute} that loads a field.
      */
     public static FieldAttribute field(String name, DataType type) {
@@ -639,6 +657,46 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
 
     public interface ExpectedEvaluatorToString {
         Matcher<String> evaluatorToString(int nullPosition, TestCaseSupplier.TypedData nullData, Matcher<String> original);
+    }
+
+    /**
+     * Modifies suppliers to generate BytesRefs with random offsets.
+     */
+    protected static List<TestCaseSupplier> randomizeBytesRefsOffset(List<TestCaseSupplier> testCaseSuppliers) {
+        return testCaseSuppliers.stream().map(supplier -> new TestCaseSupplier(supplier.name(), supplier.types(), () -> {
+            var testCase = supplier.supplier().get();
+
+            var newData = testCase.getData().stream().map(typedData -> {
+                if (typedData.data() instanceof BytesRef bytesRef) {
+                    var offset = randomIntBetween(0, 10);
+                    var extraLength = randomIntBetween(0, 10);
+                    var newBytesArray = randomByteArrayOfLength(bytesRef.length + offset + extraLength);
+
+                    System.arraycopy(bytesRef.bytes, bytesRef.offset, newBytesArray, offset, bytesRef.length);
+
+                    var newBytesRef = new BytesRef(newBytesArray, offset, bytesRef.length);
+                    var newTypedData = new TestCaseSupplier.TypedData(newBytesRef, typedData.type(), typedData.name());
+
+                    if (typedData.isForceLiteral()) {
+                        newTypedData.forceLiteral();
+                    }
+
+                    return newTypedData;
+                }
+                return typedData;
+            }).toList();
+
+            return new TestCaseSupplier.TestCase(
+                newData,
+                testCase.evaluatorToString(),
+                testCase.expectedType(),
+                testCase.getMatcher(),
+                testCase.getExpectedWarnings(),
+                testCase.getExpectedTypeError(),
+                testCase.foldingExceptionClass(),
+                testCase.foldingExceptionMessage()
+            );
+        })).toList();
     }
 
     protected static List<TestCaseSupplier> anyNullIsNull(

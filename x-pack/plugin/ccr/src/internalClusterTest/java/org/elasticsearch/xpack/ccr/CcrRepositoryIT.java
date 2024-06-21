@@ -154,7 +154,11 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
         Settings.Builder settingsBuilder = Settings.builder()
             .put(IndexMetadata.SETTING_INDEX_PROVIDED_NAME, followerIndex)
             .put(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), true);
-        RestoreSnapshotRequest restoreRequest = new RestoreSnapshotRequest(leaderClusterRepoName, CcrRepository.LATEST).indices(leaderIndex)
+        RestoreSnapshotRequest restoreRequest = new RestoreSnapshotRequest(
+            TEST_REQUEST_TIMEOUT,
+            leaderClusterRepoName,
+            CcrRepository.LATEST
+        ).indices(leaderIndex)
             .indicesOptions(indicesOptions)
             .renamePattern("^(.*)$")
             .renameReplacement(followerIndex)
@@ -225,7 +229,11 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
         Settings.Builder settingsBuilder = Settings.builder()
             .put(IndexMetadata.SETTING_INDEX_PROVIDED_NAME, followerIndex)
             .put(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), true);
-        RestoreSnapshotRequest restoreRequest = new RestoreSnapshotRequest(leaderClusterRepoName, CcrRepository.LATEST).indices(leaderIndex)
+        RestoreSnapshotRequest restoreRequest = new RestoreSnapshotRequest(
+            TEST_REQUEST_TIMEOUT,
+            leaderClusterRepoName,
+            CcrRepository.LATEST
+        ).indices(leaderIndex)
             .indicesOptions(indicesOptions)
             .renamePattern("^(.*)$")
             .renameReplacement(followerIndex)
@@ -292,7 +300,11 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
         Settings.Builder settingsBuilder = Settings.builder()
             .put(IndexMetadata.SETTING_INDEX_PROVIDED_NAME, followerIndex)
             .put(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), true);
-        RestoreSnapshotRequest restoreRequest = new RestoreSnapshotRequest(leaderClusterRepoName, CcrRepository.LATEST).indices(leaderIndex)
+        RestoreSnapshotRequest restoreRequest = new RestoreSnapshotRequest(
+            TEST_REQUEST_TIMEOUT,
+            leaderClusterRepoName,
+            CcrRepository.LATEST
+        ).indices(leaderIndex)
             .indicesOptions(indicesOptions)
             .renamePattern("^(.*)$")
             .renameReplacement(followerIndex)
@@ -357,7 +369,11 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
         Settings.Builder settingsBuilder = Settings.builder()
             .put(IndexMetadata.SETTING_INDEX_PROVIDED_NAME, followerIndex)
             .put(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), true);
-        RestoreSnapshotRequest restoreRequest = new RestoreSnapshotRequest(leaderClusterRepoName, CcrRepository.LATEST).indices(leaderIndex)
+        RestoreSnapshotRequest restoreRequest = new RestoreSnapshotRequest(
+            TEST_REQUEST_TIMEOUT,
+            leaderClusterRepoName,
+            CcrRepository.LATEST
+        ).indices(leaderIndex)
             .indicesOptions(indicesOptions)
             .renamePattern("^(.*)$")
             .renameReplacement(followerIndex)
@@ -420,7 +436,11 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
         Settings.Builder settingsBuilder = Settings.builder()
             .put(IndexMetadata.SETTING_INDEX_PROVIDED_NAME, followerIndex)
             .put(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), true);
-        RestoreSnapshotRequest restoreRequest = new RestoreSnapshotRequest(leaderClusterRepoName, CcrRepository.LATEST).indices(leaderIndex)
+        RestoreSnapshotRequest restoreRequest = new RestoreSnapshotRequest(
+            TEST_REQUEST_TIMEOUT,
+            leaderClusterRepoName,
+            CcrRepository.LATEST
+        ).indices(leaderIndex)
             .indicesOptions(indicesOptions)
             .renamePattern("^(.*)$")
             .renameReplacement(followerIndex)
@@ -573,7 +593,8 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
         };
         clusterService.addListener(listener);
 
-        final RestoreSnapshotRequest restoreRequest = new RestoreSnapshotRequest(leaderCluster, CcrRepository.LATEST).indices(leaderIndex)
+        final RestoreSnapshotRequest restoreRequest = new RestoreSnapshotRequest(TEST_REQUEST_TIMEOUT, leaderCluster, CcrRepository.LATEST)
+            .indices(leaderIndex)
             .indicesOptions(indicesOptions)
             .renamePattern("^(.*)$")
             .renameReplacement(followerIndex)

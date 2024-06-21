@@ -48,6 +48,7 @@ import org.elasticsearch.bootstrap.BootstrapForTesting;
 import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -2341,18 +2342,14 @@ public abstract class ESTestCase extends LuceneTestCase {
      * Call a supplier that might throw and fail if it throws, useful to avoid try/catch boilerplate or cumbersome
      * propagation of checked exceptions around something you assume should never throw.
      *
-     * @param throwingSupplier A supplier that may throw an exception
+     * @param supplier A supplier that may throw an exception
      * @return The value returned by the supplier
      */
-    protected static <T> T assertDoesNotThrow(ThrowingSupplier<T> throwingSupplier) {
+    protected static <T> T assertDoesNotThrow(CheckedSupplier<T, ?> supplier) {
         try {
-            return throwingSupplier.get();
+            return supplier.get();
         } catch (Exception e) {
             return fail(e);
         }
-    }
-
-    protected interface ThrowingSupplier<T> {
-        T get() throws Exception;
     }
 }

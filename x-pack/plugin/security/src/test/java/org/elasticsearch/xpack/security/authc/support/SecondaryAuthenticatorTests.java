@@ -193,7 +193,11 @@ public class SecondaryAuthenticatorTests extends ESTestCase {
         final PlainActionFuture<SecondaryAuthentication> future = new PlainActionFuture<>();
         authenticator.authenticate(AuthenticateAction.NAME, request, future);
 
-        final ElasticsearchSecurityException ex = expectThrows(ExecutionException.class, ElasticsearchSecurityException.class, future::result);
+        final ElasticsearchSecurityException ex = expectThrows(
+            ExecutionException.class,
+            ElasticsearchSecurityException.class,
+            future::result
+        );
         assertThat(ex, TestMatchers.throwableWithMessage(Matchers.containsString("secondary user")));
         assertThat(ex.getCause(), TestMatchers.throwableWithMessage(Matchers.containsString("credentials")));
     }
@@ -204,7 +208,11 @@ public class SecondaryAuthenticatorTests extends ESTestCase {
         final PlainActionFuture<SecondaryAuthentication> future = new PlainActionFuture<>();
         authenticator.authenticateAndAttachToContext(request, future);
 
-        final ElasticsearchSecurityException ex = expectThrows(ExecutionException.class, ElasticsearchSecurityException.class, future::result);
+        final ElasticsearchSecurityException ex = expectThrows(
+            ExecutionException.class,
+            ElasticsearchSecurityException.class,
+            future::result
+        );
         assertThat(ex, TestMatchers.throwableWithMessage(Matchers.containsString("secondary user")));
         assertThat(ex.getCause(), TestMatchers.throwableWithMessage(Matchers.containsString("credentials")));
 
@@ -288,7 +296,11 @@ public class SecondaryAuthenticatorTests extends ESTestCase {
             future.onFailure(e);
         }));
 
-        final ElasticsearchSecurityException ex = expectThrows(ExecutionException.class, ElasticsearchSecurityException.class, future::result);
+        final ElasticsearchSecurityException ex = expectThrows(
+            ExecutionException.class,
+            ElasticsearchSecurityException.class,
+            future::result
+        );
 
         assertThat(ex, TestMatchers.throwableWithMessage(Matchers.containsString("secondary user")));
         assertThat(ex.getCause(), TestMatchers.throwableWithMessage(Matchers.containsString(user)));

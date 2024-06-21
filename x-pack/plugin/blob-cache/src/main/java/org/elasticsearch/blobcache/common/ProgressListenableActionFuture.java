@@ -12,6 +12,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.core.Nullable;
 
 import java.util.ArrayList;
@@ -216,16 +217,12 @@ class ProgressListenableActionFuture extends PlainActionFuture<Long> {
         }
     }
 
-    private static void executeListener(final ActionListener<Long> listener, final ThrowingSupplier<Long> result) {
+    private static void executeListener(final ActionListener<Long> listener, final CheckedSupplier<Long, ?> result) {
         try {
             listener.onResponse(result.get());
         } catch (Exception e) {
             listener.onFailure(e);
         }
-    }
-
-    private interface ThrowingSupplier<T> {
-        T get() throws Exception;
     }
 
     private static void safeAcceptProgress(LongConsumer consumer, long progress) {

@@ -85,9 +85,7 @@ To modify this, set the `requests_per_minute` setting of this object in your ser
 +
 --
 include::inference-shared.asciidoc[tag=request-per-minute-example]
---
-+
---
+
 More information about the rate limits for OpenAI can be found in your https://platform.openai.com/account/limits[Account limits].
 --
 

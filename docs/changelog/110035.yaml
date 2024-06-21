@@ -1,0 +1,5 @@
+pr: 110035
+summary: Fix equals and hashcode for `SingleValueQuery.LuceneQuery`
+area: Compute Engine
+type: bug
+issues: []

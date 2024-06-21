@@ -321,10 +321,8 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
                         )
                     );
             }
-            SslHandler sslHandler = null;
             if (tlsConfig.isTLSEnabled()) {
-                sslHandler = new SslHandler(tlsConfig.createServerSSLEngine());
-                ch.pipeline().addLast("ssl", sslHandler);
+                ch.pipeline().addLast("ssl", new SslHandler(tlsConfig.createServerSSLEngine()));
             }
             ch.pipeline()
                 .addLast("chunked_writer", new Netty4WriteThrottlingHandler(transport.getThreadPool().getThreadContext()))
@@ -385,9 +383,6 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
                 .addLast("aggregator", aggregator);
             if (handlingSettings.compression()) {
                 ch.pipeline().addLast("encoder_compress", new HttpContentCompressor(handlingSettings.compressionLevel()));
-            }
-            if (tlsConfig.isTLSEnabled()) {
-                ch.pipeline().addLast(new Netty4CloseNotifyHandler(ch, sslHandler));
             }
             ch.pipeline()
                 .addLast(

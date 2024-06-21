@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.security.transport.netty4;
 
 import io.netty.bootstrap.Bootstrap;
+import io.netty.channel.Channel;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInitializer;
 import io.netty.channel.SimpleChannelInboundHandler;
@@ -24,12 +25,14 @@ import io.netty.handler.codec.http.HttpVersion;
 import io.netty.handler.ssl.SslContextBuilder;
 import io.netty.handler.ssl.SslHandler;
 import io.netty.handler.ssl.util.InsecureTrustManagerFactory;
+import io.netty.handler.ssl.util.SelfSignedCertificate;
 import io.netty.util.concurrent.Future;
 
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.http.AbstractHttpServerTransportTestCase;
 import org.elasticsearch.http.HttpServerTransport;
@@ -39,30 +42,30 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.telemetry.tracing.Tracer;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.netty4.SharedGroupFactory;
 import org.elasticsearch.transport.netty4.TLSConfig;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 
+import java.security.cert.CertificateException;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
 import java.util.concurrent.BlockingDeque;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.function.Consumer;
 
 import javax.net.ssl.SSLException;
 
+@ESTestCase.WithoutSecurityManager
+@SuppressForbidden(reason = "requires java.io.File for netty self-signed certificate")
 public class SecurityNetty4HttpServerTransportCloseNotifyTests extends AbstractHttpServerTransportTestCase {
-
-    private static void shutdownAll(HttpServer server, HttpClient client) {
-        server.netty.stop();
-        server.threadPool.shutdownNow();
-        safeAwait(client.netty.config().group().shutdownGracefully());
-    }
 
     private static <T> T safePoll(BlockingQueue<T> queue) {
         try {
@@ -77,25 +80,29 @@ public class SecurityNetty4HttpServerTransportCloseNotifyTests extends AbstractH
         }
     }
 
-    private static <T> T safeAwait(Future<T> nettyFuture) {
+    private static <T> void safeAwait(Future<T> nettyFuture) {
         try {
-            return nettyFuture.get(5, TimeUnit.SECONDS);
+            nettyFuture.get(5, TimeUnit.SECONDS);
         } catch (InterruptedException | ExecutionException | TimeoutException e) {
             throw new AssertionError(e);
         }
     }
 
-    private HttpServer setupHttpServer(String tlsProtocols) {
-        var cert = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt");
-        var pk = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.pem");
+    /**
+     * Setup {@link Netty4HttpServerTransport} with SSL enabled and self-signed certificate.
+     * All HTTP requests accumulate in the dispatcher reqQueue.
+     * The server will not reply to request automatically, to send response poll the queue.
+     */
+    private HttpServer setupHttpServer(String tlsProtocols) throws CertificateException, SSLException {
+        var ssc = new SelfSignedCertificate();
         var threadPool = new TestThreadPool("tls-close-notify");
         var dispatcher = new QueuedDispatcher();
         var secureSettings = new MockSecureSettings();
         secureSettings.setString("xpack.security.http.ssl.secure_key_passphrase", "testnode");
         var settings = Settings.builder()
             .put("xpack.security.http.ssl.enabled", true)
-            .put("xpack.security.http.ssl.key", pk)
-            .put("xpack.security.http.ssl.certificate", cert)
+            .put("xpack.security.http.ssl.key", ssc.privateKey().getPath())
+            .put("xpack.security.http.ssl.certificate", ssc.certificate().getPath())
             .put("path.home", createTempDir())
             .setSecureSettings(secureSettings)
             .put("xpack.security.http.ssl.supported_protocols", tlsProtocols)
@@ -119,7 +126,12 @@ public class SecurityNetty4HttpServerTransportCloseNotifyTests extends AbstractH
         return new HttpServer(server, dispatcher, threadPool);
     }
 
-    private HttpClient setupHttpClient(HttpServer server) throws SSLException {
+    /**
+     * Set up a Netty HTTPs client and connect to server.
+     * Configured with self-signed certificate trust.
+     * Server responses accumulate in the respQueue, and exceptions in the errQueue.
+     */
+    private HttpClient setupHttpClient(HttpServer server) throws SSLException, InterruptedException {
         var clientSslCtx = SslContextBuilder.forClient().trustManager(InsecureTrustManagerFactory.INSTANCE).build();
         var remoteAddr = randomFrom(server.netty.boundAddress().boundAddresses());
         var respQueue = new LinkedBlockingDeque<FullHttpResponse>();
@@ -142,96 +154,125 @@ public class SecurityNetty4HttpServerTransportCloseNotifyTests extends AbstractH
                         }
 
                         @Override
-                        public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
+                        public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
                             errQueue.add(cause);
                         }
                     });
                 }
             });
-        return new HttpClient(bootstrap, respQueue, errQueue);
+        var channel = bootstrap.connect().sync().channel();
+        return new HttpClient(bootstrap, channel, respQueue, errQueue);
     }
 
     /**
-     * This test ensures that sending close_notify from the client on the idle channel will trigger close connection from the server.
+     * Setup server and client, establish ssl connection, blocks until handshake is done
      */
-    public void testCloseIdleConnection() throws Exception {
-        var tlsProto = "TLSv1.3";
-        var server = setupHttpServer(tlsProto);
-        var client = setupHttpClient(server);
+    private ConnectionCtx connectClientAndServer(String tlsProtocol) {
         try {
-            var channel = client.netty.connect().sync().channel();
-            var ssl = channel.pipeline().get(SslHandler.class);
+            var server = setupHttpServer(tlsProtocol);
+            var client = setupHttpClient(server);
+            var ssl = client.channel.pipeline().get(SslHandler.class);
             safeAwait(ssl.handshakeFuture());
-            assertEquals(tlsProto, ssl.engine().getSession().getProtocol());
-            ssl.closeOutbound();
-            safeAwait(channel.closeFuture());
-        } finally {
-            shutdownAll(server, client);
+            assertEquals(tlsProtocol, ssl.engine().getSession().getProtocol());
+            return new ConnectionCtx(tlsProtocol, server, client);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
         }
     }
 
+    private void runForAllTlsVersions(Consumer<String> test) {
+        List.of("TLSv1.2", "TLSv1.3").forEach(test);
+    }
+
     /**
-     * This tests ensures that sending close_notify after HTTP response will close the channel immediately.
+     * This test ensures that sending close_notify from the client on the idle channel trigger close connection from the server.
+     */
+    public void testCloseIdleConnection() {
+        runForAllTlsVersions(tlsProto -> {
+            try (var ctx = connectClientAndServer(tlsProto)) {
+                var ssl = ctx.client.channel.pipeline().get(SslHandler.class);
+                ssl.closeOutbound();
+                safeAwait(ctx.client.channel.closeFuture());
+            }
+        });
+    }
+
+    /**
+     * This tests ensures that sending close_notify after HTTP response close the channel immediately.
      * It should be similar to idle test, but in this test we await http request and response.
      */
-    public void testSendCloseNotifyAfterHttpResponse() throws Exception {
-        var tlsProto = "TLSv1.3";
-        var server = setupHttpServer(tlsProto);
-        var client = setupHttpClient(server);
-        try {
-            var channel = client.netty.connect().sync().channel();
-            channel.writeAndFlush(new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "/index"));
-            var reqctx = safePoll(server.dispatcher.reqQueue);
-            reqctx.restChannel.sendResponse(new RestResponse(RestStatus.OK, ""));
-            safePoll(client.respQueue);
-
-            var ssl = channel.pipeline().get(SslHandler.class);
-            ssl.closeOutbound();
-            safeAwait(channel.closeFuture());
-        } finally {
-            shutdownAll(server, client);
-        }
+    public void testSendCloseNotifyAfterHttpResponse() {
+        runForAllTlsVersions(tlsProto -> {
+            try (var ctx = connectClientAndServer(tlsProto)) {
+                ctx.client.channel.writeAndFlush(new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "/index"));
+                var reqctx = safePoll(ctx.server.dispatcher.reqQueue);
+                reqctx.restChannel.sendResponse(new RestResponse(RestStatus.OK, ""));
+                safePoll(ctx.client.respQueue);
+                var ssl = ctx.client.channel.pipeline().get(SslHandler.class);
+                ssl.closeOutbound();
+                safeAwait(ctx.client.channel.closeFuture());
+            }
+        });
     }
 
     /**
-     * This test ensures that we send all http responses for all http requests we receive prior to close_notify.
-     * We guarantee no truncation on the reader side.
+     * This test ensures that sending close_notify with outstanding requests close channel immediately.
      */
-    public void testSendCloseNotifyBeforeHttpResponse() throws Exception {
-        var tlsProto = "TLSv1.3";
-        var server = setupHttpServer(tlsProto);
-        var client = setupHttpClient(server);
-        try {
-            var channel = client.netty.connect().sync().channel();
+    public void testSendCloseNotifyBeforeHttpResponse() {
+        runForAllTlsVersions(tlsProto -> {
+            try (var ctx = connectClientAndServer(tlsProto)) {
+                var server = ctx.server;
+                var client = ctx.client;
 
-            var nRequests = randomIntBetween(1, 100);
-            for (int i = 0; i < nRequests; i++) {
-                safeAwait(channel.writeAndFlush(new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "/index")));
+                var nRequests = randomIntBetween(1, 5);
+                for (int i = 0; i < nRequests; i++) {
+                    safeAwait(client.channel.writeAndFlush(new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "/index")));
+                }
+                assertBusy(() -> { assertEquals(nRequests, server.dispatcher.reqQueue.size()); });
+
+                // after the server receives requests send close_notify, before server responses
+                var ssl = client.channel.pipeline().get(SslHandler.class);
+                ssl.closeOutbound();
+
+                // it's not really important to send all responses, all of them should fail, any non-zero value is ok
+                for (int i = 0; i < nRequests; i++) {
+                    var serverRequestCtx = safePoll(ctx.server.dispatcher.reqQueue);
+                    var content = randomByteArrayOfLength(1024);
+                    serverRequestCtx.restChannel.sendResponse(new RestResponse(RestStatus.OK, Arrays.toString(content)));
+                }
+
+                safeAwait(ctx.client.channel.closeFuture());
+                assertTrue(client.errQueue.isEmpty());
+                assertTrue(client.respQueue.isEmpty());
+            } catch (Exception e) {
+                throw new RuntimeException(e);
             }
-            var ssl = channel.pipeline().get(SslHandler.class);
-            ssl.closeOutbound(); // sending close notify right after requests flush, but before responses returned
+        });
 
-            for (int i = 0; i < nRequests; i++) {
-                var reqctx = safePoll(server.dispatcher.reqQueue);
-                // create content that can be randomly chunked and make sure all chunks are delivered without truncation
-                var maxChunkSize = server.netty.handlingSettings.maxChunkSize();
-                var contentSize = randomIntBetween(maxChunkSize / 2, maxChunkSize * 2);
-                var content = randomByteArrayOfLength(contentSize);
-                reqctx.restChannel.sendResponse(new RestResponse(RestStatus.OK, Arrays.toString(content)));
-                safePoll(client.respQueue);
-            }
-
-            safeAwait(channel.closeFuture());
-        } finally {
-            shutdownAll(server, client);
-        }
     }
 
     private record HttpServer(Netty4HttpServerTransport netty, QueuedDispatcher dispatcher, ThreadPool threadPool) {}
 
+    private record HttpClient(
+        Bootstrap netty,
+        Channel channel,
+        BlockingDeque<FullHttpResponse> respQueue,
+        BlockingDeque<Throwable> errQueue
+    ) {}
+
+    private record ConnectionCtx(String tlsProtocol, HttpServer server, HttpClient client) implements AutoCloseable {
+
+        @Override
+        public void close() {
+            server.netty.stop();
+            server.threadPool.shutdownNow();
+            safeAwait(client.netty.config().group().shutdownGracefully());
+        }
+    }
+
     private static class QueuedDispatcher implements HttpServerTransport.Dispatcher {
         BlockingQueue<ReqCtx> reqQueue = new LinkedBlockingDeque<>();
-        BlockingQueue<ErrCtx> errQueue = new LinkedBlockingDeque<>();
+        BlockingDeque<ErrCtx> errQueue = new LinkedBlockingDeque<>();
 
         @Override
         public void dispatchRequest(RestRequest request, RestChannel channel, ThreadContext threadContext) {
@@ -245,9 +286,7 @@ public class SecurityNetty4HttpServerTransportCloseNotifyTests extends AbstractH
 
         record ReqCtx(RestRequest request, RestChannel restChannel, ThreadContext threadContext) {}
 
-        record ErrCtx(RestChannel channel, ThreadContext threadContext, Throwable cause) {}
+        record ErrCtx(RestChannel restChannel, ThreadContext threadContext, Throwable cause) {}
     }
-
-    private record HttpClient(Bootstrap netty, BlockingDeque<FullHttpResponse> respQueue, BlockingDeque<Throwable> errQueue) {}
 
 }

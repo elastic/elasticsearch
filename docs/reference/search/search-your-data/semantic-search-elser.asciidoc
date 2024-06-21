@@ -264,7 +264,7 @@ GET my-index/_search
           "sparse_vector": {
             "field": "content_embedding",
             "inference_id": "my_elser_model",
-            "query": "How to avoid muscle soreness after running?"
+            "query": "How to avoid muscle soreness after running?",
             "boost": 1 <2>
           }
         },

@@ -87,23 +87,23 @@ public class QueryRoleIT extends SecurityInBasicRestTestCase {
         int nMatchingRoles = randomIntBetween(2, 5);
         for (int i = 0; i < nMatchingRoles; i++) {
             ApplicationResourcePrivileges[] applicationResourcePrivileges = randomArray(
-                    1,
-                    5,
-                    ApplicationResourcePrivileges[]::new,
-                    this::randomApplicationResourcePrivileges
+                1,
+                5,
+                ApplicationResourcePrivileges[]::new,
+                this::randomApplicationResourcePrivileges
             );
             int matchingApplicationIndex = randomIntBetween(0, applicationResourcePrivileges.length - 1);
             // make sure the application matches the filter query below ("a*z")
             applicationResourcePrivileges[matchingApplicationIndex] = RoleDescriptor.ApplicationResourcePrivileges.builder()
-                    .application("a" + randomAlphaOfLength(4) + "z")
-                    .resources(applicationResourcePrivileges[matchingApplicationIndex].getResources())
-                    .privileges(applicationResourcePrivileges[matchingApplicationIndex].getPrivileges())
-                    .build();
+                .application("a" + randomAlphaOfLength(4) + "z")
+                .resources(applicationResourcePrivileges[matchingApplicationIndex].getResources())
+                .privileges(applicationResourcePrivileges[matchingApplicationIndex].getPrivileges())
+                .build();
             createRole(
-                    randomAlphaOfLength(4) + i,
-                    randomBoolean() ? null : randomAlphaOfLength(8),
-                    randomBoolean() ? null : randomMetadata(),
-                    applicationResourcePrivileges
+                randomAlphaOfLength(4) + i,
+                randomBoolean() ? null : randomAlphaOfLength(8),
+                randomBoolean() ? null : randomMetadata(),
+                applicationResourcePrivileges
             );
         }
         assertQuery("""

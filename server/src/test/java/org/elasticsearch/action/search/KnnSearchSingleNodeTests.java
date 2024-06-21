@@ -20,13 +20,13 @@ import org.elasticsearch.search.vectors.KnnSearchBuilder;
 import org.elasticsearch.search.vectors.KnnVectorQueryBuilder;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 
 import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
-import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
@@ -37,7 +37,8 @@ public class KnnSearchSingleNodeTests extends ESSingleNodeTestCase {
         int numShards = 1 + randomInt(3);
         Settings indexSettings = Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numShards).build();
 
-        XContentBuilder builder = jsonBuilder().startObject()
+        XContentBuilder builder = XContentFactory.jsonBuilder()
+            .startObject()
             .startObject("properties")
             .startObject("vector")
             .field("type", "dense_vector")
@@ -81,7 +82,8 @@ public class KnnSearchSingleNodeTests extends ESSingleNodeTestCase {
         int numShards = 1 + randomInt(3);
         Settings indexSettings = Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numShards).build();
 
-        XContentBuilder builder = jsonBuilder().startObject()
+        XContentBuilder builder = XContentFactory.jsonBuilder()
+            .startObject()
             .startObject("properties")
             .startObject("vector")
             .field("type", "dense_vector")
@@ -129,7 +131,8 @@ public class KnnSearchSingleNodeTests extends ESSingleNodeTestCase {
         int numShards = 1 + randomInt(3);
         Settings indexSettings = Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numShards).build();
 
-        XContentBuilder builder = jsonBuilder().startObject()
+        XContentBuilder builder = XContentFactory.jsonBuilder()
+            .startObject()
             .startObject("properties")
             .startObject("vector")
             .field("type", "dense_vector")
@@ -168,7 +171,8 @@ public class KnnSearchSingleNodeTests extends ESSingleNodeTestCase {
         int numShards = 1 + randomInt(3);
         Settings indexSettings = Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numShards).build();
 
-        XContentBuilder builder = jsonBuilder().startObject()
+        XContentBuilder builder = XContentFactory.jsonBuilder()
+            .startObject()
             .startObject("properties")
             .startObject("vector")
             .field("type", "dense_vector")
@@ -208,7 +212,8 @@ public class KnnSearchSingleNodeTests extends ESSingleNodeTestCase {
         int numShards = 1 + randomInt(3);
         Settings indexSettings = Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numShards).build();
 
-        XContentBuilder builder = jsonBuilder().startObject()
+        XContentBuilder builder = XContentFactory.jsonBuilder()
+            .startObject()
             .startObject("properties")
             .startObject("vector")
             .field("type", "dense_vector")
@@ -271,7 +276,8 @@ public class KnnSearchSingleNodeTests extends ESSingleNodeTestCase {
         int numShards = 1 + randomInt(3);
         Settings indexSettings = Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numShards).build();
 
-        XContentBuilder builder = jsonBuilder().startObject()
+        XContentBuilder builder = XContentFactory.jsonBuilder()
+            .startObject()
             .startObject("properties")
             .startObject("vector")
             .field("type", "dense_vector")
@@ -345,7 +351,8 @@ public class KnnSearchSingleNodeTests extends ESSingleNodeTestCase {
         int numShards = 1 + randomInt(3);
         Settings indexSettings = Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numShards).build();
 
-        XContentBuilder builder = jsonBuilder().startObject()
+        XContentBuilder builder = XContentFactory.jsonBuilder()
+            .startObject()
             .startObject("properties")
             .startObject("vector")
             .field("type", "dense_vector")
@@ -381,48 +388,10 @@ public class KnnSearchSingleNodeTests extends ESSingleNodeTestCase {
         });
     }
 
-    public void testBit() throws IOException {
-        Settings indexSettings = Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).build();
-        XContentBuilder builder = jsonBuilder().startObject()
-            .startObject("properties")
-            .startObject("vector")
-            .field("type", "dense_vector")
-            .field("dims", 32)
-            .field("index", true)
-            .field("similarity", "l2_norm")
-            .field("element_type", "bit")
-            .endObject()
-            .endObject()
-            .endObject();
-        createIndex("index1", indexSettings, builder);
-
-        prepareIndex("index1").setId("1")
-            .setSource(jsonBuilder().startObject().field("vector", new float[] { 64, 10, -30, 10 }).endObject())
-            .get();
-        prepareIndex("index1").setId("2")
-            .setSource(jsonBuilder().startObject().field("vector", new float[] { 65, 10, -30, 10 }).endObject())
-            .get();
-
-        indicesAdmin().prepareForceMerge("index1").setMaxNumSegments(1).get();
-        indicesAdmin().prepareRefresh("index1").get();
-
-        // Since there's no kNN search action at the transport layer, we just emulate
-        // how the action works (it builds a kNN query under the hood)
-        byte[] bits = new byte[4];
-        random().nextBytes(bits);
-        assertResponse(
-            client().prepareSearch("index1").setQuery(new KnnVectorQueryBuilder("vector", bits, 1, null)).setSize(2),
-            response -> {
-                // The total hits is num_cands * num_shards, since the query gathers num_cands hits from each shard
-                assertHitCount(response, 5 * 2);
-                assertEquals(2, response.getHits().getHits().length);
-            }
-        );
-    }
-
     public void testKnnSearchAction() throws IOException {
         Settings indexSettings = Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).build();
-        XContentBuilder builder = jsonBuilder().startObject()
+        XContentBuilder builder = XContentFactory.jsonBuilder()
+            .startObject()
             .startObject("properties")
             .startObject("vector")
             .field("type", "dense_vector")
@@ -460,7 +429,8 @@ public class KnnSearchSingleNodeTests extends ESSingleNodeTestCase {
         int numShards = 1 + randomInt(3);
         Settings indexSettings = Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numShards).build();
 
-        XContentBuilder builder = jsonBuilder().startObject()
+        XContentBuilder builder = XContentFactory.jsonBuilder()
+            .startObject()
             .startObject("properties")
             .startObject("vector")
             .field("type", "dense_vector")

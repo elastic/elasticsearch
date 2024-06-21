@@ -77,6 +77,46 @@ public class QueryRoleIT extends SecurityInBasicRestTestCase {
         });
     }
 
+    public void testSimpleSort() throws IOException {
+        // some other non-matching roles
+        int nOtherRoles = randomIntBetween(1, 5);
+        for (int i = 0; i < nOtherRoles; i++) {
+            createRandomRole();
+        }
+        // some matching roles (at least 2, for sorting)
+        int nMatchingRoles = randomIntBetween(2, 5);
+        for (int i = 0; i < nMatchingRoles; i++) {
+            ApplicationResourcePrivileges[] applicationResourcePrivileges = randomArray(
+                    1,
+                    5,
+                    ApplicationResourcePrivileges[]::new,
+                    this::randomApplicationResourcePrivileges
+            );
+            int matchingApplicationIndex = randomIntBetween(0, applicationResourcePrivileges.length - 1);
+            // make sure the application matches the filter query below ("a*z")
+            applicationResourcePrivileges[matchingApplicationIndex] = RoleDescriptor.ApplicationResourcePrivileges.builder()
+                    .application("a" + randomAlphaOfLength(4) + "z")
+                    .resources(applicationResourcePrivileges[matchingApplicationIndex].getResources())
+                    .privileges(applicationResourcePrivileges[matchingApplicationIndex].getPrivileges())
+                    .build();
+            createRole(
+                    randomAlphaOfLength(4) + i,
+                    randomBoolean() ? null : randomAlphaOfLength(8),
+                    randomBoolean() ? null : randomMetadata(),
+                    applicationResourcePrivileges
+            );
+        }
+        assertQuery("""
+            {"query":{"bool":{"filter":[{"wildcard":{"applications.application":"a*z"}}]}},"sort":["name"]}""", nMatchingRoles, roles -> {
+            assertThat(roles, iterableWithSize(nMatchingRoles));
+            // assert the sort order
+            for (int i = 1; i < nMatchingRoles; i++) {
+                int compareNames = roles.get(i - 1).get("name").toString().compareTo(roles.get(i).get("name").toString());
+                assertThat(compareNames < 0, is(true));
+            }
+        });
+    }
+
     private RoleDescriptor createRandomRole() throws IOException {
         return createRole(
             randomUUID(),

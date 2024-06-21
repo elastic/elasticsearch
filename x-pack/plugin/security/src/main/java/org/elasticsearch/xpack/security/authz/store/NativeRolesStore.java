@@ -222,7 +222,7 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
         }
     }
 
-    public boolean isQueryByMetadataAvailable() {
+    public boolean isMetadataSearchable() {
         return securityIndex.isMigrationsVersionAtLeast(ROLE_METADATA_FLATTENED_MIGRATION_VERSION);
     }
 

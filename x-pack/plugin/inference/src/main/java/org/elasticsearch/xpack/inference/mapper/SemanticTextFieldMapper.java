@@ -7,12 +7,15 @@
 
 package org.elasticsearch.xpack.inference.mapper;
 
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.BitSetProducer;
+import org.apache.lucene.search.join.QueryBitSetProducer;
 import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Nullable;
@@ -42,6 +45,7 @@ import org.elasticsearch.index.query.NestedQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.index.search.ESToParentBlockJoinQuery;
 import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.search.vectors.KnnVectorQueryBuilder;
@@ -350,6 +354,23 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
         @Override
         public Query termQuery(Object value, SearchExecutionContext context) {
             throw new IllegalArgumentException(CONTENT_TYPE + " fields do not support term query");
+        }
+
+        @Override
+        public Query existsQuery(SearchExecutionContext context) {
+            if (getEmbeddingsField() == null) {
+                return new MatchNoDocsQuery();
+            }
+
+            // Do the equivalent of a nested query with an exists query for the embeddings field
+            String nestedFieldPath = getChunksFieldName(name());
+            BitSetProducer parentFilter = new QueryBitSetProducer(Queries.newNonNestedFilter(IndexVersion.current()));
+            return new ESToParentBlockJoinQuery(
+                getEmbeddingsField().fieldType().existsQuery(context),
+                parentFilter,
+                ScoreMode.None,
+                nestedFieldPath
+            );
         }
 
         @Override

@@ -39,7 +39,8 @@ include::infer-api-mapping.asciidoc[tag=cohere]
   <div tabindex="0"
        role="tabpanel"
        id="infer-api-mapping-hf-tab"
-       aria-labelledby="infer-api-mapping-hf">
+       aria-labelledby="infer-api-mapping-hf"
+       hidden="">
 ++++
 
 include::infer-api-mapping.asciidoc[tag=hugging-face]

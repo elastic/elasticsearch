@@ -295,7 +295,7 @@ public final class DocumentParser {
                 context.addIgnoredField(
                     new IgnoredSourceFieldMapper.NameValue(
                         context.parent().name(),
-                        context.parent().fullPath().indexOf(context.parent().simpleName()),
+                        context.parent().fullPath().indexOf(context.parent().leafName()),
                         XContentDataHelper.encodeXContentBuilder(tuple.v2()),
                         context.doc()
                     )
@@ -429,7 +429,7 @@ public final class DocumentParser {
         } else if (mapper instanceof FieldMapper fieldMapper) {
             if (shouldFlattenObject(context, fieldMapper)) {
                 // we pass the mapper's simpleName as parentName to the new DocumentParserContext
-                String currentFieldName = fieldMapper.simpleName();
+                String currentFieldName = fieldMapper.leafName();
                 context.path().remove();
                 parseObjectOrNested(context.createFlattenContext(currentFieldName));
                 context.path().add(currentFieldName);
@@ -562,7 +562,7 @@ public final class DocumentParser {
                     throw new DocumentParsingException(
                         context.parser().getTokenLocation(),
                         "Tried to add nested object ["
-                            + dynamicObjectMapper.simpleName()
+                            + dynamicObjectMapper.leafName()
                             + "] to object ["
                             + context.parent().name()
                             + "] which does not support subobjects"
@@ -632,6 +632,24 @@ public final class DocumentParser {
         }
         Mapper objectMapperFromTemplate = DynamicFieldsBuilder.createObjectMapperFromTemplate(context, currentFieldName);
         if (objectMapperFromTemplate == null) {
+            if (context.indexSettings().isIgnoreDynamicFieldsBeyondLimit()
+                && context.mappingLookup().exceedsLimit(context.indexSettings().getMappingTotalFieldsLimit(), 1)) {
+                if (context.canAddIgnoredField()) {
+                    try {
+                        context.addIgnoredField(
+                            IgnoredSourceFieldMapper.NameValue.fromContext(
+                                context,
+                                currentFieldName,
+                                XContentDataHelper.encodeToken(context.parser())
+                            )
+                        );
+                    } catch (IOException e) {
+                        throw new IllegalArgumentException("failed to parse field [" + currentFieldName + " ]", e);
+                    }
+                }
+                context.addIgnoredField(currentFieldName);
+                return;
+            }
             parseNonDynamicArray(context, objectMapperFromTemplate, currentFieldName, currentFieldName);
         } else {
             if (parsesArrayValue(objectMapperFromTemplate)) {

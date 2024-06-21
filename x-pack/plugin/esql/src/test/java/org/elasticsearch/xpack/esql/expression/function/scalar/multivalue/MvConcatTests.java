@@ -68,7 +68,7 @@ public class MvConcatTests extends AbstractFunctionTestCase {
                 }
             }
         }
-        return parameterSuppliersFromTypedData(errorsForCasesWithoutExamples(anyNullIsNull(false, suppliers)));
+        return parameterSuppliersFromTypedDataWithDefaultChecks(false, suppliers);
     }
 
     @Override

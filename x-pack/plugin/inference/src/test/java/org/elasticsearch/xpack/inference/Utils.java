@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
@@ -159,4 +160,5 @@ public final class Utils {
         return randomFrom(SimilarityMeasure.values());
     }
 
+    public record PersistedConfig(Map<String, Object> config, Map<String, Object> secrets) {}
 }

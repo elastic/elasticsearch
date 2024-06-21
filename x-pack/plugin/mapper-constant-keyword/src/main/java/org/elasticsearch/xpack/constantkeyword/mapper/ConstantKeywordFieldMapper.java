@@ -74,7 +74,7 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(simpleName()).init(this);
+        return new Builder(leafName()).init(this);
     }
 
     public static class Builder extends FieldMapper.Builder {
@@ -110,8 +110,8 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
                 );
             }
             return new ConstantKeywordFieldMapper(
-                name(),
-                new ConstantKeywordFieldType(context.buildFullName(name()), value.getValue(), meta.getValue())
+                leafName(),
+                new ConstantKeywordFieldType(context.buildFullName(leafName()), value.getValue(), meta.getValue())
             );
         }
     }
@@ -321,7 +321,7 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
 
         if (fieldType().value == null) {
             ConstantKeywordFieldType newFieldType = new ConstantKeywordFieldType(fieldType().name(), value, fieldType().meta());
-            Mapper update = new ConstantKeywordFieldMapper(simpleName(), newFieldType);
+            Mapper update = new ConstantKeywordFieldMapper(leafName(), newFieldType);
             boolean dynamicMapperAdded = context.addDynamicMapper(update);
             // the mapper is already part of the mapping, we're just updating it with the new value
             assert dynamicMapperAdded;
@@ -374,7 +374,7 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
             @Override
             public void write(XContentBuilder b) throws IOException {
                 if (fieldType().value != null) {
-                    b.field(simpleName(), fieldType().value);
+                    b.field(leafName(), fieldType().value);
                 }
             }
 

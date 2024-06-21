@@ -33,7 +33,7 @@ public class CosTests extends AbstractFunctionTestCase {
             Double.POSITIVE_INFINITY,
             List.of()
         );
-        return parameterSuppliersFromTypedData(errorsForCasesWithoutExamples(anyNullIsNull(true, suppliers)));
+        return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers);
     }
 
     @Override

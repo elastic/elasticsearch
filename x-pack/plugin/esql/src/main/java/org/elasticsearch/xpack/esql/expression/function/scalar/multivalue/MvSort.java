@@ -29,6 +29,7 @@ import org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupeDouble;
 import org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupeInt;
 import org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupeLong;
 import org.elasticsearch.xpack.esql.capabilities.Validatable;
+import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -65,6 +66,7 @@ public class MvSort extends EsqlScalarFunction implements OptionalArgument, Vali
     private final Expression field, order;
 
     private static final Literal ASC = new Literal(Source.EMPTY, "ASC", DataType.KEYWORD);
+    private static final Literal DESC = new Literal(Source.EMPTY, "DESC", DataType.KEYWORD);
 
     @FunctionInfo(
         returnType = { "boolean", "date", "double", "integer", "ip", "keyword", "long", "text", "version" },
@@ -148,9 +150,21 @@ public class MvSort extends EsqlScalarFunction implements OptionalArgument, Vali
         Function<Expression, EvalOperator.ExpressionEvaluator.Factory> toEvaluator
     ) {
         Expression nonNullOrder = order == null ? ASC : order;
-        boolean ordering = nonNullOrder.foldable() && ((BytesRef) nonNullOrder.fold()).utf8ToString().equalsIgnoreCase("DESC")
-            ? false
-            : true;
+        boolean ordering = true;
+        if (nonNullOrder.foldable()) {
+            String o = ((BytesRef) nonNullOrder.fold()).utf8ToString();
+            if (o.equalsIgnoreCase((String) ASC.value()) == false && o.equalsIgnoreCase((String) DESC.value()) == false) {
+                throw new InvalidArgumentException(
+                    "Invalid order value in [{}], expected [{}, {}] but got [{}]",
+                    sourceText(),
+                    ASC.value(),
+                    DESC.value(),
+                    o
+                );
+            }
+            ordering = o.equalsIgnoreCase((String) ASC.value());
+        }
+
         return switch (PlannerUtils.toElementType(field.dataType())) {
             case BOOLEAN -> new MvSort.EvaluatorFactory(
                 toEvaluator.apply(field),

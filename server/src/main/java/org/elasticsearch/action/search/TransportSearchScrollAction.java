@@ -55,20 +55,37 @@ public class TransportSearchScrollAction extends HandledTransportAction<SearchSc
 
     @Override
     protected void doExecute(Task task, SearchScrollRequest request, ActionListener<SearchResponse> listener) {
-        ActionListener<SearchResponse> loggingAndMetrics = listener.delegateFailureAndWrap((l, searchResponse) -> {
-            searchResponseMetrics.recordTookTime(searchResponse.getTookInMillis());
-            if (searchResponse.getShardFailures() != null && searchResponse.getShardFailures().length > 0) {
-                ShardOperationFailedException[] groupedFailures = ExceptionsHelper.groupBy(searchResponse.getShardFailures());
-                for (ShardOperationFailedException f : groupedFailures) {
-                    Throwable cause = f.getCause() == null ? f : f.getCause();
-                    if (ExceptionsHelper.status(cause).getStatus() >= 500
-                        && ExceptionsHelper.isNodeOrShardUnavailableTypeException(cause) == false) {
-                        logger.warn("TransportSearchScrollAction shard failure (partial results response)", f);
+        ActionListener<SearchResponse> loggingAndMetrics = new ActionListener<>() {
+            @Override
+            public void onResponse(SearchResponse searchResponse) {
+                try {
+                    searchResponseMetrics.recordTookTime(searchResponse.getTookInMillis());
+                    SearchResponseMetrics.ResponseCountTotalStatus responseCountTotalStatus =
+                        SearchResponseMetrics.ResponseCountTotalStatus.SUCCESS;
+                    if (searchResponse.getShardFailures() != null && searchResponse.getShardFailures().length > 0) {
+                        ShardOperationFailedException[] groupedFailures = ExceptionsHelper.groupBy(searchResponse.getShardFailures());
+                        for (ShardOperationFailedException f : groupedFailures) {
+                            Throwable cause = f.getCause() == null ? f : f.getCause();
+                            if (ExceptionsHelper.status(cause).getStatus() >= 500
+                                && ExceptionsHelper.isNodeOrShardUnavailableTypeException(cause) == false) {
+                                logger.warn("TransportSearchScrollAction shard failure (partial results response)", f);
+                                responseCountTotalStatus = SearchResponseMetrics.ResponseCountTotalStatus.PARTIAL_FAILURE;
+                            }
+                        }
                     }
+                    searchResponseMetrics.incrementResponseCount(responseCountTotalStatus);
+                    listener.onResponse(searchResponse);
+                } catch (Exception e) {
+                    listener.onFailure(e);
                 }
             }
-            l.onResponse(searchResponse);
-        });
+
+            @Override
+            public void onFailure(Exception e) {
+                searchResponseMetrics.incrementResponseCount(SearchResponseMetrics.ResponseCountTotalStatus.FAILURE);
+                listener.onFailure(e);
+            }
+        };
         try {
             ParsedScrollId scrollId = parseScrollId(request.scrollId());
             Runnable action = switch (scrollId.getType()) {

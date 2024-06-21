@@ -17,7 +17,7 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOpt
 import static org.elasticsearch.xpack.inference.services.anthropic.AnthropicServiceFields.MAX_TOKENS;
 
 /**
- * This class handles extracting OpenAI task settings from a request. The difference between this class and
+ * This class handles extracting Anthropic task settings from a request. The difference between this class and
  * {@link AnthropicChatCompletionTaskSettings} is that this class considers all fields as optional. It will not throw an error if a field
  * is missing. This allows overriding persistent task settings.
  * @param maxTokens the number of tokens to generate before stopping

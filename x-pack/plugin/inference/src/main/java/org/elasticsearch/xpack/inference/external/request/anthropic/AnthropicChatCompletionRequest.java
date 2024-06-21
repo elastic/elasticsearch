@@ -15,7 +15,6 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.external.anthropic.AnthropicAccount;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
 import org.elasticsearch.xpack.inference.external.request.Request;
-import org.elasticsearch.xpack.inference.external.request.openai.OpenAiRequest;
 import org.elasticsearch.xpack.inference.services.anthropic.completion.AnthropicChatCompletionModel;
 
 import java.net.URI;
@@ -25,7 +24,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.external.request.anthropic.AnthropicRequestUtils.createVersionHeader;
 
-public class AnthropicChatCompletionRequest implements OpenAiRequest {
+public class AnthropicChatCompletionRequest implements Request {
 
     private final AnthropicAccount account;
     private final List<String> input;

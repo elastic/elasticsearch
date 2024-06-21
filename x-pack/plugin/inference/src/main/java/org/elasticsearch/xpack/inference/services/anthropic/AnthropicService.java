@@ -210,26 +210,6 @@ public class AnthropicService extends SenderService {
         throw new UnsupportedOperationException("Anthropic service does not support chunked inference");
     }
 
-    // /**
-    // * For text embedding models get the embedding size and
-    // * update the service settings.
-    // *
-    // * @param model The new model
-    // * @param listener The listener
-    // */
-    // @Override
-    // public void checkModelConfig(Model model, ActionListener<Model> listener) {
-    // if (model instanceof OpenAiEmbeddingsModel embeddingsModel) {
-    // ServiceUtils.getEmbeddingSize(
-    // model,
-    // this,
-    // listener.delegateFailureAndWrap((l, size) -> l.onResponse(updateModelWithEmbeddingDetails(embeddingsModel, size)))
-    // );
-    // } else {
-    // listener.onResponse(model);
-    // }
-    // }
-
     @Override
     public TransportVersion getMinimalSupportedVersion() {
         return TransportVersions.ML_ANTHROPIC_INTEGRATION_ADDED;

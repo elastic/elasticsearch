@@ -14,7 +14,7 @@ import org.elasticsearch.xpack.inference.external.http.retry.BaseResponseHandler
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseParser;
 import org.elasticsearch.xpack.inference.external.http.retry.RetryException;
 import org.elasticsearch.xpack.inference.external.request.Request;
-import org.elasticsearch.xpack.inference.external.response.anthropic.AnthropicErrorResponseEntity;
+import org.elasticsearch.xpack.inference.external.response.ErrorMessageResponseEntity;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 
 import static org.elasticsearch.xpack.inference.external.http.HttpUtils.checkForEmptyBody;
@@ -42,7 +42,7 @@ public class AnthropicResponseHandler extends BaseResponseHandler {
     static final String SERVER_BUSY = "Received an Anthropic server is temporarily overloaded status code";
 
     public AnthropicResponseHandler(String requestType, ResponseParser parseFunction) {
-        super(requestType, parseFunction, AnthropicErrorResponseEntity::fromResponse);
+        super(requestType, parseFunction, ErrorMessageResponseEntity::fromResponse);
     }
 
     @Override

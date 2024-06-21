@@ -9,6 +9,5 @@ package org.elasticsearch.xpack.inference.services.anthropic;
 
 public class AnthropicServiceFields {
 
-    public static final String USER_ID = "user_id";
     public static final String MAX_TOKENS = "max_tokens";
 }

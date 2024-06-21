@@ -53,6 +53,86 @@ public class AnthropicChatCompletionResponseEntityTests extends ESTestCase {
         assertThat(chatCompletionResults.getResults().get(0).content(), is("result"));
     }
 
+    public void testFromResponse_CreatesResultsForMultipleItems() throws IOException {
+        String responseJson = """
+            {
+                "id": "msg_01XzZQmG41BMGe5NZ5p2vEWb",
+                "type": "message",
+                "role": "assistant",
+                "model": "claude-3-opus-20240229",
+                "content": [
+                    {
+                        "type": "text",
+                        "text": "result"
+                    },
+                    {
+                        "type": "text",
+                        "text": "result2"
+                    }
+                ],
+                "stop_reason": "end_turn",
+                "stop_sequence": null,
+                "usage": {
+                    "input_tokens": 16,
+                    "output_tokens": 326
+                }
+            }
+            """;
+
+        ChatCompletionResults chatCompletionResults = AnthropicChatCompletionResponseEntity.fromResponse(
+            mock(Request.class),
+            new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
+        );
+
+        assertThat(chatCompletionResults.getResults().size(), is(2));
+        assertThat(chatCompletionResults.getResults().get(0).content(), is("result"));
+        assertThat(chatCompletionResults.getResults().get(1).content(), is("result2"));
+    }
+
+    public void testFromResponse_CreatesResultsForMultipleItems_IgnoresTools() throws IOException {
+        String responseJson = """
+            {
+                "id": "msg_01XzZQmG41BMGe5NZ5p2vEWb",
+                "type": "message",
+                "role": "assistant",
+                "model": "claude-3-opus-20240229",
+                "content": [
+                    {
+                        "type": "text",
+                        "text": "result"
+                    },
+                    {
+                        "type": "tool_use",
+                        "id": "toolu_01Dc8BGR8aEuToS2B9uz6HMX",
+                        "name": "get_weather",
+                        "input": {
+                            "location": "San Francisco, CA"
+                        }
+                    },
+                    {
+                        "type": "text",
+                        "text": "result2"
+                    }
+                ],
+                "stop_reason": "end_turn",
+                "stop_sequence": null,
+                "usage": {
+                    "input_tokens": 16,
+                    "output_tokens": 326
+                }
+            }
+            """;
+
+        ChatCompletionResults chatCompletionResults = AnthropicChatCompletionResponseEntity.fromResponse(
+            mock(Request.class),
+            new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
+        );
+
+        assertThat(chatCompletionResults.getResults().size(), is(2));
+        assertThat(chatCompletionResults.getResults().get(0).content(), is("result"));
+        assertThat(chatCompletionResults.getResults().get(1).content(), is("result2"));
+    }
+
     public void testFromResponse_FailsWhenContentIsNotPresent() {
         String responseJson = """
             {

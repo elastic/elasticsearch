@@ -89,7 +89,7 @@ public class AnthropicChatCompletionTaskSettings implements TaskSettings {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
 
-        builder.field("maxTokens", maxTokens);
+        builder.field(MAX_TOKENS, maxTokens);
 
         builder.endObject();
 

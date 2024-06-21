@@ -17,7 +17,6 @@ import org.elasticsearch.xpack.inference.external.anthropic.AnthropicResponseHan
 import org.elasticsearch.xpack.inference.external.http.retry.RequestSender;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
 import org.elasticsearch.xpack.inference.external.request.anthropic.AnthropicChatCompletionRequest;
-import org.elasticsearch.xpack.inference.external.request.openai.OpenAiChatCompletionRequest;
 import org.elasticsearch.xpack.inference.external.response.anthropic.AnthropicChatCompletionResponseEntity;
 import org.elasticsearch.xpack.inference.services.anthropic.completion.AnthropicChatCompletionModel;
 
@@ -38,7 +37,7 @@ public class AnthropicCompletionRequestManager extends AnthropicRequestManager {
     private final AnthropicChatCompletionModel model;
 
     private AnthropicCompletionRequestManager(AnthropicChatCompletionModel model, ThreadPool threadPool) {
-        super(threadPool, model, OpenAiChatCompletionRequest::buildDefaultUri);
+        super(threadPool, model);
         this.model = Objects.requireNonNull(model);
     }
 

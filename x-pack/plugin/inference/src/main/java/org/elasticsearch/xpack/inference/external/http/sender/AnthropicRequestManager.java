@@ -7,28 +7,20 @@
 
 package org.elasticsearch.xpack.inference.external.http.sender;
 
-import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.external.anthropic.AnthropicAccount;
 import org.elasticsearch.xpack.inference.services.anthropic.AnthropicModel;
 
-import java.net.URI;
-import java.net.URISyntaxException;
 import java.util.Objects;
 
 abstract class AnthropicRequestManager extends BaseRequestManager {
 
-    protected AnthropicRequestManager(ThreadPool threadPool, AnthropicModel model, CheckedSupplier<URI, URISyntaxException> uriBuilder) {
-        super(
-            threadPool,
-            model.getInferenceEntityId(),
-            RateLimitGrouping.of(model, uriBuilder),
-            model.rateLimitServiceSettings().rateLimitSettings()
-        );
+    protected AnthropicRequestManager(ThreadPool threadPool, AnthropicModel model) {
+        super(threadPool, model.getInferenceEntityId(), RateLimitGrouping.of(model), model.rateLimitServiceSettings().rateLimitSettings());
     }
 
     record RateLimitGrouping(int accountHash, int modelIdHash) {
-        public static RateLimitGrouping of(AnthropicModel model, CheckedSupplier<URI, URISyntaxException> uriBuilder) {
+        public static RateLimitGrouping of(AnthropicModel model) {
             Objects.requireNonNull(model);
 
             return new RateLimitGrouping(AnthropicAccount.of(model).hashCode(), model.rateLimitServiceSettings().modelId().hashCode());

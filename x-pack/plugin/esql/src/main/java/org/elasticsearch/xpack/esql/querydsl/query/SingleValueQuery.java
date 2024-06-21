@@ -21,6 +21,7 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.search.Weight;
 import org.elasticsearch.TransportVersion;
@@ -322,30 +323,54 @@ public class SingleValueQuery extends Query {
 
         @Override
         public Scorer scorer(LeafReaderContext context) throws IOException {
-            Scorer nextScorer = next.scorer(context);
-            if (nextScorer == null) {
+            ScorerSupplier scorerSupplier = scorerSupplier(context);
+            if (scorerSupplier == null) {
+                return null;
+            }
+            return scorerSupplier.get(Long.MAX_VALUE);
+        }
+
+        @Override
+        public ScorerSupplier scorerSupplier(LeafReaderContext context) throws IOException {
+            ScorerSupplier scorerSupplier = next.scorerSupplier(context);
+            if (scorerSupplier == null) {
                 stats.noNextScorer++;
                 return null;
             }
-            LeafFieldData lfd = fieldData.load(context);
-            /*
-             * SortedBinaryDocValues are available for most fields, but they
-             * are made available by eagerly converting non-bytes values to
-             * utf-8 strings. The eager conversion is quite expensive. So
-             * we specialize on numeric fields and fields with ordinals to
-             * avoid that expense in at least that case.
-             *
-             * Also! Lucene's FieldExistsQuery only needs one scorer that can
-             * use all the docs values iterators at DocIdSetIterators. We
-             * can't do that because we need the check the number of fields.
-             */
-            if (lfd instanceof LeafNumericFieldData n) {
-                return scorer(context, nextScorer, n);
-            }
-            if (lfd instanceof LeafOrdinalsFieldData o) {
-                return scorer(context, nextScorer, o);
-            }
-            return scorer(nextScorer, lfd);
+            return new ScorerSupplier() {
+                @Override
+                public Scorer get(long leadCost) throws IOException {
+                    Scorer nextScorer = scorerSupplier.get(leadCost);
+                    if (nextScorer == null) {
+                        stats.noNextScorer++;
+                        return null;
+                    }
+                    LeafFieldData lfd = fieldData.load(context);
+                    /*
+                     * SortedBinaryDocValues are available for most fields, but they
+                     * are made available by eagerly converting non-bytes values to
+                     * utf-8 strings. The eager conversion is quite expensive. So
+                     * we specialize on numeric fields and fields with ordinals to
+                     * avoid that expense in at least that case.
+                     *
+                     * Also! Lucene's FieldExistsQuery only needs one scorer that can
+                     * use all the docs values iterators at DocIdSetIterators. We
+                     * can't do that because we need the check the number of fields.
+                     */
+                    if (lfd instanceof LeafNumericFieldData n) {
+                        return scorer(context, nextScorer, n);
+                    }
+                    if (lfd instanceof LeafOrdinalsFieldData o) {
+                        return scorer(context, nextScorer, o);
+                    }
+                    return scorer(nextScorer, lfd);
+                }
+
+                @Override
+                public long cost() {
+                    return scorerSupplier.cost();
+                }
+            };
         }
 
         private Scorer scorer(LeafReaderContext context, Scorer nextScorer, LeafNumericFieldData lfd) throws IOException {

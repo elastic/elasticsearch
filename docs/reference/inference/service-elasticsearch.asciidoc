@@ -25,6 +25,7 @@ include::inference-shared.asciidoc[tag=task-type]
 --
 Available task types:
 
+* `rerank`,
 * `text_embedding`.
 --
 

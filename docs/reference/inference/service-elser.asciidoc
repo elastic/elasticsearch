@@ -54,10 +54,6 @@ The number of model allocations to create. `num_allocations` must not exceed the
 The number of threads to use by each model allocation. `num_threads` must not exceed the number of available processors per node divided by the number of allocations.
 Must be a power of 2. Max allowed value is 32.
 
-`task_settings`::
-(Optional, object)
-include::inference-shared.asciidoc[tag=task-settings]
-
 
 [discrete]
 [[inference-example-elser]]

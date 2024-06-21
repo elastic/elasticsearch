@@ -626,7 +626,17 @@ public class UnsignedLongFieldMapper extends FieldMapper {
             numericValue = null;
         } else {
             try {
-                if (parser.currentToken() == XContentParser.Token.VALUE_NUMBER) {
+                if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
+                    numericValue = null;
+                    if (ignoreMalformed.value()) {
+                        context.addIgnoredField(mappedFieldType.name());
+                        if (isSourceSynthetic) {
+                            context.doc().add(IgnoreMalformedStoredValues.storedField(name(), context.parser()));
+                        }
+                    } else {
+                        throw new IllegalArgumentException("Unable to parse object as an unsigned long field");
+                    }
+                } else if (parser.currentToken() == XContentParser.Token.VALUE_NUMBER) {
                     numericValue = parseUnsignedLong(parser.numberValue());
                 } else {
                     numericValue = parseUnsignedLong(parser.text());

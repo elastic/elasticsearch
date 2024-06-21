@@ -119,10 +119,16 @@ public class TickerScheduleTriggerEngine extends ScheduleTriggerEngine {
     }
 
     void checkJobs() {
+        if (isPaused) {
+            return;
+        }
         long triggeredTime = clock.millis();
         List<TriggerEvent> events = new ArrayList<>();
         for (ActiveSchedule schedule : schedules.values()) {
-            assert isPaused == false : "Attempting to run a schedule while paused: " + schedule.name;
+            if (isPaused) {
+                logger.debug("Watcher paused while running [{}]", schedule.name);
+                break;
+            }
             long scheduledTime = schedule.check(triggeredTime);
             if (scheduledTime > 0) {
                 ZonedDateTime triggeredDateTime = utcDateTimeAtEpochMillis(triggeredTime);

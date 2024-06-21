@@ -1,5 +1,5 @@
 [[infer-service-cohere]]
-=== Cohere {infer} `service`
+=== Cohere {infer} service
 
 Creates an {infer} endpoint to perform an {infer} task with the `cohere` service.
 

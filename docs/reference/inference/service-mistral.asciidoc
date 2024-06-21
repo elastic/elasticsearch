@@ -1,5 +1,5 @@
 [[infer-service-mistral]]
-=== Mistral {infer} `service`
+=== Mistral {infer} service
 
 Creates an {infer} endpoint to perform an {infer} task with the `mistral` service.
 

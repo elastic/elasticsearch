@@ -1,5 +1,5 @@
 [[infer-service-openai]]
-=== OpenAI {infer} `service`
+=== OpenAI {infer} service
 
 Creates an {infer} endpoint to perform an {infer} task with the `openai` service.
 

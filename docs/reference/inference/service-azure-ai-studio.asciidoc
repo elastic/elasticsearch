@@ -1,5 +1,5 @@
 [[infer-service-azure-ai-studio]]
-=== Azure AI studio {infer} `service`
+=== Azure AI studio {infer} service
 
 Creates an {infer} endpoint to perform an {infer} task with the `azureaistudio` service.
 

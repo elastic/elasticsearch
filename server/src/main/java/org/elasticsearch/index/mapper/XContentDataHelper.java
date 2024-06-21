@@ -93,6 +93,18 @@ public final class XContentDataHelper {
     }
 
     /**
+     * Returns the {@link XContentType} to use for creating an XContentBuilder to decode the passed value.
+     */
+    public static XContentType getXContentType(BytesRef r) {
+        return switch ((char) r.bytes[r.offset]) {
+            case JSON_OBJECT_ENCODING -> XContentType.JSON;
+            case YAML_OBJECT_ENCODING -> XContentType.YAML;
+            case SMILE_OBJECT_ENCODING -> XContentType.SMILE;
+            default -> XContentType.CBOR;  // CBOR can parse all other encoded types.
+        };
+    }
+
+    /**
      * Stores the current parser structure (subtree) to an {@link XContentBuilder} and returns it, along with a
      * {@link DocumentParserContext} wrapping it that can be used to reparse the subtree.
      * The parser of the original context is also advanced to the end of the current structure (subtree) as a side effect.

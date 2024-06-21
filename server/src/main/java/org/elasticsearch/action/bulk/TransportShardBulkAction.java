@@ -382,14 +382,13 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                     mappingUpdater,
                     waitForMappingUpdate,
                     itemDoneListener,
-                    result,
                     primary,
+                    result,
                     version,
                     updateResult
                 );
             }
         }
-
         onComplete(result, context, updateResult);
         return true;
     }
@@ -399,8 +398,8 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         MappingUpdatePerformer mappingUpdater,
         Consumer<ActionListener<Void>> waitForMappingUpdate,
         ActionListener<Void> itemDoneListener,
-        Engine.Result result,
         IndexShard primary,
+        Engine.Result result,
         long version,
         UpdateHelper.Result updateResult
     ) {

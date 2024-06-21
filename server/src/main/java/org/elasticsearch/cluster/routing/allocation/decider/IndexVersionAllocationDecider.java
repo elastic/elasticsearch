@@ -29,22 +29,17 @@ public class IndexVersionAllocationDecider extends AllocationDecider {
 
     @Override
     public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
-        if (shardRouting.primary()) {
-            if (shardRouting.currentNodeId() == null) {
-                if (shardRouting.recoverySource().getType() == RecoverySource.Type.SNAPSHOT) {
-                    // restoring from a snapshot - check that the node can handle the version
-                    return isSnapshotIndexVersionCompatible((SnapshotRecoverySource) shardRouting.recoverySource(), node, allocation);
-                } else {
-                    // existing or fresh primary on the node
-                    return allocation.decision(Decision.YES, NAME, "the primary shard is new or already existed on the node");
-                }
+        if (shardRouting.primary() && shardRouting.currentNodeId() == null) {
+            if (shardRouting.recoverySource().getType() == RecoverySource.Type.SNAPSHOT) {
+                // restoring from a snapshot - check that the node can handle the version
+                return isSnapshotIndexVersionCompatible((SnapshotRecoverySource) shardRouting.recoverySource(), node, allocation);
             } else {
-                return isShardIndexVersionCompatible(shardRouting, node, allocation);
+                // existing or fresh primary on the node
+                return allocation.decision(Decision.YES, NAME, "the primary shard is new or already existed on the node");
             }
-        } else {
-            // replica - just check the index mappings version & segment updated version
-            return isShardIndexVersionCompatible(shardRouting, node, allocation);
         }
+
+        return isShardIndexVersionCompatible(shardRouting, node, allocation);
     }
 
     @Override

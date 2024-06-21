@@ -547,7 +547,6 @@ public class IndexVersionAllocationDeciderTests extends ESAllocationTestCase {
     }
 
     public void testMessages() {
-
         Metadata metadata = Metadata.builder()
             .put(IndexMetadata.builder("test").settings(settings(IndexVersion.current())).numberOfShards(1).numberOfReplicas(1))
             .build();
@@ -587,7 +586,7 @@ public class IndexVersionAllocationDeciderTests extends ESAllocationTestCase {
             decision.getExplanation(),
             is(
                 "can allocate an index shard with index mappings updated by index version ["
-                    + oldNode.node().getMaxIndexVersion().toReleaseVersion()
+                    + newNode.node().getMaxIndexVersion().toReleaseVersion()
                     + "] to a node with max supported index version ["
                     + newNode.node().getMaxIndexVersion().toReleaseVersion()
                     + "]"
@@ -599,9 +598,9 @@ public class IndexVersionAllocationDeciderTests extends ESAllocationTestCase {
         assertThat(
             decision.getExplanation(),
             is(
-                "cannot relocate primary shard from a node with max index version ["
+                "cannot allocate an index shard with index mappings updated by index version ["
                     + newNode.node().getMaxIndexVersion().toReleaseVersion()
-                    + "] to a node with older max index version ["
+                    + "] to a node with max supported index version ["
                     + oldNode.node().getMaxIndexVersion().toReleaseVersion()
                     + "]"
             )
@@ -655,11 +654,11 @@ public class IndexVersionAllocationDeciderTests extends ESAllocationTestCase {
             )
         );
 
+        // replicas have the same messages as primaries
         final RoutingChangesObserver routingChangesObserver = new RoutingChangesObserver() {
         };
         final RoutingNodes routingNodes = clusterState.mutableRoutingNodes();
         final ShardRouting startedPrimary = routingNodes.startShard(
-            logger,
             routingNodes.initializeShard(primaryShard, "newNode", null, 0, routingChangesObserver),
             routingChangesObserver,
             ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE
@@ -672,17 +671,16 @@ public class IndexVersionAllocationDeciderTests extends ESAllocationTestCase {
         assertThat(
             decision.getExplanation(),
             is(
-                "cannot allocate replica shard to a node with max index version ["
+                "cannot allocate an index shard with index mappings updated by index version ["
                     + oldNode.node().getMaxIndexVersion().toReleaseVersion()
-                    + "] since this is older than the primary max index version ["
+                    + "] to a node with max supported index version ["
                     + newNode.node().getMaxIndexVersion().toReleaseVersion()
                     + "]"
             )
         );
 
         routingNodes.startShard(
-            logger,
-            routingNodes.relocateShard(startedPrimary, "oldNode", 0, routingChangesObserver).v2(),
+            routingNodes.relocateShard(startedPrimary, "oldNode", 0, "test", routingChangesObserver).v2(),
             routingChangesObserver,
             ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE
         );
@@ -694,10 +692,10 @@ public class IndexVersionAllocationDeciderTests extends ESAllocationTestCase {
         assertThat(
             decision.getExplanation(),
             is(
-                "can allocate replica shard to a node with max index version ["
-                    + newNode.node().getMaxIndexVersion().toReleaseVersion()
-                    + "] since this is equal-or-newer than the primary max index version ["
+                "can allocate an index shard with index mappings updated by index version ["
                     + oldNode.node().getMaxIndexVersion().toReleaseVersion()
+                    + "] to a node with max supported index version ["
+                    + newNode.node().getMaxIndexVersion().toReleaseVersion()
                     + "]"
             )
         );

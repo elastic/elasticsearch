@@ -54,11 +54,11 @@ It can be the ID of either a built-in model (for example, `.multilingual-e5-smal
 
 `num_allocations`:::
 (Required, integer)
-The number of model allocations to create. `num_allocations` must not exceed the number of available processors per node divided by the `num_threads`.
+The total number of allocations this model is assigned across machine learning nodes. Increasing this value generally increases the throughput.
 
 `num_threads`:::
 (Required, integer)
-The number of threads to use by each model allocation. `num_threads` must not exceed the number of available processors per node divided by the number of allocations.
+Sets the number of threads used by each model allocation during inference. This generally increases the speed per inference request. The inference process is a compute-bound process; `threads_per_allocations` must not exceed the number of available allocated processors per node. 
 Must be a power of 2. Max allowed value is 32.
 
 `task_settings`::

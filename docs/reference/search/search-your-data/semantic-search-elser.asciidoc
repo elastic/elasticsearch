@@ -249,8 +249,7 @@ This enables you to combine the search results from both queries.
 The search hits from the `sparse_vector` query tend to score higher than other
 {es} queries.
 Those scores can be regularized by increasing or decreasing the relevance scores of each query by using the `boost` parameter.
-Recall on the
-`sparse_vector` query can be high where there is a long tail of less relevant results.
+Recall on the `sparse_vector` query can be high where there is a long tail of less relevant results.
 Use the `min_score` parameter to prune those less relevant documents.
 
 [source,console]

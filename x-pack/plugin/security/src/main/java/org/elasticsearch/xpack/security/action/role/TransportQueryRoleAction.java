@@ -46,26 +46,30 @@ public class TransportQueryRoleAction extends TransportAction<QueryRoleRequest, 
         if (request.getSize() != null) {
             searchSourceBuilder.size(request.getSize());
         }
-        AtomicBoolean isQueryingMetadata = new AtomicBoolean(false);
+        if (request.getSearchAfterBuilder() != null) {
+            searchSourceBuilder.searchAfter(request.getSearchAfterBuilder().getSortValues());
+        }
+        AtomicBoolean accessesMetadata = new AtomicBoolean(false);
         searchSourceBuilder.query(RoleBoolQueryBuilder.build(request.getQueryBuilder(), indexFieldName -> {
             if (indexFieldName.startsWith(FieldNameTranslators.FLATTENED_METADATA_INDEX_FIELD_NAME)) {
-                isQueryingMetadata.set(true);
+                accessesMetadata.set(true);
             }
         }));
-        if (isQueryingMetadata.get() && nativeRolesStore.isQueryByMetadataAvailable() == false) {
+        if (request.getFieldSortBuilders() != null) {
+            ROLE_FIELD_NAME_TRANSLATORS.translateFieldSortBuilders(request.getFieldSortBuilders(), searchSourceBuilder, indexFieldName -> {
+                if (indexFieldName.startsWith(FieldNameTranslators.FLATTENED_METADATA_INDEX_FIELD_NAME)) {
+                    accessesMetadata.set(true);
+                }
+            });
+        }
+        if (accessesMetadata.get() && nativeRolesStore.isMetadataSearchable() == false) {
             listener.onFailure(
                 new ElasticsearchStatusException(
-                    "Cannot query role metadata until automatic migration completed",
+                    "Cannot query or sort role metadata until automatic migration completed",
                     RestStatus.SERVICE_UNAVAILABLE
                 )
             );
             return;
-        }
-        if (request.getFieldSortBuilders() != null) {
-            ROLE_FIELD_NAME_TRANSLATORS.translateFieldSortBuilders(request.getFieldSortBuilders(), searchSourceBuilder, null);
-        }
-        if (request.getSearchAfterBuilder() != null) {
-            searchSourceBuilder.searchAfter(request.getSearchAfterBuilder().getSortValues());
         }
         nativeRolesStore.queryRoleDescriptors(
             searchSourceBuilder,

@@ -128,7 +128,7 @@ public abstract class IgnoreMalformedStoredValues {
         }
     }
 
-    private static String name(String fieldName) {
+    public static String name(String fieldName) {
         return fieldName + "._ignore_malformed";
     }
 }

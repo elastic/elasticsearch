@@ -58,11 +58,6 @@ public class EsqlCapabilities {
     private static final String METADATA_IGNORED_FIELD = "metadata_field_ignored";
 
     /**
-     * Support for the "LOOKUP" command.
-     */
-    private static final String LOOKUP_COMMAND = "lookup_command";
-
-    /**
      * Support for the syntax {@code "tables": {"type": [<values>]}}.
      */
     private static final String TABLES_TYPES = "tables_types";
@@ -76,6 +71,11 @@ public class EsqlCapabilities {
      * Cast string literals to datetime in addition and subtraction when the other side is a date or time interval.
      */
     public static final String STRING_LITERAL_AUTO_CASTING_TO_DATETIME_ADD_SUB = "string_literal_auto_casting_to_datetime_add_sub";
+
+    /**
+     * Support multiple field mappings if appropriate conversion function is used (union types)
+     */
+    public static final String UNION_TYPES = "union_types";
 
     /**
      * Support for named or positional parameters in EsqlQueryRequest.
@@ -94,10 +94,11 @@ public class EsqlCapabilities {
         caps.add(METADATA_IGNORED_FIELD);
         caps.add(FN_MV_APPEND);
         caps.add(REPEAT);
+        caps.add(UNION_TYPES);
         caps.add(NAMED_POSITIONAL_PARAMETER);
 
         if (Build.current().isSnapshot()) {
-            caps.add(LOOKUP_COMMAND);
+            caps.add(TABLES_TYPES);
         }
 
         /*

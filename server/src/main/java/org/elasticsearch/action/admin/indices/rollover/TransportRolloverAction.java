@@ -364,7 +364,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                 .flatMap(Arrays::stream)
                 .filter(shard -> shard.getShardRouting().primary())
                 .map(ShardStats::getStats)
-                .mapToLong(shard -> shard.docs.getTotalSizeInBytes())
+                .mapToLong(shard -> shard.docs == null ? 0L : shard.docs.getTotalSizeInBytes())
                 .max()
                 .orElse(0);
 
@@ -374,7 +374,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                 .flatMap(Arrays::stream)
                 .filter(shard -> shard.getShardRouting().primary())
                 .map(ShardStats::getStats)
-                .mapToLong(shard -> shard.docs.getCount())
+                .mapToLong(shard -> shard.docs == null ? 0L : shard.docs.getCount())
                 .max()
                 .orElse(0);
 
@@ -455,7 +455,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                 rolloverRequest.getRolloverTarget(),
                 rolloverRequest.getNewIndexName(),
                 rolloverRequest.getCreateIndexRequest(),
-                rolloverRequest.indicesOptions().failureStoreOptions().includeFailureIndices()
+                rolloverRequest.targetsFailureStore()
             );
 
             // Re-evaluate the conditions, now with our final source index name
@@ -506,7 +506,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                     false,
                     sourceIndexStats,
                     rolloverTask.autoShardingResult(),
-                    rolloverRequest.indicesOptions().failureStoreOptions().includeFailureIndices()
+                    rolloverRequest.targetsFailureStore()
                 );
                 results.add(rolloverResult);
                 logger.trace("rollover result [{}]", rolloverResult);

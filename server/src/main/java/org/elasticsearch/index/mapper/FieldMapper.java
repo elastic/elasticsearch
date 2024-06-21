@@ -514,7 +514,7 @@ public abstract class FieldMapper extends Mapper {
             private boolean hasSyntheticSourceCompatibleKeywordField;
 
             public Builder add(FieldMapper.Builder builder) {
-                mapperBuilders.put(builder.name(), builder::build);
+                mapperBuilders.put(builder.leafName(), builder::build);
 
                 if (builder instanceof KeywordFieldMapper.Builder kwd) {
                     if (kwd.hasNormalizer() == false && (kwd.hasDocValues() || kwd.isStored())) {
@@ -559,7 +559,7 @@ public abstract class FieldMapper extends Mapper {
                     return empty();
                 } else {
                     FieldMapper[] mappers = new FieldMapper[mapperBuilders.size()];
-                    context = context.createChildContext(mainFieldBuilder.name(), null);
+                    context = context.createChildContext(mainFieldBuilder.leafName(), null);
                     int i = 0;
                     for (Map.Entry<String, Function<MapperBuilderContext, FieldMapper>> entry : this.mapperBuilders.entrySet()) {
                         mappers[i++] = entry.getValue().apply(context);

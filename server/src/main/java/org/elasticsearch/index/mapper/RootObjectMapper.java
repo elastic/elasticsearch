@@ -108,7 +108,7 @@ public class RootObjectMapper extends ObjectMapper {
         @Override
         public RootObjectMapper build(MapperBuilderContext context) {
             return new RootObjectMapper(
-                name(),
+                leafName(),
                 enabled,
                 subobjects,
                 storeArraySource,

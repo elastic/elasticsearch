@@ -123,16 +123,16 @@ public final class ParentJoinFieldMapper extends FieldMapper {
                     "Adding multifields to [" + CONTENT_TYPE + "] mappers has no effect and will be forbidden in future"
                 );
             }
-            checkObjectOrNested(context, name());
+            checkObjectOrNested(context, leafName());
             final Map<String, ParentIdFieldMapper> parentIdFields = new HashMap<>();
             relations.get()
                 .stream()
-                .map(relation -> new ParentIdFieldMapper(name() + "#" + relation.parent(), eagerGlobalOrdinals.get()))
+                .map(relation -> new ParentIdFieldMapper(leafName() + "#" + relation.parent(), eagerGlobalOrdinals.get()))
                 .forEach(mapper -> parentIdFields.put(mapper.name(), mapper));
-            Joiner joiner = new Joiner(name(), relations.get());
+            Joiner joiner = new Joiner(leafName(), relations.get());
             return new ParentJoinFieldMapper(
-                name(),
-                new JoinFieldType(context.buildFullName(name()), joiner, meta.get()),
+                leafName(),
+                new JoinFieldType(context.buildFullName(leafName()), joiner, meta.get()),
                 Collections.unmodifiableMap(parentIdFields),
                 eagerGlobalOrdinals.get(),
                 relations.get()

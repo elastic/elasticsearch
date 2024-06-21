@@ -198,6 +198,7 @@ public class TransportVersions {
     public static final TransportVersion FAILURE_STORE_LAZY_CREATION = def(8_689_00_0);
     public static final TransportVersion SNAPSHOT_REQUEST_TIMEOUTS = def(8_690_00_0);
     public static final TransportVersion INDEX_METADATA_MAPPINGS_UPDATED_VERSION = def(8_691_00_0);
+    public static final TransportVersion ML_INFERENCE_ELAND_SETTINGS_ADDED = def(8_692_00_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,

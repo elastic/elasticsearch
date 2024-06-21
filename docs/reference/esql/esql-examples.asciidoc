@@ -83,7 +83,7 @@ FROM logs-endpoint
 | WHERE process.name == "curl.exe"
 // Calculate the sum of bytes sent to destination addresses
 | STATS bytes = SUM(destination.bytes) BY destination.address
-// Convert the sum to kilobytes (KB)
+// Convert the sum to kilobytes (kb)
 | EVAL kb =  bytes/1024
 // Sort results by kb in descending order
 | SORT kb DESC
@@ -130,7 +130,7 @@ FROM logs-*
 | GROK dns.question.name "%{DATA}\\.%{GREEDYDATA:dns.question.registered_domain:string}"
 // Calculate count of unique DNS queries per registered domain and process name
 | STATS unique_queries = COUNT_DISTINCT(dns.question.name) BY dns.question.registered_domain, process.name
-// Limit to results where unique_queries exceeds 10
+// Limit to results with more than 10 unique_queries
 | WHERE unique_queries > 10
 // Sort by unique_queries in descending order
 | SORT unique_queries DESC
@@ -197,7 +197,7 @@ FROM logs-*
 * Calculate the count of unique destination IPs by `user.name` and `host.name`.
 * Enrich the `user.name` field with LDAP group information.
 * Filter out results where `group.name` is null.
-* Use a `CASE` statement to create a `follow_up` field, setting it to `true` when `destcount` is greater than or equal to 100 and to `false` otherwise.
+* Use a `CASE` statement to create a `follow_up` field, setting it to `true` when `destcount` is greater than or equal to 100. Otherwise, `follow_up` is `false`.
 * Sort the results by `destcount` in descending order.
 * Keep only the specified fields: `destcount`, `host.name`, `user.name`, `group.name`, and `follow_up`.
 ====

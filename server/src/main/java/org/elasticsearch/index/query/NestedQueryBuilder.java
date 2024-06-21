@@ -281,7 +281,13 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
      * @param context search execution context
      * @return the primitive Lucene query
      */
-    public static Query toQuery(Query innerQuery, String path, ScoreMode scoreMode, boolean ignoreUnmapped, SearchExecutionContext context)  {
+    public static Query toQuery(
+        Query innerQuery,
+        String path,
+        ScoreMode scoreMode,
+        boolean ignoreUnmapped,
+        SearchExecutionContext context
+    ) {
         if (context.allowExpensiveQueries() == false) {
             throw new ElasticsearchException(
                 "[joining] queries cannot be executed when '" + ALLOW_EXPENSIVE_QUERIES.getKey() + "' is set to false."

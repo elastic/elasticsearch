@@ -632,6 +632,24 @@ public final class DocumentParser {
         }
         Mapper objectMapperFromTemplate = DynamicFieldsBuilder.createObjectMapperFromTemplate(context, currentFieldName);
         if (objectMapperFromTemplate == null) {
+            if (context.indexSettings().isIgnoreDynamicFieldsBeyondLimit()
+                && context.mappingLookup().exceedsLimit(context.indexSettings().getMappingTotalFieldsLimit(), 1)) {
+                if (context.canAddIgnoredField()) {
+                    try {
+                        context.addIgnoredField(
+                            IgnoredSourceFieldMapper.NameValue.fromContext(
+                                context,
+                                currentFieldName,
+                                XContentDataHelper.encodeToken(context.parser())
+                            )
+                        );
+                    } catch (IOException e) {
+                        throw new IllegalArgumentException("failed to parse field [" + currentFieldName + " ]", e);
+                    }
+                }
+                context.addIgnoredField(currentFieldName);
+                return;
+            }
             parseNonDynamicArray(context, objectMapperFromTemplate, currentFieldName, currentFieldName);
         } else {
             if (parsesArrayValue(objectMapperFromTemplate)) {

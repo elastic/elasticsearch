@@ -77,7 +77,7 @@
 
   - match: { hits.hits.1._source.ul_ignored: [ 100, 200, 300 ] }
   - match: { hits.hits.1._source.ul_not_ignored: 3000 }
-  - length: { hits.hits.3._ignored: 0 }
+  - length: { hits.hits.1._ignored: 0 }
 
   - match:  { hits.hits.2._source.ul_ignored.0.value: 100 }
   - match:  { hits.hits.2._source.ul_ignored.0.key: "a" }

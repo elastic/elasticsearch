@@ -771,7 +771,7 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
         assertAcked(indicesAdmin().prepareDelete(indexName).get());
 
         List<String> restoredIndexDataNodes = internalCluster().startDataOnlyNodes(2);
-        RestoreSnapshotResponse restoreSnapshotResponse = clusterAdmin().prepareRestoreSnapshot(repoName, "snap")
+        RestoreSnapshotResponse restoreSnapshotResponse = clusterAdmin().prepareRestoreSnapshot(TEST_REQUEST_TIMEOUT, repoName, "snap")
             .setIndices(indexName)
             .setIndexSettings(
                 Settings.builder()
@@ -1541,7 +1541,9 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
     }
 
     private long getSnapshotSizeForIndex(String repository, String snapshot, String index) {
-        GetSnapshotsResponse getSnapshotsResponse = clusterAdmin().prepareGetSnapshots(repository).addSnapshots(snapshot).get();
+        GetSnapshotsResponse getSnapshotsResponse = clusterAdmin().prepareGetSnapshots(TEST_REQUEST_TIMEOUT, repository)
+            .addSnapshots(snapshot)
+            .get();
         for (SnapshotInfo snapshotInfo : getSnapshotsResponse.getSnapshots()) {
             SnapshotInfo.IndexSnapshotDetails indexSnapshotDetails = snapshotInfo.indexSnapshotDetails().get(index);
             assertThat(indexSnapshotDetails, is(notNullValue()));

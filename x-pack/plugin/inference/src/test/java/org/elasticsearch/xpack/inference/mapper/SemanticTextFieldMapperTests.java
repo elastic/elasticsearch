@@ -13,6 +13,7 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
@@ -489,6 +490,11 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
             )
         );
         assertThat(ex.getCause().getMessage(), containsString("failed to parse field [model_settings]"));
+    }
+
+    protected void assertExistsQuery(MappedFieldType fieldType, Query query, LuceneDocument fields) {
+        // Until a doc is indexed, the query is a match no docs
+        assertThat(query, instanceOf(MatchNoDocsQuery.class));
     }
 
     private static void addSemanticTextMapping(XContentBuilder mappingBuilder, String fieldName, String modelId) throws IOException {

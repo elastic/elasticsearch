@@ -68,7 +68,7 @@ public class AnthropicChatCompletionServiceSettings extends FilteredXContentObje
     private final RateLimitSettings rateLimitSettings;
 
     public AnthropicChatCompletionServiceSettings(String modelId, @Nullable RateLimitSettings ratelimitSettings) {
-        this.modelId = modelId;
+        this.modelId = Objects.requireNonNull(modelId);
         this.rateLimitSettings = Objects.requireNonNullElse(ratelimitSettings, DEFAULT_RATE_LIMIT_SETTINGS);
     }
 

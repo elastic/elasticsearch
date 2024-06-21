@@ -39,7 +39,7 @@ public class AnthropicChatCompletionAction implements ExecutableAction {
         Objects.requireNonNull(model);
         this.sender = Objects.requireNonNull(sender);
         this.requestCreator = AnthropicCompletionRequestManager.of(model, serviceComponents.threadPool());
-        this.errorMessage = constructFailedToSendRequestMessage(model.getServiceSettings().uri(), "OpenAI chat completions");
+        this.errorMessage = constructFailedToSendRequestMessage(model.getUri(), "Anthropic chat completions");
     }
 
     @Override
@@ -51,7 +51,7 @@ public class AnthropicChatCompletionAction implements ExecutableAction {
 
         var docsOnlyInput = (DocumentsOnlyInput) inferenceInputs;
         if (docsOnlyInput.getInputs().size() > 1) {
-            listener.onFailure(new ElasticsearchStatusException("OpenAI completions only accepts 1 input", RestStatus.BAD_REQUEST));
+            listener.onFailure(new ElasticsearchStatusException("Anthropic completions only accepts 1 input", RestStatus.BAD_REQUEST));
             return;
         }
 

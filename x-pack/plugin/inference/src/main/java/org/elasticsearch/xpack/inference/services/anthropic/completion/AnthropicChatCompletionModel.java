@@ -58,7 +58,7 @@ public class AnthropicChatCompletionModel extends AnthropicModel {
     }
 
     AnthropicChatCompletionModel(
-        String modelId,
+        String inferenceEntityId,
         TaskType taskType,
         String service,
         AnthropicChatCompletionServiceSettings serviceSettings,
@@ -66,7 +66,7 @@ public class AnthropicChatCompletionModel extends AnthropicModel {
         @Nullable DefaultSecretSettings secrets
     ) {
         super(
-            new ModelConfigurations(modelId, taskType, service, serviceSettings, taskSettings),
+            new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings),
             new ModelSecrets(secrets),
             serviceSettings,
             AnthropicChatCompletionModel::buildDefaultUri,
@@ -74,8 +74,9 @@ public class AnthropicChatCompletionModel extends AnthropicModel {
         );
     }
 
+    // This should only be used for testing
     AnthropicChatCompletionModel(
-        String modelId,
+        String inferenceEntityId,
         TaskType taskType,
         String service,
         String url,
@@ -84,7 +85,7 @@ public class AnthropicChatCompletionModel extends AnthropicModel {
         @Nullable DefaultSecretSettings secrets
     ) {
         super(
-            new ModelConfigurations(modelId, taskType, service, serviceSettings, taskSettings),
+            new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings),
             new ModelSecrets(secrets),
             serviceSettings,
             () -> ServiceUtils.createUri(url),

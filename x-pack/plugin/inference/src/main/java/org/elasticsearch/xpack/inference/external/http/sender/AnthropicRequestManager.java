@@ -31,10 +31,7 @@ abstract class AnthropicRequestManager extends BaseRequestManager {
         public static RateLimitGrouping of(AnthropicModel model, CheckedSupplier<URI, URISyntaxException> uriBuilder) {
             Objects.requireNonNull(model);
 
-            return new RateLimitGrouping(
-                AnthropicAccount.of(model, uriBuilder).hashCode(),
-                model.rateLimitServiceSettings().modelId().hashCode()
-            );
+            return new RateLimitGrouping(AnthropicAccount.of(model).hashCode(), model.rateLimitServiceSettings().modelId().hashCode());
         }
     }
 }

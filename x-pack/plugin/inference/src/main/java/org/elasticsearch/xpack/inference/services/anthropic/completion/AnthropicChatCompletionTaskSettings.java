@@ -35,7 +35,7 @@ public class AnthropicChatCompletionTaskSettings implements TaskSettings {
         };
     }
 
-    public static AnthropicChatCompletionTaskSettings fromRequestMap(Map<String, Object> map) {
+    private static AnthropicChatCompletionTaskSettings fromRequestMap(Map<String, Object> map) {
         ValidationException validationException = new ValidationException();
 
         var commonFields = fromMap(map, validationException);
@@ -47,7 +47,7 @@ public class AnthropicChatCompletionTaskSettings implements TaskSettings {
         return new AnthropicChatCompletionTaskSettings(commonFields);
     }
 
-    public static AnthropicChatCompletionTaskSettings fromPersistedMap(Map<String, Object> map) {
+    private static AnthropicChatCompletionTaskSettings fromPersistedMap(Map<String, Object> map) {
         var commonFields = fromMap(map, new ValidationException());
 
         return new AnthropicChatCompletionTaskSettings(commonFields);
@@ -56,7 +56,7 @@ public class AnthropicChatCompletionTaskSettings implements TaskSettings {
     private record CommonFields(int maxTokens) {}
 
     private static CommonFields fromMap(Map<String, Object> map, ValidationException validationException) {
-        Integer maxTokens = extractRequiredPositiveInteger(map, MAX_TOKENS, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        Integer maxTokens = extractRequiredPositiveInteger(map, MAX_TOKENS, ModelConfigurations.TASK_SETTINGS, validationException);
         return new CommonFields(Objects.requireNonNullElse(maxTokens, -1));
     }
 

@@ -32,7 +32,6 @@ public class AnthropicChatCompletionResponseEntity {
 
     private static final String FAILED_TO_FIND_FIELD_TEMPLATE = "Failed to find required field [%s] in Anthropic chat completions response";
 
-    // TODO
     /**
      * Parses the OpenAI chat completion response.
      * For a request like:
@@ -49,29 +48,24 @@ public class AnthropicChatCompletionResponseEntity {
      *
      * <pre>
      *     <code>
-     *         {
-     *              "id": "chatcmpl-123",
-     *              "object": "chat.completion",
-     *              "created": 1677652288,
-     *              "model": "gpt-3.5-turbo-0613",
-     *              "system_fingerprint": "fp_44709d6fcb",
-     *              "choices": [
-     *                  {
-     *                      "index": 0,
-     *                      "message": {
-     *                          "role": "assistant",
-     *                          "content": "\n\nHello there, how may I assist you today?",
-    *                          },
-     *                      "logprobs": null,
-     *                      "finish_reason": "stop"
-     *                  }
-     *              ],
-     *              "usage": {
-     *                "prompt_tokens": 9,
-     *                "completion_tokens": 12,
-     *                "total_tokens": 21
-     *              }
+     *  {
+     *      "id": "msg_01XzZQmG41BMGe5NZ5p2vEWb",
+     *      "type": "message",
+     *      "role": "assistant",
+     *      "model": "claude-3-opus-20240229",
+     *      "not_content": [
+     *          {
+     *              "type": "text",
+     *              "text": "result"
      *          }
+     *      ],
+     *      "stop_reason": "end_turn",
+     *      "stop_sequence": null,
+     *      "usage": {
+     *          "input_tokens": 16,
+     *          "output_tokens": 326
+     *      }
+     *  }
      *     </code>
      * </pre>
      */

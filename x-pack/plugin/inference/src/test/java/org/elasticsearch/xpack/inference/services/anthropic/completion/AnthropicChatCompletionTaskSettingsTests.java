@@ -7,14 +7,21 @@
 
 package org.elasticsearch.xpack.inference.services.anthropic.completion;
 
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.ValidationException;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
+import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.anthropic.AnthropicServiceFields;
 
+import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
-public class AnthropicChatCompletionTaskSettingsTests extends ESTestCase {
+import static org.hamcrest.Matchers.is;
+
+public class AnthropicChatCompletionTaskSettingsTests extends AbstractBWCWireSerializationTestCase<AnthropicChatCompletionTaskSettings> {
 
     public static Map<String, Object> getChatCompletionRequestTaskSettingsMap(@Nullable Integer maxTokens) {
         var map = new HashMap<String, Object>();
@@ -24,5 +31,70 @@ public class AnthropicChatCompletionTaskSettingsTests extends ESTestCase {
         }
 
         return map;
+    }
+
+    public static AnthropicChatCompletionTaskSettings createRandom() {
+        return new AnthropicChatCompletionTaskSettings(randomNonNegativeInt());
+    }
+
+    public void testFromMap_WithMaxTokens() {
+        assertEquals(
+            new AnthropicChatCompletionTaskSettings(1),
+            AnthropicChatCompletionTaskSettings.fromMap(getChatCompletionRequestTaskSettingsMap(1), ConfigurationParseContext.REQUEST)
+        );
+    }
+
+    public void testFromMap_WithoutMaxTokens_ThrowsException() {
+        var thrownException = expectThrows(
+            ValidationException.class,
+            () -> AnthropicChatCompletionTaskSettings.fromMap(new HashMap<>(Map.of()), ConfigurationParseContext.REQUEST)
+        );
+
+        assertThat(
+            thrownException.getMessage(),
+            is("Validation Failed: 1: [task_settings] does not contain the required setting [max_tokens];")
+        );
+    }
+
+    public void testOf_KeepsOriginalValuesWithOverridesAreEmpty() {
+        var taskSettings = new AnthropicChatCompletionTaskSettings(1);
+
+        var overriddenTaskSettings = AnthropicChatCompletionTaskSettings.of(
+            taskSettings,
+            AnthropicChatCompletionRequestTaskSettings.EMPTY_SETTINGS
+        );
+        assertThat(overriddenTaskSettings, is(taskSettings));
+    }
+
+    public void testOf_UsesOverriddenSettings() {
+        var taskSettings = new AnthropicChatCompletionTaskSettings(1);
+
+        var requestTaskSettings = new AnthropicChatCompletionRequestTaskSettings(2);
+
+        var overriddenTaskSettings = AnthropicChatCompletionTaskSettings.of(taskSettings, requestTaskSettings);
+        assertThat(overriddenTaskSettings, is(new AnthropicChatCompletionTaskSettings(2)));
+    }
+
+    @Override
+    protected AnthropicChatCompletionTaskSettings mutateInstanceForVersion(
+        AnthropicChatCompletionTaskSettings instance,
+        TransportVersion version
+    ) {
+        return instance;
+    }
+
+    @Override
+    protected Writeable.Reader<AnthropicChatCompletionTaskSettings> instanceReader() {
+        return AnthropicChatCompletionTaskSettings::new;
+    }
+
+    @Override
+    protected AnthropicChatCompletionTaskSettings createTestInstance() {
+        return createRandom();
+    }
+
+    @Override
+    protected AnthropicChatCompletionTaskSettings mutateInstance(AnthropicChatCompletionTaskSettings instance) throws IOException {
+        return randomValueOtherThan(instance, this::createTestInstance);
     }
 }

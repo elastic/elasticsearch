@@ -51,7 +51,18 @@ public class AnthropicChatCompletionModelTests extends ESTestCase {
             "service",
             url,
             new AnthropicChatCompletionServiceSettings(modelName, null),
-            new AnthropicChatCompletionTaskSettings(100),
+            new AnthropicChatCompletionTaskSettings(maxTokens),
+            new DefaultSecretSettings(new SecureString(apiKey.toCharArray()))
+        );
+    }
+
+    public static AnthropicChatCompletionModel createChatCompletionModel(String apiKey, String modelName, int maxTokens) {
+        return new AnthropicChatCompletionModel(
+            "id",
+            TaskType.COMPLETION,
+            "service",
+            new AnthropicChatCompletionServiceSettings(modelName, null),
+            new AnthropicChatCompletionTaskSettings(maxTokens),
             new DefaultSecretSettings(new SecureString(apiKey.toCharArray()))
         );
     }

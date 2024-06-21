@@ -11,11 +11,10 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.http.retry.BaseResponseHandler;
-import org.elasticsearch.xpack.inference.external.http.retry.ContentTooLargeException;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseParser;
 import org.elasticsearch.xpack.inference.external.http.retry.RetryException;
 import org.elasticsearch.xpack.inference.external.request.Request;
-import org.elasticsearch.xpack.inference.external.response.openai.OpenAiErrorResponseEntity;
+import org.elasticsearch.xpack.inference.external.response.anthropic.AnthropicErrorResponseEntity;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 
 import static org.elasticsearch.xpack.inference.external.http.HttpUtils.checkForEmptyBody;
@@ -40,12 +39,10 @@ public class AnthropicResponseHandler extends BaseResponseHandler {
     // The number of seconds until the rate limit window resets.
     static final String RETRY_AFTER = "retry-after";
 
-    static final String CONTENT_TOO_LARGE_MESSAGE = "Please reduce your prompt; or completion length.";
-
-    static final String OPENAI_SERVER_BUSY = "Received a server busy error status code";
+    static final String SERVER_BUSY = "Received an Anthropic server is temporarily overloaded status code";
 
     public AnthropicResponseHandler(String requestType, ResponseParser parseFunction) {
-        super(requestType, parseFunction, OpenAiErrorResponseEntity::fromResponse);
+        super(requestType, parseFunction, AnthropicErrorResponseEntity::fromResponse);
     }
 
     @Override
@@ -58,7 +55,7 @@ public class AnthropicResponseHandler extends BaseResponseHandler {
     /**
      * Validates the status code throws an RetryException if not in the range [200, 300).
      *
-     * The OpenAI API error codes are documented <a href="https://platform.openai.com/docs/guides/error-codes/api-errors">here</a>.
+     * The Anthropic API error codes are documented <a href="https://docs.anthropic.com/en/api/errors">here</a>.
      * @param request The originating request
      * @param result  The http response and body
      * @throws RetryException Throws if status code is {@code >= 300 or < 200 }
@@ -69,18 +66,17 @@ public class AnthropicResponseHandler extends BaseResponseHandler {
             return;
         }
 
-        // TODO
         // handle error codes
         if (statusCode == 500) {
             throw new RetryException(true, buildError(SERVER_ERROR, request, result));
-        } else if (statusCode == 503) {
-            throw new RetryException(true, buildError(OPENAI_SERVER_BUSY, request, result));
+        } else if (statusCode == 529) {
+            throw new RetryException(true, buildError(SERVER_BUSY, request, result));
         } else if (statusCode > 500) {
             throw new RetryException(false, buildError(SERVER_ERROR, request, result));
         } else if (statusCode == 429) {
-            throw new RetryException(false, buildError(buildRateLimitErrorMessage(result), request, result));
-        } else if (isContentTooLarge(result)) {
-            throw new ContentTooLargeException(buildError(CONTENT_TOO_LARGE, request, result));
+            throw new RetryException(true, buildError(buildRateLimitErrorMessage(result), request, result));
+        } else if (statusCode == 403) {
+            throw new RetryException(false, buildError(PERMISSION_DENIED, request, result));
         } else if (statusCode == 401) {
             throw new RetryException(false, buildError(AUTHENTICATION, request, result));
         } else if (statusCode >= 300 && statusCode < 400) {
@@ -90,35 +86,26 @@ public class AnthropicResponseHandler extends BaseResponseHandler {
         }
     }
 
-    private static boolean isContentTooLarge(HttpResult result) {
-        int statusCode = result.response().getStatusLine().getStatusCode();
-
-        if (statusCode == 413) {
-            return true;
-        }
-
-        if (statusCode == 400) {
-            var errorEntity = OpenAiErrorResponseEntity.fromResponse(result);
-
-            return errorEntity != null && errorEntity.getErrorMessage().contains(CONTENT_TOO_LARGE_MESSAGE);
-        }
-
-        return false;
-    }
-
     static String buildRateLimitErrorMessage(HttpResult result) {
         var response = result.response();
         var tokenLimit = getFirstHeaderOrUnknown(response, TOKENS_LIMIT);
         var remainingTokens = getFirstHeaderOrUnknown(response, REMAINING_TOKENS);
         var requestLimit = getFirstHeaderOrUnknown(response, REQUESTS_LIMIT);
         var remainingRequests = getFirstHeaderOrUnknown(response, REMAINING_REQUESTS);
+        var requestReset = getFirstHeaderOrUnknown(response, REQUEST_RESET);
+        var tokensReset = getFirstHeaderOrUnknown(response, TOKENS_RESET);
+        var retryAfter = getFirstHeaderOrUnknown(response, RETRY_AFTER);
 
         var usageMessage = Strings.format(
-            "Token limit [%s], remaining tokens [%s]. Request limit [%s], remaining requests [%s]",
+            "Token limit [%s], remaining tokens [%s], tokens reset [%s]. "
+                + "Request limit [%s], remaining requests [%s], request reset [%s]. Retry after [%s]",
             tokenLimit,
             remainingTokens,
+            tokensReset,
             requestLimit,
-            remainingRequests
+            remainingRequests,
+            requestReset,
+            retryAfter
         );
 
         return RATE_LIMIT + ". " + usageMessage;

@@ -46,13 +46,20 @@ final class BigIntArray extends AbstractBigByteArray implements IntArray {
     }
 
     @Override
-    public int set(long index, int value) {
+    public int getAndSet(long index, int value) {
         final int pageIndex = pageIndex(index);
         final int indexInPage = indexInPage(index);
         final byte[] page = getPageForWriting(pageIndex);
         final int ret = (int) VH_PLATFORM_NATIVE_INT.get(page, indexInPage << 2);
         VH_PLATFORM_NATIVE_INT.set(page, indexInPage << 2, value);
         return ret;
+    }
+
+    @Override
+    public void set(long index, int value) {
+        final int pageIndex = pageIndex(index);
+        final int indexInPage = indexInPage(index);
+        VH_PLATFORM_NATIVE_INT.set(getPageForWriting(pageIndex), indexInPage << 2, value);
     }
 
     @Override

@@ -64,6 +64,8 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
 
     private boolean requireDataStream;
 
+    private boolean initializeFailureStore;
+
     private Settings settings = Settings.EMPTY;
 
     private String mappings = "{}";
@@ -108,6 +110,11 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
             requireDataStream = in.readBoolean();
         } else {
             requireDataStream = false;
+        }
+        if (in.getTransportVersion().onOrAfter(TransportVersions.FAILURE_STORE_LAZY_CREATION)) {
+            initializeFailureStore = in.readBoolean();
+        } else {
+            initializeFailureStore = true;
         }
     }
 
@@ -468,6 +475,19 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
         return this;
     }
 
+    public boolean isInitializeFailureStore() {
+        return initializeFailureStore;
+    }
+
+    /**
+     * Set whether this CreateIndexRequest should initialize the failure store on data stream creation. This can be necessary when, for
+     * example, a failure occurs while trying to ingest a document into a data stream that has to be auto-created.
+     */
+    public CreateIndexRequest initializeFailureStore(boolean initializeFailureStore) {
+        this.initializeFailureStore = initializeFailureStore;
+        return this;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
@@ -491,7 +511,10 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
             out.writeString(origin);
         }
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
-            out.writeOptionalBoolean(this.requireDataStream);
+            out.writeBoolean(this.requireDataStream);
+        }
+        if (out.getTransportVersion().onOrAfter(TransportVersions.FAILURE_STORE_LAZY_CREATION)) {
+            out.writeBoolean(this.initializeFailureStore);
         }
     }
 

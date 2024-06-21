@@ -188,13 +188,13 @@ public class ObjectMapper extends Mapper {
         @Override
         public ObjectMapper build(MapperBuilderContext context) {
             return new ObjectMapper(
-                name(),
-                context.buildFullName(name()),
+                leafName(),
+                context.buildFullName(leafName()),
                 enabled,
                 subobjects,
                 storeArraySource,
                 dynamic,
-                buildMappers(context.createChildContext(name(), dynamic))
+                buildMappers(context.createChildContext(leafName(), dynamic))
             );
         }
     }
@@ -325,7 +325,7 @@ public class ObjectMapper extends Mapper {
                             "Tried to add nested object ["
                                 + fieldName
                                 + "] to object ["
-                                + objBuilder.name()
+                                + objBuilder.leafName()
                                 + "] which does not support subobjects"
                         );
                     }
@@ -660,7 +660,7 @@ public class ObjectMapper extends Mapper {
         for (Mapper mapper : mappers.values()) {
             if (mapper instanceof FieldMapper fieldMapper) {
                 FieldMapper.Builder fieldBuilder = fieldMapper.getMergeBuilder();
-                fieldBuilder.setName(path.pathAsText(mapper.simpleName()));
+                fieldBuilder.setLeafName(path.pathAsText(mapper.simpleName()));
                 flattenedMappers.add(fieldBuilder.build(context));
             } else if (mapper instanceof ObjectMapper objectMapper) {
                 objectMapper.asFlattenedFieldMappers(context, flattenedMappers, path);

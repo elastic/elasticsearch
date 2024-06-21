@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.expression.function.scalar.math;
+package org.elasticsearch.xpack.esql.expression.function.scalar.date;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
@@ -18,7 +18,6 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.esql.expression.function.scalar.AbstractConfigurationFunctionTestCase;
-import org.elasticsearch.xpack.esql.expression.function.scalar.date.Now;
 import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
 import org.hamcrest.Matcher;
 

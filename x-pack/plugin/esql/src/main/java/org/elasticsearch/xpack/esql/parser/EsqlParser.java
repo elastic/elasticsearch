@@ -23,7 +23,6 @@ import org.elasticsearch.xpack.esql.core.parser.CaseChangingCharStream;
 import org.elasticsearch.xpack.esql.core.plan.logical.LogicalPlan;
 
 import java.util.BitSet;
-import java.util.Map;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 
@@ -35,7 +34,7 @@ public class EsqlParser {
     private static final Logger log = LogManager.getLogger(EsqlParser.class);
 
     public LogicalPlan createStatement(String query) {
-        return createStatement(query, QueryParams.EMPTY);
+        return createStatement(query, new QueryParams());
     }
 
     public LogicalPlan createStatement(String query, QueryParams params) {
@@ -57,9 +56,7 @@ public class EsqlParser {
             lexer.removeErrorListeners();
             lexer.addErrorListener(ERROR_LISTENER);
 
-            Map<Token, QueryParam> positionalParamTokens = params.positionalParamTokens();
-            TokenSource tokenSource = new ParametrizedTokenSource(lexer, positionalParamTokens, params);
-
+            TokenSource tokenSource = new ParametrizedTokenSource(lexer, params);
             CommonTokenStream tokenStream = new CommonTokenStream(tokenSource);
             EsqlBaseParser parser = new EsqlBaseParser(tokenStream);
 
@@ -119,16 +116,14 @@ public class EsqlParser {
     private static class ParametrizedTokenSource implements TokenSource {
 
         private TokenSource delegate;
-        private Map<Token, QueryParam> paramTokens;
         private int param;
         private QueryParams params;
         private BitSet paramTypes = new BitSet(3);
         private static String message = "Inconsistent parameter declaration, "
             + "use one of positional, named or anonymous params but not a combination of ";
 
-        ParametrizedTokenSource(TokenSource delegate, Map<Token, QueryParam> paramTokens, QueryParams params) {
+        ParametrizedTokenSource(TokenSource delegate, QueryParams params) {
             this.delegate = delegate;
-            this.paramTokens = paramTokens;
             this.params = params;
             param = 0;
         }
@@ -138,10 +133,10 @@ public class EsqlParser {
             Token token = delegate.nextToken();
             if (token.getType() == EsqlBaseLexer.PARAM) {
                 checkAnonymousParam(token);
-                if (param >= params.positionalParams().size()) {
-                    throw new ParsingException(source(token), "Not enough actual parameters {}", params.positionalParams().size());
+                if (param >= params.size()) {
+                    throw new ParsingException(source(token), "Not enough actual parameters {}", params.size());
                 }
-                paramTokens.put(token, params.positionalParams().get(param));
+                params.addTokenParam(token, params.get(param));
                 param++;
             }
 

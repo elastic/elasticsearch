@@ -106,7 +106,7 @@ public class DiskThresholdDeciderIT extends DiskUsageIntegTestCase {
         ensureStableCluster(3);
 
         assertAcked(
-            clusterAdmin().preparePutRepository("repo")
+            clusterAdmin().preparePutRepository(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "repo")
                 .setType(FsRepository.TYPE)
                 .setSettings(Settings.builder().put("location", randomRepoPath()).put("compress", randomBoolean()))
         );
@@ -130,7 +130,7 @@ public class DiskThresholdDeciderIT extends DiskUsageIntegTestCase {
         createIndex(indexName, indexSettings(6, 0).put(INDEX_STORE_STATS_REFRESH_INTERVAL_SETTING.getKey(), "0ms").build());
         var shardSizes = createReasonableSizedShards(indexName);
 
-        final CreateSnapshotResponse createSnapshotResponse = clusterAdmin().prepareCreateSnapshot("repo", "snap")
+        final CreateSnapshotResponse createSnapshotResponse = clusterAdmin().prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, "repo", "snap")
             .setWaitForCompletion(true)
             .get();
         final SnapshotInfo snapshotInfo = createSnapshotResponse.getSnapshotInfo();
@@ -145,7 +145,7 @@ public class DiskThresholdDeciderIT extends DiskUsageIntegTestCase {
         getTestFileStore(dataNodeName).setTotalSpace(shardSizes.getSmallestShardSize() + WATERMARK_BYTES - 1L);
         refreshDiskUsage();
 
-        final RestoreSnapshotResponse restoreSnapshotResponse = clusterAdmin().prepareRestoreSnapshot("repo", "snap")
+        final RestoreSnapshotResponse restoreSnapshotResponse = clusterAdmin().prepareRestoreSnapshot(TEST_REQUEST_TIMEOUT, "repo", "snap")
             .setWaitForCompletion(true)
             .get();
         final RestoreInfo restoreInfo = restoreSnapshotResponse.getRestoreInfo();
@@ -179,7 +179,7 @@ public class DiskThresholdDeciderIT extends DiskUsageIntegTestCase {
         ensureStableCluster(3);
 
         assertAcked(
-            clusterAdmin().preparePutRepository("repo")
+            clusterAdmin().preparePutRepository(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "repo")
                 .setType(FsRepository.TYPE)
                 .setSettings(Settings.builder().put("location", randomRepoPath()).put("compress", randomBoolean()))
         );
@@ -203,7 +203,7 @@ public class DiskThresholdDeciderIT extends DiskUsageIntegTestCase {
         createIndex(indexName, indexSettings(6, 0).put(INDEX_STORE_STATS_REFRESH_INTERVAL_SETTING.getKey(), "0ms").build());
         var shardSizes = createReasonableSizedShards(indexName);
 
-        final CreateSnapshotResponse createSnapshotResponse = clusterAdmin().prepareCreateSnapshot("repo", "snap")
+        final CreateSnapshotResponse createSnapshotResponse = clusterAdmin().prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, "repo", "snap")
             .setWaitForCompletion(true)
             .get();
         final SnapshotInfo snapshotInfo = createSnapshotResponse.getSnapshotInfo();
@@ -219,7 +219,7 @@ public class DiskThresholdDeciderIT extends DiskUsageIntegTestCase {
         getTestFileStore(dataNodeName).setTotalSpace(usableSpace + WATERMARK_BYTES);
         refreshDiskUsage();
 
-        final RestoreSnapshotResponse restoreSnapshotResponse = clusterAdmin().prepareRestoreSnapshot("repo", "snap")
+        final RestoreSnapshotResponse restoreSnapshotResponse = clusterAdmin().prepareRestoreSnapshot(TEST_REQUEST_TIMEOUT, "repo", "snap")
             .setWaitForCompletion(true)
             .get();
         final RestoreInfo restoreInfo = restoreSnapshotResponse.getRestoreInfo();

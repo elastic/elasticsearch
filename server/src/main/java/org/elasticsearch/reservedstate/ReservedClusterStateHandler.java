@@ -10,6 +10,7 @@ package org.elasticsearch.reservedstate;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -121,4 +122,9 @@ public interface ReservedClusterStateHandler<T> {
      * @throws IOException
      */
     T fromXContent(XContentParser parser) throws IOException;
+
+    /**
+     * Reserved-state handlers create master-node requests but never actually send them to the master node so the timeouts are not relevant.
+     */
+    TimeValue DUMMY_TIMEOUT = TimeValue.THIRTY_SECONDS;
 }

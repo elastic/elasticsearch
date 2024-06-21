@@ -24,6 +24,7 @@ include::inference-shared.asciidoc[tag=task-type]
 +
 --
 Available task types:
+
 * `sparse_embedding`.
 --
 

@@ -24,6 +24,7 @@ include::inference-shared.asciidoc[tag=task-type]
 +
 --
 Available task types:
+
 * `completion`,
 * `text_embedding`.
 --

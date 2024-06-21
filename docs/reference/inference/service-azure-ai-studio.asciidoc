@@ -2,7 +2,7 @@
 === Azure AI studio {infer} `service`
 
 Creates an {infer} endpoint to perform an {infer} task with the `azureaistudio` service.
- 
+
 
 [discrete]
 [[infer-service-azure-ai-studio-api-request]]
@@ -24,6 +24,7 @@ include::inference-shared.asciidoc[tag=task-type]
 +
 --
 Available task types:
+
 * `completion`,
 * `text_embedding`.
 --

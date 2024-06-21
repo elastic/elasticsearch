@@ -36,6 +36,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardLongFieldRange;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -87,6 +88,7 @@ public class IndexMetadataTests extends ESTestCase {
         Map<String, String> customMap = new HashMap<>();
         customMap.put(randomAlphaOfLength(5), randomAlphaOfLength(10));
         customMap.put(randomAlphaOfLength(10), randomAlphaOfLength(15));
+        IndexVersion mappingsUpdatedVersion = IndexVersionUtils.randomVersion();
         IndexMetadataStats indexStats = randomBoolean() ? randomIndexStats(numShard) : null;
         Double indexWriteLoadForecast = randomBoolean() ? randomDoubleBetween(0.0, 128, true) : null;
         Long shardSizeInBytesForecast = randomBoolean() ? randomLongBetween(1024, 10240) : null;
@@ -113,6 +115,7 @@ public class IndexMetadataTests extends ESTestCase {
                     randomNonNegativeLong()
                 )
             )
+            .mappingsUpdatedVersion(mappingsUpdatedVersion)
             .stats(indexStats)
             .indexWriteLoadForecast(indexWriteLoadForecast)
             .shardSizeInBytesForecast(shardSizeInBytesForecast)
@@ -153,6 +156,7 @@ public class IndexMetadataTests extends ESTestCase {
         assertEquals(metadata.getCreationDate(), fromXContentMeta.getCreationDate());
         assertEquals(metadata.getRoutingFactor(), fromXContentMeta.getRoutingFactor());
         assertEquals(metadata.primaryTerm(0), fromXContentMeta.primaryTerm(0));
+        assertEquals(metadata.getMappingsUpdatedVersion(), fromXContentMeta.getMappingsUpdatedVersion());
         assertEquals(metadata.isSystem(), fromXContentMeta.isSystem());
         Map<String, DiffableStringMap> expectedCustom = Map.of("my_custom", new DiffableStringMap(customMap));
         assertEquals(metadata.getCustomData(), expectedCustom);
@@ -180,6 +184,7 @@ public class IndexMetadataTests extends ESTestCase {
             assertEquals(metadata.getRolloverInfos(), deserialized.getRolloverInfos());
             assertEquals(deserialized.getCustomData(), expectedCustom);
             assertEquals(metadata.getCustomData(), deserialized.getCustomData());
+            assertEquals(metadata.getMappingsUpdatedVersion(), deserialized.getMappingsUpdatedVersion());
             assertEquals(metadata.isSystem(), deserialized.isSystem());
             assertEquals(metadata.getStats(), deserialized.getStats());
             assertEquals(metadata.getForecastedWriteLoad(), deserialized.getForecastedWriteLoad());

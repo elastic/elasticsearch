@@ -1428,6 +1428,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return getEngine().denseVectorStats();
     }
 
+    public SparseVectorStats sparseVectorStats() {
+        readAllowed();
+        MappingLookup mappingLookup = mapperService != null ? mapperService.mappingLookup() : null;
+        return getEngine().sparseVectorStats(mappingLookup);
+    }
+
     public BulkStats bulkStats() {
         return bulkOperationListener.stats();
     }
@@ -3494,7 +3500,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             isTimeBasedIndex ? TIMESERIES_LEAF_READERS_SORTER : null,
             relativeTimeInNanosSupplier,
             indexCommitListener,
-            routingEntry().isPromotableToPrimary()
+            routingEntry().isPromotableToPrimary(),
+            mapperService()
         );
     }
 

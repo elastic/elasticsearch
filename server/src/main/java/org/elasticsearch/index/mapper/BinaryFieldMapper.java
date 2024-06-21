@@ -70,8 +70,8 @@ public class BinaryFieldMapper extends FieldMapper {
         @Override
         public BinaryFieldMapper build(MapperBuilderContext context) {
             return new BinaryFieldMapper(
-                name(),
-                new BinaryFieldType(context.buildFullName(name()), stored.getValue(), hasDocValues.getValue(), meta.getValue()),
+                leafName(),
+                new BinaryFieldType(context.buildFullName(leafName()), stored.getValue(), hasDocValues.getValue(), meta.getValue()),
                 multiFieldsBuilder.build(this, context),
                 copyTo,
                 this
@@ -192,7 +192,7 @@ public class BinaryFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new BinaryFieldMapper.Builder(simpleName(), isSyntheticSourceEnabledViaIndexMode).init(this);
+        return new BinaryFieldMapper.Builder(leafName(), isSyntheticSourceEnabledViaIndexMode).init(this);
     }
 
     @Override
@@ -229,10 +229,10 @@ public class BinaryFieldMapper extends FieldMapper {
                     case 0:
                         return;
                     case 1:
-                        b.field(simpleName());
+                        b.field(leafName());
                         break;
                     default:
-                        b.startArray(simpleName());
+                        b.startArray(leafName());
                 }
 
                 for (int i = 0; i < count; i++) {

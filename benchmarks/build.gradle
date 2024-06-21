@@ -41,7 +41,7 @@ dependencies {
   api(project(':x-pack:plugin:esql-core'))
   api(project(':x-pack:plugin:esql'))
   api(project(':x-pack:plugin:esql:compute'))
-  implementation project(path: ':libs:elasticsearch-vec')
+  implementation project(path: ':libs:elasticsearch-simdvec')
   expression(project(path: ':modules:lang-expression', configuration: 'zip'))
   painless(project(path: ':modules:lang-painless', configuration: 'zip'))
   api "org.openjdk.jmh:jmh-core:$versions.jmh"

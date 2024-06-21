@@ -206,19 +206,19 @@ public class MappingParserTests extends MapperServiceTestCase {
         assertEquals(1, mapping.getRoot().mappers.size());
         Mapper object = mapping.getRoot().getMapper("obj");
         assertThat(object, CoreMatchers.instanceOf(ObjectMapper.class));
-        assertEquals("obj", object.simpleName());
+        assertEquals("obj", object.leafName());
         assertEquals("obj", object.name());
         ObjectMapper objectMapper = (ObjectMapper) object;
         assertEquals(1, objectMapper.mappers.size());
         object = objectMapper.getMapper("source");
         assertThat(object, CoreMatchers.instanceOf(ObjectMapper.class));
-        assertEquals("source", object.simpleName());
+        assertEquals("source", object.leafName());
         assertEquals("obj.source", object.name());
         objectMapper = (ObjectMapper) object;
         assertEquals(1, objectMapper.mappers.size());
         object = objectMapper.getMapper("geo");
         assertThat(object, CoreMatchers.instanceOf(ObjectMapper.class));
-        assertEquals("geo", object.simpleName());
+        assertEquals("geo", object.leafName());
         assertEquals("obj.source.geo", object.name());
         objectMapper = (ObjectMapper) object;
         assertEquals(1, objectMapper.mappers.size());
@@ -226,7 +226,7 @@ public class MappingParserTests extends MapperServiceTestCase {
         assertThat(location, CoreMatchers.instanceOf(GeoPointFieldMapper.class));
         GeoPointFieldMapper geoPointFieldMapper = (GeoPointFieldMapper) location;
         assertEquals("obj.source.geo.location", geoPointFieldMapper.name());
-        assertEquals("location", geoPointFieldMapper.simpleName());
+        assertEquals("location", geoPointFieldMapper.leafName());
         assertEquals("obj.source.geo.location", geoPointFieldMapper.mappedFieldType.name());
     }
 

@@ -296,7 +296,7 @@ public class NestedObjectMapper extends ObjectMapper {
     @Override
     public ObjectMapper merge(Mapper mergeWith, MapperMergeContext parentMergeContext) {
         if ((mergeWith instanceof NestedObjectMapper) == false) {
-            MapperErrors.throwNestedMappingConflictError(mergeWith.name());
+            MapperErrors.throwNestedMappingConflictError(mergeWith.fullPath());
         }
         NestedObjectMapper mergeWithObject = (NestedObjectMapper) mergeWith;
 
@@ -469,7 +469,7 @@ public class NestedObjectMapper extends ObjectMapper {
 
         @Override
         public String fieldName() {
-            return name();
+            return NestedObjectMapper.this.fullPath();
         }
     }
 }

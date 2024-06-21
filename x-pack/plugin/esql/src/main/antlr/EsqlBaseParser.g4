@@ -251,6 +251,10 @@ string
     : QUOTED_STRING
     ;
 
+vectorString
+    : OPENING_BRACKET numericValue (COMMA numericValue)* CLOSING_BRACKET
+    ;
+
 comparisonOperator
     : EQ | NEQ | LT | LTE | GT | GTE
     ;
@@ -335,6 +339,7 @@ searchRankExpression
     | valueExpression                                                             #searchBooleanDefault
     | LP searchRankExpression RP                                                  #searchParenthesizedExpression
     | SEARCH_EXPR_MATCH LP singleField=qualifiedName COMMA queryString=string RP  #searchMatchQuery
+    | SEARCH_EXPR_KNN LP singleField=qualifiedName COMMA queryString=vectorString RP    #searchKnnQuery
     | left=searchRankExpression operator=AND right=searchRankExpression           #searchLogicalBinary
     | left=searchRankExpression operator=OR right=searchRankExpression            #searchLogicalBinary
     ;

@@ -279,6 +279,9 @@ public class PlannerUtils {
             // TODO: support forStats for shape aggregations, like st_centroid
             return ElementType.BYTES_REF;
         }
+        if (EsqlDataTypes.isDenseVector(dataType)) {
+            return ElementType.DENSE_VECTOR;
+        }
         throw EsqlIllegalArgumentException.illegalDataType(dataType);
     }
 

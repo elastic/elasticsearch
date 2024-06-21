@@ -117,6 +117,7 @@ public interface EstimatesRowSize {
             case DOUBLE -> Double.BYTES;
             case INT -> Integer.BYTES;
             case LONG -> Long.BYTES;
+            case DENSE_VECTOR -> Float.BYTES * 1024;
             case NULL -> 0;
             // TODO: provide a specific estimate for aggregated_metrics_double
             case COMPOSITE -> throw new EsqlIllegalArgumentException("can't estimate size for composite blocks");

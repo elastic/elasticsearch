@@ -780,6 +780,16 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    */
   void exitString(EsqlBaseParser.StringContext ctx);
   /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#vectorString}.
+   * @param ctx the parse tree
+   */
+  void enterVectorString(EsqlBaseParser.VectorStringContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#vectorString}.
+   * @param ctx the parse tree
+   */
+  void exitVectorString(EsqlBaseParser.VectorStringContext ctx);
+  /**
    * Enter a parse tree produced by {@link EsqlBaseParser#comparisonOperator}.
    * @param ctx the parse tree
    */
@@ -973,6 +983,18 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    * @param ctx the parse tree
    */
   void exitSearchMatchingExpression(EsqlBaseParser.SearchMatchingExpressionContext ctx);
+  /**
+   * Enter a parse tree produced by the {@code searchKnnQuery}
+   * labeled alternative in {@link EsqlBaseParser#searchRankExpression}.
+   * @param ctx the parse tree
+   */
+  void enterSearchKnnQuery(EsqlBaseParser.SearchKnnQueryContext ctx);
+  /**
+   * Exit a parse tree produced by the {@code searchKnnQuery}
+   * labeled alternative in {@link EsqlBaseParser#searchRankExpression}.
+   * @param ctx the parse tree
+   */
+  void exitSearchKnnQuery(EsqlBaseParser.SearchKnnQueryContext ctx);
   /**
    * Enter a parse tree produced by the {@code searchLogicalBinary}
    * labeled alternative in {@link EsqlBaseParser#searchRankExpression}.

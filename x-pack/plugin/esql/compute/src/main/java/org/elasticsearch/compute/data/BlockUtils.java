@@ -269,6 +269,7 @@ public final class BlockUtils {
             case FLOAT -> ((FloatBlock) block).getFloat(offset);
             case INT -> ((IntBlock) block).getInt(offset);
             case LONG -> ((LongBlock) block).getLong(offset);
+            case DENSE_VECTOR -> ((DoubleVectorBlock) block).getDouble(offset);
             case NULL -> null;
             case DOC -> {
                 DocVector v = ((DocBlock) block).asVector();

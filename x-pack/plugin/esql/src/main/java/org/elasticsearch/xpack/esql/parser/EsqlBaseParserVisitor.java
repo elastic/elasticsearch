@@ -468,6 +468,12 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitString(EsqlBaseParser.StringContext ctx);
   /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#vectorString}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitVectorString(EsqlBaseParser.VectorStringContext ctx);
+  /**
    * Visit a parse tree produced by {@link EsqlBaseParser#comparisonOperator}.
    * @param ctx the parse tree
    * @return the visitor result
@@ -583,6 +589,13 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    * @return the visitor result
    */
   T visitSearchMatchingExpression(EsqlBaseParser.SearchMatchingExpressionContext ctx);
+  /**
+   * Visit a parse tree produced by the {@code searchKnnQuery}
+   * labeled alternative in {@link EsqlBaseParser#searchRankExpression}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitSearchKnnQuery(EsqlBaseParser.SearchKnnQueryContext ctx);
   /**
    * Visit a parse tree produced by the {@code searchLogicalBinary}
    * labeled alternative in {@link EsqlBaseParser#searchRankExpression}.

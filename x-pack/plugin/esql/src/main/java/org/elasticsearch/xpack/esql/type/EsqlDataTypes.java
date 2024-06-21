@@ -16,6 +16,7 @@ import static java.util.stream.Collectors.toMap;
 import static java.util.stream.Collectors.toUnmodifiableMap;
 import static org.elasticsearch.xpack.esql.core.type.DataType.BYTE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_PERIOD;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.FLOAT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.HALF_FLOAT;
@@ -126,6 +127,7 @@ public final class EsqlDataTypes {
             && t != SCALED_FLOAT
             && t != SOURCE
             && t != HALF_FLOAT
+            && t != DENSE_VECTOR
             && isCounterType(t) == false;
     }
 
@@ -158,5 +160,9 @@ public final class EsqlDataTypes {
 
     public static boolean isCounterType(DataType dt) {
         return dt == DataType.COUNTER_LONG || dt == DataType.COUNTER_INTEGER || dt == DataType.COUNTER_DOUBLE;
+    }
+
+    public static boolean isDenseVector(DataType dataType) {
+        return dataType == DENSE_VECTOR;
     }
 }

@@ -53,6 +53,7 @@ public enum DataType {
     CARTESIAN_POINT("cartesian_point", Double.BYTES * 2, false, false, true),
     CARTESIAN_SHAPE("cartesian_shape", Integer.MAX_VALUE, false, false, true),
     GEO_SHAPE("geo_shape", Integer.MAX_VALUE, false, false, true),
+    DENSE_VECTOR("dense_vector", Integer.MAX_VALUE, false, false, true),
 
     /**
      * These are numeric fields labeled as metric counters in time-series indices. Although stored
@@ -132,6 +133,7 @@ public enum DataType {
         CARTESIAN_POINT,
         CARTESIAN_SHAPE,
         GEO_SHAPE,
+        DENSE_VECTOR,
         COUNTER_LONG,
         COUNTER_INTEGER,
         COUNTER_DOUBLE

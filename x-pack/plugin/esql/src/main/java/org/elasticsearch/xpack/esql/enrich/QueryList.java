@@ -14,6 +14,7 @@ import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.DoubleBigArrayBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.FloatBlock;
 import org.elasticsearch.compute.data.IntBlock;
@@ -158,6 +159,10 @@ abstract class QueryList {
                         yield offset -> rangeFieldType.dateTimeFormatter().formatMillis(longBlock.getLong(offset));
                     }
                     yield longBlock::getLong;
+                }
+                case DENSE_VECTOR -> {
+                    DoubleBigArrayBlock vectorBlock = (DoubleBigArrayBlock) block;
+                    yield vectorBlock::getDouble;
                 }
                 case NULL -> offset -> null;
                 case DOC -> throw new EsqlIllegalArgumentException("can't read values from [doc] block");

@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.esql.core.expression.UnresolvedStar;
 import org.elasticsearch.xpack.esql.core.expression.function.FunctionResolutionStrategy;
 import org.elasticsearch.xpack.esql.core.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.esql.core.expression.predicate.fulltext.MatchQueryPredicate;
+import org.elasticsearch.xpack.esql.core.expression.predicate.knn.KnnQueryPredicate;
 import org.elasticsearch.xpack.esql.core.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Or;
@@ -67,10 +68,12 @@ import java.time.temporal.TemporalAmount;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Objects;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 
 import static java.util.Collections.emptyList;
+import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.esql.core.parser.ParserUtils.source;
 import static org.elasticsearch.xpack.esql.core.parser.ParserUtils.typedParsing;
@@ -779,5 +782,48 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
             visitString(ctx.queryString).fold().toString(),
             null
         );
+    }
+
+    @Override
+    public Object visitSearchKnnQuery(EsqlBaseParser.SearchKnnQueryContext ctx) {
+        UnresolvedAttribute field = visitQualifiedName(ctx.singleField);
+        Object o = visitVectorString(ctx.vectorString());
+        Literal literal = (Literal) o;
+        Object value = literal.value();
+        float[] vectorData = null;
+        if (value instanceof List<?> list) {
+            vectorData = new float[list.size()];
+            int i = 0;
+            for (Object item : list) {
+                if (item instanceof Number n) {
+                    vectorData[i] = n.floatValue();
+                }
+                i++;
+            }
+        }
+        return new KnnQueryPredicate(source(ctx), field, vectorData, emptyMap());
+    }
+
+    @Override
+    public Object visitVectorString(EsqlBaseParser.VectorStringContext ctx) {
+        Source source = source(ctx);
+        List<Literal> numbers = visitList(this, ctx.numericValue(), Literal.class);
+        if (numbers.stream().anyMatch(l -> l.dataType() == DataType.DOUBLE)) {
+            return new Literal(source, mapNumbers(numbers, (no, dt) -> no.doubleValue()), DataType.DOUBLE);
+        }
+        if (numbers.stream().anyMatch(l -> l.dataType() == DataType.UNSIGNED_LONG)) {
+            return new Literal(
+                source,
+                mapNumbers(
+                    numbers,
+                    (no, dt) -> dt == DataType.UNSIGNED_LONG ? no.longValue() : bigIntegerToUnsignedLong(BigInteger.valueOf(no.longValue()))
+                ),
+                DataType.UNSIGNED_LONG
+            );
+        }
+        if (numbers.stream().anyMatch(l -> l.dataType() == DataType.LONG)) {
+            return new Literal(source, mapNumbers(numbers, (no, dt) -> no.longValue()), DataType.LONG);
+        }
+        return new Literal(source, mapNumbers(numbers, (no, dt) -> no.intValue()), DataType.INTEGER);
     }
 }

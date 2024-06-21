@@ -99,40 +99,30 @@ public class TickerScheduleTriggerEngine extends ScheduleTriggerEngine {
 
     @Override
     public synchronized void add(Watch watch) {
-        if (isPaused) {
-            logger.debug("Not adding watch [{}] because engine is paused", watch.id());
-        } else {
-            logger.debug("Adding watch [{}] to engine", watch.id());
-            assert watch.trigger() instanceof ScheduleTrigger;
-            ScheduleTrigger trigger = (ScheduleTrigger) watch.trigger();
-            ActiveSchedule currentSchedule = schedules.get(watch.id());
-            // only update the schedules data structure if the scheduled trigger really has changed, otherwise the time would be reset again
-            // resulting in later executions, as the time would only count after a watch has been stored, as this code is triggered by the
-            // watcher indexing listener
-            // this also means that updating an existing watch would not retrigger the schedule time, if it remains the same schedule
-            if (currentSchedule == null || currentSchedule.schedule.equals(trigger.getSchedule()) == false) {
-
-                assert isPaused == false : "Attempt to add a schedule to a paused engine";
-                schedules.put(watch.id(), new ActiveSchedule(watch.id(), trigger.getSchedule(), clock.millis()));
-            }
+        logger.debug("Adding watch [{}] to engine (engine is paused: {})", watch.id(), isPaused);
+        assert watch.trigger() instanceof ScheduleTrigger;
+        ScheduleTrigger trigger = (ScheduleTrigger) watch.trigger();
+        ActiveSchedule currentSchedule = schedules.get(watch.id());
+        // only update the schedules data structure if the scheduled trigger really has changed, otherwise the time would be reset again
+        // resulting in later executions, as the time would only count after a watch has been stored, as this code is triggered by the
+        // watcher indexing listener
+        // this also means that updating an existing watch would not retrigger the schedule time, if it remains the same schedule
+        if (currentSchedule == null || currentSchedule.schedule.equals(trigger.getSchedule()) == false) {
+            schedules.put(watch.id(), new ActiveSchedule(watch.id(), trigger.getSchedule(), clock.millis()));
         }
     }
 
     @Override
     public synchronized boolean remove(String jobId) {
-        if (isPaused) {
-            logger.debug("Not removing watch [{}] because engine is paused", jobId);
-            return false;
-        } else {
-            logger.debug("Removing watch [{}] from engine", jobId);
-            return schedules.remove(jobId) != null;
-        }
+        logger.debug("Removing watch [{}] from engine (engine is paused: {})", jobId, isPaused);
+        return schedules.remove(jobId) != null;
     }
 
     void checkJobs() {
         long triggeredTime = clock.millis();
         List<TriggerEvent> events = new ArrayList<>();
         for (ActiveSchedule schedule : schedules.values()) {
+            assert isPaused == false : "Attempting to run a schedule while paused: " + schedule.name;
             long scheduledTime = schedule.check(triggeredTime);
             if (scheduledTime > 0) {
                 ZonedDateTime triggeredDateTime = utcDateTimeAtEpochMillis(triggeredTime);

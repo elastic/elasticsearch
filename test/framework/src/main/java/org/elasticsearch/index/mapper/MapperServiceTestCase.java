@@ -815,7 +815,7 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
         }
     }
 
-    private static String syntheticSource(DocumentMapper mapper, IndexReader reader, int docId) throws IOException {
+    protected static String syntheticSource(DocumentMapper mapper, IndexReader reader, int docId) throws IOException {
         LeafReader leafReader = getOnlyLeafReader(reader);
 
         final String synthetic1;

@@ -22,18 +22,23 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
 import org.elasticsearch.xpack.esql.session.EsqlConfigurationSerializationTests;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.sameInstance;
 
 public abstract class AbstractExpressionSerializationTests<T extends Expression> extends AbstractWireTestCase<T> {
+    /**
+     * We use a single random config for all serialization because it's pretty
+     * heavy to build, especially in {@link #testConcurrentSerialization()}.
+     */
+    private EsqlConfiguration config;
+
     public static Source randomSource() {
         int lineNumber = between(0, EXAMPLE_QUERY.length - 1);
         int offset = between(0, EXAMPLE_QUERY[lineNumber].length() - 2);
@@ -48,10 +53,6 @@ public abstract class AbstractExpressionSerializationTests<T extends Expression>
 
     @Override
     protected final T copyInstance(T instance, TransportVersion version) throws IOException {
-        EsqlConfiguration config = EsqlConfigurationSerializationTests.randomConfiguration(
-            Arrays.stream(EXAMPLE_QUERY).collect(Collectors.joining("\n")),
-            Map.of()
-        );
         return copyInstance(
             instance,
             getNamedWriteableRegistry(),
@@ -77,6 +78,10 @@ public abstract class AbstractExpressionSerializationTests<T extends Expression>
 
     protected abstract List<NamedWriteableRegistry.Entry> getNamedWriteables();
 
+    public EsqlConfiguration configuration() {
+        return config;
+    }
+
     @Override
     protected final NamedWriteableRegistry getNamedWriteableRegistry() {
         List<NamedWriteableRegistry.Entry> entries = new ArrayList<>(NamedExpression.getNamedWriteables());
@@ -96,4 +101,9 @@ public abstract class AbstractExpressionSerializationTests<T extends Expression>
         "I understand equations, both the simple and quadratical,",
         "About binomial theorem I'm teeming with a lot o' news,",
         "With many cheerful facts about the square of the hypotenuse." };
+
+    @Before
+    public void initConfig() {
+        config = EsqlConfigurationSerializationTests.randomConfiguration(String.join("\n", EXAMPLE_QUERY), Map.of());
+    }
 }

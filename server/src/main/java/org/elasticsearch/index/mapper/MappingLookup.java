@@ -226,7 +226,7 @@ public final class MappingLookup {
     private static void assertNamesInterned(String name, Mapper mapper) {
         assert name == name.intern();
         assert mapper.name() == mapper.name().intern();
-        assert mapper.simpleName() == mapper.simpleName().intern();
+        assert mapper.leafName() == mapper.leafName().intern();
         if (mapper instanceof ObjectMapper) {
             ((ObjectMapper) mapper).mappers.forEach(MappingLookup::assertNamesInterned);
         }
@@ -362,7 +362,7 @@ public final class MappingLookup {
 
     private static void validateMapperNameIn(Collection<? extends Mapper> mappers, long limit) {
         for (Mapper mapper : mappers) {
-            String name = mapper.simpleName();
+            String name = mapper.leafName();
             if (name.length() > limit) {
                 throw new IllegalArgumentException("Field name [" + name + "] is longer than the limit of [" + limit + "] characters");
             }

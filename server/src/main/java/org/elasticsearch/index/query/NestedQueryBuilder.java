@@ -260,13 +260,16 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
 
     @Override
     protected Query doToQuery(SearchExecutionContext context) throws IOException {
+        Query innerQuery;
         NestedObjectMapper mapper = context.nestedLookup().getNestedMappers().get(path);
         try {
             context.nestedScope().nextLevel(mapper);
-            return toQuery(this.query.toQuery(context), path, scoreMode, ignoreUnmapped, context);
+            innerQuery = this.query.toQuery(context);
         } finally {
             context.nestedScope().previousLevel();
         }
+
+        return toQuery(innerQuery, path, scoreMode, ignoreUnmapped, context);
     }
 
     /**

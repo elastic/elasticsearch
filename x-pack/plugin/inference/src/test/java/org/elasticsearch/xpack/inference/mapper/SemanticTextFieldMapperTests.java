@@ -534,6 +534,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         return mapperService;
     }
 
+    @Override
     protected void assertExistsQuery(MappedFieldType fieldType, Query query, LuceneDocument fields) {
         // Until a doc is indexed, the query is rewritten as match no docs
         assertThat(query, instanceOf(MatchNoDocsQuery.class));

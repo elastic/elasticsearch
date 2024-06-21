@@ -274,7 +274,7 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
 
     /**
      * Returns the primitive Lucene query for a nested query given the primitive query to wrap
-     * @param innerQuery query to wraqp in a nested query
+     * @param innerQuery query to wrap in a nested query
      * @param path nested path
      * @param scoreMode score mode to use
      * @param ignoreUnmapped whether to ignore unmapped fields

@@ -33,6 +33,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
+import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.index.mapper.NestedObjectMapper;
 import org.elasticsearch.index.search.ESToParentBlockJoinQuery;
 import org.elasticsearch.index.search.NestedHelper;
@@ -260,34 +261,26 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
 
     @Override
     protected Query doToQuery(SearchExecutionContext context) throws IOException {
-        Query innerQuery;
-        NestedObjectMapper mapper = context.nestedLookup().getNestedMappers().get(path);
-        try {
-            context.nestedScope().nextLevel(mapper);
-            innerQuery = this.query.toQuery(context);
-        } finally {
-            context.nestedScope().previousLevel();
-        }
-
-        return toQuery(innerQuery, path, scoreMode, ignoreUnmapped, context);
+        return toQuery((this.query::toQuery), path, scoreMode, ignoreUnmapped, context);
     }
 
     /**
      * Returns the primitive Lucene query for a nested query given the primitive query to wrap
-     * @param innerQuery query to wrap in a nested query
+     * @param <E> exception that the queryProvider may throw
+     * @param queryProvider Retrieves tye query to use given the SearchExecutionContext
      * @param path nested path
      * @param scoreMode score mode to use
      * @param ignoreUnmapped whether to ignore unmapped fields
      * @param context search execution context
      * @return the primitive Lucene query
      */
-    public static Query toQuery(
-        Query innerQuery,
+    public static <E extends Exception> Query toQuery(
+        CheckedFunction<SearchExecutionContext, Query, E> queryProvider,
         String path,
         ScoreMode scoreMode,
         boolean ignoreUnmapped,
         SearchExecutionContext context
-    ) {
+    ) throws E {
         if (context.allowExpensiveQueries() == false) {
             throw new ElasticsearchException(
                 "[joining] queries cannot be executed when '" + ALLOW_EXPENSIVE_QUERIES.getKey() + "' is set to false."
@@ -303,11 +296,19 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
             }
         }
         final BitSetProducer parentFilter;
+        Query innerQuery;
         NestedObjectMapper objectMapper = context.nestedScope().getObjectMapper();
         if (objectMapper == null) {
             parentFilter = context.bitsetFilter(Queries.newNonNestedFilter(context.indexVersionCreated()));
         } else {
             parentFilter = context.bitsetFilter(objectMapper.nestedTypeFilter());
+        }
+
+        try {
+            context.nestedScope().nextLevel(mapper);
+            innerQuery = queryProvider.apply(context);
+        } finally {
+            context.nestedScope().previousLevel();
         }
 
         // ToParentBlockJoinQuery requires that the inner query only matches documents

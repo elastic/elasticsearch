@@ -360,7 +360,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
             }
 
             return NestedQueryBuilder.toQuery(
-                getEmbeddingsField().fieldType().existsQuery(context),
+                (c -> getEmbeddingsField().fieldType().existsQuery(c)),
                 getChunksFieldName(name()),
                 ScoreMode.None,
                 false,

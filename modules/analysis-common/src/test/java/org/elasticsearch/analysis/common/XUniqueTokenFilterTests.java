@@ -25,7 +25,7 @@ public class XUniqueTokenFilterTests extends ESTestCase {
             @Override
             protected TokenStreamComponents createComponents(String fieldName) {
                 Tokenizer t = new MockTokenizer(MockTokenizer.WHITESPACE, false);
-                return new TokenStreamComponents(t, new UniqueTokenFilter(t));
+                return new TokenStreamComponents(t, new XUniqueTokenFilter(t, false));
             }
         };
 

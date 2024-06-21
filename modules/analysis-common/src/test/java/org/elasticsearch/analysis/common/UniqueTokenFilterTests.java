@@ -73,17 +73,22 @@ public class UniqueTokenFilterTests extends ESTestCase {
         TokenStream test = analyzer.tokenStream("test", "this test with test");
         test.reset();
         CharTermAttribute termAttribute = test.addAttribute(CharTermAttribute.class);
+        PositionIncrementAttribute positionIncrement = test.addAttribute(PositionIncrementAttribute.class);
         assertThat(test.incrementToken(), equalTo(true));
         assertThat(termAttribute.toString(), equalTo("this"));
+        assertEquals(1, positionIncrement.getPositionIncrement());
 
         assertThat(test.incrementToken(), equalTo(true));
         assertThat(termAttribute.toString(), equalTo("test"));
+        assertEquals(1, positionIncrement.getPositionIncrement());
 
         assertThat(test.incrementToken(), equalTo(true));
         assertThat(termAttribute.toString(), equalTo("with"));
+        assertEquals(1, positionIncrement.getPositionIncrement());
 
         assertThat(test.incrementToken(), equalTo(true));
         assertThat(termAttribute.toString(), equalTo("test"));
+        assertEquals(1, positionIncrement.getPositionIncrement());
 
         assertThat(test.incrementToken(), equalTo(false));
     }

@@ -34,6 +34,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.Preference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
@@ -82,10 +83,11 @@ public class SynonymsManagementAPIService {
     // Identifies synonym set objects stored in the index
     private static final String SYNONYM_SET_OBJECT_TYPE = "synonym_set";
     private static final String SYNONYM_RULE_ID_SEPARATOR = "|";
-    public static final int MAX_SYNONYMS_SETS = 10_000;
+    private static final int MAX_SYNONYMS_SETS = 100_000;
     private static final String SYNONYM_RULE_ID_FIELD = SynonymRule.ID_FIELD.getPreferredName();
     private static final String SYNONYM_SETS_AGG_NAME = "synonym_sets_aggr";
     private static final int SYNONYMS_INDEX_MAPPINGS_VERSION = 1;
+    private final int maxSynonymsSets;
 
     private final Client client;
 
@@ -103,7 +105,13 @@ public class SynonymsManagementAPIService {
         .build();
 
     public SynonymsManagementAPIService(Client client) {
+        this(client, MAX_SYNONYMS_SETS);
+    }
+
+    // Used for testing, so we don't need to test for MAX_SYNONYMS_SETS and put unnecessary memory pressure on the test cluster
+    SynonymsManagementAPIService(Client client, int maxSynonymsSets) {
         this.client = new OriginSettingClient(client, SYNONYMS_ORIGIN);
+        this.maxSynonymsSets = maxSynonymsSets;
     }
 
     /* The synonym index stores two object types:
@@ -174,7 +182,7 @@ public class SynonymsManagementAPIService {
             .addAggregation(
                 new TermsAggregationBuilder(SYNONYM_SETS_AGG_NAME).field(SYNONYMS_SET_FIELD)
                     .order(BucketOrder.key(true))
-                    .size(MAX_SYNONYMS_SETS)
+                    .size(maxSynonymsSets)
             )
             .setPreference(Preference.LOCAL.type())
             .execute(new ActionListener<>() {
@@ -205,6 +213,46 @@ public class SynonymsManagementAPIService {
             });
     }
 
+    /**
+     * Retrieves all synonym rules for a synonym set. It checks that max_result_window is not exceeded for the index, and
+     * adjusts the number of synonyms sets returned if needed.
+     *
+     * @param synonymSetId
+     * @param listener
+     */
+    public void getSynonymSetRules(String synonymSetId, ActionListener<PagedResult<SynonymRule>> listener) {
+        // Check the max result window setting to limit the number of synonym rules retrieved.
+        // This is needed for mixed cluster environments that might not have updated the index setting when doing shard recovering
+        client.admin()
+            .indices()
+            .prepareGetIndex()
+            .setIndices(SYNONYMS_ALIAS_NAME)
+            .execute(listener.delegateFailureAndWrap((getIndexListener, getIndexResponse) -> {
+                Map<String, Settings> settings = getIndexResponse.getSettings();
+                int size = IndexSettings.MAX_RESULT_WINDOW_SETTING.getDefault(null);
+
+                Settings maxResultWindowSetting = settings.get(SYNONYMS_ALIAS_NAME);
+                if (maxResultWindowSetting != null) {
+                    Integer synonymsResultWindowSize = maxResultWindowSetting.getAsInt(
+                        IndexSettings.MAX_RESULT_WINDOW_SETTING.getKey(),
+                        IndexSettings.MAX_RESULT_WINDOW_SETTING.getDefault(maxResultWindowSetting)
+                    );
+                    size = Math.max(size, synonymsResultWindowSize);
+                }
+
+                getSynonymSetRules(synonymSetId, 0, size, listener);
+            }));
+    }
+
+    /**
+     * Retrieves synonym rules for a synonym set, with pagination support. This method does not check that pagination is
+     * correct in terms of the max_result_window setting.
+     *
+     * @param synonymSetId
+     * @param from
+     * @param size
+     * @param listener
+     */
     public void getSynonymSetRules(String synonymSetId, int from, int size, ActionListener<PagedResult<SynonymRule>> listener) {
         // Retrieves synonym rules, excluding the synonym set object type
         client.prepareSearch(SYNONYMS_ALIAS_NAME)
@@ -257,6 +305,12 @@ public class SynonymsManagementAPIService {
     }
 
     public void putSynonymsSet(String synonymSetId, SynonymRule[] synonymsSet, ActionListener<SynonymsReloadResult> listener) {
+        if (synonymsSet.length > maxSynonymsSets) {
+            listener.onFailure(
+                new IllegalArgumentException("The number of synonyms rules in a synonym set cannot exceed " + maxSynonymsSets)
+            );
+            return;
+        }
         deleteSynonymsSetObjects(synonymSetId, listener.delegateFailure((deleteByQueryResponseListener, bulkDeleteResponse) -> {
             boolean created = bulkDeleteResponse.getDeleted() == 0;
             final List<BulkItemResponse.Failure> bulkDeleteFailures = bulkDeleteResponse.getBulkFailures();
@@ -308,21 +362,42 @@ public class SynonymsManagementAPIService {
     }
 
     public void putSynonymRule(String synonymsSetId, SynonymRule synonymRule, ActionListener<SynonymsReloadResult> listener) {
-        checkSynonymSetExists(synonymsSetId, listener.delegateFailure((l1, obj) -> {
-            try {
-                IndexRequest indexRequest = createSynonymRuleIndexRequest(synonymsSetId, synonymRule).setRefreshPolicy(
-                    WriteRequest.RefreshPolicy.IMMEDIATE
-                );
-                client.index(indexRequest, l1.delegateFailure((l2, indexResponse) -> {
-                    UpdateSynonymsResultStatus updateStatus = indexResponse.status() == RestStatus.CREATED
-                        ? UpdateSynonymsResultStatus.CREATED
-                        : UpdateSynonymsResultStatus.UPDATED;
-
-                    reloadAnalyzers(synonymsSetId, false, l2, updateStatus);
+        checkSynonymSetExists(synonymsSetId, listener.delegateFailureAndWrap((l1, obj) -> {
+            // Count synonym rules to check if we're at maximum
+            client.prepareSearch(SYNONYMS_ALIAS_NAME)
+                .setQuery(
+                    QueryBuilders.boolQuery()
+                        .must(QueryBuilders.termQuery(SYNONYMS_SET_FIELD, synonymsSetId))
+                        .filter(QueryBuilders.termQuery(OBJECT_TYPE_FIELD, SYNONYM_RULE_OBJECT_TYPE))
+                )
+                .setSize(0)
+                .setPreference(Preference.LOCAL.type())
+                .setTrackTotalHits(true)
+                .execute(l1.delegateFailureAndWrap((searchListener, searchResponse) -> {
+                    long synonymsSetSize = searchResponse.getHits().getTotalHits().value;
+                    if (synonymsSetSize >= maxSynonymsSets) {
+                        // We could potentially update a synonym rule when we're at max capacity, but we're keeping this simple
+                        listener.onFailure(
+                            new IllegalArgumentException("The number of synonym rules in a synonyms set cannot exceed " + maxSynonymsSets)
+                        );
+                    } else {
+                        indexSynonymRule(synonymsSetId, synonymRule, searchListener);
+                    }
                 }));
-            } catch (IOException e) {
-                l1.onFailure(e);
-            }
+        }));
+    }
+
+    private void indexSynonymRule(String synonymsSetId, SynonymRule synonymRule, ActionListener<SynonymsReloadResult> listener)
+        throws IOException {
+        IndexRequest indexRequest = createSynonymRuleIndexRequest(synonymsSetId, synonymRule).setRefreshPolicy(
+            WriteRequest.RefreshPolicy.IMMEDIATE
+        );
+        client.index(indexRequest, listener.delegateFailure((l2, indexResponse) -> {
+            UpdateSynonymsResultStatus updateStatus = indexResponse.status() == RestStatus.CREATED
+                ? UpdateSynonymsResultStatus.CREATED
+                : UpdateSynonymsResultStatus.UPDATED;
+
+            reloadAnalyzers(synonymsSetId, false, l2, updateStatus);
         }));
     }
 
@@ -485,6 +560,7 @@ public class SynonymsManagementAPIService {
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-all")
             .put(IndexMetadata.INDEX_FORMAT_SETTING.getKey(), SYNONYMS_INDEX_FORMAT)
+            .put(IndexSettings.MAX_RESULT_WINDOW_SETTING.getKey(), MAX_SYNONYMS_SETS)
             .build();
     }
 

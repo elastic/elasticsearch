@@ -241,10 +241,6 @@ public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
         }
     }
 
-    private long[] getPrimaryTerms(String indexName) {
-        return getPrimaryTerms(client(), indexName);
-    }
-
     public void testRecoverSearchShard() throws IOException {
 
         startIndexNode();

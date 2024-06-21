@@ -46,6 +46,7 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 
@@ -88,31 +89,9 @@ class StatelessIndexEventListener implements IndexEventListener {
             final var shardBasePath = objectStoreService.shardBasePath(shardId);
             SearchDirectory.unwrapDirectory(store.directory())
                 .setBlobContainer(primaryTerm -> blobStore.blobContainer(shardBasePath.add(String.valueOf(primaryTerm))));
-            final BlobContainer existingBlobContainer;
-            if (indexShard.recoveryState().getRecoverySource() == RecoverySource.EmptyStoreRecoverySource.INSTANCE) {
-                logger.info(
-                    "{} with UUID [{}] bootstrapping [{}] shard on primary term [{}] with empty commit ({})",
-                    shardId,
-                    shardId.getIndex().getUUID(),
-                    indexShard.routingEntry().role(),
-                    indexShard.getOperationPrimaryTerm(),
-                    RecoverySource.EmptyStoreRecoverySource.INSTANCE
-                );
-                existingBlobContainer = null;
-            } else if (indexShard.recoveryState().getRecoverySource() instanceof RecoverySource.SnapshotRecoverySource) {
-                logger.info(
-                    "{} with UUID [{}] bootstrapping [{}] shard restore on primary term [{}] with snapshot recovery source ({})",
-                    shardId,
-                    shardId.getIndex().getUUID(),
-                    indexShard.routingEntry().role(),
-                    indexShard.getOperationPrimaryTerm(),
-                    indexShard.recoveryState().getRecoverySource()
-                );
-                existingBlobContainer = null;
-
-            } else {
-                existingBlobContainer = blobStore.blobContainer(shardBasePath);
-            }
+            final BlobContainer existingBlobContainer = hasNoExistingBlobContainer(indexShard.recoveryState().getRecoverySource())
+                ? null
+                : blobStore.blobContainer(shardBasePath);
             if (indexShard.routingEntry().isSearchable()) {
                 beforeRecoveryOnSearchShard(indexShard, existingBlobContainer, listener);
             } else {
@@ -125,27 +104,21 @@ class StatelessIndexEventListener implements IndexEventListener {
         }
     }
 
+    private static boolean hasNoExistingBlobContainer(RecoverySource recoverySource) {
+        return recoverySource == RecoverySource.EmptyStoreRecoverySource.INSTANCE
+            || recoverySource instanceof RecoverySource.SnapshotRecoverySource;
+    }
+
     private static void logBootstrapping(IndexShard indexShard, BatchedCompoundCommit latestCommit) {
-        if (latestCommit != null) {
-            logger.info(
-                "{} with UUID [{}] bootstrapping [{}] shard on primary term [{}] with {} from object store ({})",
-                indexShard.shardId(),
-                indexShard.shardId().getIndex().getUUID(),
-                indexShard.routingEntry().role(),
-                indexShard.getOperationPrimaryTerm(),
-                latestCommit.last().toShortDescription(),
-                indexShard.recoveryState().getRecoverySource()
-            );
-        } else {
-            logger.info(
-                "{} with UUID [{}] bootstrapping [{}] shard on primary term [{}] with empty commit from object store ({})",
-                indexShard.shardId(),
-                indexShard.shardId().getIndex().getUUID(),
-                indexShard.routingEntry().role(),
-                indexShard.getOperationPrimaryTerm(),
-                indexShard.recoveryState().getRecoverySource()
-            );
-        }
+        logger.info(
+            "{} with UUID [{}] bootstrapping [{}] shard on primary term [{}] with {} from object store ({})",
+            indexShard.shardId(),
+            indexShard.shardId().getIndex().getUUID(),
+            indexShard.routingEntry().role(),
+            indexShard.getOperationPrimaryTerm(),
+            latestCommit != null ? latestCommit.last().toShortDescription() : "empty commit",
+            describe(indexShard.recoveryState())
+        );
     }
 
     private static void logBootstrapping(
@@ -163,8 +136,14 @@ class StatelessIndexEventListener implements IndexEventListener {
             indexShard.getOperationPrimaryTerm(),
             latestCommit.toShortDescription(),
             latestUploaded,
-            indexShard.recoveryState().getRecoverySource()
+            describe(indexShard.recoveryState())
         );
+    }
+
+    private static String describe(RecoveryState recoveryState) {
+        return recoveryState.getRecoverySource() == RecoverySource.PeerRecoverySource.INSTANCE
+            ? recoveryState.getRecoverySource() + " from " + recoveryState.getSourceNode().getName()
+            : recoveryState.getRecoverySource().toString();
     }
 
     private void beforeRecoveryIndexShard(IndexShard indexShard, BlobContainer existingBlobContainer, ActionListener<Void> listener)
@@ -175,11 +154,12 @@ class StatelessIndexEventListener implements IndexEventListener {
             var state = ObjectStoreService.readIndexingShardState(existingBlobContainer, indexShard.getOperationPrimaryTerm());
             batchedCompoundCommit = state.v1();
             unreferencedFiles = state.v2();
-            logBootstrapping(indexShard, batchedCompoundCommit);
         } else {
             batchedCompoundCommit = null;
             unreferencedFiles = null;
         }
+        logBootstrapping(indexShard, batchedCompoundCommit);
+
         assert indexShard.routingEntry().isPromotableToPrimary();
         ActionListener.completeWith(listener, () -> {
             final Store store = indexShard.store();
@@ -255,14 +235,13 @@ class StatelessIndexEventListener implements IndexEventListener {
                         // should be equal to zero indicated the indexing shard's engine is null or is a NoOpEngine
                         assert PrimaryTermAndGeneration.ZERO.equals(lastUploaded) : lastUploaded;
 
+                        logBootstrapping(indexShard, batchedCompoundCommit);
                         // If there is no batched compound commit found in the object store, then recover from an empty commit
                         if (batchedCompoundCommit == null) {
-                            logBootstrapping(indexShard, null);
                             return null;
                         }
 
                         // Otherwise recover from the compound commit found in the object store
-                        logBootstrapping(indexShard, batchedCompoundCommit);
                         // TODO Should we revisit this? the indexing shard does not know about the commits used by this search shard
                         // until the next new commit notification.
                         compoundCommit = batchedCompoundCommit.last();

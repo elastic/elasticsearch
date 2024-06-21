@@ -195,6 +195,8 @@ public class TransportVersions {
     public static final TransportVersion DELETE_SNAPSHOTS_ASYNC_ADDED = def(8_686_00_0);
     public static final TransportVersion VERSION_SUPPORTING_SPARSE_VECTOR_STATS = def(8_687_00_0);
     public static final TransportVersion ML_AD_OUTPUT_MEMORY_ALLOCATOR_FIELD = def(8_688_00_0);
+    public static final TransportVersion FAILURE_STORE_LAZY_CREATION = def(8_689_00_0);
+    public static final TransportVersion SNAPSHOT_REQUEST_TIMEOUTS = def(8_690_00_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,

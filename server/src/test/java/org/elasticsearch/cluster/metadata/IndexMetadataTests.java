@@ -194,8 +194,6 @@ public class IndexMetadataTests extends ESTestCase {
         }
     }
 
-    // MP TODO: do I need this @SuppressForbidden? What is this for?
-    @SuppressForbidden(reason = "Use IndexMetadata#getForecastedWriteLoad to ensure that the serialized value is correct")
     public void testIndexMetadataFromXContentParsingWithoutEventIngestedField() throws IOException {
         Integer numShard = randomFrom(1, 2, 4, 8, 16);
         int numberOfReplicas = randomIntBetween(0, 10);

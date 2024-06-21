@@ -1761,7 +1761,6 @@ public final class RestoreService implements ClusterStateApplier {
             .settingsVersion(Math.max(snapshotIndexMetadata.getSettingsVersion(), 1 + currentIndexMetadata.getSettingsVersion()))
             .aliasesVersion(Math.max(snapshotIndexMetadata.getAliasesVersion(), 1 + currentIndexMetadata.getAliasesVersion()))
             .timestampRange(IndexLongFieldRange.NO_SHARDS)
-            // older versions need IndexLongFieldRange.UNKNOWN for eventIngestedRange to ensure compatibility across cluster versions
             .eventIngestedRange(IndexLongFieldRange.NO_SHARDS, minTransportVersion)
             .index(currentIndexMetadata.getIndex().getName())
             .settings(

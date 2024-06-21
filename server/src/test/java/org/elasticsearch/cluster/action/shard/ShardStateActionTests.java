@@ -605,6 +605,11 @@ public class ShardStateActionTests extends ESTestCase {
             assertThat(deserialized.primaryTerm, equalTo(primaryTerm));
             assertThat(deserialized.message, equalTo(message));
             assertThat(deserialized.timestampRange, equalTo(timestampRange));
+            if (version.before(TransportVersions.EVENT_INGESTED_RANGE_IN_CLUSTER_STATE)) {
+                assertThat(deserialized.eventIngestedRange, equalTo(ShardLongFieldRange.UNKNOWN));
+            } else {
+                assertThat(deserialized.eventIngestedRange, equalTo(eventIngestedRange));
+            }
         }
     }
 
@@ -629,6 +634,7 @@ public class ShardStateActionTests extends ESTestCase {
             assertThat(deserialized.primaryTerm, equalTo(primaryTerm));
             assertThat(deserialized.message, equalTo(message));
             assertThat(deserialized.timestampRange, equalTo(timestampRange));
+            assertThat(deserialized.eventIngestedRange, equalTo(ShardLongFieldRange.UNKNOWN));
         }
     }
 

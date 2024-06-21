@@ -69,8 +69,12 @@ import java.util.function.Consumer;
 
 import static org.elasticsearch.rest.RestController.ELASTIC_PRODUCT_HTTP_HEADER;
 import static org.elasticsearch.rest.RestController.ELASTIC_PRODUCT_HTTP_HEADER_VALUE;
+import static org.elasticsearch.rest.RestController.HANDLER_NAME_KEY;
+import static org.elasticsearch.rest.RestController.REQUEST_METHOD_KEY;
+import static org.elasticsearch.rest.RestController.STATUS_CODE_KEY;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.OPTIONS;
+import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
@@ -124,8 +128,9 @@ public class RestControllerTests extends ESTestCase {
         var mockMeterRegister = mock(MeterRegistry.class);
         when(telemetryProvider.getTracer()).thenReturn(tracer);
         when(telemetryProvider.getMeterRegistry()).thenReturn(mockMeterRegister);
-        when(mockMeterRegister.registerLongCounter(eq(RestController.METRIC_REQUESTS_TOTAL), anyString(), anyString()))
-            .thenReturn(requestsCounter);
+        when(mockMeterRegister.registerLongCounter(eq(RestController.METRIC_REQUESTS_TOTAL), anyString(), anyString())).thenReturn(
+            requestsCounter
+        );
 
         restController = new RestController(null, client, circuitBreakerService, usageService, telemetryProvider);
         restController.registerHandler(
@@ -173,6 +178,116 @@ public class RestControllerTests extends ESTestCase {
         AssertingChannel channel = new AssertingChannel(fakeRequest, false, RestStatus.BAD_REQUEST);
         restController.dispatchRequest(fakeRequest, channel, threadContext);
         assertTrue(channel.getSendResponseCalled());
+    }
+
+    public void testDispatchWithNamedHandlerEmitsMetricWithName() {
+        final ThreadContext threadContext = client.threadPool().getThreadContext();
+        final RestController restController = new RestController(null, null, circuitBreakerService, usageService, telemetryProvider);
+        RestRequest fakeRequest = new FakeRestRequest.Builder(xContentRegistry()).build();
+        final RestController spyRestController = spy(restController);
+        when(spyRestController.getAllHandlers(any(), eq(fakeRequest.rawPath()))).thenReturn(new Iterator<>() {
+            @Override
+            public boolean hasNext() {
+                return true;
+            }
+
+            @Override
+            public MethodHandlers next() {
+                return new MethodHandlers("/").addMethod(GET, RestApiVersion.current(), new RestHandler() {
+                    @Override
+                    public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) {
+                        channel.sendResponse(new RestResponse(RestStatus.OK, "Test"));
+                    }
+
+                    @Override
+                    public String getName() {
+                        return "test_handler_name";
+                    }
+                });
+            }
+        });
+        AssertingChannel channel = new AssertingChannel(fakeRequest, false, RestStatus.OK);
+        spyRestController.dispatchRequest(fakeRequest, channel, threadContext);
+        verify(requestsCounter).incrementBy(
+            eq(1L),
+            eq(Map.of(STATUS_CODE_KEY, 200, HANDLER_NAME_KEY, "test_handler_name", REQUEST_METHOD_KEY, fakeRequest.method().name()))
+        );
+    }
+
+    public void testDispatchWithoutANamedHandlerEmitsMetricWithNoName() {
+        final ThreadContext threadContext = client.threadPool().getThreadContext();
+        final RestController restController = new RestController(null, null, circuitBreakerService, usageService, telemetryProvider);
+        RestRequest fakeRequest = new FakeRestRequest.Builder(xContentRegistry()).build();
+        final RestController spyRestController = spy(restController);
+        when(spyRestController.getAllHandlers(any(), eq(fakeRequest.rawPath()))).thenReturn(new Iterator<>() {
+            @Override
+            public boolean hasNext() {
+                return false;
+            }
+
+            @Override
+            public MethodHandlers next() {
+                return null;
+            }
+        });
+        AssertingChannel channel = new AssertingChannel(fakeRequest, false, RestStatus.BAD_REQUEST);
+        spyRestController.dispatchRequest(fakeRequest, channel, threadContext);
+        verify(requestsCounter).incrementBy(eq(1L), eq(Map.of(STATUS_CODE_KEY, 400)));
+    }
+
+    public void testDispatchThrowsEmitsMetric() {
+        final ThreadContext threadContext = client.threadPool().getThreadContext();
+        final RestController restController = new RestController(null, null, circuitBreakerService, usageService, telemetryProvider);
+        RestRequest fakeRequest = new FakeRestRequest.Builder(xContentRegistry()).build();
+        final RestController spyRestController = spy(restController);
+        when(spyRestController.getAllHandlers(any(), eq(fakeRequest.rawPath()))).thenReturn(new Iterator<>() {
+            @Override
+            public boolean hasNext() {
+                return true;
+            }
+
+            @Override
+            public MethodHandlers next() {
+                throw new IllegalArgumentException();
+            }
+        });
+
+        AssertingChannel channel = new AssertingChannel(fakeRequest, false, RestStatus.BAD_REQUEST);
+        spyRestController.dispatchRequest(fakeRequest, channel, threadContext);
+        verify(requestsCounter).incrementBy(eq(1L), eq(Map.of(STATUS_CODE_KEY, 400)));
+    }
+
+    public void testDispatchNoHandlerEmitsMetric() {
+        final ThreadContext threadContext = client.threadPool().getThreadContext();
+        final RestController restController = new RestController(null, null, circuitBreakerService, usageService, telemetryProvider);
+        RestRequest fakeRequest = new FakeRestRequest.Builder(xContentRegistry()).build();
+        final RestController spyRestController = spy(restController);
+        var handlers = List.of(new MethodHandlers("/").addMethod(POST, RestApiVersion.current(), new RestHandler() {
+            @Override
+            public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) {
+                channel.sendResponse(new RestResponse(RestStatus.OK, "Test"));
+            }
+
+            @Override
+            public String getName() {
+                return "test_handler_name";
+            }
+        }));
+        when(spyRestController.getAllHandlers(any(), eq(fakeRequest.rawPath()))).thenAnswer(x -> handlers.iterator());
+
+        AssertingChannel channel = new AssertingChannel(fakeRequest, false, RestStatus.METHOD_NOT_ALLOWED);
+        spyRestController.dispatchRequest(fakeRequest, channel, threadContext);
+        verify(requestsCounter).incrementBy(eq(1L), eq(Map.of(STATUS_CODE_KEY, 405)));
+    }
+
+    public void testDispatchBadRequestEmitsMetric() {
+        final ThreadContext threadContext = client.threadPool().getThreadContext();
+        final RestController restController = new RestController(null, null, circuitBreakerService, usageService, telemetryProvider);
+        RestRequest fakeRequest = new FakeRestRequest.Builder(xContentRegistry()).build();
+
+        AssertingChannel channel = new AssertingChannel(fakeRequest, false, RestStatus.BAD_REQUEST);
+        restController.dispatchBadRequest(channel, threadContext, new Exception());
+        verify(requestsCounter).incrementBy(eq(1L), eq(Map.of(STATUS_CODE_KEY, 400)));
     }
 
     /**

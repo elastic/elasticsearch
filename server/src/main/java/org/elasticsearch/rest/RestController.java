@@ -88,6 +88,9 @@ public class RestController implements HttpServerTransport.Dispatcher {
     static final String ELASTIC_PRODUCT_HTTP_HEADER_VALUE = "Elasticsearch";
     static final Set<String> RESERVED_PATHS = Set.of("/__elb_health__", "/__elb_health__/zk", "/_health", "/_health/zk");
     private static final BytesReference FAVICON_RESPONSE;
+    public static final String STATUS_CODE_KEY = "es_rest_status_code";
+    public static final String HANDLER_NAME_KEY = "es_rest_handler_name";
+    public static final String REQUEST_METHOD_KEY = "es_rest_request_method";
 
     static {
         try (InputStream stream = RestController.class.getResourceAsStream("/config/favicon.ico")) {
@@ -124,8 +127,8 @@ public class RestController implements HttpServerTransport.Dispatcher {
     ) {
         this.usageService = usageService;
         this.tracer = telemetryProvider.getTracer();
-        this.requestsCounter = telemetryProvider.getMeterRegistry().registerLongCounter(METRIC_REQUESTS_TOTAL,
-            "The total number of rest requests/responses processed", "unit");
+        this.requestsCounter = telemetryProvider.getMeterRegistry()
+            .registerLongCounter(METRIC_REQUESTS_TOTAL, "The total number of rest requests/responses processed", "unit");
         if (restInterceptor == null) {
             restInterceptor = (request, channel, targetHandler, listener) -> listener.onResponse(Boolean.TRUE);
         }
@@ -767,8 +770,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
         }
     }
 
-    private void handleServerlessRequestToProtectedResource(String uri, RestRequest.Method method, RestChannel channel)
-        throws IOException {
+    private void handleServerlessRequestToProtectedResource(String uri, RestRequest.Method method, RestChannel channel) throws IOException {
         String msg = "uri [" + uri + "] with method [" + method + "] exists but is not available when running in serverless mode";
         sendFailure(channel, new ApiNotAvailableException(msg));
     }
@@ -790,9 +792,14 @@ public class RestController implements HttpServerTransport.Dispatcher {
 
     private static void recordRequestMetric(RestStatus statusCode, String handlerName, String requestMethod, LongCounter requestsCounter) {
         try {
-            Map<String, Object> attributes = Map.of("es_rest_status_code", statusCode.getStatus(),
-                "es_rest_handler_name", handlerName,
-                "es_rest_request_method", requestMethod);
+            Map<String, Object> attributes = Map.of(
+                STATUS_CODE_KEY,
+                statusCode.getStatus(),
+                HANDLER_NAME_KEY,
+                handlerName,
+                REQUEST_METHOD_KEY,
+                requestMethod
+            );
             requestsCounter.incrementBy(1, attributes);
         } catch (Exception ex) {
             logger.error("Cannot track request status code", ex);

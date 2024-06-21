@@ -53,13 +53,6 @@
           query:
             match_all: { }
 
-  - do:
-      search:
-        index: test
-        body:
-          query:
-            match_all: { }
-
   - match: { hits.total.value: 3 }
 
   - match: { hits.hits.0._source.ul_ignored.value: 100 }

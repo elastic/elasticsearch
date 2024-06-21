@@ -155,7 +155,7 @@ public class ReplicasUpdaterServiceTests extends ESTestCase {
 
         Index index1 = new Index("index1", "uuid");
         when(this.searchMetricsService.getIndices()).thenReturn(
-            new ConcurrentHashMap<>(Map.of(index1, new SearchMetricsService.IndexProperties(index1.getName(), 1, 2, true, false, false, 0)))
+            new ConcurrentHashMap<>(Map.of(index1, new SearchMetricsService.IndexProperties(index1.getName(), 1, 2, true, false, 0)))
         );
         ShardMetrics shardMetrics1 = new ShardMetrics();
         shardMetrics1.shardSize = new ShardSize(1000, 0, null);
@@ -621,7 +621,7 @@ public class ReplicasUpdaterServiceTests extends ESTestCase {
 
         Index index1 = new Index("index1", "uuid");
         when(searchMetricsService.getIndices()).thenReturn(
-            new ConcurrentHashMap<>(Map.of(index1, new SearchMetricsService.IndexProperties("index1", 1, 2, false, false, false, 0)))
+            new ConcurrentHashMap<>(Map.of(index1, new SearchMetricsService.IndexProperties("index1", 1, 2, false, false, 0)))
         );
         ShardMetrics shardMetrics1 = new ShardMetrics();
         shardMetrics1.shardSize = new ShardSize(1000, 0, null);
@@ -649,7 +649,7 @@ public class ReplicasUpdaterServiceTests extends ESTestCase {
 
         when(searchMetricsService.getIndices()).thenReturn(
             new ConcurrentHashMap<>(
-                Map.of(new Index("index2", "uuid"), new SearchMetricsService.IndexProperties("index2", 1, 2, false, false, false, 0))
+                Map.of(new Index("index2", "uuid"), new SearchMetricsService.IndexProperties("index2", 1, 2, false, false, 0))
             )
         );
         replicasUpdaterService.performReplicaUpdates();
@@ -670,9 +670,9 @@ public class ReplicasUpdaterServiceTests extends ESTestCase {
             new ConcurrentHashMap<>(
                 Map.of(
                     index1,
-                    new SearchMetricsService.IndexProperties("index1", 1, 1, false, false, false, 0),
+                    new SearchMetricsService.IndexProperties("index1", 1, 1, false, false, 0),
                     index2,
-                    new SearchMetricsService.IndexProperties("index2", 1, 1, false, false, false, 0)
+                    new SearchMetricsService.IndexProperties("index2", 1, 1, false, false, 0)
                 )
             )
         );
@@ -696,7 +696,7 @@ public class ReplicasUpdaterServiceTests extends ESTestCase {
         // index with 1 replica should get 2 replica with SPmin >= 250
         Index index1 = new Index("index1", "uuid");
         when(searchMetricsService.getIndices()).thenReturn(
-            new ConcurrentHashMap<>(Map.of(index1, new SearchMetricsService.IndexProperties("index1", 1, 1, false, false, false, 0)))
+            new ConcurrentHashMap<>(Map.of(index1, new SearchMetricsService.IndexProperties("index1", 1, 1, false, false, 0)))
         );
         ShardMetrics shardMetrics1 = new ShardMetrics();
         shardMetrics1.shardSize = new ShardSize(1, 0, null);
@@ -716,7 +716,7 @@ public class ReplicasUpdaterServiceTests extends ESTestCase {
 
         Index index1 = new Index("index1", "uuid");
         when(searchMetricsService.getIndices()).thenReturn(
-            new ConcurrentHashMap<>(Map.of(index1, new SearchMetricsService.IndexProperties("index1", 1, 2, false, false, false, 0)))
+            new ConcurrentHashMap<>(Map.of(index1, new SearchMetricsService.IndexProperties("index1", 1, 2, false, false, 0)))
         );
         ShardMetrics shardMetrics1 = new ShardMetrics();
         shardMetrics1.shardSize = new ShardSize(0, 1000, null);
@@ -729,7 +729,7 @@ public class ReplicasUpdaterServiceTests extends ESTestCase {
         // and again n-1 times
         when(searchMetricsService.getIndices()).thenReturn(
             new ConcurrentHashMap<>(
-                Map.of(new Index("index1", "uuid"), new SearchMetricsService.IndexProperties("index1", 1, 2, false, false, false, 0))
+                Map.of(new Index("index1", "uuid"), new SearchMetricsService.IndexProperties("index1", 1, 2, false, false, 0))
             )
         );
         assertNoUpdateAfterRepeats(repetitionsNeeded - 1, this.replicasUpdaterService::performReplicaUpdates);
@@ -755,7 +755,8 @@ public class ReplicasUpdaterServiceTests extends ESTestCase {
     }
 
     private static IndexMetadata createSystemIndex(int shards) {
-        Settings indexSettings = indexSettings(shards, 0).put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
+        // auto-expand only takes effect to convert 0 to 1, it's otherwise no-op for stateless indices
+        Settings indexSettings = indexSettings(shards, 1).put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
             .put("index.version.created", Version.CURRENT)
             .build();
         return IndexMetadata.builder(randomIdentifier()).system(true).settings(indexSettings).build();

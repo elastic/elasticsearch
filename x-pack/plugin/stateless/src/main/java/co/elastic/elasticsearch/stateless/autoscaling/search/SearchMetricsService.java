@@ -160,7 +160,7 @@ public class SearchMetricsService implements ClusterStateListener {
 
                 SortedMap<String, IndexAbstraction> indicesLookup = state.metadata().getIndicesLookup();
                 for (IndexMetadata metadata : state.metadata().indices().values()) {
-                    int shardCopies = getNumberOfReplicas(metadata);
+                    int shardCopies = metadata.getNumberOfReplicas();
                     if (shardCopies == 0) {
                         continue;
                     }
@@ -179,7 +179,6 @@ public class SearchMetricsService implements ClusterStateListener {
                             metadata.getNumberOfShards(),
                             shardCopies,
                             metadata.isSystem(),
-                            metadata.getAutoExpandReplicas().enabled(),
                             indexAbstraction.getParentDataStream() != null,
                             indexRecency
                         )
@@ -408,25 +407,10 @@ public class SearchMetricsService implements ClusterStateListener {
         return relativeTimeInNanosSupplier.getAsLong();
     }
 
-    record IndexProperties(
-        String name,
-        int shards,
-        int replicas,
-        boolean isSystem,
-        boolean isAutoExpandReplicas,
-        boolean isDataStream,
-        long recency
-    ) {}
+    record IndexProperties(String name, int shards, int replicas, boolean isSystem, boolean isDataStream, long recency) {}
 
     private static boolean hasZeroReplicas(Index index, ClusterState state) {
-        return getNumberOfReplicas(state.metadata().index(index)) == 0;
-    }
-
-    private static int getNumberOfReplicas(IndexMetadata metadata) {
-        return metadata.getAutoExpandReplicas() != null && metadata.getAutoExpandReplicas().enabled()
-            // For indices with auto-expand we expect that at least 1 replica can be allocated
-            ? Math.max(metadata.getAutoExpandReplicas().minReplicas(), 1)
-            : metadata.getNumberOfReplicas();
+        return state.metadata().index(index).getNumberOfReplicas() == 0;
     }
 
     ConcurrentMap<Index, IndexProperties> getIndices() {

@@ -126,4 +126,18 @@ public class SearchTierMetrics extends AbstractBaseTierMetrics implements Autosc
     public int hashCode() {
         return Objects.hash(memoryMetrics, maxShardCopies, storageMetrics, nodesLoad);
     }
+
+    @Override
+    public String toString() {
+        return "SearchTierMetrics{"
+            + "memoryMetrics="
+            + memoryMetrics
+            + ", maxShardCopies="
+            + maxShardCopies
+            + ", storageMetrics="
+            + storageMetrics
+            + ", nodesLoad="
+            + nodesLoad
+            + '}';
+    }
 }

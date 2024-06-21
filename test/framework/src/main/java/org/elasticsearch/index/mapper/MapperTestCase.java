@@ -1494,6 +1494,21 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         }
     }
 
+    public final void testSyntheticSourceInNestedObject() throws IOException {
+        boolean ignoreMalformed = supportsIgnoreMalformed() ? rarely() : false;
+        SyntheticSourceExample syntheticSourceExample = syntheticSourceSupport(ignoreMalformed).example(5);
+        DocumentMapper mapper = createDocumentMapper(syntheticSourceMapping(b -> {
+            b.startObject("obj").field("type", "nested").startObject("properties").startObject("field");
+            syntheticSourceExample.mapping().accept(b);
+            b.endObject().endObject().endObject();
+        }));
+        assertThat(syntheticSource(mapper, b -> {
+            b.startObject("obj");
+            syntheticSourceExample.buildInput(b);
+            b.endObject();
+        }), equalTo("{\"obj\":" + syntheticSourceExample.expected() + "}"));
+    }
+
     @Override
     protected final <T> T compileScript(Script script, ScriptContext<T> context) {
         return ingestScriptSupport().compileScript(script, context);

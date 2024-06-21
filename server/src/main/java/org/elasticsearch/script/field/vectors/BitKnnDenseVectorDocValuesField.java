@@ -10,11 +10,12 @@ package org.elasticsearch.script.field.vectors;
 
 import org.apache.lucene.index.ByteVectorValues;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 
 public class BitKnnDenseVectorDocValuesField extends ByteKnnDenseVectorDocValuesField {
 
     public BitKnnDenseVectorDocValuesField(@Nullable ByteVectorValues input, String name, int dims) {
-        super(input, name, dims / 8);
+        super(input, name, dims / 8, DenseVectorFieldMapper.ElementType.BIT);
     }
 
     @Override

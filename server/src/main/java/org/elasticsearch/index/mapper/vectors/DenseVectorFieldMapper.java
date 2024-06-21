@@ -781,7 +781,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
             private VectorData parseVectorArray(DocumentParserContext context, DenseVectorFieldMapper fieldMapper) throws IOException {
                 int index = 0;
-                byte[] vector = new byte[fieldMapper.fieldType().dims];
+                byte[] vector = new byte[fieldMapper.fieldType().dims / Byte.SIZE];
                 for (XContentParser.Token token = context.parser().nextToken(); token != Token.END_ARRAY; token = context.parser()
                     .nextToken()) {
                     fieldMapper.checkDimensionExceeded(index, context);
@@ -1034,7 +1034,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             float score(float similarity, ElementType elementType, int dim) {
                 return switch (elementType) {
                     case BYTE, FLOAT -> 1f / (1f + similarity * similarity);
-                    case BIT -> (dim * Byte.SIZE - (similarity * (dim * Byte.SIZE)));
+                    case BIT -> dim - (similarity * dim);
                 };
             }
 
@@ -1048,7 +1048,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             float score(float similarity, ElementType elementType, int dim) {
                 return switch (elementType) {
                     case BYTE, FLOAT -> (1 + similarity) / 2f;
-                    case BIT -> similarity * (dim * Byte.SIZE);
+                    case BIT -> dim - (similarity * dim);
                 };
             }
 
@@ -1065,7 +1065,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 return switch (elementType) {
                     case BYTE -> 0.5f + similarity / (float) (dim * (1 << 15));
                     case FLOAT -> (1 + similarity) / 2f;
-                    case BIT -> similarity * (dim * Byte.SIZE);
+                    case BIT -> dim - (similarity * dim);
                 };
             }
 
@@ -1079,7 +1079,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             float score(float similarity, ElementType elementType, int dim) {
                 return switch (elementType) {
                     case BYTE, FLOAT -> similarity < 0 ? 1 / (1 + -1 * similarity) : similarity + 1;
-                    case BIT -> similarity * (dim * Byte.SIZE);
+                    case BIT -> dim - (similarity * dim);
                 };
             }
 

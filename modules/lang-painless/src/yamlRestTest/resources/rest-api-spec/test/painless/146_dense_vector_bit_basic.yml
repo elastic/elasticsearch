@@ -16,11 +16,11 @@ setup:
                 type: dense_vector
                 index: false
                 element_type: bit
-                dims: 32
+                dims: 40
               indexed_vector:
                 type: dense_vector
                 element_type: bit
-                dims: 32
+                dims: 40
                 index: true
                 similarity: cosine
 
@@ -69,14 +69,14 @@ setup:
 
   - match: {hits.total: 3}
 
-  - match: {hits.hits.0._id: "2"}
-  - match: {hits.hits.0._score: 28732.0}
+  - match: {hits.hits.0._id: "3"}
+  - match: {hits.hits.0._score: 29.0}
 
-  - match: {hits.hits.1._id: "3"}
-  - match: {hits.hits.1._score: 17439.0}
+  - match: {hits.hits.1._id: "1"}
+  - match: {hits.hits.1._score: 24.0}
 
-  - match: {hits.hits.2._id: "1"}
-  - match: {hits.hits.2._score: 1632.0}
+  - match: {hits.hits.2._id: "2"}
+  - match: {hits.hits.2._score: 23.0}
 ---
 "Dot Product hexidecimal":
   - do:
@@ -95,14 +95,14 @@ setup:
 
   - match: {hits.total: 3}
 
-  - match: {hits.hits.0._id: "2"}
-  - match: {hits.hits.0._score: 28732.0}
+  - match: {hits.hits.0._id: "3"}
+  - match: {hits.hits.0._score: 29.0}
 
-  - match: {hits.hits.1._id: "3"}
-  - match: {hits.hits.1._score: 17439.0}
+  - match: {hits.hits.1._id: "1"}
+  - match: {hits.hits.1._score: 24.0}
 
-  - match: {hits.hits.2._id: "1"}
-  - match: {hits.hits.2._score: 1632.0}
+  - match: {hits.hits.2._id: "2"}
+  - match: {hits.hits.2._score: 23.0}
 ---
 "Cosine Similarity":
   - do:
@@ -121,17 +121,14 @@ setup:
 
   - match: {hits.total: 3}
 
-  - match: {hits.hits.0._id: "2"}
-  - gte: {hits.hits.0._score: 0.995}
-  - lte: {hits.hits.0._score: 0.998}
+  - match: {hits.hits.0._id: "3"}
+  - match: {hits.hits.0._score: 29.0}
 
-  - match: {hits.hits.1._id: "3"}
-  - gte: {hits.hits.1._score: 0.829}
-  - lte: {hits.hits.1._score: 0.832}
+  - match: {hits.hits.1._id: "1"}
+  - match: {hits.hits.1._score: 24.0}
 
-  - match: {hits.hits.2._id: "1"}
-  - gte: {hits.hits.2._score: 0.509}
-  - lte: {hits.hits.2._score: 0.512}
+  - match: {hits.hits.2._id: "2"}
+  - match: {hits.hits.2._score: 23.0}
 
 ---
 "Cosine Similarity hexidecimal":
@@ -151,17 +148,14 @@ setup:
 
   - match: {hits.total: 3}
 
-  - match: {hits.hits.0._id: "2"}
-  - gte: {hits.hits.0._score: 0.995}
-  - lte: {hits.hits.0._score: 0.998}
+  - match: {hits.hits.0._id: "3"}
+  - match: {hits.hits.0._score: 29.0}
 
-  - match: {hits.hits.1._id: "3"}
-  - gte: {hits.hits.1._score: 0.829}
-  - lte: {hits.hits.1._score: 0.832}
+  - match: {hits.hits.1._id: "1"}
+  - match: {hits.hits.1._score: 24.0}
 
-  - match: {hits.hits.2._id: "1"}
-  - gte: {hits.hits.2._score: 0.509}
-  - lte: {hits.hits.2._score: 0.512}
+  - match: {hits.hits.2._id: "2"}
+  - match: {hits.hits.2._score: 23.0}
 
 ---
 "Cosine similarity with indexed vector":
@@ -181,17 +175,14 @@ setup:
 
   - match: {hits.total: 3}
 
-  - match: {hits.hits.0._id: "2"}
-  - gte: {hits.hits.0._score: 0.995}
-  - lte: {hits.hits.0._score: 0.998}
+  - match: {hits.hits.0._id: "3"}
+  - match: {hits.hits.0._score: 29.0}
 
-  - match: {hits.hits.1._id: "3"}
-  - gte: {hits.hits.1._score: 0.829}
-  - lte: {hits.hits.1._score: 0.832}
+  - match: {hits.hits.1._id: "1"}
+  - match: {hits.hits.1._score: 24.0}
 
-  - match: {hits.hits.2._id: "1"}
-  - gte: {hits.hits.2._score: 0.509}
-  - lte: {hits.hits.2._score: 0.512}
+  - match: {hits.hits.2._id: "2"}
+  - match: {hits.hits.2._score: 23.0}
 ---
 "L1 norm":
   - do:
@@ -204,20 +195,20 @@ setup:
             script_score:
               query: {match_all: {} }
               script:
-                source: "l1norm(params.query_vector, 'my_dense_vector')"
+                source: "l1norm(params.query_vector, 'vector')"
                 params:
                   query_vector: [0, 111, -13, 14, -124]
 
   - match: {hits.total: 3}
 
-  - match: {hits.hits.0._id: "1"}
-  - match: {hits.hits.0._score: 246.0}
+  - match: {hits.hits.0._id: "2"}
+  - match: {hits.hits.0._score: 17.0}
 
-  - match: {hits.hits.1._id: "3"}
-  - match: {hits.hits.1._score: 117.0}
+  - match: {hits.hits.1._id: "1"}
+  - match: {hits.hits.1._score: 16.0}
 
-  - match: {hits.hits.2._id: "2"}
-  - gte: {hits.hits.2._score: 29.0}
+  - match: {hits.hits.2._id: "3"}
+  - match: {hits.hits.2._score: 11.0}
 
 ---
 "L1 norm hexidecimal":
@@ -231,22 +222,24 @@ setup:
             script_score:
               query: {match_all: {} }
               script:
-                source: "l1norm(params.query_vector, 'my_dense_vector')"
+                source: "l1norm(params.query_vector, 'vector')"
                 params:
                   query_vector: "006ff30e84"
 
   - match: {hits.total: 3}
 
-  - match: {hits.hits.0._id: "1"}
-  - match: {hits.hits.0._score: 246.0}
+  - match: {hits.hits.0._id: "2"}
+  - match: {hits.hits.0._score: 17.0}
 
-  - match: {hits.hits.1._id: "3"}
-  - match: {hits.hits.1._score: 117.0}
+  - match: {hits.hits.1._id: "1"}
+  - match: {hits.hits.1._score: 16.0}
 
-  - match: {hits.hits.2._id: "2"}
-  - gte: {hits.hits.2._score: 29.0}
+  - match: {hits.hits.2._id: "3"}
+  - match: {hits.hits.2._score: 11.0}
 ---
 "L2 norm":
+  - requires:
+      test_runner_features: close_to
   - do:
       headers:
         Content-Type: application/json
@@ -257,25 +250,25 @@ setup:
             script_score:
               query: {match_all: {} }
               script:
-                source: "l2norm(params.query_vector, 'my_dense_vector')"
+                source: "l2norm(params.query_vector, 'vector')"
                 params:
                   query_vector: [0, 111, -13, 14, -124]
 
   - match: {hits.total: 3}
 
-  - match: {hits.hits.0._id: "1"}
-  - gte: {hits.hits.0._score: 158.624}
-  - lte: {hits.hits.0._score: 158.627}
+  - match: {hits.hits.0._id: "2"}
+  - close_to: {hits.hits.0._score: {value: 4.123, error: 0.001}}
 
-  - match: {hits.hits.1._id: "3"}
-  - gte: {hits.hits.1._score: 94.407}
-  - lte: {hits.hits.1._score: 94.41}
+  - match: {hits.hits.1._id: "1"}
+  - close_to: {hits.hits.1._score: {value: 4, error: 0.001}}
 
-  - match: {hits.hits.2._id: "2"}
-  - gte: {hits.hits.2._score: 15.263}
-  - lte: {hits.hits.2._score: 15.266}
+  - match: {hits.hits.2._id: "3"}
+  - close_to: {hits.hits.2._score: {value: 3.316, error: 0.001}}
 ---
 "L2 norm hexidecimal":
+  - requires:
+      test_runner_features: close_to
+
   - do:
       headers:
         Content-Type: application/json
@@ -286,20 +279,17 @@ setup:
             script_score:
               query: {match_all: {} }
               script:
-                source: "l2norm(params.query_vector, 'my_dense_vector')"
+                source: "l2norm(params.query_vector, 'vector')"
                 params:
                   query_vector: "006ff30e84"
 
   - match: {hits.total: 3}
 
-  - match: {hits.hits.0._id: "1"}
-  - gte: {hits.hits.0._score: 158.624}
-  - lte: {hits.hits.0._score: 158.627}
+  - match: {hits.hits.0._id: "2"}
+  - close_to: {hits.hits.0._score: {value: 4.123, error: 0.001}}
 
-  - match: {hits.hits.1._id: "3"}
-  - gte: {hits.hits.1._score: 94.407}
-  - lte: {hits.hits.1._score: 94.41}
+  - match: {hits.hits.1._id: "1"}
+  - close_to: {hits.hits.1._score: {value: 4, error: 0.001}}
 
-  - match: {hits.hits.2._id: "2"}
-  - gte: {hits.hits.2._score: 15.263}
-  - lte: {hits.hits.2._score: 15.266}
+  - match: {hits.hits.2._id: "3"}
+  - close_to: {hits.hits.2._score: {value: 3.316, error: 0.001}}

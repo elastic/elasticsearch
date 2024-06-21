@@ -23,7 +23,11 @@ public class ByteKnnDenseVectorDocValuesField extends DenseVectorDocValuesField 
     protected final int dims;
 
     public ByteKnnDenseVectorDocValuesField(@Nullable ByteVectorValues input, String name, int dims) {
-        super(name, ElementType.BYTE);
+        this(input, name, dims, ElementType.BYTE);
+    }
+
+    protected ByteKnnDenseVectorDocValuesField(@Nullable ByteVectorValues input, String name, int dims, ElementType elementType) {
+        super(name, elementType);
         this.dims = dims;
         this.input = input;
     }

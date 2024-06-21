@@ -58,11 +58,11 @@ setup:
             k: 2
             num_candidates: 3
 
-  - match: {hits.hits.0._id: "3"}
-  - match: {hits.hits.0.fields.name.0: "rabbit.jpg"}
+  - match: {hits.hits.0._id: "2"}
+  - match: {hits.hits.0.fields.name.0: "moose.jpg"}
 
-  - match: {hits.hits.1._id: "2"}
-  - match: {hits.hits.1.fields.name.0: "moose.jpg"}
+  - match: {hits.hits.1._id: "1"}
+  - match: {hits.hits.1.fields.name.0: "cow.jpg"}
 
 ---
 "kNN search plus query":
@@ -80,14 +80,11 @@ setup:
             term:
               name: rabbit.jpg
 
-  - match: {hits.hits.0._id: "2"}
-  - match: {hits.hits.0.fields.name.0: "moose.jpg"}
+  - match: {hits.hits.0._id: "3"}
+  - match: {hits.hits.0.fields.name.0: "rabbit.jpg"}
 
-  - match: {hits.hits.1._id: "3"}
-  - match: {hits.hits.1.fields.name.0: "rabbit.jpg"}
-
-  - match: {hits.hits.2._id: "1"}
-  - match: {hits.hits.2.fields.name.0: "cow.jpg"}
+  - match: {hits.hits.1._id: "2"}
+  - match: {hits.hits.1.fields.name.0: "moose.jpg"}
 
 ---
 "kNN search with filter":
@@ -101,7 +98,6 @@ setup:
             query_vector: [5.0, 4, 3.0, 2, 127.0]
             k: 2
             num_candidates: 3
-
             filter:
               term:
                 name: "rabbit.jpg"
@@ -129,40 +125,6 @@ setup:
   - match: {hits.total.value: 0}
 
 ---
-"kNN search with explicit search_type":
-  - do:
-      catch: bad_request
-      search:
-        index: test
-        search_type: query_then_fetch
-        body:
-          fields: [ "name" ]
-          knn:
-            field: vector
-            query_vector: [-0.5, 90.0, -10, 14.8, -156.0]
-            k: 2
-            num_candidates: 3
-
-  - match: { error.root_cause.0.type: "illegal_argument_exception" }
-  - match: { error.root_cause.0.reason: "cannot set [search_type] when using [knn] search, since the search type is determined automatically" }
-
----
-"Test nonexistent field":
-  - do:
-      catch: bad_request
-      search:
-        index: test
-        body:
-          fields: [ "name" ]
-          knn:
-            field: nonexistent
-            query_vector: [ 1, 0, 0, 0, -1 ]
-            k: 2
-            num_candidates: 3
-  - match: { error.root_cause.0.type: "query_shard_exception" }
-  - match: { error.root_cause.0.reason: "failed to create query: field [nonexistent] does not exist in the mapping" }
-
----
 "Vector similarity search only":
   - do:
       search:
@@ -173,7 +135,7 @@ setup:
             num_candidates: 3
             k: 3
             field: vector
-            similarity: 1.0
+            similarity: 0.98
             query_vector: [5, 4.0, 3, 2.0, 127]
 
   - length: {hits.hits: 1}
@@ -191,7 +153,7 @@ setup:
             num_candidates: 3
             k: 3
             field: vector
-            similarity: 1.0
+            similarity: 0.98
             query_vector: [5, 4.0, 3, 2.0, 127]
             filter: {"term": {"name": "rabbit.jpg"}}
 
@@ -209,7 +171,7 @@ setup:
             num_candidates: 3
             k: 3
             field: vector
-            similarity: 1
+            similarity: 0.98
             query_vector: [5, 4.0, 3, 2.0, 127]
             filter: {"term": {"name": "cow.jpg"}}
 

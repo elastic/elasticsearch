@@ -93,7 +93,7 @@ public class SecurityNetty4HttpServerTransportCloseNotifyTests extends AbstractH
      * All HTTP requests accumulate in the dispatcher reqQueue.
      * The server will not reply to request automatically, to send response poll the queue.
      */
-    private HttpServer setupHttpServer(String tlsProtocols) throws CertificateException, SSLException {
+    private HttpServer setupHttpServer(String tlsProtocols) throws CertificateException {
         var ssc = new SelfSignedCertificate();
         var threadPool = new TestThreadPool("tls-close-notify");
         var dispatcher = new QueuedDispatcher();
@@ -228,7 +228,7 @@ public class SecurityNetty4HttpServerTransportCloseNotifyTests extends AbstractH
                 for (int i = 0; i < nRequests; i++) {
                     safeAwait(client.channel.writeAndFlush(new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "/index")));
                 }
-                assertBusy(() -> { assertEquals(nRequests, server.dispatcher.reqQueue.size()); });
+                assertBusy(() -> assertEquals(nRequests, server.dispatcher.reqQueue.size()));
 
                 // after the server receives requests send close_notify, before server responses
                 var ssl = client.channel.pipeline().get(SslHandler.class);

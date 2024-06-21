@@ -155,9 +155,11 @@ public class IndicesLifecycleListenerIT extends ESIntegTestCase {
         });
         // ensure the shard remain started
         var state = clusterAdmin().prepareState().get().getState();
+        logger.info("Final routing is {}", state.getRoutingNodes().toString());
         var shard = state.routingTable().index("index1").shard(0).primaryShard();
         assertThat(shard, notNullValue());
         assertThat(shard.state(), equalTo(ShardRoutingState.STARTED));
+        assertThat(state.nodes().get(shard.currentNodeId()).getName(), equalTo(node1));
     }
 
     public void testIndexStateShardChanged() throws Throwable {

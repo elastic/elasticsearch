@@ -82,7 +82,7 @@ public class NestedObjectMapper extends ObjectMapper {
                 }
                 parentTypeFilter = Queries.newNonNestedFilter(indexCreatedVersion);
             }
-            final String fullPath = context.buildFullName(name());
+            final String fullPath = context.buildFullName(leafName());
             final String nestedTypePath;
             if (indexCreatedVersion.before(IndexVersions.V_8_0_0)) {
                 nestedTypePath = "__" + fullPath;
@@ -91,14 +91,14 @@ public class NestedObjectMapper extends ObjectMapper {
             }
             final Query nestedTypeFilter = NestedPathFieldMapper.filter(indexCreatedVersion, nestedTypePath);
             NestedMapperBuilderContext nestedContext = new NestedMapperBuilderContext(
-                context.buildFullName(name()),
+                context.buildFullName(leafName()),
                 nestedTypeFilter,
                 parentIncludedInRoot,
                 context.getDynamic(dynamic),
                 context.getMergeReason()
             );
             return new NestedObjectMapper(
-                name(),
+                leafName(),
                 fullPath,
                 buildMappers(nestedContext),
                 enabled,
@@ -244,7 +244,7 @@ public class NestedObjectMapper extends ObjectMapper {
 
     @Override
     public ObjectMapper.Builder newBuilder(IndexVersion indexVersionCreated) {
-        NestedObjectMapper.Builder builder = new NestedObjectMapper.Builder(simpleName(), indexVersionCreated, bitsetProducer);
+        NestedObjectMapper.Builder builder = new NestedObjectMapper.Builder(leafName(), indexVersionCreated, bitsetProducer);
         builder.enabled = enabled;
         builder.dynamic = dynamic;
         builder.includeInRoot = includeInRoot;
@@ -255,7 +255,7 @@ public class NestedObjectMapper extends ObjectMapper {
     @Override
     NestedObjectMapper withoutMappers() {
         return new NestedObjectMapper(
-            simpleName(),
+            leafName(),
             fullPath(),
             Map.of(),
             enabled,
@@ -272,7 +272,7 @@ public class NestedObjectMapper extends ObjectMapper {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(simpleName());
+        builder.startObject(leafName());
         builder.field("type", CONTENT_TYPE);
         if (includeInParent.explicit() && includeInParent.value()) {
             builder.field("include_in_parent", includeInParent.value());
@@ -330,7 +330,7 @@ public class NestedObjectMapper extends ObjectMapper {
             }
         }
         return new NestedObjectMapper(
-            simpleName(),
+            leafName(),
             fullPath(),
             mergeResult.mappers(),
             mergeResult.enabled(),
@@ -451,12 +451,12 @@ public class NestedObjectMapper extends ObjectMapper {
         public void write(XContentBuilder b) throws IOException {
             assert (children != null && children.size() > 0);
             if (children.size() == 1) {
-                b.startObject(simpleName());
+                b.startObject(leafName());
                 leafStoredFieldLoader.advanceTo(children.get(0));
                 leafSourceLoader.write(leafStoredFieldLoader, children.get(0), b);
                 b.endObject();
             } else {
-                b.startArray(simpleName());
+                b.startArray(leafName());
                 for (int childId : children) {
                     b.startObject();
                     leafStoredFieldLoader.advanceTo(childId);

@@ -6,10 +6,15 @@
  */
 package org.elasticsearch.xpack.esql.core.expression.function.scalar;
 
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.gen.processor.Processor;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.util.PlanStreamInput;
+import org.elasticsearch.xpack.esql.core.util.PlanStreamOutput;
 
+import java.io.IOException;
 import java.util.List;
 
 import static java.util.Collections.singletonList;
@@ -18,14 +23,19 @@ public abstract class UnaryScalarFunction extends ScalarFunction {
 
     private final Expression field;
 
-    protected UnaryScalarFunction(Source source) {
-        super(source);
-        this.field = null;
-    }
-
     protected UnaryScalarFunction(Source source, Expression field) {
         super(source, singletonList(field));
         this.field = field;
+    }
+
+    protected UnaryScalarFunction(StreamInput in) throws IOException {
+        this(Source.readFrom((StreamInput & PlanStreamInput) in), ((PlanStreamInput) in).readExpression());
+    }
+
+    @Override
+    public final void writeTo(StreamOutput out) throws IOException {
+        source().writeTo(out);
+        ((PlanStreamOutput) out).writeExpression(field);
     }
 
     @Override

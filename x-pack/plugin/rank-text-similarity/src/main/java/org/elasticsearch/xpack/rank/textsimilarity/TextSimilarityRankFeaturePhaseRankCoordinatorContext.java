@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.rank.textsimilarity;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionType;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
@@ -58,8 +57,7 @@ public class TextSimilarityRankFeaturePhaseRankCoordinatorContext extends RankFe
         List<String> featureData = Arrays.stream(featureDocs).map(x -> x.featureData).toList();
         InferenceAction.Request request = generateRequest(featureData);
         try {
-            ActionType<InferenceAction.Response> action = InferenceAction.INSTANCE;
-            client.execute(action, request, actionListener);
+            client.execute(InferenceAction.INSTANCE, request, actionListener);
         } finally {
             request.decRef();
         }

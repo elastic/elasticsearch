@@ -50,6 +50,7 @@ public class TickerScheduleTriggerEngine extends ScheduleTriggerEngine {
     private final TimeValue tickInterval;
     private final Map<String, ActiveSchedule> schedules = new ConcurrentHashMap<>();
     private final Ticker ticker;
+    private volatile boolean isPaused = true;
 
     public TickerScheduleTriggerEngine(Settings settings, ScheduleRegistry scheduleRegistry, Clock clock) {
         super(scheduleRegistry, clock);
@@ -60,6 +61,7 @@ public class TickerScheduleTriggerEngine extends ScheduleTriggerEngine {
     @Override
     public synchronized void start(Collection<Watch> jobs) {
         long startTime = clock.millis();
+        isPaused = false;
         logger.info("Watcher starting watches at {}", WatcherDateTimeUtils.dateTimeFormatter.formatMillis(startTime));
         Map<String, ActiveSchedule> startingSchedules = Maps.newMapWithExpectedSize(jobs.size());
         for (Watch job : jobs) {
@@ -80,18 +82,20 @@ public class TickerScheduleTriggerEngine extends ScheduleTriggerEngine {
     }
 
     @Override
-    public void stop() {
+    public synchronized void stop() {
+        isPaused = true;
         schedules.clear();
         ticker.close();
     }
 
     @Override
     public synchronized void pauseExecution() {
+        isPaused = true;
         schedules.clear();
     }
 
     @Override
-    public void add(Watch watch) {
+    public synchronized void add(Watch watch) {
         assert watch.trigger() instanceof ScheduleTrigger;
         ScheduleTrigger trigger = (ScheduleTrigger) watch.trigger();
         ActiveSchedule currentSchedule = schedules.get(watch.id());
@@ -100,12 +104,13 @@ public class TickerScheduleTriggerEngine extends ScheduleTriggerEngine {
         // watcher indexing listener
         // this also means that updating an existing watch would not retrigger the schedule time, if it remains the same schedule
         if (currentSchedule == null || currentSchedule.schedule.equals(trigger.getSchedule()) == false) {
+            assert isPaused == false : "Attempt to add a schedule to a paused engine";
             schedules.put(watch.id(), new ActiveSchedule(watch.id(), trigger.getSchedule(), clock.millis()));
         }
     }
 
     @Override
-    public boolean remove(String jobId) {
+    public synchronized boolean remove(String jobId) {
         return schedules.remove(jobId) != null;
     }
 

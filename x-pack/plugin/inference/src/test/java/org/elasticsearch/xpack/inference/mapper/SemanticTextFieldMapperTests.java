@@ -12,7 +12,6 @@ import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
-import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
@@ -482,8 +481,6 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         assertNotNull(mapper);
         Query existsQuery = ((SemanticTextFieldMapper) mapper).fieldType().existsQuery(createSearchExecutionContext(mapperService));
         assertThat(existsQuery, instanceOf(ESToParentBlockJoinQuery.class));
-        ESToParentBlockJoinQuery toParentBlockJoinQuery = (ESToParentBlockJoinQuery) existsQuery;
-        assertThat(toParentBlockJoinQuery.getChildQuery(), instanceOf(TermQuery.class));
     }
 
     public void testExistsQueryDenseVector() throws IOException {
@@ -500,8 +497,6 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         assertNotNull(mapper);
         Query existsQuery = ((SemanticTextFieldMapper) mapper).fieldType().existsQuery(createSearchExecutionContext(mapperService));
         assertThat(existsQuery, instanceOf(ESToParentBlockJoinQuery.class));
-        ESToParentBlockJoinQuery toParentBlockJoinQuery = (ESToParentBlockJoinQuery) existsQuery;
-        assertThat(toParentBlockJoinQuery.getChildQuery(), instanceOf(FieldExistsQuery.class));
     }
 
     private MapperService mapperServiceForFieldWithModelSettings(

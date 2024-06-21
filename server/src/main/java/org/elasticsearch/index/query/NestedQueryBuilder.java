@@ -260,6 +260,25 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
 
     @Override
     protected Query doToQuery(SearchExecutionContext context) throws IOException {
+        NestedObjectMapper mapper = context.nestedLookup().getNestedMappers().get(path);
+        try {
+            context.nestedScope().nextLevel(mapper);
+            return toQuery(this.query.toQuery(context), path, scoreMode, ignoreUnmapped, context);
+        } finally {
+            context.nestedScope().previousLevel();
+        }
+    }
+
+    /**
+     * Returns the primitive Lucene query for a nested query given the primitive query to wrap
+     * @param innerQuery query to wraqp in a nested query
+     * @param path nested path
+     * @param scoreMode score mode to use
+     * @param ignoreUnmapped whether to ignore unmapped fields
+     * @param context search execution context
+     * @return the primitive Lucene query
+     */
+    public static Query toQuery(Query innerQuery, String path, ScoreMode scoreMode, boolean ignoreUnmapped, SearchExecutionContext context)  {
         if (context.allowExpensiveQueries() == false) {
             throw new ElasticsearchException(
                 "[joining] queries cannot be executed when '" + ALLOW_EXPENSIVE_QUERIES.getKey() + "' is set to false."
@@ -275,19 +294,11 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
             }
         }
         final BitSetProducer parentFilter;
-        Query innerQuery;
         NestedObjectMapper objectMapper = context.nestedScope().getObjectMapper();
         if (objectMapper == null) {
             parentFilter = context.bitsetFilter(Queries.newNonNestedFilter(context.indexVersionCreated()));
         } else {
             parentFilter = context.bitsetFilter(objectMapper.nestedTypeFilter());
-        }
-
-        try {
-            context.nestedScope().nextLevel(mapper);
-            innerQuery = this.query.toQuery(context);
-        } finally {
-            context.nestedScope().previousLevel();
         }
 
         // ToParentBlockJoinQuery requires that the inner query only matches documents

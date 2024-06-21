@@ -10,14 +10,10 @@ package org.elasticsearch.xpack.inference.mapper;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.BitSetProducer;
-import org.apache.lucene.search.join.QueryBitSetProducer;
 import org.apache.lucene.search.join.ScoreMode;
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Nullable;
@@ -42,14 +38,11 @@ import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.SparseVectorFieldMapper;
-import org.elasticsearch.index.query.ExistsQueryBuilder;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.NestedQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.index.search.ESToParentBlockJoinQuery;
 import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.search.vectors.KnnVectorQueryBuilder;
@@ -366,17 +359,13 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                 return new MatchNoDocsQuery();
             }
 
-            NestedQueryBuilder nestedQueryBuilder = new NestedQueryBuilder(
+            return NestedQueryBuilder.toQuery(
+                getEmbeddingsField().fieldType().existsQuery(context),
                 getChunksFieldName(name()),
-                new ExistsQueryBuilder(getChunksFieldName(name())),
-                ScoreMode.None
+                ScoreMode.None,
+                false,
+                context
             );
-
-            try {
-                return Rewriteable.rewrite(nestedQueryBuilder, context.convertToIndexMetadataContext()).toQuery(context);
-            } catch (IOException e) {
-                throw new ElasticsearchException("Error resolving exists query for semantic_text field ["+name()+"]", e);
-            }
         }
 
         @Override

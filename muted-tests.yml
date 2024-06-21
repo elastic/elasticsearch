@@ -83,6 +83,9 @@ tests:
 - class: org.elasticsearch.datastreams.DataStreamsClientYamlTestSuiteIT
   method: test {p0=data_stream/200_rollover_failure_store/Rolling over a failure store on a data stream without the failure store enabled should work}
   issue: https://github.com/elastic/elasticsearch/issues/110051
+- class: org.elasticsearch.xpack.transform.transforms.TransformIndexerTests
+  method: testMaxPageSearchSizeIsResetToConfiguredValue
+  issue: https://github.com/elastic/elasticsearch/issues/109844
 
 # Examples:
 #

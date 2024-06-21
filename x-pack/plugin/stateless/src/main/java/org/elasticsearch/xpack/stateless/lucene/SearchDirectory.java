@@ -354,21 +354,25 @@ public class SearchDirectory extends ByteSizeDirectory {
         if (location == null) {
             throw new FileNotFoundException(name);
         }
+        return doOpenInput(name, context, location);
+    }
+
+    protected IndexInput doOpenInput(String name, IOContext context, BlobLocation blobLocation) {
         return new SearchIndexInput(
             name,
             cacheService.getCacheFile(
-                new FileCacheKey(shardId, location.primaryTerm(), location.blobName()),
+                new FileCacheKey(shardId, blobLocation.primaryTerm(), blobLocation.blobName()),
                 // this length is a lower bound on the length of the blob, used to assert that the cache file does not try to read
                 // data beyond the file boundary within the blob since we overload computeCacheFileRegionSize in
                 // StatelessSharedBlobCacheService to fully utilize each region
                 // it is also used for bounding the reads we do against indexing shard to ensure that we never read beyond the
                 // blob length (with padding added).
-                location.offset() + location.fileLength()
+                blobLocation.offset() + blobLocation.fileLength()
             ),
             context,
-            getCacheBlobReader(location),
-            location.fileLength(),
-            location.offset()
+            getCacheBlobReader(blobLocation),
+            blobLocation.fileLength(),
+            blobLocation.offset()
         );
     }
 

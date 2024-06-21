@@ -89,6 +89,10 @@ public final class SearchIndexInput extends BlobCacheBufferedIndexInput {
         if (arraySlice != null) {
             return arraySlice;
         }
+        return doSlice(sliceDescription, offset, length);
+    }
+
+    IndexInput doSlice(String sliceDescription, long offset, long length) {
         return new SearchIndexInput(
             "(" + sliceDescription + ") " + super.toString(),
             cacheFile,

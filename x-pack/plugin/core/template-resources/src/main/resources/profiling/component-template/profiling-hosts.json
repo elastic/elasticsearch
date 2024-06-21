@@ -77,6 +77,9 @@
                   "type": "date",
                   "format": "epoch_millis"
                 },
+                "protocol": {
+                  "type": "keyword"
+                },
                 "config.bpf_log_level": {
                   "type": "long"
                 },

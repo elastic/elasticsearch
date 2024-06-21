@@ -208,7 +208,7 @@ public class Verifier {
                 if (attr != null) {
                     groupRefs.add(attr);
                 }
-                if (e instanceof FieldAttribute f && EsqlDataTypes.isCounterType(f.dataType())) {
+                if (e instanceof FieldAttribute f && f.dataType().isCounter()) {
                     failures.add(fail(e, "cannot group by on [{}] type for grouping [{}]", f.dataType().typeName(), e.sourceText()));
                 }
             });

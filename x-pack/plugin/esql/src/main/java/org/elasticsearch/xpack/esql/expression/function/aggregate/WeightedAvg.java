@@ -86,9 +86,14 @@ public class WeightedAvg extends AggregateFunction implements SurrogateExpressio
         var field = field();
         var weight = weight();
 
-        return field.foldable() ? new MvAvg(s, field)
-            : weight.foldable() ? new Div(s, new Sum(s, field), new Count(s, field), dataType())
-            : new Div(s, new Sum(s, new Mul(s, field, weight)), new Sum(s, weight), dataType());
+        if (field.foldable()) {
+            return new MvAvg(s, field);
+        }
+        if (weight.foldable()) {
+            return new Div(s, new Sum(s, field), new Count(s, field), dataType());
+        } else {
+            return new Div(s, new Sum(s, new Mul(s, field, weight)), new Sum(s, weight), dataType());
+        }
     }
 
     public Expression weight() {

@@ -126,7 +126,9 @@ public class ClusterSerializationTests extends ESAllocationTestCase {
                 .settings(settings(IndexVersion.current()))
                 .numberOfShards(10)
                 .numberOfReplicas(1)
-                .eventIngestedRange(eventIngestedRangeInput, null);
+                // we have to pass in TransportVersions.EVENT_INGESTED_RANGE_IN_CLUSTER_STATE for the builder to work so that
+                // we can test that the serialization will fail with IndexLongFieldRange != UNKNOWN and an older TransportVersion
+                .eventIngestedRange(eventIngestedRangeInput, TransportVersions.EVENT_INGESTED_RANGE_IN_CLUSTER_STATE);
 
             AssertionError assertionError = expectThrows(
                 AssertionError.class,

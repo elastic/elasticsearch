@@ -33,7 +33,7 @@ public class JsonXContentParser extends AbstractXContentParser {
     final JsonParser parser;
 
     public JsonXContentParser(XContentParserConfiguration config, JsonParser parser) {
-        super(config.registry(), config.deprecationHandler(), config.restApiVersion());
+        super(config.registry(), config.deprecationHandler(), config.restApiVersion(), config.getMinClusterTransportVersion());
         this.parser = ((XContentParserConfigurationImpl) config).filter(parser);
     }
 

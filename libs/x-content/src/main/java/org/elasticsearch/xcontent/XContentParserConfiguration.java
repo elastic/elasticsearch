@@ -56,4 +56,12 @@ public interface XContentParserConfiguration {
         Set<String> excludeStrings,
         boolean filtersMatchFieldNamesWithDots
     );
+
+    /**
+     * The library module this code is in, can't reference the TransportVersion class, so using the int value here.
+     * @param minClusterTransportVersion integer corresponding to the minimum TransportVersion in use on this cluster
+     */
+    XContentParserConfiguration withMinClusterTransportVersion(int minClusterTransportVersion);
+
+    Integer getMinClusterTransportVersion();
 }

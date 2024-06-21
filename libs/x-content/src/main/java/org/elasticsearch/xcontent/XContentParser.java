@@ -220,4 +220,12 @@ public interface XContentParser extends Closeable {
      * The callback to notify when parsing encounters a deprecated field.
      */
     DeprecationHandler getDeprecationHandler();
+
+    /**
+     * TODO: DOCUMENT ME
+     * @return
+     */
+    default Integer getMinClusterTransportVersion() {
+        return null;
+    }
 }

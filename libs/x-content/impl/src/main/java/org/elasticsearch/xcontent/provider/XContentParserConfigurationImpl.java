@@ -28,12 +28,14 @@ public class XContentParserConfigurationImpl implements XContentParserConfigurat
         RestApiVersion.current(),
         null,
         null,
-        false
+        false,
+        null
     );
 
     final NamedXContentRegistry registry;
     final DeprecationHandler deprecationHandler;
     final RestApiVersion restApiVersion;
+    final Integer minClusterTransportVersion;
     final FilterPath[] includes;
     final FilterPath[] excludes;
     final boolean filtersMatchFieldNamesWithDots;
@@ -44,7 +46,8 @@ public class XContentParserConfigurationImpl implements XContentParserConfigurat
         RestApiVersion restApiVersion,
         FilterPath[] includes,
         FilterPath[] excludes,
-        boolean filtersMatchFieldNamesWithDots
+        boolean filtersMatchFieldNamesWithDots,
+        Integer minClusterTransportVersion
     ) {
         this.registry = registry;
         this.deprecationHandler = deprecationHandler;
@@ -52,6 +55,7 @@ public class XContentParserConfigurationImpl implements XContentParserConfigurat
         this.includes = includes;
         this.excludes = excludes;
         this.filtersMatchFieldNamesWithDots = filtersMatchFieldNamesWithDots;
+        this.minClusterTransportVersion = minClusterTransportVersion;
     }
 
     @Override
@@ -62,7 +66,8 @@ public class XContentParserConfigurationImpl implements XContentParserConfigurat
             restApiVersion,
             includes,
             excludes,
-            filtersMatchFieldNamesWithDots
+            filtersMatchFieldNamesWithDots,
+            minClusterTransportVersion
         );
     }
 
@@ -77,7 +82,8 @@ public class XContentParserConfigurationImpl implements XContentParserConfigurat
             restApiVersion,
             includes,
             excludes,
-            filtersMatchFieldNamesWithDots
+            filtersMatchFieldNamesWithDots,
+            minClusterTransportVersion
         );
     }
 
@@ -92,7 +98,8 @@ public class XContentParserConfigurationImpl implements XContentParserConfigurat
             restApiVersion,
             includes,
             excludes,
-            filtersMatchFieldNamesWithDots
+            filtersMatchFieldNamesWithDots,
+            minClusterTransportVersion
         );
     }
 
@@ -111,8 +118,27 @@ public class XContentParserConfigurationImpl implements XContentParserConfigurat
             restApiVersion,
             FilterPath.compile(includeStrings),
             FilterPath.compile(excludeStrings),
-            filtersMatchFieldNamesWithDots
+            filtersMatchFieldNamesWithDots,
+            minClusterTransportVersion
         );
+    }
+
+    @Override
+    public XContentParserConfiguration withMinClusterTransportVersion(int minClusterTransportVersion) {
+        return new XContentParserConfigurationImpl(
+            registry,
+            deprecationHandler,
+            restApiVersion,
+            includes,
+            excludes,
+            filtersMatchFieldNamesWithDots,
+            minClusterTransportVersion
+        );
+    }
+
+    @Override
+    public Integer getMinClusterTransportVersion() {
+        return minClusterTransportVersion;
     }
 
     public JsonParser filter(JsonParser parser) {

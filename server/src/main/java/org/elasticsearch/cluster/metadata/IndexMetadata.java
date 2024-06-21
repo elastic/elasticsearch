@@ -2192,7 +2192,12 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         }
 
         public Builder eventIngestedRange(IndexLongFieldRange eventIngestedRange, TransportVersion minClusterTransportVersion) {
-            assert eventIngestedRange != null : "eventIngestedRange cannot be null";
+            // assert eventIngestedRange != null : "eventIngestedRange cannot be null";
+            assert minClusterTransportVersion != null || eventIngestedRange == IndexLongFieldRange.UNKNOWN
+                : "eventIngestedRange should only be UNKNOWN if minClusterTransportVersion is null, but minClusterTransportVersion: "
+                    + minClusterTransportVersion
+                    + "; eventIngestedRange = "
+                    + eventIngestedRange;
             if (minClusterTransportVersion != null
                 && minClusterTransportVersion.before(TransportVersions.EVENT_INGESTED_RANGE_IN_CLUSTER_STATE)) {
                 this.eventIngestedRange = IndexLongFieldRange.UNKNOWN;
@@ -2642,7 +2647,14 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                             builder.timestampRange(IndexLongFieldRange.fromXContent(parser));
                             break;
                         case KEY_EVENT_INGESTED_RANGE:
-                            builder.eventIngestedRange(IndexLongFieldRange.fromXContent(parser), null);
+                            TransportVersion minClusterTransportVersion = null;
+                            if (parser.getMinClusterTransportVersion() != null) {
+                                System.err.println(
+                                    "IM fromXContent - passing in minClusterTransportVersion: " + parser.getMinClusterTransportVersion()
+                                );
+                                minClusterTransportVersion = TransportVersion.fromId(parser.getMinClusterTransportVersion().intValue());
+                            }
+                            builder.eventIngestedRange(IndexLongFieldRange.fromXContent(parser), minClusterTransportVersion);
                             break;
                         case KEY_STATS:
                             builder.stats(IndexMetadataStats.fromXContent(parser));

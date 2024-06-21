@@ -134,6 +134,8 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
     public static final String FIELD_TIMESTAMP = "@timestamp";
     public static final String FIELD_DIMENSION_1 = "dimension_kw";
     public static final String FIELD_DIMENSION_2 = "dimension_long";
+    public static final String FIELD_DIMENSION_3 = "dimension_flattened";
+    public static final String FIELD_DIMENSION_4 = "dimension_kw_multifield";
     public static final String FIELD_NUMERIC_1 = "numeric_1";
     public static final String FIELD_NUMERIC_2 = "numeric_2";
     public static final String FIELD_AGG_METRIC = "agg_metric_1";
@@ -212,6 +214,19 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
         // Dimensions
         mapping.startObject(FIELD_DIMENSION_1).field("type", "keyword").field("time_series_dimension", true).endObject();
         mapping.startObject(FIELD_DIMENSION_2).field("type", "long").field("time_series_dimension", true).endObject();
+        mapping.startObject(FIELD_DIMENSION_3)
+            .field("type", "flattened")
+            .array("time_series_dimensions", "level1_value", "level1_obj.level2_value")
+            .endObject();
+        mapping.startObject(FIELD_DIMENSION_4)
+            .field("type", "text")
+            .startObject("fields")
+            .startObject("keyword")
+            .field("type", "keyword")
+            .field("time_series_dimension", true)
+            .endObject()
+            .endObject()
+            .endObject();
 
         // Metrics
         mapping.startObject(FIELD_NUMERIC_1).field("type", "long").field("time_series_metric", "gauge").endObject();
@@ -273,6 +288,15 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
                 .field(FIELD_TIMESTAMP, ts)
                 .field(FIELD_DIMENSION_1, randomFrom(dimensionValues))
                 .field(FIELD_DIMENSION_2, randomIntBetween(1, 10))
+                .startObject(FIELD_DIMENSION_3)
+                .field("level1_value", randomFrom(dimensionValues))
+                .field("level1_othervalue", randomFrom(dimensionValues))
+                .startObject("level1_object")
+                .field("level2_value", randomFrom(dimensionValues))
+                .field("level2_othervalue", randomFrom(dimensionValues))
+                .endObject()
+                .endObject()
+                .field(FIELD_DIMENSION_4, randomFrom(dimensionValues))
                 .field(FIELD_NUMERIC_1, randomInt())
                 .field(FIELD_NUMERIC_2, DATE_FORMATTER.parseMillis(ts))
                 .startObject(FIELD_AGG_METRIC)
@@ -1103,7 +1127,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
     }
 
     private InternalAggregations aggregate(final String index, AggregationBuilder aggregationBuilder) {
-        var resp = client().prepareSearch(index).addAggregation(aggregationBuilder).get();
+        var resp = client().prepareSearch(index).setSize(0).addAggregation(aggregationBuilder).get();
         try {
             return resp.getAggregations();
         } finally {

@@ -34,7 +34,7 @@ Requires the `manage_search_query_rules` privilege.
 One or more of `ruleset_id` or `rule_id` was not provided.
 
 `404` (Missing resources)::
-Either no query ruleset matching `ruleset_id` could be found, or not rule matching `rule_id` could be found within that ruleset.
+Either no query ruleset matching `ruleset_id` could be found, or no rule matching `rule_id` could be found within that ruleset.
 
 [[get-query-rule-example]]
 ==== {api-examples-title}

@@ -7,13 +7,19 @@
 
 package org.elasticsearch.xpack.esql.expression.function;
 
+import org.elasticsearch.common.inject.spi.Element;
 import org.elasticsearch.compute.aggregation.Aggregator;
+import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.optimizer.FoldNull;
+import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.planner.ToAggregator;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 
@@ -25,6 +31,7 @@ import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
 
 /**
  * Base class for aggregation tests.
@@ -48,30 +55,11 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
     }
 
     public void testAggregate() {
-        assumeTrue("Can't build evaluator", testCase.canBuildEvaluator());
-        assumeTrue("Expected type must be representable to build an evaluator", EsqlDataTypes.isRepresentable(testCase.expectedType()));
-        logger.info(
-            "Test Values: " + testCase.getData().stream().map(TestCaseSupplier.TypedData::toString).collect(Collectors.joining(","))
-        );
-        boolean readFloating = randomBoolean();
-        Expression expression = readFloating ? buildDeepCopyOfFieldExpression(testCase) : buildFieldExpression(testCase);
-        if (testCase.getExpectedTypeError() != null) {
-            assertTypeResolutionFailure(expression);
+        var aggregatorFunctionSupplier = resolveAggregatorFunctionSupplier();
+
+        if (aggregatorFunctionSupplier == null) {
             return;
         }
-        assertThat(expression, instanceOf(AggregateFunction.class));
-        Expression.TypeResolution resolution = expression.typeResolved();
-        if (resolution.unresolved()) {
-            throw new AssertionError("expected resolved " + resolution.message());
-        }
-        expression = new FoldNull().rule(expression);
-        assertThat(expression.dataType(), equalTo(testCase.expectedType()));
-        logger.info("Result type: " + expression.dataType());
-
-        assertThat(expression, instanceOf(ToAggregator.class));
-
-        var inputChannels = inputChannels();
-        var aggregatorFunctionSupplier = ((ToAggregator) expression).supplier(inputChannels);
 
         Object result;
         try (var aggregator = new Aggregator(aggregatorFunctionSupplier.aggregator(driverContext()), AggregatorMode.SINGLE)) {
@@ -82,11 +70,8 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
                 inputPage.releaseBlocks();
             }
 
-            var blocks = new Block[1];
-            aggregator.evaluate(blocks, 0, driverContext());
-            try (var block = blocks[0]) {
-                result = toJavaObject(block, 0);
-            }
+            // ElementType from DataType
+            result = extractResultFromAggregator(aggregator, PlannerUtils.toElementType(testCase.expectedType()));
         }
 
         // TODO: Tests for grouping aggregators
@@ -100,6 +85,66 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
         assertThat(result, testCase.getMatcher());
         if (testCase.getExpectedWarnings() != null) {
             assertWarnings(testCase.getExpectedWarnings());
+        }
+    }
+
+    public void testAggregateNoInput() {
+        var aggregatorFunctionSupplier = resolveAggregatorFunctionSupplier();
+
+        if (aggregatorFunctionSupplier == null) {
+            return;
+        }
+
+        Object result;
+        try (var aggregator = new Aggregator(aggregatorFunctionSupplier.aggregator(driverContext()), AggregatorMode.SINGLE)) {
+            result = extractResultFromAggregator(aggregator, ElementType.NULL);
+        }
+
+        assertThat(result, nullValue());
+    }
+
+    private AggregatorFunctionSupplier resolveAggregatorFunctionSupplier() {
+        assumeTrue("Can't build evaluator", testCase.canBuildEvaluator());
+        assumeTrue("Expected type must be representable to build an evaluator", EsqlDataTypes.isRepresentable(testCase.expectedType()));
+        logger.info(
+            "Test Values: " + testCase.getData().stream().map(TestCaseSupplier.TypedData::toString).collect(Collectors.joining(","))
+        );
+        boolean readFloating = randomBoolean();
+        Expression expression = readFloating ? buildDeepCopyOfFieldExpression(testCase) : buildFieldExpression(testCase);
+        if (testCase.getExpectedTypeError() != null) {
+            assertTypeResolutionFailure(expression);
+            return null;
+        }
+        assertThat(expression, instanceOf(AggregateFunction.class));
+        assertThat(expression, instanceOf(ToAggregator.class));
+        Expression.TypeResolution resolution = expression.typeResolved();
+        if (resolution.unresolved()) {
+            throw new AssertionError("expected resolved " + resolution.message());
+        }
+        expression = new FoldNull().rule(expression);
+        assertThat(expression.dataType(), equalTo(testCase.expectedType()));
+        logger.info("Result type: " + expression.dataType());
+
+        assertThat(expression, instanceOf(ToAggregator.class));
+
+        var inputChannels = inputChannels();
+        return ((ToAggregator) expression).supplier(inputChannels);
+    }
+
+    private Object extractResultFromAggregator(Aggregator aggregator, ElementType expectedElementType) {
+        var blocksArraySize = randomIntBetween(1, 10);
+        var resultBlockIndex = randomIntBetween(0, blocksArraySize - 1);
+        var blocks = new Block[blocksArraySize];
+        try {
+            aggregator.evaluate(blocks, resultBlockIndex, driverContext());
+
+            var block = blocks[resultBlockIndex];
+
+            assertThat(block.elementType(), equalTo(expectedElementType));
+
+            return toJavaObject(blocks[resultBlockIndex], 0);
+        } finally {
+            Releasables.close(blocks);
         }
     }
 

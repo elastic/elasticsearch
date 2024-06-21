@@ -58,11 +58,6 @@ public class EsqlCapabilities {
     private static final String METADATA_IGNORED_FIELD = "metadata_field_ignored";
 
     /**
-     * Support for the "LOOKUP" command.
-     */
-    private static final String LOOKUP_COMMAND = "lookup_command";
-
-    /**
      * Support for the syntax {@code "tables": {"type": [<values>]}}.
      */
     private static final String TABLES_TYPES = "tables_types";
@@ -110,7 +105,7 @@ public class EsqlCapabilities {
         caps.add(WEIGHTED_AVG);
 
         if (Build.current().isSnapshot()) {
-            caps.add(LOOKUP_COMMAND);
+            caps.add(TABLES_TYPES);
         }
 
         /*

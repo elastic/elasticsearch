@@ -156,11 +156,12 @@ setup:
                   type: keyword
 
 ---
-"Can be used as a nested field":
+"Cannot be used as a nested field":
 
     - do:
+        catch: /semantic_text field \[nested.semantic\] cannot be nested/
         indices.create:
-          index: test-copy_to-index
+          index: test-nested-index
           body:
             mappings:
               properties:

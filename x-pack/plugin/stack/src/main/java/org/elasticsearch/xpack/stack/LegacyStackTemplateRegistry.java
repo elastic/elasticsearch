@@ -34,7 +34,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.stack.StackTemplateRegistry.CLUSTER_LOGSDB_ENABLED;
 import static org.elasticsearch.xpack.stack.StackTemplateRegistry.STACK_TEMPLATES_ENABLED;
 import static org.elasticsearch.xpack.stack.StackTemplateRegistry.STACK_TEMPLATES_FEATURE;
 
@@ -104,10 +103,10 @@ public class LegacyStackTemplateRegistry extends IndexTemplateRegistry {
         this.clusterService = clusterService;
         this.featureService = featureService;
         this.stackTemplateEnabled = STACK_TEMPLATES_ENABLED.get(nodeSettings);
-        this.componentTemplateConfigs = loadComponentTemplateConfigs(CLUSTER_LOGSDB_ENABLED.get(nodeSettings));
+        this.componentTemplateConfigs = loadComponentTemplateConfigs();
     }
 
-    private Map<String, ComponentTemplate> loadComponentTemplateConfigs(boolean logsDbEnabled) {
+    private Map<String, ComponentTemplate> loadComponentTemplateConfigs() {
         final Map<String, ComponentTemplate> componentTemplates = new HashMap<>();
         for (IndexTemplateConfig config : List.of(
             new IndexTemplateConfig(
@@ -119,7 +118,7 @@ public class LegacyStackTemplateRegistry extends IndexTemplateRegistry {
             ),
             new IndexTemplateConfig(
                 LOGS_MAPPINGS_COMPONENT_TEMPLATE_NAME,
-                logsDbEnabled ? "/logs@mappings-logsdb.json" : "/logs@mappings.json",
+                "/logs@mappings.json",
                 REGISTRY_VERSION,
                 TEMPLATE_VERSION_VARIABLE,
                 ADDITIONAL_TEMPLATE_VARIABLES
@@ -136,12 +135,7 @@ public class LegacyStackTemplateRegistry extends IndexTemplateRegistry {
                 "/logs@settings.json",
                 REGISTRY_VERSION,
                 TEMPLATE_VERSION_VARIABLE,
-                Map.of(
-                    "xpack.stack.template.deprecated",
-                    "false",
-                    "xpack.stack.template.logs.index.mode",
-                    logsDbEnabled ? "logs" : "standard"
-                )
+                Map.of("xpack.stack.template.deprecated", "false", "xpack.stack.template.logs.index.mode", "standard")
             ),
             new IndexTemplateConfig(
                 METRICS_MAPPINGS_COMPONENT_TEMPLATE_NAME,

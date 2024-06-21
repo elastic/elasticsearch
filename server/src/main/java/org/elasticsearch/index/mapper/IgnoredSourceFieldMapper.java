@@ -10,10 +10,14 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.util.ByteUtils;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -21,6 +25,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 
 /**
 
@@ -143,6 +148,56 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
         String name = new String(bytes, 4, nameSize, StandardCharsets.UTF_8);
         BytesRef value = new BytesRef(bytes, 4 + nameSize, bytes.length - nameSize - 4);
         return new NameValue(name, parentOffset, value, null);
+    }
+
+    public record MappedNameValue(NameValue nameValue, XContentType type, Map<String, Object> map) {}
+
+    /**
+     * Parses the passed byte array as a NameValue and converts its decoded value to a map of maps that corresponds to the field-value
+     * subtree. There is only a single pair at the top level, with the key corresponding to the field name. If the field contains a single
+     * value, the map contains a single key-value pair. Otherwise, the value of the first pair will be another map etc.
+     * @param value encoded NameValue
+     * @return MappedNameValue with the parsed NameValue, the XContentType to use for serializing its contents and the field-value map.
+     * @throws IOException
+     */
+    public static MappedNameValue decodeAsMap(byte[] value) throws IOException {
+        BytesRef bytes = new BytesRef(value);
+        IgnoredSourceFieldMapper.NameValue nameValue = IgnoredSourceFieldMapper.decode(bytes);
+        XContentBuilder xContentBuilder = XContentBuilder.builder(XContentDataHelper.getXContentType(nameValue.value()).xContent());
+        xContentBuilder.startObject().field(nameValue.name());
+        XContentDataHelper.decodeAndWrite(xContentBuilder, nameValue.value());
+        xContentBuilder.endObject();
+        Tuple<XContentType, Map<String, Object>> result = XContentHelper.convertToMap(BytesReference.bytes(xContentBuilder), true);
+        return new MappedNameValue(nameValue, result.v1(), result.v2());
+    }
+
+    /**
+     * Clones the passed NameValue, using the passed map to produce its value.
+     * @param mappedNameValue containing the NameValue to clone
+     * @param map containing a simple field-value pair, or a deeper field-value subtree for objects and arrays with fields
+     * @return a byte array containing the encoding form of the cloned NameValue
+     * @throws IOException
+     */
+    public static byte[] encodeFromMap(MappedNameValue mappedNameValue, Map<String, Object> map) throws IOException {
+        // The first entry is the field name, we skip to get to the value to encode.
+        assert map.size() == 1;
+        Object content = map.values().iterator().next();
+
+        // Check if the field contains a single value or an object.
+        @SuppressWarnings("unchecked")
+        XContentBuilder xContentBuilder = (content instanceof Map<?, ?> objectMap)
+            ? XContentBuilder.builder(mappedNameValue.type().xContent()).map((Map<String, ?>) objectMap)
+            : XContentBuilder.builder(mappedNameValue.type().xContent()).value(content);
+
+        // Clone the NameValue with the updated value.
+        NameValue oldNameValue = mappedNameValue.nameValue();
+        IgnoredSourceFieldMapper.NameValue filteredNameValue = new IgnoredSourceFieldMapper.NameValue(
+            oldNameValue.name(),
+            oldNameValue.parentOffset(),
+            XContentDataHelper.encodeXContentBuilder(xContentBuilder),
+            oldNameValue.doc()
+        );
+        return IgnoredSourceFieldMapper.encode(filteredNameValue);
     }
 
     // This mapper doesn't contribute to source directly as it has no access to the object structure. Instead, its contents

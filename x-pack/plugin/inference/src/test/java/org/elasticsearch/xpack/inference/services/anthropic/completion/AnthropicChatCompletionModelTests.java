@@ -21,7 +21,7 @@ public class AnthropicChatCompletionModelTests extends ESTestCase {
 
     public void testOverrideWith_OverridesMaxInput() {
         var model = createChatCompletionModel("url", "api_key", "model_name", 0);
-        var requestTaskSettingsMap = AnthropicChatCompletionTaskSettingsTests.getChatCompletionRequestTaskSettingsMap(1);
+        var requestTaskSettingsMap = AnthropicChatCompletionTaskSettingsTests.getChatCompletionTaskSettingsMap(1, null, null, null);
 
         var overriddenModel = AnthropicChatCompletionModel.of(model, requestTaskSettingsMap);
 
@@ -51,7 +51,7 @@ public class AnthropicChatCompletionModelTests extends ESTestCase {
             "service",
             url,
             new AnthropicChatCompletionServiceSettings(modelName, null),
-            new AnthropicChatCompletionTaskSettings(maxTokens),
+            new AnthropicChatCompletionTaskSettings(maxTokens, null, null, null),
             new DefaultSecretSettings(new SecureString(apiKey.toCharArray()))
         );
     }
@@ -62,7 +62,7 @@ public class AnthropicChatCompletionModelTests extends ESTestCase {
             TaskType.COMPLETION,
             "service",
             new AnthropicChatCompletionServiceSettings(modelName, null),
-            new AnthropicChatCompletionTaskSettings(maxTokens),
+            new AnthropicChatCompletionTaskSettings(maxTokens, null, null, null),
             new DefaultSecretSettings(new SecureString(apiKey.toCharArray()))
         );
     }

@@ -10,4 +10,7 @@ package org.elasticsearch.xpack.inference.services.anthropic;
 public class AnthropicServiceFields {
 
     public static final String MAX_TOKENS = "max_tokens";
+    public static final String TEMPERATURE_FIELD = "temperature";
+    public static final String TOP_P_FIELD = "top_p";
+    public static final String TOP_K_FIELD = "top_k";
 }

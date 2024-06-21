@@ -23,24 +23,54 @@ import static org.hamcrest.Matchers.is;
 
 public class AnthropicChatCompletionTaskSettingsTests extends AbstractBWCWireSerializationTestCase<AnthropicChatCompletionTaskSettings> {
 
-    public static Map<String, Object> getChatCompletionRequestTaskSettingsMap(@Nullable Integer maxTokens) {
+    public static Map<String, Object> getChatCompletionTaskSettingsMap(
+        @Nullable Integer maxTokens,
+        @Nullable Double temperature,
+        @Nullable Double topP,
+        @Nullable Integer topK
+    ) {
         var map = new HashMap<String, Object>();
 
         if (maxTokens != null) {
             map.put(AnthropicServiceFields.MAX_TOKENS, maxTokens);
         }
 
+        if (temperature != null) {
+            map.put(AnthropicServiceFields.TEMPERATURE_FIELD, temperature);
+        }
+
+        if (topP != null) {
+            map.put(AnthropicServiceFields.TOP_P_FIELD, topP);
+        }
+
+        if (topK != null) {
+            map.put(AnthropicServiceFields.TOP_K_FIELD, topK);
+        }
+
         return map;
     }
 
     public static AnthropicChatCompletionTaskSettings createRandom() {
-        return new AnthropicChatCompletionTaskSettings(randomNonNegativeInt());
+        return new AnthropicChatCompletionTaskSettings(randomNonNegativeInt(), randomDouble(), randomDouble(), randomInt());
     }
 
     public void testFromMap_WithMaxTokens() {
         assertEquals(
-            new AnthropicChatCompletionTaskSettings(1),
-            AnthropicChatCompletionTaskSettings.fromMap(getChatCompletionRequestTaskSettingsMap(1), ConfigurationParseContext.REQUEST)
+            new AnthropicChatCompletionTaskSettings(1, null, null, null),
+            AnthropicChatCompletionTaskSettings.fromMap(
+                getChatCompletionTaskSettingsMap(1, null, null, null),
+                ConfigurationParseContext.REQUEST
+            )
+        );
+    }
+
+    public void testFromMap_AllValues() {
+        assertEquals(
+            new AnthropicChatCompletionTaskSettings(1, -1.1, 2.2, 3),
+            AnthropicChatCompletionTaskSettings.fromMap(
+                getChatCompletionTaskSettingsMap(1, -1.1, 2.2, 3),
+                ConfigurationParseContext.REQUEST
+            )
         );
     }
 
@@ -57,7 +87,7 @@ public class AnthropicChatCompletionTaskSettingsTests extends AbstractBWCWireSer
     }
 
     public void testOf_KeepsOriginalValuesWithOverridesAreEmpty() {
-        var taskSettings = new AnthropicChatCompletionTaskSettings(1);
+        var taskSettings = new AnthropicChatCompletionTaskSettings(1, null, null, null);
 
         var overriddenTaskSettings = AnthropicChatCompletionTaskSettings.of(
             taskSettings,
@@ -67,12 +97,12 @@ public class AnthropicChatCompletionTaskSettingsTests extends AbstractBWCWireSer
     }
 
     public void testOf_UsesOverriddenSettings() {
-        var taskSettings = new AnthropicChatCompletionTaskSettings(1);
+        var taskSettings = new AnthropicChatCompletionTaskSettings(1, -1.2, 2.1, 3);
 
-        var requestTaskSettings = new AnthropicChatCompletionRequestTaskSettings(2);
+        var requestTaskSettings = new AnthropicChatCompletionRequestTaskSettings(2, 3.0, 4.0, 4);
 
         var overriddenTaskSettings = AnthropicChatCompletionTaskSettings.of(taskSettings, requestTaskSettings);
-        assertThat(overriddenTaskSettings, is(new AnthropicChatCompletionTaskSettings(2)));
+        assertThat(overriddenTaskSettings, is(new AnthropicChatCompletionTaskSettings(2, 3.0, 4.0, 4)));
     }
 
     @Override

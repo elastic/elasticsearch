@@ -7,13 +7,13 @@
 
 package org.elasticsearch.xpack.inference.services.anthropic.completion;
 
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.inference.services.anthropic.AnthropicServiceFields;
 
 import java.util.HashMap;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.inference.services.anthropic.completion.AnthropicChatCompletionTaskSettingsTests.getChatCompletionTaskSettingsMap;
 import static org.hamcrest.Matchers.is;
 
 public class AnthropicChatCompletionRequestTaskSettingsTests extends ESTestCase {
@@ -33,14 +33,11 @@ public class AnthropicChatCompletionRequestTaskSettingsTests extends ESTestCase 
         assertThat(settings.maxTokens(), is(1));
     }
 
-    public static Map<String, Object> getChatCompletionRequestTaskSettingsMap(@Nullable Integer maxTokens) {
-        var map = new HashMap<String, Object>();
-
-        if (maxTokens != null) {
-            map.put(AnthropicServiceFields.MAX_TOKENS, maxTokens);
-        }
-
-        return map;
+    public void testFromMap_ReturnsAllValues() {
+        var settings = AnthropicChatCompletionRequestTaskSettings.fromMap(getChatCompletionTaskSettingsMap(1, -1.1, 0.1, 1));
+        assertThat(settings.maxTokens(), is(1));
+        assertThat(settings.temperature(), is(-1.1));
+        assertThat(settings.topP(), is(0.1));
+        assertThat(settings.topK(), is(1));
     }
-
 }

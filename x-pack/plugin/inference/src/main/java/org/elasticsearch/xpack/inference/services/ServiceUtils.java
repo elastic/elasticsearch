@@ -647,5 +647,9 @@ public final class ServiceUtils {
         return secrets == null ? new SecureString(new char[0]) : secrets.apiKey();
     }
 
+    public static <T> T nonNullOrDefault(@Nullable T requestValue, @Nullable T originalSettingsValue) {
+        return requestValue == null ? originalSettingsValue : requestValue;
+    }
+
     private ServiceUtils() {}
 }

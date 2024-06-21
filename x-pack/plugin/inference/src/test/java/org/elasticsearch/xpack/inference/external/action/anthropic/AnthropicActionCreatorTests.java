@@ -99,7 +99,7 @@ public class AnthropicActionCreatorTests extends ESTestCase {
 
             var model = AnthropicChatCompletionModelTests.createChatCompletionModel(getUrl(webServer), "secret", "model", 0);
             var actionCreator = new AnthropicActionCreator(sender, createWithEmptySettings(threadPool));
-            var overriddenTaskSettings = AnthropicChatCompletionTaskSettingsTests.getChatCompletionRequestTaskSettingsMap(1);
+            var overriddenTaskSettings = AnthropicChatCompletionTaskSettingsTests.getChatCompletionTaskSettingsMap(1, 2.0, -3.0, 3);
             var action = actionCreator.create(model, overriddenTaskSettings);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
@@ -118,10 +118,13 @@ public class AnthropicActionCreatorTests extends ESTestCase {
             assertThat(request.getHeader(AnthropicRequestUtils.VERSION), equalTo(AnthropicRequestUtils.ANTHROPIC_VERSION_2023_06_01));
 
             var requestMap = entityAsMap(webServer.requests().get(0).getBody());
-            assertThat(requestMap.size(), is(3));
+            assertThat(requestMap.size(), is(6));
             assertThat(requestMap.get("messages"), is(List.of(Map.of("role", "user", "content", "abc"))));
             assertThat(requestMap.get("model"), is("model"));
             assertThat(requestMap.get("max_tokens"), is(1));
+            assertThat(requestMap.get("temperature"), is(2.0));
+            assertThat(requestMap.get("top_p"), is(-3.0));
+            assertThat(requestMap.get("top_k"), is(3));
         }
     }
 
@@ -161,7 +164,7 @@ public class AnthropicActionCreatorTests extends ESTestCase {
 
             var model = AnthropicChatCompletionModelTests.createChatCompletionModel(getUrl(webServer), "secret", "model", 0);
             var actionCreator = new AnthropicActionCreator(sender, createWithEmptySettings(threadPool));
-            var overriddenTaskSettings = AnthropicChatCompletionTaskSettingsTests.getChatCompletionRequestTaskSettingsMap(1);
+            var overriddenTaskSettings = AnthropicChatCompletionTaskSettingsTests.getChatCompletionTaskSettingsMap(1, null, null, null);
             var action = actionCreator.create(model, overriddenTaskSettings);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();

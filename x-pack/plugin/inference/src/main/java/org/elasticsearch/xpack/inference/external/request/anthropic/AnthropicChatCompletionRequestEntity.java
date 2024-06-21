@@ -25,6 +25,9 @@ public class AnthropicChatCompletionRequestEntity implements ToXContentObject {
     private static final String USER_FIELD = "user";
     private static final String CONTENT_FIELD = "content";
     private static final String MAX_TOKENS_FIELD = "max_tokens";
+    private static final String TEMPERATURE_FIELD = "temperature";
+    private static final String TOP_P_FIELD = "top_p";
+    private static final String TOP_K_FIELD = "top_k";
 
     private final List<String> messages;
     private final AnthropicChatCompletionServiceSettings serviceSettings;
@@ -61,6 +64,18 @@ public class AnthropicChatCompletionRequestEntity implements ToXContentObject {
 
         builder.field(MODEL_FIELD, serviceSettings.modelId());
         builder.field(MAX_TOKENS_FIELD, taskSettings.maxTokens());
+
+        if (taskSettings.temperature() != null) {
+            builder.field(TEMPERATURE_FIELD, taskSettings.temperature());
+        }
+
+        if (taskSettings.topP() != null) {
+            builder.field(TOP_P_FIELD, taskSettings.topP());
+        }
+
+        if (taskSettings.topK() != null) {
+            builder.field(TOP_K_FIELD, taskSettings.topK());
+        }
 
         builder.endObject();
 

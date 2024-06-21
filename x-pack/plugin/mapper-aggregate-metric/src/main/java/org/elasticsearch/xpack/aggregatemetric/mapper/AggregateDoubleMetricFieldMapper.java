@@ -19,7 +19,6 @@ import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.fielddata.FieldDataContext;
@@ -28,9 +27,10 @@ import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.ScriptDocValues.DoublesSupplier;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
+import org.elasticsearch.index.mapper.CompositeSyntheticFieldLoader;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
+import org.elasticsearch.index.mapper.IgnoreMalformedStoredValues;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
@@ -43,7 +43,6 @@ import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.index.mapper.TimeSeriesParams.MetricType;
 import org.elasticsearch.index.mapper.ValueFetcher;
-import org.elasticsearch.index.mapper.XContentDataHelper;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.ScriptCompiler;
@@ -53,6 +52,7 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.xcontent.CopyingXContentParser;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentSubParser;
@@ -143,7 +143,7 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
             return parsedMetrics;
         }, m -> toType(m).metrics, XContentBuilder::enumSet, Objects::toString).addValidator(v -> {
             if (v == null || v.isEmpty()) {
-                throw new IllegalArgumentException("Property [" + Names.METRICS + "] is required for field [" + name() + "].");
+                throw new IllegalArgumentException("Property [" + Names.METRICS + "] is required for field [" + leafName() + "].");
             }
         });
 
@@ -209,21 +209,23 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
                 }
 
                 if (metrics.getValue().contains(defaultMetric.getValue()) == false) {
-                    throw new IllegalArgumentException("Property [" + Names.DEFAULT_METRIC + "] is required for field [" + name() + "].");
+                    throw new IllegalArgumentException(
+                        "Property [" + Names.DEFAULT_METRIC + "] is required for field [" + leafName() + "]."
+                    );
                 }
             }
 
             if (metrics.getValue().contains(defaultMetric.getValue()) == false) {
                 // The default_metric is not defined in the "metrics" field
                 throw new IllegalArgumentException(
-                    "Default metric [" + defaultMetric.getValue() + "] is not defined in the metrics of field [" + name() + "]."
+                    "Default metric [" + defaultMetric.getValue() + "] is not defined in the metrics of field [" + leafName() + "]."
                 );
             }
 
             EnumMap<Metric, NumberFieldMapper> metricMappers = new EnumMap<>(Metric.class);
             // Instantiate one NumberFieldMapper instance for each metric
             for (Metric m : this.metrics.getValue()) {
-                String fieldName = subfieldName(name(), m);
+                String fieldName = subfieldName(leafName(), m);
                 NumberFieldMapper.Builder builder;
 
                 if (m == Metric.value_count) {
@@ -259,14 +261,14 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
                 }, () -> new EnumMap<>(Metric.class)));
 
             AggregateDoubleMetricFieldType metricFieldType = new AggregateDoubleMetricFieldType(
-                context.buildFullName(name()),
+                context.buildFullName(leafName()),
                 meta.getValue(),
                 timeSeriesMetric.getValue()
             );
             metricFieldType.setMetricFields(metricFields);
             metricFieldType.setDefaultMetric(defaultMetric.getValue());
 
-            return new AggregateDoubleMetricFieldMapper(name(), metricFieldType, metricMappers, this);
+            return new AggregateDoubleMetricFieldMapper(leafName(), metricFieldType, metricMappers, this);
         }
     }
 
@@ -592,9 +594,7 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
         EnumMap<Metric, Number> metricsParsed = new EnumMap<>(Metric.class);
         // Preserves the content of the field in order to be able to construct synthetic source
         // if field value is malformed.
-        XContentBuilder malformedContentForSyntheticSource = context.mappingLookup().isSourceSynthetic() && ignoreMalformed
-            ? XContentBuilder.builder(context.parser().contentType().xContent())
-            : null;
+        XContentBuilder malformedDataForSyntheticSource = null;
 
         try {
             token = context.parser().currentToken();
@@ -603,11 +603,14 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
                 return;
             }
             ensureExpectedToken(XContentParser.Token.START_OBJECT, token, context.parser());
-            subParser = new XContentSubParser(context.parser());
-            token = subParser.nextToken();
-            if (malformedContentForSyntheticSource != null) {
-                malformedContentForSyntheticSource.startObject();
+            if (context.mappingLookup().isSourceSynthetic() && ignoreMalformed) {
+                var copyingParser = new CopyingXContentParser(context.parser());
+                malformedDataForSyntheticSource = copyingParser.getBuilder();
+                subParser = new XContentSubParser(copyingParser);
+            } else {
+                subParser = new XContentSubParser(context.parser());
             }
+            token = subParser.nextToken();
             while (token != XContentParser.Token.END_OBJECT) {
                 // should be an object sub-field with name a metric name
                 ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, subParser);
@@ -621,9 +624,6 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
                 }
 
                 token = subParser.nextToken();
-                if (malformedContentForSyntheticSource != null) {
-                    malformedContentForSyntheticSource.field(fieldName);
-                }
                 // Make sure that the value is a number. Probably this will change when
                 // new aggregate metric types are added (histogram, cardinality etc)
                 ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, subParser);
@@ -632,9 +632,6 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
                 try {
                     Number metricValue = delegateFieldMapper.value(context.parser());
                     metricsParsed.put(metric, metricValue);
-                    if (malformedContentForSyntheticSource != null) {
-                        malformedContentForSyntheticSource.value(metricValue);
-                    }
                 } catch (IllegalArgumentException e) {
                     throw new IllegalArgumentException("failed to parse [" + metric.name() + "] sub field: " + e.getMessage(), e);
                 }
@@ -677,24 +674,20 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
             }
         } catch (Exception e) {
             if (ignoreMalformed) {
-                if (malformedContentForSyntheticSource != null) {
-                    if (subParser != null) {
-                        // Remaining data in parser needs to be stored as is in order to provide it in synthetic source.
-                        XContentHelper.drainAndClose(subParser, malformedContentForSyntheticSource);
-                    } else {
-                        // We don't use DrainingXContentParser since we don't want to go beyond current field
-                        malformedContentForSyntheticSource.copyCurrentStructure(context.parser());
-                    }
-                    ;
-                    var nameValue = IgnoredSourceFieldMapper.NameValue.fromContext(
-                        context,
-                        name(),
-                        XContentDataHelper.encodeXContentBuilder(malformedContentForSyntheticSource)
-                    );
-                    context.addIgnoredField(nameValue);
-                } else if (subParser != null) {
+                if (subParser != null) {
                     // close the subParser, so we advance to the end of the object
                     subParser.close();
+                } else {
+                    if (context.mappingLookup().isSourceSynthetic()) {
+                        // There is a malformed value, but it is not an object (since subParser is null).
+                        // So we just need to copy this single value.
+                        malformedDataForSyntheticSource = XContentBuilder.builder(context.parser().contentType().xContent())
+                            .copyCurrentStructure(context.parser());
+                    }
+                }
+
+                if (malformedDataForSyntheticSource != null) {
+                    context.doc().add(IgnoreMalformedStoredValues.storedField(name(), malformedDataForSyntheticSource));
                 }
 
                 context.addIgnoredField(name());
@@ -724,11 +717,15 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
 
     @Override
     public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
-        // Note that malformed values are handled via `IgnoredSourceFieldMapper` infrastructure
-        return new AggregateMetricSyntheticFieldLoader(name(), simpleName(), metrics);
+        return new CompositeSyntheticFieldLoader(
+            simpleName(),
+            name(),
+            new AggregateMetricSyntheticFieldLoader(name(), simpleName(), metrics),
+            new CompositeSyntheticFieldLoader.MalformedValuesLayer(name())
+        );
     }
 
-    public static class AggregateMetricSyntheticFieldLoader implements SourceLoader.SyntheticFieldLoader {
+    public static class AggregateMetricSyntheticFieldLoader implements CompositeSyntheticFieldLoader.SyntheticFieldLoaderLayer {
         private final String name;
         private final String simpleName;
         private final EnumSet<Metric> metrics;
@@ -744,6 +741,11 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
         @Override
         public String fieldName() {
             return name;
+        }
+
+        @Override
+        public long valueCount() {
+            return hasValue() ? 1 : 0;
         }
 
         @Override
@@ -779,7 +781,7 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
             if (metricHasValue.isEmpty()) {
                 return;
             }
-            b.startObject(simpleName);
+            b.startObject();
             for (Map.Entry<Metric, SortedNumericDocValues> entry : metricDocValues.entrySet()) {
                 if (metricHasValue.contains(entry.getKey())) {
                     String metricName = entry.getKey().name();

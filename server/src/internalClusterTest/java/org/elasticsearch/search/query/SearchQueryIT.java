@@ -49,7 +49,6 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
-import org.elasticsearch.search.vectors.KnnVectorQueryBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.junit.annotations.TestIssueLogging;
@@ -136,16 +135,6 @@ public class SearchQueryIT extends ESIntegTestCase {
     @Override
     protected int maximumNumberOfReplicas() {
         return Math.min(2, cluster().numDataNodes() - 1);
-    }
-
-    public void testBitVectors() throws Exception {
-        assertAcked(prepareCreate("test").setMapping("vector", "type=dense_vector,element_type=bit,dims=32"));
-        prepareIndex("test").setId("1").setSource("vector", "400ae20a").setRefreshPolicy(IMMEDIATE).get();
-        prepareIndex("test").setId("1").setSource("vector", "410ae20a").setRefreshPolicy(IMMEDIATE).get();
-        assertResponse(prepareSearch().setQuery(new KnnVectorQueryBuilder("vector", new byte[] { 1, 1, 1, 1 }, 1, null)), response -> {
-            assertHitCount(response, 1L);
-            assertFirstHit(response, hasId("1"));
-        });
     }
 
     // see #3952

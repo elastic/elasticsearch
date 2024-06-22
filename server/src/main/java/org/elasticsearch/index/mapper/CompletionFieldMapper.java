@@ -82,7 +82,7 @@ public class CompletionFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(simpleName(), builder.defaultAnalyzer, builder.indexVersionCreated).init(this);
+        return new Builder(leafName(), builder.defaultAnalyzer, builder.indexVersionCreated).init(this);
     }
 
     public static class Defaults {

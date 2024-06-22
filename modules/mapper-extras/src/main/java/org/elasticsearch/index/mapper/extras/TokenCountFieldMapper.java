@@ -163,7 +163,7 @@ public class TokenCountFieldMapper extends FieldMapper {
         if (value == null) {
             tokenCount = nullValue;
         } else {
-            tokenCount = countPositions(analyzer, name(), value, enablePositionIncrements);
+            tokenCount = countPositions(analyzer, fullPath(), value, enablePositionIncrements);
         }
 
         NumberFieldMapper.NumberType.INTEGER.addFields(context.doc(), fieldType().name(), tokenCount, index, hasDocValues, store);
@@ -213,6 +213,6 @@ public class TokenCountFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(simpleName()).init(this);
+        return new Builder(leafName()).init(this);
     }
 }

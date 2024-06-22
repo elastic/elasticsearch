@@ -152,7 +152,7 @@ public class RootObjectMapper extends ObjectMapper {
 
     @Override
     public RootObjectMapper.Builder newBuilder(IndexVersion indexVersionCreated) {
-        RootObjectMapper.Builder builder = new RootObjectMapper.Builder(name(), subobjects);
+        RootObjectMapper.Builder builder = new RootObjectMapper.Builder(this.fullPath(), subobjects);
         builder.enabled = enabled;
         builder.dynamic = dynamic;
         return builder;
@@ -161,7 +161,7 @@ public class RootObjectMapper extends ObjectMapper {
     @Override
     RootObjectMapper withoutMappers() {
         return new RootObjectMapper(
-            simpleName(),
+            leafName(),
             enabled,
             subobjects,
             storeArraySource,
@@ -220,7 +220,7 @@ public class RootObjectMapper extends ObjectMapper {
     @Override
     public RootObjectMapper merge(Mapper mergeWith, MapperMergeContext parentMergeContext) {
         if (mergeWith instanceof RootObjectMapper == false) {
-            MapperErrors.throwObjectMappingConflictError(mergeWith.name());
+            MapperErrors.throwObjectMappingConflictError(mergeWith.fullPath());
         }
 
         RootObjectMapper mergeWithObject = (RootObjectMapper) mergeWith;
@@ -277,7 +277,7 @@ public class RootObjectMapper extends ObjectMapper {
         }
 
         return new RootObjectMapper(
-            simpleName(),
+            leafName(),
             mergeResult.enabled(),
             mergeResult.subObjects(),
             mergeResult.trackArraySource(),

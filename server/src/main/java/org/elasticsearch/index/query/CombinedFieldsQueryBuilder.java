@@ -97,6 +97,8 @@ public final class CombinedFieldsQueryBuilder extends AbstractQueryBuilder<Combi
                 return ZeroTermsQueryOption.NONE;
             } else if ("all".equalsIgnoreCase(value)) {
                 return ZeroTermsQueryOption.ALL;
+            } else if ("omit".equalsIgnoreCase(value)) {
+                return ZeroTermsQueryOption.NULL;
             } else {
                 throw new IllegalArgumentException("Unsupported [" + ZERO_TERMS_QUERY_FIELD.getPreferredName() + "] value [" + value + "]");
             }

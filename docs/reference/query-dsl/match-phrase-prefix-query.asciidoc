@@ -76,6 +76,9 @@ No documents are returned if the `analyzer` removes all tokens.
  `all`::
 Returns all documents, similar to a <<query-dsl-match-all-query,`match_all`>>
 query.
+
+ `omit`::
+Omit query if the `analyzer` removes all tokens.
 --
 
 

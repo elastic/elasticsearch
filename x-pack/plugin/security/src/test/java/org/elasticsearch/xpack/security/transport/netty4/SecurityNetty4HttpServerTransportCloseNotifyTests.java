@@ -167,14 +167,14 @@ public class SecurityNetty4HttpServerTransportCloseNotifyTests extends AbstractH
     /**
      * Setup server and client, establish ssl connection, blocks until handshake is done
      */
-    private ConnectionCtx connectClientAndServer(String tlsProtocol) {
+    private ConnectionCtx connectClientAndServer(String tlsVersion) {
         try {
-            var server = setupHttpServer(tlsProtocol);
+            var server = setupHttpServer(tlsVersion);
             var client = setupHttpClient(server);
             var ssl = client.channel.pipeline().get(SslHandler.class);
             safeAwait(ssl.handshakeFuture());
-            assertEquals(tlsProtocol, ssl.engine().getSession().getProtocol());
-            return new ConnectionCtx(tlsProtocol, server, client);
+            assertEquals(tlsVersion, ssl.engine().getSession().getProtocol());
+            return new ConnectionCtx(tlsVersion, server, client);
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
@@ -188,8 +188,8 @@ public class SecurityNetty4HttpServerTransportCloseNotifyTests extends AbstractH
      * This test ensures that sending close_notify from the client on the idle channel trigger close connection from the server.
      */
     public void testCloseIdleConnection() {
-        runForAllTlsVersions(tlsProto -> {
-            try (var ctx = connectClientAndServer(tlsProto)) {
+        runForAllTlsVersions(tlsVersion -> {
+            try (var ctx = connectClientAndServer(tlsVersion)) {
                 var ssl = ctx.client.channel.pipeline().get(SslHandler.class);
                 ssl.closeOutbound();
                 safeAwait(ctx.client.channel.closeFuture());
@@ -202,8 +202,8 @@ public class SecurityNetty4HttpServerTransportCloseNotifyTests extends AbstractH
      * It should be similar to idle test, but in this test we await http request and response.
      */
     public void testSendCloseNotifyAfterHttpResponse() {
-        runForAllTlsVersions(tlsProto -> {
-            try (var ctx = connectClientAndServer(tlsProto)) {
+        runForAllTlsVersions(tlsVersion -> {
+            try (var ctx = connectClientAndServer(tlsVersion)) {
                 ctx.client.channel.writeAndFlush(new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "/index"));
                 var reqctx = safePoll(ctx.server.dispatcher.reqQueue);
                 reqctx.restChannel.sendResponse(new RestResponse(RestStatus.OK, ""));
@@ -219,14 +219,14 @@ public class SecurityNetty4HttpServerTransportCloseNotifyTests extends AbstractH
      * This test ensures that sending close_notify with outstanding requests close channel immediately.
      */
     public void testSendCloseNotifyBeforeHttpResponse() {
-        runForAllTlsVersions(tlsProto -> {
-            try (var ctx = connectClientAndServer(tlsProto)) {
+        runForAllTlsVersions(tlsVersion -> {
+            try (var ctx = connectClientAndServer(tlsVersion)) {
                 var server = ctx.server;
                 var client = ctx.client;
 
                 var nRequests = randomIntBetween(1, 5);
                 for (int i = 0; i < nRequests; i++) {
-                    safeAwait(client.channel.writeAndFlush(new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "/index")));
+                    client.channel.writeAndFlush(new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "/index"));
                 }
                 assertBusy(() -> assertEquals(nRequests, server.dispatcher.reqQueue.size()));
 

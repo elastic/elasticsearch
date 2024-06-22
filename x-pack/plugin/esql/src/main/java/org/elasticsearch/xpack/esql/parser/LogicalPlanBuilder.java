@@ -103,6 +103,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                     message.append("; ");
                 }
                 message.append(errors.next().getMessage());
+                i++;
             }
             throw new ParsingException(message.toString());
         }

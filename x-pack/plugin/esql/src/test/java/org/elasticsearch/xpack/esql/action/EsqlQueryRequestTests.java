@@ -81,7 +81,7 @@ public class EsqlQueryRequestTests extends ESTestCase {
         assertEquals(filter, request.filter());
         assertEquals(params.size(), request.params().size());
         for (int i = 0; i < params.size(); i++) {
-            assertEquals(params.get(i), request.params().get(i));
+            assertEquals(params.get(i), request.params().get(i + 1));
         }
     }
 
@@ -120,7 +120,7 @@ public class EsqlQueryRequestTests extends ESTestCase {
         assertEquals(params.size(), request.params().size());
 
         for (int i = 0; i < request.params().size(); i++) {
-            assertEquals(params.get(i), request.params().get(i));
+            assertEquals(params.get(i), request.params().get(i + 1));
         }
     }
 
@@ -245,7 +245,7 @@ public class EsqlQueryRequestTests extends ESTestCase {
         assertEquals(keepAlive, request.keepAlive());
         assertEquals(params.size(), request.params().size());
         for (int i = 0; i < params.size(); i++) {
-            assertEquals(params.get(i), request.params().get(i));
+            assertEquals(params.get(i), request.params().get(i + 1));
         }
     }
 

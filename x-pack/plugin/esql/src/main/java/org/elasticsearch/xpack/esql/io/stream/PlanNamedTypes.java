@@ -372,7 +372,8 @@ public final class PlanNamedTypes {
             in.readOptionalNamedWriteable(QueryBuilder.class),
             in.readOptionalNamed(Expression.class),
             in.readOptionalCollectionAsList(readerFromPlanReader(PlanNamedTypes::readFieldSort)),
-            in.readOptionalVInt()
+            in.readOptionalVInt(),
+            in.readNamedWriteableCollectionAsList(QueryBuilder.class)
         );
     }
 

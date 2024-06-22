@@ -187,7 +187,8 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
                 context.queryPragmas().taskConcurrency(),
                 context.pageSize(rowEstimatedSize),
                 limit,
-                fieldSorts
+                fieldSorts,
+                esQueryExec.rescorers() == null ? null : esQueryExec.rescorers().stream().map(x -> querySupplier(x)).toList()
             );
         } else if ((sorts != null && sorts.isEmpty() == false)) {
             fieldSorts = new ArrayList<>(sorts.size());

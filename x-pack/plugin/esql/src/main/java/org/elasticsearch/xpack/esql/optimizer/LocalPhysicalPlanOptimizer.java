@@ -231,7 +231,8 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
                         query,
                         queryExec.limit(),
                         queryExec.sorts(),
-                        queryExec.estimatedRowSize()
+                        queryExec.estimatedRowSize(),
+                        queryExec.rescorers()
                     );
                     if (nonPushable.size() > 0) { // update filter with remaining non-pushable conditions
                         plan = new FilterExec(filterExec.source(), queryExec, Predicates.combineAnd(nonPushable));
@@ -324,26 +325,67 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
             PhysicalPlan plan = rankExec;
             PhysicalPlan child = rankExec.child();
             if (child instanceof EsQueryExec queryExec) {
-                Query queryDSL = TRANSLATOR_HANDLER.asQuery(Predicates.combineAnd(rankExec.expressions())); // HEGO: why expressions
-                QueryBuilder planQuery = queryDSL.asBuilder();
-                var baseQuery = queryExec.query() != null ? queryExec.query() : new BoolQueryBuilder();
-                BoolQueryBuilder query = (BoolQueryBuilder) Queries.combine(Clause.SHOULD, asList(baseQuery, planQuery));
-                query.minimumShouldMatch(1);
-                var esQueryExec = new EsQueryExec(
-                    queryExec.source(),
-                    queryExec.index(),
-                    queryExec.indexMode(),
-                    queryExec.output(),
-                    query,
-                    DEFAULT_RANK_LIMIT,
-                    queryExec.sorts(),
-                    queryExec.estimatedRowSize()
-                );
-                assert esQueryExec.scoring();
-                plan = esQueryExec;
+                if (rankAlreadyPushedToQuery(queryExec)) {
+                    plan = pushRankToRescorers(queryExec, rankExec);
+                } else {
+                    plan = pushRankToQuery(queryExec, rankExec);
+                }
+                assert ((EsQueryExec) plan).scoring();
                 // TODO: what there child types, if any?
             }
             return plan;
+        }
+
+        /**
+         * This method checks whether a previous RANK was already pushed to source by checking if the boolean query already
+         * has a should clause. In this case the current rankExec can be pushed to re-scorers.
+        */
+        protected boolean rankAlreadyPushedToQuery(EsQueryExec queryExec) {
+            var query = queryExec.query();
+            return query != null && query instanceof BoolQueryBuilder && !((BoolQueryBuilder) query).should().isEmpty();
+        }
+
+        private PhysicalPlan pushRankToRescorers(EsQueryExec queryExec, RankExec rankExec) {
+            Query queryDSL = TRANSLATOR_HANDLER.asQuery(Predicates.combineAnd(rankExec.expressions()));
+
+            List<QueryBuilder> rescorers = new ArrayList<>();
+            if (queryExec.rescorers() != null) {
+                rescorers.addAll(queryExec.rescorers());
+            }
+            rescorers.add(queryDSL.asBuilder());
+
+            var esQueryExec = new EsQueryExec(
+                queryExec.source(),
+                queryExec.index(),
+                queryExec.indexMode(),
+                queryExec.output(),
+                queryExec.query(),
+                queryExec.limit(),
+                queryExec.sorts(),
+                queryExec.estimatedRowSize(),
+                rescorers
+            );
+            return esQueryExec;
+        }
+
+        private PhysicalPlan pushRankToQuery(EsQueryExec queryExec, RankExec rankExec) {
+            Query queryDSL = TRANSLATOR_HANDLER.asQuery(Predicates.combineAnd(rankExec.expressions())); // HEGO: why expressions
+            QueryBuilder planQuery = queryDSL.asBuilder();
+            var baseQuery = queryExec.query() != null ? queryExec.query() : new BoolQueryBuilder();
+            BoolQueryBuilder query = (BoolQueryBuilder) Queries.combine(Clause.SHOULD, asList(baseQuery, planQuery));
+            query.minimumShouldMatch(1);
+            var esQueryExec = new EsQueryExec(
+                queryExec.source(),
+                queryExec.index(),
+                queryExec.indexMode(),
+                queryExec.output(),
+                query,
+                DEFAULT_RANK_LIMIT,
+                queryExec.sorts(),
+                queryExec.estimatedRowSize(),
+                queryExec.rescorers()
+            );
+            return esQueryExec;
         }
     }
 

@@ -766,6 +766,31 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         assertThat(actualLuceneQuery, equalTo(expectedLuceneQuery));
     }
 
+    public void testMultipleRankPushdown() {
+        var plan = plannerOptimizer.plan("""
+            search test [
+                | RANK match(first_name, "Anna")
+                | RANK match(last_name, "Doe")
+                | RANK match(job, "foo")
+            ]
+            """);
+
+        var limit = as(plan, LimitExec.class);
+        var exchange = as(limit.child(), ExchangeExec.class);
+        var project = as(exchange.child(), ProjectExec.class);
+        var fieldExtract = as(project.child(), FieldExtractExec.class);
+        var actualLuceneQuery = as(fieldExtract.child(), EsQueryExec.class).query();
+
+        var expectedLuceneQuery = new BoolQueryBuilder().should(new MatchQueryBuilder("first_name", "Anna")).minimumShouldMatch(1);
+        assertThat(actualLuceneQuery, equalTo(expectedLuceneQuery));
+
+        var actualRescoreQueries = as(fieldExtract.child(), EsQueryExec.class).rescorers();
+
+        assertThat(actualRescoreQueries.size(), equalTo(2));
+        assertThat(actualRescoreQueries.get(0), equalTo(new MatchQueryBuilder("last_name", "Doe")));
+        assertThat(actualRescoreQueries.get(1), equalTo(new MatchQueryBuilder("job", "foo")));
+    }
+
     public void testRankWithFiltersPushdown() {
         var plan = plannerOptimizer.plan("""
             search test [

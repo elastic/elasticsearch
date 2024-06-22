@@ -323,7 +323,9 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
     ) throws IOException {
         for (QueryBuilder query : clauses) {
             Query luceneQuery = query.toQuery(context);
-            booleanQueryBuilder.add(new BooleanClause(luceneQuery, occurs));
+            if (luceneQuery != null) {
+                booleanQueryBuilder.add(new BooleanClause(luceneQuery, occurs));
+            }
         }
     }
 

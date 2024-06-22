@@ -2,7 +2,7 @@
 "unsigned_long with ignore_malformed in synthetic source":
   - do:
       indices.create:
-        index: test
+        index: test-synthetic
         body:
           mappings:
             _source:
@@ -19,7 +19,7 @@
       catch: bad_request
       index:
         refresh: true
-        index: test
+        index: test-synthetic
         id: "1"
         body: { "ul_ignored": 2000, "ul_not_ignored": { "key": "bar", value: 200 } }
 
@@ -28,41 +28,41 @@
   - do:
       index:
         refresh: true
-        index: test
+        index: test-synthetic
         id: "2"
         body: { "ul_ignored": { "key": "foo", "value": 100 }, "ul_not_ignored": 1000 }
 
   - do:
       index:
         refresh: true
-        index: test
+        index: test-synthetic
         id: "3"
         body: { "ul_ignored": [ 100, 200, 300 ], "ul_not_ignored": 3000 }
 
   - do:
       index:
         refresh: true
-        index: test
+        index: test-synthetic
         id: "4"
         body: { "ul_ignored": [ { "key": "a", "value": 100 }, { "key": "b", "value": 200 } ], "ul_not_ignored": 4000 }
 
   - do:
       index:
         refresh: true
-        index: test
+        index: test-synthetic
         id: "5"
         body: { "ul_ignored": [1, 2, 3], "ul_not_ignored": 4000 }
 
   - do:
       index:
         refresh: true
-        index: test
+        index: test-synthetic
         id: "6"
         body: { "ul_ignored": [ 1, "foo", 3, "bar" ], "ul_not_ignored": 4000 }
 
   - do:
       search:
-        index: test
+        index: test-synthetic
         body:
           query:
             match_all: { }
@@ -100,3 +100,80 @@
   - match:  { hits.hits.4._source.ul_not_ignored: 4000 }
   - length: { hits.hits.4._ignored: 1 }
   - match:  { hits.hits.4._ignored.0: "ul_ignored" }
+
+---
+"unsigned_long with ignore_malformed with stored source":
+  - do:
+      indices.create:
+        index: test-stored
+        body:
+          mappings:
+            _source:
+              mode: stored
+            properties:
+              ul_ignored:
+                type: unsigned_long
+                ignore_malformed: true
+              ul_not_ignored:
+                type: unsigned_long
+                ignore_malformed: false
+
+  - do:
+      catch: bad_request
+      index:
+        refresh: true
+        index: test-stored
+        id: "1"
+        body: { "ul_ignored": 2000, "ul_not_ignored": { "key": "bar", value: 200 } }
+
+  - match: { error.root_cause.0.type: "document_parsing_exception" }
+
+  - do:
+      catch: bad_request
+      index:
+        refresh: true
+        index: test-stored
+        id: "2"
+        body: { "ul_ignored": { "key": "foo", "value": 100 }, "ul_not_ignored": 1000 }
+
+  - do:
+      index:
+        refresh: true
+        index: test
+        id: "3"
+        body: { "ul_ignored": [ 100, 200, 300 ], "ul_not_ignored": 3000 }
+
+  - do:
+      catch: bad_request
+      index:
+        refresh: true
+        index: test-stored
+        id: "4"
+        body: { "ul_ignored": [ { "key": "a", "value": 100 }, { "key": "b", "value": 200 } ], "ul_not_ignored": 4000 }
+
+  - do:
+      index:
+        refresh: true
+        index: test-stored
+        id: "5"
+        body: { "ul_ignored": [1, 2, 3], "ul_not_ignored": 4000 }
+
+  - do:
+      index:
+        refresh: true
+        index: test-stored
+        id: "6"
+        body: { "ul_ignored": [ 1, "foo", 3, "bar" ], "ul_not_ignored": 4000 }
+
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            match_all: { }
+
+  - match: { hits.total.value: 1 }
+
+  - match: { hits.hits.0._source.ul_ignored: [ 100, 200, 300 ] }
+  - match: { hits.hits.0._source.ul_not_ignored: 3000 }
+  - match: { hits.hits.0._ignored: null }

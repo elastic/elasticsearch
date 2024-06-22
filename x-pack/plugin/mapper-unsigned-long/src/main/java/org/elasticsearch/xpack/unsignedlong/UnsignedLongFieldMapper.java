@@ -683,7 +683,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
     private void addIgnoredField(final DocumentParserContext context) throws IOException {
         context.addIgnoredField(mappedFieldType.name());
         if (isSourceSynthetic) {
-            context.doc().add(IgnoreMalformedStoredValues.storedField(name(), context.parser()));
+            context.doc().add(IgnoreMalformedStoredValues.storedField(fullPath(), context.parser()));
         }
     }
 

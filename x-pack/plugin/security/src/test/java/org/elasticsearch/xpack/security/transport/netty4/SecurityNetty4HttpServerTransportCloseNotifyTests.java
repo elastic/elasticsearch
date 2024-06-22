@@ -205,8 +205,8 @@ public class SecurityNetty4HttpServerTransportCloseNotifyTests extends AbstractH
         runForAllTlsVersions(tlsVersion -> {
             try (var ctx = connectClientAndServer(tlsVersion)) {
                 ctx.client.channel.writeAndFlush(new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "/index"));
-                var reqctx = safePoll(ctx.server.dispatcher.reqQueue);
-                reqctx.restChannel.sendResponse(new RestResponse(RestStatus.OK, ""));
+                var serverRequestCtx = safePoll(ctx.server.dispatcher.reqQueue);
+                serverRequestCtx.restChannel.sendResponse(new RestResponse(RestStatus.OK, ""));
                 safePoll(ctx.client.respQueue);
                 var ssl = ctx.client.channel.pipeline().get(SslHandler.class);
                 ssl.closeOutbound();

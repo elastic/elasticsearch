@@ -629,9 +629,14 @@ public class UnsignedLongFieldMapper extends FieldMapper {
                 if (parser.currentToken().isValue() == false) {
                     numericValue = null;
                     if (ignoreMalformed.value()) {
-                        addIgnoredField(context);
+                        context.addIgnoredField(mappedFieldType.name());
+                        if (isSourceSynthetic) {
+                            context.doc().add(IgnoreMalformedStoredValues.storedField(fullPath(), context.parser()));
+                        } else {
+                            parseUnsignedLong(parser.text());
+                        }
                     } else {
-                        throw new IllegalArgumentException("Unable to parse object as a " + mappedFieldType.name() + " field");
+                        parseUnsignedLong(parser.text());
                     }
                 } else if (parser.currentToken() == XContentParser.Token.VALUE_NUMBER) {
                     numericValue = parseUnsignedLong(parser.numberValue());
@@ -640,7 +645,10 @@ public class UnsignedLongFieldMapper extends FieldMapper {
                 }
             } catch (IllegalArgumentException e) {
                 if (ignoreMalformed.value() && parser.currentToken().isValue()) {
-                    addIgnoredField(context);
+                    context.addIgnoredField(mappedFieldType.name());
+                    if (isSourceSynthetic) {
+                        context.doc().add(IgnoreMalformedStoredValues.storedField(fullPath(), context.parser()));
+                    }
                     return;
                 } else {
                     throw e;
@@ -677,13 +685,6 @@ public class UnsignedLongFieldMapper extends FieldMapper {
 
         if (hasDocValues == false && (stored || indexed)) {
             context.addToFieldNames(fieldType().name());
-        }
-    }
-
-    private void addIgnoredField(final DocumentParserContext context) throws IOException {
-        context.addIgnoredField(mappedFieldType.name());
-        if (isSourceSynthetic) {
-            context.doc().add(IgnoreMalformedStoredValues.storedField(fullPath(), context.parser()));
         }
     }
 

@@ -815,11 +815,11 @@ public final class FlattenedFieldMapper extends FieldMapper {
             return SourceLoader.SyntheticFieldLoader.NOTHING;
         }
         if (fieldType().hasDocValues()) {
-            return new FlattenedSortedSetDocValuesSyntheticFieldLoader(name() + "._keyed", leafName());
+            return new FlattenedSortedSetDocValuesSyntheticFieldLoader(fullPath() + "._keyed", leafName());
         }
 
         throw new IllegalArgumentException(
-            "field [" + name() + "] of type [" + typeName() + "] doesn't support synthetic source because it doesn't have doc values"
+            "field [" + fullPath() + "] of type [" + typeName() + "] doesn't support synthetic source because it doesn't have doc values"
         );
     }
 }

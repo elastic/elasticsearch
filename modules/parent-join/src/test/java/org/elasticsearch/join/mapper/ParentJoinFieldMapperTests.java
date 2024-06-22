@@ -430,13 +430,13 @@ public class ParentJoinFieldMapperTests extends MapperServiceTestCase {
 
         Iterator<Mapper> it = mapper.iterator();
         FieldMapper next = (FieldMapper) it.next();
-        assertThat(next.name(), equalTo("join_field#parent"));
+        assertThat(next.fullPath(), equalTo("join_field#parent"));
         assertTrue(next.fieldType().isSearchable());
         assertTrue(next.fieldType().isAggregatable());
 
         assertTrue(it.hasNext());
         next = (FieldMapper) it.next();
-        assertThat(next.name(), equalTo("join_field#child"));
+        assertThat(next.fullPath(), equalTo("join_field#child"));
         assertTrue(next.fieldType().isSearchable());
         assertTrue(next.fieldType().isAggregatable());
 

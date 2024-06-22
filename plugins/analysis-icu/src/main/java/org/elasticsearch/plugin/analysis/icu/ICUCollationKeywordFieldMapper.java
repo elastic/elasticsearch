@@ -526,7 +526,7 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
         }
 
         if (value.length() > ignoreAbove) {
-            context.addIgnoredField(name());
+            context.addIgnoredField(fullPath());
             return;
         }
 

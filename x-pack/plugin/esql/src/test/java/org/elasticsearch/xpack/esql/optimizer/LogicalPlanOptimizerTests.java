@@ -5121,6 +5121,19 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         );
     }
 
+    public void testMvSortInvalidOrder() {
+        VerificationException e = expectThrows(VerificationException.class, () -> plan("""
+            from test
+            | EVAL sd = mv_sort(salary, "ABC")
+            """));
+        assertTrue(e.getMessage().startsWith("Found "));
+        final String header = "Found 1 problem\nline ";
+        assertEquals(
+            "2:29: Invalid order value in [mv_sort(salary, \"ABC\")], expected one of [ASC, DESC] but got [ABC]",
+            e.getMessage().substring(header.length())
+        );
+    }
+
     private Literal nullOf(DataType dataType) {
         return new Literal(Source.EMPTY, null, dataType);
     }

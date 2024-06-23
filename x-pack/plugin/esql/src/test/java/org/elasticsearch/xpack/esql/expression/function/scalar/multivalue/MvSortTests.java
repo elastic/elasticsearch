@@ -199,7 +199,7 @@ public class MvSortTests extends AbstractFunctionTestCase {
                 )
             ).get(driverContext)
         );
-        assertThat(e.getMessage(), equalTo("Invalid order value in [], expected [ASC, DESC] but got [" + invalidOrder + "]"));
+        assertThat(e.getMessage(), equalTo("Invalid order value in [], expected one of [ASC, DESC] but got [" + invalidOrder + "]"));
     }
 
     @Override

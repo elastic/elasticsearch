@@ -30,6 +30,7 @@ import org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupeInt;
 import org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupeLong;
 import org.elasticsearch.xpack.esql.capabilities.Validatable;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
+import org.elasticsearch.xpack.esql.core.common.Failure;
 import org.elasticsearch.xpack.esql.core.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -87,7 +88,7 @@ public class MvSort extends EsqlScalarFunction implements OptionalArgument, Vali
             optional = true
         ) Expression order
     ) {
-        super(source, order == null ? Arrays.asList(field, ASC) : Arrays.asList(field, order));
+        super(source, order == null ? Arrays.asList(field) : Arrays.asList(field, order));
         this.field = field;
         this.order = order;
     }
@@ -133,6 +134,7 @@ public class MvSort extends EsqlScalarFunction implements OptionalArgument, Vali
         if (resolution.unresolved()) {
             return resolution;
         }
+
         if (order == null) {
             return resolution;
         }
@@ -149,13 +151,12 @@ public class MvSort extends EsqlScalarFunction implements OptionalArgument, Vali
     public EvalOperator.ExpressionEvaluator.Factory toEvaluator(
         Function<Expression, EvalOperator.ExpressionEvaluator.Factory> toEvaluator
     ) {
-        Expression nonNullOrder = order == null ? ASC : order;
         boolean ordering = true;
-        if (nonNullOrder.foldable()) {
-            String o = ((BytesRef) nonNullOrder.fold()).utf8ToString();
+        if (order != null && order.foldable()) {
+            String o = ((BytesRef) order.fold()).utf8ToString();
             if (o.equalsIgnoreCase((String) ASC.value()) == false && o.equalsIgnoreCase((String) DESC.value()) == false) {
                 throw new InvalidArgumentException(
-                    "Invalid order value in [{}], expected [{}, {}] but got [{}]",
+                    "Invalid order value in [{}], expected one of [{}, {}] but got [{}]",
                     sourceText(),
                     ASC.value(),
                     DESC.value(),
@@ -164,7 +165,6 @@ public class MvSort extends EsqlScalarFunction implements OptionalArgument, Vali
             }
             ordering = o.equalsIgnoreCase((String) ASC.value());
         }
-
         return switch (PlannerUtils.toElementType(field.dataType())) {
             case BOOLEAN -> new MvSort.EvaluatorFactory(
                 toEvaluator.apply(field),
@@ -233,8 +233,34 @@ public class MvSort extends EsqlScalarFunction implements OptionalArgument, Vali
 
     @Override
     public void validate(Failures failures) {
+        if (order == null) {
+            return;
+        }
         String operation = sourceText();
         failures.add(isFoldable(order, operation, SECOND));
+        if (isValidOrder() == false) {
+            failures.add(
+                Failure.fail(
+                    order,
+                    "Invalid order value in [{}], expected one of [{}, {}] but got [{}]",
+                    sourceText(),
+                    ASC.value(),
+                    DESC.value(),
+                    ((BytesRef) order.fold()).utf8ToString()
+                )
+            );
+        }
+    }
+
+    private boolean isValidOrder() {
+        boolean isValidOrder = true;
+        if (order != null && order.foldable()) {
+            String o = ((BytesRef) order.fold()).utf8ToString();
+            if (o.equalsIgnoreCase((String) ASC.value()) == false && o.equalsIgnoreCase((String) DESC.value()) == false) {
+                isValidOrder = false;
+            }
+        }
+        return isValidOrder;
     }
 
     private record EvaluatorFactory(

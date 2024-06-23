@@ -545,7 +545,10 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
             .size();
 
         logger.info("--> start node B");
-        final String nodeB = internalCluster().startNode();
+        final String nodeB = internalCluster().startNode(
+            // Ensure that the target node has a high enough recovery max bytes per second to avoid any throttling
+            Settings.builder().put(RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey(), "200mb")
+        );
 
         ensureGreen();
 

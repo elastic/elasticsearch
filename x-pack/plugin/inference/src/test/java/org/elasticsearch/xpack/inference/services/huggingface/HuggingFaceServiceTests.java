@@ -529,12 +529,15 @@ public class HuggingFaceServiceTests extends ESTestCase {
                 """;
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
-            var model = HuggingFaceEmbeddingsModelTests.createModel(getUrl(webServer), "secret", 1);
+            var model = HuggingFaceEmbeddingsModelTests.createModel(getUrl(webServer), "secret", 1, 1, SimilarityMeasure.DOT_PRODUCT);
             PlainActionFuture<Model> listener = new PlainActionFuture<>();
             service.checkModelConfig(model, listener);
 
             var result = listener.actionGet(TIMEOUT);
-            assertThat(result, is(HuggingFaceEmbeddingsModelTests.createModel(getUrl(webServer), "secret", 1, 1)));
+            assertThat(
+                result,
+                is(HuggingFaceEmbeddingsModelTests.createModel(getUrl(webServer), "secret", 1, 1, SimilarityMeasure.DOT_PRODUCT))
+            );
         }
     }
 
@@ -566,7 +569,7 @@ public class HuggingFaceServiceTests extends ESTestCase {
         }
     }
 
-    public void testCheckModelConfig_LeavesSimilarityAsNull_WhenUnspecified() throws IOException {
+    public void testCheckModelConfig_DefaultsSimilarityToCosine() throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
         try (var service = new HuggingFaceService(senderFactory, createWithEmptySettings(threadPool))) {
@@ -587,11 +590,13 @@ public class HuggingFaceServiceTests extends ESTestCase {
             service.checkModelConfig(model, listener);
 
             var result = listener.actionGet(TIMEOUT);
-            assertThat(result, is(HuggingFaceEmbeddingsModelTests.createModel(getUrl(webServer), "secret", 1, 1, null)));
+            assertThat(
+                result,
+                is(HuggingFaceEmbeddingsModelTests.createModel(getUrl(webServer), "secret", 1, 1, SimilarityMeasure.COSINE))
+            );
         }
     }
 
-    // TODO
     public void testChunkedInfer_CallsInfer_TextEmbedding_ConvertsFloatResponse() throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 

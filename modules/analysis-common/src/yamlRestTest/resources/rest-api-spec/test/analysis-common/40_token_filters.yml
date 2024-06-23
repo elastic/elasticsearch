@@ -242,6 +242,52 @@
     - length: { tokens: 2 }
     - match:  { tokens.0.token: Foo }
     - match:  { tokens.1.token: Bar! }
+---
+"unique only_on_same_pos":
+  - do:
+      indices.analyze:
+        body:
+          text:      ll l o
+          tokenizer: whitespace
+          filter:    [{type: "ngram", "max_gram": 1}, {type: "unique", "only_on_same_position": true}]
+  - length: { tokens: 3 }
+  - match:  { tokens.0.token: l }
+  - match:  { tokens.1.token: l }
+  - match:  { tokens.2.token: o }
+
+  - do:
+      indices.analyze:
+        body:
+          text:      ll l o
+          tokenizer: whitespace
+          filter:    [{type: "ngram", "max_gram": 1}, {type: "unique", "only_on_same_position": false}]
+  - length: { tokens: 2 }
+  - match:  { tokens.0.token: l }
+  - match:  { tokens.1.token: o }
+---
+"unique test position correction":
+  - requires:
+      cluster_features: "gte_v8.15.0"
+      reason: 'position fix for unique filter is available since 8.15.0'
+  - do:
+      indices.analyze:
+        body:
+          text:      "los angeles leadership academy"
+          tokenizer: whitespace
+          filter:    [{type: "edge_ngram", "max_gram": 2}, "unique"]
+  - length: { tokens: 6 }
+  - match:  { tokens.0.token: l }
+  - match:  { tokens.0.position: 0 }
+  - match:  { tokens.1.token: lo }
+  - match:  { tokens.1.position: 0 }
+  - match:  { tokens.2.token: a }
+  - match:  { tokens.2.position: 1 }
+  - match:  { tokens.3.token: an }
+  - match:  { tokens.3.position: 1 }
+  - match:  { tokens.4.token: le }
+  - match:  { tokens.4.position: 2 }
+  - match:  { tokens.5.token: ac }
+  - match:  { tokens.5.position: 3 }
 
 ---
 "synonym":

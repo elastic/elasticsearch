@@ -476,8 +476,8 @@ public final class TextFieldMapper extends FieldMapper {
             SubFieldInfo phraseFieldInfo = buildPhraseInfo(fieldType, tft);
             SubFieldInfo prefixFieldInfo = buildPrefixInfo(context, fieldType, tft);
             for (Mapper mapper : multiFields) {
-                if (mapper.name().endsWith(FAST_PHRASE_SUFFIX) || mapper.name().endsWith(FAST_PREFIX_SUFFIX)) {
-                    throw new MapperParsingException("Cannot use reserved field name [" + mapper.name() + "]");
+                if (mapper.fullPath().endsWith(FAST_PHRASE_SUFFIX) || mapper.fullPath().endsWith(FAST_PREFIX_SUFFIX)) {
+                    throw new MapperParsingException("Cannot use reserved field name [" + mapper.fullPath() + "]");
                 }
             }
             return new TextFieldMapper(leafName(), fieldType, tft, prefixFieldInfo, phraseFieldInfo, multiFields, copyTo, this);
@@ -1223,7 +1223,7 @@ public final class TextFieldMapper extends FieldMapper {
         assert mappedFieldType.getTextSearchInfo().isTokenized();
         assert mappedFieldType.hasDocValues() == false;
         if (fieldType.indexOptions() == IndexOptions.NONE && fieldType().fielddata()) {
-            throw new IllegalArgumentException("Cannot enable fielddata on a [text] field that is not indexed: [" + name() + "]");
+            throw new IllegalArgumentException("Cannot enable fielddata on a [text] field that is not indexed: [" + fullPath() + "]");
         }
         this.fieldType = freezeAndDeduplicateFieldType(fieldType);
         this.prefixFieldInfo = prefixFieldInfo;
@@ -1247,7 +1247,7 @@ public final class TextFieldMapper extends FieldMapper {
     @Override
     public Map<String, NamedAnalyzer> indexAnalyzers() {
         Map<String, NamedAnalyzer> analyzersMap = new HashMap<>();
-        analyzersMap.put(name(), indexAnalyzer);
+        analyzersMap.put(fullPath(), indexAnalyzer);
         if (phraseFieldInfo != null) {
             analyzersMap.put(
                 phraseFieldInfo.field,
@@ -1265,7 +1265,7 @@ public final class TextFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(simpleName(), indexCreatedVersion, indexAnalyzers, isSyntheticSourceEnabledViaIndexMode).init(this);
+        return new Builder(leafName(), indexCreatedVersion, indexAnalyzers, isSyntheticSourceEnabledViaIndexMode).init(this);
     }
 
     @Override
@@ -1455,11 +1455,11 @@ public final class TextFieldMapper extends FieldMapper {
     public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
         if (copyTo.copyToFields().isEmpty() != true) {
             throw new IllegalArgumentException(
-                "field [" + name() + "] of type [" + typeName() + "] doesn't support synthetic source because it declares copy_to"
+                "field [" + fullPath() + "] of type [" + typeName() + "] doesn't support synthetic source because it declares copy_to"
             );
         }
         if (store) {
-            return new StringStoredFieldFieldLoader(name(), simpleName(), null) {
+            return new StringStoredFieldFieldLoader(fullPath(), leafName(), null) {
                 @Override
                 protected void write(XContentBuilder b, Object value) throws IOException {
                     b.value((String) value);
@@ -1469,7 +1469,7 @@ public final class TextFieldMapper extends FieldMapper {
 
         var kwd = SyntheticSourceHelper.getKeywordFieldMapperForSyntheticSource(this);
         if (kwd != null) {
-            return kwd.syntheticFieldLoader(simpleName());
+            return kwd.syntheticFieldLoader(leafName());
         }
 
         throw new IllegalArgumentException(
@@ -1477,7 +1477,7 @@ public final class TextFieldMapper extends FieldMapper {
                 Locale.ROOT,
                 "field [%s] of type [%s] doesn't support synthetic source unless it is stored or has a sub-field of"
                     + " type [keyword] with doc values or stored and without a normalizer",
-                name(),
+                fullPath(),
                 typeName()
             )
         );

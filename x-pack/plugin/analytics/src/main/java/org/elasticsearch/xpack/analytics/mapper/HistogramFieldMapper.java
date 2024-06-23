@@ -138,7 +138,7 @@ public class HistogramFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(simpleName(), ignoreMalformedByDefault).init(this);
+        return new Builder(leafName(), ignoreMalformedByDefault).init(this);
     }
 
     @Override
@@ -289,7 +289,7 @@ public class HistogramFieldMapper extends FieldMapper {
 
     @Override
     public void parse(DocumentParserContext context) throws IOException {
-        context.path().add(simpleName());
+        context.path().add(leafName());
 
         boolean shouldStoreMalformedDataForSyntheticSource = context.mappingLookup().isSourceSynthetic() && ignoreMalformed();
         XContentParser.Token token;
@@ -334,7 +334,7 @@ public class HistogramFieldMapper extends FieldMapper {
                             throw new DocumentParsingException(
                                 subParser.getTokenLocation(),
                                 "error parsing field ["
-                                    + name()
+                                    + fullPath()
                                     + "], ["
                                     + VALUES_FIELD
                                     + "] values must be in increasing order, got ["
@@ -363,7 +363,7 @@ public class HistogramFieldMapper extends FieldMapper {
                 } else {
                     throw new DocumentParsingException(
                         subParser.getTokenLocation(),
-                        "error parsing field [" + name() + "], with unknown parameter [" + fieldName + "]"
+                        "error parsing field [" + fullPath() + "], with unknown parameter [" + fieldName + "]"
                     );
                 }
                 token = subParser.nextToken();
@@ -371,20 +371,20 @@ public class HistogramFieldMapper extends FieldMapper {
             if (values == null) {
                 throw new DocumentParsingException(
                     subParser.getTokenLocation(),
-                    "error parsing field [" + name() + "], expected field called [" + VALUES_FIELD.getPreferredName() + "]"
+                    "error parsing field [" + fullPath() + "], expected field called [" + VALUES_FIELD.getPreferredName() + "]"
                 );
             }
             if (counts == null) {
                 throw new DocumentParsingException(
                     subParser.getTokenLocation(),
-                    "error parsing field [" + name() + "], expected field called [" + COUNTS_FIELD.getPreferredName() + "]"
+                    "error parsing field [" + fullPath() + "], expected field called [" + COUNTS_FIELD.getPreferredName() + "]"
                 );
             }
             if (values.size() != counts.size()) {
                 throw new DocumentParsingException(
                     subParser.getTokenLocation(),
                     "error parsing field ["
-                        + name()
+                        + fullPath()
                         + "], expected same length from ["
                         + VALUES_FIELD.getPreferredName()
                         + "] and "
@@ -403,7 +403,7 @@ public class HistogramFieldMapper extends FieldMapper {
                 if (count < 0) {
                     throw new DocumentParsingException(
                         subParser.getTokenLocation(),
-                        "error parsing field [" + name() + "], [" + COUNTS_FIELD + "] elements must be >= 0 but got " + counts.get(i)
+                        "error parsing field [" + fullPath() + "], [" + COUNTS_FIELD + "] elements must be >= 0 but got " + counts.get(i)
                     );
                 } else if (count > 0) {
                     // we do not add elements with count == 0
@@ -416,11 +416,11 @@ public class HistogramFieldMapper extends FieldMapper {
                 }
             }
             BytesRef docValue = streamOutput.bytes().toBytesRef();
-            Field field = new BinaryDocValuesField(name(), docValue);
+            Field field = new BinaryDocValuesField(fullPath(), docValue);
             if (context.doc().getByKey(fieldType().name()) != null) {
                 throw new IllegalArgumentException(
                     "Field ["
-                        + name()
+                        + fullPath()
                         + "] of type ["
                         + typeName()
                         + "] doesn't support indexing multiple values for the same field in the same document"
@@ -448,7 +448,7 @@ public class HistogramFieldMapper extends FieldMapper {
             }
 
             if (malformedDataForSyntheticSource != null) {
-                context.doc().add(IgnoreMalformedStoredValues.storedField(name(), malformedDataForSyntheticSource));
+                context.doc().add(IgnoreMalformedStoredValues.storedField(fullPath(), malformedDataForSyntheticSource));
             }
 
             context.addIgnoredField(fieldType().name());
@@ -516,15 +516,15 @@ public class HistogramFieldMapper extends FieldMapper {
     public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
         if (copyTo.copyToFields().isEmpty() != true) {
             throw new IllegalArgumentException(
-                "field [" + name() + "] of type [histogram] doesn't support synthetic source because it declares copy_to"
+                "field [" + fullPath() + "] of type [histogram] doesn't support synthetic source because it declares copy_to"
             );
         }
 
         return new CompositeSyntheticFieldLoader(
-            simpleName(),
-            name(),
+            leafName(),
+            fullPath(),
             new HistogramSyntheticFieldLoader(),
-            new CompositeSyntheticFieldLoader.MalformedValuesLayer(name())
+            new CompositeSyntheticFieldLoader.MalformedValuesLayer(fullPath())
         );
     }
 
@@ -587,7 +587,7 @@ public class HistogramFieldMapper extends FieldMapper {
 
         @Override
         public String fieldName() {
-            return name();
+            return fullPath();
         }
 
         @Override

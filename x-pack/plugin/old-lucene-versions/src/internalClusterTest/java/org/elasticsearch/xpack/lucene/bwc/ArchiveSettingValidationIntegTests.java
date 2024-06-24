@@ -19,7 +19,8 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class ArchiveSettingValidationIntegTests extends AbstractArchiveTestCase {
     public void testCannotRemoveWriteBlock() throws ExecutionException, InterruptedException {
-        final RestoreSnapshotRequest req = new RestoreSnapshotRequest(repoName, snapshotName).indices(indexName).waitForCompletion(true);
+        final RestoreSnapshotRequest req = new RestoreSnapshotRequest(TEST_REQUEST_TIMEOUT, repoName, snapshotName).indices(indexName)
+            .waitForCompletion(true);
 
         final RestoreSnapshotResponse restoreSnapshotResponse = clusterAdmin().restoreSnapshot(req).get();
         assertThat(restoreSnapshotResponse.getRestoreInfo().failedShards(), equalTo(0));

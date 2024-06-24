@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.inference.services.elasticsearch;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.inference.Model;
+import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.core.ml.action.CreateTrainedModelAssignmentAction;
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
@@ -17,7 +18,7 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import static org.elasticsearch.xpack.core.ml.inference.assignment.AllocationStatus.State.STARTED;
 
-public class MultilingualE5SmallModel extends ElasticsearchModel {
+public class MultilingualE5SmallModel extends Model implements ElasticsearchModel {
 
     public MultilingualE5SmallModel(
         String inferenceEntityId,
@@ -25,7 +26,7 @@ public class MultilingualE5SmallModel extends ElasticsearchModel {
         String service,
         MultilingualE5SmallInternalServiceSettings serviceSettings
     ) {
-        super(inferenceEntityId, taskType, service, serviceSettings);
+        super(new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings));
     }
 
     @Override
@@ -34,7 +35,12 @@ public class MultilingualE5SmallModel extends ElasticsearchModel {
     }
 
     @Override
-    StartTrainedModelDeploymentAction.Request getStartTrainedModelDeploymentActionRequest() {
+    public String getModelId() {
+        return getServiceSettings().getModelId();
+    }
+
+    @Override
+    public StartTrainedModelDeploymentAction.Request getStartTrainedModelDeploymentActionRequest() {
         var startRequest = new StartTrainedModelDeploymentAction.Request(
             this.getServiceSettings().getModelId(),
             this.getInferenceEntityId()
@@ -47,7 +53,7 @@ public class MultilingualE5SmallModel extends ElasticsearchModel {
     }
 
     @Override
-    ActionListener<CreateTrainedModelAssignmentAction.Response> getCreateTrainedModelAssignmentActionListener(
+    public ActionListener<CreateTrainedModelAssignmentAction.Response> getCreateTrainedModelAssignmentActionListener(
         Model model,
         ActionListener<Boolean> listener
     ) {

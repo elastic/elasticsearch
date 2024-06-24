@@ -20,7 +20,6 @@ import java.util.List;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.function.Function;
-import java.util.function.Supplier;
 
 /**
  * Shared Lucene slices between Lucene operators.
@@ -64,16 +63,7 @@ public final class LuceneSliceQueue {
                 case SEGMENT -> segmentSlices(leafContexts);
                 case DOC -> docSlices(ctx.searcher().getIndexReader(), taskConcurrency);
             };
-            final Weight[] cachedWeight = new Weight[1];
-            final Supplier<Weight> weight = () -> {
-                if (cachedWeight[0] == null) {
-                    cachedWeight[0] = weightFunction.apply(ctx);
-                }
-                return cachedWeight[0];
-            };
-            if (groups.size() > 1) {
-                weight.get(); // eagerly build Weight once
-            }
+            final Weight weight = weightFunction.apply(ctx);
             for (List<PartialLeafReaderContext> group : groups) {
                 if (group.isEmpty() == false) {
                     slices.add(new LuceneSlice(ctx, group, weight));

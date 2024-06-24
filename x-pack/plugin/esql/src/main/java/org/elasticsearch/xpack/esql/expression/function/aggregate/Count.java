@@ -25,7 +25,6 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvCoun
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mul;
 import org.elasticsearch.xpack.esql.planner.ToAggregator;
-import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 
 import java.io.IOException;
 import java.util.List;
@@ -102,7 +101,7 @@ public class Count extends AggregateFunction implements EnclosedAgg, ToAggregato
 
     @Override
     protected TypeResolution resolveType() {
-        return isType(field(), dt -> EsqlDataTypes.isCounterType(dt) == false, sourceText(), DEFAULT, "any type except counter types");
+        return isType(field(), dt -> dt.isCounter() == false, sourceText(), DEFAULT, "any type except counter types");
     }
 
     @Override

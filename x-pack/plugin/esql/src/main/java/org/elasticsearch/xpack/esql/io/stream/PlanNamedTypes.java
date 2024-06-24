@@ -60,11 +60,12 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.math.Pow;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Round;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Tau;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.AbstractMultivalueFunction;
+import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.BinarySpatialFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialContains;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialDisjoint;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialIntersects;
-import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialWithin;
+import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StDistance;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.EndsWith;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Left;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Locate;
@@ -230,10 +231,11 @@ public final class PlanNamedTypes {
             of(ScalarFunction.class, Pow.class, PlanNamedTypes::writePow, PlanNamedTypes::readPow),
             of(ScalarFunction.class, StartsWith.class, PlanNamedTypes::writeStartsWith, PlanNamedTypes::readStartsWith),
             of(ScalarFunction.class, EndsWith.class, PlanNamedTypes::writeEndsWith, PlanNamedTypes::readEndsWith),
-            of(ScalarFunction.class, SpatialIntersects.class, PlanNamedTypes::writeSpatialRelatesFunction, PlanNamedTypes::readIntersects),
-            of(ScalarFunction.class, SpatialDisjoint.class, PlanNamedTypes::writeSpatialRelatesFunction, PlanNamedTypes::readDisjoint),
-            of(ScalarFunction.class, SpatialContains.class, PlanNamedTypes::writeSpatialRelatesFunction, PlanNamedTypes::readContains),
-            of(ScalarFunction.class, SpatialWithin.class, PlanNamedTypes::writeSpatialRelatesFunction, PlanNamedTypes::readWithin),
+            of(ScalarFunction.class, SpatialIntersects.class, PlanNamedTypes::writeBinarySpatialFunction, PlanNamedTypes::readIntersects),
+            of(ScalarFunction.class, SpatialDisjoint.class, PlanNamedTypes::writeBinarySpatialFunction, PlanNamedTypes::readDisjoint),
+            of(ScalarFunction.class, SpatialContains.class, PlanNamedTypes::writeBinarySpatialFunction, PlanNamedTypes::readContains),
+            of(ScalarFunction.class, SpatialWithin.class, PlanNamedTypes::writeBinarySpatialFunction, PlanNamedTypes::readWithin),
+            of(ScalarFunction.class, StDistance.class, PlanNamedTypes::writeBinarySpatialFunction, PlanNamedTypes::readDistance),
             of(ScalarFunction.class, Substring.class, PlanNamedTypes::writeSubstring, PlanNamedTypes::readSubstring),
             of(ScalarFunction.class, Locate.class, PlanNamedTypes::writeLocate, PlanNamedTypes::readLocate),
             of(ScalarFunction.class, Left.class, PlanNamedTypes::writeLeft, PlanNamedTypes::readLeft),
@@ -1022,9 +1024,13 @@ public final class PlanNamedTypes {
         return new SpatialWithin(Source.EMPTY, in.readExpression(), in.readExpression());
     }
 
-    static void writeSpatialRelatesFunction(PlanStreamOutput out, SpatialRelatesFunction spatialRelatesFunction) throws IOException {
-        out.writeExpression(spatialRelatesFunction.left());
-        out.writeExpression(spatialRelatesFunction.right());
+    static StDistance readDistance(PlanStreamInput in) throws IOException {
+        return new StDistance(Source.EMPTY, in.readExpression(), in.readExpression());
+    }
+
+    static void writeBinarySpatialFunction(PlanStreamOutput out, BinarySpatialFunction binarySpatialFunction) throws IOException {
+        out.writeExpression(binarySpatialFunction.left());
+        out.writeExpression(binarySpatialFunction.right());
     }
 
     static Round readRound(PlanStreamInput in) throws IOException {

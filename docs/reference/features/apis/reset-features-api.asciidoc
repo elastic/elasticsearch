@@ -34,6 +34,11 @@ To list the features that will be affected, use the <<get-features-api,get featu
 
 IMPORTANT: The features installed on the node you submit this request to are the features that will be reset. Run on the master node if you have any doubts about which plugins are installed on individual nodes.
 
+[[reset-features-api-query-params]]
+==== {api-query-parms-title}
+
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
+
 ==== {api-examples-title}
 Example response:
 [source,console-result]

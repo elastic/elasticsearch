@@ -145,18 +145,17 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
 
         assertShardFolders(indexName, false);
 
-        assertThat(
-            clusterAdmin().prepareState()
-                .clear()
-                .setMetadata(true)
-                .setIndices(indexName)
-                .get()
-                .getState()
-                .metadata()
-                .index(indexName)
-                .getTimestampRange(),
-            sameInstance(IndexLongFieldRange.UNKNOWN)
-        );
+        IndexMetadata indexMetadata = clusterAdmin().prepareState()
+            .clear()
+            .setMetadata(true)
+            .setIndices(indexName)
+            .get()
+            .getState()
+            .metadata()
+            .index(indexName);
+
+        assertThat(indexMetadata.getTimestampRange(), sameInstance(IndexLongFieldRange.UNKNOWN));
+        assertThat(indexMetadata.getEventIngestedRange(), sameInstance(IndexLongFieldRange.UNKNOWN));
 
         final boolean deletedBeforeMount = randomBoolean();
         if (deletedBeforeMount) {
@@ -252,18 +251,17 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
         ensureGreen(restoredIndexName);
         assertBusy(() -> assertShardFolders(restoredIndexName, true), 30, TimeUnit.SECONDS);
 
-        assertThat(
-            clusterAdmin().prepareState()
-                .clear()
-                .setMetadata(true)
-                .setIndices(restoredIndexName)
-                .get()
-                .getState()
-                .metadata()
-                .index(restoredIndexName)
-                .getTimestampRange(),
-            sameInstance(IndexLongFieldRange.UNKNOWN)
-        );
+        indexMetadata = clusterAdmin().prepareState()
+            .clear()
+            .setMetadata(true)
+            .setIndices(restoredIndexName)
+            .get()
+            .getState()
+            .metadata()
+            .index(restoredIndexName);
+
+        assertThat(indexMetadata.getTimestampRange(), sameInstance(IndexLongFieldRange.UNKNOWN));
+        assertThat(indexMetadata.getEventIngestedRange(), sameInstance(IndexLongFieldRange.UNKNOWN));
 
         if (deletedBeforeMount) {
             assertThat(indicesAdmin().prepareGetAliases(aliasName).get().getAliases().size(), equalTo(0));

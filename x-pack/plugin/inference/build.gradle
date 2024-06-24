@@ -38,6 +38,130 @@ dependencies {
   clusterPlugins project(':x-pack:plugin:inference:qa:test-service-plugin')
 
   api "com.ibm.icu:icu4j:${versions.icu4j}"
+
+  runtimeOnly 'com.google.guava:guava:32.0.1-jre'
+  api 'com.google.code.gson:gson:2.10'
+  api "com.google.protobuf:protobuf-java-util:${versions.protobuf}"
+  api "com.google.protobuf:protobuf-java:${versions.protobuf}"
+  api 'com.google.api.grpc:proto-google-iam-v1:1.6.2'
+  api 'com.google.auth:google-auth-library-credentials:1.11.0'
+  api 'com.google.auth:google-auth-library-oauth2-http:1.11.0'
+  api "com.google.oauth-client:google-oauth-client:${versions.google_oauth_client}"
+  api 'com.google.api-client:google-api-client:2.1.1'
+  api 'com.google.http-client:google-http-client:1.42.3'
+  api 'com.google.http-client:google-http-client-gson:1.42.3'
+  api 'com.google.http-client:google-http-client-appengine:1.42.3'
+  api 'com.google.http-client:google-http-client-jackson2:1.42.3'
+  api "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
+  api 'com.google.api:gax-httpjson:0.105.1'
+  api 'io.grpc:grpc-context:1.49.2'
+  api 'io.opencensus:opencensus-api:0.31.1'
+  api 'io.opencensus:opencensus-contrib-http-util:0.31.1'
+}
+
+tasks.named("dependencyLicenses").configure {
+  mapping from: /google-auth-.*/, to: 'google-auth'
+  mapping from: /google-http-.*/, to: 'google-http'
+  mapping from: /opencensus.*/, to: 'opencensus'
+  mapping from: /protobuf.*/, to: 'protobuf'
+  mapping from: /proto-google.*/, to: 'proto-google'
+  mapping from: /jackson.*/, to: 'jackson'
+}
+
+tasks.named("thirdPartyAudit").configure {
+  ignoreViolations(
+    // uses internal java api: sun.misc.Unsafe
+    'com.google.protobuf.UnsafeUtil',
+    'com.google.protobuf.UnsafeUtil$1',
+    'com.google.protobuf.UnsafeUtil$JvmMemoryAccessor',
+    'com.google.protobuf.UnsafeUtil$MemoryAccessor',
+    'com.google.protobuf.MessageSchema',
+    'com.google.protobuf.UnsafeUtil$Android32MemoryAccessor',
+    'com.google.protobuf.UnsafeUtil$Android64MemoryAccessor',
+    'com.google.common.cache.Striped64',
+    'com.google.common.cache.Striped64$1',
+    'com.google.common.cache.Striped64$Cell',
+    'com.google.common.hash.Striped64',
+    'com.google.common.hash.Striped64$1',
+    'com.google.common.hash.Striped64$Cell',
+    'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray',
+    'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$1',
+    'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$2',
+    'com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper',
+    'com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper$1',
+    'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray',
+    'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator',
+    'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator$1',
+  )
+
+  ignoreMissingClasses(
+    'com.google.api.client.http.apache.v2.ApacheHttpTransport',
+    'com.google.appengine.api.datastore.Blob',
+    'com.google.appengine.api.datastore.DatastoreService',
+    'com.google.appengine.api.datastore.DatastoreServiceFactory',
+    'com.google.appengine.api.datastore.Entity',
+    'com.google.appengine.api.datastore.Key',
+    'com.google.appengine.api.datastore.KeyFactory',
+    'com.google.appengine.api.datastore.PreparedQuery',
+    'com.google.appengine.api.datastore.Query',
+    'com.google.appengine.api.memcache.Expiration',
+    'com.google.appengine.api.memcache.MemcacheService',
+    'com.google.appengine.api.memcache.MemcacheServiceFactory',
+    'com.google.appengine.api.urlfetch.FetchOptions$Builder',
+    'com.google.appengine.api.urlfetch.FetchOptions',
+    'com.google.appengine.api.urlfetch.HTTPHeader',
+    'com.google.appengine.api.urlfetch.HTTPMethod',
+    'com.google.appengine.api.urlfetch.HTTPRequest',
+    'com.google.appengine.api.urlfetch.HTTPResponse',
+    'com.google.appengine.api.urlfetch.URLFetchService',
+    'com.google.appengine.api.urlfetch.URLFetchServiceFactory',
+
+    // optional apache http client dependencies
+    'org.apache.http.ConnectionReuseStrategy',
+    'org.apache.http.Header',
+    'org.apache.http.HttpEntity',
+    'org.apache.http.HttpEntityEnclosingRequest',
+    'org.apache.http.HttpHost',
+    'org.apache.http.HttpRequest',
+    'org.apache.http.HttpResponse',
+    'org.apache.http.HttpVersion',
+    'org.apache.http.RequestLine',
+    'org.apache.http.StatusLine',
+    'org.apache.http.client.AuthenticationHandler',
+    'org.apache.http.client.HttpClient',
+    'org.apache.http.client.HttpRequestRetryHandler',
+    'org.apache.http.client.RedirectHandler',
+    'org.apache.http.client.RequestDirector',
+    'org.apache.http.client.UserTokenHandler',
+    'org.apache.http.client.methods.HttpEntityEnclosingRequestBase',
+    'org.apache.http.client.methods.HttpRequestBase',
+    'org.apache.http.config.Registry',
+    'org.apache.http.config.RegistryBuilder',
+    'org.apache.http.conn.ClientConnectionManager',
+    'org.apache.http.conn.ConnectionKeepAliveStrategy',
+    'org.apache.http.conn.params.ConnManagerParams',
+    'org.apache.http.conn.params.ConnRouteParams',
+    'org.apache.http.conn.routing.HttpRoutePlanner',
+    'org.apache.http.conn.scheme.PlainSocketFactory',
+    'org.apache.http.conn.scheme.SchemeRegistry',
+    'org.apache.http.conn.socket.PlainConnectionSocketFactory',
+    'org.apache.http.conn.ssl.SSLSocketFactory',
+    'org.apache.http.conn.ssl.X509HostnameVerifier',
+    'org.apache.http.entity.AbstractHttpEntity',
+    'org.apache.http.impl.client.DefaultHttpClient',
+    'org.apache.http.impl.client.HttpClientBuilder',
+    'org.apache.http.impl.conn.PoolingHttpClientConnectionManager',
+    'org.apache.http.params.HttpConnectionParams',
+    'org.apache.http.params.HttpParams',
+    'org.apache.http.params.HttpProtocolParams',
+    'org.apache.http.protocol.HttpContext',
+    'org.apache.http.protocol.HttpProcessor',
+    'org.apache.http.protocol.HttpRequestExecutor',
+
+    // commons-logging provided dependencies
+    'javax.servlet.ServletContextEvent',
+    'javax.servlet.ServletContextListener'
+  )
 }
 
 if (BuildParams.isSnapshotBuild() == false) {

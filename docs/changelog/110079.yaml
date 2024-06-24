@@ -1,0 +1,6 @@
+pr: 110079
+summary: "feat: Add new option omit_zero_term_query to bool query"
+area: Search
+type: feature
+issues:
+ - 110080

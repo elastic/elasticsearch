@@ -1214,12 +1214,8 @@ public class Security extends Plugin
             newState.migrationsVersion
         );
 
-        if (nextMigration == null) {
-            return;
-        }
-
         // Check if next migration that has not been applied is eligible to run on the current cluster
-        if (systemIndices.getMainIndexManager().isEligibleSecurityMigration(nextMigration.getValue()) == false) {
+        if (nextMigration == null || systemIndices.getMainIndexManager().isEligibleSecurityMigration(nextMigration.getValue()) == false) {
             // Reset retry counter if all eligible migrations have been applied successfully
             nodeLocalMigrationRetryCount.set(0);
         } else if (nodeLocalMigrationRetryCount.get() > MAX_SECURITY_MIGRATION_RETRY_COUNT) {

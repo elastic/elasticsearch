@@ -1830,18 +1830,6 @@ public abstract class ESTestCase extends LuceneTestCase {
         return createParser(parserConfig(), xContent, data);
     }
 
-    protected final XContentParser createParserWithMinClusterTransportVersion(
-        XContent xContent,
-        BytesReference data,
-        TransportVersion minClusterTransportVersion
-    ) throws IOException {
-        if (minClusterTransportVersion == null) {
-            return createParser(parserConfig(), xContent, data);
-        } else {
-            return createParser(parserConfig().withMinClusterTransportVersion(minClusterTransportVersion.id()), xContent, data);
-        }
-    }
-
     /**
      * Create a new {@link XContentParser}.
      */

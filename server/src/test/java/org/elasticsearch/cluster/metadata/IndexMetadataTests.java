@@ -8,8 +8,6 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.admin.indices.rollover.MaxAgeCondition;
 import org.elasticsearch.action.admin.indices.rollover.MaxDocsCondition;
 import org.elasticsearch.action.admin.indices.rollover.MaxPrimaryShardDocsCondition;
@@ -61,6 +59,7 @@ import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SNAPSHOT_P
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -95,17 +94,6 @@ public class IndexMetadataTests extends ESTestCase {
         Long shardSizeInBytesForecast = randomBoolean() ? randomLongBetween(1024, 10240) : null;
         Map<String, InferenceFieldMetadata> inferenceFields = randomInferenceFields();
 
-        IndexLongFieldRange eventIngestedRange = randomFrom(
-            IndexLongFieldRange.UNKNOWN,
-            IndexLongFieldRange.EMPTY,
-            IndexLongFieldRange.NO_SHARDS,
-            IndexLongFieldRange.NO_SHARDS.extendWithShardRange(0, 1, ShardLongFieldRange.of(5000000, 5500000))
-        );
-        TransportVersion minClusterTransportVersion = null;
-        if (eventIngestedRange != IndexLongFieldRange.UNKNOWN) {
-            minClusterTransportVersion = TransportVersions.EVENT_INGESTED_RANGE_IN_CLUSTER_STATE;
-        }
-
         IndexMetadata metadata = IndexMetadata.builder("foo")
             .settings(indexSettings(numShard, numberOfReplicas).put("index.version.created", 1))
             .creationDate(randomLong())
@@ -132,7 +120,15 @@ public class IndexMetadataTests extends ESTestCase {
             .indexWriteLoadForecast(indexWriteLoadForecast)
             .shardSizeInBytesForecast(shardSizeInBytesForecast)
             .putInferenceFields(inferenceFields)
-            .eventIngestedRange(eventIngestedRange, minClusterTransportVersion)
+            .eventIngestedRange(
+                randomFrom(
+                    IndexLongFieldRange.UNKNOWN,
+                    IndexLongFieldRange.EMPTY,
+                    IndexLongFieldRange.NO_SHARDS,
+                    IndexLongFieldRange.NO_SHARDS.extendWithShardRange(0, 1, ShardLongFieldRange.of(5000000, 5500000))
+                ),
+                null
+            )
             .build();
         assertEquals(system, metadata.isSystem());
 
@@ -141,13 +137,7 @@ public class IndexMetadataTests extends ESTestCase {
         IndexMetadata.FORMAT.toXContent(builder, metadata);
         builder.endObject();
         final IndexMetadata fromXContentMeta;
-        try (
-            XContentParser parser = createParserWithMinClusterTransportVersion(
-                JsonXContent.jsonXContent,
-                BytesReference.bytes(builder),
-                minClusterTransportVersion
-            )
-        ) {
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder))) {
             fromXContentMeta = IndexMetadata.fromXContent(parser);
         }
         assertEquals(
@@ -216,17 +206,6 @@ public class IndexMetadataTests extends ESTestCase {
         Long shardSizeInBytesForecast = randomBoolean() ? randomLongBetween(1024, 10240) : null;
         Map<String, InferenceFieldMetadata> inferenceFields = randomInferenceFields();
 
-        IndexLongFieldRange eventIngestedRange = randomFrom(
-            IndexLongFieldRange.UNKNOWN,
-            IndexLongFieldRange.EMPTY,
-            IndexLongFieldRange.NO_SHARDS,
-            IndexLongFieldRange.NO_SHARDS.extendWithShardRange(0, 1, ShardLongFieldRange.of(5000000, 5500000))
-        );
-        TransportVersion minClusterTransportVersion = null;
-        if (eventIngestedRange != IndexLongFieldRange.UNKNOWN) {
-            minClusterTransportVersion = TransportVersions.EVENT_INGESTED_RANGE_IN_CLUSTER_STATE;
-        }
-
         IndexMetadata metadata = IndexMetadata.builder("foo")
             .settings(indexSettings(numShard, numberOfReplicas).put("index.version.created", 1))
             .creationDate(randomLong())
@@ -252,7 +231,15 @@ public class IndexMetadataTests extends ESTestCase {
             .indexWriteLoadForecast(indexWriteLoadForecast)
             .shardSizeInBytesForecast(shardSizeInBytesForecast)
             .putInferenceFields(inferenceFields)
-            .eventIngestedRange(eventIngestedRange, minClusterTransportVersion)
+            .eventIngestedRange(
+                randomFrom(
+                    IndexLongFieldRange.UNKNOWN,
+                    IndexLongFieldRange.EMPTY,
+                    IndexLongFieldRange.NO_SHARDS,
+                    IndexLongFieldRange.NO_SHARDS.extendWithShardRange(0, 1, ShardLongFieldRange.of(5000000, 5500000))
+                ),
+                null
+            )
             .build();
         assertEquals(system, metadata.isSystem());
 

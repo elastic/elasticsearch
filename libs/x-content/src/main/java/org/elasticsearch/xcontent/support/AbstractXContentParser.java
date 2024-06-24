@@ -49,23 +49,19 @@ public abstract class AbstractXContentParser implements XContentParser {
     private final NamedXContentRegistry xContentRegistry;
     private final DeprecationHandler deprecationHandler;
     private final RestApiVersion restApiVersion;
-    @Nullable
-    private final Integer minClusterTransportVersion;
 
     public AbstractXContentParser(
         NamedXContentRegistry xContentRegistry,
         DeprecationHandler deprecationHandler,
-        RestApiVersion restApiVersion,
-        Integer minClusterTransportVersion
+        RestApiVersion restApiVersion
     ) {
         this.xContentRegistry = xContentRegistry;
         this.deprecationHandler = deprecationHandler;
         this.restApiVersion = restApiVersion;
-        this.minClusterTransportVersion = minClusterTransportVersion;
     }
 
     public AbstractXContentParser(NamedXContentRegistry xContentRegistry, DeprecationHandler deprecationHandler) {
-        this(xContentRegistry, deprecationHandler, RestApiVersion.current(), null);
+        this(xContentRegistry, deprecationHandler, RestApiVersion.current());
     }
 
     // The 3rd party parsers we rely on are known to silently truncate fractions: see
@@ -434,10 +430,5 @@ public abstract class AbstractXContentParser implements XContentParser {
     @Override
     public DeprecationHandler getDeprecationHandler() {
         return deprecationHandler;
-    }
-
-    @Override
-    public Integer getMinClusterTransportVersion() {
-        return minClusterTransportVersion;
     }
 }

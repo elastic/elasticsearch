@@ -633,10 +633,10 @@ public class UnsignedLongFieldMapper extends FieldMapper {
                         if (isSourceSynthetic) {
                             context.doc().add(IgnoreMalformedStoredValues.storedField(fullPath(), context.parser()));
                         } else {
-                            parseUnsignedLong(parser.text());
+                            numericValue = parseUnsignedLong(parser.text());
                         }
                     } else {
-                        parseUnsignedLong(parser.text());
+                        numericValue = parseUnsignedLong(parser.text());
                     }
                 } else if (parser.currentToken() == XContentParser.Token.VALUE_NUMBER) {
                     numericValue = parseUnsignedLong(parser.numberValue());

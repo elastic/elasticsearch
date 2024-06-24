@@ -171,7 +171,7 @@ public class AdaptiveAllocationsScalerServiceTests extends ESTestCase {
         doAnswer(invocationOnMock -> {
             @SuppressWarnings("unchecked")
             var listener = (ActionListener<GetDeploymentStatsAction.Response>) invocationOnMock.getArguments()[2];
-            listener.onResponse(getDeploymentStatsResponse(1, 1, 10.0));
+            listener.onResponse(getDeploymentStatsResponse(1, 1, 11.0));
             return Void.TYPE;
         }).when(client).execute(eq(GetDeploymentStatsAction.INSTANCE), eq(new GetDeploymentStatsAction.Request("test-deployment")), any());
 
@@ -212,12 +212,12 @@ public class AdaptiveAllocationsScalerServiceTests extends ESTestCase {
         when(clusterChangedEvent.state()).thenReturn(clusterState);
         service.clusterChanged(clusterChangedEvent);
 
-        // Third cycle: 0 inference requests, so scale down to 1 allocation.
+        // Third cycle: 0 inference requests, but keep 2 allocations, because of cooldown.
         when(client.threadPool()).thenReturn(threadPool);
         doAnswer(invocationOnMock -> {
             @SuppressWarnings("unchecked")
             var listener = (ActionListener<GetDeploymentStatsAction.Response>) invocationOnMock.getArguments()[2];
-            listener.onResponse(getDeploymentStatsResponse(2, 0, 10.0));
+            listener.onResponse(getDeploymentStatsResponse(2, 0, 9.0));
             return Void.TYPE;
         }).when(client).execute(eq(GetDeploymentStatsAction.INSTANCE), eq(new GetDeploymentStatsAction.Request("test-deployment")), any());
         doAnswer(invocationOnMock -> {
@@ -229,10 +229,8 @@ public class AdaptiveAllocationsScalerServiceTests extends ESTestCase {
 
         safeSleep(1000);
 
-        verify(client, times(2)).threadPool();
+        verify(client, times(1)).threadPool();
         verify(client, times(1)).execute(eq(GetDeploymentStatsAction.INSTANCE), any(), any());
-        updateRequest.setNumberOfAllocations(1);
-        verify(client, times(1)).execute(eq(UpdateTrainedModelDeploymentAction.INSTANCE), eq(updateRequest), any());
         verifyNoMoreInteractions(client, clusterService);
 
         service.stop();

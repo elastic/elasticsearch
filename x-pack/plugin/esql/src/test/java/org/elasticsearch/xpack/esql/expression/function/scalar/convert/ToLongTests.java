@@ -227,7 +227,7 @@ public class ToLongTests extends AbstractFunctionTestCase {
             l -> ((Integer) l).longValue(),
             List.of()
         );
-        return parameterSuppliersFromTypedData(errorsForCasesWithoutExamples(anyNullIsNull(true, suppliers)));
+        return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers);
     }
 
     @Override

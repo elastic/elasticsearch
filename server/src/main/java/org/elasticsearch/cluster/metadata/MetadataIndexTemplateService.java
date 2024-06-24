@@ -805,9 +805,7 @@ public class MetadataIndexTemplateService {
         ComposableIndexTemplate template,
         @Nullable DataStreamGlobalRetention globalRetention
     ) {
-        DataStreamLifecycle lifecycle = template.template() != null && template.template().lifecycle() != null
-            ? template.template().lifecycle()
-            : resolveLifecycle(template, metadata.componentTemplates());
+        DataStreamLifecycle lifecycle = resolveLifecycle(template, metadata.componentTemplates());
         if (lifecycle != null) {
             if (template.getDataStreamTemplate() == null) {
                 throw new IllegalArgumentException(

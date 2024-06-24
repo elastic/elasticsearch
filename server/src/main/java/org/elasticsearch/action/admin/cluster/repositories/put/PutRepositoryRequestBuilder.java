@@ -12,6 +12,7 @@ import org.elasticsearch.action.support.master.AcknowledgedRequestBuilder;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.ElasticsearchClient;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.util.Map;
@@ -27,8 +28,8 @@ public class PutRepositoryRequestBuilder extends AcknowledgedRequestBuilder<
     /**
      * Constructs register repository request for the repository with a given name
      */
-    public PutRepositoryRequestBuilder(ElasticsearchClient client, String name) {
-        super(client, TransportPutRepositoryAction.TYPE, new PutRepositoryRequest(name));
+    public PutRepositoryRequestBuilder(ElasticsearchClient client, TimeValue masterNodeTimeout, TimeValue ackTimeout, String name) {
+        super(client, TransportPutRepositoryAction.TYPE, new PutRepositoryRequest(masterNodeTimeout, ackTimeout, name));
     }
 
     /**

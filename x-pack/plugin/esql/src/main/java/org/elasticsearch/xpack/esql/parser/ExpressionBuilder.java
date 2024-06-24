@@ -729,7 +729,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
             int index = Integer.parseInt(nameOrPosition);
             if (params.get(index) == null) {
                 String message = "";
-                int np = params.positionalParams().size();
+                int np = params.size();
                 if (np > 0) {
                     message = ", did you mean " + (np == 1 ? "position 1?" : "any position between 1 and " + np + "?");
                 }

@@ -12,6 +12,9 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
+import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Not;
+import org.elasticsearch.xpack.esql.core.expression.predicate.nulls.IsNotNull;
+import org.elasticsearch.xpack.esql.core.expression.predicate.nulls.IsNull;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.FromBase64;
@@ -76,10 +79,13 @@ public abstract class UnaryScalarFunction extends EsqlScalarFunction {
             Cosh.ENTRY,
             Floor.ENTRY,
             FromBase64.ENTRY,
+            IsNotNull.ENTRY,
+            IsNull.ENTRY,
             Length.ENTRY,
             Log10.ENTRY,
             LTrim.ENTRY,
             Neg.ENTRY,
+            Not.ENTRY,
             RTrim.ENTRY,
             Signum.ENTRY,
             Sin.ENTRY,

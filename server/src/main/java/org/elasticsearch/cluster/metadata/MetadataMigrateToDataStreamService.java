@@ -29,6 +29,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
@@ -246,6 +247,7 @@ public class MetadataMigrateToDataStreamService {
         imb.settings(settingsUpdate.build())
             .settingsVersion(im.getSettingsVersion() + 1)
             .mappingVersion(im.getMappingVersion() + 1)
+            .mappingsUpdatedVersion(IndexVersion.current())
             .putMapping(new MappingMetadata(mapper));
         b.put(imb);
     }

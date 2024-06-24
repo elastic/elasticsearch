@@ -152,23 +152,7 @@ public class UpdateConnectorSyncJobIngestionStatsActionRequestTests extends ESTe
         assertThat(exception.getMessage(), containsString(TOTAL_DOCUMENT_COUNT_NEGATIVE_ERROR_MESSAGE));
     }
 
-    public void testParseRequest_WhenTotalDocumentCountIsNegative_ExpectValidationError() {
-        UpdateConnectorSyncJobIngestionStatsAction.Request request = new UpdateConnectorSyncJobIngestionStatsAction.Request(
-            randomAlphaOfLength(10),
-            0L,
-            0L,
-            0L,
-            -10L,
-            Instant.now(),
-            null
-        );
-        ActionRequestValidationException exception = request.validate();
-
-        assertThat(exception, notNullValue());
-        assertThat(exception.getMessage(), containsString(TOTAL_DOCUMENT_COUNT_NEGATIVE_ERROR_MESSAGE));
-    }
-
-    public void testToXContent_requiredFields_validRequest() throws IOException {
+    public void testParseRequest_requiredFields_validRequest() throws IOException {
         String requestPayload = XContentHelper.stripWhitespace("""
                 {
                     "deleted_document_count": 10,
@@ -187,7 +171,7 @@ public class UpdateConnectorSyncJobIngestionStatsActionRequestTests extends ESTe
         assertThat(request.getIndexedDocumentVolume(), equalTo(1000L));
     }
 
-    public void testToXContent_allFieldsWithoutLastSeen_validRequest() throws IOException {
+    public void testParseRequest_allFieldsWithoutLastSeen_validRequest() throws IOException {
         String requestPayload = XContentHelper.stripWhitespace("""
                 {
                     "deleted_document_count": 10,
@@ -210,7 +194,7 @@ public class UpdateConnectorSyncJobIngestionStatsActionRequestTests extends ESTe
         assertThat(request.getMetadata(), equalTo(Map.of("key1", 1, "key2", 2)));
     }
 
-    public void testToXContent_metadataTypeInt_invalidRequest() throws IOException {
+    public void testParseRequest_metadataTypeInt_invalidRequest() throws IOException {
         String requestPayload = XContentHelper.stripWhitespace("""
                 {
                     "deleted_document_count": 10,
@@ -229,7 +213,7 @@ public class UpdateConnectorSyncJobIngestionStatsActionRequestTests extends ESTe
         );
     }
 
-    public void testToXContent_metadataTypeString_invalidRequest() throws IOException {
+    public void testParseRequest_metadataTypeString_invalidRequest() throws IOException {
         String requestPayload = XContentHelper.stripWhitespace("""
                 {
                     "deleted_document_count": 10,

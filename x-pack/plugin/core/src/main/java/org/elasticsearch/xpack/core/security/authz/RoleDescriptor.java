@@ -633,6 +633,15 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
                             description = parser.text();
                         } else if (Fields.TYPE.match(currentFieldName, parser.getDeprecationHandler())) {
                             // don't need it
+                        } else if (Fields.NAME.match(currentFieldName, parser.getDeprecationHandler())) {
+                            String indexedName = parser.text();
+                            if (name.equals(indexedName) == false) {
+                                throw new ElasticsearchParseException(
+                                    "failed to parse role [{}]. indexed role name is different [{}]",
+                                    name,
+                                    indexedName
+                                );
+                            }
                         } else {
                             throw new ElasticsearchParseException(
                                 "failed to parse role [{}]. unexpected field [{}]",

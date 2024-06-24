@@ -14,6 +14,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.inference.ChunkedInferenceServiceResults;
 import org.elasticsearch.inference.ChunkingOptions;
 import org.elasticsearch.inference.InferenceResults;
@@ -40,6 +41,7 @@ import org.elasticsearch.xpack.core.ml.inference.TrainedModelPrefixStrings;
 import org.elasticsearch.xpack.core.ml.inference.results.ErrorInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.MlChunkedTextEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.ml.inference.results.MlChunkedTextEmbeddingFloatResultsTests;
+import org.elasticsearch.xpack.core.ml.inference.results.MlTextEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextEmbeddingConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TokenizationConfigUpdate;
 import org.elasticsearch.xpack.core.utils.FloatConversionUtils;
@@ -52,6 +54,7 @@ import org.mockito.Mockito;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -66,6 +69,7 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.same;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
@@ -286,9 +290,9 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
             );
 
             ActionListener<Model> modelListener = ActionListener.<Model>wrap(model -> {
-                assertThat(model, instanceOf(CustomElandModel.class));
+                assertThat(model, instanceOf(CustomElandRerankModel.class));
                 assertThat(model.getTaskSettings(), instanceOf(CustomElandRerankTaskSettings.class));
-                assertThat(model.getServiceSettings(), instanceOf(ElasticsearchInternalServiceSettings.class));
+                assertThat(model.getServiceSettings(), instanceOf(CustomElandInternalServiceSettings.class));
                 assertEquals(returnDocs, ((CustomElandRerankTaskSettings) model.getTaskSettings()).returnDocuments());
             }, e -> { fail("Model parsing failed " + e.getMessage()); });
 
@@ -328,9 +332,9 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
             );
 
             ActionListener<Model> modelListener = ActionListener.<Model>wrap(model -> {
-                assertThat(model, instanceOf(CustomElandModel.class));
+                assertThat(model, instanceOf(CustomElandRerankModel.class));
                 assertThat(model.getTaskSettings(), instanceOf(CustomElandRerankTaskSettings.class));
-                assertThat(model.getServiceSettings(), instanceOf(ElasticsearchInternalServiceSettings.class));
+                assertThat(model.getServiceSettings(), instanceOf(CustomElandInternalServiceSettings.class));
                 assertEquals(Boolean.TRUE, ((CustomElandRerankTaskSettings) model.getTaskSettings()).returnDocuments());
             }, e -> { fail("Model parsing failed " + e.getMessage()); });
 
@@ -391,10 +395,14 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
                 )
             );
 
-            CustomElandModel parsedModel = (CustomElandModel) service.parsePersistedConfig(randomInferenceEntityId, taskType, settings);
-            var elandServiceSettings = new CustomElandInternalServiceSettings(1, 4, "invalid");
+            CustomElandEmbeddingModel parsedModel = (CustomElandEmbeddingModel) service.parsePersistedConfig(
+                randomInferenceEntityId,
+                taskType,
+                settings
+            );
+            var elandServiceSettings = new CustomElandInternalTextEmbeddingServiceSettings(1, 4, "invalid");
             assertEquals(
-                new CustomElandModel(randomInferenceEntityId, taskType, ElasticsearchInternalService.NAME, elandServiceSettings),
+                new CustomElandEmbeddingModel(randomInferenceEntityId, taskType, ElasticsearchInternalService.NAME, elandServiceSettings),
                 parsedModel
             );
         }
@@ -683,7 +691,7 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
                 new GetTrainedModelsAction.Response(new QueryPage<>(List.of(mock(TrainedModelConfig.class)), 1, mock(ParseField.class)))
             );
             return Void.TYPE;
-        }).when(client).execute(any(), any(), any());
+        }).when(client).execute(eq(GetTrainedModelsAction.INSTANCE), any(), any());
         when(client.threadPool()).thenReturn(threadPool);
 
         var service = createService(client);
@@ -702,21 +710,36 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
             )
         );
 
-        var serviceSettings = new CustomElandInternalServiceSettings(1, 4, "custom-model");
-        var taskType = randomFrom(TaskType.values());
-        var taskSettings = taskType == TaskType.RERANK ? CustomElandRerankTaskSettings.DEFAULT_SETTINGS : null;
-        var expectedModel = CustomElandModel.build(
-            randomInferenceEntityId,
-            taskType,
-            ElasticsearchInternalService.NAME,
-            serviceSettings,
-            taskSettings
-        );
+        var taskType = randomFrom(EnumSet.of(TaskType.RERANK, TaskType.TEXT_EMBEDDING));
+        CustomElandModel expectedModel = getCustomElandModel(taskType);
 
         PlainActionFuture<Model> listener = new PlainActionFuture<>();
         service.parseRequestConfig(randomInferenceEntityId, taskType, settings, Set.of(), listener);
         var model = listener.actionGet(TimeValue.THIRTY_SECONDS);
         assertThat(model, is(expectedModel));
+    }
+
+    private CustomElandModel getCustomElandModel(TaskType taskType) {
+        CustomElandModel expectedModel = null;
+        if (taskType == TaskType.RERANK) {
+            expectedModel = new CustomElandRerankModel(
+                randomInferenceEntityId,
+                taskType,
+                ElasticsearchInternalService.NAME,
+                new CustomElandInternalServiceSettings(1, 4, "custom-model"),
+                CustomElandRerankTaskSettings.DEFAULT_SETTINGS
+            );
+        } else if (taskType == TaskType.TEXT_EMBEDDING) {
+            var serviceSettings = new CustomElandInternalTextEmbeddingServiceSettings(1, 4, "custom-model");
+
+            expectedModel = new CustomElandEmbeddingModel(
+                randomInferenceEntityId,
+                taskType,
+                ElasticsearchInternalService.NAME,
+                serviceSettings
+            );
+        }
+        return expectedModel;
     }
 
     public void testBuildInferenceRequest() {
@@ -780,6 +803,61 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
 
         var putConfig = argument.getValue().getTrainedModelConfig();
         assertEquals("text_field", putConfig.getInput().getFieldNames().get(0));
+    }
+
+    public void testParseRequestConfigEland_SetsDimensionsToOne() {
+        var client = mock(Client.class);
+        doAnswer(invocationOnMock -> {
+            @SuppressWarnings("unchecked")
+            ActionListener<InferModelAction.Response> listener = (ActionListener<InferModelAction.Response>) invocationOnMock
+                .getArguments()[2];
+            listener.onResponse(
+                new InferModelAction.Response(List.of(new MlTextEmbeddingResults("field", new double[] { 0.1 }, false)), "id", true)
+            );
+
+            var request = (InferModelAction.Request) invocationOnMock.getArguments()[1];
+            assertThat(request.getId(), is("custom-model"));
+            return Void.TYPE;
+        }).when(client).execute(eq(InferModelAction.INSTANCE), any(), any());
+        when(client.threadPool()).thenReturn(threadPool);
+
+        var service = createService(client);
+
+        var serviceSettings = new CustomElandInternalTextEmbeddingServiceSettings(
+            1,
+            4,
+            "custom-model",
+            1,
+            SimilarityMeasure.COSINE,
+            DenseVectorFieldMapper.ElementType.FLOAT
+        );
+        var taskType = TaskType.TEXT_EMBEDDING;
+        var expectedModel = new CustomElandEmbeddingModel(
+            randomInferenceEntityId,
+            taskType,
+            ElasticsearchInternalService.NAME,
+            serviceSettings
+        );
+
+        PlainActionFuture<Model> listener = new PlainActionFuture<>();
+        service.checkModelConfig(
+            new CustomElandEmbeddingModel(
+                randomInferenceEntityId,
+                taskType,
+                ElasticsearchInternalService.NAME,
+                new CustomElandInternalTextEmbeddingServiceSettings(
+                    1,
+                    4,
+                    "custom-model",
+                    null,
+                    SimilarityMeasure.COSINE,
+                    DenseVectorFieldMapper.ElementType.FLOAT
+                )
+            ),
+            listener
+        );
+        var model = listener.actionGet(TimeValue.THIRTY_SECONDS);
+        assertThat(model, is(expectedModel));
     }
 
     private ElasticsearchInternalService createService(Client client) {

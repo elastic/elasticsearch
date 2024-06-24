@@ -51,7 +51,7 @@ public class TickerScheduleTriggerEngine extends ScheduleTriggerEngine {
     private final TimeValue tickInterval;
     private final Map<String, ActiveSchedule> schedules = new ConcurrentHashMap<>();
     private final Ticker ticker;
-    private final AtomicBoolean isPaused = new AtomicBoolean(true);
+    private final AtomicBoolean isRunning = new AtomicBoolean(false);
 
     public TickerScheduleTriggerEngine(Settings settings, ScheduleRegistry scheduleRegistry, Clock clock) {
         super(scheduleRegistry, clock);
@@ -63,7 +63,7 @@ public class TickerScheduleTriggerEngine extends ScheduleTriggerEngine {
     public synchronized void start(Collection<Watch> jobs) {
         logger.debug("Starting engine");
         long startTime = clock.millis();
-        isPaused.set(false);
+        isRunning.set(true);
         logger.info("Watcher starting watches at {}", WatcherDateTimeUtils.dateTimeFormatter.formatMillis(startTime));
         Map<String, ActiveSchedule> startingSchedules = Maps.newMapWithExpectedSize(jobs.size());
         for (Watch job : jobs) {
@@ -86,7 +86,7 @@ public class TickerScheduleTriggerEngine extends ScheduleTriggerEngine {
     @Override
     public void stop() {
         logger.debug("Stopping engine");
-        isPaused.set(true);
+        isRunning.set(false);
         schedules.clear();
         ticker.close();
     }
@@ -94,13 +94,13 @@ public class TickerScheduleTriggerEngine extends ScheduleTriggerEngine {
     @Override
     public void pauseExecution() {
         logger.debug("Pausing engine");
-        isPaused.set(true);
+        isRunning.set(false);
         schedules.clear();
     }
 
     @Override
     public void add(Watch watch) {
-        logger.debug("Adding watch [{}] to engine (engine is paused: {})", watch.id(), isPaused.get());
+        logger.debug("Adding watch [{}] to engine (engine is running: {})", watch.id(), isRunning.get());
         assert watch.trigger() instanceof ScheduleTrigger;
         ScheduleTrigger trigger = (ScheduleTrigger) watch.trigger();
         ActiveSchedule currentSchedule = schedules.get(watch.id());
@@ -115,12 +115,12 @@ public class TickerScheduleTriggerEngine extends ScheduleTriggerEngine {
 
     @Override
     public boolean remove(String jobId) {
-        logger.debug("Removing watch [{}] from engine (engine is paused: {})", jobId, isPaused.get());
+        logger.debug("Removing watch [{}] from engine (engine is running: {})", jobId, isRunning.get());
         return schedules.remove(jobId) != null;
     }
 
     void checkJobs() {
-        if (isPaused.get()) {
+        if (isRunning.get() == false) {
             logger.debug(
                 "Watcher not running because the engine is paused. Currently scheduled watches being skipped: {}",
                 schedules.size()
@@ -130,7 +130,7 @@ public class TickerScheduleTriggerEngine extends ScheduleTriggerEngine {
         long triggeredTime = clock.millis();
         List<TriggerEvent> events = new ArrayList<>();
         for (ActiveSchedule schedule : schedules.values()) {
-            if (isPaused.get()) {
+            if (isRunning.get() == false) {
                 logger.debug("Watcher paused while running [{}]", schedule.name);
                 break;
             }

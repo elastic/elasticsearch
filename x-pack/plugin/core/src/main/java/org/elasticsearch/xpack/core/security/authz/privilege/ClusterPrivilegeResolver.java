@@ -382,6 +382,10 @@ public class ClusterPrivilegeResolver {
         Set.of("cluster:admin/data_stream/global_retention/*", "cluster:monitor/data_stream/global_retention/*")
     );
 
+    /**
+     * If you are adding a new named cluster privilege, also add it to the
+     * <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-privileges.html#privileges-list-cluster">docs</a>.
+     */
     private static final Map<String, NamedClusterPrivilege> VALUES = sortByAccessLevel(
         Stream.of(
             NONE,

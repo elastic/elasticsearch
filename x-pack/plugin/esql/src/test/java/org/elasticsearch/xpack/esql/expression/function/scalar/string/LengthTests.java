@@ -49,7 +49,7 @@ public class LengthTests extends AbstractFunctionTestCase {
         cases.addAll(makeTestCases("6 bytes, 2 code points", () -> "❗️", 2));
         cases.addAll(makeTestCases("100 random alpha", () -> randomAlphaOfLength(100), 100));
         cases.addAll(makeTestCases("100 random code points", () -> randomUnicodeOfCodepointLength(100), 100));
-        return parameterSuppliersFromTypedData(errorsForCasesWithoutExamples(anyNullIsNull(true, cases)));
+        return parameterSuppliersFromTypedDataWithDefaultChecks(true, cases);
     }
 
     private static List<TestCaseSupplier> makeTestCases(String title, Supplier<String> text, int expectedLength) {

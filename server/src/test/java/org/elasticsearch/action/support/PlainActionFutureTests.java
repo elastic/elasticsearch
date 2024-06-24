@@ -14,13 +14,17 @@ import org.elasticsearch.common.util.concurrent.UncategorizedExecutionException;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteTransportException;
 
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
 public class PlainActionFutureTests extends ESTestCase {
 
@@ -140,6 +144,61 @@ public class PlainActionFutureTests extends ESTestCase {
         assertCapturesInterrupt(() -> future.get(10, TimeUnit.SECONDS));
         assertPropagatesInterrupt(future::actionGet);
         assertPropagatesInterrupt(() -> future.actionGet(10, TimeUnit.SECONDS));
+    }
+
+    public void testAssertCompleteAllowed() throws Exception {
+        assumeTrue("This tests behaviour in an assertion", Assertions.ENABLED);
+        String threadPoolName = randomFrom(ThreadPool.THREAD_POOL_TYPES.keySet());
+        String otherThreadPoolName = randomValueOtherThan(threadPoolName, () -> randomFrom(ThreadPool.THREAD_POOL_TYPES.keySet()));
+        try (TestThreadPool threadPool = new TestThreadPool("oneThreadPool")) {
+            try (TestThreadPool otherThreadPool = new TestThreadPool("otherThreadPool")) {
+                assumeTrue("Test requires at least two slots in pool", threadPool.info(threadPoolName).getMax() > 1);
+                testAssertCompleteAllowed(threadPool.executor(threadPoolName), threadPool.executor(threadPoolName), false);
+                testAssertCompleteAllowed(threadPool.executor(threadPoolName), otherThreadPool.executor(threadPoolName), true);
+                testAssertCompleteAllowed(threadPool.executor(threadPoolName), threadPool.executor(otherThreadPoolName), true);
+                testAssertCompleteAllowed(threadPool.executor(threadPoolName), otherThreadPool.executor(otherThreadPoolName), true);
+            }
+        }
+    }
+
+    private void testAssertCompleteAllowed(ExecutorService waiter, ExecutorService resolver, boolean shouldSucceed) throws Exception {
+        enum Result {
+            SUCCESS,
+            FAILURE
+        }
+        logger.info("Testing (shouldSucceed={}):\n  waiter={}\n  resolver={}", shouldSucceed, waiter.toString(), resolver.toString());
+        PlainActionFuture<Void> future = new PlainActionFuture<>();
+        AtomicReference<Result> result = new AtomicReference<>();
+
+        try {
+            waiter.submit(() -> {
+                try {
+                    safeGet(future);
+                } catch (AssertionError e) {
+                    // This is fine
+                }
+            });
+            resolver.submit(() -> {
+                try {
+                    assertBusy(() -> assertTrue(future.hasQueuedThreads()));
+                    if (randomBoolean()) {
+                        future.onResponse(null);
+                    } else {
+                        future.onFailure(new RuntimeException());
+                    }
+                    result.set(Result.SUCCESS);
+                } catch (AssertionError e) {
+                    logger.error(e);
+                    result.set(Result.FAILURE);
+                } catch (Exception e) {
+                    logger.error(e);
+                    fail(e);
+                }
+            });
+            assertBusy(() -> assertEquals(shouldSucceed ? Result.SUCCESS : Result.FAILURE, result.get()));
+        } finally {
+            future.onResponse(null);
+        }
     }
 
     private static void assertCancellation(ThrowingRunnable runnable) {

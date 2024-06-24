@@ -405,6 +405,15 @@ public class PlainActionFuture<T> implements ActionFuture<T>, ActionListener<T> 
         return fut.actionGet(timeout, unit);
     }
 
+    /**
+     * Are there any threads waiting on the result, see {@link AbstractQueuedSynchronizer#hasQueuedThreads()}
+     *
+     * @return true if one or more threads are waiting on the result of this future, false otherwise
+     */
+    public boolean hasQueuedThreads() {
+        return sync.hasQueuedThreads();
+    }
+
     private boolean assertCompleteAllowed() {
         Thread waiter = sync.getFirstQueuedThread();
         assert waiter == null || allowedExecutors(waiter, Thread.currentThread())

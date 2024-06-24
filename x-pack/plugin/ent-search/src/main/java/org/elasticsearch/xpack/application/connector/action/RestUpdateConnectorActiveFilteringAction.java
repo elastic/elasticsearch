@@ -39,7 +39,7 @@ public class RestUpdateConnectorActiveFilteringAction extends BaseRestHandler {
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) {
         UpdateConnectorActiveFilteringAction.Request request = new UpdateConnectorActiveFilteringAction.Request(
-            restRequest.param("connector_id")
+            restRequest.param(CONNECTOR_ID_PARAM)
         );
         return channel -> client.execute(
             UpdateConnectorActiveFilteringAction.INSTANCE,

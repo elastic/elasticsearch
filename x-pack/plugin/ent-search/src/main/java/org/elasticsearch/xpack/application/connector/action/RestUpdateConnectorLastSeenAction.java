@@ -36,7 +36,7 @@ public class RestUpdateConnectorLastSeenAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) {
-        UpdateConnectorLastSeenAction.Request request = new UpdateConnectorLastSeenAction.Request(restRequest.param("connector_id"));
+        UpdateConnectorLastSeenAction.Request request = new UpdateConnectorLastSeenAction.Request(restRequest.param(CONNECTOR_ID_PARAM));
         return channel -> client.execute(
             UpdateConnectorLastSeenAction.INSTANCE,
             request,

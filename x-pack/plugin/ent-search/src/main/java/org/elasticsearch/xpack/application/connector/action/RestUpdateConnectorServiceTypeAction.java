@@ -41,7 +41,7 @@ public class RestUpdateConnectorServiceTypeAction extends BaseRestHandler {
         try (XContentParser parser = restRequest.contentParser()) {
             UpdateConnectorServiceTypeAction.Request request = UpdateConnectorServiceTypeAction.Request.fromXContent(
                 parser,
-                restRequest.param("connector_id")
+                restRequest.param(CONNECTOR_ID_PARAM)
             );
             return channel -> client.execute(
                 UpdateConnectorServiceTypeAction.INSTANCE,

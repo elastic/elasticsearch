@@ -41,7 +41,7 @@ public class RestUpdateConnectorSchedulingAction extends BaseRestHandler {
         try (XContentParser parser = restRequest.contentParser()) {
             UpdateConnectorSchedulingAction.Request request = UpdateConnectorSchedulingAction.Request.fromXContent(
                 parser,
-                restRequest.param("connector_id")
+                restRequest.param(CONNECTOR_ID_PARAM)
             );
             return channel -> client.execute(
                 UpdateConnectorSchedulingAction.INSTANCE,

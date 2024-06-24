@@ -43,7 +43,7 @@ public class RestUpdateConnectorFilteringValidationAction extends BaseRestHandle
         try (XContentParser parser = restRequest.contentParser()) {
             UpdateConnectorFilteringValidationAction.Request request = UpdateConnectorFilteringValidationAction.Request.fromXContent(
                 parser,
-                restRequest.param("connector_id")
+                restRequest.param(CONNECTOR_ID_PARAM)
             );
             return channel -> client.execute(
                 UpdateConnectorFilteringValidationAction.INSTANCE,

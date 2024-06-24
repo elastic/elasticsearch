@@ -41,7 +41,7 @@ public class RestUpdateConnectorIndexNameAction extends BaseRestHandler {
         try (XContentParser parser = restRequest.contentParser()) {
             UpdateConnectorIndexNameAction.Request request = UpdateConnectorIndexNameAction.Request.fromXContent(
                 parser,
-                restRequest.param("connector_id")
+                restRequest.param(CONNECTOR_ID_PARAM)
             );
             return channel -> client.execute(
                 UpdateConnectorIndexNameAction.INSTANCE,

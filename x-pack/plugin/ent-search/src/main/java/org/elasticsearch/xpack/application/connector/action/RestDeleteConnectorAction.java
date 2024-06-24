@@ -38,7 +38,7 @@ public class RestDeleteConnectorAction extends BaseRestHandler {
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
 
-        String connectorId = restRequest.param("connector_id");
+        String connectorId = restRequest.param(CONNECTOR_ID_PARAM);
         boolean shouldDeleteSyncJobs = restRequest.paramAsBoolean("delete_sync_jobs", false);
 
         DeleteConnectorAction.Request request = new DeleteConnectorAction.Request(connectorId, shouldDeleteSyncJobs);

@@ -41,7 +41,7 @@ public class RestUpdateConnectorPipelineAction extends BaseRestHandler {
         try (XContentParser parser = restRequest.contentParser()) {
             UpdateConnectorPipelineAction.Request request = UpdateConnectorPipelineAction.Request.fromXContent(
                 parser,
-                restRequest.param("connector_id")
+                restRequest.param(CONNECTOR_ID_PARAM)
             );
             return channel -> client.execute(
                 UpdateConnectorPipelineAction.INSTANCE,

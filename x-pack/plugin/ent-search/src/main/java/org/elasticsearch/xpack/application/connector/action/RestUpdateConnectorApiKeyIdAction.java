@@ -41,7 +41,7 @@ public class RestUpdateConnectorApiKeyIdAction extends BaseRestHandler {
         try (XContentParser parser = restRequest.contentParser()) {
             UpdateConnectorApiKeyIdAction.Request request = UpdateConnectorApiKeyIdAction.Request.fromXContent(
                 parser,
-                restRequest.param("connector_id")
+                restRequest.param(CONNECTOR_ID_PARAM)
             );
             return channel -> client.execute(
                 UpdateConnectorApiKeyIdAction.INSTANCE,

@@ -41,7 +41,7 @@ public class RestUpdateConnectorLastSyncStatsAction extends BaseRestHandler {
         try (XContentParser parser = restRequest.contentParser()) {
             UpdateConnectorLastSyncStatsAction.Request request = UpdateConnectorLastSyncStatsAction.Request.fromXContent(
                 parser,
-                restRequest.param("connector_id")
+                restRequest.param(CONNECTOR_ID_PARAM)
             );
             return channel -> client.execute(
                 UpdateConnectorLastSyncStatsAction.INSTANCE,

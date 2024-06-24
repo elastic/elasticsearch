@@ -80,7 +80,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
@@ -180,7 +179,13 @@ public class DenseVectorFieldMapper extends FieldMapper {
             this.indexOptions = new Parameter<>(
                 "index_options",
                 true,
-                defaultIndexOptionsSupplier(),
+                () -> defaultInt8Hnsw && elementType.getValue() != ElementType.BYTE && this.indexed.getValue()
+                        ? new Int8HnswIndexOptions(
+                        Lucene99HnswVectorsFormat.DEFAULT_MAX_CONN,
+                        Lucene99HnswVectorsFormat.DEFAULT_BEAM_WIDTH,
+                        null
+                    )
+                    : null,
                 (n, c, o) -> o == null ? null : parseIndexOptions(n, o),
                 m -> toType(m).indexOptions,
                 (b, n, v) -> {
@@ -189,8 +194,16 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     }
                 },
                 Objects::toString
-            ).setSerializerCheck((id, ic, v) -> v != null)
-                .addValidator(indexOptionsValidator())
+            ).setSerializerCheck((id, ic, v) -> v != null).addValidator(v -> {
+                    if (v != null && dims.isConfigured() && dims.get() != null) {
+                        v.validateDimension(dims.get());
+                    }
+                    if (v != null && v.supportsElementType(elementType.getValue()) == false) {
+                        throw new IllegalArgumentException(
+                            "[element_type] cannot be [" + elementType.getValue().toString() + "] when using index type [" + v.type + "]"
+                        );
+                    }
+                })
                 .acceptsNull()
                 .setMergeValidator((previous, current, c) -> previous == null || current == null || previous.updatableTo(current));
             if (defaultInt8Hnsw) {
@@ -233,17 +246,14 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
         public Builder elementType(ElementType elementType) {
             this.elementType.setValue(elementType);
-
-            if (this.indexOptions.isConfigured() == false) {
-                this.indexOptions.setValue(defaultIndexOptionsSupplier().get());
-            }
-            indexOptionsValidator().accept(this.indexOptions.getValue());
-
             return this;
         }
 
         @Override
         public DenseVectorFieldMapper build(MapperBuilderContext context) {
+            // Validate again here because the dimensions or element type could have been set programmatically,
+            // which affects index option validity
+            validate();
             return new DenseVectorFieldMapper(
                 name(),
                 new DenseVectorFieldType(
@@ -261,25 +271,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 multiFieldsBuilder.build(this, context),
                 copyTo
             );
-        }
-
-        private Supplier<IndexOptions> defaultIndexOptionsSupplier() {
-            return () -> defaultInt8Hnsw && elementType.getValue() != ElementType.BYTE && this.indexed.getValue()
-                ? new Int8HnswIndexOptions(Lucene99HnswVectorsFormat.DEFAULT_MAX_CONN, Lucene99HnswVectorsFormat.DEFAULT_BEAM_WIDTH, null)
-                : null;
-        }
-
-        private Consumer<IndexOptions> indexOptionsValidator() {
-            return v -> {
-                if (v != null && dims.isConfigured() && dims.get() != null) {
-                    v.validateDimension(dims.get());
-                }
-                if (v != null && v.supportsElementType(elementType.getValue()) == false) {
-                    throw new IllegalArgumentException(
-                        "[element_type] cannot be [" + elementType.getValue().toString() + "] when using index type [" + v.type + "]"
-                    );
-                }
-            };
         }
     }
 

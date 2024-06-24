@@ -290,8 +290,7 @@ be defined in the same component template. Additionally the fields mentioned in 
 also need to be defined in the same component template with the `time_series_dimension` attribute enabled.
 
 The reasons for this is that each component template needs to be valid on its own and the time series index mode
-requires the `index.routing_path` setting. When configuring the  `index.mode` setting in an index template, then
-the `index.routing_path` setting is configured automatically. The `index.routing_path` setting is then derived  from
+requires the `index.routing_path` setting. When configuring the  `index.mode` setting in an index template, the `index.routing_path` setting is configured automatically. It is derived  from
 the field mappings with `time_series_dimension` attribute enabled.
 
 [discrete]

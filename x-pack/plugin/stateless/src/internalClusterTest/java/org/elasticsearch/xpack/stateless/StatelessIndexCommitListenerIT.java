@@ -204,6 +204,11 @@ public class StatelessIndexCommitListenerIT extends AbstractStatelessIntegTestCa
         return List.of(BlobCachePlugin.class, TestStateless.class);
     }
 
+    @Override
+    protected Settings.Builder nodeSettings() {
+        return super.nodeSettings().put(IndexingDiskController.INDEXING_DISK_INTERVAL_TIME_SETTING.getKey(), TimeValue.ZERO);
+    }
+
     private String indexNode;
     private String searchNode;
     private String indexName;

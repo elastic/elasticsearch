@@ -76,7 +76,7 @@ public class TransportSearchScrollAction extends HandledTransportAction<SearchSc
                     searchResponseMetrics.incrementResponseCount(responseCountTotalStatus);
                     listener.onResponse(searchResponse);
                 } catch (Exception e) {
-                    listener.onFailure(e);
+                    onFailure(e);
                 }
             }
 

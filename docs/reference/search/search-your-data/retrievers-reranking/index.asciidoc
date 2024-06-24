@@ -1,7 +1,8 @@
 [[retrievers-reranking-overview]]
 == Retrievers and reranking
 
-This is all about the retrievers and reranking.
+* <<retrievers-overview>>
+* <<semantic-reranking>>
 
 include::retrievers-overview.asciidoc[]
 include::semantic-reranking.asciidoc[]

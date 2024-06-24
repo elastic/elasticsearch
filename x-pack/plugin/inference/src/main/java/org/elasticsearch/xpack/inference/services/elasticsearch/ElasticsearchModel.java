@@ -9,41 +9,15 @@ package org.elasticsearch.xpack.inference.services.elasticsearch;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.inference.Model;
-import org.elasticsearch.inference.ModelConfigurations;
-import org.elasticsearch.inference.TaskSettings;
-import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.core.ml.action.CreateTrainedModelAssignmentAction;
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
 
-public abstract class ElasticsearchModel extends Model {
+public interface ElasticsearchModel {
+    String getModelId();
 
-    public ElasticsearchModel(
-        String inferenceEntityId,
-        TaskType taskType,
-        String service,
-        ElasticsearchInternalServiceSettings serviceSettings
-    ) {
-        super(new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings));
-    }
+    StartTrainedModelDeploymentAction.Request getStartTrainedModelDeploymentActionRequest();
 
-    public ElasticsearchModel(
-        String inferenceEntityId,
-        TaskType taskType,
-        String service,
-        ElasticsearchInternalServiceSettings serviceSettings,
-        TaskSettings taskSettings
-    ) {
-        super(new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings));
-    }
-
-    @Override
-    public ElasticsearchInternalServiceSettings getServiceSettings() {
-        return (ElasticsearchInternalServiceSettings) super.getServiceSettings();
-    }
-
-    abstract StartTrainedModelDeploymentAction.Request getStartTrainedModelDeploymentActionRequest();
-
-    abstract ActionListener<CreateTrainedModelAssignmentAction.Response> getCreateTrainedModelAssignmentActionListener(
+    ActionListener<CreateTrainedModelAssignmentAction.Response> getCreateTrainedModelAssignmentActionListener(
         Model model,
         ActionListener<Boolean> listener
     );

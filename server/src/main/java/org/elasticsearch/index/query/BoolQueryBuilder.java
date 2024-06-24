@@ -231,12 +231,16 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
     }
 
     /**
-     * @return the setting for the omit_zero_term_query setting in this query
+     * @return the setting for the adjust_pure_negative setting in this query
      */
     public boolean adjustPureNegative() {
         return this.adjustPureNegative;
     }
 
+    /**
+     * Decide whether to omit query to use in case no query terms are available, e.g. after analysis removed them.
+     * The default is <code>true</code>.
+     */
     public BoolQueryBuilder omitZeroTermQuery(boolean omitZeroTermQuery) {
         this.omitZeroTermQuery = omitZeroTermQuery;
         return this;

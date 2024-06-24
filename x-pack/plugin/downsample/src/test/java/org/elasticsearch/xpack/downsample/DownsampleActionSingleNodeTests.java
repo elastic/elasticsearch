@@ -70,7 +70,6 @@ import org.elasticsearch.search.aggregations.bucket.histogram.InternalDateHistog
 import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.InternalTopHits;
-import org.elasticsearch.search.aggregations.metrics.Max;
 import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.MinAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.SumAggregationBuilder;
@@ -1355,14 +1354,17 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
                                     originalFieldsList.contains(field)
                                 )
                             );
-                            Object originalLabelValue = originalHit.getDocumentFields().values().stream().toList().get(0).getValue();
-                            Object downsampleLabelValue = downsampleHit.getDocumentFields().values().stream().toList().get(0).getValue();
-                            Optional<InternalAggregation> labelAsMetric = nonTopHitsOriginalAggregations.stream()
+                            String labelName = originalHit.getDocumentFields().values().stream().findFirst().get().getName();
+                            Object originalLabelValue = originalHit.getDocumentFields().values().stream().findFirst().get().getValue();
+                            Object downsampleLabelValue = downsampleHit.getDocumentFields().values().stream().findFirst().get().getValue();
+                            Optional<InternalAggregation> labelAsMetric = topHitsOriginalAggregations.stream()
                                 .filter(agg -> agg.getName().equals("metric_" + downsampleTopHits.getName()))
                                 .findFirst();
                             // NOTE: this check is possible only if the label can be indexed as a metric (the label is a numeric field)
                             if (labelAsMetric.isPresent()) {
-                                double metricValue = ((Max) labelAsMetric.get()).value();
+                                double metricValue = ((InternalTopHits) labelAsMetric.get()).getHits().getHits()[0].field(
+                                    "metric_" + labelName
+                                ).getValue();
                                 assertEquals(metricValue, downsampleLabelValue);
                                 assertEquals(metricValue, originalLabelValue);
                             }

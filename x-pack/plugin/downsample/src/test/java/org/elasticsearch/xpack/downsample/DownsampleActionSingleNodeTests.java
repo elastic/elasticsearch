@@ -288,15 +288,6 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
                 .field(FIELD_TIMESTAMP, ts)
                 .field(FIELD_DIMENSION_1, randomFrom(dimensionValues))
                 .field(FIELD_DIMENSION_2, randomIntBetween(1, 10))
-                .startObject(FIELD_DIMENSION_3)
-                .field("level1_value", randomFrom(dimensionValues))
-                .field("level1_othervalue", randomFrom(dimensionValues))
-                .startObject("level1_object")
-                .field("level2_value", randomFrom(dimensionValues))
-                .field("level2_othervalue", randomFrom(dimensionValues))
-                .endObject()
-                .endObject()
-                .field(FIELD_DIMENSION_4, randomFrom(dimensionValues))
                 .field(FIELD_NUMERIC_1, randomInt())
                 .field(FIELD_NUMERIC_2, DATE_FORMATTER.parseMillis(ts))
                 .startObject(FIELD_AGG_METRIC)
@@ -323,6 +314,42 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
                 .field("sum", Double.valueOf(randomIntBetween(100, 10000)))
                 .field("value_count", randomIntBetween(100, 1000))
                 .endObject()
+                .endObject();
+        };
+        bulkIndex(sourceSupplier);
+        prepareSourceIndex(sourceIndex, true);
+        downsample(sourceIndex, downsampleIndex, config);
+        assertDownsampleIndex(sourceIndex, downsampleIndex, config);
+    }
+
+    public void testDownsampleIndexWithFlattenedAndMultiFieldDimensions() throws Exception {
+        DownsampleConfig config = new DownsampleConfig(randomInterval());
+        SourceSupplier sourceSupplier = () -> {
+            String ts = randomDateForInterval(config.getInterval());
+            double labelDoubleValue = DATE_FORMATTER.parseMillis(ts);
+            return XContentFactory.jsonBuilder()
+                .startObject()
+                .field(FIELD_TIMESTAMP, ts)
+                .field(FIELD_DIMENSION_1, "dim1") // not important for this test
+                .startObject(FIELD_DIMENSION_3)
+                .field("level1_value", randomFrom(dimensionValues))
+                .field("level1_othervalue", randomFrom(dimensionValues))
+                .startObject("level1_object")
+                .field("level2_value", randomFrom(dimensionValues))
+                .field("level2_othervalue", randomFrom(dimensionValues))
+                .endObject()
+                .endObject()
+                .field(FIELD_DIMENSION_4, randomFrom(dimensionValues))
+                .field(FIELD_NUMERIC_1, randomInt())
+                .field(FIELD_NUMERIC_2, DATE_FORMATTER.parseMillis(ts))
+                .startObject(FIELD_AGG_METRIC)
+                .field("min", randomDoubleBetween(-2000, -1001, true))
+                .field("max", randomDoubleBetween(-1000, 1000, true))
+                .field("sum", randomIntBetween(100, 10000))
+                .field("value_count", randomIntBetween(100, 1000))
+                .endObject()
+                .field(FIELD_LABEL_DOUBLE, labelDoubleValue)
+                .field(FIELD_METRIC_LABEL_DOUBLE, labelDoubleValue)
                 .endObject();
         };
         bulkIndex(sourceSupplier);

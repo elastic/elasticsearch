@@ -22,6 +22,7 @@ import org.apache.lucene.store.RateLimiter;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.SingleResultDeduplicator;
@@ -58,8 +59,15 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
+import org.elasticsearch.common.compress.DeflateCompressor;
 import org.elasticsearch.common.compress.NotXContentException;
 import org.elasticsearch.common.io.Streams;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.InputStreamStreamInput;
+import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
+import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.store.InputStreamIndexInput;
 import org.elasticsearch.common.metrics.CounterMetric;
@@ -77,6 +85,7 @@ import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
@@ -122,16 +131,21 @@ import org.elasticsearch.snapshots.SnapshotMissingException;
 import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.LeakTracker;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 
+import java.io.BufferedInputStream;
+import java.io.BufferedOutputStream;
+import java.io.Closeable;
 import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.io.UncheckedIOException;
 import java.nio.file.NoSuchFileException;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -156,6 +170,8 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import java.util.zip.DeflaterOutputStream;
+import java.util.zip.InflaterInputStream;
 
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo;
@@ -1010,10 +1026,35 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         // The overall flow of execution
 
         void runDelete(SnapshotDeleteListener listener) {
+            final var releasingListener = new SnapshotDeleteListener() {
+                @Override
+                public void onDone() {
+                    try {
+                        shardBlobsToDelete.close();
+                    } finally {
+                        listener.onDone();
+                    }
+                }
+
+                @Override
+                public void onRepositoryDataWritten(RepositoryData repositoryData) {
+                    listener.onRepositoryDataWritten(repositoryData);
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    try {
+                        shardBlobsToDelete.close();
+                    } finally {
+                        listener.onFailure(e);
+                    }
+
+                }
+            };
             if (useShardGenerations) {
-                runWithUniqueShardMetadataNaming(listener);
+                runWithUniqueShardMetadataNaming(releasingListener);
             } else {
-                runWithLegacyNumericShardMetadataNaming(wrapWithWeakConsistencyProtection(listener));
+                runWithLegacyNumericShardMetadataNaming(wrapWithWeakConsistencyProtection(releasingListener));
             }
         }
 
@@ -1088,14 +1129,15 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 .map(IndexId::getId)
                 .collect(Collectors.toSet());
             final List<String> staleRootBlobs = staleRootBlobs(originalRepositoryData, originalRootBlobs.keySet());
+            final var releasingListener = ActionListener.releaseAfter(listener, shardBlobsToDelete);
             if (survivingIndexIds.equals(originalIndexContainers.keySet()) && staleRootBlobs.isEmpty()) {
                 // Nothing to clean up we return
-                listener.onResponse(DeleteResult.ZERO);
+                releasingListener.onResponse(DeleteResult.ZERO);
             } else {
                 // write new index-N blob to ensure concurrent operations will fail
                 updateRepositoryData(
                     originalRepositoryData,
-                    listener.delegateFailureAndWrap(
+                    releasingListener.delegateFailureAndWrap(
                         // TODO should we pass newRepositoryData to cleanupStaleBlobs()?
                         (l, newRepositoryData) -> cleanupUnlinkedRootAndIndicesBlobs(
                             originalRepositoryData,
@@ -1513,33 +1555,62 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     /**
      * Tracks the shard-level blobs which can be deleted once all the metadata updates have completed during a snapshot deletion.
      */
-    class ShardBlobsToDelete {
+    class ShardBlobsToDelete implements Releasable {
 
         /**
          * The result of removing a snapshot from a shard folder in the repository.
          *
-         * @param indexId       Index that the snapshot was removed from
+         * @param indexId       Repository UUID for index that the snapshot was removed from
          * @param shardId       Shard id that the snapshot was removed from
-         * @param newGeneration Id of the new index-${uuid} blob that does not include the snapshot any more
          * @param blobsToDelete Blob names in the shard directory that have become unreferenced in the new shard generation
          */
-        private record ShardSnapshotMetaDeleteResult(
-            IndexId indexId,
-            int shardId,
-            ShardGeneration newGeneration,
-            Collection<String> blobsToDelete
-        ) {}
+        private record ShardSnapshotMetaDeleteResult(String indexId, int shardId, Collection<String> blobsToDelete) {
+            ShardSnapshotMetaDeleteResult(StreamInput in) throws IOException {
+                this(in.readString(), in.readVInt(), in.readStringCollectionAsImmutableList());
+                assert in.getTransportVersion().equals(TransportVersion.current()); // only used in memory on the local node
+            }
+
+            void writeTo(StreamOutput out) throws IOException {
+                assert out.getTransportVersion().equals(TransportVersion.current()); // only used in memory on the local node
+                out.writeString(indexId);
+                out.writeVInt(shardId);
+                out.writeStringCollection(blobsToDelete);
+            }
+        }
 
         /**
          * <p>
-         *     Shard-level results, see {@link ShardSnapshotMetaDeleteResult}.
+         *     Shard-level results, i.e. a sequence of {@link ShardSnapshotMetaDeleteResult} objects, except serialized, concatenated, and
+         *     compressed in order to reduce the memory footprint by about 4x when compared with a list of bare objects. This can be GiBs in
+         *     size if we're deleting snapshots from a large repository, especially if earlier failures left behind lots of dangling blobs
+         *     for some reason.
          * </p>
          * <p>
-         *     Writes to this list are all synchronized (via {@link #addShardDeleteResult}), and happen-before it is read so the reads need
-         *     no further synchronization
+         *     Writes to this object are all synchronized (via {@link #addShardDeleteResult}), and happen-before it is read, so the reads
+         *     need no further synchronization.
          * </p>
          */
-        private final List<ShardSnapshotMetaDeleteResult> shardDeleteResults = new ArrayList<>();
+        // If the size of this continues to be a problem even after compression, consider either a hard limit on its size (preferring leaked
+        // blobs over an OOME on the master) or else offloading it to disk or to the repository itself.
+        private final BytesStreamOutput shardDeleteResults = new ReleasableBytesStreamOutput(bigArrays);
+
+        private int resultCount = 0;
+
+        private final StreamOutput compressed = new OutputStreamStreamOutput(
+            new BufferedOutputStream(
+                new DeflaterOutputStream(Streams.flushOnCloseStream(shardDeleteResults)),
+                DeflateCompressor.BUFFER_SIZE
+            )
+        );
+
+        private final ArrayList<Closeable> resources = new ArrayList<>();
+
+        private final ShardGenerations.Builder shardGenerationsBuilder = ShardGenerations.builder();
+
+        ShardBlobsToDelete() {
+            resources.add(compressed);
+            resources.add(LeakTracker.wrap((Releasable) shardDeleteResults));
+        }
 
         synchronized void addShardDeleteResult(
             IndexId indexId,
@@ -1547,22 +1618,61 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             ShardGeneration newGeneration,
             Collection<String> blobsToDelete
         ) {
-            shardDeleteResults.add(new ShardSnapshotMetaDeleteResult(indexId, shardId, newGeneration, blobsToDelete));
+            try {
+                shardGenerationsBuilder.put(indexId, shardId, newGeneration);
+                new ShardSnapshotMetaDeleteResult(Objects.requireNonNull(indexId.getId()), shardId, blobsToDelete).writeTo(compressed);
+                resultCount += 1;
+            } catch (IOException e) {
+                assert false : e; // no IO actually happens here
+                throw new UncheckedIOException(e);
+            }
         }
 
         public ShardGenerations getUpdatedShardGenerations() {
-            final var builder = ShardGenerations.builder();
-            for (var shardResult : shardDeleteResults) {
-                builder.put(shardResult.indexId, shardResult.shardId, shardResult.newGeneration);
-            }
-            return builder.build();
+            return shardGenerationsBuilder.build();
         }
 
         public Iterator<String> getBlobPaths() {
-            return Iterators.flatMap(shardDeleteResults.iterator(), shardResult -> {
-                final var shardPath = shardPath(shardResult.indexId, shardResult.shardId).buildAsString();
+            final StreamInput input;
+            try {
+                compressed.close();
+                input = new InputStreamStreamInput(
+                    new BufferedInputStream(
+                        new InflaterInputStream(shardDeleteResults.bytes().streamInput()),
+                        DeflateCompressor.BUFFER_SIZE
+                    )
+                );
+                resources.add(input);
+            } catch (IOException e) {
+                assert false : e; // no IO actually happens here
+                throw new UncheckedIOException(e);
+            }
+
+            return Iterators.flatMap(Iterators.forRange(0, resultCount, i -> {
+                try {
+                    return new ShardSnapshotMetaDeleteResult(input);
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                }
+            }), shardResult -> {
+                final var shardPath = shardPath(new IndexId("_na_", shardResult.indexId), shardResult.shardId).buildAsString();
                 return Iterators.map(shardResult.blobsToDelete.iterator(), blob -> shardPath + blob);
             });
+        }
+
+        @Override
+        public void close() {
+            try {
+                IOUtils.close(resources);
+            } catch (IOException e) {
+                assert false : e; // no IO actually happens here
+                throw new UncheckedIOException(e);
+            }
+        }
+
+        // exposed for tests
+        int sizeInBytes() {
+            return shardDeleteResults.size();
         }
     }
 

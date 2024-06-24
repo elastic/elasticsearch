@@ -58,7 +58,6 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Ins
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
-import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 
 import java.math.BigInteger;
 import java.time.Duration;
@@ -549,7 +548,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
     @Override
     public DataType visitToDataType(EsqlBaseParser.ToDataTypeContext ctx) {
         String typeName = visitIdentifier(ctx.identifier());
-        DataType dataType = EsqlDataTypes.fromNameOrAlias(typeName);
+        DataType dataType = DataType.fromNameOrAlias(typeName);
         if (dataType == DataType.UNSUPPORTED) {
             throw new ParsingException(source(ctx), "Unknown data type named [{}]", typeName);
         }
@@ -730,7 +729,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
             int index = Integer.parseInt(nameOrPosition);
             if (params.get(index) == null) {
                 String message = "";
-                int np = params.positionalParams().size();
+                int np = params.size();
                 if (np > 0) {
                     message = ", did you mean " + (np == 1 ? "position 1?" : "any position between 1 and " + np + "?");
                 }

@@ -261,7 +261,8 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
                     ClusterState clusterState = metadataCreateDataStreamService.createDataStream(
                         createRequest,
                         currentState,
-                        rerouteCompletionIsNotRequired()
+                        rerouteCompletionIsNotRequired(),
+                        request.isInitializeFailureStore()
                     );
 
                     final var dataStream = clusterState.metadata().dataStreams().get(request.index());

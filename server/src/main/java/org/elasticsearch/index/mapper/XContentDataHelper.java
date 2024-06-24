@@ -46,6 +46,13 @@ public final class XContentDataHelper {
     }
 
     /**
+     * Build a {@link StoredField} for the value provided in a {@link XContentBuilder}.
+     */
+    static StoredField storedField(String name, XContentBuilder builder) throws IOException {
+        return new StoredField(name, TypeUtils.encode(builder));
+    }
+
+    /**
      * Build a {@link BytesRef} wrapping a byte array containing an encoded form
      * the value on which the parser is currently positioned.
      */
@@ -83,6 +90,18 @@ public final class XContentDataHelper {
             case NULL_ENCODING -> TypeUtils.NULL.decodeAndWrite(b, r);
             default -> throw new IllegalArgumentException("Can't decode " + r);
         }
+    }
+
+    /**
+     * Returns the {@link XContentType} to use for creating an XContentBuilder to decode the passed value.
+     */
+    public static XContentType getXContentType(BytesRef r) {
+        return switch ((char) r.bytes[r.offset]) {
+            case JSON_OBJECT_ENCODING -> XContentType.JSON;
+            case YAML_OBJECT_ENCODING -> XContentType.YAML;
+            case SMILE_OBJECT_ENCODING -> XContentType.SMILE;
+            default -> XContentType.CBOR;  // CBOR can parse all other encoded types.
+        };
     }
 
     /**

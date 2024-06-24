@@ -14,16 +14,18 @@ import org.elasticsearch.features.NodeFeature;
 import java.util.Map;
 import java.util.Set;
 
-import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_MIGRATION_FRAMEWORK;
-import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_PROFILE_ORIGIN_FEATURE;
-import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_ROLES_METADATA_FLATTENED;
 import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.VERSION_SECURITY_PROFILE_ORIGIN;
 
 public class SecurityFeatures implements FeatureSpecification {
 
+    public static final NodeFeature SECURITY_PROFILE_ORIGIN_FEATURE = new NodeFeature("security.security_profile_origin");
+    public static final NodeFeature SECURITY_MIGRATION_FRAMEWORK = new NodeFeature("security.migration_framework");
+    public static final NodeFeature SECURITY_ROLES_METADATA_FLATTENED = new NodeFeature("security.roles_metadata_flattened");
+    public static final NodeFeature SECURITY_ROLES_INDEX_NAME = new NodeFeature("security.roles_index_name");
+
     @Override
     public Set<NodeFeature> getFeatures() {
-        return Set.of(SECURITY_ROLES_METADATA_FLATTENED, SECURITY_MIGRATION_FRAMEWORK);
+        return Set.of(SECURITY_ROLES_METADATA_FLATTENED, SECURITY_MIGRATION_FRAMEWORK, SECURITY_ROLES_INDEX_NAME);
     }
 
     @Override

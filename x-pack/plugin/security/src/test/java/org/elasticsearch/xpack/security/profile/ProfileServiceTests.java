@@ -85,10 +85,10 @@ import org.elasticsearch.xpack.core.security.authc.RealmDomain;
 import org.elasticsearch.xpack.core.security.authc.Subject;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.user.User;
+import org.elasticsearch.xpack.security.SecurityFeatures;
 import org.elasticsearch.xpack.security.authc.Realms;
 import org.elasticsearch.xpack.security.profile.ProfileDocument.ProfileDocumentUser;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
-import org.elasticsearch.xpack.security.support.SecuritySystemIndices;
 import org.elasticsearch.xpack.security.test.SecurityMocks;
 import org.hamcrest.Matchers;
 import org.junit.After;
@@ -215,9 +215,7 @@ public class ProfileServiceTests extends ESTestCase {
         when(clusterState.nodes()).thenReturn(discoveryNodes);
         useProfileOrigin = randomBoolean();
         FeatureService featureService = mock(FeatureService.class);
-        when(featureService.clusterHasFeature(any(), eq(SecuritySystemIndices.SECURITY_PROFILE_ORIGIN_FEATURE))).thenReturn(
-            useProfileOrigin
-        );
+        when(featureService.clusterHasFeature(any(), eq(SecurityFeatures.SECURITY_PROFILE_ORIGIN_FEATURE))).thenReturn(useProfileOrigin);
         realmRefLookup = realmIdentifier -> null;
         Realms realms = mock(Realms.class);
         when(realms.getDomainConfig(anyString())).then(args -> new DomainConfig(args.getArgument(0), Set.of(), false, null));

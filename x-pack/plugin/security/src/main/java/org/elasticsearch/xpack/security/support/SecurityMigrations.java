@@ -20,6 +20,7 @@ import org.elasticsearch.index.reindex.UpdateByQueryRequest;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.xpack.security.SecurityFeatures;
 
 import java.util.Collections;
 import java.util.Map;
@@ -100,7 +101,7 @@ public class SecurityMigrations {
 
         @Override
         public Set<NodeFeature> nodeFeaturesRequired() {
-            return Set.of(SecuritySystemIndices.SECURITY_ROLES_METADATA_FLATTENED);
+            return Set.of(SecurityFeatures.SECURITY_ROLES_METADATA_FLATTENED);
         }
 
         @Override

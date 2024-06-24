@@ -1,5 +1,5 @@
 pr: 110061
-summary: Forcing an assertion error when watcher race condition strikes
+summary: Avoiding running watch jobs in TickerScheduleTriggerEngine if it is paused
 area: Watcher
 type: bug
 issues:

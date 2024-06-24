@@ -314,7 +314,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
             .getNestedMappers()
             .get(getChunksFieldName(fieldName));
         assertThat(chunksMapper, equalTo(semanticFieldMapper.fieldType().getChunksField()));
-        assertThat(chunksMapper.name(), equalTo(getChunksFieldName(fieldName)));
+        assertThat(chunksMapper.fullPath(), equalTo(getChunksFieldName(fieldName)));
         Mapper textMapper = chunksMapper.getMapper(CHUNKED_TEXT_FIELD);
         assertNotNull(textMapper);
         assertThat(textMapper, instanceOf(KeywordFieldMapper.class));
@@ -328,7 +328,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
             assertThat(embeddingsMapper, instanceOf(FieldMapper.class));
             FieldMapper embeddingsFieldMapper = (FieldMapper) embeddingsMapper;
             assertTrue(embeddingsFieldMapper.fieldType() == mapperService.mappingLookup().getFieldType(getEmbeddingsFieldName(fieldName)));
-            assertThat(embeddingsMapper.name(), equalTo(getEmbeddingsFieldName(fieldName)));
+            assertThat(embeddingsMapper.fullPath(), equalTo(getEmbeddingsFieldName(fieldName)));
             switch (semanticFieldMapper.fieldType().getModelSettings().taskType()) {
                 case SPARSE_EMBEDDING -> assertThat(embeddingsMapper, instanceOf(SparseVectorFieldMapper.class));
                 case TEXT_EMBEDDING -> assertThat(embeddingsMapper, instanceOf(DenseVectorFieldMapper.class));

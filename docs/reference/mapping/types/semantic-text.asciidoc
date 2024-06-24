@@ -5,4 +5,4 @@
 <titleabbrev>Semantic text</titleabbrev>
 ++++
 
-The documentation page for the `semantic_text` field type.
+INFO: The `semantic_text` field type is coming in `8.15`

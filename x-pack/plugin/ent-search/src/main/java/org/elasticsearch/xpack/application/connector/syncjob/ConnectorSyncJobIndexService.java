@@ -464,7 +464,7 @@ public class ConnectorSyncJobIndexService {
         Instant lastSeen = Objects.nonNull(request.getLastSeen()) ? request.getLastSeen() : Instant.now();
         fieldsToUpdate.put(ConnectorSyncJob.LAST_SEEN_FIELD.getPreferredName(), lastSeen);
 
-        Object metadata = request.getMetadata();
+        Map<String, Object> metadata = request.getMetadata();
         if (Objects.nonNull(metadata)) {
             fieldsToUpdate.put(ConnectorSyncJob.METADATA_FIELD.getPreferredName(), metadata);
         }

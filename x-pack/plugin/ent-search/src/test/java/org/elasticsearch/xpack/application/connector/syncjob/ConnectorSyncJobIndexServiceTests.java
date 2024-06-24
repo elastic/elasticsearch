@@ -784,6 +784,7 @@ public class ConnectorSyncJobIndexServiceTests extends ESSingleNodeTestCase {
         assertThrows(ElasticsearchStatusException.class, () -> awaitUpdateConnectorSyncJob(syncJobId, "some error"));
     }
 
+    @SuppressWarnings("unchecked")
     public void testUpdateConnectorSyncJobIngestionStats() throws Exception {
         PostConnectorSyncJobAction.Request syncJobRequest = ConnectorSyncJobTestUtils.getRandomPostConnectorSyncJobActionRequest(
             connectorOneId
@@ -802,7 +803,7 @@ public class ConnectorSyncJobIndexServiceTests extends ESSingleNodeTestCase {
         Long requestIndexedDocumentVolume = request.getIndexedDocumentVolume();
         Long requestTotalDocumentCount = request.getTotalDocumentCount();
         Instant requestLastSeen = request.getLastSeen();
-        Object metadata = request.getMetadata();
+        Map<String, Object> metadata = request.getMetadata();
 
         Long deletedDocumentCountAfterUpdate = (Long) syncJobSourceAfterUpdate.get(
             ConnectorSyncJob.DELETED_DOCUMENT_COUNT_FIELD.getPreferredName()
@@ -819,7 +820,9 @@ public class ConnectorSyncJobIndexServiceTests extends ESSingleNodeTestCase {
         Instant lastSeenAfterUpdate = Instant.parse(
             (String) syncJobSourceAfterUpdate.get(ConnectorSyncJob.LAST_SEEN_FIELD.getPreferredName())
         );
-        Object metadataAfterUpdate = syncJobSourceAfterUpdate.get(ConnectorSyncJob.METADATA_FIELD.getPreferredName());
+        Map<String, Object> metadataAfterUpdate = (Map<String, Object>) syncJobSourceAfterUpdate.get(
+            ConnectorSyncJob.METADATA_FIELD.getPreferredName()
+        );
 
         assertThat(updateResponse.status(), equalTo(RestStatus.OK));
         assertThat(deletedDocumentCountAfterUpdate, equalTo(requestDeletedDocumentCount));

@@ -68,7 +68,7 @@ public class RestoreServiceTests extends ESTestCase {
         Index updatedFailureIndex = new Index(failureIndexName, randomUUID());
         when(failureIndexMetadata.getIndex()).thenReturn(updatedFailureIndex);
 
-        RestoreSnapshotRequest request = new RestoreSnapshotRequest();
+        RestoreSnapshotRequest request = new RestoreSnapshotRequest(TEST_REQUEST_TIMEOUT);
 
         DataStream updateDataStream = RestoreService.updateDataStream(dataStream, metadata, request);
 
@@ -103,7 +103,8 @@ public class RestoreServiceTests extends ESTestCase {
         Index renamedFailureIndex = new Index(renamedFailureIndexName, randomUUID());
         when(failureIndexMetadata.getIndex()).thenReturn(renamedFailureIndex);
 
-        RestoreSnapshotRequest request = new RestoreSnapshotRequest().renamePattern("data-stream-1").renameReplacement("data-stream-2");
+        RestoreSnapshotRequest request = new RestoreSnapshotRequest(TEST_REQUEST_TIMEOUT).renamePattern("data-stream-1")
+            .renameReplacement("data-stream-2");
 
         DataStream renamedDataStream = RestoreService.updateDataStream(dataStream, metadata, request);
 
@@ -138,7 +139,7 @@ public class RestoreServiceTests extends ESTestCase {
         Index renamedFailureIndex = new Index(renamedFailureIndexName, randomUUID());
         when(failureIndexMetadata.getIndex()).thenReturn(renamedFailureIndex);
 
-        RestoreSnapshotRequest request = new RestoreSnapshotRequest().renamePattern("ds-").renameReplacement("ds2-");
+        RestoreSnapshotRequest request = new RestoreSnapshotRequest(TEST_REQUEST_TIMEOUT).renamePattern("ds-").renameReplacement("ds2-");
 
         DataStream renamedDataStream = RestoreService.updateDataStream(dataStream, metadata, request);
 
@@ -146,7 +147,7 @@ public class RestoreServiceTests extends ESTestCase {
         assertEquals(List.of(renamedIndex), renamedDataStream.getIndices());
         assertEquals(List.of(renamedFailureIndex), renamedDataStream.getFailureIndices().getIndices());
 
-        request = new RestoreSnapshotRequest().renamePattern("ds-000001").renameReplacement("ds2-000001");
+        request = new RestoreSnapshotRequest(TEST_REQUEST_TIMEOUT).renamePattern("ds-000001").renameReplacement("ds2-000001");
 
         renamedDataStream = RestoreService.updateDataStream(dataStream, metadata, request);
 
@@ -216,7 +217,7 @@ public class RestoreServiceTests extends ESTestCase {
 
     public void testNotAllowToRestoreGlobalStateFromSnapshotWithoutOne() {
 
-        var request = new RestoreSnapshotRequest().includeGlobalState(true);
+        var request = new RestoreSnapshotRequest(TEST_REQUEST_TIMEOUT).includeGlobalState(true);
         var repository = new RepositoryMetadata("name", "type", Settings.EMPTY);
         var snapshot = new Snapshot("repository", new SnapshotId("name", "uuid"));
 

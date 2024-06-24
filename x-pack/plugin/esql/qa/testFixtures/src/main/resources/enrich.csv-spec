@@ -428,8 +428,8 @@ FROM airports
 | EVAL boundary_wkt_length = LENGTH(TO_STRING(city_boundary))
 | STATS city_centroid = ST_CENTROID_AGG(city_location), count = COUNT(city_location), min_wkt = MIN(boundary_wkt_length), max_wkt = MAX(boundary_wkt_length)
 ;
-warning:Line 3:30: evaluation of [LENGTH(TO_STRING(city_boundary))] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 3:30: java.lang.IllegalArgumentException: single-value function encountered multi-value
+warningRegex:evaluation of \[LENGTH\(TO_STRING\(city_boundary\)\)\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:java.lang.IllegalArgumentException: single-value function encountered multi-value
 
 city_centroid:geo_point    |  count:long  |  min_wkt:integer  |  max_wkt:integer
 POINT(1.396561 24.127649)  |  872         |  88               |  1044

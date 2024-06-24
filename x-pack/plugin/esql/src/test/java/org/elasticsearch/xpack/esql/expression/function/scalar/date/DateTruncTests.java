@@ -54,7 +54,7 @@ public class DateTruncTests extends AbstractFunctionTestCase {
             ofDuration(Duration.ofSeconds(30), ts, "2023-02-17T10:25:30.00Z"),
             randomSecond()
         );
-        return parameterSuppliersFromTypedData(errorsForCasesWithoutExamples(anyNullIsNull(true, suppliers)));
+        return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers);
     }
 
     public void testCreateRoundingDuration() {

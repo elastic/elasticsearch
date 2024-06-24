@@ -1022,7 +1022,7 @@ public final class KeywordFieldMapper extends FieldMapper {
 
     @Override
     protected SyntheticSourceMode syntheticSourceMode() {
-        if (fieldType.stored() || hasDocValues){
+        if (fieldType.stored() || hasDocValues) {
             return SyntheticSourceMode.NATIVE;
         }
 

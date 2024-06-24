@@ -1340,7 +1340,7 @@ public class TextFieldMapperTests extends MapperTestCase {
             null,
             storeParent,
             null,
-            false == storeParent
+            false
         );
         SyntheticSourceExample example = kwdSupport.example(5);
         CheckedConsumer<XContentBuilder, IOException> buildFields = b -> {

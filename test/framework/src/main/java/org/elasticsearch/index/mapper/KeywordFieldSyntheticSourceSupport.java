@@ -28,15 +28,18 @@ public class KeywordFieldSyntheticSourceSupport implements MapperTestCase.Synthe
     private final boolean store;
     private final boolean docValues;
     private final String nullValue;
-    private final boolean exampleSortsUsingIgnoreAbove;
 
-    KeywordFieldSyntheticSourceSupport(Integer ignoreAbove, boolean store, String nullValue, boolean exampleSortsUsingIgnoreAbove) {
+    KeywordFieldSyntheticSourceSupport(
+        Integer ignoreAbove,
+        boolean store,
+        String nullValue,
+        boolean useFallbackSyntheticSource
+    ) {
         this.ignoreAbove = ignoreAbove;
         this.allIgnored = ignoreAbove != null && LuceneTestCase.rarely();
         this.store = store;
         this.nullValue = nullValue;
-        this.exampleSortsUsingIgnoreAbove = exampleSortsUsingIgnoreAbove;
-        this.docValues = ESTestCase.randomBoolean();
+        this.docValues = useFallbackSyntheticSource == false || ESTestCase.randomBoolean();
     }
 
     @Override
@@ -72,7 +75,7 @@ public class KeywordFieldSyntheticSourceSupport implements MapperTestCase.Synthe
         List<String> validValues = new ArrayList<>();
         List<String> ignoredValues = new ArrayList<>();
         values.stream().map(Tuple::v2).forEach(v -> {
-            if (exampleSortsUsingIgnoreAbove && ignoreAbove != null && v.length() > ignoreAbove) {
+            if (ignoreAbove != null && v.length() > ignoreAbove) {
                 ignoredValues.add(v);
             } else {
                 validValues.add(v);
@@ -86,7 +89,7 @@ public class KeywordFieldSyntheticSourceSupport implements MapperTestCase.Synthe
             // The block loader infrastructure will never return nulls. Just zap them all.
             loadBlock = in.stream().filter(Objects::nonNull).toList();
         } else if (docValues) {
-            loadBlock = outputFromDocValues;
+            loadBlock = List.copyOf(outputFromDocValues);
         } else {
             loadBlock = List.copyOf(syntheticSourceOutputList);
         }

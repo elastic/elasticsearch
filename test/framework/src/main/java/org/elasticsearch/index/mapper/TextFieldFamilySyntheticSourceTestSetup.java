@@ -10,6 +10,9 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.hamcrest.Matcher;
 
 import java.io.IOException;
@@ -19,6 +22,7 @@ import java.util.function.Function;
 
 import static org.elasticsearch.test.ESTestCase.between;
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLength;
+import static org.elasticsearch.test.ESTestCase.randomAlphaOfLengthBetween;
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -78,48 +82,49 @@ public final class TextFieldFamilySyntheticSourceTestSetup {
 
     private static class TextFieldFamilySyntheticSourceSupport implements MapperTestCase.SyntheticSourceSupport {
         private final String fieldType;
-        private final boolean storeTextField;
-        private final boolean storedKeywordField;
-        private final boolean indexText;
-        private final Integer ignoreAbove;
-        private final KeywordFieldSyntheticSourceSupport keywordSupport;
+        private final boolean store;
+        private final boolean index;
 
         TextFieldFamilySyntheticSourceSupport(String fieldType, boolean supportsCustomIndexConfiguration) {
             this.fieldType = fieldType;
-            this.storeTextField = randomBoolean();
-            this.storedKeywordField = storeTextField || randomBoolean();
-            this.indexText = supportsCustomIndexConfiguration ? randomBoolean() : true;
-            this.ignoreAbove = randomBoolean() ? null : between(10, 100);
-            this.keywordSupport = new KeywordFieldSyntheticSourceSupport(ignoreAbove, storedKeywordField, null, false == storeTextField);
+            this.store = randomBoolean();
+            this.index = supportsCustomIndexConfiguration == false || randomBoolean();
         }
 
         @Override
         public MapperTestCase.SyntheticSourceExample example(int maxValues) {
-            if (storeTextField) {
-                MapperTestCase.SyntheticSourceExample delegate = keywordSupport.example(maxValues, true);
-                return new MapperTestCase.SyntheticSourceExample(
-                    delegate.inputValue(),
-                    delegate.expectedForSyntheticSource(),
-                    delegate.expectedForBlockLoader(),
-                    b -> {
-                        b.field("type", fieldType);
-                        b.field("store", true);
-                        if (indexText == false) {
-                            b.field("index", false);
-                        }
+            if (store) {
+                CheckedConsumer<XContentBuilder, IOException> mapping = b -> {
+                    b.field("type", fieldType);
+                    b.field("store", true);
+                    if (index == false) {
+                        b.field("index", false);
                     }
-                );
+                };
+
+                return storedFieldExample(maxValues, mapping);
             }
-            // We'll load from _source if ignore_above is defined, otherwise we load from the keyword field.
+
+            Integer ignoreAbove = randomBoolean() ? null : between(10, 100);
+            var syntheticSourceSupportForKeywordMultiField = new KeywordFieldSyntheticSourceSupport(
+                ignoreAbove,
+                randomBoolean(),
+                null,
+                false
+            );
+
+            // Block loader will not use keyword multi-field if it has ignore_above configured.
+            // And in this case it will use values from source.
             boolean loadingFromSource = ignoreAbove != null;
-            MapperTestCase.SyntheticSourceExample delegate = keywordSupport.example(maxValues, loadingFromSource);
+            MapperTestCase.SyntheticSourceExample delegate = syntheticSourceSupportForKeywordMultiField.example(maxValues, loadingFromSource);
+
             return new MapperTestCase.SyntheticSourceExample(
                 delegate.inputValue(),
                 delegate.expectedForSyntheticSource(),
                 delegate.expectedForBlockLoader(),
                 b -> {
                     b.field("type", fieldType);
-                    if (indexText == false) {
+                    if (index == false) {
                         b.field("index", false);
                     }
                     b.startObject("fields");
@@ -131,6 +136,25 @@ public final class TextFieldFamilySyntheticSourceTestSetup {
                     b.endObject();
                 }
             );
+        }
+
+        private MapperTestCase.SyntheticSourceExample storedFieldExample(
+            int maxValues,
+            CheckedConsumer<XContentBuilder, IOException> mapping
+        ) {
+            if (randomBoolean()) {
+                var randomString = randomString();
+                return new MapperTestCase.SyntheticSourceExample(randomString, randomString, randomString, mapping);
+            }
+
+            var list = ESTestCase.randomList(1, maxValues, this::randomString);
+            var output = list.size() == 1 ? list.get(0) : list;
+
+            return new MapperTestCase.SyntheticSourceExample(list, output, output, mapping);
+        }
+
+        private String randomString() {
+            return randomAlphaOfLengthBetween(0, 10);
         }
 
         @Override

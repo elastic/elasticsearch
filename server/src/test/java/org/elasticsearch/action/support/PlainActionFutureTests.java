@@ -18,6 +18,7 @@ import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteTransportException;
 
+import java.util.List;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutionException;
@@ -148,11 +149,16 @@ public class PlainActionFutureTests extends ESTestCase {
 
     public void testAssertCompleteAllowed() throws Exception {
         assumeTrue("This tests behaviour in an assertion", Assertions.ENABLED);
-        String threadPoolName = randomFrom(ThreadPool.THREAD_POOL_TYPES.keySet());
-        String otherThreadPoolName = randomValueOtherThan(threadPoolName, () -> randomFrom(ThreadPool.THREAD_POOL_TYPES.keySet()));
         try (TestThreadPool threadPool = new TestThreadPool("oneThreadPool")) {
             try (TestThreadPool otherThreadPool = new TestThreadPool("otherThreadPool")) {
-                assumeTrue("Test requires at least two slots in pool", threadPool.info(threadPoolName).getMax() > 1);
+                // threadPool needs at least two threads in it
+                List<String> threadPoolsOfSufficientSize = ThreadPool.THREAD_POOL_TYPES.keySet()
+                    .stream()
+                    .filter(tpType -> threadPool.info(tpType).getMax() > 1)
+                    .toList();
+                String threadPoolName = randomFrom(threadPoolsOfSufficientSize);
+                String otherThreadPoolName = randomValueOtherThan(threadPoolName, () -> randomFrom(ThreadPool.THREAD_POOL_TYPES.keySet()));
+
                 testAssertCompleteAllowed(threadPool.executor(threadPoolName), threadPool.executor(threadPoolName), false);
                 testAssertCompleteAllowed(threadPool.executor(threadPoolName), otherThreadPool.executor(threadPoolName), true);
                 testAssertCompleteAllowed(threadPool.executor(threadPoolName), threadPool.executor(otherThreadPoolName), true);

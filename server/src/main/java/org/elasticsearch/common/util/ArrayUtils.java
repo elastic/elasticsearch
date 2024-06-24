@@ -75,7 +75,7 @@ public class ArrayUtils {
      * @return copy that contains added element and array
      * @param <T> type of the array elements
      */
-    public static <T> T[] append(T added, T[] array) {
+    public static <T> T[] prepend(T added, T[] array) {
         @SuppressWarnings("unchecked")
         T[] updated = (T[]) Array.newInstance(array.getClass().getComponentType(), array.length + 1);
         updated[0] = added;

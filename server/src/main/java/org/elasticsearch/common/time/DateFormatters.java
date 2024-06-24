@@ -44,7 +44,7 @@ import static java.time.temporal.ChronoField.MINUTE_OF_HOUR;
 import static java.time.temporal.ChronoField.MONTH_OF_YEAR;
 import static java.time.temporal.ChronoField.NANO_OF_SECOND;
 import static java.time.temporal.ChronoField.SECOND_OF_MINUTE;
-import static org.elasticsearch.common.util.ArrayUtils.append;
+import static org.elasticsearch.common.util.ArrayUtils.prepend;
 
 public class DateFormatters {
 
@@ -852,7 +852,7 @@ public class DateFormatters {
             new JavaTimeDateTimePrinter(STRICT_DATE_PRINTER),
             JAVA_TIME_PARSERS_ONLY
                 ? javaTimeParsers
-                : append(
+                : prepend(
                     new Iso8601DateTimeParser(
                         Set.of(MONTH_OF_YEAR, DAY_OF_MONTH, HOUR_OF_DAY, MINUTE_OF_HOUR, SECOND_OF_MINUTE),
                         false,
@@ -932,7 +932,7 @@ public class DateFormatters {
             ),
             JAVA_TIME_PARSERS_ONLY
                 ? javaTimeParsers
-                : append(
+                : prepend(
                     new Iso8601DateTimeParser(
                         Set.of(MONTH_OF_YEAR, DAY_OF_MONTH, HOUR_OF_DAY, MINUTE_OF_HOUR, SECOND_OF_MINUTE),
                         false,

@@ -860,7 +860,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         expectError(
             "from test | where x < ?n1 | eval y = ?n2",
             List.of(new QueryParam("n1", 5, INTEGER), new QueryParam("n3", 5, INTEGER)),
-            "Unknown query parameter [n2], did you mean any of [n1, n3]?"
+            "Unknown query parameter [n2], did you mean any of [n3, n1]?"
         );
 
         expectError("from test | where x < ?_1", List.of(new QueryParam("_1", 5, INTEGER)), "extraneous input '_1' expecting <EOF>");

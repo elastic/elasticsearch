@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.application.connector.syncjob.ConnectorSyncJob;
 
 import java.io.IOException;
 import java.time.Instant;
+import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
@@ -57,7 +58,7 @@ public class UpdateConnectorSyncJobIngestionStatsAction {
         private final Long indexedDocumentVolume;
         private final Long totalDocumentCount;
         private final Instant lastSeen;
-        private final Object metadata;
+        private final Map<String, Object> metadata;
 
         public Request(StreamInput in) throws IOException {
             super(in);
@@ -67,7 +68,7 @@ public class UpdateConnectorSyncJobIngestionStatsAction {
             this.indexedDocumentVolume = in.readLong();
             this.totalDocumentCount = in.readOptionalLong();
             this.lastSeen = in.readOptionalInstant();
-            this.metadata = in.readGenericValue();
+            this.metadata = in.readGenericMap();
         }
 
         public Request(
@@ -77,7 +78,7 @@ public class UpdateConnectorSyncJobIngestionStatsAction {
             Long indexedDocumentVolume,
             Long totalDocumentCount,
             Instant lastSeen,
-            Object metadata
+            Map<String, Object> metadata
         ) {
             this.connectorSyncJobId = connectorSyncJobId;
             this.deletedDocumentCount = deletedDocumentCount;
@@ -112,7 +113,7 @@ public class UpdateConnectorSyncJobIngestionStatsAction {
             return lastSeen;
         }
 
-        public Object getMetadata() {
+        public Map<String, Object> getMetadata() {
             return metadata;
         }
 
@@ -143,6 +144,7 @@ public class UpdateConnectorSyncJobIngestionStatsAction {
             return validationException;
         }
 
+        @SuppressWarnings("unchecked")
         private static final ConstructingObjectParser<UpdateConnectorSyncJobIngestionStatsAction.Request, String> PARSER =
             new ConstructingObjectParser<>("connector_sync_job_update_ingestion_stats", false, (args, connectorSyncJobId) -> {
                 Long deletedDocumentCount = (Long) args[0];
@@ -151,7 +153,7 @@ public class UpdateConnectorSyncJobIngestionStatsAction {
 
                 Long totalDocumentVolume = args[3] != null ? (Long) args[3] : null;
                 Instant lastSeen = args[4] != null ? (Instant) args[4] : null;
-                Object metadata = args[5];
+                Map<String, Object> metadata = (Map<String, Object>) args[5];
 
                 return new Request(
                     connectorSyncJobId,
@@ -218,7 +220,7 @@ public class UpdateConnectorSyncJobIngestionStatsAction {
             out.writeLong(indexedDocumentVolume);
             out.writeOptionalLong(totalDocumentCount);
             out.writeOptionalInstant(lastSeen);
-            out.writeGenericValue(metadata);
+            out.writeGenericMap(metadata);
         }
 
         @Override

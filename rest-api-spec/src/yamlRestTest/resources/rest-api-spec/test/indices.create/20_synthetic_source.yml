@@ -71,6 +71,53 @@ object with unmapped fields:
 
 
 ---
+unmapped arrays:
+  - requires:
+      cluster_features: ["mapper.track_ignored_source"]
+      reason: requires tracking ignored source
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            index:
+              mapping:
+                total_fields:
+                  ignore_dynamic_beyond_limit: true
+                  limit: 1
+
+          mappings:
+            _source:
+              mode: synthetic
+            properties:
+              name:
+                type: keyword
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - '{ "create": { } }'
+          - '{ "name": "aaaa", "object_array": [ { "int_value": 10 }, { "int_value": 20 } ] }'
+          - '{ "create": { } }'
+          - '{ "name": "bbbb", "value_array": [ 100, 200, 300 ] }'
+
+  - do:
+      search:
+        index: test
+        sort: name
+
+  - match: { hits.total.value: 2 }
+  - match: { hits.hits.0._source.name: aaaa }
+  - match: { hits.hits.0._source.object_array.0.int_value: 10 }
+  - match: { hits.hits.0._source.object_array.1.int_value: 20 }
+  - match: { hits.hits.1._source.name: bbbb }
+  - match: { hits.hits.1._source.value_array: [ 100, 200, 300] }
+
+
+---
 nested object with unmapped fields:
   - requires:
       cluster_features: ["mapper.track_ignored_source"]

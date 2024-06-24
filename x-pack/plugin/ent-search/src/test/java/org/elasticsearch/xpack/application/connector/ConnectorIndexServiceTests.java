@@ -802,7 +802,7 @@ public class ConnectorIndexServiceTests extends ESSingleNodeTestCase {
         Connector connector = ConnectorTestUtils.getRandomConnector();
         String connectorId = randomUUID();
 
-        ConnectorCreateActionResponse resp = awaitCreateConnector(connectorId, connector);
+        awaitCreateConnector(connectorId, connector);
         Connector indexedConnector = awaitGetConnector(connectorId);
 
         ConnectorStatus newInvalidStatus = ConnectorTestUtils.getRandomInvalidConnectorNextStatus(indexedConnector.getStatus());

@@ -73,7 +73,7 @@ public class ToCartesianShapeTests extends AbstractFunctionTestCase {
             );
         }
 
-        return parameterSuppliersFromTypedData(errorsForCasesWithoutExamples(anyNullIsNull(true, suppliers)));
+        return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers);
     }
 
     @Override

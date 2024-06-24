@@ -17,6 +17,7 @@
 
 package co.elastic.elasticsearch.stateless.objectstore;
 
+import co.elastic.elasticsearch.stateless.IndexingDiskController;
 import co.elastic.elasticsearch.stateless.action.NewCommitNotificationRequest;
 import co.elastic.elasticsearch.stateless.action.TransportNewCommitNotificationAction;
 import fixture.s3.S3HttpHandler;
@@ -199,8 +200,11 @@ public class S3ObjectStoreTests extends AbstractMockObjectStoreIntegTestCase {
             }
         });
 
-        final String masterAndIndexNode = startMasterAndIndexNode();
-        final String searchNode = startSearchNode();
+        final Settings nodeSettings = Settings.builder()
+            .put(IndexingDiskController.INDEXING_DISK_INTERVAL_TIME_SETTING.getKey(), -1)
+            .build();
+        final String masterAndIndexNode = startMasterAndIndexNode(nodeSettings);
+        final String searchNode = startSearchNode(nodeSettings);
 
         final String loggerName = "org.elasticsearch.repositories.s3.S3RetryingInputStream";
 
@@ -346,8 +350,11 @@ public class S3ObjectStoreTests extends AbstractMockObjectStoreIntegTestCase {
     }
 
     public void testShouldNotRetryForNoSuchFileException() throws Exception {
-        final String masterAndIndexNode = startMasterAndIndexNode();
-        final String searchNode = startSearchNode();
+        final Settings nodeSettings = Settings.builder()
+            .put(IndexingDiskController.INDEXING_DISK_INTERVAL_TIME_SETTING.getKey(), -1)
+            .build();
+        final String masterAndIndexNode = startMasterAndIndexNode(nodeSettings);
+        final String searchNode = startSearchNode(nodeSettings);
 
         final String loggerName = "org.elasticsearch.repositories.s3.S3RetryingInputStream";
 

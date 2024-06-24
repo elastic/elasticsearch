@@ -476,7 +476,7 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
     protected void checkIncomingMergeType(FieldMapper mergeWith) {
         if (mergeWith instanceof GeoShapeWithDocValuesFieldMapper == false && CONTENT_TYPE.equals(mergeWith.typeName())) {
             throw new IllegalArgumentException(
-                "mapper [" + name() + "] of type [geo_shape] cannot change strategy from [BKD] to [recursive]"
+                "mapper [" + fullPath() + "] of type [geo_shape] cannot change strategy from [BKD] to [recursive]"
             );
         }
         super.checkIncomingMergeType(mergeWith);

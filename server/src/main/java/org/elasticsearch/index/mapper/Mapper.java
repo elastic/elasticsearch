@@ -60,13 +60,17 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
         this.leafName = internFieldName(leafName);
     }
 
+    /**
+     * Returns the name of the field.
+     * When the field has a parent object, its leaf name won't include the entire path.
+     * When subobjects are disabled, its leaf name will be the same as {@link #fullPath()} in practice, because its parent is the root.
+     */
     public final String leafName() {
         return leafName;
     }
 
     /** Returns the canonical name which uniquely identifies the mapper against other mappers in a type. */
-    // TODO rename this to fullPath???
-    public abstract String name();
+    public abstract String fullPath();
 
     /**
      * Returns a name representing the type of this mapper.
@@ -94,7 +98,7 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
      *         fields properly.
      */
     public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
-        throw new IllegalArgumentException("field [" + name() + "] of type [" + typeName() + "] doesn't support synthetic source");
+        throw new IllegalArgumentException("field [" + fullPath() + "] of type [" + typeName() + "] doesn't support synthetic source");
     }
 
     @Override

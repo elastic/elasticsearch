@@ -9,6 +9,7 @@
 package org.elasticsearch.action.support.replication;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -149,7 +150,10 @@ public class ClusterStateCreationUtils {
             .settings(indexSettings(IndexVersion.current(), 1, numberOfReplicas).put(SETTING_CREATION_DATE, System.currentTimeMillis()))
             .primaryTerm(0, primaryTerm)
             .timestampRange(timeFieldRange)
-            .eventIngestedRange(timeFieldRange, null)
+            .eventIngestedRange(
+                timeFieldRange,
+                timeFieldRange == IndexLongFieldRange.UNKNOWN ? null : TransportVersions.EVENT_INGESTED_RANGE_IN_CLUSTER_STATE
+            )
             .build();
 
         IndexShardRoutingTable.Builder indexShardRoutingBuilder = new IndexShardRoutingTable.Builder(shardId);

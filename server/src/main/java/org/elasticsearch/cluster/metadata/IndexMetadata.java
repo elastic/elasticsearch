@@ -1744,7 +1744,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             builder.rolloverInfos.putAllFromMap(rolloverInfos.apply(part.rolloverInfos));
             builder.system(isSystem);
             builder.timestampRange(timestampRange);
-            builder.eventIngestedRange(eventIngestedRange, null);
+            builder.eventIngestedRange(eventIngestedRange);
             builder.stats(stats);
             builder.indexWriteLoadForecast(indexWriteLoadForecast);
             builder.shardSizeInBytesForecast(shardSizeInBytesForecast);
@@ -2191,8 +2191,16 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             return this;
         }
 
+        // only for use within this class file where minClusterTransportVersion is not known (e.g., IndexMetadataDiff.apply)
+        Builder eventIngestedRange(IndexLongFieldRange eventIngestedRange) {
+            assert eventIngestedRange != null : "eventIngestedRange cannot be null";
+            this.eventIngestedRange = eventIngestedRange;
+            return this;
+        }
+
         public Builder eventIngestedRange(IndexLongFieldRange eventIngestedRange, TransportVersion minClusterTransportVersion) {
             assert eventIngestedRange != null : "eventIngestedRange cannot be null";
+            // assert minClusterTransportVersion != null : "minClusterTransportVersion cannot be null"
             if (minClusterTransportVersion != null
                 && minClusterTransportVersion.before(TransportVersions.EVENT_INGESTED_RANGE_IN_CLUSTER_STATE)) {
                 this.eventIngestedRange = IndexLongFieldRange.UNKNOWN;
@@ -2583,7 +2591,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.currentToken(), parser);
             Builder builder = new Builder(parser.currentName());
             // default to UNKNOWN so that reading 'event.ingested' range content works in older versions
-            builder.eventIngestedRange(IndexLongFieldRange.UNKNOWN, null);
+            builder.eventIngestedRange(IndexLongFieldRange.UNKNOWN);
             String currentFieldName;
             XContentParser.Token token = parser.nextToken();
             XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser);
@@ -2642,7 +2650,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                             builder.timestampRange(IndexLongFieldRange.fromXContent(parser));
                             break;
                         case KEY_EVENT_INGESTED_RANGE:
-                            builder.eventIngestedRange(IndexLongFieldRange.fromXContent(parser), null);
+                            builder.eventIngestedRange(IndexLongFieldRange.fromXContent(parser), TransportVersion.current());
                             break;
                         case KEY_STATS:
                             builder.stats(IndexMetadataStats.fromXContent(parser));

@@ -156,13 +156,12 @@ public class DenseVectorFieldMapper extends FieldMapper {
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
         final IndexVersion indexVersionCreated;
-        final boolean defaultInt8Hnsw;
 
         public Builder(String name, IndexVersion indexVersionCreated) {
             super(name);
             this.indexVersionCreated = indexVersionCreated;
-            this.defaultInt8Hnsw = indexVersionCreated.onOrAfter(DEFAULT_DENSE_VECTOR_TO_INT8_HNSW);
             final boolean indexedByDefault = indexVersionCreated.onOrAfter(INDEXED_BY_DEFAULT_INDEX_VERSION);
+            final boolean defaultInt8Hnsw = indexVersionCreated.onOrAfter(DEFAULT_DENSE_VECTOR_TO_INT8_HNSW);
 
             this.indexed = Parameter.indexParam(m -> toType(m).fieldType().indexed, indexedByDefault);
             if (indexedByDefault) {
@@ -180,7 +179,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 "index_options",
                 true,
                 () -> defaultInt8Hnsw && elementType.getValue() != ElementType.BYTE && this.indexed.getValue()
-                        ? new Int8HnswIndexOptions(
+                    ? new Int8HnswIndexOptions(
                         Lucene99HnswVectorsFormat.DEFAULT_MAX_CONN,
                         Lucene99HnswVectorsFormat.DEFAULT_BEAM_WIDTH,
                         null
@@ -195,15 +194,15 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 },
                 Objects::toString
             ).setSerializerCheck((id, ic, v) -> v != null).addValidator(v -> {
-                    if (v != null && dims.isConfigured() && dims.get() != null) {
-                        v.validateDimension(dims.get());
-                    }
-                    if (v != null && v.supportsElementType(elementType.getValue()) == false) {
-                        throw new IllegalArgumentException(
-                            "[element_type] cannot be [" + elementType.getValue().toString() + "] when using index type [" + v.type + "]"
-                        );
-                    }
-                })
+                if (v != null && dims.isConfigured() && dims.get() != null) {
+                    v.validateDimension(dims.get());
+                }
+                if (v != null && v.supportsElementType(elementType.getValue()) == false) {
+                    throw new IllegalArgumentException(
+                        "[element_type] cannot be [" + elementType.getValue().toString() + "] when using index type [" + v.type + "]"
+                    );
+                }
+            })
                 .acceptsNull()
                 .setMergeValidator((previous, current, c) -> previous == null || current == null || previous.updatableTo(current));
             if (defaultInt8Hnsw) {

@@ -162,7 +162,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
             this.indexVersionCreated = indexVersionCreated;
             final boolean indexedByDefault = indexVersionCreated.onOrAfter(INDEXED_BY_DEFAULT_INDEX_VERSION);
             final boolean defaultInt8Hnsw = indexVersionCreated.onOrAfter(DEFAULT_DENSE_VECTOR_TO_INT8_HNSW);
-
             this.indexed = Parameter.indexParam(m -> toType(m).fieldType().indexed, indexedByDefault);
             if (indexedByDefault) {
                 // Only serialize on newer index versions to prevent breaking existing indices when upgrading

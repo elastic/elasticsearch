@@ -34,6 +34,7 @@ import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperTestCase;
@@ -753,6 +754,20 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
         BytesRef vectorBR = fields.get(0).binaryValue();
         float[] decodedValues = decodeDenseVector(indexVersion, vectorBR);
         assertArrayEquals("Decoded dense vector values is not equal to the indexed one.", validVector, decodedValues, 0.001f);
+    }
+
+    public void testValidateOnBuild() {
+        final MapperBuilderContext context = MapperBuilderContext.root(false, false);
+
+        // Build a dense vector field mapper with float element type, which will trigger int8 HNSW index options
+        DenseVectorFieldMapper mapper = new DenseVectorFieldMapper.Builder("test", IndexVersion.current()).elementType(ElementType.FLOAT)
+            .build(context);
+
+        // Change the element type to byte, which is incompatible with int8 HNSW index options
+        DenseVectorFieldMapper.Builder builder = (DenseVectorFieldMapper.Builder) mapper.getMergeBuilder();
+        builder.elementType(ElementType.BYTE);
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> builder.build(context));
+        assertThat(e.getMessage(), containsString("[element_type] cannot be [byte] when using index type [int8_hnsw]"));
     }
 
     private static float[] decodeDenseVector(IndexVersion indexVersion, BytesRef encodedVector) {

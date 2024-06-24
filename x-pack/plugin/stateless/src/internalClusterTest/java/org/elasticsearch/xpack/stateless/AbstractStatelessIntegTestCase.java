@@ -612,8 +612,10 @@ public abstract class AbstractStatelessIntegTestCase extends ESIntegTestCase {
 
             // can take some time for files to be uploaded to the object store
             assertBusy(() -> {
-                final var latestUploadedBcc = readLatestUploadedBcc(blobContainerForCommit);
+                // New commit can be uploaded after we read segmentInfos, so we bound the read by the known generation
+                final var latestUploadedBcc = readLatestUploadedBccUptoGen(blobContainerForCommit, segmentInfos.getGeneration());
                 StatelessCompoundCommit commit = latestUploadedBcc.lastCompoundCommit();
+
                 assertThat(commit.primaryTermAndGeneration().generation(), equalTo(segmentInfos.getGeneration()));
                 var localFiles = segmentInfos.files(false);
                 var expectedBlobFile = localFiles.stream().map(s -> commit.commitFiles().get(s).blobName()).collect(Collectors.toSet());
@@ -651,13 +653,19 @@ public abstract class AbstractStatelessIntegTestCase extends ESIntegTestCase {
         }
     }
 
-    protected static BatchedCompoundCommit readLatestUploadedBcc(BlobContainer blobContainerForCommit) throws IOException {
+    /**
+     * Read the latest BCC from the object store bounded by the given generation (inclusive), i.e. the BCC generation
+     * must not be higher than the specified generation.
+     */
+    protected static BatchedCompoundCommit readLatestUploadedBccUptoGen(BlobContainer blobContainerForCommit, long maxGeneration)
+        throws IOException {
         final BlobMetadata latestUploadBccMetadata = blobContainerForCommit.listBlobsByPrefix(
             operationPurpose,
             StatelessCompoundCommit.PREFIX
         )
             .values()
             .stream()
+            .filter(m -> StatelessCompoundCommit.parseGenerationFromBlobName(m.name()) <= maxGeneration)
             .max(Comparator.comparingLong(m -> StatelessCompoundCommit.parseGenerationFromBlobName(m.name())))
             .orElseThrow(() -> new AssertionError("retry with assertBusy"));
         final var latestUploadedBcc = BatchedCompoundCommit.readFromStore(
@@ -690,7 +698,8 @@ public abstract class AbstractStatelessIntegTestCase extends ESIntegTestCase {
             safeAwait(listener);
             final SegmentInfos segmentInfos = Lucene.readSegmentInfos(indexStore.directory());
 
-            final var latestUploadedBcc = readLatestUploadedBcc(blobContainerForCommit);
+            // New commit can be uploaded after we read segmentInfos, so we bound the read by the known generation
+            final var latestUploadedBcc = readLatestUploadedBccUptoGen(blobContainerForCommit, segmentInfos.getGeneration());
             StatelessCompoundCommit commit = latestUploadedBcc.lastCompoundCommit();
             assertThat(commit.primaryTermAndGeneration().generation(), equalTo(segmentInfos.getGeneration()));
 

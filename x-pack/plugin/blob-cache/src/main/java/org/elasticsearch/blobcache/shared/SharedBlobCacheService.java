@@ -627,7 +627,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
         final Executor fetchExecutor,
         final ActionListener<Boolean> listener
     ) {
-        if (freeRegionCount() < 1 && maybeEvictLeastUsed() == false) {
+        if (freeRegionCount() < 1 && maybeEvict() == false) {
             // no free page available and no old enough unused region to be evicted
             logger.info("No free regions, skipping loading region [{}]", region);
             listener.onResponse(false);
@@ -1307,15 +1307,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
         }
 
         private final ConcurrentHashMap<RegionKey<KeyType>, LRUCacheEntry> keyMapping = new ConcurrentHashMap<>();
-        private final int maxSize;
         private final LRUCacheList front = new LRUCacheList();
-        private final LRUCacheList middle = new LRUCacheList();
-
-        LRUCache() {
-            // we split the front and middle lists in half, but require a minimum of 2
-            // for front to avoid strange head/tail semantics
-            maxSize = Math.min(2, numRegions / 2);
-        }
 
         @Override
         public void close() {
@@ -1417,28 +1409,10 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                     keyMapping.remove(entry.chunk.regionKey, entry);
                     throwAlreadyClosed("evicted during free region allocation");
                 }
-                pushEntryToMiddle(entry);
+                pushEntryToFront(entry);
                 // assign io only when chunk is ready for use. Under lock to avoid concurrent tryEvict.
                 entry.chunk.io = freeSlot;
             }
-        }
-
-        private void pushEntryToMiddle(final LRUCacheEntry entry) {
-            assert Thread.holdsLock(SharedBlobCacheService.this);
-            assert invariant(entry, false);
-            assert entry.prev == null;
-            assert entry.next == null;
-            if (middle.head == null) {
-                middle.head = entry;
-                middle.tail = entry;
-            } else {
-                entry.next = middle.head;
-                middle.head.prev = entry;
-                middle.head = entry;
-            }
-            entry.list = middle;
-            ++middle.size;
-            assert invariant(entry, true);
         }
 
         private void pushEntryToFront(final LRUCacheEntry entry) {
@@ -1457,29 +1431,22 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
             entry.list = front;
             ++front.size;
             assert invariant(entry, true);
-            if (front.size > maxSize) {
-                LRUCacheEntry move = front.tail;
-                unlink(move);
-                pushEntryToMiddle(move);
-            }
         }
 
         private synchronized boolean invariant(final LRUCacheEntry e, boolean present) {
             boolean found = false;
-            for (LRUCacheList list : List.of(front, middle)) {
-                for (LRUCacheEntry entry = list.head; entry != null; entry = entry.next) {
-                    assert entry.next == null || entry.next.prev == entry;
-                    assert entry.prev == null || entry.prev.next == entry;
-                    if (entry == e) {
-                        found = true;
-                    }
+            for (LRUCacheEntry entry = front.head; entry != null; entry = entry.next) {
+                assert entry.next == null || entry.next.prev == entry;
+                assert entry.prev == null || entry.prev.next == entry;
+                if (entry == e) {
+                    found = true;
                 }
-                for (LRUCacheEntry entry = list.tail; entry != null; entry = entry.prev) {
-                    assert entry.next == null || entry.next.prev == entry;
-                    assert entry.prev == null || entry.prev.next == entry;
-                    if (entry == e) {
-                        found = true;
-                    }
+            }
+            for (LRUCacheEntry entry = front.tail; entry != null; entry = entry.prev) {
+                assert entry.next == null || entry.next.prev == entry;
+                assert entry.prev == null || entry.prev.next == entry;
+                if (entry == e) {
+                    found = true;
                 }
             }
             assert found == present;
@@ -1533,7 +1500,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
          */
         private SharedBytes.IO maybeEvictAndTake() {
             assert Thread.holdsLock(SharedBlobCacheService.this);
-            LRUCacheEntry entry = middle.tail;
+            LRUCacheEntry entry = front.tail;
             if (entry != null) {
                 boolean evicted = entry.chunk.tryEvictNoDecRef();
                 if (evicted) {
@@ -1568,7 +1535,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
          */
         public boolean maybeEvictLeastRecent() {
             synchronized (SharedBlobCacheService.this) {
-                LRUCacheEntry entry = middle.tail;
+                LRUCacheEntry entry = front.tail;
                 if (entry != null) {
                     boolean evicted = entry.chunk.tryEvict();
                     if (evicted && entry.chunk.io != null) {

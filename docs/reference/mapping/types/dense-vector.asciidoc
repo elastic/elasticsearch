@@ -183,11 +183,23 @@ The following mapping parameters are accepted:
 `element_type`::
 (Optional, string)
 The data type used to encode vectors. The supported data types are
-`float` (default) and `byte`. `float` indexes a 4-byte floating-point
-value per dimension. `byte` indexes a 1-byte integer value per dimension.
-Using `byte` can result in a substantially smaller index size with the
-trade off of lower precision. Vectors using `byte` require dimensions with
-integer values between -128 to 127, inclusive for both indexing and searching.
+`float` (default), `byte`, and bit.
+
+.Valid values for `element_type`
+[%collapsible%open]
+====
+`float`:::
+indexes a 4-byte floating-point
+value per dimension. This is the default value.
+
+`byte`:::
+indexes a 1-byte integer value per dimension.
+
+`bit`:::
+indexes a single bit per dimension. Useful for very high-dimensional vectors or models that specifically support bit vectors.
+NOTE: when using `bit`, the number of dimensions must be a multiple of 8 and must represent the number of bits.
+
+====
 
 `dims`::
 (Optional, integer)
@@ -320,3 +332,112 @@ any issues, but features in technical preview are not subject to the support SLA
 of official GA features.
 
 `dense_vector` fields support <<synthetic-source,synthetic `_source`>> .
+
+[[dense-vector-index-bit]]
+==== Indexing & Searching bit vectors
+
+When using `element_type: bit`, this will treat all vectors as bit vectors. Bit vectors utilize only a single
+bit per dimension and are internally encoded as bytes. This can be useful for very high-dimensional vectors or models.
+
+When using `bit`, the number of dimensions must be a multiple of 8 and must represent the number of bits. Additionally,
+with `bit` vectors, the typical vector similarity values are effectively all scored the same, e.g. with `hamming` distance.
+
+Let's compare two `byte[]` arrays, each representing 40 individual bits.
+
+`[-127, 0, 1, 42, 127]` in bits `1000000100000000000000010010101001111111`
+`[127, -127, 0, 1, 42]` in bits `0111111110000001000000000000000100101010`
+
+When comparing these two bit, vectors, we first take the {wikipedia}/Hamming_distance[`hamming` distance].
+
+`xor` result:
+```
+1000000100000000000000010010101001111111
+^
+0111111110000001000000000000000100101010
+=
+1111111010000001000000010010101101010101
+```
+
+Then, we gather the count of `1` bits in the `xor` result: `18`. To scale for scoring, we subtract from the total number
+of bits and divide by the total number of bits: `(40 - 18) / 40 = 0.55`. This would be the `_score` betwee these two
+vectors.
+
+Here is an example of indexing and searching bit vectors:
+
+[source,console]
+--------------------------------------------------
+PUT my-bit-vectors
+{
+  "mappings": {
+    "properties": {
+      "my_vector": {
+        "type": "dense_vector",
+        "dims": 40, <1>
+        "element_type": "bit"
+      }
+    }
+  }
+}
+--------------------------------------------------
+<1> The number of dimensions that represents the number of bits
+
+[source,console]
+--------------------------------------------------
+POST /my-bit-vectors/_bulk?refresh
+{"index": {"_id" : "1"}}
+{"my_vector": [127, -127, 0, 1, 42]} <1>
+{"index": {"_id" : "2"}}
+{"my_vector": "8100012a7f"} <2>
+--------------------------------------------------
+<1> 5 bytes representing the 40 bit dimensioned vector
+<2> A hexidecimal string representing the 40 bit dimensioned vector
+
+Then, when searching, you can use the `knn` query to search for similar bit vectors:
+
+[source,console]
+--------------------------------------------------
+POST /my-bit-vectors/_search?filter_path=hits.hits
+{
+  "query": {
+    "knn": {
+      "my_vector": {
+        "vector": [127, -127, 0, 1, 42],
+        "k": 2
+      }
+    }
+  }
+}
+--------------------------------------------------
+
+[source,console-result]
+----
+{
+    "hits": {
+        "hits": [
+            {
+                "_index": "my-bit-vectors",
+                "_id": "1",
+                "_score": 1,
+                "_source": {
+                    "my_vector": [
+                        127,
+                        -127,
+                        0,
+                        1,
+                        42
+                    ]
+                }
+            },
+            {
+                "_index": "my-bit-vectors",
+                "_id": "2",
+                "_score": 0.55,
+                "_source": {
+                    "my_vector": "8100012a7f"
+                }
+            }
+        ]
+    }
+}
+----
+

@@ -32,7 +32,6 @@ import java.io.IOException;
 
 import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
 
-@com.carrotsearch.randomizedtesting.annotations.Repeat(iterations = 100)
 abstract class BaseKnnBitVectorsFormatTestCase extends BaseIndexFileFormatTestCase {
 
     static {

@@ -209,16 +209,20 @@ public class BinaryFieldMapper extends FieldMapper {
     public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
         if (copyTo.copyToFields().isEmpty() != true) {
             throw new IllegalArgumentException(
-                "field [" + name() + "] of type [" + typeName() + "] doesn't support synthetic source because it declares copy_to"
+                "field [" + fullPath() + "] of type [" + typeName() + "] doesn't support synthetic source because it declares copy_to"
             );
         }
         if (hasDocValues == false) {
             throw new IllegalArgumentException(
-                "field [" + name() + "] of type [" + typeName() + "] doesn't support synthetic source because it doesn't have doc values"
+                "field ["
+                    + fullPath()
+                    + "] of type ["
+                    + typeName()
+                    + "] doesn't support synthetic source because it doesn't have doc values"
             );
         }
 
-        return new BinaryDocValuesSyntheticFieldLoader(name()) {
+        return new BinaryDocValuesSyntheticFieldLoader(fullPath()) {
             @Override
             protected void writeValue(XContentBuilder b, BytesRef value) throws IOException {
                 var in = new ByteArrayStreamInput();

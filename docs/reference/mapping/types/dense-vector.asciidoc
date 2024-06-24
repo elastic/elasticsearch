@@ -389,6 +389,7 @@ POST /my-bit-vectors/_bulk?refresh
 {"index": {"_id" : "2"}}
 {"my_vector": "8100012a7f"} <2>
 --------------------------------------------------
+// TEST[continued]
 <1> 5 bytes representing the 40 bit dimensioned vector
 <2> A hexidecimal string representing the 40 bit dimensioned vector
 
@@ -400,14 +401,13 @@ POST /my-bit-vectors/_search?filter_path=hits.hits
 {
   "query": {
     "knn": {
-      "my_vector": {
-        "vector": [127, -127, 0, 1, 42],
-        "k": 2
-      }
+      "query_vector": [127, -127, 0, 1, 42],
+      "field": "my_vector"
     }
   }
 }
 --------------------------------------------------
+// TEST[continued]
 
 [source,console-result]
 ----
@@ -417,7 +417,7 @@ POST /my-bit-vectors/_search?filter_path=hits.hits
             {
                 "_index": "my-bit-vectors",
                 "_id": "1",
-                "_score": 1,
+                "_score": 1.0,
                 "_source": {
                     "my_vector": [
                         127,

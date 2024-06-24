@@ -58,13 +58,14 @@ class ES815BitFlatVectorsFormat extends FlatVectorsFormat {
             VectorSimilarityFunction vectorSimilarityFunction,
             RandomAccessVectorValues randomAccessVectorValues
         ) throws IOException {
+            assert randomAccessVectorValues instanceof RandomAccessVectorValues.Bytes;
             if (randomAccessVectorValues instanceof RandomAccessVectorValues.Bytes randomAccessVectorValuesBytes) {
                 assert randomAccessVectorValues instanceof RandomAccessQuantizedByteVectorValues == false;
                 return switch (vectorSimilarityFunction) {
                     case DOT_PRODUCT, MAXIMUM_INNER_PRODUCT, COSINE, EUCLIDEAN -> new HammingScorerSupplier(randomAccessVectorValuesBytes);
                 };
             }
-            throw new IllegalArgumentException("Unsupported vector type");
+            throw new IllegalArgumentException("Unsupported vector type or similarity function");
         }
 
         @Override
@@ -73,6 +74,7 @@ class ES815BitFlatVectorsFormat extends FlatVectorsFormat {
             RandomAccessVectorValues randomAccessVectorValues,
             byte[] bytes
         ) {
+            assert randomAccessVectorValues instanceof RandomAccessVectorValues.Bytes;
             if (randomAccessVectorValues instanceof RandomAccessVectorValues.Bytes randomAccessVectorValuesBytes) {
                 checkDimensions(bytes.length, randomAccessVectorValuesBytes.dimension());
                 return switch (vectorSimilarityFunction) {
@@ -82,7 +84,7 @@ class ES815BitFlatVectorsFormat extends FlatVectorsFormat {
                     );
                 };
             }
-            throw new IllegalArgumentException("Unsupported vector type");
+            throw new IllegalArgumentException("Unsupported vector type or similarity function");
         }
 
         @Override

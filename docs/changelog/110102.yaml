@@ -1,5 +1,6 @@
 pr: 110102
-summary: Implement lucene pushdown on ST_DISTANCE
-area: "ES|QL, Geo"
+summary: Optimize ST_DISTANCE filtering with Lucene circle intersection query
+area: ES|QL
 type: enhancement
-issues: []
+issues:
+  - 109972

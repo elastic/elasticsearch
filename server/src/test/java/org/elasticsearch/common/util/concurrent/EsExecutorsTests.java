@@ -15,6 +15,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Processors;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.hamcrest.Matcher;
 
@@ -27,6 +28,7 @@ import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.common.util.concurrent.EsExecutors.TaskTrackingConfig.DEFAULT;
 import static org.elasticsearch.common.util.concurrent.EsExecutors.TaskTrackingConfig.DO_NOT_TRACK;
@@ -53,6 +55,32 @@ public class EsExecutorsTests extends ESTestCase {
 
     private String getName() {
         return getClass().getName() + "/" + getTestName();
+    }
+
+    public void testEsThreadExecutorInfo() {
+        AtomicReference<String> lastThreadId = new AtomicReference<>();
+        final Runnable threadIdExtractor = () -> lastThreadId.set(EsExecutors.esThreadExecutorInfo(Thread.currentThread()));
+
+        // when a node name is present
+        String nodeName = randomUnicodeOfLength(10);
+        try (TestThreadPool threadPool = new TestThreadPool(nodeName)) {
+            safeGet(threadPool.generic().submit(threadIdExtractor));
+            assertThat(lastThreadId.get(), equalTo(nodeName + "/generic"));
+            ThreadPool.THREAD_POOL_TYPES.keySet().forEach(tpType -> {
+                safeGet(threadPool.executor(tpType).submit(threadIdExtractor));
+                assertThat(lastThreadId.get(), equalTo(nodeName + "/" + tpType));
+            });
+        }
+
+        // Tests can have empty node names
+        try (TestThreadPool threadPool = new TestThreadPool("")) {
+            safeGet(threadPool.generic().submit(threadIdExtractor));
+            assertThat(lastThreadId.get(), equalTo("generic"));
+            ThreadPool.THREAD_POOL_TYPES.keySet().forEach(tpType -> {
+                safeGet(threadPool.executor(tpType).submit(threadIdExtractor));
+                assertThat(lastThreadId.get(), equalTo(tpType));
+            });
+        }
     }
 
     public void testFixedForcedExecution() throws Exception {

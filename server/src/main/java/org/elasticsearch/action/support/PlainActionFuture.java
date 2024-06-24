@@ -422,8 +422,8 @@ public class PlainActionFuture<T> implements ActionFuture<T>, ActionListener<T> 
         // this should only be used to validate thread interactions, like not waiting for a future completed on the same
         // executor, hence calling it with the same thread indicates a bug in the assertion using this.
         assert thread1 != thread2 : "only call this for different threads";
-        String thread1Name = EsExecutors.executorName(thread1);
-        String thread2Name = EsExecutors.executorName(thread2);
+        String thread1Name = EsExecutors.esThreadExecutorInfo(thread1);
+        String thread2Name = EsExecutors.esThreadExecutorInfo(thread2);
         return thread1Name == null || thread2Name == null || thread1Name.equals(thread2Name) == false;
     }
 }

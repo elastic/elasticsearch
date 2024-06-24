@@ -32,6 +32,8 @@ import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * A collection of static methods to help create different ES Executor types.
@@ -40,6 +42,7 @@ public class EsExecutors {
 
     // although the available processors may technically change, for node sizing we use the number available at launch
     private static final int MAX_NUM_PROCESSORS = Runtime.getRuntime().availableProcessors();
+    private static final Pattern THREAD_NAME_PATTERN = Pattern.compile("elasticsearch(\\[([^]]+)])?\\[([^]]+)]\\[T#\\d+]");
 
     /**
      * Setting to manually control the number of allocated processors. This setting is used to adjust thread pool sizes per node. The
@@ -307,6 +310,9 @@ public class EsExecutors {
         return "elasticsearch" + (nodeName.isEmpty() ? "" : "[") + nodeName + (nodeName.isEmpty() ? "" : "]") + "[" + namePrefix + "]";
     }
 
+    /**
+     * See also {@link #esThreadExecutorInfo(Thread)} which includes the node-name as well
+     */
     public static String executorName(String threadName) {
         // subtract 2 to avoid the `]` of the thread number part.
         int executorNameEnd = threadName.lastIndexOf(']', threadName.length() - 2);
@@ -318,6 +324,26 @@ public class EsExecutors {
             return null;
         }
         return threadName.substring(executorNameStart + 1, executorNameEnd);
+    }
+
+    /**
+     * Returns a string representing the executor info for a thread, if it is a member of one
+     *
+     * The format of the string will look like <code>{nodeName}/{executorName}</code> where a node name
+     * is non-empty, or <code>{executorName}</code> where no node name was specified
+     *
+     * @param thread The thread whose executor ID to extract
+     * @return The executor info if the thread is an executor thread, or null otherwise
+     */
+    public static String esThreadExecutorInfo(Thread thread) {
+        Matcher matcher = THREAD_NAME_PATTERN.matcher(thread.getName());
+        if (matcher.matches()) {
+            assert matcher.groupCount() == 3 : "Unexpected group count";
+            assert matcher.group(3) != null : "Executor name should always be populated";
+            String nodePart = matcher.group(2) != null ? matcher.group(2) + "/" : "";
+            return nodePart + matcher.group(3);
+        }
+        return null;
     }
 
     public static String executorName(Thread thread) {

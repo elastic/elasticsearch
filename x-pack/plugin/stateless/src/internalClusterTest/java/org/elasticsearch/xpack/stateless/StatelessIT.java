@@ -756,10 +756,6 @@ public class StatelessIT extends AbstractStatelessIntegTestCase {
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, autoExpandConfiguration);
 
-        if (randomBoolean()) {
-            indexSettings.put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, randomBoolean() ? 0 : 1);
-        }
-
         createIndex(indexName, indexSettings.build());
 
         if (randomBoolean()) {

@@ -102,6 +102,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFa
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
@@ -151,6 +152,11 @@ public class StatelessClusterIntegrityStressIT extends AbstractStatelessIntegTes
         }
     }
 
+    /**
+     * @param docIds The IDs of docs that should be visible to search. This tracking is approximate
+     *               in that all these IDs should be visible but there maybe more IDs that are also
+     *               visible but not tracked here.
+     */
     record TrackedIndex(Index index, int numberOfShards, int numberOfReplicas, Set<String> docIds) {}
 
     private class TrackedCluster {
@@ -309,16 +315,18 @@ public class StatelessClusterIntegrityStressIT extends AbstractStatelessIntegTes
             ensureGreen(); // All indices should be in good shape
 
             // All acknowledged data are available
+            logger.info("--> refresh before checking indices data");
             refresh();
             for (TrackedIndex trackedIndex : indices.values()) {
                 logger.info("--> checking data for index [{}]", trackedIndex.index.getName());
+                final Set<String> docIds = Set.copyOf(trackedIndex.docIds); // copy it once in case it changes during search
                 assertResponse(
-                    prepareSearch(trackedIndex.index.getName()).setQuery(
-                        QueryBuilders.idsQuery().addIds(trackedIndex.docIds.toArray(String[]::new))
-                    ).setSize(0).setTrackTotalHits(true),
+                    prepareSearch(trackedIndex.index.getName()).setQuery(QueryBuilders.idsQuery().addIds(docIds.toArray(String[]::new)))
+                        .setSize(0)
+                        .setTrackTotalHits(true),
                     searchResponse -> {
                         assertNoFailures(searchResponse);
-                        assertThat(searchResponse.getHits().getTotalHits().value, equalTo((long) trackedIndex.docIds.size()));
+                        assertThat(searchResponse.getHits().getTotalHits().value, greaterThanOrEqualTo((long) docIds.size()));
                     }
                 );
             }
@@ -523,13 +531,29 @@ public class StatelessClusterIntegrityStressIT extends AbstractStatelessIntegTes
                         refreshPolicy
                     );
                     final BulkResponse bulkResponse = bulkRequest.get(defaultTestTimeout);
-                    Arrays.stream(bulkResponse.getItems()).forEach(bulkItemResponse -> {
-                        if (bulkItemResponse.isFailed() == false) {
-                            indices.get(bulkItemResponse.getIndex()).docIds.add(bulkItemResponse.getId());
+
+                    // Add docIds that are visible after refresh
+                    if (refreshPolicy != WriteRequest.RefreshPolicy.NONE) {
+                        Arrays.stream(bulkResponse.getItems()).forEach(bulkItemResponse -> {
+                            if (bulkItemResponse.isFailed() == false) {
+                                indices.get(bulkItemResponse.getIndex()).docIds.add(bulkItemResponse.getId());
+                            }
+                        });
+                    } else {
+                        logger.info("--> refreshing {} separately after bulk indexing", targetIndices);
+                        final var refreshResponse = client().admin()
+                            .indices()
+                            .prepareRefresh(targetIndices.toArray(String[]::new))
+                            .get(defaultTestTimeout);
+                        logger.info("--> completed refreshing {}", targetIndices);
+                        // For simplicity, only track docIds if there is no failed shards
+                        if (refreshResponse.getFailedShards() == 0) {
+                            Arrays.stream(bulkResponse.getItems()).forEach(bulkItemResponse -> {
+                                if (bulkItemResponse.isFailed() == false) {
+                                    indices.get(bulkItemResponse.getIndex()).docIds.add(bulkItemResponse.getId());
+                                }
+                            });
                         }
-                    });
-                    if (refreshPolicy == WriteRequest.RefreshPolicy.NONE && randomBoolean()) {
-                        client().admin().indices().prepareRefresh(targetIndices.toArray(String[]::new)).get(defaultTestTimeout);
                     }
                 } catch (Exception e) {
                     // Failure can happen the shard is failed or node restart/replace/isolated concurrently. Just ignore them
@@ -546,11 +570,11 @@ public class StatelessClusterIntegrityStressIT extends AbstractStatelessIntegTes
                     return;
                 }
                 final TrackedIndex trackedIndex = randomFrom(indices.values());
-
-                final String indexName = randomFrom(indices.keySet());
+                final String indexName = trackedIndex.index.getName();
+                // Get the expected doc size before search since concurrent indexing may add docs that are not visible to this search
+                final int expectedNumberOfDocs = trackedIndex.docIds.size();
                 SearchResponse searchResponse = null;
                 try {
-                    final int expectedNumberOfDocs = trackedIndex.docIds.size();
                     final SearchRequestBuilder searchRequest = client().prepareSearch(indexName).setTrackTotalHits(true);
                     if (randomBoolean()) {
                         searchRequest.setSize(between(0, expectedNumberOfDocs));
@@ -563,7 +587,10 @@ public class StatelessClusterIntegrityStressIT extends AbstractStatelessIntegTes
                         case SUM -> searchRequest.addAggregation(sum("sum").field("number"));
                     }
                     searchResponse = searchRequest.get(defaultTestTimeout);
-                    // TODO: assert number of hits based on ongoing indexing
+                    // For simplicity, only assert response size if there is no failed shards
+                    if (searchResponse.getFailedShards() == 0) {
+                        assertThat(searchResponse.getHits().getTotalHits().value, greaterThanOrEqualTo((long) expectedNumberOfDocs));
+                    }
                 } catch (Exception e) {
                     // Failure can happen the shard is failed or node restart/replace/isolated concurrently. Just ignore them
                     logger.info(Strings.format("--> exception searching index [%s]", indexName), e);

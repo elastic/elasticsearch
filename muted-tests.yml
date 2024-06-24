@@ -5,6 +5,8 @@ tests:
 - class: org.elasticsearch.packaging.test.CertGenCliTests
   method: test40RunWithCert
   issue: https://github.com/elastic/elasticsearch/issues/109831
+- class: "org.elasticsearch.repositories.s3.S3RepositoryThirdPartyTests"
+  issue: "https://github.com/elastic/elasticsearch/issues/110093"
 
 # Examples:
 #

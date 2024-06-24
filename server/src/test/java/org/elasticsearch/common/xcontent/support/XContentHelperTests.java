@@ -8,7 +8,6 @@
 
 package org.elasticsearch.common.xcontent.support;
 
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -420,26 +419,5 @@ public class XContentHelperTests extends ESTestCase {
         }, new BytesArray(json), XContentType.JSON, null).v2();
 
         assertThat(names, equalTo(Set.of("a", "c")));
-    }
-
-    public void testDrainAndClose() throws IOException {
-        String json = """
-            { "a": "b", "c": "d", "e": {"f": "g"}, "h": ["i", "j", {"k": "l"}]}""";
-        var parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, json);
-        var content = XContentBuilder.builder(XContentType.JSON.xContent());
-        XContentHelper.drainAndClose(parser, content);
-
-        assertEquals(json.replace(" ", ""), Strings.toString(content));
-        assertTrue(parser.isClosed());
-    }
-
-    public void testDrainAndCloseAlreadyClosed() throws IOException {
-        var parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, "{}");
-        parser.close();
-
-        assertThrows(
-            IllegalStateException.class,
-            () -> XContentHelper.drainAndClose(parser, XContentBuilder.builder(XContentType.JSON.xContent()))
-        );
     }
 }

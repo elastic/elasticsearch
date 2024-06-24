@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
+import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Greatest;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Least;
@@ -42,6 +43,7 @@ import java.util.List;
 public abstract class EsqlScalarFunction extends ScalarFunction implements EvaluatorMapper {
     public static List<NamedWriteableRegistry.Entry> getNamedWriteables() {
         return List.of(
+            Bucket.ENTRY,
             Case.ENTRY,
             Coalesce.ENTRY,
             Concat.ENTRY,

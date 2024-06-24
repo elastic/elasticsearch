@@ -1,0 +1,5 @@
+pr: 110102
+summary: Implement lucene pushdown on ST_DISTANCE
+area: "ES|QL, Geo"
+type: enhancement
+issues: []

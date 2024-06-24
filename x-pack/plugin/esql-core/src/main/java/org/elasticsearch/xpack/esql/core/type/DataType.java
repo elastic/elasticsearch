@@ -55,6 +55,7 @@ public enum DataType {
     KEYWORD(builder("keyword").unknownSize().docValues()),
     TEXT(builder("text").unknownSize()),
     DATETIME(builder("date").typeName("DATETIME").size(Long.BYTES).docValues()),
+    DATE_NANOS(builder("date_nanos").size(Long.BYTES).docValues()),
     IP(builder("ip").size(45).docValues()),
     VERSION(builder("version").unknownSize().docValues()),
     OBJECT(builder("object")),

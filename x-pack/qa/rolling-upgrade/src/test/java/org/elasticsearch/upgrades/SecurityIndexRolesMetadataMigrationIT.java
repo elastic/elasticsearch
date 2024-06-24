@@ -9,6 +9,7 @@ package org.elasticsearch.upgrades;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 
@@ -19,54 +20,46 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xpack.core.security.action.UpdateIndexMigrationVersionAction.MIGRATION_VERSION_CUSTOM_DATA_KEY;
+import static org.elasticsearch.xpack.core.security.action.UpdateIndexMigrationVersionAction.MIGRATION_VERSION_CUSTOM_KEY;
 
 public class SecurityIndexRolesMetadataMigrationIT extends AbstractUpgradeTestCase {
 
-    public void testMetadataMigratedAfterUpgrade() throws Exception {
-        String testRole = "test-role";
-        String metaKey = "test_key";
-        String metaValue = "test_value";
-
-        Map<String, Object> testMetadata = Map.of(metaKey, metaValue);
+    public void testRoleMigration() throws Exception {
+        String oldTestRole = "old-test-role";
+        String oldMetaKey = "old-meta-test-key";
+        String oldMetaValue = "old-meta-test-value";
+        String mixedTestRole = "mixed-test-role";
+        String mixedMetaKey = "mixed-meta-test-key";
+        String mixedMetaValue = "mixed-meta-test-value";
+        String upgradedTestRole = "upgraded-test-role";
+        String upgradedMetaKey = "upgraded-meta-test-key";
+        String upgradedMetaValue = "upgraded-meta-test-value";
         if (CLUSTER_TYPE == ClusterType.OLD) {
-            createRole(testRole, testMetadata);
-            assertEntityInSecurityIndex(testRole);
-        }
-        if (CLUSTER_TYPE == ClusterType.UPGRADED) {
-            refreshSecurityIndex();
+            createRoleWithMetadata(oldTestRole, Map.of(oldMetaKey, oldMetaValue));
+            assertDocInSecurityIndex(oldTestRole);
+        } else if (CLUSTER_TYPE == ClusterType.MIXED) {
+            createRoleWithMetadata(mixedTestRole, Map.of(mixedMetaKey, mixedMetaValue));
+            assertDocInSecurityIndex(mixedTestRole);
+        } else if (CLUSTER_TYPE == ClusterType.UPGRADED) {
+            createRoleWithMetadata(upgradedTestRole, Map.of(upgradedMetaKey, upgradedMetaValue));
+
             waitForMigrationCompletion();
-            assertEntityInSecurityIndex(testRole, metaKey, metaValue);
-        }
-    }
-
-    public void testMetadataWrittenAfterUpgradeWithoutMigration() throws IOException {
-        String testRole = "another-test-role";
-        String metaKey = "another-test_key";
-        String metaValue = "another-test_value";
-
-        Map<String, Object> testMetadata = Map.of(metaKey, metaValue);
-
-        if (CLUSTER_TYPE == ClusterType.UPGRADED) {
-            createRole(testRole, testMetadata);
-            assertEntityInSecurityIndex(testRole, metaKey, metaValue);
+            assertMigratedDocInSecurityIndex(oldTestRole, oldMetaKey, oldMetaValue);
+            assertMigratedDocInSecurityIndex(mixedTestRole, mixedMetaKey, mixedMetaValue);
+            assertMigratedDocInSecurityIndex(upgradedTestRole, upgradedMetaKey, upgradedMetaValue);
         }
     }
 
     @SuppressWarnings("unchecked")
-    private void assertEntityInSecurityIndex(String roleName, String metaKey, String metaValue) throws IOException {
+    private void assertMigratedDocInSecurityIndex(String roleName, String metaKey, String metaValue) throws IOException {
         final Request request = new Request("POST", "/.security/_search");
         RequestOptions.Builder options = request.getOptions().toBuilder();
-        request.setJsonEntity(
-            String.format(
-                Locale.ROOT,
-                """
-                    {"query":{"bool":{"must":[{"term":{"_id":"%s-%s"}},{"term":{"metadata_flattened.%s":"%s"}}]}}}""",
-                "role",
-                roleName,
-                metaKey,
-                metaValue
-            )
-        );
+        request.setJsonEntity(Strings.format("""
+            {"query":{"bool":{"must":[
+                {"term":{"_id":"%s-%s"}},
+                {"term":{"metadata_flattened.%s":"%s"}},
+                {"term":{"name":"%2$s"}}]}}}""", "role", roleName, metaKey, metaValue));
         addExpectWarningOption(options);
         request.setOptions(options);
 
@@ -79,7 +72,7 @@ public class SecurityIndexRolesMetadataMigrationIT extends AbstractUpgradeTestCa
     }
 
     @SuppressWarnings("unchecked")
-    private void assertEntityInSecurityIndex(String id) throws IOException {
+    private void assertDocInSecurityIndex(String id) throws IOException {
         final Request request = new Request("POST", "/.security/_search");
         RequestOptions.Builder options = request.getOptions().toBuilder();
         request.setJsonEntity(String.format(Locale.ROOT, """
@@ -114,15 +107,17 @@ public class SecurityIndexRolesMetadataMigrationIT extends AbstractUpgradeTestCa
             Response response = adminClient().performRequest(request);
             assertOK(response);
             Map<String, Object> responseMap = responseAsMap(response);
-            assertTrue(
-                ((Map<String, Object>) ((Map<String, Object>) ((Map<String, Object>) responseMap.get("metadata")).get("indices")).get(
-                    ".security-7"
-                )).containsKey("migration_version")
-            );
+            Map<String, Object> indexMetadata = (Map<String, Object>) ((Map<String, Object>) ((Map<String, Object>) responseMap.get(
+                "metadata"
+            )).get("indices")).get(".security-7");
+            assertTrue(indexMetadata.containsKey(MIGRATION_VERSION_CUSTOM_KEY));
+            Map<String, Object> migrationVersionMap = (Map<String, Object>) indexMetadata.get(MIGRATION_VERSION_CUSTOM_KEY);
+            // latest migration version as of this writing
+            assertTrue(Integer.parseInt((String) migrationVersionMap.get(MIGRATION_VERSION_CUSTOM_DATA_KEY)) >= 2);
         });
     }
 
-    private void createRole(String roleName, Map<String, Object> metadata) throws IOException {
+    private void createRoleWithMetadata(String roleName, Map<String, Object> metadata) throws IOException {
         final Request request = new Request("POST", "/_security/role/" + roleName);
         BytesReference source = BytesReference.bytes(
             jsonBuilder().map(

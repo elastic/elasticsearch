@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
@@ -86,6 +87,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_FORMAT_SETTING;
+import static org.elasticsearch.indices.SystemIndexDescriptor.VERSION_META_KEY;
 import static org.elasticsearch.transport.RemoteClusterPortSettings.TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY;
 import static org.elasticsearch.xpack.core.security.SecurityField.DOCUMENT_LEVEL_SECURITY_FEATURE;
 import static org.elasticsearch.xpack.core.security.authz.RoleDescriptorTestHelper.randomApplicationPrivileges;
@@ -138,6 +141,8 @@ public class NativeRolesStoreTests extends ESTestCase {
         final FeatureService featureService = mock(FeatureService.class);
         systemIndices.init(client, featureService, clusterService);
         final SecurityIndexManager securityIndex = systemIndices.getMainIndexManager();
+        // Create the index
+        securityIndex.clusterChanged(new ClusterChangedEvent("source", getClusterStateWithSecurityIndex(), getEmptyClusterState()));
 
         return new NativeRolesStore(
             settings,
@@ -778,8 +783,14 @@ public class NativeRolesStoreTests extends ESTestCase {
         final boolean withAlias = randomBoolean();
         final String securityIndexName = SECURITY_MAIN_ALIAS + (withAlias ? "-" + randomAlphaOfLength(5) : "");
 
+        Settings.Builder settingsBuilder = indexSettings(IndexVersion.current(), 1, 0);
+        settingsBuilder.put(INDEX_FORMAT_SETTING.getKey(), SecuritySystemIndices.INTERNAL_MAIN_INDEX_FORMAT);
+        settingsBuilder.put(VERSION_META_KEY, 1);
+        MappingMetadata mappingMetadata = mock(MappingMetadata.class);
+        when(mappingMetadata.sourceAsMap()).thenReturn(Map.of("_meta", Map.of(VERSION_META_KEY, 1)));
+        when(mappingMetadata.getSha256()).thenReturn("test");
         Metadata metadata = Metadata.builder()
-            .put(IndexMetadata.builder(securityIndexName).settings(indexSettings(IndexVersion.current(), 1, 0)))
+            .put(IndexMetadata.builder(securityIndexName).putMapping(mappingMetadata).settings(settingsBuilder))
             .build();
 
         if (withAlias) {

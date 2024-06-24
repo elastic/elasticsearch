@@ -69,8 +69,6 @@ tests:
 - class: "org.elasticsearch.xpack.esql.action.AsyncEsqlQueryActionIT"
   issue: "https://github.com/elastic/elasticsearch/issues/109944"
   method: "testBasicAsyncExecution"
-- class: "org.elasticsearch.xpack.security.authz.store.NativePrivilegeStoreCacheTests"
-  issue: "https://github.com/elastic/elasticsearch/issues/110015"
 - class: "org.elasticsearch.painless.LangPainlessClientYamlTestSuiteIT"
   issue: "https://github.com/elastic/elasticsearch/issues/110032"
   method: "test {yaml=painless/140_dense_vector_basic/Test hamming distance fails on float}"

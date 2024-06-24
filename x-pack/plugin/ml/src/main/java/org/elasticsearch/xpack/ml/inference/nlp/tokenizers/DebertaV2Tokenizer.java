@@ -244,7 +244,7 @@ public class DebertaV2Tokenizer extends NlpTokenizer {
         try (TokenStream ts = debertaAnalyzer.tokenStream("input", seq)) {
             ts.reset();
             PositionIncrementAttribute tokenPos = ts.addAttribute(PositionIncrementAttribute.class);
-            int currPos = -1;
+            int currPos = -1; // the PositionIncrement starts at one, so this aligns the first token at position 0
             while (ts.incrementToken()) {
                 currPos += tokenPos.getPositionIncrement();
                 tokenPositionMap.add(currPos);

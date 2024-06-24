@@ -53,6 +53,7 @@ public class SecurityMigrationExecutor extends PersistentTasksExecutor<SecurityM
 
         if (params.isMigrationNeeded() == false) {
             updateMigrationVersion(params.getMigrationVersion(), securityIndexManager.getConcreteIndexName(), listener);
+            return;
         }
 
         applyOutstandingMigrations(task, params.getMigrationVersion(), listener);

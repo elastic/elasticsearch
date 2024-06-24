@@ -167,7 +167,7 @@ public class LeftTests extends AbstractFunctionTestCase {
             );
         }));
 
-        return parameterSuppliersFromTypedData(errorsForCasesWithoutExamples(anyNullIsNull(true, suppliers)));
+        return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers);
     }
 
     private static String unicodeLeftSubstring(String str, int length) {

@@ -54,6 +54,7 @@ POST _search
         { "term" : { "tags" : "deployed" } }
       ],
       "minimum_should_match" : 1,
+      "omit_zero_term_query" : false
       "boost" : 1.0
     }
   }
@@ -206,3 +207,9 @@ response. Typically, this adds a small overhead to a request. However, using
 computationally expensive named queries on a large number of hits may add
 significant overhead. For example, named queries in combination with a
 `top_hits` aggregation on many buckets may lead to longer response times.
+
+[[bool-omit-zero-term-query]]
+==== Using `omit_zero_term_query`
+
+(Optional, Boolean) If set to `true`, the query will be omitted if the analyzer
+removes all tokens using a stop filter or similar. Defaults to `false`.

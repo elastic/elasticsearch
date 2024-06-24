@@ -190,7 +190,7 @@ public class SecurityMigrationExecutorTests extends ESTestCase {
             IllegalStateException.class,
             () -> securityMigrationExecutor.nodeOperation(
                 mockTask,
-                mock(SecurityMigrationTaskParams.class),
+                new SecurityMigrationTaskParams(0, true),
                 mock(PersistentTaskState.class)
             )
         );

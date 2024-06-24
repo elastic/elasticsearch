@@ -61,6 +61,7 @@ public class SharedBlobCacheServiceUsingLRUCacheTests extends ESTestCase {
     public void testBasicEviction() throws IOException {
         Settings settings = Settings.builder()
             .put(NODE_NAME_SETTING.getKey(), "node")
+            .put(SharedBlobCacheService.SHARED_CACHE_TYPE.getKey(), "lru")
             .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(500)).getStringRep())
             .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(100)).getStringRep())
             .put("path.home", createTempDir())
@@ -139,6 +140,7 @@ public class SharedBlobCacheServiceUsingLRUCacheTests extends ESTestCase {
     public void testAutoEviction() throws IOException {
         Settings settings = Settings.builder()
             .put(NODE_NAME_SETTING.getKey(), "node")
+            .put(SharedBlobCacheService.SHARED_CACHE_TYPE.getKey(), "lru")
             .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(200)).getStringRep())
             .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(100)).getStringRep())
             .put("path.home", createTempDir())
@@ -183,6 +185,7 @@ public class SharedBlobCacheServiceUsingLRUCacheTests extends ESTestCase {
     public void testForceEviction() throws IOException {
         Settings settings = Settings.builder()
             .put(NODE_NAME_SETTING.getKey(), "node")
+            .put(SharedBlobCacheService.SHARED_CACHE_TYPE.getKey(), "lru")
             .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(500)).getStringRep())
             .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(100)).getStringRep())
             .put("path.home", createTempDir())
@@ -217,6 +220,7 @@ public class SharedBlobCacheServiceUsingLRUCacheTests extends ESTestCase {
     public void testForceEvictResponse() throws IOException {
         Settings settings = Settings.builder()
             .put(NODE_NAME_SETTING.getKey(), "node")
+            .put(SharedBlobCacheService.SHARED_CACHE_TYPE.getKey(), "lru")
             .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(500)).getStringRep())
             .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(100)).getStringRep())
             .put("path.home", createTempDir())
@@ -263,6 +267,7 @@ public class SharedBlobCacheServiceUsingLRUCacheTests extends ESTestCase {
         logger.info("{} {} {}", threads, regionCount, allowAlreadyClosed);
         Settings settings = Settings.builder()
             .put(NODE_NAME_SETTING.getKey(), "node")
+            .put(SharedBlobCacheService.SHARED_CACHE_TYPE.getKey(), "lru")
             .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(regionCount * 100L)).getStringRep())
             .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(100)).getStringRep())
             .put(SharedBlobCacheService.SHARED_CACHE_MIN_TIME_DELTA_SETTING.getKey(), randomFrom("0", "1ms", "10s"))
@@ -336,6 +341,7 @@ public class SharedBlobCacheServiceUsingLRUCacheTests extends ESTestCase {
     public void testFetchFullCacheEntry() throws Exception {
         Settings settings = Settings.builder()
             .put(NODE_NAME_SETTING.getKey(), "node")
+            .put(SharedBlobCacheService.SHARED_CACHE_TYPE.getKey(), "lru")
             .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(500)).getStringRep())
             .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(100)).getStringRep())
             .put("path.home", createTempDir())
@@ -395,6 +401,7 @@ public class SharedBlobCacheServiceUsingLRUCacheTests extends ESTestCase {
     public void testFetchFullCacheEntryConcurrently() throws Exception {
         Settings settings = Settings.builder()
             .put(NODE_NAME_SETTING.getKey(), "node")
+            .put(SharedBlobCacheService.SHARED_CACHE_TYPE.getKey(), "lru")
             .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(500)).getStringRep())
             .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(100)).getStringRep())
             .put("path.home", createTempDir())
@@ -452,6 +459,7 @@ public class SharedBlobCacheServiceUsingLRUCacheTests extends ESTestCase {
             ? ByteSizeValue.ofBytes(size(500)).getStringRep()
             : (new RatioValue(between(1, 100))).formatNoTrailingZerosPercent();
         final Settings settings = Settings.builder()
+            .put(SharedBlobCacheService.SHARED_CACHE_TYPE.getKey(), "lru")
             .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), cacheSize)
             .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(100)).getStringRep())
             .putList(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), DiscoveryNodeRole.DATA_HOT_NODE_ROLE.roleName())
@@ -476,6 +484,7 @@ public class SharedBlobCacheServiceUsingLRUCacheTests extends ESTestCase {
 
     public void testMultipleDataPathsRejectedOnFrozenNodes() {
         final Settings settings = Settings.builder()
+            .put(SharedBlobCacheService.SHARED_CACHE_TYPE.getKey(), "lru")
             .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(500)).getStringRep())
             .putList(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE.roleName())
             .putList(Environment.PATH_DATA_SETTING.getKey(), List.of("a", "b"))
@@ -500,6 +509,7 @@ public class SharedBlobCacheServiceUsingLRUCacheTests extends ESTestCase {
 
     public void testDedicateFrozenCacheSizeDefaults() {
         final Settings settings = Settings.builder()
+            .put(SharedBlobCacheService.SHARED_CACHE_TYPE.getKey(), "lru")
             .putList(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE.roleName())
             .build();
 
@@ -512,6 +522,7 @@ public class SharedBlobCacheServiceUsingLRUCacheTests extends ESTestCase {
 
     public void testNotDedicatedFrozenCacheSizeDefaults() {
         final Settings settings = Settings.builder()
+            .put(SharedBlobCacheService.SHARED_CACHE_TYPE.getKey(), "lru")
             .putList(
                 NodeRoleSettings.NODE_ROLES_SETTING.getKey(),
                 Sets.union(
@@ -544,6 +555,7 @@ public class SharedBlobCacheServiceUsingLRUCacheTests extends ESTestCase {
 
     public void testSearchOrIndexNodeCacheSizeDefaults() {
         final Settings settings = Settings.builder()
+            .put(SharedBlobCacheService.SHARED_CACHE_TYPE.getKey(), "lru")
             .putList(
                 NodeRoleSettings.NODE_ROLES_SETTING.getKey(),
                 randomFrom(DiscoveryNodeRole.SEARCH_ROLE, DiscoveryNodeRole.INDEX_ROLE).roleName()
@@ -560,6 +572,7 @@ public class SharedBlobCacheServiceUsingLRUCacheTests extends ESTestCase {
     public void testMaxHeadroomRejectedForAbsoluteCacheSize() {
         String cacheSize = ByteSizeValue.ofBytes(size(500)).getStringRep();
         final Settings settings = Settings.builder()
+            .put(SharedBlobCacheService.SHARED_CACHE_TYPE.getKey(), "lru")
             .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), cacheSize)
             .put(SharedBlobCacheService.SHARED_CACHE_SIZE_MAX_HEADROOM_SETTING.getKey(), ByteSizeValue.ofBytes(size(100)).getStringRep())
             .putList(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE.roleName())
@@ -589,6 +602,7 @@ public class SharedBlobCacheServiceUsingLRUCacheTests extends ESTestCase {
         long largeSize = ByteSizeValue.ofTb(10).getBytes();
         assertThat(SharedBlobCacheService.calculateCacheSize(Settings.EMPTY, smallSize), equalTo(0L));
         final Settings settings = Settings.builder()
+            .put(SharedBlobCacheService.SHARED_CACHE_TYPE.getKey(), "lru")
             .putList(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE.roleName())
             .build();
         assertThat(SharedBlobCacheService.calculateCacheSize(settings, smallSize), equalTo(9000L));
@@ -603,6 +617,7 @@ public class SharedBlobCacheServiceUsingLRUCacheTests extends ESTestCase {
         ByteSizeValue val1 = new ByteSizeValue(randomIntBetween(1, 5), ByteSizeUnit.MB);
         Settings settings = Settings.builder()
             .put(NODE_NAME_SETTING.getKey(), "node")
+            .put(SharedBlobCacheService.SHARED_CACHE_TYPE.getKey(), "lru")
             .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), val1.getStringRep())
             .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(100)).getStringRep())
             .put("path.home", createTempDir())
@@ -645,6 +660,7 @@ public class SharedBlobCacheServiceUsingLRUCacheTests extends ESTestCase {
         final long regionSize = size(1L);
         Settings settings = Settings.builder()
             .put(NODE_NAME_SETTING.getKey(), "node")
+            .put(SharedBlobCacheService.SHARED_CACHE_TYPE.getKey(), "lru")
             .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(numRegions)).getStringRep())
             .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(regionSize).getStringRep())
             .put("path.home", createTempDir())
@@ -691,6 +707,7 @@ public class SharedBlobCacheServiceUsingLRUCacheTests extends ESTestCase {
         final long regionSize = size(100L);
         Settings settings = Settings.builder()
             .put(NODE_NAME_SETTING.getKey(), "node")
+            .put(SharedBlobCacheService.SHARED_CACHE_TYPE.getKey(), "lru")
             .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(cacheSize).getStringRep())
             .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(regionSize).getStringRep())
             .put("path.home", createTempDir())
@@ -790,6 +807,7 @@ public class SharedBlobCacheServiceUsingLRUCacheTests extends ESTestCase {
         final long regionSize = size(1L);
         Settings settings = Settings.builder()
             .put(NODE_NAME_SETTING.getKey(), "node")
+            .put(SharedBlobCacheService.SHARED_CACHE_TYPE.getKey(), "lru")
             .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(100)).getStringRep())
             .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(regionSize).getStringRep())
             .put("path.home", createTempDir())
@@ -855,6 +873,7 @@ public class SharedBlobCacheServiceUsingLRUCacheTests extends ESTestCase {
     private void assertThatNonPositiveRecoveryRangeSizeRejected(Setting<ByteSizeValue> setting) {
         final String value = randomFrom(ByteSizeValue.MINUS_ONE, ByteSizeValue.ZERO).getStringRep();
         final Settings settings = Settings.builder()
+            .put(SharedBlobCacheService.SHARED_CACHE_TYPE.getKey(), "lru")
             .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(100)).getStringRep())
             .putList(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE.roleName())
             .put(setting.getKey(), value)
@@ -883,6 +902,7 @@ public class SharedBlobCacheServiceUsingLRUCacheTests extends ESTestCase {
 
         Settings settings = Settings.builder()
             .put(NODE_NAME_SETTING.getKey(), "node")
+            .put(SharedBlobCacheService.SHARED_CACHE_TYPE.getKey(), "lru")
             .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(regionSize).getStringRep())
             .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(cacheSize).getStringRep())
             .put("path.home", createTempDir())

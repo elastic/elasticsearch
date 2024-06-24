@@ -1042,6 +1042,7 @@ public class SharedBlobCacheServiceUsingLFUCacheTests extends ESTestCase {
         final long regionSize = size(100L);
         Settings settings = Settings.builder()
             .put(NODE_NAME_SETTING.getKey(), "node")
+            .put(SharedBlobCacheService.SHARED_CACHE_TYPE.getKey(), "lfu")
             .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(cacheSize).getStringRep())
             .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(regionSize).getStringRep())
             .put("path.home", createTempDir())

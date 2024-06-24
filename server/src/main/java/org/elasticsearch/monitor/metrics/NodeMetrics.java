@@ -129,7 +129,7 @@ public class NodeMetrics extends AbstractLifecycleComponent {
 
         metrics.add(
             registry.registerLongAsyncCounter(
-                "es.indices.search.query_total",
+                "es.indices.search.query.total",
                 "Total number of query operations.",
                 "operations",
                 () -> new LongWithAttributes(
@@ -175,7 +175,7 @@ public class NodeMetrics extends AbstractLifecycleComponent {
 
         metrics.add(
             registry.registerLongAsyncCounter(
-                "es.indices.docs.count",
+                "es.indices.docs.total",
                 "The number of documents as reported by Lucene.",
                 "documents",
                 () -> new LongWithAttributes(
@@ -693,7 +693,7 @@ public class NodeMetrics extends AbstractLifecycleComponent {
 
         metrics.add(
             registry.registerLongGauge(
-                "es.node.stats.http.current_open",
+                "es.node.stats.http.open.current",
                 "Current number of open HTTP connections for the node",
                 "connections",
                 () -> new LongWithAttributes(stats.getOrRefresh().getHttp().getServerOpen())

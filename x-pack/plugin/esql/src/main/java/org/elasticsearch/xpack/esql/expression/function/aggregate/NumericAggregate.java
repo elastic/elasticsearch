@@ -19,6 +19,28 @@ import java.util.List;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 
+/**
+ * Aggregate function that receives a numeric, signed field, and returns a single double value.
+ * <p>
+ *     Implement the supplier methods to return the correct {@link AggregatorFunctionSupplier}.
+ * </p>
+ * <p>
+ *     Some methods can be optionally overridden to support different variations:
+ * </p>
+ * <ul>
+ *     <li>
+ *         {@link #supportsDates}: override to also support dates. Defaults to false.
+ *     </li>
+ *     <li>
+ *         {@link #resolveType}: override to support different parameters.
+ *         Call {@code super.resolveType()} to add extra checks.
+ *     </li>
+ *     <li>
+ *         {@link #dataType}: override to return a different datatype.
+ *         You can return {@code field().dataType()} to propagate the parameter type.
+ *     </li>
+ * </ul>
+ */
 public abstract class NumericAggregate extends AggregateFunction implements ToAggregator {
 
     NumericAggregate(Source source, Expression field, List<Expression> parameters) {

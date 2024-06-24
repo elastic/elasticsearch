@@ -166,7 +166,7 @@ public class FsDirectoryFactoryTests extends ESTestCase {
                     assertTrue(type + " " + directory.toString(), directory instanceof NIOFSDirectory);
                     break;
                 case MMAPFS:
-                    assertTrue(type + " " + directory.toString(), directory instanceof MMapDirectory);
+                    assertTrue(type + " " + directory.getClass().getName() + " " + directory, directory instanceof MMapDirectory);
                     break;
                 case FS:
                     if (Constants.JRE_IS_64BIT && MMapDirectory.UNMAP_SUPPORTED) {

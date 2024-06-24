@@ -105,8 +105,8 @@ public class CoalesceTests extends AbstractFunctionTestCase {
 
     protected static void addSpatialCombinations(List<TestCaseSupplier> suppliers) {
         for (DataType dataType : List.of(DataType.GEO_POINT, DataType.GEO_SHAPE, DataType.CARTESIAN_POINT, DataType.CARTESIAN_SHAPE)) {
-            TestCaseSupplier.TypedDataSupplier leftDataSupplier = SpatialRelatesFunctionTestCase.testCaseSupplier(dataType);
-            TestCaseSupplier.TypedDataSupplier rightDataSupplier = SpatialRelatesFunctionTestCase.testCaseSupplier(dataType);
+            TestCaseSupplier.TypedDataSupplier leftDataSupplier = SpatialRelatesFunctionTestCase.testCaseSupplier(dataType, false);
+            TestCaseSupplier.TypedDataSupplier rightDataSupplier = SpatialRelatesFunctionTestCase.testCaseSupplier(dataType, false);
             suppliers.add(
                 TestCaseSupplier.testCaseSupplier(
                     leftDataSupplier,

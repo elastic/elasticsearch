@@ -10,9 +10,9 @@ package org.elasticsearch.action.admin.cluster.repositories.get;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.MasterNodeReadRequest;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.TimeValue;
 
 import java.io.IOException;
 
@@ -23,11 +23,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  */
 public class GetRepositoriesRequest extends MasterNodeReadRequest<GetRepositoriesRequest> {
 
-    private String[] repositories = Strings.EMPTY_ARRAY;
-
-    public GetRepositoriesRequest() {
-        super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
-    }
+    private String[] repositories;
 
     /**
      * Constructs a new get repositories request with a list of repositories.
@@ -35,10 +31,10 @@ public class GetRepositoriesRequest extends MasterNodeReadRequest<GetRepositorie
      * If the list of repositories is empty or it contains a single element "_all", all registered repositories
      * are returned.
      *
-     * @param repositories list of repositories
+     * @param repositories      list of repositories
      */
-    public GetRepositoriesRequest(String[] repositories) {
-        super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
+    public GetRepositoriesRequest(TimeValue masterNodeTimeout, String[] repositories) {
+        super(masterNodeTimeout);
         this.repositories = repositories;
     }
 

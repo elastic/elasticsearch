@@ -274,6 +274,7 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
             + "    }"
             + "  } ],"
             + "  \"minimum_should_match\" : \"23\","
+            + "  \"omit_zero_term_query\" : false,"
             + "  \"boost\" : 42.0"
             + "}"
             + "}";
@@ -462,5 +463,23 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
         boolQuery.must(termQuery);
         IllegalStateException e = expectThrows(IllegalStateException.class, () -> boolQuery.toQuery(context));
         assertEquals("Rewrite first", e.getMessage());
+    }
+
+    public void testStopWordAndOmitZeroTermQueryIsTrue() throws Exception {
+        BoolQueryBuilder boolQueryBuilder = new BoolQueryBuilder().omitZeroTermQuery(true);
+        boolQueryBuilder.must(new MultiMatchQueryBuilder("The").field(TEXT_FIELD_NAME).analyzer("stop"));
+        Query query = boolQueryBuilder.toQuery(createSearchExecutionContext());
+        assertThat(query, instanceOf(MatchNoDocsQuery.class));
+    }
+
+    public void testMultipleTokensAndOmitZeroTermQueryIsTrue() throws Exception {
+        BoolQueryBuilder boolQueryBuilder = new BoolQueryBuilder().omitZeroTermQuery(true);
+        boolQueryBuilder.must(new MultiMatchQueryBuilder("The").field(TEXT_FIELD_NAME).analyzer("stop"));
+        boolQueryBuilder.must(new MultiMatchQueryBuilder("brown").field(TEXT_FIELD_NAME));
+        boolQueryBuilder.must(new MultiMatchQueryBuilder("fox").field(TEXT_FIELD_NAME));
+        Query query = boolQueryBuilder.toQuery(createSearchExecutionContext());
+        assertThat(query, instanceOf(BooleanQuery.class));
+        BooleanQuery booleanQuery = (BooleanQuery) query;
+        assertThat(booleanQuery.clauses().size(), equalTo(2));
     }
 }

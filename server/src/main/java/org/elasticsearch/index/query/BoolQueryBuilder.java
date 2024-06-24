@@ -12,6 +12,7 @@ import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
@@ -41,6 +42,7 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
     public static final String NAME = "bool";
 
     public static final boolean ADJUST_PURE_NEGATIVE_DEFAULT = true;
+    public static final boolean OMIT_ZERO_TERM_QUERY_DEFAULT = false;
 
     private static final ParseField MUST_NOT = new ParseField("must_not").withDeprecation("mustNot");
     private static final ParseField FILTER = new ParseField("filter");
@@ -48,6 +50,7 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
     private static final ParseField MUST = new ParseField("must");
     private static final ParseField MINIMUM_SHOULD_MATCH = new ParseField("minimum_should_match");
     private static final ParseField ADJUST_PURE_NEGATIVE = new ParseField("adjust_pure_negative");
+    private static final ParseField OMIT_ZERO_TERM_QUERY = new ParseField("omit_zero_term_query");
 
     private final List<QueryBuilder> mustClauses = new ArrayList<>();
 
@@ -60,6 +63,8 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
     private boolean adjustPureNegative = ADJUST_PURE_NEGATIVE_DEFAULT;
 
     private String minimumShouldMatch;
+
+    private boolean omitZeroTermQuery = OMIT_ZERO_TERM_QUERY_DEFAULT;
 
     /**
      * Build an empty bool query.
@@ -77,6 +82,7 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
         filterClauses.addAll(readQueries(in));
         adjustPureNegative = in.readBoolean();
         minimumShouldMatch = in.readOptionalString();
+        omitZeroTermQuery = in.readBoolean();
     }
 
     @Override
@@ -87,6 +93,7 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
         writeQueries(out, filterClauses);
         out.writeBoolean(adjustPureNegative);
         out.writeOptionalString(minimumShouldMatch);
+        out.writeBoolean(omitZeroTermQuery);
     }
 
     /**
@@ -224,10 +231,22 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
     }
 
     /**
-     * @return the setting for the adjust_pure_negative setting in this query
+     * @return the setting for the omit_zero_term_query setting in this query
      */
     public boolean adjustPureNegative() {
         return this.adjustPureNegative;
+    }
+
+    public BoolQueryBuilder omitZeroTermQuery(boolean omitZeroTermQuery) {
+        this.omitZeroTermQuery = omitZeroTermQuery;
+        return this;
+    }
+
+    /**
+     * @return the setting for the omit_zero_term_query setting in this query
+     */
+    public boolean omitZeroTermQuery() {
+        return this.omitZeroTermQuery;
     }
 
     @Override
@@ -245,6 +264,7 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
         if (minimumShouldMatch != null) {
             builder.field(MINIMUM_SHOULD_MATCH.getPreferredName(), minimumShouldMatch);
         }
+        builder.field(OMIT_ZERO_TERM_QUERY.getPreferredName(), omitZeroTermQuery);
         printBoostAndQueryName(builder);
         builder.endObject();
     }
@@ -286,6 +306,7 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
             MINIMUM_SHOULD_MATCH,
             ObjectParser.ValueType.VALUE
         );
+        PARSER.declareBoolean(BoolQueryBuilder::omitZeroTermQuery, OMIT_ZERO_TERM_QUERY);
         PARSER.declareString(BoolQueryBuilder::queryName, NAME_FIELD);
         PARSER.declareFloat(BoolQueryBuilder::boost, BOOST_FIELD);
     }
@@ -308,14 +329,19 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
         addBooleanClauses(context, booleanQueryBuilder, filterClauses, BooleanClause.Occur.FILTER);
         BooleanQuery booleanQuery = booleanQueryBuilder.build();
         if (booleanQuery.clauses().isEmpty()) {
-            return new MatchAllDocsQuery();
+            if (omitZeroTermQuery) {
+                return new MatchNoDocsQuery();
+            } else {
+                return new MatchAllDocsQuery();
+            }
+
         }
 
         Query query = Queries.applyMinimumShouldMatch(booleanQuery, minimumShouldMatch);
         return adjustPureNegative ? fixNegativeQueryIfNeeded(query) : query;
     }
 
-    private static void addBooleanClauses(
+    private void addBooleanClauses(
         SearchExecutionContext context,
         BooleanQuery.Builder booleanQueryBuilder,
         List<QueryBuilder> clauses,
@@ -323,18 +349,30 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
     ) throws IOException {
         for (QueryBuilder query : clauses) {
             Query luceneQuery = query.toQuery(context);
+            if (luceneQuery instanceof MatchNoDocsQuery && omitZeroTermQuery) {
+                continue;
+            }
             booleanQueryBuilder.add(new BooleanClause(luceneQuery, occurs));
         }
     }
 
     @Override
     protected int doHashCode() {
-        return Objects.hash(adjustPureNegative, minimumShouldMatch, mustClauses, shouldClauses, mustNotClauses, filterClauses);
+        return Objects.hash(
+            omitZeroTermQuery,
+            adjustPureNegative,
+            minimumShouldMatch,
+            mustClauses,
+            shouldClauses,
+            mustNotClauses,
+            filterClauses
+        );
     }
 
     @Override
     protected boolean doEquals(BoolQueryBuilder other) {
-        return Objects.equals(adjustPureNegative, other.adjustPureNegative)
+        return Objects.equals(omitZeroTermQuery, other.omitZeroTermQuery)
+            && Objects.equals(adjustPureNegative, other.adjustPureNegative)
             && Objects.equals(minimumShouldMatch, other.minimumShouldMatch)
             && Objects.equals(mustClauses, other.mustClauses)
             && Objects.equals(shouldClauses, other.shouldClauses)
@@ -370,6 +408,7 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
         }
 
         if (changed) {
+            newBuilder.omitZeroTermQuery = omitZeroTermQuery;
             newBuilder.adjustPureNegative = adjustPureNegative;
             newBuilder.minimumShouldMatch = minimumShouldMatch;
             newBuilder.boost(boost());

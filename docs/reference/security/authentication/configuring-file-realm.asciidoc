@@ -24,14 +24,13 @@ files distributed or copied to all other nodes in the cluster (either manually
 or using a configuration management system such as Puppet or Chef).
 ==============================
 
-. This step is _optional_ if you haven't manually configured the realm chain.
+. This step is required if you have manually configured the realm chain, optional otherwise.
 +
 Add a realm configuration to `elasticsearch.yml` under the
 `xpack.security.authc.realms.file` namespace. At a minimum, you must set
 the realm's `order` attribute.
 +
 --
-
 //See <<ref-users-settings>> for all of the options you can set for a `file` realm.
 
 For example, the following snippet shows a `file` realm configuration that sets

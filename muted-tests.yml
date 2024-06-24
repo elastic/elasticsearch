@@ -88,6 +88,9 @@ tests:
 - class: "org.elasticsearch.http.netty4.Netty4ChunkedContinuationsIT"
   issue: "https://github.com/elastic/elasticsearch/issues/109866"
   method: "testClientCancellation"
+- class: "org.elasticsearch.test.jvm_crash.JvmCrashIT"
+  issue: "https://github.com/elastic/elasticsearch/issues/110052"
+  method: "testJvmCrash"
 
 # Examples:
 #

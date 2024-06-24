@@ -22,7 +22,7 @@ public class AnthropicChatCompletionRequestEntity implements ToXContentObject {
     private static final String MODEL_FIELD = "model";
 
     private static final String ROLE_FIELD = "role";
-    private static final String USER_FIELD = "user";
+    private static final String USER_VALUE = "user";
     private static final String CONTENT_FIELD = "content";
     private static final String MAX_TOKENS_FIELD = "max_tokens";
     private static final String TEMPERATURE_FIELD = "temperature";
@@ -53,7 +53,7 @@ public class AnthropicChatCompletionRequestEntity implements ToXContentObject {
                 builder.startObject();
 
                 {
-                    builder.field(ROLE_FIELD, USER_FIELD);
+                    builder.field(ROLE_FIELD, USER_VALUE);
                     builder.field(CONTENT_FIELD, message);
                 }
 

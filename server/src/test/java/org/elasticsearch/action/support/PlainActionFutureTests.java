@@ -194,10 +194,8 @@ public class PlainActionFutureTests extends ESTestCase {
                     }
                     result.set(Result.SUCCESS);
                 } catch (AssertionError e) {
-                    logger.error(e);
                     result.set(Result.FAILURE);
                 } catch (Exception e) {
-                    logger.error(e);
                     fail(e);
                 }
             });

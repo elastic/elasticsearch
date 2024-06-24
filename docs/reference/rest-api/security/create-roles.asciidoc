@@ -56,6 +56,7 @@ is currently limited to the management of application privileges.
 This field is optional.
 
 `indices`:: (list) A list of indices permissions entries.
+`allow_restricted_indices`::: (default: _false_) Controls whether a role can access indices that are marked as restricted.
 `field_security`::: (object) The document fields that the owners of the role have
 read access to. For more information, see
 <<field-and-document-access-control>>.

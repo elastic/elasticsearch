@@ -162,7 +162,10 @@ public enum DataType {
 
     static {
         Map<String, DataType> map = TYPES.stream().filter(e -> e.esType() != null).collect(toMap(DataType::esType, t -> t));
-        map.put("date_nanos", DATETIME);
+        // TODO: Why don't we use the names ES uses as the esType field for these?
+        // ES calls this 'point', but ESQL calls it 'cartesian_point'
+        map.put("point", DataType.CARTESIAN_POINT);
+        map.put("shape", DataType.CARTESIAN_SHAPE);
         ES_TO_TYPE = Collections.unmodifiableMap(map);
     }
 

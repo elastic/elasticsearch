@@ -665,7 +665,7 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
                 if (context.doc().getByKey(delegateFieldMapper.fieldType().name()) != null) {
                     throw new IllegalArgumentException(
                         "Field ["
-                            + name()
+                            + fullPath()
                             + "] of type ["
                             + typeName()
                             + "] does not support indexing multiple values for the same field in the same document"
@@ -687,10 +687,10 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
                 }
 
                 if (malformedDataForSyntheticSource != null) {
-                    context.doc().add(IgnoreMalformedStoredValues.storedField(name(), malformedDataForSyntheticSource));
+                    context.doc().add(IgnoreMalformedStoredValues.storedField(fullPath(), malformedDataForSyntheticSource));
                 }
 
-                context.addIgnoredField(name());
+                context.addIgnoredField(fullPath());
                 context.path().remove();
                 return;
             }
@@ -719,9 +719,9 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
     public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
         return new CompositeSyntheticFieldLoader(
             leafName(),
-            name(),
-            new AggregateMetricSyntheticFieldLoader(name(), leafName(), metrics),
-            new CompositeSyntheticFieldLoader.MalformedValuesLayer(name())
+            fullPath(),
+            new AggregateMetricSyntheticFieldLoader(fullPath(), leafName(), metrics),
+            new CompositeSyntheticFieldLoader.MalformedValuesLayer(fullPath())
         );
     }
 

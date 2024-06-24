@@ -26,6 +26,7 @@ import org.mockito.Mockito;
 
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.action.downsample.DownsampleConfig.generateDownsampleIndexName;
@@ -49,7 +50,7 @@ public class DownsampleStepTests extends AbstractStepTestCase<DownsampleStep> {
             nextStepKey,
             client,
             fixedInterval,
-            TimeValue.parseTimeValue(randomTimeValue(1, 1000, "d", "h", "ms", "s", "m"), "timeout")
+            randomTimeValue(1, 1000, TimeUnit.DAYS, TimeUnit.HOURS, TimeUnit.MINUTES, TimeUnit.SECONDS, TimeUnit.MILLISECONDS)
         );
     }
 
@@ -66,7 +67,7 @@ public class DownsampleStepTests extends AbstractStepTestCase<DownsampleStep> {
             case 2 -> fixedInterval = randomValueOtherThan(instance.getFixedInterval(), ConfigTestHelpers::randomInterval);
             case 3 -> timeout = randomValueOtherThan(
                 instance.getWaitTimeout(),
-                () -> TimeValue.parseTimeValue(randomTimeValue(1, 1000, "d", "h", "ms", "s", "m"), "timeout")
+                () -> randomTimeValue(1, 1000, TimeUnit.DAYS, TimeUnit.HOURS, TimeUnit.MINUTES, TimeUnit.SECONDS, TimeUnit.MILLISECONDS)
             );
             default -> throw new AssertionError("Illegal randomisation branch");
         }

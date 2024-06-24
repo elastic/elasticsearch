@@ -91,6 +91,7 @@ public abstract class AbstractFieldDataImplTestCase extends AbstractFieldDataTes
             assertThat(fieldData.ramBytesUsed(), greaterThanOrEqualTo(minRamBytesUsed()));
 
             SortedBinaryDocValues bytesValues = fieldData.getBytesValues();
+            assertNotNull(FieldData.unwrapSingleton(bytesValues));
 
             assertTrue(bytesValues.advanceExact(0));
             assertThat(bytesValues.docValueCount(), equalTo(1));
@@ -183,6 +184,7 @@ public abstract class AbstractFieldDataImplTestCase extends AbstractFieldDataTes
             assertThat(fieldData.ramBytesUsed(), greaterThanOrEqualTo(minRamBytesUsed()));
 
             SortedBinaryDocValues bytesValues = fieldData.getBytesValues();
+            assertNull(FieldData.unwrapSingleton(bytesValues));
             assertValues(bytesValues, 0, two(), four());
             assertValues(bytesValues, 1, one());
             assertValues(bytesValues, 2, three());

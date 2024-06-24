@@ -109,7 +109,7 @@ The number cache entries evicted from the cache.
 
 `hits_time_in_millis`::
 (Long)
-The amount of time in milliseconds spent fetching data from the cache on succesful cache hits only.
+The amount of time in milliseconds spent fetching data from the cache on successful cache hits only.
 
 `misses_time_in_millis`::
 (Long)

@@ -7,26 +7,33 @@
 
 package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.CountAggregatorFunction;
-import org.elasticsearch.xpack.esql.expression.EsqlTypeResolutions;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.Nullability;
+import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.util.StringUtils;
+import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvCount;
+import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mul;
 import org.elasticsearch.xpack.esql.planner.ToAggregator;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.Nullability;
-import org.elasticsearch.xpack.ql.expression.function.aggregate.AggregateFunction;
-import org.elasticsearch.xpack.ql.expression.function.aggregate.EnclosedAgg;
-import org.elasticsearch.xpack.ql.tree.NodeInfo;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypes;
 
+import java.io.IOException;
 import java.util.List;
 
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.DEFAULT;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 
-public class Count extends AggregateFunction implements EnclosedAgg, ToAggregator {
+public class Count extends AggregateFunction implements EnclosedAgg, ToAggregator, SurrogateExpression {
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Count", Count::new);
 
     @FunctionInfo(returnType = "long", description = "Returns the total number (count) of input values.", isAggregation = true)
     public Count(
@@ -53,6 +60,15 @@ public class Count extends AggregateFunction implements EnclosedAgg, ToAggregato
         super(source, field);
     }
 
+    private Count(StreamInput in) throws IOException {
+        super(in);
+    }
+
+    @Override
+    public String getWriteableName() {
+        return ENTRY.name;
+    }
+
     @Override
     protected NodeInfo<Count> info() {
         return NodeInfo.create(this, Count::new, field());
@@ -70,7 +86,7 @@ public class Count extends AggregateFunction implements EnclosedAgg, ToAggregato
 
     @Override
     public DataType dataType() {
-        return DataTypes.LONG;
+        return DataType.LONG;
     }
 
     @Override
@@ -85,6 +101,32 @@ public class Count extends AggregateFunction implements EnclosedAgg, ToAggregato
 
     @Override
     protected TypeResolution resolveType() {
-        return EsqlTypeResolutions.isExact(field(), sourceText(), DEFAULT);
+        return isType(field(), dt -> dt.isCounter() == false, sourceText(), DEFAULT, "any type except counter types");
+    }
+
+    @Override
+    public Expression surrogate() {
+        var s = source();
+        var field = field();
+
+        if (field.foldable()) {
+            if (field instanceof Literal l) {
+                if (l.value() != null && (l.value() instanceof List<?>) == false) {
+                    // TODO: Normalize COUNT(*), COUNT(), COUNT("foobar"), COUNT(1) as COUNT(*).
+                    // Does not apply to COUNT([1,2,3])
+                    // return new Count(s, new Literal(s, StringUtils.WILDCARD, DataType.KEYWORD));
+                    return null;
+                }
+            }
+
+            // COUNT(const) is equivalent to MV_COUNT(const)*COUNT(*) if const is not null; otherwise COUNT(const) == 0.
+            return new Mul(
+                s,
+                new Coalesce(s, new MvCount(s, field), List.of(new Literal(s, 0, DataType.INTEGER))),
+                new Count(s, new Literal(s, StringUtils.WILDCARD, DataType.KEYWORD))
+            );
+        }
+
+        return null;
     }
 }

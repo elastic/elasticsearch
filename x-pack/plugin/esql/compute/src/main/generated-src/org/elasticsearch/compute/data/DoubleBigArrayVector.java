@@ -10,8 +10,10 @@ package org.elasticsearch.compute.data;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.DoubleArray;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.ReleasableIterator;
 
 import java.io.IOException;
 
@@ -84,6 +86,11 @@ public final class DoubleBigArrayVector extends AbstractVector implements Double
             filtered.set(i, values.get(positions[i]));
         }
         return new DoubleBigArrayVector(filtered, positions.length, blockFactory);
+    }
+
+    @Override
+    public ReleasableIterator<DoubleBlock> lookup(IntBlock positions, ByteSizeValue targetBlockSize) {
+        return new DoubleLookup(asBlock(), positions, targetBlockSize);
     }
 
     @Override

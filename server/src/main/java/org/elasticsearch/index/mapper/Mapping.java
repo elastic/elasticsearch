@@ -21,6 +21,7 @@ import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.stream.Stream;
 
 /**
  * Wrapper around everything that defines a mapping, without references to
@@ -51,11 +52,11 @@ public final class Mapping implements ToXContentFragment {
         for (int i = 0; i < metadataMappers.length; i++) {
             MetadataFieldMapper metadataMapper = metadataMappers[i];
             metadataMappersMap[i] = Map.entry(metadataMapper.getClass(), metadataMapper);
-            metadataMappersByName[i] = Map.entry(metadataMapper.name(), metadataMapper);
+            metadataMappersByName[i] = Map.entry(metadataMapper.fullPath(), metadataMapper);
         }
         this.root = rootObjectMapper;
         // keep root mappers sorted for consistent serialization
-        Arrays.sort(metadataMappers, Comparator.comparing(Mapper::name));
+        Arrays.sort(metadataMappers, Comparator.comparing(Mapper::fullPath));
         this.metadataMappersMap = Map.ofEntries(metadataMappersMap);
         this.metadataMappersByName = Map.ofEntries(metadataMappersByName);
         this.meta = meta;
@@ -69,7 +70,7 @@ public final class Mapping implements ToXContentFragment {
         try {
             return new CompressedXContent(this);
         } catch (Exception e) {
-            throw new ElasticsearchGenerationException("failed to serialize source for type [" + root.name() + "]", e);
+            throw new ElasticsearchGenerationException("failed to serialize source for type [" + root.fullPath() + "]", e);
         }
     }
 
@@ -125,7 +126,8 @@ public final class Mapping implements ToXContentFragment {
     }
 
     public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
-        return root.syntheticFieldLoader(Arrays.stream(metadataMappers));
+        var stream = Stream.concat(Stream.of(metadataMappers), root.mappers.values().stream());
+        return root.syntheticFieldLoader(stream);
     }
 
     /**

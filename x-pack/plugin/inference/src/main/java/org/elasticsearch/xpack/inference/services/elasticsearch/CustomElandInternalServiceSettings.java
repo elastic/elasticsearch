@@ -8,16 +8,16 @@
 package org.elasticsearch.xpack.inference.services.elasticsearch;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 
 import java.io.IOException;
 import java.util.Map;
-
-import static org.elasticsearch.TransportVersions.ML_TEXT_EMBEDDING_INFERENCE_SERVICE_ADDED;
 
 public class CustomElandInternalServiceSettings extends ElasticsearchInternalServiceSettings {
 
@@ -38,7 +38,7 @@ public class CustomElandInternalServiceSettings extends ElasticsearchInternalSer
      * @param map Source map containing the config
      * @return The {@code CustomElandServiceSettings} builder
      */
-    public static Builder fromMap(Map<String, Object> map) {
+    public static CustomElandInternalServiceSettings fromMap(Map<String, Object> map) {
 
         ValidationException validationException = new ValidationException();
         Integer numAllocations = ServiceUtils.removeAsType(map, NUM_ALLOCATIONS, Integer.class);
@@ -46,8 +46,7 @@ public class CustomElandInternalServiceSettings extends ElasticsearchInternalSer
 
         validateParameters(numAllocations, validationException, numThreads);
 
-        String modelId = ServiceUtils.extractRequiredString(map, MODEL_ID, "ServiceSettings", validationException); // TODO check if this is
-                                                                                                                    // the correct scope
+        String modelId = ServiceUtils.extractRequiredString(map, MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
 
         if (validationException.validationErrors().isEmpty() == false) {
             throw validationException;
@@ -62,7 +61,7 @@ public class CustomElandInternalServiceSettings extends ElasticsearchInternalSer
         builder.setNumAllocations(numAllocations);
         builder.setNumThreads(numThreads);
         builder.setModelId(modelId);
-        return builder;
+        return builder.build();
     }
 
     @Override
@@ -86,7 +85,7 @@ public class CustomElandInternalServiceSettings extends ElasticsearchInternalSer
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return ML_TEXT_EMBEDDING_INFERENCE_SERVICE_ADDED;
+        return TransportVersions.V_8_13_0;
     }
 
     @Override

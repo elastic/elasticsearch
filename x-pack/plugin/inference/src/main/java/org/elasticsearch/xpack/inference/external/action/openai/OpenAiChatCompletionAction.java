@@ -44,13 +44,14 @@ public class OpenAiChatCompletionAction implements ExecutableAction {
 
     @Override
     public void execute(InferenceInputs inferenceInputs, TimeValue timeout, ActionListener<InferenceServiceResults> listener) {
-        if (inferenceInputs instanceof DocumentsOnlyInput docsOnlyInput) {
-            if (docsOnlyInput.getInputs().size() > 1) {
-                listener.onFailure(new ElasticsearchStatusException("OpenAI completions only accepts 1 input", RestStatus.BAD_REQUEST));
-                return;
-            }
-        } else {
+        if (inferenceInputs instanceof DocumentsOnlyInput == false) {
             listener.onFailure(new ElasticsearchStatusException("Invalid inference input type", RestStatus.INTERNAL_SERVER_ERROR));
+            return;
+        }
+
+        var docsOnlyInput = (DocumentsOnlyInput) inferenceInputs;
+        if (docsOnlyInput.getInputs().size() > 1) {
+            listener.onFailure(new ElasticsearchStatusException("OpenAI completions only accepts 1 input", RestStatus.BAD_REQUEST));
             return;
         }
 

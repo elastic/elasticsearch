@@ -190,7 +190,7 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
                             clusterService,
                             indexNames.toArray(String[]::new),
                             ActiveShardCount.DEFAULT,
-                            request.timeout(),
+                            request.ackTimeout(),
                             allocationActionMultiListener.delay(listener)
                                 .map(shardsAcked -> new CreateIndexResponse(true, shardsAcked, indexNames.get(0)))
                         );
@@ -253,7 +253,7 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
                         request.index(),
                         dataStreamDescriptor,
                         request.masterNodeTimeout(),
-                        request.timeout(),
+                        request.ackTimeout(),
                         false
                     );
                     assert createRequest.performReroute() == false
@@ -261,14 +261,15 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
                     ClusterState clusterState = metadataCreateDataStreamService.createDataStream(
                         createRequest,
                         currentState,
-                        rerouteCompletionIsNotRequired()
+                        rerouteCompletionIsNotRequired(),
+                        request.isInitializeFailureStore()
                     );
 
                     final var dataStream = clusterState.metadata().dataStreams().get(request.index());
                     final var backingIndexName = dataStream.getIndices().get(0).getName();
-                    final var indexNames = dataStream.getFailureIndices().isEmpty()
+                    final var indexNames = dataStream.getFailureIndices().getIndices().isEmpty()
                         ? List.of(backingIndexName)
-                        : List.of(backingIndexName, dataStream.getFailureIndices().get(0).getName());
+                        : List.of(backingIndexName, dataStream.getFailureIndices().getIndices().get(0).getName());
                     taskContext.success(getAckListener(indexNames, allocationActionMultiListener));
                     successfulRequests.put(request, indexNames);
                     return clusterState;
@@ -348,7 +349,7 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
                     request.cause(),
                     indexName,
                     request.index()
-                ).ackTimeout(request.timeout()).performReroute(false).masterNodeTimeout(request.masterNodeTimeout());
+                ).ackTimeout(request.ackTimeout()).performReroute(false).masterNodeTimeout(request.masterNodeTimeout());
                 logger.debug("Auto-creating index {}", indexName);
                 return updateRequest;
             }
@@ -365,7 +366,7 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
                     request.cause(),
                     concreteIndexName,
                     request.index()
-                ).ackTimeout(request.timeout()).masterNodeTimeout(request.masterNodeTimeout()).performReroute(false);
+                ).ackTimeout(request.ackTimeout()).masterNodeTimeout(request.masterNodeTimeout()).performReroute(false);
 
                 updateRequest.waitForActiveShards(ActiveShardCount.ALL);
 

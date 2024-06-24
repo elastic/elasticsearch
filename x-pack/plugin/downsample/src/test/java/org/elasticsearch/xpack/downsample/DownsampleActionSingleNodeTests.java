@@ -555,8 +555,13 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
             }
         });
 
-        // Downsample with retries, in case the downsampled index is not ready.
-        assertBusy(() -> downsample(sourceIndex, downsampleIndex, config), 120, TimeUnit.SECONDS);
+        assertBusy(() -> {
+            try {
+                client().execute(DownsampleAction.INSTANCE, new DownsampleAction.Request(sourceIndex, downsampleIndex, TIMEOUT, config));
+            } catch (ElasticsearchException e) {
+                fail("transient failure due to overlapping downsample operations");
+            }
+        });
 
         // We must wait until the in-progress downsample ends, otherwise data will not be cleaned up
         assertBusy(() -> assertTrue("In progress downsample did not complete", downsampleListener.success), 60, TimeUnit.SECONDS);

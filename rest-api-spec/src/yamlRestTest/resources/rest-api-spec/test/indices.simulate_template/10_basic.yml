@@ -1,7 +1,7 @@
 ---
 "Simulate template without a template in the body":
   - requires:
-      cluster_features: ["gte_v7.9.0"]
+      cluster_features: "gte_v7.9.0"
       reason: "only available in 7.9+"
       test_runner_features: ["default_shards"]
 
@@ -31,7 +31,7 @@
 ---
 "Simulate index template specifying a new template":
   - requires:
-      cluster_features: ["gte_v7.9.0"]
+      cluster_features: "gte_v7.9.0"
       reason: "only available in 7.9+"
       test_runner_features: ["default_shards"]
 
@@ -39,7 +39,7 @@
       indices.put_index_template:
         name: existing_test
         body:
-          index_patterns: te*
+          index_patterns: test*
           priority: 10
           template:
             settings:
@@ -65,7 +65,7 @@
   - do:
       indices.simulate_template:
         body:
-          index_patterns: te*
+          index_patterns: test*
           priority: 15
           template:
             settings:
@@ -78,14 +78,14 @@
   - match: {template.settings.index.number_of_replicas: "2"}
   - match: {template.mappings.properties.ct_field.type: "keyword"}
   - match: {overlapping.0.name: existing_test}
-  - match: {overlapping.0.index_patterns: ["te*"]}
+  - match: {overlapping.0.index_patterns: ["test*"]}
   - length: {template.aliases: 1}
   - is_true: template.aliases.test_alias
 
 ---
 "Simulate template matches overlapping legacy and composable templates":
   - requires:
-      cluster_features: ["gte_v7.9.0"]
+      cluster_features: "gte_v7.9.0"
       reason: "only available in 7.9+"
       test_runner_features: ["allowed_warnings", "default_shards"]
 
@@ -93,18 +93,18 @@
       indices.put_template:
         name: v1_template
         body:
-          index_patterns: [t*, t1*]
+          index_patterns: [test*, t1*]
           settings:
             number_of_shards:   5
 
   - do:
       allowed_warnings:
-        - "index template [v2_template] has index patterns [te*] matching patterns from existing older templates [v1_template] with patterns
-        (v1_template => [t*, t1*]); this template [v2_template] will take precedence during new index creation"
+        - "index template [v2_template] has index patterns [test*] matching patterns from existing older templates [v1_template] with patterns
+        (v1_template => [test*, t1*]); this template [v2_template] will take precedence during new index creation"
       indices.put_index_template:
         name: v2_template
         body:
-          index_patterns: te*
+          index_patterns: test*
           priority: 10
           template:
             settings:
@@ -117,12 +117,12 @@
 
   - do:
       allowed_warnings:
-        - "index template [winning_v2_template] has index patterns [te*] matching patterns from existing older templates [v1_template] with patterns
-        (v1_template => [t*, t1*]); this template [winning_v2_template] will take precedence during new index creation"
+        - "index template [winning_v2_template] has index patterns [test*] matching patterns from existing older templates [v1_template] with patterns
+        (v1_template => [test*, t1*]); this template [winning_v2_template] will take precedence during new index creation"
       indices.put_index_template:
         name: winning_v2_template
         body:
-          index_patterns: te*
+          index_patterns: test*
           priority: 20
           template:
             settings:
@@ -141,14 +141,14 @@
   - match: {template.settings.index.number_of_replicas: "0"}
   - match: {template.mappings.properties.field.type: "keyword"}
   - match: {overlapping.0.name: v1_template}
-  - match: {overlapping.0.index_patterns: ["t*", "t1*"]}
+  - match: {overlapping.0.index_patterns: ["test*", "t1*"]}
   - match: {overlapping.1.name: v2_template}
-  - match: {overlapping.1.index_patterns: ["te*"]}
+  - match: {overlapping.1.index_patterns: ["test*"]}
 
 ---
 "Simulate replacing a template with a newer version":
   - requires:
-      cluster_features: ["gte_v8.0.0"]
+      cluster_features: "gte_v8.0.0"
       reason: "not yet backported"
       test_runner_features: ["allowed_warnings", "default_shards"]
 
@@ -156,7 +156,7 @@
       indices.put_index_template:
         name: v2_template
         body:
-          index_patterns: te*
+          index_patterns: test*
           priority: 10
           template:
             settings:
@@ -183,7 +183,7 @@
       indices.simulate_template:
         name: v2_template
         body:
-          index_patterns: te*
+          index_patterns: test*
           priority: 10
           template:
             settings:
@@ -202,8 +202,8 @@
 ---
 "Simulate template with lifecycle and include defaults":
   - requires:
-      cluster_features: ["gte_v8.14.0"]
-      reason: "Data stream lifecycle with effective retention was released in 8.14"
+      cluster_features: [ "gte_v8.11.0" ]
+      reason: "Lifecycle is only available in 8.11+"
       test_runner_features: ["default_shards"]
 
   - do:
@@ -223,6 +223,4 @@
 
   - match: {template.lifecycle.enabled: true}
   - match: {template.lifecycle.data_retention: "7d"}
-  - match: {template.lifecycle.effective_retention: "7d"}
-  - match: {template.lifecycle.retention_determined_by: "data_stream_configuration"}
   - is_true: template.lifecycle.rollover

@@ -8,7 +8,8 @@
 
 package org.elasticsearch.nativeaccess.lib;
 
-import java.lang.invoke.MethodHandle;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.nativeaccess.VectorSimilarityFunctions;
 
 /**
  * A VectorLibrary is just an adaptation of the factory for a NativeLibrary.
@@ -16,8 +17,6 @@ import java.lang.invoke.MethodHandle;
  * for native implementations.
  */
 public non-sealed interface VectorLibrary extends NativeLibrary {
-
-    MethodHandle dotProductHandle();
-
-    MethodHandle squareDistanceHandle();
+    @Nullable
+    VectorSimilarityFunctions getVectorSimilarityFunctions();
 }

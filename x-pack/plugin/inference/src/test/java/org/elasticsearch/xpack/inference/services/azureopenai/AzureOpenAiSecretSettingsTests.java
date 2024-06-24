@@ -7,16 +7,16 @@
 
 package org.elasticsearch.xpack.inference.services.azureopenai;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
-import org.hamcrest.CoreMatchers;
+import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -27,13 +27,10 @@ import static org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAi
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
-public class AzureOpenAiSecretSettingsTests extends AbstractWireSerializingTestCase<AzureOpenAiSecretSettings> {
+public class AzureOpenAiSecretSettingsTests extends AbstractBWCWireSerializationTestCase<AzureOpenAiSecretSettings> {
 
     public static AzureOpenAiSecretSettings createRandom() {
-        return new AzureOpenAiSecretSettings(
-            new SecureString(randomAlphaOfLength(15).toCharArray()),
-            new SecureString(randomAlphaOfLength(15).toCharArray())
-        );
+        return new AzureOpenAiSecretSettings(randomSecureStringOfLength(15), randomSecureStringOfLength(15));
     }
 
     public void testFromMap_ApiKey_Only() {
@@ -119,7 +116,7 @@ public class AzureOpenAiSecretSettingsTests extends AbstractWireSerializingTestC
         String xContentResult = Strings.toString(builder);
 
         var expectedResult = Strings.format("{\"%s\":\"apikey\"}", API_KEY);
-        assertThat(xContentResult, CoreMatchers.is(expectedResult));
+        assertThat(xContentResult, is(expectedResult));
     }
 
     public void testToXContext_WritesEntraIdOnlyWhenApiKeyIsNull() throws IOException {
@@ -129,7 +126,7 @@ public class AzureOpenAiSecretSettingsTests extends AbstractWireSerializingTestC
         String xContentResult = Strings.toString(builder);
 
         var expectedResult = Strings.format("{\"%s\":\"entraid\"}", ENTRA_ID);
-        assertThat(xContentResult, CoreMatchers.is(expectedResult));
+        assertThat(xContentResult, is(expectedResult));
     }
 
     @Override
@@ -144,7 +141,12 @@ public class AzureOpenAiSecretSettingsTests extends AbstractWireSerializingTestC
 
     @Override
     protected AzureOpenAiSecretSettings mutateInstance(AzureOpenAiSecretSettings instance) throws IOException {
-        return createRandom();
+        return randomValueOtherThan(instance, AzureOpenAiSecretSettingsTests::createRandom);
+    }
+
+    @Override
+    protected AzureOpenAiSecretSettings mutateInstanceForVersion(AzureOpenAiSecretSettings instance, TransportVersion version) {
+        return instance;
     }
 
     public static Map<String, Object> getAzureOpenAiSecretSettingsMap(@Nullable String apiKey, @Nullable String entraId) {
@@ -157,4 +159,5 @@ public class AzureOpenAiSecretSettingsTests extends AbstractWireSerializingTestC
         }
         return map;
     }
+
 }

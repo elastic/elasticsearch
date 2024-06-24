@@ -10,12 +10,12 @@ package org.elasticsearch.common.settings;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.core.config.Configurator;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -94,10 +94,35 @@ public class SettingsFilterTests extends ESTestCase {
         Setting<String> filteredSetting = Setting.simpleString("key", Property.Filtered);
         assertExpectedLogMessages(
             (testLogger) -> Setting.logSettingUpdate(filteredSetting, newSettings, oldSettings, testLogger),
-            new MockLogAppender.SeenEventExpectation("secure logging", "org.elasticsearch.test", Level.INFO, "updating [key]"),
-            new MockLogAppender.UnseenEventExpectation("unwanted old setting name", "org.elasticsearch.test", Level.INFO, "*old*"),
-            new MockLogAppender.UnseenEventExpectation("unwanted new setting name", "org.elasticsearch.test", Level.INFO, "*new*")
+            new MockLog.SeenEventExpectation("secure logging", "org.elasticsearch.test", Level.INFO, "updating [key]"),
+            new MockLog.UnseenEventExpectation("unwanted old setting name", "org.elasticsearch.test", Level.INFO, "*old*"),
+            new MockLog.UnseenEventExpectation("unwanted new setting name", "org.elasticsearch.test", Level.INFO, "*new*")
         );
+    }
+
+    public void testIndexScopeSettingUpdateLoggedAsDebug() throws Exception {
+        Settings oldSettings = Settings.builder().put("key", "old").build();
+        Settings newSettings = Settings.builder().put("key", "new").build();
+
+        // With INFO log level nothing gets logged.
+        Setting<String> filteredSetting = Setting.simpleString("key", Property.IndexScope);
+        assertExpectedLogMessages((testLogger) -> Setting.logSettingUpdate(filteredSetting, newSettings, oldSettings, testLogger));
+
+        try {
+            // With DEBUG log level something gets logged
+            Configurator.setLevel("org.elasticsearch.test", Level.DEBUG);
+            assertExpectedLogMessages(
+                (logger) -> Setting.logSettingUpdate(filteredSetting, newSettings, oldSettings, logger),
+                new MockLog.SeenEventExpectation(
+                    "regular logging",
+                    "org.elasticsearch.test",
+                    Level.DEBUG,
+                    "updating [key] from [old] to [new]"
+                )
+            );
+        } finally {
+            Configurator.setLevel("org.elasticsearch.test", Level.INFO);
+        }
     }
 
     public void testRegularSettingUpdateIsFullyLogged() throws Exception {
@@ -107,27 +132,16 @@ public class SettingsFilterTests extends ESTestCase {
         Setting<String> regularSetting = Setting.simpleString("key");
         assertExpectedLogMessages(
             (testLogger) -> Setting.logSettingUpdate(regularSetting, newSettings, oldSettings, testLogger),
-            new MockLogAppender.SeenEventExpectation(
-                "regular logging",
-                "org.elasticsearch.test",
-                Level.INFO,
-                "updating [key] from [old] to [new]"
-            )
+            new MockLog.SeenEventExpectation("regular logging", "org.elasticsearch.test", Level.INFO, "updating [key] from [old] to [new]")
         );
     }
 
-    private void assertExpectedLogMessages(Consumer<Logger> consumer, MockLogAppender.LoggingExpectation... expectations)
-        throws IllegalAccessException {
+    private void assertExpectedLogMessages(Consumer<Logger> consumer, MockLog.LoggingExpectation... expectations) {
         Logger testLogger = LogManager.getLogger("org.elasticsearch.test");
-        MockLogAppender appender = new MockLogAppender();
-        Loggers.addAppender(testLogger, appender);
-        try {
-            appender.start();
-            Arrays.stream(expectations).forEach(appender::addExpectation);
+        try (var mockLog = MockLog.capture("org.elasticsearch.test")) {
+            Arrays.stream(expectations).forEach(mockLog::addExpectation);
             consumer.accept(testLogger);
-            appender.assertAllExpectationsMatched();
-        } finally {
-            Loggers.removeAppender(testLogger, appender);
+            mockLog.assertAllExpectationsMatched();
         }
     }
 

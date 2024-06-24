@@ -41,7 +41,8 @@ import org.elasticsearch.search.fetch.subphase.ScriptFieldsContext;
 import org.elasticsearch.search.fetch.subphase.highlight.SearchHighlightContext;
 import org.elasticsearch.search.profile.Profilers;
 import org.elasticsearch.search.query.QuerySearchResult;
-import org.elasticsearch.search.rank.RankShardContext;
+import org.elasticsearch.search.rank.context.QueryPhaseRankShardContext;
+import org.elasticsearch.search.rank.feature.RankFeatureResult;
 import org.elasticsearch.search.rescore.RescoreContext;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.suggest.SuggestionSearchContext;
@@ -137,9 +138,9 @@ public abstract class SearchContext implements Releasable {
 
     public abstract SuggestionSearchContext suggest();
 
-    public abstract RankShardContext rankShardContext();
+    public abstract QueryPhaseRankShardContext queryPhaseRankShardContext();
 
-    public abstract void rankShardContext(RankShardContext rankShardContext);
+    public abstract void queryPhaseRankShardContext(QueryPhaseRankShardContext queryPhaseRankShardContext);
 
     /**
      * @return list of all rescore contexts.  empty if there aren't any.
@@ -332,6 +333,10 @@ public abstract class SearchContext implements Releasable {
 
     public abstract float getMaxScore();
 
+    public abstract void addRankFeatureResult();
+
+    public abstract RankFeatureResult rankFeatureResult();
+
     public abstract FetchPhase fetchPhase();
 
     public abstract FetchSearchResult fetchResult();
@@ -351,6 +356,7 @@ public abstract class SearchContext implements Releasable {
      * Adds a releasable that will be freed when this context is closed.
      */
     public void addReleasable(Releasable releasable) {   // TODO most Releasables are managed by their callers. We probably don't need this.
+        assert closed.get() == false;
         releasables.add(releasable);
     }
 

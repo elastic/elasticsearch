@@ -56,6 +56,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.systemPropertyAsBoolean;
+import static org.elasticsearch.bootstrap.ESPolicy.POLICY_RESOURCE;
 import static org.elasticsearch.bootstrap.FilePermissionUtils.addDirectoryPath;
 
 /**
@@ -72,6 +73,7 @@ public class BootstrapForTesting {
     // without making things complex???
 
     static {
+
         // make sure java.io.tmpdir exists always (in case code uses it in a static initializer)
         Path javaTmpDir = PathUtils.get(
             Objects.requireNonNull(System.getProperty("java.io.tmpdir"), "please set ${java.io.tmpdir} in pom.xml")
@@ -170,11 +172,12 @@ public class BootstrapForTesting {
                 addDirectoryPath(fastPathPermissions, "java.io.tmpdir-fastpath", javaTmpDir, "read,readlink,write,delete", true);
 
                 final Policy esPolicy = new ESPolicy(
-                    codebases,
+                    PolicyUtil.readPolicy(ESPolicy.class.getResource(POLICY_RESOURCE), codebases),
                     perms,
                     getPluginPermissions(),
                     true,
-                    Security.toFilePermissions(fastPathPermissions)
+                    Security.toFilePermissions(fastPathPermissions),
+                    Map.of()
                 );
                 Policy.setPolicy(new Policy() {
                     @Override
@@ -220,7 +223,7 @@ public class BootstrapForTesting {
         addClassCodebase(codebases, "elasticsearch-core", "org.elasticsearch.core.Booleans");
         addClassCodebase(codebases, "elasticsearch-cli", "org.elasticsearch.cli.Command");
         addClassCodebase(codebases, "elasticsearch-preallocate", "org.elasticsearch.preallocate.Preallocate");
-        addClassCodebase(codebases, "elasticsearch-vec", "org.elasticsearch.vec.VectorScorer");
+        addClassCodebase(codebases, "elasticsearch-simdvec", "org.elasticsearch.simdvec.VectorScorerFactory");
         addClassCodebase(codebases, "framework", "org.elasticsearch.test.ESTestCase");
         return codebases;
     }
@@ -249,7 +252,7 @@ public class BootstrapForTesting {
      * like core, test-framework, etc. this way tests fail if accesscontroller blocks are missing.
      */
     @SuppressForbidden(reason = "accesses fully qualified URLs to configure security")
-    static Map<String, Policy> getPluginPermissions() throws Exception {
+    static Map<URL, Policy> getPluginPermissions() throws Exception {
         List<URL> pluginPolicies = Collections.list(
             BootstrapForTesting.class.getClassLoader().getResources(PluginDescriptor.ES_PLUGIN_POLICY)
         );
@@ -301,9 +304,9 @@ public class BootstrapForTesting {
         }
 
         // consult each policy file for those codebases
-        Map<String, Policy> map = new HashMap<>();
+        Map<URL, Policy> map = new HashMap<>();
         for (URL url : codebases) {
-            map.put(url.getFile(), new Policy() {
+            map.put(url, new Policy() {
                 @Override
                 public boolean implies(ProtectionDomain domain, Permission permission) {
                     // implements union

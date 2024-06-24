@@ -24,7 +24,9 @@ import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplainRequest;
 import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplainResponse;
+import org.elasticsearch.action.admin.cluster.allocation.TransportClusterAllocationExplainAction;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
@@ -958,7 +960,8 @@ public abstract class ESIntegTestCase extends ESTestCase {
         String color = clusterHealthStatus.name().toLowerCase(Locale.ROOT);
         String method = "ensure" + Strings.capitalize(color);
 
-        ClusterHealthRequest healthRequest = new ClusterHealthRequest(indices).timeout(timeout)
+        ClusterHealthRequest healthRequest = new ClusterHealthRequest(indices).masterNodeTimeout(timeout)
+            .timeout(timeout)
             .waitForStatus(clusterHealthStatus)
             .waitForEvents(Priority.LANGUID)
             .waitForNoRelocatingShards(true)
@@ -991,7 +994,11 @@ public abstract class ESIntegTestCase extends ESTestCase {
 
             final var detailsFuture = new PlainActionFuture<Void>();
             try (var listeners = new RefCountingListener(detailsFuture)) {
-                clusterAdmin().prepareAllocationExplain().execute(listeners.acquire(allocationExplainRef::set));
+                client().execute(
+                    TransportClusterAllocationExplainAction.TYPE,
+                    new ClusterAllocationExplainRequest(TEST_REQUEST_TIMEOUT),
+                    listeners.acquire(allocationExplainRef::set)
+                );
                 clusterAdmin().prepareState().execute(listeners.acquire(clusterStateRef::set));
                 client().execute(
                     TransportPendingClusterTasksAction.TYPE,

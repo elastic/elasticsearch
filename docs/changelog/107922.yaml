@@ -1,0 +1,6 @@
+pr: 107922
+summary: Feature/annotated text store defaults
+area: Mapping
+type: enhancement
+issues:
+ - 107734

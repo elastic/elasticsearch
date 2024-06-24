@@ -345,8 +345,7 @@ class LegacyYamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTe
         ---
         two:
         - skip:
-            version: "all"
-            reason: "This is a test to skip test two"
+            awaits_fix: "This is a test to skip test two"
         - do:
             get:
               index: "test2"

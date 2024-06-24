@@ -7,39 +7,40 @@
 
 package org.elasticsearch.xpack.esql.analysis;
 
-import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.Equals;
-import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.NotEquals;
+import org.elasticsearch.xpack.esql.core.capabilities.Unresolvable;
+import org.elasticsearch.xpack.esql.core.common.Failure;
+import org.elasticsearch.xpack.esql.core.expression.Alias;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.AttributeMap;
+import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Expressions;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
+import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
+import org.elasticsearch.xpack.esql.core.expression.predicate.BinaryOperator;
+import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparison;
+import org.elasticsearch.xpack.esql.core.plan.logical.Limit;
+import org.elasticsearch.xpack.esql.core.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.core.plan.logical.OrderBy;
+import org.elasticsearch.xpack.esql.core.plan.logical.UnaryPlan;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.grouping.GroupingFunction;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Neg;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
+import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
+import org.elasticsearch.xpack.esql.plan.logical.Lookup;
+import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.RegexExtract;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.stats.FeatureMetric;
 import org.elasticsearch.xpack.esql.stats.Metrics;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
-import org.elasticsearch.xpack.ql.capabilities.Unresolvable;
-import org.elasticsearch.xpack.ql.common.Failure;
-import org.elasticsearch.xpack.ql.expression.Alias;
-import org.elasticsearch.xpack.ql.expression.Attribute;
-import org.elasticsearch.xpack.ql.expression.AttributeMap;
-import org.elasticsearch.xpack.ql.expression.AttributeSet;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.Expressions;
-import org.elasticsearch.xpack.ql.expression.NamedExpression;
-import org.elasticsearch.xpack.ql.expression.TypeResolutions;
-import org.elasticsearch.xpack.ql.expression.function.aggregate.AggregateFunction;
-import org.elasticsearch.xpack.ql.expression.predicate.BinaryOperator;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparison;
-import org.elasticsearch.xpack.ql.plan.logical.Aggregate;
-import org.elasticsearch.xpack.ql.plan.logical.Limit;
-import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.ql.plan.logical.OrderBy;
-import org.elasticsearch.xpack.ql.plan.logical.Project;
-import org.elasticsearch.xpack.ql.plan.logical.UnaryPlan;
-import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.util.ArrayList;
 import java.util.BitSet;
@@ -50,9 +51,9 @@ import java.util.Set;
 import java.util.function.Consumer;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.xpack.ql.analyzer.VerifierChecks.checkFilterConditionType;
-import static org.elasticsearch.xpack.ql.common.Failure.fail;
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.FIRST;
+import static org.elasticsearch.xpack.esql.core.analyzer.VerifierChecks.checkFilterConditionType;
+import static org.elasticsearch.xpack.esql.core.common.Failure.fail;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 
 public class Verifier {
 
@@ -124,7 +125,21 @@ public class Verifier {
                 var aggs = agg.aggregates();
                 int size = aggs.size() - groupings.size();
                 aggs.subList(0, size).forEach(unresolvedExpressions);
-            } else {
+            }
+            // similar approach for Lookup
+            else if (p instanceof Lookup lookup) {
+                // first check the table
+                var tableName = lookup.tableName();
+                if (tableName instanceof Unresolvable u) {
+                    failures.add(fail(tableName, u.unresolvedMessage()));
+                }
+                // only after that check the match fields
+                else {
+                    lookup.matchFields().forEach(unresolvedExpressions);
+                }
+            }
+
+            else {
                 p.forEachExpression(unresolvedExpressions);
             }
         });
@@ -192,6 +207,9 @@ public class Verifier {
                 Attribute attr = Expressions.attribute(e);
                 if (attr != null) {
                     groupRefs.add(attr);
+                }
+                if (e instanceof FieldAttribute f && f.dataType().isCounter()) {
+                    failures.add(fail(e, "cannot group by on [{}] type for grouping [{}]", f.dataType().typeName(), e.sourceText()));
                 }
             });
 
@@ -374,17 +392,17 @@ public class Verifier {
         }
 
         List<DataType> allowed = new ArrayList<>();
-        allowed.add(DataTypes.KEYWORD);
-        allowed.add(DataTypes.TEXT);
-        allowed.add(DataTypes.IP);
-        allowed.add(DataTypes.DATETIME);
-        allowed.add(DataTypes.VERSION);
-        allowed.add(EsqlDataTypes.GEO_POINT);
-        allowed.add(EsqlDataTypes.GEO_SHAPE);
-        allowed.add(EsqlDataTypes.CARTESIAN_POINT);
-        allowed.add(EsqlDataTypes.CARTESIAN_SHAPE);
+        allowed.add(DataType.KEYWORD);
+        allowed.add(DataType.TEXT);
+        allowed.add(DataType.IP);
+        allowed.add(DataType.DATETIME);
+        allowed.add(DataType.VERSION);
+        allowed.add(DataType.GEO_POINT);
+        allowed.add(DataType.GEO_SHAPE);
+        allowed.add(DataType.CARTESIAN_POINT);
+        allowed.add(DataType.CARTESIAN_SHAPE);
         if (bc instanceof Equals || bc instanceof NotEquals) {
-            allowed.add(DataTypes.BOOLEAN);
+            allowed.add(DataType.BOOLEAN);
         }
         Expression.TypeResolution r = TypeResolutions.isType(
             bc.left(),
@@ -396,7 +414,7 @@ public class Verifier {
         if (false == r.resolved()) {
             return fail(bc, r.message());
         }
-        if (DataTypes.isString(bc.left().dataType()) && DataTypes.isString(bc.right().dataType())) {
+        if (DataType.isString(bc.left().dataType()) && DataType.isString(bc.right().dataType())) {
             return null;
         }
         if (bc.left().dataType() != bc.right().dataType()) {
@@ -423,15 +441,15 @@ public class Verifier {
     public static Failure validateUnsignedLongOperator(BinaryOperator<?, ?, ?, ?> bo) {
         DataType leftType = bo.left().dataType();
         DataType rightType = bo.right().dataType();
-        if ((leftType == DataTypes.UNSIGNED_LONG || rightType == DataTypes.UNSIGNED_LONG) && leftType != rightType) {
+        if ((leftType == DataType.UNSIGNED_LONG || rightType == DataType.UNSIGNED_LONG) && leftType != rightType) {
             return fail(
                 bo,
                 "first argument of [{}] is [{}] and second is [{}]. [{}] can only be operated on together with another [{}]",
                 bo.sourceText(),
                 leftType.typeName(),
                 rightType.typeName(),
-                DataTypes.UNSIGNED_LONG.typeName(),
-                DataTypes.UNSIGNED_LONG.typeName()
+                DataType.UNSIGNED_LONG.typeName(),
+                DataType.UNSIGNED_LONG.typeName()
             );
         }
         return null;
@@ -442,7 +460,7 @@ public class Verifier {
      */
     private static Failure validateUnsignedLongNegation(Neg neg) {
         DataType childExpressionType = neg.field().dataType();
-        if (childExpressionType.equals(DataTypes.UNSIGNED_LONG)) {
+        if (childExpressionType.equals(DataType.UNSIGNED_LONG)) {
             return fail(
                 neg,
                 "negation unsupported for arguments of type [{}] in expression [{}]",

@@ -7,56 +7,45 @@
 
 package org.elasticsearch.xpack.esql.plan.logical;
 
-import org.elasticsearch.xpack.ql.expression.Attribute;
-import org.elasticsearch.xpack.ql.options.EsSourceOptions;
-import org.elasticsearch.xpack.ql.plan.TableIdentifier;
-import org.elasticsearch.xpack.ql.plan.logical.UnresolvedRelation;
-import org.elasticsearch.xpack.ql.tree.NodeInfo;
-import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.plan.TableIdentifier;
+import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
+import org.elasticsearch.xpack.esql.core.tree.Source;
 
 import java.util.List;
-import java.util.Objects;
 
 public class EsqlUnresolvedRelation extends UnresolvedRelation {
 
     private final List<Attribute> metadataFields;
-    private final EsSourceOptions esSourceOptions;
+    private final IndexMode indexMode;
 
     public EsqlUnresolvedRelation(
         Source source,
         TableIdentifier table,
         List<Attribute> metadataFields,
-        EsSourceOptions esSourceOptions,
+        IndexMode indexMode,
         String unresolvedMessage
     ) {
         super(source, table, "", false, unresolvedMessage);
         this.metadataFields = metadataFields;
-        Objects.requireNonNull(esSourceOptions);
-        this.esSourceOptions = esSourceOptions;
+        this.indexMode = indexMode;
     }
 
-    public EsqlUnresolvedRelation(Source source, TableIdentifier table, List<Attribute> metadataFields, String unresolvedMessage) {
-        this(source, table, metadataFields, EsSourceOptions.NO_OPTIONS, unresolvedMessage);
-    }
-
-    public EsqlUnresolvedRelation(Source source, TableIdentifier table, List<Attribute> metadataFields, EsSourceOptions esSourceOptions) {
-        this(source, table, metadataFields, esSourceOptions, null);
-    }
-
-    public EsqlUnresolvedRelation(Source source, TableIdentifier table, List<Attribute> metadataFields) {
-        this(source, table, metadataFields, EsSourceOptions.NO_OPTIONS, null);
+    public EsqlUnresolvedRelation(Source source, TableIdentifier table, List<Attribute> metadataFields, IndexMode indexMode) {
+        this(source, table, metadataFields, indexMode, null);
     }
 
     public List<Attribute> metadataFields() {
         return metadataFields;
     }
 
-    public EsSourceOptions esSourceOptions() {
-        return esSourceOptions;
+    public IndexMode indexMode() {
+        return indexMode;
     }
 
     @Override
     protected NodeInfo<UnresolvedRelation> info() {
-        return NodeInfo.create(this, EsqlUnresolvedRelation::new, table(), metadataFields(), esSourceOptions(), unresolvedMessage());
+        return NodeInfo.create(this, EsqlUnresolvedRelation::new, table(), metadataFields(), indexMode(), unresolvedMessage());
     }
 }

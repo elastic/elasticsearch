@@ -65,6 +65,6 @@ public class ActionTransportException extends TransportException {
         if (msg != null) {
             sb.append(" ").append(msg);
         }
-        return sb.toString();
+        return sb.toString().trim();
     }
 }

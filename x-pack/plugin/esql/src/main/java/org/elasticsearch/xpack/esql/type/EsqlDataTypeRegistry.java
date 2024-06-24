@@ -8,20 +8,19 @@
 package org.elasticsearch.xpack.esql.type;
 
 import org.elasticsearch.index.mapper.TimeSeriesParams;
-import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypeRegistry;
-import org.elasticsearch.xpack.ql.type.DataTypes;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.DataTypeRegistry;
 
 import java.util.Collection;
 
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.DATE_PERIOD;
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.TIME_DURATION;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_PERIOD;
+import static org.elasticsearch.xpack.esql.core.type.DataType.TIME_DURATION;
+import static org.elasticsearch.xpack.esql.core.type.DataType.isDateTime;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.isDateTimeOrTemporal;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.isNullOrDatePeriod;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.isNullOrTemporalAmount;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.isNullOrTimeDuration;
-import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME;
-import static org.elasticsearch.xpack.ql.type.DataTypes.isDateTime;
 
 public class EsqlDataTypeRegistry implements DataTypeRegistry {
 
@@ -31,21 +30,18 @@ public class EsqlDataTypeRegistry implements DataTypeRegistry {
 
     @Override
     public Collection<DataType> dataTypes() {
-        return EsqlDataTypes.types();
+        return DataType.types();
     }
 
     @Override
     public DataType fromEs(String typeName, TimeSeriesParams.MetricType metricType) {
-        if (metricType == TimeSeriesParams.MetricType.COUNTER) {
-            // Counter fields will be a counter type, for now they are unsupported
-            return DataTypes.UNSUPPORTED;
-        }
-        return EsqlDataTypes.fromName(typeName);
+        DataType type = EsqlDataTypes.fromName(typeName);
+        return metricType == TimeSeriesParams.MetricType.COUNTER ? type.widenSmallNumeric().counter() : type;
     }
 
     @Override
     public DataType fromJava(Object value) {
-        return EsqlDataTypes.fromJava(value);
+        return DataType.fromJava(value);
     }
 
     @Override

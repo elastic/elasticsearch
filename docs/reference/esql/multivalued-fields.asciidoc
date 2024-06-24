@@ -17,8 +17,7 @@ POST /mv/_bulk?refresh
 
 POST /_query
 {
-  "query": "FROM mv | LIMIT 2",
-  "version": "2024.04.01"
+  "query": "FROM mv | LIMIT 2"
 }
 ----
 
@@ -66,8 +65,7 @@ POST /mv/_bulk?refresh
 
 POST /_query
 {
-  "query": "FROM mv | LIMIT 2",
-  "version": "2024.04.01"
+  "query": "FROM mv | LIMIT 2"
 }
 ----
 
@@ -108,8 +106,7 @@ POST /mv/_bulk?refresh
 
 POST /_query
 {
-  "query": "FROM mv | LIMIT 2",
-  "version": "2024.04.01"
+  "query": "FROM mv | LIMIT 2"
 }
 ----
 
@@ -151,8 +148,7 @@ POST /mv/_bulk?refresh
 
 POST /_query
 {
-  "query": "FROM mv | EVAL b=TO_STRING(b) | LIMIT 2",
-  "version": "2024.04.01"
+  "query": "FROM mv | EVAL b=TO_STRING(b) | LIMIT 2"
 }
 ----
 
@@ -175,7 +171,7 @@ POST /_query
 ==== Functions
 
 Unless otherwise documented functions will return `null` when applied to a multivalued
-field. This behavior may change in a later version.
+field.
 
 [source,console,id=esql-multivalued-fields-mv-into-null]
 ----
@@ -190,8 +186,7 @@ POST /mv/_bulk?refresh
 ----
 POST /_query
 {
-  "query": "FROM mv | EVAL b + 2, a + b | LIMIT 4",
-  "version": "2024.04.01"
+  "query": "FROM mv | EVAL b + 2, a + b | LIMIT 4"
 }
 ----
 // TEST[continued]
@@ -230,8 +225,7 @@ Work around this limitation by converting the field to single value with one of:
 ----
 POST /_query
 {
-  "query": "FROM mv | EVAL b=MV_MIN(b) | EVAL b + 2, a + b | LIMIT 4",
-  "version": "2024.04.01"
+  "query": "FROM mv | EVAL b=MV_MIN(b) | EVAL b + 2, a + b | LIMIT 4"
 }
 ----
 // TEST[continued]

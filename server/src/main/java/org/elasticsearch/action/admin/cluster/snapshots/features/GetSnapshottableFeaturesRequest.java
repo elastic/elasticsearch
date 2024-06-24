@@ -12,13 +12,14 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.TimeValue;
 
 import java.io.IOException;
 
 public class GetSnapshottableFeaturesRequest extends MasterNodeRequest<GetSnapshottableFeaturesRequest> {
 
-    public GetSnapshottableFeaturesRequest() {
-
+    public GetSnapshottableFeaturesRequest(TimeValue masterNodeTimeout) {
+        super(masterNodeTimeout);
     }
 
     public GetSnapshottableFeaturesRequest(StreamInput in) throws IOException {

@@ -322,7 +322,7 @@ public class TransportDeleteJobAction extends AcknowledgedTransportMasterNodeAct
                 }
                 DeleteDatafeedAction.Request deleteDatafeedRequest = new DeleteDatafeedAction.Request(datafeedIds.iterator().next());
                 deleteDatafeedRequest.setForce(deleteJobRequest.isForce());
-                deleteDatafeedRequest.timeout(deleteJobRequest.timeout());
+                deleteDatafeedRequest.ackTimeout(deleteJobRequest.ackTimeout());
                 ClientHelper.executeAsyncWithOrigin(
                     client,
                     ClientHelper.ML_ORIGIN,

@@ -114,6 +114,11 @@ public abstract class TestBlockBuilder implements Block.Builder {
         }
 
         @Override
+        public long estimatedBytes() {
+            return builder.estimatedBytes();
+        }
+
+        @Override
         public IntBlock build() {
             return builder.build();
         }
@@ -166,6 +171,11 @@ public abstract class TestBlockBuilder implements Block.Builder {
         public TestBlockBuilder mvOrdering(Block.MvOrdering mvOrdering) {
             builder.mvOrdering(mvOrdering);
             return this;
+        }
+
+        @Override
+        public long estimatedBytes() {
+            return builder.estimatedBytes();
         }
 
         @Override
@@ -224,6 +234,11 @@ public abstract class TestBlockBuilder implements Block.Builder {
         }
 
         @Override
+        public long estimatedBytes() {
+            return builder.estimatedBytes();
+        }
+
+        @Override
         public DoubleBlock build() {
             return builder.build();
         }
@@ -276,6 +291,11 @@ public abstract class TestBlockBuilder implements Block.Builder {
         public TestBlockBuilder mvOrdering(Block.MvOrdering mvOrdering) {
             builder.mvOrdering(mvOrdering);
             return this;
+        }
+
+        @Override
+        public long estimatedBytes() {
+            return builder.estimatedBytes();
         }
 
         @Override
@@ -334,6 +354,11 @@ public abstract class TestBlockBuilder implements Block.Builder {
         public TestBlockBuilder mvOrdering(Block.MvOrdering mvOrdering) {
             builder.mvOrdering(mvOrdering);
             return this;
+        }
+
+        @Override
+        public long estimatedBytes() {
+            return builder.estimatedBytes();
         }
 
         @Override

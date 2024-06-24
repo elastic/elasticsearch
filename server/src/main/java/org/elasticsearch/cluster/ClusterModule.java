@@ -8,6 +8,7 @@
 
 package org.elasticsearch.cluster;
 
+import org.elasticsearch.action.admin.indices.rollover.MetadataRolloverService;
 import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.metadata.ComponentTemplateMetadata;
@@ -120,6 +121,7 @@ public class ClusterModule extends AbstractModule {
     final ShardsAllocator shardsAllocator;
     private final ShardRoutingRoleStrategy shardRoutingRoleStrategy;
     private final AllocationStatsService allocationStatsService;
+    private final TelemetryProvider telemetryProvider;
 
     public ClusterModule(
         Settings settings,
@@ -155,8 +157,10 @@ public class ClusterModule extends AbstractModule {
             snapshotsInfoService,
             shardRoutingRoleStrategy
         );
+        this.allocationService.addAllocFailuresResetListenerTo(clusterService);
         this.metadataDeleteIndexService = new MetadataDeleteIndexService(settings, clusterService, allocationService);
         this.allocationStatsService = new AllocationStatsService(clusterService, clusterInfoService, shardsAllocator, writeLoadForecaster);
+        this.telemetryProvider = telemetryProvider;
     }
 
     static ShardRoutingRoleStrategy getShardRoutingRoleStrategy(List<ClusterPlugin> clusterPlugins) {
@@ -444,6 +448,8 @@ public class ClusterModule extends AbstractModule {
         bind(ShardsAllocator.class).toInstance(shardsAllocator);
         bind(ShardRoutingRoleStrategy.class).toInstance(shardRoutingRoleStrategy);
         bind(AllocationStatsService.class).toInstance(allocationStatsService);
+        bind(TelemetryProvider.class).toInstance(telemetryProvider);
+        bind(MetadataRolloverService.class).asEagerSingleton();
     }
 
     public void setExistingShardsAllocators(GatewayAllocator gatewayAllocator) {

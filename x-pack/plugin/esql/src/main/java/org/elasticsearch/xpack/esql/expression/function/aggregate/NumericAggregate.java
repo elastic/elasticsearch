@@ -6,21 +6,43 @@
  */
 package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.planner.ToAggregator;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.TypeResolutions;
-import org.elasticsearch.xpack.ql.expression.function.aggregate.AggregateFunction;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypes;
 
+import java.io.IOException;
 import java.util.List;
 
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.DEFAULT;
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isType;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 
+/**
+ * Aggregate function that receives a numeric, signed field, and returns a single double value.
+ * <p>
+ *     Implement the supplier methods to return the correct {@link AggregatorFunctionSupplier}.
+ * </p>
+ * <p>
+ *     Some methods can be optionally overridden to support different variations:
+ * </p>
+ * <ul>
+ *     <li>
+ *         {@link #supportsDates}: override to also support dates. Defaults to false.
+ *     </li>
+ *     <li>
+ *         {@link #resolveType}: override to support different parameters.
+ *         Call {@code super.resolveType()} to add extra checks.
+ *     </li>
+ *     <li>
+ *         {@link #dataType}: override to return a different datatype.
+ *         You can return {@code field().dataType()} to propagate the parameter type.
+ *     </li>
+ * </ul>
+ */
 public abstract class NumericAggregate extends AggregateFunction implements ToAggregator {
 
     NumericAggregate(Source source, Expression field, List<Expression> parameters) {
@@ -31,24 +53,28 @@ public abstract class NumericAggregate extends AggregateFunction implements ToAg
         super(source, field);
     }
 
+    NumericAggregate(StreamInput in) throws IOException {
+        super(in);
+    }
+
     @Override
     protected TypeResolution resolveType() {
         if (supportsDates()) {
             return TypeResolutions.isType(
                 this,
-                e -> e == DataTypes.DATETIME || e.isNumeric() && e != DataTypes.UNSIGNED_LONG,
+                e -> e == DataType.DATETIME || e.isNumeric() && e != DataType.UNSIGNED_LONG,
                 sourceText(),
                 DEFAULT,
                 "datetime",
-                "numeric except unsigned_long"
+                "numeric except unsigned_long or counter types"
             );
         }
         return isType(
             field(),
-            dt -> dt.isNumeric() && dt != DataTypes.UNSIGNED_LONG,
+            dt -> dt.isNumeric() && dt != DataType.UNSIGNED_LONG,
             sourceText(),
             DEFAULT,
-            "numeric except unsigned_long"
+            "numeric except unsigned_long or counter types"
         );
     }
 
@@ -58,22 +84,22 @@ public abstract class NumericAggregate extends AggregateFunction implements ToAg
 
     @Override
     public DataType dataType() {
-        return DataTypes.DOUBLE;
+        return DataType.DOUBLE;
     }
 
     @Override
     public final AggregatorFunctionSupplier supplier(List<Integer> inputChannels) {
         DataType type = field().dataType();
-        if (supportsDates() && type == DataTypes.DATETIME) {
+        if (supportsDates() && type == DataType.DATETIME) {
             return longSupplier(inputChannels);
         }
-        if (type == DataTypes.LONG) {
+        if (type == DataType.LONG) {
             return longSupplier(inputChannels);
         }
-        if (type == DataTypes.INTEGER) {
+        if (type == DataType.INTEGER) {
             return intSupplier(inputChannels);
         }
-        if (type == DataTypes.DOUBLE) {
+        if (type == DataType.DOUBLE) {
             return doubleSupplier(inputChannels);
         }
         throw EsqlIllegalArgumentException.illegalDataType(type);

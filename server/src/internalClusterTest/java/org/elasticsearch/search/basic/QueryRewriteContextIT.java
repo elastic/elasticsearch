@@ -27,6 +27,7 @@ import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.TransportClosePointInTimeAction;
 import org.elasticsearch.action.search.TransportOpenPointInTimeAction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
@@ -136,7 +137,7 @@ public class QueryRewriteContextIT extends ESIntegTestCase {
         assertResolvedIndices(prepareSearch("test*"), Set.of("test*"), Set.of(indices), r -> {});
         assertResolvedIndices(prepareSearch("alias"), Set.of("alias"), Set.of(indices), r -> {});
 
-        final String pointInTimeId = openPointInTime(indices, TimeValue.timeValueMinutes(2));
+        final BytesReference pointInTimeId = openPointInTime(indices, TimeValue.timeValueMinutes(2));
         try {
             final PointInTimeBuilder pointInTimeBuilder = new PointInTimeBuilder(pointInTimeId);
             assertResolvedIndices(prepareSearch().setPointInTime(pointInTimeBuilder), Set.of(indices), Set.of(indices), r -> {});
@@ -190,13 +191,13 @@ public class QueryRewriteContextIT extends ESIntegTestCase {
         );
     }
 
-    private String openPointInTime(String[] indices, TimeValue keepAlive) {
+    private BytesReference openPointInTime(String[] indices, TimeValue keepAlive) {
         OpenPointInTimeRequest request = new OpenPointInTimeRequest(indices).keepAlive(keepAlive);
         OpenPointInTimeResponse response = client().execute(TransportOpenPointInTimeAction.TYPE, request).actionGet();
         return response.getPointInTimeId();
     }
 
-    private void closePointInTime(String pointInTimeId) {
+    private void closePointInTime(BytesReference pointInTimeId) {
         ClosePointInTimeResponse response = client().execute(
             TransportClosePointInTimeAction.TYPE,
             new ClosePointInTimeRequest(pointInTimeId)

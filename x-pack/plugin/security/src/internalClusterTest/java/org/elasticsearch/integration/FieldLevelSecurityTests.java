@@ -28,6 +28,7 @@ import org.elasticsearch.action.termvectors.TermVectorsResponse;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.analysis.common.CommonAnalysisPlugin;
 import org.elasticsearch.client.internal.Requests;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
@@ -1157,7 +1158,7 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
         }
     }
 
-    static String openPointInTime(String userName, TimeValue keepAlive, String... indices) {
+    static BytesReference openPointInTime(String userName, TimeValue keepAlive, String... indices) {
         OpenPointInTimeRequest request = new OpenPointInTimeRequest(indices).keepAlive(keepAlive);
         final OpenPointInTimeResponse response = client().filterWithHeader(
             Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue(userName, USERS_PASSWD))
@@ -1178,7 +1179,7 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
         }
         refresh("test");
 
-        String pitId = openPointInTime("user1", TimeValue.timeValueMinutes(1), "test");
+        BytesReference pitId = openPointInTime("user1", TimeValue.timeValueMinutes(1), "test");
         try {
             for (int from = 0; from < numDocs; from++) {
                 assertResponse(

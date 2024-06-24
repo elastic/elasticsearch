@@ -25,6 +25,16 @@ import java.nio.file.Files
 import static java.nio.file.StandardCopyOption.REPLACE_EXISTING
 import static org.elasticsearch.gradle.util.GradleUtils.maybeConfigure
 
+buildscript {
+  repositories {
+    maven {
+      url 'https://jitpack.io'
+    }
+
+    mavenCentral()
+  }
+}
+
 plugins {
   id 'lifecycle-base'
   id 'elasticsearch.docker-support'
@@ -287,6 +297,8 @@ allprojects {
         tasks.register('checkPart4') { dependsOn 'check' }
       } else if (project.path == ":x-pack:plugin" || project.path.contains("ql") ||  project.path.contains("smoke-test")) {
         tasks.register('checkPart3') { dependsOn 'check' }
+      } else if (project.path.contains("multi-node")) {
+        tasks.register('checkPart5') { dependsOn 'check' }
       } else {
         tasks.register('checkPart2') { dependsOn 'check' }
       }
@@ -323,7 +335,7 @@ allprojects {
       integTestTask.mustRunAfter tasks.matching { it.name.equals("test") }
     }
 
-    configurations.matching { it.canBeResolved }.all { Configuration configuration ->
+/*    configurations.matching { it.canBeResolved }.all { Configuration configuration ->
       dependencies.matching { it instanceof ProjectDependency }.all { ProjectDependency dep ->
         Project upstreamProject = dep.dependencyProject
         if (project.path != upstreamProject?.path) {
@@ -334,7 +346,7 @@ allprojects {
           }
         }
       }
-    }
+    }*/
   }
 
   apply plugin: 'elasticsearch.formatting'

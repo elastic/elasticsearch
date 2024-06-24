@@ -17,6 +17,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
@@ -76,7 +77,9 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
 
     private boolean includeIndexNames = true;
 
-    public GetSnapshotsRequest() {}
+    public GetSnapshotsRequest(TimeValue masterNodeTimeout) {
+        super(masterNodeTimeout);
+    }
 
     /**
      * Constructs a new get snapshots request with given repository names and list of snapshots
@@ -84,8 +87,8 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
      * @param repositories repository names
      * @param snapshots  list of snapshots
      */
-    public GetSnapshotsRequest(String[] repositories, String[] snapshots) {
-        this.repositories = repositories;
+    public GetSnapshotsRequest(TimeValue masterNodeTimeout, String[] repositories, String[] snapshots) {
+        this(masterNodeTimeout, repositories);
         this.snapshots = snapshots;
     }
 
@@ -94,7 +97,8 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
      *
      * @param repositories repository names
      */
-    public GetSnapshotsRequest(String... repositories) {
+    public GetSnapshotsRequest(TimeValue masterNodeTimeout, String... repositories) {
+        this(masterNodeTimeout);
         this.repositories = repositories;
     }
 

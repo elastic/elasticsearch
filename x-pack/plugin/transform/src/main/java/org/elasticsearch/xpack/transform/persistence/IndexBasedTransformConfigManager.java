@@ -671,7 +671,7 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
                 ActionListener.wrap(
                     r -> listener.onResponse(SeqNoPrimaryTermAndIndex.fromIndexResponse(r)),
                     e -> listener.onFailure(
-                        new RuntimeException(
+                        new TransformStatePersistenceException(
                             TransformMessages.getMessage(TransformMessages.TRANSFORM_FAILED_TO_PERSIST_STATS, storedDoc.getId()),
                             e
                         )

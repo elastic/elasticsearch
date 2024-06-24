@@ -38,13 +38,12 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class EsqlSecurityIT extends ESRestTestCase {
-    static String ESQL_VERSION = "2024.04.01.🚀";
-
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .distribution(DistributionType.DEFAULT)
         .setting("xpack.license.self_generated.type", "trial")
         .setting("xpack.security.enabled", "true")
+        .setting("xpack.ml.enabled", "false")
         .rolesFile(Resource.fromClasspath("roles.yml"))
         .user("test-admin", "x-pack-test-password", "test-admin", true)
         .user("user1", "x-pack-test-password", "user1", false)
@@ -53,6 +52,7 @@ public class EsqlSecurityIT extends ESRestTestCase {
         .user("user4", "x-pack-test-password", "user4", false)
         .user("user5", "x-pack-test-password", "user5", false)
         .user("fls_user", "x-pack-test-password", "fls_user", false)
+        .user("metadata1_read2", "x-pack-test-password", "metadata1_read2", false)
         .build();
 
     @Override
@@ -135,6 +135,21 @@ public class EsqlSecurityIT extends ESRestTestCase {
 
         error = expectThrows(ResponseException.class, () -> runESQLCommand("user2", "from index-user1 | stats sum(value)"));
         assertThat(error.getResponse().getStatusLine().getStatusCode(), equalTo(400));
+    }
+
+    public void testInsufficientPrivilege() {
+        Exception error = expectThrows(
+            Exception.class,
+            () -> runESQLCommand("metadata1_read2", "FROM index-user1,index-user2 | STATS sum=sum(value)")
+        );
+        assertThat(
+            error.getMessage(),
+            containsString(
+                "unauthorized for user [test-admin] run as [metadata1_read2] "
+                    + "with effective roles [metadata1_read2] on indices [index-user1], "
+                    + "this action is granted by the index privileges [read,all]"
+            )
+        );
     }
 
     public void testDocumentLevelSecurity() throws Exception {
@@ -355,7 +370,6 @@ public class EsqlSecurityIT extends ESRestTestCase {
         }
         XContentBuilder json = JsonXContent.contentBuilder();
         json.startObject();
-        json.field("version", ESQL_VERSION);
         json.field("query", command);
         addRandomPragmas(json);
         json.endObject();

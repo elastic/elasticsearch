@@ -9,42 +9,48 @@ package org.elasticsearch.xpack.esql.expression.function.grouping;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Rounding;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.capabilities.Validatable;
+import org.elasticsearch.xpack.esql.core.common.Failures;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Foldables;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
+import org.elasticsearch.xpack.esql.core.expression.function.TwoOptionalArguments;
+import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateTrunc;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Floor;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mul;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
-import org.elasticsearch.xpack.ql.common.Failures;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.Foldables;
-import org.elasticsearch.xpack.ql.expression.Literal;
-import org.elasticsearch.xpack.ql.expression.TypeResolutions;
-import org.elasticsearch.xpack.ql.expression.function.TwoOptionalArguments;
-import org.elasticsearch.xpack.ql.tree.NodeInfo;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypes;
 
+import java.io.IOException;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.function.Function;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FOURTH;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.THIRD;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNumeric;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 import static org.elasticsearch.xpack.esql.expression.Validations.isFoldable;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeToLong;
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.FIRST;
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.FOURTH;
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.SECOND;
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.THIRD;
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isNumeric;
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isType;
 
 /**
  * Splits dates and numbers into a given number of buckets. There are two ways to invoke
@@ -53,6 +59,8 @@ import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isType;
  * In the former case, two parameters will be provided, in the latter four.
  */
 public class Bucket extends GroupingFunction implements Validatable, TwoOptionalArguments {
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Bucket", Bucket::new);
+
     // TODO maybe we should just cover the whole of representable dates here - like ten years, 100 years, 1000 years, all the way up.
     // That way you never end up with more than the target number of buckets.
     private static final Rounding LARGEST_HUMAN_DATE_ROUNDING = Rounding.builder(Rounding.DateTimeUnit.YEAR_OF_CENTURY).build();
@@ -83,21 +91,139 @@ public class Bucket extends GroupingFunction implements Validatable, TwoOptional
     private final Expression from;
     private final Expression to;
 
-    @FunctionInfo(returnType = { "double", "date" }, description = """
-        Creates groups of values - buckets - out of a datetime or numeric input. The size of the buckets can either
-        be provided directly, or chosen based on a recommended count and values range.""")
+    @FunctionInfo(
+        returnType = { "double", "date" },
+        description = """
+            Creates groups of values - buckets - out of a datetime or numeric input.
+            The size of the buckets can either be provided directly, or chosen based on a recommended count and values range.""",
+        examples = {
+            @Example(
+                description = """
+                    `BUCKET` can work in two modes: one in which the size of the bucket is computed
+                    based on a buckets count recommendation (four parameters) and a range, and
+                    another in which the bucket size is provided directly (two parameters).
+
+                    Using a target number of buckets, a start of a range, and an end of a range,
+                    `BUCKET` picks an appropriate bucket size to generate the target number of buckets or fewer.
+                    For example, asking for at most 20 buckets over a year results in monthly buckets:""",
+                file = "bucket",
+                tag = "docsBucketMonth",
+                explanation = """
+                    The goal isn't to provide *exactly* the target number of buckets,
+                    it's to pick a range that people are comfortable with that provides at most the target number of buckets."""
+            ),
+            @Example(
+                description = "Combine `BUCKET` with an <<esql-agg-functions,aggregation>> to create a histogram:",
+                file = "bucket",
+                tag = "docsBucketMonthlyHistogram",
+                explanation = """
+                    NOTE: `BUCKET` does not create buckets that don't match any documents.
+                    That's why this example is missing `1985-03-01` and other dates."""
+            ),
+            @Example(
+                description = """
+                    Asking for more buckets can result in a smaller range.
+                    For example, asking for at most 100 buckets in a year results in weekly buckets:""",
+                file = "bucket",
+                tag = "docsBucketWeeklyHistogram",
+                explanation = """
+                    NOTE: `BUCKET` does not filter any rows. It only uses the provided range to pick a good bucket size.
+                    For rows with a value outside of the range, it returns a bucket value that corresponds to a bucket outside the range.
+                    Combine`BUCKET` with <<esql-where>> to filter rows."""
+            ),
+            @Example(description = """
+                If the desired bucket size is known in advance, simply provide it as the second
+                argument, leaving the range out:""", file = "bucket", tag = "docsBucketWeeklyHistogramWithSpan", explanation = """
+                NOTE: When providing the bucket size as the second parameter, it must be a time
+                duration or date period."""),
+            @Example(
+                description = "`BUCKET` can also operate on numeric fields. For example, to create a salary histogram:",
+                file = "bucket",
+                tag = "docsBucketNumeric",
+                explanation = """
+                    Unlike the earlier example that intentionally filters on a date range, you rarely want to filter on a numeric range.
+                    You have to find the `min` and `max` separately. {esql} doesn't yet have an easy way to do that automatically."""
+            ),
+            @Example(description = """
+                The range can be omitted if the desired bucket size is known in advance. Simply
+                provide it as the second argument:""", file = "bucket", tag = "docsBucketNumericWithSpan", explanation = """
+                NOTE: When providing the bucket size as the second parameter, it must be
+                of a floating point type."""),
+            @Example(
+                description = "Create hourly buckets for the last 24 hours, and calculate the number of events per hour:",
+                file = "bucket",
+                tag = "docsBucketLast24hr"
+            ),
+            @Example(
+                description = "Create monthly buckets for the year 1985, and calculate the average salary by hiring month",
+                file = "bucket",
+                tag = "bucket_in_agg"
+            ),
+            @Example(
+                description = """
+                    `BUCKET` may be used in both the aggregating and grouping part of the
+                    <<esql-stats-by, STATS ... BY ...>> command provided that in the aggregating
+                    part the function is referenced by an alias defined in the
+                    grouping part, or that it is invoked with the exact same expression:""",
+                file = "bucket",
+                tag = "reuseGroupingFunctionWithExpression"
+            ) }
+    )
     public Bucket(
         Source source,
-        @Param(name = "field", type = { "integer", "long", "double", "date" }) Expression field,
-        @Param(name = "buckets", type = { "integer", "double", "date_period", "time_duration" }) Expression buckets,
-        @Param(name = "from", type = { "integer", "long", "double", "date" }, optional = true) Expression from,
-        @Param(name = "to", type = { "integer", "long", "double", "date" }, optional = true) Expression to
+        @Param(
+            name = "field",
+            type = { "integer", "long", "double", "date" },
+            description = "Numeric or date expression from which to derive buckets."
+        ) Expression field,
+        @Param(
+            name = "buckets",
+            type = { "integer", "double", "date_period", "time_duration" },
+            description = "Target number of buckets."
+        ) Expression buckets,
+        @Param(
+            name = "from",
+            type = { "integer", "long", "double", "date" },
+            optional = true,
+            description = "Start of the range. Can be a number or a date expressed as a string."
+        ) Expression from,
+        @Param(
+            name = "to",
+            type = { "integer", "long", "double", "date" },
+            optional = true,
+            description = "End of the range. Can be a number or a date expressed as a string."
+        ) Expression to
     ) {
         super(source, from != null && to != null ? List.of(field, buckets, from, to) : List.of(field, buckets));
         this.field = field;
         this.buckets = buckets;
         this.from = from;
         this.to = to;
+    }
+
+    private Bucket(StreamInput in) throws IOException {
+        this(
+            Source.readFrom((PlanStreamInput) in),
+            ((PlanStreamInput) in).readExpression(),
+            ((PlanStreamInput) in).readExpression(),
+            ((PlanStreamInput) in).readOptionalNamed(Expression.class),
+            ((PlanStreamInput) in).readOptionalNamed(Expression.class)
+        );
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        source().writeTo(out);
+        ((PlanStreamOutput) out).writeExpression(field);
+        ((PlanStreamOutput) out).writeExpression(buckets);
+        ((PlanStreamOutput) out).writeOptionalExpression(from);
+        ((PlanStreamOutput) out).writeOptionalExpression(to);
+
+    }
+
+    @Override
+    public String getWriteableName() {
+        return ENTRY.name;
     }
 
     @Override
@@ -107,7 +233,7 @@ public class Bucket extends GroupingFunction implements Validatable, TwoOptional
 
     @Override
     public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
-        if (field.dataType() == DataTypes.DATETIME) {
+        if (field.dataType() == DataType.DATETIME) {
             Rounding.Prepared preparedRounding;
             if (buckets.dataType().isInteger()) {
                 int b = ((Number) buckets.fold()).intValue();
@@ -131,7 +257,7 @@ public class Bucket extends GroupingFunction implements Validatable, TwoOptional
                 assert buckets.dataType().isRational() : "Unexpected rounding data type [" + buckets.dataType() + "]";
                 roundTo = ((Number) buckets.fold()).doubleValue();
             }
-            Literal rounding = new Literal(source(), roundTo, DataTypes.DOUBLE);
+            Literal rounding = new Literal(source(), roundTo, DataType.DOUBLE);
 
             // We could make this more efficient, either by generating the evaluators with byte code or hand rolling this one.
             Div div = new Div(source(), field, rounding);
@@ -192,11 +318,11 @@ public class Bucket extends GroupingFunction implements Validatable, TwoOptional
         }
         var fieldType = field.dataType();
         var bucketsType = buckets.dataType();
-        if (fieldType == DataTypes.NULL || bucketsType == DataTypes.NULL) {
+        if (fieldType == DataType.NULL || bucketsType == DataType.NULL) {
             return TypeResolution.TYPE_RESOLVED;
         }
 
-        if (fieldType == DataTypes.DATETIME) {
+        if (fieldType == DataType.DATETIME) {
             TypeResolution resolution = isType(
                 buckets,
                 dt -> dt.isInteger() || EsqlDataTypes.isTemporalAmount(dt),
@@ -246,7 +372,7 @@ public class Bucket extends GroupingFunction implements Validatable, TwoOptional
     private static TypeResolution isStringOrDate(Expression e, String operationName, TypeResolutions.ParamOrdinal paramOrd) {
         return TypeResolutions.isType(
             e,
-            exp -> DataTypes.isString(exp) || DataTypes.isDateTime(exp),
+            exp -> DataType.isString(exp) || DataType.isDateTime(exp),
             operationName,
             paramOrd,
             "datetime",
@@ -265,13 +391,13 @@ public class Bucket extends GroupingFunction implements Validatable, TwoOptional
 
     private long foldToLong(Expression e) {
         Object value = Foldables.valueOf(e);
-        return DataTypes.isDateTime(e.dataType()) ? ((Number) value).longValue() : dateTimeToLong(((BytesRef) value).utf8ToString());
+        return DataType.isDateTime(e.dataType()) ? ((Number) value).longValue() : dateTimeToLong(((BytesRef) value).utf8ToString());
     }
 
     @Override
     public DataType dataType() {
         if (field.dataType().isNumeric()) {
-            return DataTypes.DOUBLE;
+            return DataType.DOUBLE;
         }
         return field.dataType();
     }

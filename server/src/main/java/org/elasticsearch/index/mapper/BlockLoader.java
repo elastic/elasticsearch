@@ -93,6 +93,16 @@ public interface BlockLoader {
     SortedSetDocValues ordinals(LeafReaderContext context) throws IOException;
 
     /**
+     * In support of 'Union Types', we sometimes desire that Blocks loaded from source are immediately
+     * converted in some way. Typically, this would be a type conversion, or an encoding conversion.
+     * @param block original block loaded from source
+     * @return converted block (or original if no conversion required)
+     */
+    default Block convert(Block block) {
+        return block;
+    }
+
+    /**
      * Load blocks with only null.
      */
     BlockLoader CONSTANT_NULLS = new BlockLoader() {
@@ -331,7 +341,7 @@ public interface BlockLoader {
     interface BlockFactory {
         /**
          * Build a builder to load booleans as loaded from doc values. Doc values
-         * load booleans deduplicated and in sorted order.
+         * load booleans in sorted order.
          */
         BooleanBuilder booleansFromDocValues(int expectedCount);
 
@@ -353,7 +363,7 @@ public interface BlockLoader {
 
         /**
          * Build a builder to load doubles as loaded from doc values.
-         * Doc values load doubles deduplicated and in sorted order.
+         * Doc values load doubles in sorted order.
          */
         DoubleBuilder doublesFromDocValues(int expectedCount);
 
@@ -364,7 +374,7 @@ public interface BlockLoader {
 
         /**
          * Build a builder to load ints as loaded from doc values.
-         * Doc values load ints deduplicated and in sorted order.
+         * Doc values load ints in sorted order.
          */
         IntBuilder intsFromDocValues(int expectedCount);
 
@@ -375,7 +385,7 @@ public interface BlockLoader {
 
         /**
          * Build a builder to load longs as loaded from doc values.
-         * Doc values load longs deduplicated and in sorted order.
+         * Doc values load longs in sorted order.
          */
         LongBuilder longsFromDocValues(int expectedCount);
 
@@ -454,6 +464,13 @@ public interface BlockLoader {
          * Appends a BytesRef to the current entry.
          */
         BytesRefBuilder appendBytesRef(BytesRef value);
+    }
+
+    interface FloatBuilder extends Builder {
+        /**
+         * Appends a float to the current entry.
+         */
+        FloatBuilder appendFloat(float value);
     }
 
     interface DoubleBuilder extends Builder {

@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.core.ccr.action.GetAutoFollowPatternAction.Reques
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
+import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 import static org.elasticsearch.xpack.core.ccr.action.GetAutoFollowPatternAction.INSTANCE;
 
 public class RestGetAutoFollowPatternAction extends BaseRestHandler {
@@ -31,9 +32,8 @@ public class RestGetAutoFollowPatternAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) {
-        Request request = new Request();
+        final var request = new Request(getMasterNodeTimeout(restRequest));
         request.setName(restRequest.param("name"));
-        request.masterNodeTimeout(restRequest.paramAsTime("master_timeout", request.masterNodeTimeout()));
         return channel -> client.execute(INSTANCE, request, new RestToXContentListener<>(channel));
     }
 

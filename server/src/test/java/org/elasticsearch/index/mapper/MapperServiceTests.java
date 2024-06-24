@@ -273,7 +273,7 @@ public class MapperServiceTests extends MapperServiceTestCase {
 
         DocumentMapper documentMapper = mapperService.merge("_doc", mapping, MergeReason.MAPPING_RECOVERY);
 
-        assertEquals(testString, documentMapper.mappers().getMapper(testString).simpleName());
+        assertEquals(testString, documentMapper.mappers().getMapper(testString).leafName());
     }
 
     public void testIsMetadataField() throws IOException {
@@ -1147,7 +1147,7 @@ public class MapperServiceTests extends MapperServiceTestCase {
             }""", Strings.toString(mapperService.documentMapper().mapping(), true, true));
     }
 
-    public void testPropertiesField() throws IOException {
+    public void testPropertiesFieldSingleChildMerge() throws IOException {
         CompressedXContent mapping1 = new CompressedXContent("""
             {
               "properties": {
@@ -1236,6 +1236,103 @@ public class MapperServiceTests extends MapperServiceTestCase {
         Mapper grandchildMapper = ((ObjectMapper) childMapper).getMapper("grandchild");
         assertThat(grandchildMapper, instanceOf(FieldMapper.class));
         assertEquals("keyword", grandchildMapper.typeName());
+    }
+
+    public void testPropertiesFieldMultiChildMerge() throws IOException {
+        CompressedXContent mapping1 = new CompressedXContent("""
+            {
+              "properties": {
+                "properties": {
+                  "properties": {
+                    "child1": {
+                      "type": "text",
+                      "fields": {
+                        "keyword": {
+                          "type": "keyword"
+                        }
+                      }
+                    },
+                    "child2": {
+                      "type": "text"
+                    },
+                    "child3": {
+                      "properties": {
+                        "grandchild": {
+                          "type": "text"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }""");
+
+        CompressedXContent mapping2 = new CompressedXContent("""
+            {
+              "properties": {
+                "properties": {
+                  "properties": {
+                    "child2": {
+                      "type": "integer"
+                    },
+                    "child3": {
+                      "properties": {
+                        "grandchild": {
+                          "type": "long"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }""");
+
+        MapperService mapperService = createMapperService(mapping(b -> {}));
+        mapperService.merge("_doc", List.of(mapping1, mapping2), MergeReason.INDEX_TEMPLATE);
+        assertEquals("""
+            {
+              "_doc" : {
+                "properties" : {
+                  "properties" : {
+                    "properties" : {
+                      "child1" : {
+                        "type" : "text",
+                        "fields" : {
+                          "keyword" : {
+                            "type" : "keyword"
+                          }
+                        }
+                      },
+                      "child2" : {
+                        "type" : "integer"
+                      },
+                      "child3" : {
+                        "properties" : {
+                          "grandchild" : {
+                            "type" : "long"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }""", Strings.toString(mapperService.documentMapper().mapping(), true, true));
+
+        Mapper propertiesMapper = mapperService.documentMapper().mapping().getRoot().getMapper("properties");
+        assertThat(propertiesMapper, instanceOf(ObjectMapper.class));
+        Mapper childMapper = ((ObjectMapper) propertiesMapper).getMapper("child1");
+        assertThat(childMapper, instanceOf(FieldMapper.class));
+        assertEquals("text", childMapper.typeName());
+        assertEquals(2, childMapper.getTotalFieldsCount());
+        childMapper = ((ObjectMapper) propertiesMapper).getMapper("child2");
+        assertThat(childMapper, instanceOf(FieldMapper.class));
+        assertEquals("integer", childMapper.typeName());
+        assertEquals(1, childMapper.getTotalFieldsCount());
+        childMapper = ((ObjectMapper) propertiesMapper).getMapper("child3");
+        assertThat(childMapper, instanceOf(ObjectMapper.class));
+        Mapper grandchildMapper = ((ObjectMapper) childMapper).getMapper("grandchild");
+        assertEquals("long", grandchildMapper.typeName());
     }
 
     public void testMergeUntilLimit() throws IOException {
@@ -1376,7 +1473,7 @@ public class MapperServiceTests extends MapperServiceTestCase {
         assertNotNull(mapper.mappers().getMapper("text_field"));
         FieldMapper.MultiFields multiFields = ((TextFieldMapper) mapper.mappers().getMapper("text_field")).multiFields();
         Map<String, FieldMapper> multiFieldMap = StreamSupport.stream(multiFields.spliterator(), false)
-            .collect(Collectors.toMap(FieldMapper::name, Function.identity()));
+            .collect(Collectors.toMap(FieldMapper::fullPath, Function.identity()));
         assertThat(multiFieldMap.keySet(), contains("text_field.multi_field1"));
         assertTrue(multiFieldMap.get("text_field.multi_field1").ignoreMalformed());
     }

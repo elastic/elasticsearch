@@ -207,6 +207,34 @@ pipeline.
 (integer)
 Total number of failed operations for the ingest pipeline.
 
+`ingested_as_first_pipeline`::
+(<<byte-units,byte value>>)
+Total ingested size of all documents which were first processed by this pipeline.
+A document is not added to the stat value for this pipeline if it is a final pipeline after a default pipeline, a pipeline
+run after a reroute processor, or is within a pipeline processor.
+Instead, the document size is added to the stat value of the pipeline which initially ingested the document.
+
+`ingested_as_first_pipeline_in_bytes`::
+(integer)
+Total ingested size, in bytes, of all documents which were first processed by this pipeline.
+A document is not added to the stat value for this pipeline if it is a final pipeline after a default pipeline, a pipeline
+run after a reroute processor, or is within a pipeline processor.
+Instead, the document size is added to the stat value of the pipeline which initially ingested the document.
+
+`produced_as_first_pipeline`::
+(<<byte-units,byte value>>)
+Total produced size of all documents which were first processed by this pipeline.
+A document is not added to the stat value for this pipeline if it is a final pipeline after a default pipeline, a pipeline
+run after a reroute processor, or is within a pipeline processor.
+Instead, the document size is added to the stat value of the pipeline which initially ingested the document.
+
+`produced_as_first_pipeline_in_bytes`::
+(integer)
+Total produced size, in bytes, of all documents which were first processed by this pipeline.
+A document is not added to the stat value for this pipeline if it is a final pipeline after a default pipeline, a pipeline
+run after a reroute processor, or is within a pipeline processor.
+Instead, the document size is added to the stat value of the pipeline which initially ingested the document.
+
 `processors`::
 (array of objects)
 Contains information for the ingest processors for the ingest pipeline.

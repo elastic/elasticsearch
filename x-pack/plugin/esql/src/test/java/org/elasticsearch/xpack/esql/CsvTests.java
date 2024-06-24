@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -46,9 +47,18 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.esql.CsvTestUtils.ActualResults;
 import org.elasticsearch.xpack.esql.CsvTestUtils.Type;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
+import org.elasticsearch.xpack.esql.analysis.PreAnalyzer;
+import org.elasticsearch.xpack.esql.core.CsvSpecReader;
+import org.elasticsearch.xpack.esql.core.SpecReader;
+import org.elasticsearch.xpack.esql.core.expression.Expressions;
+import org.elasticsearch.xpack.esql.core.expression.function.FunctionRegistry;
+import org.elasticsearch.xpack.esql.core.index.EsIndex;
+import org.elasticsearch.xpack.esql.core.index.IndexResolution;
+import org.elasticsearch.xpack.esql.core.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
 import org.elasticsearch.xpack.esql.enrich.ResolvedEnrichPolicy;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
@@ -72,18 +82,11 @@ import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.LocalExecution
 import org.elasticsearch.xpack.esql.planner.Mapper;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.planner.TestPhysicalOperationProviders;
+import org.elasticsearch.xpack.esql.plugin.EsqlFeatures;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
 import org.elasticsearch.xpack.esql.stats.DisabledSearchStats;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
-import org.elasticsearch.xpack.ql.CsvSpecReader;
-import org.elasticsearch.xpack.ql.SpecReader;
-import org.elasticsearch.xpack.ql.analyzer.PreAnalyzer;
-import org.elasticsearch.xpack.ql.expression.Expressions;
-import org.elasticsearch.xpack.ql.expression.function.FunctionRegistry;
-import org.elasticsearch.xpack.ql.index.EsIndex;
-import org.elasticsearch.xpack.ql.index.IndexResolution;
-import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 import org.junit.After;
 import org.junit.Before;
 import org.mockito.Mockito;
@@ -105,45 +108,49 @@ import static org.elasticsearch.xpack.esql.CsvTestUtils.loadCsvSpecValues;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.loadPageFromCsv;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.CSV_DATASET_MAP;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.classpathResources;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
-import static org.elasticsearch.xpack.ql.CsvSpecReader.specParser;
-import static org.elasticsearch.xpack.ql.TestUtils.classpathResources;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.cap;
+import static org.elasticsearch.xpack.esql.core.CsvSpecReader.specParser;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.everyItem;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
 /**
  * CSV-based unit testing.
- *
+ * <p>
  * Queries and their result live *.csv-spec files.
  * The results used in these files were manually added by running the same query on a real (debug mode) ES node. CsvTestsDataLoader loads
  * the test data helping to get the said results.
- *
+ * <p>
  * CsvTestsDataLoader creates an index using the mapping in mapping-default.json. The same mapping file is also used to create the
  * IndexResolver that helps validate the correctness of the query and the supported field data types.
  * The created index and this class uses the data from employees.csv file as data. This class is creating one Page with Blocks in it using
  * this file and the type of blocks matches the type of the schema specified on the first line of the csv file. These being said, the
  * mapping in mapping-default.csv and employees.csv should be more or less in sync. An exception to this rule:
- *
+ * <p>
  * languages:integer,languages.long:long. The mapping has "long" as a sub-field of "languages". ES knows what to do with sub-field, but
  * employees.csv is specifically defining "languages.long" as "long" and also has duplicated columns for these two.
- *
+ * <p>
  * ATM the first line from employees.csv file is not synchronized with the mapping itself.
- *
+ * <p>
  * When we add support for more field types, CsvTests should change to support the new Block types. Same goes for employees.csv file
  * (the schema needs adjustment) and the mapping-default.json file (to add or change an existing field).
  * When we add more operators, optimization rules to the logical or physical plan optimizers, there may be the need to change the operators
  * in TestPhysicalOperationProviders or adjust TestPhysicalPlanOptimizer. For example, the TestPhysicalPlanOptimizer is skipping any
  * rules that push operations to ES itself (a Limit for example). The TestPhysicalOperationProviders is a bit more complicated than that:
  * it’s creating its own Source physical operator, aggregation operator (just a tiny bit of it) and field extract operator.
- *
+ * <p>
  * To log the results logResults() should return "true".
  */
 // @TestLogging(value = "org.elasticsearch.xpack.esql:TRACE,org.elasticsearch.compute:TRACE", reason = "debug")
 public class CsvTests extends ESTestCase {
 
     private static final Logger LOGGER = LogManager.getLogger(CsvTests.class);
-    private static final String IGNORED_CSV_FILE_NAMES_PATTERN = "-IT_tests_only";
 
     private final String fileName;
     private final String groupName;
@@ -163,10 +170,8 @@ public class CsvTests extends ESTestCase {
 
     @ParametersFactory(argumentFormatting = "%2$s.%3$s")
     public static List<Object[]> readScriptSpec() throws Exception {
-        List<URL> urls = classpathResources("/*.csv-spec").stream()
-            .filter(x -> x.toString().contains(IGNORED_CSV_FILE_NAMES_PATTERN) == false)
-            .toList();
-        assertTrue("Not enough specs found " + urls, urls.size() > 0);
+        List<URL> urls = classpathResources("/*.csv-spec");
+        assertThat("Not enough specs found " + urls, urls, hasSize(greaterThan(0)));
         return SpecReader.readScriptSpec(urls, specParser());
     }
 
@@ -216,11 +221,27 @@ public class CsvTests extends ESTestCase {
 
     public final void test() throws Throwable {
         try {
-            /*
-             * We're intentionally not NodeFeatures here because we expect all
-             * of the features to be supported in this unit test.
-             */
             assumeTrue("Test " + testName + " is not enabled", isEnabled(testName, Version.CURRENT));
+            /*
+             * The csv tests support all but a few features. The unsupported features
+             * are tested in integration tests.
+             */
+            assumeFalse("metadata fields aren't supported", testCase.requiredCapabilities.contains(cap(EsqlFeatures.METADATA_FIELDS)));
+            assumeFalse("enrich can't load fields in csv tests", testCase.requiredCapabilities.contains(cap(EsqlFeatures.ENRICH_LOAD)));
+            assumeFalse("can't load metrics in csv tests", testCase.requiredCapabilities.contains(cap(EsqlFeatures.METRICS_SYNTAX)));
+            assumeFalse(
+                "multiple indices aren't supported",
+                testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.UNION_TYPES.capabilityName())
+            );
+
+            if (Build.current().isSnapshot()) {
+                assertThat(
+                    "nonexistent capabilities declared as required",
+                    testCase.requiredCapabilities,
+                    everyItem(in(EsqlCapabilities.CAPABILITIES))
+                );
+            }
+
             doTest();
         } catch (Throwable th) {
             throw reworkException(th);
@@ -316,7 +337,7 @@ public class CsvTests extends ESTestCase {
     private static CsvTestsDataLoader.TestsDataset testsDataset(LogicalPlan parsed) {
         var preAnalysis = new PreAnalyzer().preAnalyze(parsed);
         var indices = preAnalysis.indices;
-        if (indices.size() == 0) {
+        if (indices.isEmpty()) {
             /*
              * If the data set doesn't matter we'll just grab one we know works.
              * Employees is fine.
@@ -327,11 +348,23 @@ public class CsvTests extends ESTestCase {
         }
 
         String indexName = indices.get(0).id().index();
-        var dataset = CSV_DATASET_MAP.get(indexName);
-        if (dataset == null) {
+        List<CsvTestsDataLoader.TestsDataset> datasets = new ArrayList<>();
+        if (indexName.endsWith("*")) {
+            String indexPrefix = indexName.substring(0, indexName.length() - 1);
+            for (var entry : CSV_DATASET_MAP.entrySet()) {
+                if (entry.getKey().startsWith(indexPrefix)) {
+                    datasets.add(entry.getValue());
+                }
+            }
+        } else {
+            var dataset = CSV_DATASET_MAP.get(indexName);
+            datasets.add(dataset);
+        }
+        if (datasets.isEmpty()) {
             throw new IllegalArgumentException("unknown CSV dataset for table [" + indexName + "]");
         }
-        return dataset;
+        // TODO: Support multiple datasets
+        return datasets.get(0);
     }
 
     private static TestPhysicalOperationProviders testOperationProviders(CsvTestsDataLoader.TestsDataset dataset) throws Exception {
@@ -385,7 +418,7 @@ public class CsvTests extends ESTestCase {
         List<Type> columnTypes = coordinatorPlan.output()
             .stream()
             .peek(o -> dataTypes.add(EsqlDataTypes.outputType(o.dataType())))
-            .map(o -> Type.asType(o.dataType().name()))
+            .map(o -> Type.asType(o.dataType().nameUpper()))
             .toList();
 
         List<Driver> drivers = new ArrayList<>();
@@ -446,7 +479,7 @@ public class CsvTests extends ESTestCase {
     }
 
     // Asserts that the serialization and deserialization of the plan creates an equivalent plan.
-    private static void opportunisticallyAssertPlanSerialization(PhysicalPlan... plans) {
+    private void opportunisticallyAssertPlanSerialization(PhysicalPlan... plans) {
         for (var plan : plans) {
             var tmp = plan;
             do {
@@ -455,7 +488,7 @@ public class CsvTests extends ESTestCase {
                 }
             } while (tmp.children().isEmpty() == false && (tmp = tmp.children().get(0)) != null);
 
-            SerializationTestUtils.assertSerialization(plan);
+            SerializationTestUtils.assertSerialization(plan, configuration);
         }
     }
 

@@ -440,7 +440,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
             // of shard-level search requests. However, we need to assign as a dummy PIT instead of null as we verify PIT for
             // slice requests on data nodes.
             source = source.shallowCopy();
-            source.pointInTimeBuilder(new PointInTimeBuilder(""));
+            source.pointInTimeBuilder(new PointInTimeBuilder(BytesArray.EMPTY));
         }
         this.source = source;
     }

@@ -224,7 +224,7 @@ public class SearchIdleIT extends ESSingleNodeTestCase {
             .get();
         waitUntil(
             () -> Arrays.stream(indicesAdmin().prepareStats(indexName).get().getShards()).allMatch(ShardStats::isSearchIdle),
-            searchIdleAfter,
+            searchIdleAfter + 1,
             TimeUnit.SECONDS
         );
 

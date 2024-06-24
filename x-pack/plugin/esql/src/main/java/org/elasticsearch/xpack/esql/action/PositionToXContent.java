@@ -26,11 +26,11 @@ import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
 
 import java.io.IOException;
 
+import static org.elasticsearch.xpack.esql.core.util.NumericUtils.unsignedLongAsNumber;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeToString;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.ipToString;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.spatialToString;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.versionToString;
-import static org.elasticsearch.xpack.ql.util.NumericUtils.unsignedLongAsNumber;
 
 abstract class PositionToXContent {
     protected final Block block;
@@ -61,21 +61,21 @@ abstract class PositionToXContent {
 
     public static PositionToXContent positionToXContent(ColumnInfo columnInfo, Block block, BytesRef scratch) {
         return switch (columnInfo.type()) {
-            case "long" -> new PositionToXContent(block) {
+            case "long", "counter_long" -> new PositionToXContent(block) {
                 @Override
                 protected XContentBuilder valueToXContent(XContentBuilder builder, ToXContent.Params params, int valueIndex)
                     throws IOException {
                     return builder.value(((LongBlock) block).getLong(valueIndex));
                 }
             };
-            case "integer" -> new PositionToXContent(block) {
+            case "integer", "counter_integer" -> new PositionToXContent(block) {
                 @Override
                 protected XContentBuilder valueToXContent(XContentBuilder builder, ToXContent.Params params, int valueIndex)
                     throws IOException {
                     return builder.value(((IntBlock) block).getInt(valueIndex));
                 }
             };
-            case "double" -> new PositionToXContent(block) {
+            case "double", "counter_double" -> new PositionToXContent(block) {
                 @Override
                 protected XContentBuilder valueToXContent(XContentBuilder builder, ToXContent.Params params, int valueIndex)
                     throws IOException {

@@ -9,6 +9,7 @@ package org.elasticsearch.compute.lucene;
 
 import org.apache.lucene.document.DoubleDocValuesField;
 import org.apache.lucene.document.FloatDocValuesField;
+import org.apache.lucene.document.LongField;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedDocValuesField;
@@ -18,6 +19,7 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
@@ -39,12 +41,12 @@ import org.elasticsearch.compute.operator.OperatorTestCase;
 import org.elasticsearch.compute.operator.TestResultPageSinkOperator;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.IOUtils;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
+import org.hamcrest.Matcher;
 import org.junit.After;
 
 import java.io.IOException;
@@ -58,6 +60,7 @@ import java.util.Map;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -81,12 +84,12 @@ public class TimeSeriesSortedSourceOperatorTests extends AnyOperatorTestCase {
         // for now we emit at most one time series each page
         int offset = 0;
         for (Page page : results) {
-            assertThat(page.getBlockCount(), equalTo(6));
+            assertThat(page.getBlockCount(), equalTo(5));
             DocVector docVector = (DocVector) page.getBlock(0).asVector();
             BytesRefVector tsidVector = (BytesRefVector) page.getBlock(1).asVector();
             LongVector timestampVector = (LongVector) page.getBlock(2).asVector();
-            LongVector voltageVector = (LongVector) page.getBlock(4).asVector();
-            BytesRefVector hostnameVector = (BytesRefVector) page.getBlock(5).asVector();
+            LongVector voltageVector = (LongVector) page.getBlock(3).asVector();
+            BytesRefVector hostnameVector = (BytesRefVector) page.getBlock(4).asVector();
             for (int i = 0; i < page.getPositionCount(); i++) {
                 int expectedTsidOrd = offset / numSamplesPerTS;
                 String expectedHostname = String.format(Locale.ROOT, "host-%02d", expectedTsidOrd);
@@ -111,7 +114,7 @@ public class TimeSeriesSortedSourceOperatorTests extends AnyOperatorTestCase {
         List<Page> results = runDriver(limit, randomIntBetween(1, 1024), randomBoolean(), numTimeSeries, numSamplesPerTS, timestampStart);
         assertThat(results, hasSize(1));
         Page page = results.get(0);
-        assertThat(page.getBlockCount(), equalTo(6));
+        assertThat(page.getBlockCount(), equalTo(5));
 
         DocVector docVector = (DocVector) page.getBlock(0).asVector();
         assertThat(docVector.getPositionCount(), equalTo(limit));
@@ -122,10 +125,10 @@ public class TimeSeriesSortedSourceOperatorTests extends AnyOperatorTestCase {
         LongVector timestampVector = (LongVector) page.getBlock(2).asVector();
         assertThat(timestampVector.getPositionCount(), equalTo(limit));
 
-        LongVector voltageVector = (LongVector) page.getBlock(4).asVector();
+        LongVector voltageVector = (LongVector) page.getBlock(3).asVector();
         assertThat(voltageVector.getPositionCount(), equalTo(limit));
 
-        BytesRefVector hostnameVector = (BytesRefVector) page.getBlock(5).asVector();
+        BytesRefVector hostnameVector = (BytesRefVector) page.getBlock(4).asVector();
         assertThat(hostnameVector.getPositionCount(), equalTo(limit));
 
         assertThat(docVector.shards().getInt(0), equalTo(0));
@@ -157,7 +160,6 @@ public class TimeSeriesSortedSourceOperatorTests extends AnyOperatorTestCase {
             limit,
             maxPageSize,
             randomBoolean(),
-            TimeValue.ZERO,
             writer -> {
                 Randomness.shuffle(docs);
                 for (Doc doc : docs) {
@@ -190,11 +192,11 @@ public class TimeSeriesSortedSourceOperatorTests extends AnyOperatorTestCase {
                 assertThat(page.getPositionCount(), lessThanOrEqualTo(limit));
                 assertThat(page.getPositionCount(), lessThanOrEqualTo(maxPageSize));
             }
-            assertThat(page.getBlockCount(), equalTo(5));
+            assertThat(page.getBlockCount(), equalTo(4));
             DocVector docVector = (DocVector) page.getBlock(0).asVector();
             BytesRefVector tsidVector = (BytesRefVector) page.getBlock(1).asVector();
             LongVector timestampVector = (LongVector) page.getBlock(2).asVector();
-            LongVector metricVector = (LongVector) page.getBlock(4).asVector();
+            LongVector metricVector = (LongVector) page.getBlock(3).asVector();
             for (int i = 0; i < page.getPositionCount(); i++) {
                 Doc doc = docs.get(offset);
                 offset++;
@@ -207,9 +209,59 @@ public class TimeSeriesSortedSourceOperatorTests extends AnyOperatorTestCase {
         assertThat(offset, equalTo(Math.min(limit, numDocs)));
     }
 
+    public void testMatchNone() throws Exception {
+        long t0 = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2024-01-01T00:00:00Z");
+        Sort sort = new Sort(
+            new SortField(TimeSeriesIdFieldMapper.NAME, SortField.Type.STRING, false),
+            new SortedNumericSortField(DataStreamTimestampFieldMapper.DEFAULT_PATH, SortField.Type.LONG, true)
+        );
+        try (
+            var directory = newDirectory();
+            RandomIndexWriter writer = new RandomIndexWriter(
+                random(),
+                directory,
+                newIndexWriterConfig().setIndexSort(sort).setMergePolicy(NoMergePolicy.INSTANCE)
+            )
+        ) {
+            int numDocs = between(1, 100);
+            long timestamp = t0;
+            int metrics = randomIntBetween(1, 3);
+            for (int i = 0; i < numDocs; i++) {
+                timestamp += between(1, 1000);
+                for (int j = 0; j < metrics; j++) {
+                    String hostname = String.format(Locale.ROOT, "sensor-%02d", j);
+                    writeTS(writer, timestamp, new Object[] { "sensor", hostname }, new Object[] { "voltage", j + 5 });
+                }
+            }
+            try (var reader = writer.getReader()) {
+                var ctx = new LuceneSourceOperatorTests.MockShardContext(reader, 0);
+                Query query = randomFrom(LongField.newRangeQuery("@timestamp", 0, t0), new MatchNoDocsQuery());
+                var timeSeriesFactory = TimeSeriesSortedSourceOperatorFactory.create(
+                    Integer.MAX_VALUE,
+                    randomIntBetween(1, 1024),
+                    1,
+                    List.of(ctx),
+                    unused -> query
+                );
+                var driverContext = driverContext();
+                List<Page> results = new ArrayList<>();
+                OperatorTestCase.runDriver(
+                    new Driver(
+                        driverContext,
+                        timeSeriesFactory.get(driverContext),
+                        List.of(),
+                        new TestResultPageSinkOperator(results::add),
+                        () -> {}
+                    )
+                );
+                assertThat(results, empty());
+            }
+        }
+    }
+
     @Override
     protected Operator.OperatorFactory simple() {
-        return createTimeSeriesSourceOperator(directory, r -> this.reader = r, 1, 1, false, TimeValue.ZERO, writer -> {
+        return createTimeSeriesSourceOperator(directory, r -> this.reader = r, 1, 1, false, writer -> {
             long timestamp = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2024-01-01T00:00:00Z");
             writeTS(writer, timestamp, new Object[] { "hostname", "host-01" }, new Object[] { "voltage", 2 });
             return 1;
@@ -217,13 +269,13 @@ public class TimeSeriesSortedSourceOperatorTests extends AnyOperatorTestCase {
     }
 
     @Override
-    protected String expectedDescriptionOfSimple() {
-        return "TimeSeriesSortedSourceOperator[maxPageSize = 1, limit = 1]";
+    protected Matcher<String> expectedDescriptionOfSimple() {
+        return equalTo("TimeSeriesSortedSourceOperator[maxPageSize = 1, limit = 1]");
     }
 
     @Override
-    protected String expectedToStringOfSimple() {
-        return "Impl[maxPageSize=1, remainingDocs=1]";
+    protected Matcher<String> expectedToStringOfSimple() {
+        return equalTo("Impl[maxPageSize=1, remainingDocs=1]");
     }
 
     List<Page> runDriver(int limit, int maxPageSize, boolean forceMerge, int numTimeSeries, int numSamplesPerTS, long timestampStart) {
@@ -234,7 +286,6 @@ public class TimeSeriesSortedSourceOperatorTests extends AnyOperatorTestCase {
             limit,
             maxPageSize,
             forceMerge,
-            TimeValue.ZERO,
             writer -> {
                 long timestamp = timestampStart;
                 for (int i = 0; i < numSamplesPerTS; i++) {
@@ -278,7 +329,6 @@ public class TimeSeriesSortedSourceOperatorTests extends AnyOperatorTestCase {
         int limit,
         int maxPageSize,
         boolean forceMerge,
-        TimeValue timeValue,
         CheckedFunction<RandomIndexWriter, Integer, IOException> indexingLogic
     ) {
         Sort sort = new Sort(
@@ -306,7 +356,7 @@ public class TimeSeriesSortedSourceOperatorTests extends AnyOperatorTestCase {
         }
         var ctx = new LuceneSourceOperatorTests.MockShardContext(reader, 0);
         Function<ShardContext, Query> queryFunction = c -> new MatchAllDocsQuery();
-        return TimeSeriesSortedSourceOperatorFactory.create(limit, maxPageSize, 1, timeValue, List.of(ctx), queryFunction);
+        return TimeSeriesSortedSourceOperatorFactory.create(limit, maxPageSize, 1, List.of(ctx), queryFunction);
     }
 
     public static void writeTS(RandomIndexWriter iw, long timestamp, Object[] dimensions, Object[] metrics) throws IOException {

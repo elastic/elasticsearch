@@ -54,13 +54,11 @@ public class RestInferenceAction extends BaseRestHandler {
             requestBuilder = InferenceAction.Request.parseRequest(inferenceEntityId, taskType, parser);
         }
 
-        if (restRequest.hasParam(InferenceAction.Request.TIMEOUT.getPreferredName())) {
-            var inferTimeout = restRequest.paramAsTime(
-                InferenceAction.Request.TIMEOUT.getPreferredName(),
-                InferenceAction.Request.DEFAULT_TIMEOUT
-            );
-            requestBuilder.setInferenceTimeout(inferTimeout);
-        }
+        var inferTimeout = restRequest.paramAsTime(
+            InferenceAction.Request.TIMEOUT.getPreferredName(),
+            InferenceAction.Request.DEFAULT_TIMEOUT
+        );
+        requestBuilder.setInferenceTimeout(inferTimeout);
         return channel -> client.execute(InferenceAction.INSTANCE, requestBuilder.build(), new RestToXContentListener<>(channel));
     }
 }

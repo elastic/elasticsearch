@@ -11,6 +11,7 @@ package org.elasticsearch.search;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -44,7 +45,9 @@ import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
@@ -147,7 +150,7 @@ public class RandomSearchRequestGenerator {
             builder.minScore(randomFloat() * 1000);
         }
         if (randomBoolean()) {
-            builder.timeout(TimeValue.parseTimeValue(randomTimeValue(), null, "timeout"));
+            builder.timeout(randomTimeValue());
         }
         if (randomBoolean()) {
             builder.terminateAfter(randomIntBetween(1, 100000));
@@ -379,7 +382,9 @@ public class RandomSearchRequestGenerator {
             builder.collapse(randomCollapseBuilder.get());
         }
         if (randomBoolean()) {
-            PointInTimeBuilder pit = new PointInTimeBuilder(randomAlphaOfLengthBetween(3, 10));
+            PointInTimeBuilder pit = new PointInTimeBuilder(
+                new BytesArray(Base64.getUrlEncoder().encode(randomAlphaOfLengthBetween(3, 10).getBytes(StandardCharsets.UTF_8)))
+            );
             if (randomBoolean()) {
                 pit.setKeepAlive(TimeValue.timeValueMinutes(randomIntBetween(1, 60)));
             }

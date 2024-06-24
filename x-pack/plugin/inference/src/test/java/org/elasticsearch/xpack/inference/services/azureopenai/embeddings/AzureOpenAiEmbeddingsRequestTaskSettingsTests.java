@@ -11,7 +11,6 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.inference.services.openai.OpenAiServiceFields;
-import org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsRequestTaskSettings;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -21,30 +20,30 @@ import static org.hamcrest.Matchers.is;
 
 public class AzureOpenAiEmbeddingsRequestTaskSettingsTests extends ESTestCase {
     public void testFromMap_ReturnsEmptySettings_WhenTheMapIsEmpty() {
-        var settings = OpenAiEmbeddingsRequestTaskSettings.fromMap(new HashMap<>(Map.of()));
-        assertThat(settings, is(OpenAiEmbeddingsRequestTaskSettings.EMPTY_SETTINGS));
+        var settings = AzureOpenAiEmbeddingsRequestTaskSettings.fromMap(new HashMap<>(Map.of()));
+        assertThat(settings, is(AzureOpenAiEmbeddingsRequestTaskSettings.EMPTY_SETTINGS));
     }
 
     public void testFromMap_ReturnsEmptySettings_WhenTheMapDoesNotContainTheFields() {
-        var settings = OpenAiEmbeddingsRequestTaskSettings.fromMap(new HashMap<>(Map.of("key", "model")));
+        var settings = AzureOpenAiEmbeddingsRequestTaskSettings.fromMap(new HashMap<>(Map.of("key", "model")));
         assertNull(settings.user());
     }
 
     public void testFromMap_ReturnsUser() {
-        var settings = OpenAiEmbeddingsRequestTaskSettings.fromMap(new HashMap<>(Map.of(OpenAiServiceFields.USER, "user")));
+        var settings = AzureOpenAiEmbeddingsRequestTaskSettings.fromMap(new HashMap<>(Map.of(OpenAiServiceFields.USER, "user")));
         assertThat(settings.user(), is("user"));
     }
 
     public void testFromMap_WhenUserIsEmpty_ThrowsValidationException() {
         var exception = expectThrows(
             ValidationException.class,
-            () -> OpenAiEmbeddingsRequestTaskSettings.fromMap(new HashMap<>(Map.of(OpenAiServiceFields.USER, "")))
+            () -> AzureOpenAiEmbeddingsRequestTaskSettings.fromMap(new HashMap<>(Map.of(OpenAiServiceFields.USER, "")))
         );
 
         assertThat(exception.getMessage(), containsString("[user] must be a non-empty string"));
     }
 
-    public static Map<String, Object> getRequestTaskSettingsMap(@Nullable String user) {
+    public static Map<String, Object> createRequestTaskSettingsMap(@Nullable String user) {
         var map = new HashMap<String, Object>();
 
         if (user != null) {

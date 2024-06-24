@@ -41,6 +41,17 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.TestBlockFactory;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
+import org.elasticsearch.xpack.esql.core.expression.function.FunctionDefinition;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.core.util.NumericUtils;
+import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Greatest;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.AbstractMultivalueFunctionTestCase;
@@ -50,18 +61,6 @@ import org.elasticsearch.xpack.esql.parser.ExpressionBuilder;
 import org.elasticsearch.xpack.esql.planner.Layout;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
-import org.elasticsearch.xpack.ql.expression.Attribute;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.FieldAttribute;
-import org.elasticsearch.xpack.ql.expression.Literal;
-import org.elasticsearch.xpack.ql.expression.TypeResolutions;
-import org.elasticsearch.xpack.ql.expression.function.FunctionDefinition;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypes;
-import org.elasticsearch.xpack.ql.type.EsField;
-import org.elasticsearch.xpack.ql.util.NumericUtils;
-import org.elasticsearch.xpack.ql.util.StringUtils;
 import org.elasticsearch.xpack.versionfield.Version;
 import org.hamcrest.Matcher;
 import org.junit.After;
@@ -97,9 +96,9 @@ import java.util.stream.Stream;
 
 import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
 import static org.elasticsearch.xpack.esql.SerializationTestUtils.assertSerialization;
+import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.CARTESIAN;
+import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.isSpatial;
-import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.CARTESIAN;
-import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.GEO;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -121,11 +120,11 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             case "boolean" -> randomBoolean();
             case "byte" -> randomByte();
             case "short" -> randomShort();
-            case "integer" -> randomInt();
-            case "unsigned_long", "long" -> randomLong();
+            case "integer", "counter_integer" -> randomInt();
+            case "unsigned_long", "long", "counter_long" -> randomLong();
             case "date_period" -> Period.of(randomIntBetween(-1000, 1000), randomIntBetween(-13, 13), randomIntBetween(-32, 32));
             case "datetime" -> randomMillisUpToYear9999();
-            case "double", "scaled_float" -> randomDouble();
+            case "double", "scaled_float", "counter_double" -> randomDouble();
             case "float" -> randomFloat();
             case "half_float" -> HalfFloatPoint.sortableShortToHalfFloat(HalfFloatPoint.halfFloatToSortableShort(randomFloat()));
             case "keyword" -> new BytesRef(randomAlphaOfLength(5));
@@ -163,17 +162,38 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     }
 
     /**
+     * Converts a list of test cases into a list of parameter suppliers.
+     * Also, adds a default set of extra test cases.
+     * <p>
+     *     Use if possible, as this method may get updated with new checks in the future.
+     * </p>
+     *
+     * @param entirelyNullPreservesType See {@link #anyNullIsNull(boolean, List)}
+     */
+    protected static Iterable<Object[]> parameterSuppliersFromTypedDataWithDefaultChecks(
+        boolean entirelyNullPreservesType,
+        List<TestCaseSupplier> suppliers
+    ) {
+        return parameterSuppliersFromTypedData(
+            errorsForCasesWithoutExamples(anyNullIsNull(entirelyNullPreservesType, randomizeBytesRefsOffset(suppliers)))
+        );
+    }
+
+    /**
      * Build an {@link Attribute} that loads a field.
      */
     public static FieldAttribute field(String name, DataType type) {
-        return new FieldAttribute(Source.EMPTY, name, new EsField(name, type, Map.of(), true));
+        return new FieldAttribute(Source.synthetic(name), name, new EsField(name, type, Map.of(), true));
     }
 
     /**
      * Build an {@link Attribute} that loads a field and then creates a deep copy of its data.
      */
     public static Expression deepCopyOfField(String name, DataType type) {
-        return new DeepCopy(Source.EMPTY, new FieldAttribute(Source.EMPTY, name, new EsField(name, type, Map.of(), true)));
+        return new DeepCopy(
+            Source.synthetic(name),
+            new FieldAttribute(Source.synthetic(name), name, new EsField(name, type, Map.of(), true))
+        );
     }
 
     /**
@@ -226,7 +246,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     }
 
     protected final Page row(List<Object> values) {
-        return new Page(BlockUtils.fromListRow(TestBlockFactory.getNonBreakingInstance(), values));
+        return new Page(1, BlockUtils.fromListRow(TestBlockFactory.getNonBreakingInstance(), values));
     }
 
     /**
@@ -249,20 +269,17 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     }
 
     public final void testEvaluate() {
-        assumeTrue("All test data types must be representable in order to build fields", testCase.allTypesAreRepresentable());
-        logger.info(
-            "Test Values: " + testCase.getData().stream().map(TestCaseSupplier.TypedData::toString).collect(Collectors.joining(","))
-        );
+        assumeTrue("Can't build evaluator", testCase.canBuildEvaluator());
         boolean readFloating = randomBoolean();
         Expression expression = readFloating ? buildDeepCopyOfFieldExpression(testCase) : buildFieldExpression(testCase);
         if (testCase.getExpectedTypeError() != null) {
-            assertTrue("expected unresolved", expression.typeResolved().unresolved());
-            if (readFloating == false) {
-                // The hack that creates floating fields changes the error message so don't assert it
-                assertThat(expression.typeResolved().message(), equalTo(testCase.getExpectedTypeError()));
-            }
+            assertTypeResolutionFailure(expression);
             return;
         }
+        assumeTrue("Expected type must be representable to build an evaluator", EsqlDataTypes.isRepresentable(testCase.expectedType()));
+        logger.info(
+            "Test Values: " + testCase.getData().stream().map(TestCaseSupplier.TypedData::toString).collect(Collectors.joining(","))
+        );
         Expression.TypeResolution resolution = expression.typeResolved();
         if (resolution.unresolved()) {
             throw new AssertionError("expected resolved " + resolution.message());
@@ -291,7 +308,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     private Object toJavaObjectUnsignedLongAware(Block block, int position) {
         Object result;
         result = toJavaObject(block, position);
-        if (result != null && testCase.expectedType() == DataTypes.UNSIGNED_LONG) {
+        if (result != null && testCase.expectedType() == DataType.UNSIGNED_LONG) {
             assertThat(result, instanceOf(Long.class));
             result = NumericUtils.unsignedLongAsBigInteger((Long) result);
         }
@@ -306,7 +323,13 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
      * </p>
      */
     public final void testEvaluateBlockWithoutNulls() {
-        testEvaluateBlock(driverContext().blockFactory(), driverContext(), false);
+        assumeTrue("no warning is expected", testCase.getExpectedWarnings() == null);
+        try {
+            testEvaluateBlock(driverContext().blockFactory(), driverContext(), false);
+        } catch (CircuitBreakingException ex) {
+            assertThat(ex.getMessage(), equalTo(MockBigArrays.ERROR_MESSAGE));
+            assertFalse("Test data is too large to fit in the memory", true);
+        }
     }
 
     /**
@@ -314,7 +337,13 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
      * some null values inserted between.
      */
     public final void testEvaluateBlockWithNulls() {
-        testEvaluateBlock(driverContext().blockFactory(), driverContext(), true);
+        assumeTrue("no warning is expected", testCase.getExpectedWarnings() == null);
+        try {
+            testEvaluateBlock(driverContext().blockFactory(), driverContext(), true);
+        } catch (CircuitBreakingException ex) {
+            assertThat(ex.getMessage(), equalTo(MockBigArrays.ERROR_MESSAGE));
+            assertFalse("Test data is too large to fit in the memory", true);
+        }
     }
 
     /**
@@ -355,13 +384,17 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     }
 
     private void testEvaluateBlock(BlockFactory inputBlockFactory, DriverContext context, boolean insertNulls) {
-        assumeTrue("can only run on representable types", testCase.allTypesAreRepresentable());
-        assumeTrue("must build evaluator to test sending it blocks", testCase.getExpectedTypeError() == null);
-        boolean readFloating = randomBoolean();
+        Expression expression = randomBoolean() ? buildDeepCopyOfFieldExpression(testCase) : buildFieldExpression(testCase);
+        if (testCase.getExpectedTypeError() != null) {
+            assertTypeResolutionFailure(expression);
+            return;
+        }
+        assumeTrue("Can't build evaluator", testCase.canBuildEvaluator());
+        assumeTrue("Expected type must be representable to build an evaluator", EsqlDataTypes.isRepresentable(testCase.expectedType()));
         int positions = between(1, 1024);
         List<TestCaseSupplier.TypedData> data = testCase.getData();
         Page onePositionPage = row(testCase.getDataValues());
-        Block[] manyPositionsBlocks = new Block[data.size()];
+        Block[] manyPositionsBlocks = new Block[Math.toIntExact(data.stream().filter(d -> d.isForceLiteral() == false).count())];
         Set<Integer> nullPositions = insertNulls
             ? IntStream.range(0, positions).filter(i -> randomBoolean()).mapToObj(Integer::valueOf).collect(Collectors.toSet())
             : Set.of();
@@ -369,8 +402,12 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             nullPositions = Set.of();
         }
         try {
-            for (int b = 0; b < data.size(); b++) {
-                ElementType elementType = PlannerUtils.toElementType(data.get(b).type());
+            int b = 0;
+            for (TestCaseSupplier.TypedData d : data) {
+                if (d.isForceLiteral()) {
+                    continue;
+                }
+                ElementType elementType = PlannerUtils.toElementType(d.type());
                 try (Block.Builder builder = elementType.newBlockBuilder(positions, inputBlockFactory)) {
                     for (int p = 0; p < positions; p++) {
                         if (nullPositions.contains(p)) {
@@ -381,9 +418,12 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                     }
                     manyPositionsBlocks[b] = builder.build();
                 }
+                b++;
             }
-            Expression expression = readFloating ? buildDeepCopyOfFieldExpression(testCase) : buildFieldExpression(testCase);
-            try (ExpressionEvaluator eval = evaluator(expression).get(context); Block block = eval.eval(new Page(manyPositionsBlocks))) {
+            try (
+                ExpressionEvaluator eval = evaluator(expression).get(context);
+                Block block = eval.eval(new Page(positions, manyPositionsBlocks))
+            ) {
                 for (int p = 0; p < positions; p++) {
                     if (nullPositions.contains(p)) {
                         assertThat(toJavaObject(block, p), allNullsMatcher());
@@ -405,13 +445,15 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         }
     }
 
-    // TODO cranky time
-
     public void testSimpleWithNulls() { // TODO replace this with nulls inserted into the test case like anyNullIsNull
-        assumeTrue("nothing to do if a type error", testCase.getExpectedTypeError() == null);
-        assumeTrue("All test data types must be representable in order to build fields", testCase.allTypesAreRepresentable());
+        Expression expression = buildFieldExpression(testCase);
+        if (testCase.getExpectedTypeError() != null) {
+            assertTypeResolutionFailure(expression);
+            return;
+        }
+        assumeTrue("Can't build evaluator", testCase.canBuildEvaluator());
         List<Object> simpleData = testCase.getDataValues();
-        try (EvalOperator.ExpressionEvaluator eval = evaluator(buildFieldExpression(testCase)).get(driverContext())) {
+        try (EvalOperator.ExpressionEvaluator eval = evaluator(expression).get(driverContext())) {
             BlockFactory blockFactory = TestBlockFactory.getNonBreakingInstance();
             Block[] orig = BlockUtils.fromListRow(blockFactory, simpleData);
             for (int i = 0; i < orig.length; i++) {
@@ -450,11 +492,16 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     }
 
     public final void testEvaluateInManyThreads() throws ExecutionException, InterruptedException {
-        assumeTrue("nothing to do if a type error", testCase.getExpectedTypeError() == null);
-        assumeTrue("All test data types must be representable in order to build fields", testCase.allTypesAreRepresentable());
+        Expression expression = buildFieldExpression(testCase);
+        if (testCase.getExpectedTypeError() != null) {
+            assertTypeResolutionFailure(expression);
+            return;
+        }
+        assumeTrue("Can't build evaluator", testCase.canBuildEvaluator());
+        assumeTrue("Expected type must be representable to build an evaluator", EsqlDataTypes.isRepresentable(testCase.expectedType()));
         int count = 10_000;
         int threads = 5;
-        var evalSupplier = evaluator(buildFieldExpression(testCase));
+        var evalSupplier = evaluator(expression);
         ExecutorService exec = Executors.newFixedThreadPool(threads);
         try {
             List<Future<?>> futures = new ArrayList<>();
@@ -481,17 +528,25 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     }
 
     public final void testEvaluatorToString() {
-        assumeTrue("nothing to do if a type error", testCase.getExpectedTypeError() == null);
-        assumeTrue("All test data types must be representable in order to build fields", testCase.allTypesAreRepresentable());
-        var factory = evaluator(buildFieldExpression(testCase));
+        Expression expression = buildFieldExpression(testCase);
+        if (testCase.getExpectedTypeError() != null) {
+            assertTypeResolutionFailure(expression);
+            return;
+        }
+        assumeTrue("Can't build evaluator", testCase.canBuildEvaluator());
+        var factory = evaluator(expression);
         try (ExpressionEvaluator ev = factory.get(driverContext())) {
             assertThat(ev.toString(), testCase.evaluatorToString());
         }
     }
 
     public final void testFactoryToString() {
-        assumeTrue("nothing to do if a type error", testCase.getExpectedTypeError() == null);
-        assumeTrue("All test data types must be representable in order to build fields", testCase.allTypesAreRepresentable());
+        Expression expression = buildFieldExpression(testCase);
+        if (testCase.getExpectedTypeError() != null) {
+            assertTypeResolutionFailure(expression);
+            return;
+        }
+        assumeTrue("Can't build evaluator", testCase.canBuildEvaluator());
         var factory = evaluator(buildFieldExpression(testCase));
         assertThat(factory.toString(), testCase.evaluatorToString());
     }
@@ -499,8 +554,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     public final void testFold() {
         Expression expression = buildLiteralExpression(testCase);
         if (testCase.getExpectedTypeError() != null) {
-            assertTrue(expression.typeResolved().unresolved());
-            assertThat(expression.typeResolved().message(), equalTo(testCase.getExpectedTypeError()));
+            assertTypeResolutionFailure(expression);
             return;
         }
         assertFalse(expression.typeResolved().unresolved());
@@ -510,7 +564,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         if (testCase.foldingExceptionClass() == null) {
             Object result = nullOptimized.fold();
             // Decode unsigned longs into BigIntegers
-            if (testCase.expectedType() == DataTypes.UNSIGNED_LONG && result != null) {
+            if (testCase.expectedType() == DataType.UNSIGNED_LONG && result != null) {
                 result = NumericUtils.unsignedLongAsBigInteger((Long) result);
             }
             assertThat(result, testCase.getMatcher());
@@ -524,7 +578,6 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     }
 
     public void testSerializationOfSimple() {
-        assumeTrue("All test data types must be representable in order to build fields", testCase.allTypesAreRepresentable());
         assertSerialization(buildFieldExpression(testCase));
     }
 
@@ -592,9 +645,9 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         return anyNullIsNull(
             testCaseSuppliers,
             (nullPosition, nullValueDataType, original) -> entirelyNullPreservesType == false
-                && nullValueDataType == DataTypes.NULL
-                && original.getData().size() == 1 ? DataTypes.NULL : original.expectedType(),
-            (nullPosition, original) -> original
+                && nullValueDataType == DataType.NULL
+                && original.getData().size() == 1 ? DataType.NULL : original.expectedType(),
+            (nullPosition, nullData, original) -> original
         );
     }
 
@@ -603,7 +656,47 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     }
 
     public interface ExpectedEvaluatorToString {
-        Matcher<String> evaluatorToString(int nullPosition, Matcher<String> original);
+        Matcher<String> evaluatorToString(int nullPosition, TestCaseSupplier.TypedData nullData, Matcher<String> original);
+    }
+
+    /**
+     * Modifies suppliers to generate BytesRefs with random offsets.
+     */
+    protected static List<TestCaseSupplier> randomizeBytesRefsOffset(List<TestCaseSupplier> testCaseSuppliers) {
+        return testCaseSuppliers.stream().map(supplier -> new TestCaseSupplier(supplier.name(), supplier.types(), () -> {
+            var testCase = supplier.supplier().get();
+
+            var newData = testCase.getData().stream().map(typedData -> {
+                if (typedData.data() instanceof BytesRef bytesRef) {
+                    var offset = randomIntBetween(0, 10);
+                    var extraLength = randomIntBetween(0, 10);
+                    var newBytesArray = randomByteArrayOfLength(bytesRef.length + offset + extraLength);
+
+                    System.arraycopy(bytesRef.bytes, bytesRef.offset, newBytesArray, offset, bytesRef.length);
+
+                    var newBytesRef = new BytesRef(newBytesArray, offset, bytesRef.length);
+                    var newTypedData = new TestCaseSupplier.TypedData(newBytesRef, typedData.type(), typedData.name());
+
+                    if (typedData.isForceLiteral()) {
+                        newTypedData.forceLiteral();
+                    }
+
+                    return newTypedData;
+                }
+                return typedData;
+            }).toList();
+
+            return new TestCaseSupplier.TestCase(
+                newData,
+                testCase.evaluatorToString(),
+                testCase.expectedType(),
+                testCase.getMatcher(),
+                testCase.getExpectedWarnings(),
+                testCase.getExpectedTypeError(),
+                testCase.foldingExceptionClass(),
+                testCase.foldingExceptionMessage()
+            );
+        })).toList();
     }
 
     protected static List<TestCaseSupplier> anyNullIsNull(
@@ -635,10 +728,11 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                         TestCaseSupplier.TypedData od = oc.getData().get(i);
                         return i == finalNullPosition ? od.forceValueToNull() : od;
                     }).toList();
+                    TestCaseSupplier.TypedData nulledData = oc.getData().get(finalNullPosition);
                     return new TestCaseSupplier.TestCase(
                         data,
-                        evaluatorToString.evaluatorToString(finalNullPosition, oc.evaluatorToString()),
-                        expectedType.expectedType(finalNullPosition, oc.getData().get(finalNullPosition).type(), oc),
+                        evaluatorToString.evaluatorToString(finalNullPosition, nulledData, oc.evaluatorToString()),
+                        expectedType.expectedType(finalNullPosition, nulledData.type(), oc),
                         nullValue(),
                         null,
                         oc.getExpectedTypeError(),
@@ -649,7 +743,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
 
                 if (firstTimeSeenSignature) {
                     List<DataType> typesWithNull = IntStream.range(0, original.types().size())
-                        .mapToObj(i -> i == finalNullPosition ? DataTypes.NULL : original.types().get(i))
+                        .mapToObj(i -> i == finalNullPosition ? DataType.NULL : original.types().get(i))
                         .toList();
                     boolean newSignature = uniqueSignatures.add(typesWithNull);
                     if (newSignature) {
@@ -661,7 +755,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                             return new TestCaseSupplier.TestCase(
                                 data,
                                 equalTo("LiteralsEvaluator[lit=null]"),
-                                expectedType.expectedType(finalNullPosition, DataTypes.NULL, oc),
+                                expectedType.expectedType(finalNullPosition, DataType.NULL, oc),
                                 nullValue(),
                                 null,
                                 oc.getExpectedTypeError(),
@@ -708,7 +802,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
              * the full combinatorial explosions of all nulls - just a single null.
              * Hopefully <null>, <null> cases will function the same as <null>, <valid>
              * cases.
-             */.filter(types -> types.stream().filter(t -> t == DataTypes.NULL).count() <= 1)
+             */.filter(types -> types.stream().filter(t -> t == DataType.NULL).count() <= 1)
             .map(types -> typeErrorSupplier(validPerPosition.size() != 1, validPerPosition, types, typeErrorMessageSupplier))
             .forEach(suppliers::add);
         return suppliers;
@@ -723,13 +817,13 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             return typeErrorMessage(includeOrdinal, validPerPosition, types);
         } catch (IllegalStateException e) {
             // This means all the positional args were okay, so the expected error is from the combination
-            if (types.get(0).equals(DataTypes.UNSIGNED_LONG)) {
+            if (types.get(0).equals(DataType.UNSIGNED_LONG)) {
                 return "first argument of [] is [unsigned_long] and second is ["
                     + types.get(1).typeName()
                     + "]. [unsigned_long] can only be operated on together with another [unsigned_long]";
 
             }
-            if (types.get(1).equals(DataTypes.UNSIGNED_LONG)) {
+            if (types.get(1).equals(DataType.UNSIGNED_LONG)) {
                 return "first argument of [] is ["
                     + types.get(0).typeName()
                     + "] and second is [unsigned_long]. [unsigned_long] can only be operated on together with another [unsigned_long]";
@@ -871,127 +965,186 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
 
     private static final Map<Set<DataType>, String> NAMED_EXPECTED_TYPES = Map.ofEntries(
         Map.entry(
-            Set.of(
-                EsqlDataTypes.DATE_PERIOD,
-                DataTypes.DOUBLE,
-                DataTypes.INTEGER,
-                DataTypes.LONG,
-                EsqlDataTypes.TIME_DURATION,
-                DataTypes.NULL
-            ),
+            Set.of(DataType.DATE_PERIOD, DataType.DOUBLE, DataType.INTEGER, DataType.LONG, DataType.TIME_DURATION, DataType.NULL),
             "numeric, date_period or time_duration"
         ),
-        Map.entry(Set.of(DataTypes.DATETIME, DataTypes.NULL), "datetime"),
-        Map.entry(Set.of(DataTypes.DOUBLE, DataTypes.NULL), "double"),
-        Map.entry(Set.of(DataTypes.INTEGER, DataTypes.NULL), "integer"),
-        Map.entry(Set.of(DataTypes.IP, DataTypes.NULL), "ip"),
-        Map.entry(Set.of(DataTypes.LONG, DataTypes.INTEGER, DataTypes.UNSIGNED_LONG, DataTypes.DOUBLE, DataTypes.NULL), "numeric"),
-        Map.entry(Set.of(DataTypes.LONG, DataTypes.INTEGER, DataTypes.UNSIGNED_LONG, DataTypes.DOUBLE), "numeric"),
-        Map.entry(Set.of(DataTypes.KEYWORD, DataTypes.TEXT, DataTypes.VERSION, DataTypes.NULL), "string or version"),
-        Map.entry(Set.of(DataTypes.KEYWORD, DataTypes.TEXT, DataTypes.NULL), "string"),
-        Map.entry(Set.of(DataTypes.IP, DataTypes.KEYWORD, DataTypes.TEXT, DataTypes.NULL), "ip or string"),
+        Map.entry(Set.of(DataType.DATETIME, DataType.NULL), "datetime"),
+        Map.entry(Set.of(DataType.DOUBLE, DataType.NULL), "double"),
+        Map.entry(Set.of(DataType.INTEGER, DataType.NULL), "integer"),
+        Map.entry(Set.of(DataType.IP, DataType.NULL), "ip"),
+        Map.entry(Set.of(DataType.LONG, DataType.INTEGER, DataType.UNSIGNED_LONG, DataType.DOUBLE, DataType.NULL), "numeric"),
+        Map.entry(Set.of(DataType.LONG, DataType.INTEGER, DataType.UNSIGNED_LONG, DataType.DOUBLE), "numeric"),
+        Map.entry(Set.of(DataType.KEYWORD, DataType.TEXT, DataType.VERSION, DataType.NULL), "string or version"),
+        Map.entry(Set.of(DataType.KEYWORD, DataType.TEXT, DataType.NULL), "string"),
+        Map.entry(Set.of(DataType.IP, DataType.KEYWORD, DataType.TEXT, DataType.NULL), "ip or string"),
         Map.entry(Set.copyOf(Arrays.asList(representableTypes())), "representable"),
         Map.entry(Set.copyOf(Arrays.asList(representableNonSpatialTypes())), "representableNonSpatial"),
         Map.entry(
             Set.of(
-                DataTypes.BOOLEAN,
-                DataTypes.DOUBLE,
-                DataTypes.INTEGER,
-                DataTypes.KEYWORD,
-                DataTypes.LONG,
-                DataTypes.TEXT,
-                DataTypes.UNSIGNED_LONG,
-                DataTypes.NULL
+                DataType.BOOLEAN,
+                DataType.DOUBLE,
+                DataType.INTEGER,
+                DataType.KEYWORD,
+                DataType.LONG,
+                DataType.TEXT,
+                DataType.UNSIGNED_LONG,
+                DataType.NULL
             ),
             "boolean or numeric or string"
         ),
         Map.entry(
             Set.of(
-                DataTypes.DATETIME,
-                DataTypes.DOUBLE,
-                DataTypes.INTEGER,
-                DataTypes.KEYWORD,
-                DataTypes.LONG,
-                DataTypes.TEXT,
-                DataTypes.UNSIGNED_LONG,
-                DataTypes.NULL
+                DataType.DATETIME,
+                DataType.DOUBLE,
+                DataType.INTEGER,
+                DataType.KEYWORD,
+                DataType.LONG,
+                DataType.TEXT,
+                DataType.UNSIGNED_LONG,
+                DataType.NULL
             ),
             "datetime or numeric or string"
         ),
         // What Add accepts
         Map.entry(
             Set.of(
-                EsqlDataTypes.DATE_PERIOD,
-                DataTypes.DATETIME,
-                DataTypes.DOUBLE,
-                DataTypes.INTEGER,
-                DataTypes.LONG,
-                DataTypes.NULL,
-                EsqlDataTypes.TIME_DURATION,
-                DataTypes.UNSIGNED_LONG
+                DataType.DATE_PERIOD,
+                DataType.DATETIME,
+                DataType.DOUBLE,
+                DataType.INTEGER,
+                DataType.LONG,
+                DataType.NULL,
+                DataType.TIME_DURATION,
+                DataType.UNSIGNED_LONG
             ),
             "datetime or numeric"
         ),
         Map.entry(
             Set.of(
-                DataTypes.BOOLEAN,
-                DataTypes.DATETIME,
-                DataTypes.DOUBLE,
-                DataTypes.INTEGER,
-                DataTypes.KEYWORD,
-                DataTypes.LONG,
-                DataTypes.TEXT,
-                DataTypes.UNSIGNED_LONG,
-                DataTypes.NULL
+                DataType.BOOLEAN,
+                DataType.DATETIME,
+                DataType.DOUBLE,
+                DataType.INTEGER,
+                DataType.KEYWORD,
+                DataType.LONG,
+                DataType.TEXT,
+                DataType.UNSIGNED_LONG,
+                DataType.NULL
             ),
             "boolean or datetime or numeric or string"
         ),
+        // to_int
         Map.entry(
             Set.of(
-                DataTypes.BOOLEAN,
-                EsqlDataTypes.CARTESIAN_POINT,
-                DataTypes.DATETIME,
-                DataTypes.DOUBLE,
-                EsqlDataTypes.GEO_POINT,
-                DataTypes.INTEGER,
-                DataTypes.KEYWORD,
-                DataTypes.LONG,
-                DataTypes.TEXT,
-                DataTypes.UNSIGNED_LONG,
-                DataTypes.NULL
+                DataType.BOOLEAN,
+                DataType.COUNTER_INTEGER,
+                DataType.DATETIME,
+                DataType.DOUBLE,
+                DataType.INTEGER,
+                DataType.KEYWORD,
+                DataType.LONG,
+                DataType.TEXT,
+                DataType.UNSIGNED_LONG,
+                DataType.NULL
+            ),
+            "boolean or counter_integer or datetime or numeric or string"
+        ),
+        // to_long
+        Map.entry(
+            Set.of(
+                DataType.BOOLEAN,
+                DataType.COUNTER_INTEGER,
+                DataType.COUNTER_LONG,
+                DataType.DATETIME,
+                DataType.DOUBLE,
+                DataType.INTEGER,
+                DataType.KEYWORD,
+                DataType.LONG,
+                DataType.TEXT,
+                DataType.UNSIGNED_LONG,
+                DataType.NULL
+            ),
+            "boolean or counter_integer or counter_long or datetime or numeric or string"
+        ),
+        // to_double
+        Map.entry(
+            Set.of(
+                DataType.BOOLEAN,
+                DataType.COUNTER_DOUBLE,
+                DataType.COUNTER_INTEGER,
+                DataType.COUNTER_LONG,
+                DataType.DATETIME,
+                DataType.DOUBLE,
+                DataType.INTEGER,
+                DataType.KEYWORD,
+                DataType.LONG,
+                DataType.TEXT,
+                DataType.UNSIGNED_LONG,
+                DataType.NULL
+            ),
+            "boolean or counter_double or counter_integer or counter_long or datetime or numeric or string"
+        ),
+        Map.entry(
+            Set.of(
+                DataType.BOOLEAN,
+                DataType.CARTESIAN_POINT,
+                DataType.DATETIME,
+                DataType.DOUBLE,
+                DataType.GEO_POINT,
+                DataType.INTEGER,
+                DataType.KEYWORD,
+                DataType.LONG,
+                DataType.TEXT,
+                DataType.UNSIGNED_LONG,
+                DataType.NULL
             ),
             "boolean or cartesian_point or datetime or geo_point or numeric or string"
         ),
         Map.entry(
             Set.of(
-                DataTypes.BOOLEAN,
-                DataTypes.DATETIME,
-                DataTypes.DOUBLE,
-                EsqlDataTypes.GEO_POINT,
-                EsqlDataTypes.GEO_SHAPE,
-                DataTypes.INTEGER,
-                DataTypes.IP,
-                DataTypes.KEYWORD,
-                DataTypes.LONG,
-                DataTypes.TEXT,
-                DataTypes.UNSIGNED_LONG,
-                DataTypes.VERSION,
-                DataTypes.NULL
+                DataType.DATETIME,
+                DataType.DOUBLE,
+                DataType.INTEGER,
+                DataType.IP,
+                DataType.KEYWORD,
+                DataType.LONG,
+                DataType.TEXT,
+                DataType.UNSIGNED_LONG,
+                DataType.VERSION,
+                DataType.NULL
+            ),
+            "datetime, double, integer, ip, keyword, long, text, unsigned_long or version"
+        ),
+        Map.entry(
+            Set.of(
+                DataType.BOOLEAN,
+                DataType.DATETIME,
+                DataType.DOUBLE,
+                DataType.GEO_POINT,
+                DataType.GEO_SHAPE,
+                DataType.INTEGER,
+                DataType.IP,
+                DataType.KEYWORD,
+                DataType.LONG,
+                DataType.TEXT,
+                DataType.UNSIGNED_LONG,
+                DataType.VERSION,
+                DataType.NULL
             ),
             "cartesian_point or datetime or geo_point or numeric or string"
         ),
-        Map.entry(Set.of(EsqlDataTypes.GEO_POINT, DataTypes.KEYWORD, DataTypes.TEXT, DataTypes.NULL), "geo_point or string"),
-        Map.entry(Set.of(EsqlDataTypes.CARTESIAN_POINT, DataTypes.KEYWORD, DataTypes.TEXT, DataTypes.NULL), "cartesian_point or string"),
+        Map.entry(Set.of(DataType.GEO_POINT, DataType.KEYWORD, DataType.TEXT, DataType.NULL), "geo_point or string"),
+        Map.entry(Set.of(DataType.CARTESIAN_POINT, DataType.KEYWORD, DataType.TEXT, DataType.NULL), "cartesian_point or string"),
         Map.entry(
-            Set.of(EsqlDataTypes.GEO_POINT, EsqlDataTypes.GEO_SHAPE, DataTypes.KEYWORD, DataTypes.TEXT, DataTypes.NULL),
+            Set.of(DataType.GEO_POINT, DataType.GEO_SHAPE, DataType.KEYWORD, DataType.TEXT, DataType.NULL),
             "geo_point or geo_shape or string"
         ),
         Map.entry(
-            Set.of(EsqlDataTypes.CARTESIAN_POINT, EsqlDataTypes.CARTESIAN_SHAPE, DataTypes.KEYWORD, DataTypes.TEXT, DataTypes.NULL),
+            Set.of(DataType.CARTESIAN_POINT, DataType.CARTESIAN_SHAPE, DataType.KEYWORD, DataType.TEXT, DataType.NULL),
             "cartesian_point or cartesian_shape or string"
         ),
-        Map.entry(Set.of(EsqlDataTypes.GEO_POINT, EsqlDataTypes.CARTESIAN_POINT, DataTypes.NULL), "geo_point or cartesian_point"),
-        Map.entry(Set.of(EsqlDataTypes.DATE_PERIOD, EsqlDataTypes.TIME_DURATION, DataTypes.NULL), "dateperiod or timeduration")
+        Map.entry(Set.of(DataType.GEO_POINT, DataType.CARTESIAN_POINT, DataType.NULL), "geo_point or cartesian_point"),
+        Map.entry(Set.of(DataType.DATE_PERIOD, DataType.TIME_DURATION, DataType.NULL), "dateperiod or timeduration")
     );
 
     // TODO: generate this message dynamically, a la AbstractConvertFunction#supportedTypesNames()?
@@ -1011,7 +1164,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     }
 
     protected static Stream<DataType> representable() {
-        return EsqlDataTypes.types().stream().filter(EsqlDataTypes::isRepresentable);
+        return DataType.types().stream().filter(EsqlDataTypes::isRepresentable);
     }
 
     protected static DataType[] representableTypes() {
@@ -1024,6 +1177,11 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
 
     protected static DataType[] representableNonSpatialTypes() {
         return representableNonSpatial().toArray(DataType[]::new);
+    }
+
+    protected final void assertTypeResolutionFailure(Expression expression) {
+        assertTrue("expected unresolved", expression.typeResolved().unresolved());
+        assertThat(expression.typeResolved().message(), equalTo(testCase.getExpectedTypeError()));
     }
 
     @AfterClass
@@ -1067,6 +1225,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         if (signatures != null && classGeneratingSignatures == testClass) {
             return signatures;
         }
+        classGeneratingSignatures = testClass;
         signatures = new HashMap<>();
         Set<Method> paramsFactories = new ClassModel(testClass).getAnnotatedLeafMethods(ParametersFactory.class).keySet();
         assertThat(paramsFactories, hasSize(1));
@@ -1083,7 +1242,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             if (tc.getExpectedTypeError() != null) {
                 continue;
             }
-            if (tc.getData().stream().anyMatch(t -> t.type() == DataTypes.NULL)) {
+            if (tc.getData().stream().anyMatch(t -> t.type() == DataType.NULL)) {
                 continue;
             }
             signatures.putIfAbsent(tc.getData().stream().map(TestCaseSupplier.TypedData::type).toList(), tc.expectedType());
@@ -1105,13 +1264,21 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             renderTypes(List.of("v"));
             return;
         }
+        if (name.equalsIgnoreCase("rlike")) {
+            renderTypes(List.of("str", "pattern", "caseInsensitive"));
+            return;
+        }
+        if (name.equalsIgnoreCase("like")) {
+            renderTypes(List.of("str", "pattern"));
+            return;
+        }
         FunctionDefinition definition = definition(name);
         if (definition != null) {
             EsqlFunctionRegistry.FunctionDescription description = EsqlFunctionRegistry.description(definition);
             renderTypes(description.argNames());
             renderParametersList(description.argNames(), description.argDescriptions());
             FunctionInfo info = EsqlFunctionRegistry.functionInfo(definition);
-            renderDescription(description.description(), info.note());
+            renderDescription(description.description(), info.detailedDescription(), info.note());
             boolean hasExamples = renderExamples(info);
             renderFullLayout(name, hasExamples);
             renderKibanaInlineDocs(name, info);
@@ -1148,13 +1315,14 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
 
         List<String> table = new ArrayList<>();
         for (Map.Entry<List<DataType>, DataType> sig : signatures().entrySet()) { // TODO flip to using sortedSignatures
-            if (sig.getKey().size() != argNames.size()) {
+            if (sig.getKey().size() > argNames.size()) { // skip variadic [test] cases (but not those with optional parameters)
                 continue;
             }
             StringBuilder b = new StringBuilder();
             for (DataType arg : sig.getKey()) {
                 b.append(arg.typeName()).append(" | ");
             }
+            b.append("| ".repeat(argNames.size() - sig.getKey().size()));
             b.append(sig.getValue().typeName());
             table.add(b.toString());
         }
@@ -1185,11 +1353,16 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         writeToTempDir("parameters", rendered, "asciidoc");
     }
 
-    private static void renderDescription(String description, String note) throws IOException {
+    private static void renderDescription(String description, String detailedDescription, String note) throws IOException {
         String rendered = DOCS_WARNING + """
             *Description*
 
             """ + description + "\n";
+
+        if (Strings.isNullOrEmpty(detailedDescription) == false) {
+            rendered += "\n" + detailedDescription + "\n";
+        }
+
         if (Strings.isNullOrEmpty(note) == false) {
             rendered += "\nNOTE: " + note + "\n";
         }
@@ -1223,6 +1396,11 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                 include::{esql-specs}/$FILE$.csv-spec[tag=$TAG$-result]
                 |===
                 """.replace("$FILE$", example.file()).replace("$TAG$", example.tag()));
+            if (example.explanation().length() > 0) {
+                builder.append("\n");
+                builder.append(example.explanation());
+                builder.append("\n\n");
+            }
         }
         builder.append('\n');
         String rendered = builder.toString();
@@ -1313,8 +1491,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                     // For variadic functions we test much longer signatures, let's just stop at the last one
                     continue;
                 }
-                // TODO make constants for auto_bucket so the signatures get recognized
-                if (name.equals("auto_bucket") == false && sig.getKey().size() < minArgCount) {
+                if (sig.getKey().size() < minArgCount) {
                     throw new IllegalArgumentException("signature " + sig.getKey() + " is missing non-optional arg for " + args);
                 }
                 builder.startObject();
@@ -1447,17 +1624,18 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     private final List<CircuitBreaker> breakers = Collections.synchronizedList(new ArrayList<>());
 
     protected final DriverContext driverContext() {
-        MockBigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofGb(1));
+        BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofMb(256)).withCircuitBreaking();
         CircuitBreaker breaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
         breakers.add(breaker);
-        return new DriverContext(bigArrays.withCircuitBreaking(), new BlockFactory(breaker, bigArrays));
+        return new DriverContext(bigArrays, new BlockFactory(breaker, bigArrays));
     }
 
     protected final DriverContext crankyContext() {
-        BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, new CrankyCircuitBreakerService());
+        BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, new CrankyCircuitBreakerService())
+            .withCircuitBreaking();
         CircuitBreaker breaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
         breakers.add(breaker);
-        return new DriverContext(bigArrays.withCircuitBreaking(), new BlockFactory(breaker, bigArrays));
+        return new DriverContext(bigArrays, new BlockFactory(breaker, bigArrays));
     }
 
     @After
@@ -1481,6 +1659,6 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
      * All string types (keyword, text, match_only_text, etc).
      */
     protected static DataType[] strings() {
-        return EsqlDataTypes.types().stream().filter(DataTypes::isString).toArray(DataType[]::new);
+        return DataType.types().stream().filter(DataType::isString).toArray(DataType[]::new);
     }
 }

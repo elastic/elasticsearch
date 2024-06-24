@@ -469,7 +469,8 @@ public class TransportSearchActionTests extends ESTestCase {
         int numClusters,
         DiscoveryNode[] nodes,
         Map<String, OriginalIndices> remoteIndices,
-        Settings.Builder settingsBuilder
+        Settings.Builder settingsBuilder,
+        boolean skipUnavailable
     ) {
         MockTransportService[] mockTransportServices = new MockTransportService[numClusters];
         for (int i = 0; i < numClusters; i++) {
@@ -486,6 +487,7 @@ public class TransportSearchActionTests extends ESTestCase {
             knownNodes.add(remoteSeedNode);
             nodes[i] = remoteSeedNode;
             settingsBuilder.put("cluster.remote.remote" + i + ".seeds", remoteSeedNode.getAddress().toString());
+            settingsBuilder.put("cluster.remote.remote" + i + ".skip_unavailable", Boolean.toString(skipUnavailable));
             remoteIndices.put("remote" + i, new OriginalIndices(new String[] { "index" }, IndicesOptions.lenientExpandOpen()));
         }
         return mockTransportServices;
@@ -496,7 +498,8 @@ public class TransportSearchActionTests extends ESTestCase {
         DiscoveryNode[] nodes = new DiscoveryNode[numClusters];
         Map<String, OriginalIndices> remoteIndicesByCluster = new HashMap<>();
         Settings.Builder builder = Settings.builder();
-        MockTransportService[] mockTransportServices = startTransport(numClusters, nodes, remoteIndicesByCluster, builder);
+        boolean skipUnavailable = randomBoolean();
+        MockTransportService[] mockTransportServices = startTransport(numClusters, nodes, remoteIndicesByCluster, builder, skipUnavailable);
         Settings settings = builder.build();
         boolean local = randomBoolean();
         OriginalIndices localIndices = local ? new OriginalIndices(new String[] { "index" }, SearchRequest.DEFAULT_INDICES_OPTIONS) : null;
@@ -566,7 +569,8 @@ public class TransportSearchActionTests extends ESTestCase {
         DiscoveryNode[] nodes = new DiscoveryNode[numClusters];
         Map<String, OriginalIndices> remoteIndicesByCluster = new HashMap<>();
         Settings.Builder builder = Settings.builder();
-        MockTransportService[] mockTransportServices = startTransport(numClusters, nodes, remoteIndicesByCluster, builder);
+        boolean skipUnavailable = randomBoolean();
+        MockTransportService[] mockTransportServices = startTransport(numClusters, nodes, remoteIndicesByCluster, builder, skipUnavailable);
         Settings settings = builder.build();
         boolean local = randomBoolean();
         OriginalIndices localIndices = local ? new OriginalIndices(new String[] { "index" }, SearchRequest.DEFAULT_INDICES_OPTIONS) : null;
@@ -709,7 +713,8 @@ public class TransportSearchActionTests extends ESTestCase {
         DiscoveryNode[] nodes = new DiscoveryNode[numClusters];
         Map<String, OriginalIndices> remoteIndicesByCluster = new HashMap<>();
         Settings.Builder builder = Settings.builder();
-        MockTransportService[] mockTransportServices = startTransport(numClusters, nodes, remoteIndicesByCluster, builder);
+        boolean skipUnavailable = randomBoolean();
+        MockTransportService[] mockTransportServices = startTransport(numClusters, nodes, remoteIndicesByCluster, builder, skipUnavailable);
         Settings settings = builder.build();
         boolean local = randomBoolean();
         OriginalIndices localIndices = local ? new OriginalIndices(new String[] { "index" }, SearchRequest.DEFAULT_INDICES_OPTIONS) : null;
@@ -734,10 +739,13 @@ public class TransportSearchActionTests extends ESTestCase {
                 final CountDownLatch latch = new CountDownLatch(1);
                 SetOnce<Tuple<SearchRequest, ActionListener<SearchResponse>>> setOnce = new SetOnce<>();
                 AtomicReference<Exception> failure = new AtomicReference<>();
-                LatchedActionListener<SearchResponse> listener = new LatchedActionListener<>(
-                    ActionListener.wrap(r -> fail("no response expected"), failure::set),
-                    latch
-                );
+                LatchedActionListener<SearchResponse> listener = new LatchedActionListener<>(ActionListener.wrap(r -> {
+                    if (skipUnavailable) {
+                        assertThat(r.getClusters().getClusterStateCount(SearchResponse.Cluster.Status.SKIPPED), equalTo(numClusters));
+                    } else {
+                        fail("no response expected");  // failure should be returned, not SearchResponse
+                    }
+                }, failure::set), latch);
 
                 TaskId parentTaskId = new TaskId("n", 1);
                 SearchTask task = new SearchTask(2, "search", "search", () -> "desc", parentTaskId, Collections.emptyMap());
@@ -763,10 +771,14 @@ public class TransportSearchActionTests extends ESTestCase {
                     resolveWithEmptySearchResponse(tuple);
                 }
                 awaitLatch(latch, 5, TimeUnit.SECONDS);
-                assertNotNull(failure.get());
-                assertThat(failure.get(), instanceOf(RemoteTransportException.class));
-                RemoteTransportException remoteTransportException = (RemoteTransportException) failure.get();
-                assertEquals(RestStatus.NOT_FOUND, remoteTransportException.status());
+                if (skipUnavailable) {
+                    assertNull(failure.get());
+                } else {
+                    assertNotNull(failure.get());
+                    assertThat(failure.get(), instanceOf(RemoteTransportException.class));
+                    RemoteTransportException remoteTransportException = (RemoteTransportException) failure.get();
+                    assertEquals(RestStatus.NOT_FOUND, remoteTransportException.status());
+                }
             }
 
         } finally {
@@ -781,7 +793,7 @@ public class TransportSearchActionTests extends ESTestCase {
         DiscoveryNode[] nodes = new DiscoveryNode[numClusters];
         Map<String, OriginalIndices> remoteIndicesByCluster = new HashMap<>();
         Settings.Builder builder = Settings.builder();
-        MockTransportService[] mockTransportServices = startTransport(numClusters, nodes, remoteIndicesByCluster, builder);
+        MockTransportService[] mockTransportServices = startTransport(numClusters, nodes, remoteIndicesByCluster, builder, false);
         Settings settings = builder.build();
         boolean local = randomBoolean();
         OriginalIndices localIndices = local ? new OriginalIndices(new String[] { "index" }, SearchRequest.DEFAULT_INDICES_OPTIONS) : null;
@@ -938,9 +950,9 @@ public class TransportSearchActionTests extends ESTestCase {
                     if (randomBoolean()) {
                         RemoteClusterServiceTests.updateSkipUnavailable(remoteClusterService, "remote" + i, true);
                     }
-
                 }
             }
+
             // put the following in assert busy as connections are lazily reestablished
             assertBusy(() -> {
                 SearchRequest searchRequest = new SearchRequest();
@@ -1035,7 +1047,7 @@ public class TransportSearchActionTests extends ESTestCase {
         DiscoveryNode[] nodes = new DiscoveryNode[numClusters];
         Map<String, OriginalIndices> remoteIndicesByCluster = new HashMap<>();
         Settings.Builder builder = Settings.builder();
-        MockTransportService[] mockTransportServices = startTransport(numClusters, nodes, remoteIndicesByCluster, builder);
+        MockTransportService[] mockTransportServices = startTransport(numClusters, nodes, remoteIndicesByCluster, builder, false);
         Settings settings = builder.build();
         try (
             MockTransportService service = MockTransportService.createNewService(
@@ -1312,7 +1324,7 @@ public class TransportSearchActionTests extends ESTestCase {
         }
         {
             SearchRequest searchRequest = new SearchRequest();
-            searchRequest.scroll("5s");
+            searchRequest.scroll(TimeValue.timeValueSeconds(5));
             assertFalse(TransportSearchAction.shouldMinimizeRoundtrips(searchRequest));
         }
         {
@@ -1467,7 +1479,7 @@ public class TransportSearchActionTests extends ESTestCase {
         }
         {
             SearchRequest searchRequest = new SearchRequest().source(new SearchSourceBuilder().sort(SortBuilders.fieldSort("timestamp")))
-                .scroll("5m");
+                .scroll(TimeValue.timeValueMinutes(5));
             assertTrue(
                 TransportSearchAction.shouldPreFilterSearchShards(
                     clusterState,
@@ -1553,7 +1565,7 @@ public class TransportSearchActionTests extends ESTestCase {
             SearchRequest searchRequest = new SearchRequest().source(
                 new SearchSourceBuilder().query(QueryBuilders.rangeQuery("timestamp"))
             );
-            searchRequest.scroll("5s");
+            searchRequest.scroll(TimeValue.timeValueSeconds(5));
             assertTrue(
                 TransportSearchAction.shouldPreFilterSearchShards(
                     clusterState,
@@ -1751,7 +1763,8 @@ public class TransportSearchActionTests extends ESTestCase {
                 null,
                 null,
                 new SearchTransportAPMMetrics(TelemetryProvider.NOOP.getMeterRegistry()),
-                new SearchResponseMetrics(TelemetryProvider.NOOP.getMeterRegistry())
+                new SearchResponseMetrics(TelemetryProvider.NOOP.getMeterRegistry()),
+                client
             );
 
             CountDownLatch latch = new CountDownLatch(1);

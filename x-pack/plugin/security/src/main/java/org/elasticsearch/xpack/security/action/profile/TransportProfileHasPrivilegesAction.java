@@ -19,7 +19,6 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.user.ProfileHasPrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.user.ProfileHasPrivilegesRequest;
 import org.elasticsearch.xpack.core.security.action.user.ProfileHasPrivilegesResponse;
@@ -52,7 +51,6 @@ public class TransportProfileHasPrivilegesAction extends HandledTransportAction<
     private final AuthorizationService authorizationService;
     private final NativePrivilegeStore privilegeStore;
     private final ProfileService profileService;
-    private final SecurityContext securityContext;
     private final ThreadPool threadPool;
 
     @Inject
@@ -62,7 +60,6 @@ public class TransportProfileHasPrivilegesAction extends HandledTransportAction<
         AuthorizationService authorizationService,
         NativePrivilegeStore privilegeStore,
         ProfileService profileService,
-        SecurityContext securityContext,
         ThreadPool threadPool
     ) {
         super(
@@ -75,7 +72,6 @@ public class TransportProfileHasPrivilegesAction extends HandledTransportAction<
         this.authorizationService = authorizationService;
         this.privilegeStore = privilegeStore;
         this.profileService = profileService;
-        this.securityContext = securityContext;
         this.threadPool = threadPool;
     }
 

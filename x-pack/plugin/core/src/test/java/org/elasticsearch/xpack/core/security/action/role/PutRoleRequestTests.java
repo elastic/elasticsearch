@@ -10,11 +10,18 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.ApplicationResourcePrivileges;
+import org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissionGroup;
+import org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissions;
+import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.core.security.support.NativeRealmValidationUtil;
 import org.junit.BeforeClass;
 
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -76,6 +83,30 @@ public class PutRoleRequestTests extends ESTestCase {
         assertValidationError("unknown index privilege [" + unknownIndexPrivilegeName.toLowerCase(Locale.ROOT) + "]", request);
     }
 
+    public void testValidationErrorWithUnknownRemoteClusterPrivilegeName() {
+        final PutRoleRequest request = new PutRoleRequest();
+        request.name(randomAlphaOfLengthBetween(4, 9));
+        RemoteClusterPermissions remoteClusterPermissions = new RemoteClusterPermissions();
+        Set<String> validUnsupportedNames = new HashSet<>(ClusterPrivilegeResolver.names());
+        validUnsupportedNames.removeAll(RemoteClusterPermissions.getSupportedRemoteClusterPermissions());
+        for (int i = 0; i < randomIntBetween(1, 10); i++) {
+            if (randomBoolean()) {
+                // unknown cluster privilege
+                remoteClusterPermissions.addGroup(
+                    new RemoteClusterPermissionGroup(new String[] { "_x" + randomAlphaOfLengthBetween(4, 9) }, new String[] { "valid" })
+                );
+            } else {
+                // known but unsupported cluster privilege
+                remoteClusterPermissions.addGroup(
+                    new RemoteClusterPermissionGroup(validUnsupportedNames.toArray(new String[0]), new String[] { "valid" })
+                );
+            }
+        }
+        request.putRemoteCluster(remoteClusterPermissions);
+        assertValidationError("Invalid remote_cluster permissions found. Please remove the following: [", request);
+        assertValidationError("Only [monitor_enrich] are allowed", request);
+    }
+
     public void testValidationErrorWithEmptyClustersInRemoteIndices() {
         final PutRoleRequest request = new PutRoleRequest();
         request.name(randomAlphaOfLengthBetween(4, 9));
@@ -89,6 +120,18 @@ public class PutRoleRequestTests extends ESTestCase {
             randomBoolean()
         );
         assertValidationError("remote index cluster alias cannot be an empty string", request);
+    }
+
+    public void testValidationErrorWithEmptyClustersInRemoteCluster() {
+        final PutRoleRequest request = new PutRoleRequest();
+        request.name(randomAlphaOfLengthBetween(4, 9));
+        IllegalArgumentException iae = expectThrows(
+            IllegalArgumentException.class,
+            () -> new RemoteClusterPermissions().addGroup(
+                new RemoteClusterPermissionGroup(new String[] { "monitor_enrich" }, new String[] { "valid" })
+            ).addGroup(new RemoteClusterPermissionGroup(new String[] { "monitor_enrich" }, new String[] { "" }))
+        );
+        assertThat(iae.getMessage(), containsString("remote_cluster clusters aliases must contain valid non-empty, non-null values"));
     }
 
     public void testValidationSuccessWithCorrectRemoteIndexPrivilegeClusters() {
@@ -108,6 +151,23 @@ public class PutRoleRequestTests extends ESTestCase {
             // Empty remote index section is valid
             request.addRemoteIndex();
         }
+        assertSuccessfulValidation(request);
+    }
+
+    public void testValidationSuccessWithCorrectRemoteClusterPrivilegeClusters() {
+        final PutRoleRequest request = new PutRoleRequest();
+        request.name(randomAlphaOfLengthBetween(4, 9));
+        RemoteClusterPermissions remoteClusterPermissions = new RemoteClusterPermissions();
+        for (int i = 0; i < randomIntBetween(1, 10); i++) {
+            List<String> aliases = new ArrayList<>();
+            for (int j = 0; j < randomIntBetween(1, 10); j++) {
+                aliases.add(randomAlphaOfLengthBetween(1, 10));
+            }
+            remoteClusterPermissions.addGroup(
+                new RemoteClusterPermissionGroup(new String[] { "monitor_enrich" }, aliases.toArray(new String[0]))
+            );
+        }
+        request.putRemoteCluster(remoteClusterPermissions);
         assertSuccessfulValidation(request);
     }
 

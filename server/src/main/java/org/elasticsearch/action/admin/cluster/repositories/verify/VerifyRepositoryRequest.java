@@ -12,6 +12,7 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.TimeValue;
 
 import java.io.IOException;
 
@@ -29,14 +30,17 @@ public class VerifyRepositoryRequest extends AcknowledgedRequest<VerifyRepositor
         name = in.readString();
     }
 
-    public VerifyRepositoryRequest() {}
+    public VerifyRepositoryRequest(TimeValue masterNodeTimeout, TimeValue ackTimeout) {
+        super(masterNodeTimeout, ackTimeout);
+    }
 
     /**
      * Constructs a new unregister repository request with the provided name.
      *
-     * @param name name of the repository
+     * @param name              name of the repository
      */
-    public VerifyRepositoryRequest(String name) {
+    public VerifyRepositoryRequest(TimeValue masterNodeTimeout, TimeValue ackTimeout, String name) {
+        this(masterNodeTimeout, ackTimeout);
         this.name = name;
     }
 

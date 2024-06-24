@@ -15,7 +15,7 @@ import java.util.Objects;
 abstract class CohereRequestManager extends BaseRequestManager {
 
     protected CohereRequestManager(ThreadPool threadPool, CohereModel model) {
-        super(threadPool, model.getInferenceEntityId(), RateLimitGrouping.of(model));
+        super(threadPool, model.getInferenceEntityId(), RateLimitGrouping.of(model), model.rateLimitServiceSettings().rateLimitSettings());
     }
 
     record RateLimitGrouping(int apiKeyHash) {

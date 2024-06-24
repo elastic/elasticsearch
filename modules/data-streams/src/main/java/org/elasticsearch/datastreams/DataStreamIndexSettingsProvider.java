@@ -15,6 +15,7 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettingProvider;
@@ -56,11 +57,11 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
     @Override
     public Settings getAdditionalIndexSettings(
         String indexName,
-        String dataStreamName,
-        boolean timeSeries,
+        @Nullable String dataStreamName,
+        boolean isTimeSeries,
         Metadata metadata,
         Instant resolvedAt,
-        Settings allSettings,
+        Settings indexTemplateAndCreateRequestSettings,
         List<CompressedXContent> combinedTemplateMappings
     ) {
         if (dataStreamName != null) {
@@ -70,13 +71,13 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
             // so checking that index_mode==null|standard and templateIndexMode == TIME_SERIES
             boolean migrating = dataStream != null
                 && (dataStream.getIndexMode() == null || dataStream.getIndexMode() == IndexMode.STANDARD)
-                && timeSeries;
+                && isTimeSeries;
             IndexMode indexMode;
             if (migrating) {
                 indexMode = IndexMode.TIME_SERIES;
             } else if (dataStream != null) {
-                indexMode = timeSeries ? dataStream.getIndexMode() : null;
-            } else if (timeSeries) {
+                indexMode = isTimeSeries ? dataStream.getIndexMode() : null;
+            } else if (isTimeSeries) {
                 indexMode = IndexMode.TIME_SERIES;
             } else {
                 indexMode = null;
@@ -84,8 +85,8 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
             if (indexMode != null) {
                 if (indexMode == IndexMode.TIME_SERIES) {
                     Settings.Builder builder = Settings.builder();
-                    TimeValue lookAheadTime = DataStreamsPlugin.getLookAheadTime(allSettings);
-                    TimeValue lookBackTime = DataStreamsPlugin.LOOK_BACK_TIME.get(allSettings);
+                    TimeValue lookAheadTime = DataStreamsPlugin.getLookAheadTime(indexTemplateAndCreateRequestSettings);
+                    TimeValue lookBackTime = DataStreamsPlugin.LOOK_BACK_TIME.get(indexTemplateAndCreateRequestSettings);
                     final Instant start;
                     final Instant end;
                     if (dataStream == null || migrating) {
@@ -114,9 +115,13 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
                     builder.put(IndexSettings.TIME_SERIES_START_TIME.getKey(), FORMATTER.format(start));
                     builder.put(IndexSettings.TIME_SERIES_END_TIME.getKey(), FORMATTER.format(end));
 
-                    if (allSettings.hasValue(IndexMetadata.INDEX_ROUTING_PATH.getKey()) == false
+                    if (indexTemplateAndCreateRequestSettings.hasValue(IndexMetadata.INDEX_ROUTING_PATH.getKey()) == false
                         && combinedTemplateMappings.isEmpty() == false) {
-                        List<String> routingPaths = findRoutingPaths(indexName, allSettings, combinedTemplateMappings);
+                        List<String> routingPaths = findRoutingPaths(
+                            indexName,
+                            indexTemplateAndCreateRequestSettings,
+                            combinedTemplateMappings
+                        );
                         if (routingPaths.isEmpty() == false) {
                             builder.putList(INDEX_ROUTING_PATH.getKey(), routingPaths);
                         }
@@ -212,7 +217,7 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
     private static void extractPath(List<String> routingPaths, Mapper mapper) {
         if (mapper instanceof KeywordFieldMapper keywordFieldMapper) {
             if (keywordFieldMapper.fieldType().isDimension()) {
-                routingPaths.add(mapper.name());
+                routingPaths.add(mapper.fullPath());
             }
         }
     }

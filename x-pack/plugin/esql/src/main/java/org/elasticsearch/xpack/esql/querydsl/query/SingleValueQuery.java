@@ -39,17 +39,16 @@ import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.search.sort.NestedSortBuilder;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
+import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.Warnings;
-import org.elasticsearch.xpack.ql.querydsl.query.Query;
-import org.elasticsearch.xpack.ql.tree.Source;
 
 import java.io.IOException;
 import java.util.Objects;
 
-import static org.elasticsearch.xpack.ql.util.SourceUtils.readSource;
-import static org.elasticsearch.xpack.ql.util.SourceUtils.writeSource;
+import static org.elasticsearch.xpack.esql.core.util.SourceUtils.readSource;
+import static org.elasticsearch.xpack.esql.core.util.SourceUtils.writeSource;
 
 /**
  * Lucene query that wraps another query and only selects documents that match
@@ -81,21 +80,6 @@ public class SingleValueQuery extends Query {
         super(next.source());
         this.next = next;
         this.field = field;
-    }
-
-    @Override
-    public boolean containsNestedField(String path, String field) {
-        return next.containsNestedField(path, field);
-    }
-
-    @Override
-    public Query addNestedField(String path, String field, String format, boolean hasDocValues) {
-        return next.addNestedField(path, field, format, hasDocValues);
-    }
-
-    @Override
-    public void enrichNestedSort(NestedSortBuilder sort) {
-        next.enrichNestedSort(sort);
     }
 
     @Override
@@ -239,6 +223,7 @@ public class SingleValueQuery extends Query {
     private static class LuceneQuery extends org.apache.lucene.search.Query {
         final org.apache.lucene.search.Query next;
         private final IndexFieldData<?> fieldData;
+        // mutable object for collecting stats and warnings, not really part of the query
         private final Stats stats;
         private final Warnings warnings;
 
@@ -283,14 +268,12 @@ public class SingleValueQuery extends Query {
                 return false;
             }
             SingleValueQuery.LuceneQuery other = (SingleValueQuery.LuceneQuery) obj;
-            return next.equals(other.next)
-                && fieldData.getFieldName().equals(other.fieldData.getFieldName())
-                && warnings.equals(other.warnings);
+            return next.equals(other.next) && fieldData.getFieldName().equals(other.fieldData.getFieldName());
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(classHash(), next, fieldData, warnings);
+            return Objects.hash(classHash(), next, fieldData.getFieldName());
         }
 
         @Override
@@ -453,7 +436,8 @@ public class SingleValueQuery extends Query {
 
         @Override
         public boolean isCacheable(LeafReaderContext ctx) {
-            return next.isCacheable(ctx);
+            // we cannot cache this query because we loose the ability of emitting warnings
+            return false;
         }
     }
 

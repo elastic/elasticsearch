@@ -315,7 +315,7 @@ public abstract class Engine implements Closeable {
         for (Mapper mapper : mappingLookup.fieldMappers()) {
             if (mapper instanceof FieldMapper fieldMapper) {
                 if (fieldMapper.fieldType() instanceof SparseVectorFieldMapper.SparseVectorFieldType) {
-                    mappers.put(fieldMapper.name(), fieldMapper);
+                    mappers.put(fieldMapper.fullPath(), fieldMapper);
                 }
             }
         }

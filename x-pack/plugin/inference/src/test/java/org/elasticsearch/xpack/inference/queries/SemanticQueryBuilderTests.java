@@ -29,6 +29,7 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
@@ -70,6 +71,8 @@ import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceCo
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
+
+// TODO: Randomize text embedding element type
 
 public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQueryBuilder> {
     private static final String SEMANTIC_TEXT_FIELD = "semantic";
@@ -311,11 +314,12 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
     private static SourceToParse buildSemanticTextFieldWithInferenceResults(InferenceResultType inferenceResultType) throws IOException {
         SemanticTextField.ModelSettings modelSettings = switch (inferenceResultType) {
             case NONE -> null;
-            case SPARSE_EMBEDDING -> new SemanticTextField.ModelSettings(TaskType.SPARSE_EMBEDDING, null, null);
+            case SPARSE_EMBEDDING -> new SemanticTextField.ModelSettings(TaskType.SPARSE_EMBEDDING, null, null, null);
             case TEXT_EMBEDDING -> new SemanticTextField.ModelSettings(
                 TaskType.TEXT_EMBEDDING,
                 TEXT_EMBEDDING_DIMENSION_COUNT,
-                SimilarityMeasure.COSINE
+                SimilarityMeasure.COSINE,
+                DenseVectorFieldMapper.ElementType.FLOAT
             );
         };
 

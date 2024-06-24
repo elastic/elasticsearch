@@ -192,7 +192,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
             List.of(),
             new SemanticTextField.InferenceResult(
                 inferenceId,
-                new SemanticTextField.ModelSettings(TaskType.SPARSE_EMBEDDING, null, null),
+                new SemanticTextField.ModelSettings(TaskType.SPARSE_EMBEDDING, null, null, null),
                 List.of()
             ),
             XContentType.JSON
@@ -280,6 +280,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
                                 .field("task_type", "text_embedding")
                                 .field("dimensions", 10)
                                 .field("similarity", "cosine")
+                                .field("element_type", "float")
                                 .endObject()
                                 .endObject()
                         )
@@ -290,7 +291,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
                     containsString(
                         "Cannot update parameter [model_settings] "
                             + "from [task_type=sparse_embedding] "
-                            + "to [task_type=text_embedding, dimensions=10, similarity=cosine]"
+                            + "to [task_type=text_embedding, dimensions=10, similarity=cosine, element_type=float]"
                     )
                 );
             }
@@ -449,7 +450,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
                 source(
                     b -> b.startObject("field")
                         .startObject(INFERENCE_FIELD)
-                        .field(MODEL_SETTINGS_FIELD, new SemanticTextField.ModelSettings(TaskType.SPARSE_EMBEDDING, null, null))
+                        .field(MODEL_SETTINGS_FIELD, new SemanticTextField.ModelSettings(TaskType.SPARSE_EMBEDDING, null, null, null))
                         .field(CHUNKS_FIELD, List.of())
                         .endObject()
                         .endObject()

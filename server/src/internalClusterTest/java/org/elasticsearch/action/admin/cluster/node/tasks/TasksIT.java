@@ -41,6 +41,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.tasks.RemovedTaskListener;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
@@ -487,7 +488,6 @@ public class TasksIT extends ESIntegTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/109686")
     public void testTasksCancellation() throws Exception {
         // Start blocking test task
         // Get real client (the plugin is not registered on transport nodes)
@@ -509,6 +509,9 @@ public class TasksIT extends ESIntegTestCase {
         assertEquals(1, cancelTasksResponse.getTasks().size());
 
         expectThrows(TaskCancelledException.class, future);
+
+        logger.info("--> waiting for all ongoing tasks to complete within a reasonable time");
+        safeGet(clusterAdmin().prepareListTasks().setActions(TEST_TASK_ACTION.name() + "*").setWaitForCompletion(true).execute());
 
         logger.info("--> checking that test tasks are not running");
         assertEquals(0, clusterAdmin().prepareListTasks().setActions(TEST_TASK_ACTION.name() + "*").get().getTasks().size());
@@ -600,23 +603,31 @@ public class TasksIT extends ESIntegTestCase {
             TEST_TASK_ACTION.name() + "[n]",
             () -> client().execute(TEST_TASK_ACTION, request)
         );
-        ActionFuture<T> waitResponseFuture;
+        var tasks = clusterAdmin().prepareListTasks().setActions(TEST_TASK_ACTION.name()).get().getTasks();
+        assertThat(tasks, hasSize(1));
+        TaskId taskId = tasks.get(0).taskId();
+        clusterAdmin().prepareGetTask(taskId).get();
+
+        var taskManager = (MockTaskManager) internalCluster().getInstance(
+            TransportService.class,
+            clusterService().state().getNodes().resolveNode(taskId.getNodeId()).getName()
+        ).getTaskManager();
+        var listener = new MockTaskManagerListener() {
+            @Override
+            public void onRemovedTaskListenerRegistered(RemovedTaskListener removedTaskListener) {
+                // Unblock the request only after it started waiting for task completion
+                client().execute(UNBLOCK_TASK_ACTION, new TestTaskPlugin.UnblockTestTasksRequest());
+            }
+        };
+        taskManager.addListener(listener);
         try {
-            var tasks = clusterAdmin().prepareListTasks().setActions(TEST_TASK_ACTION.name()).get().getTasks();
-            assertThat(tasks, hasSize(1));
-            var taskId = tasks.get(0).taskId();
-            clusterAdmin().prepareGetTask(taskId).get();
-
             // Spin up a request to wait for the test task to finish
-            waitResponseFuture = wait.apply(taskId);
+            // The task will be unblocked as soon as the request started waiting for task completion
+            T waitResponse = wait.apply(taskId).get();
+            validator.accept(waitResponse);
         } finally {
-            // Unblock the request so the wait for completion request can finish
-            client().execute(UNBLOCK_TASK_ACTION, new TestTaskPlugin.UnblockTestTasksRequest()).get();
+            taskManager.removeListener(listener);
         }
-
-        // Now that the task is unblocked the list response will come back
-        T waitResponse = waitResponseFuture.get();
-        validator.accept(waitResponse);
 
         TestTaskPlugin.NodesResponse response = future.get();
         assertEquals(emptyList(), response.failures());

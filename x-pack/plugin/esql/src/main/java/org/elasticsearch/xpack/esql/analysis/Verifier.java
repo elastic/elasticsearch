@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.esql.core.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Rate;
 import org.elasticsearch.xpack.esql.expression.function.grouping.GroupingFunction;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Neg;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
@@ -245,7 +246,10 @@ public class Verifier {
         // found an aggregate, constant or a group, bail out
         if (e instanceof AggregateFunction af) {
             af.field().forEachDown(AggregateFunction.class, f -> {
-                failures.add(fail(f, "nested aggregations [{}] not allowed inside other aggregations [{}]", f, af));
+                // rate aggregate is allowed to be inside another aggregate
+                if (f instanceof Rate == false) {
+                    failures.add(fail(f, "nested aggregations [{}] not allowed inside other aggregations [{}]", f, af));
+                }
             });
         } else if (e instanceof GroupingFunction gf) {
             // optimizer will later unroll expressions with aggs and non-aggs with a grouping function into an EVAL, but that will no longer

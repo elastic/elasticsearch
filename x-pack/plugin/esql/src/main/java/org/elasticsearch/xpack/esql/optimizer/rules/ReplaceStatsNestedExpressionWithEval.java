@@ -73,6 +73,11 @@ public final class ReplaceStatsNestedExpressionWithEval extends OptimizerRules.O
                 // if the child is a nested expression
                 Expression child = as.child();
 
+                // do not replace nested aggregates
+                if (child instanceof AggregateFunction af && af.field() instanceof AggregateFunction) {
+                    return as;
+                }
+
                 // shortcut for common scenario
                 if (child instanceof AggregateFunction af && af.field() instanceof Attribute) {
                     return as;
@@ -125,7 +130,7 @@ public final class ReplaceStatsNestedExpressionWithEval extends OptimizerRules.O
             var aggregates = aggsChanged.get() ? newAggs : aggregate.aggregates();
 
             var newEval = new Eval(aggregate.source(), aggregate.child(), evals);
-            aggregate = new Aggregate(aggregate.source(), newEval, groupings, aggregates);
+            aggregate = new Aggregate(aggregate.source(), newEval, aggregate.aggregateType(), groupings, aggregates);
         }
 
         return aggregate;

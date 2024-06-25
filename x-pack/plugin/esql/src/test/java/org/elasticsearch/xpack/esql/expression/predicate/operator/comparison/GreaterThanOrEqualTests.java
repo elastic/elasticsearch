@@ -131,7 +131,10 @@ public class GreaterThanOrEqualTests extends AbstractScalarFunctionTestCase {
         );
 
         return parameterSuppliersFromTypedData(
-            errorsForCasesWithoutExamples(anyNullIsNull(true, suppliers), AbstractScalarFunctionTestCase::errorMessageStringForBinaryOperators)
+            errorsForCasesWithoutExamples(
+                anyNullIsNull(true, suppliers),
+                AbstractScalarFunctionTestCase::errorMessageStringForBinaryOperators
+            )
         );
     }
 

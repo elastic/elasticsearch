@@ -190,7 +190,10 @@ public class NotEqualsTests extends AbstractScalarFunctionTestCase {
             )
         );
         return parameterSuppliersFromTypedData(
-            errorsForCasesWithoutExamples(anyNullIsNull(true, suppliers), AbstractScalarFunctionTestCase::errorMessageStringForBinaryOperators)
+            errorsForCasesWithoutExamples(
+                anyNullIsNull(true, suppliers),
+                AbstractScalarFunctionTestCase::errorMessageStringForBinaryOperators
+            )
         );
     }
 

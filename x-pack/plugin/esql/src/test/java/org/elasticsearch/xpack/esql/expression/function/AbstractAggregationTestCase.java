@@ -15,6 +15,7 @@ import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.optimizer.FoldNull;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
@@ -27,27 +28,22 @@ import java.util.stream.IntStream;
 import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
 /**
  * Base class for aggregation tests.
  */
-public abstract class AbstractAggregationTestCase extends AbstractScalarFunctionTestCase {
+public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCase {
     /**
      * Converts a list of aggregation test cases into a list of parameter suppliers.
      * Also, adds a default set of extra test cases.
      * <p>
      *     Use if possible, as this method may get updated with new checks in the future.
      * </p>
-     *
-     * @param entirelyNullPreservesType See {@link #anyNullIsNull(boolean, List)}.
-     *                                  Currently unused for aggregations. Kept to avoid calling the wrong method.
      */
-    protected static Iterable<Object[]> parameterSuppliersFromTypedDataWithDefaultChecks(
-        boolean entirelyNullPreservesType,
-        List<TestCaseSupplier> suppliers
-    ) {
+    protected static Iterable<Object[]> parameterSuppliersFromTypedDataWithDefaultChecks(List<TestCaseSupplier> suppliers) {
         return parameterSuppliersFromTypedData(randomizeBytesRefsOffset(suppliers));
     }
 
@@ -105,7 +101,7 @@ public abstract class AbstractAggregationTestCase extends AbstractScalarFunction
             "Test Values: " + testCase.getData().stream().map(TestCaseSupplier.TypedData::toString).collect(Collectors.joining(","))
         );
         boolean readFloating = randomBoolean();
-        Expression expression = readFloating ? buildDeepCopyOfFieldExpression(testCase) : buildFieldExpression(testCase);
+        Expression expression = resolveSurrogates(readFloating ? buildDeepCopyOfFieldExpression(testCase) : buildFieldExpression(testCase));
         if (testCase.getExpectedTypeError() != null) {
             assertTypeResolutionFailure(expression);
             return null;
@@ -146,5 +142,51 @@ public abstract class AbstractAggregationTestCase extends AbstractScalarFunction
     private List<Integer> inputChannels() {
         // TODO: Randomize channels
         return IntStream.range(0, testCase.getMultiRowDataValues().size()).boxed().toList();
+    }
+
+    /**
+     * Resolves surrogates of aggregations until a non-surrogate expression is found.
+     * <ul>
+     *   <li>No-op on non-aggregations, as they don't support surrogates</li>
+     *   <li>No-op if expecting errors, as surrogates depend on correct types</li>
+     * </ul>
+     */
+    private Expression resolveSurrogates(Expression expression) {
+        if (testCase.getExpectedTypeError() != null) {
+            return expression;
+        }
+
+        for (int i = 0;; i++) {
+            assertThat("Potential infinite loop detected in surrogates", i, lessThan(10));
+
+            if (expression instanceof SurrogateExpression == false) {
+                break;
+            }
+
+            var surrogate = ((SurrogateExpression) expression).surrogate();
+
+            if (surrogate == null) {
+                break;
+            }
+
+            expression = surrogate;
+        }
+
+        return expression;
+    }
+
+    // TODO: vvvvv Reorganize/Inline/Rename vvvvv
+
+    /**
+     * Build an {@link Expression} where all inputs are field references,
+     * <strong>except</strong> those that have been marked with {@link TestCaseSupplier.TypedData#forceLiteral()}.
+     * <p>Test is ignored if the expression is an aggregation.</p>
+     */
+    protected final Expression buildFieldEvaluableExpression(TestCaseSupplier.TestCase testCase) {
+        var expression = resolveSurrogates(buildFieldExpression(testCase));
+
+        assumeFalse("Resolved expression is not an evaluable function", expression instanceof AggregateFunction);
+
+        return expression;
     }
 }

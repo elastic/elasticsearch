@@ -25,7 +25,7 @@ import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.esql.Column;
 import org.elasticsearch.xpack.esql.action.ParseTables;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
+import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
@@ -117,7 +117,7 @@ public class EsqlConfigurationSerializationTests extends AbstractWireSerializing
                     )
                 ) {
                     for (int p = 0; p < positions; p++) {
-                        BlockUtils.appendValue(builder, AbstractScalarFunctionTestCase.randomLiteral(dataType).value(), type);
+                        BlockUtils.appendValue(builder, AbstractFunctionTestCase.randomLiteral(dataType).value(), type);
                     }
                     columns.put(name, new Column(dataType, builder.build()));
                 }

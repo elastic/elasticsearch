@@ -1495,7 +1495,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
             if (forceLiteral) {
                 return asLiteral();
             }
-            return AbstractScalarFunctionTestCase.field(name, type);
+            return AbstractFunctionTestCase.field(name, type);
         }
 
         /**
@@ -1505,7 +1505,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
             if (forceLiteral) {
                 return asLiteral();
             }
-            return AbstractScalarFunctionTestCase.deepCopyOfField(name, type);
+            return AbstractFunctionTestCase.deepCopyOfField(name, type);
         }
 
         /**

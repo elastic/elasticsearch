@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div;
 import org.junit.After;
@@ -41,7 +42,7 @@ public class BreakerTests extends ESTestCase {
 
         Expression expression = new Div(
             Source.synthetic("[1] / (long) 2"),
-            AbstractScalarFunctionTestCase.field("f", DataType.LONG),
+            AbstractFunctionTestCase.field("f", DataType.LONG),
             new Literal(Source.EMPTY, 2, DataType.INTEGER)
         );
         for (int b = 0; b < 136; b++) {

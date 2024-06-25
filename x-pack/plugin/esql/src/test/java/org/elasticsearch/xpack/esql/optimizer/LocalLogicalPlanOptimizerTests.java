@@ -195,7 +195,7 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
         var plan = plan("""
               from test
             | mv_expand last_name
-            | keep first_name
+            | keep first_name, last_name
             """);
 
         var testStats = statsForMissingField("last_name");
@@ -203,7 +203,7 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
 
         var project = as(localPlan, EsqlProject.class);
         var projections = project.projections();
-        assertThat(Expressions.names(projections), contains("first_name"));
+        assertThat(Expressions.names(projections), contains("first_name", "last_name"));
 
         var limit = as(project.child(), Limit.class);
         // MvExpand cannot be optimized (yet) because the target NamedExpression cannot be replaced with a NULL literal

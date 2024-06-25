@@ -168,10 +168,7 @@ public class LocalLogicalPlanOptimizer extends ParameterizedRuleExecutor<Logical
                 // https://github.com/elastic/elasticsearch/issues/109974
                 // Unfortunately we cannot remove the MvExpand right away, or we'll lose the output field (layout problems)
                 // TODO but this could be a follow-up optimization
-                plan = plan.transformExpressionsOnlyUp(
-                    FieldAttribute.class,
-                    f -> stats.exists(f.qualifiedName()) ? f : new Alias(f.source(), f.name(), null, Literal.of(f, null), f.id())
-                );
+                return plan;
             }
             // otherwise transform fields in place
             else {

@@ -65,7 +65,7 @@ public abstract class BinarySpatialFunction extends BinaryScalarFunction impleme
 
     protected BinarySpatialFunction(StreamInput in, boolean leftDocValues, boolean rightDocValues, boolean pointsOnly) throws IOException {
         this(
-            Source.readFrom((StreamInput & PlanStreamInput) in),
+            Source.EMPTY,
             ((PlanStreamInput) in).readExpression(),
             ((PlanStreamInput) in).readExpression(),
             leftDocValues,
@@ -76,7 +76,6 @@ public abstract class BinarySpatialFunction extends BinaryScalarFunction impleme
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        Source.EMPTY.writeTo(out);
         ((PlanStreamOutput) out).writeExpression(left());
         ((PlanStreamOutput) out).writeExpression(right());
     }

@@ -18,7 +18,9 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
-$if(int)$
+$if(float)$
+import org.elasticsearch.compute.data.FloatBlock;
+$elseif(int)$
 import org.elasticsearch.compute.data.IntBlock;
 $endif$
 import org.elasticsearch.compute.data.IntVector;

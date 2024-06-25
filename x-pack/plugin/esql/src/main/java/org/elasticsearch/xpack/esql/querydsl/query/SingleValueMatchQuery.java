@@ -97,12 +97,12 @@ final class SingleValueMatchQuery extends Query {
                  * can't do that because we need the check the number of fields.
                  */
                 if (lfd instanceof LeafNumericFieldData n) {
-                    return scorerSupplier(context, n, this, boost, scoreMode);
+                    return scorerSupplier(context, n.getLongValues(), this, boost, scoreMode);
                 }
                 if (lfd instanceof LeafOrdinalsFieldData o) {
-                    return scorerSupplier(context, o, this, boost, scoreMode);
+                    return scorerSupplier(context, o.getOrdinalsValues(), this, boost, scoreMode);
                 }
-                return scorerSupplier(context, lfd, this, boost, scoreMode);
+                return scorerSupplier(context, lfd.getBytesValues(), this, boost, scoreMode);
             }
 
             @Override
@@ -113,12 +113,11 @@ final class SingleValueMatchQuery extends Query {
 
             private ScorerSupplier scorerSupplier(
                 LeafReaderContext context,
-                LeafNumericFieldData lfd,
+                SortedNumericDocValues sortedNumerics,
                 Weight weight,
                 float boost,
                 ScoreMode scoreMode
             ) throws IOException {
-                final SortedNumericDocValues sortedNumerics = lfd.getLongValues();
                 final int maxDoc = context.reader().maxDoc();
                 if (DocValues.unwrapSingleton(sortedNumerics) != null) {
                     // check for dense field
@@ -151,12 +150,11 @@ final class SingleValueMatchQuery extends Query {
 
             private ScorerSupplier scorerSupplier(
                 LeafReaderContext context,
-                LeafOrdinalsFieldData lfd,
+                SortedSetDocValues sortedSetDocValues,
                 Weight weight,
                 float boost,
                 ScoreMode scoreMode
             ) throws IOException {
-                final SortedSetDocValues sortedSetDocValues = lfd.getOrdinalsValues();
                 final int maxDoc = context.reader().maxDoc();
                 if (DocValues.unwrapSingleton(sortedSetDocValues) != null) {
                     // check for dense field
@@ -189,12 +187,11 @@ final class SingleValueMatchQuery extends Query {
 
             private ScorerSupplier scorerSupplier(
                 LeafReaderContext context,
-                LeafFieldData lfd,
+                SortedBinaryDocValues sortedBinaryDocValues,
                 Weight weight,
                 float boost,
                 ScoreMode scoreMode
             ) {
-                final SortedBinaryDocValues sortedBinaryDocValues = lfd.getBytesValues();
                 final int maxDoc = context.reader().maxDoc();
                 if (FieldData.unwrapSingleton(sortedBinaryDocValues) != null) {
                     return new PredicateScorerSupplier(

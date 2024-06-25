@@ -93,6 +93,7 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
      * and then only ever updated on the cluster state update thread (it is also read on the generic thread). Non-private for unit testing.
      */
     private final Supplier<Boolean> atLeastOneGeoipProcessorSupplier;
+    private volatile Supplier<Boolean> isLicensedSupplier;
 
     GeoIpDownloader(
         Client client,
@@ -110,6 +111,42 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
         Supplier<Boolean> eagerDownloadSupplier,
         Supplier<Boolean> atLeastOneGeoipProcessorSupplier
     ) {
+        this(
+            client,
+            httpClient,
+            clusterService,
+            threadPool,
+            settings,
+            id,
+            type,
+            action,
+            description,
+            parentTask,
+            headers,
+            pollIntervalSupplier,
+            eagerDownloadSupplier,
+            atLeastOneGeoipProcessorSupplier,
+            () -> true
+        );
+    }
+
+    public GeoIpDownloader(
+        Client client,
+        HttpClient httpClient,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        Settings settings,
+        long id,
+        String type,
+        String action,
+        String description,
+        TaskId parentTask,
+        Map<String, String> headers,
+        Supplier<TimeValue> pollIntervalSupplier,
+        Supplier<Boolean> eagerDownloadSupplier,
+        Supplier<Boolean> atLeastOneGeoipProcessorSupplier,
+        Supplier<Boolean> isLicensedSupplier
+    ) {
         super(id, type, action, description, parentTask, headers);
         this.httpClient = httpClient;
         this.client = client;
@@ -119,10 +156,14 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
         this.pollIntervalSupplier = pollIntervalSupplier;
         this.eagerDownloadSupplier = eagerDownloadSupplier;
         this.atLeastOneGeoipProcessorSupplier = atLeastOneGeoipProcessorSupplier;
+        this.isLicensedSupplier = isLicensedSupplier;
     }
 
     // visible for testing
     void updateDatabases() throws IOException {
+        if (isLicensedSupplier.get() == false) {
+            throw new RuntimeException("No!!!!");
+        }
         var clusterState = clusterService.state();
         var geoipIndex = clusterState.getMetadata().getIndicesLookup().get(GeoIpDownloader.DATABASES_INDEX);
         if (geoipIndex != null) {
@@ -264,14 +305,14 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
         return buf;
     }
 
-    void setState(GeoIpTaskState state) {
+    public void setState(GeoIpTaskState state) {
         this.state = state;
     }
 
     /**
      * Downloads the geoip databases now, and schedules them to be downloaded again after pollInterval.
      */
-    void runDownloader() {
+    public void runDownloader() {
         if (isCancelled() || isCompleted()) {
             return;
         }
@@ -342,4 +383,7 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
         }
     }
 
+    public void setLicenseSupplier(Supplier<Boolean> licenseSupplier) {
+        this.isLicensedSupplier = licenseSupplier;
+    }
 }

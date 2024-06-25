@@ -36,11 +36,11 @@ import static org.elasticsearch.ingest.geoip.GeoIpDownloader.GEOIP_DOWNLOADER;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
-class GeoIpTaskState implements PersistentTaskState, VersionedNamedWriteable {
+public class GeoIpTaskState implements PersistentTaskState, VersionedNamedWriteable {
 
     private static final ParseField DATABASES = new ParseField("databases");
 
-    static final GeoIpTaskState EMPTY = new GeoIpTaskState(Map.of());
+    public static final GeoIpTaskState EMPTY = new GeoIpTaskState(Map.of());
 
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<GeoIpTaskState, Void> PARSER = new ConstructingObjectParser<>(

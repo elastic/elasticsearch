@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.ml.inference.nlp;
 
 import org.elasticsearch.inference.InferenceResults;
-import org.elasticsearch.xpack.core.ml.inference.results.InferenceChunkedTextExpansionResults;
+import org.elasticsearch.xpack.core.ml.inference.results.MlChunkedTextExpansionResults;
 import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.NlpConfig;
 import org.elasticsearch.xpack.core.ml.search.WeightedToken;
@@ -72,20 +72,27 @@ public class TextExpansionProcessor extends NlpTask.Processor {
         boolean chunkResults
     ) {
         if (chunkResults) {
-            var chunkedResults = new ArrayList<InferenceChunkedTextExpansionResults.ChunkedResult>();
+            var chunkedResults = new ArrayList<MlChunkedTextExpansionResults.ChunkedResult>();
 
             for (int i = 0; i < pyTorchResult.getInferenceResult()[0].length; i++) {
-                int startOffset = tokenization.getTokenization(i).tokens().get(0).get(0).startOffset();
-                int lastIndex = tokenization.getTokenization(i).tokens().get(0).size() - 1;
-                int endOffset = tokenization.getTokenization(i).tokens().get(0).get(lastIndex).endOffset();
-                String matchedText = tokenization.getTokenization(i).input().get(0).substring(startOffset, endOffset);
+                String matchedText;
+                if (tokenization.getTokenization(i).tokens().get(0).isEmpty() == false) {
+                    int startOffset = tokenization.getTokenization(i).tokens().get(0).get(0).startOffset();
+                    int lastIndex = tokenization.getTokenization(i).tokens().get(0).size() - 1;
+                    int endOffset = tokenization.getTokenization(i).tokens().get(0).get(lastIndex).endOffset();
+                    matchedText = tokenization.getTokenization(i).input().get(0).substring(startOffset, endOffset);
+                } else {
+                    // No tokens in the input, this should only happen with and empty string
+                    assert tokenization.getTokenization(i).input().get(0).isEmpty();
+                    matchedText = "";
+                }
 
                 var weightedTokens = sparseVectorToTokenWeights(pyTorchResult.getInferenceResult()[0][i], tokenization, replacementVocab);
                 weightedTokens.sort((t1, t2) -> Float.compare(t2.weight(), t1.weight()));
-                chunkedResults.add(new InferenceChunkedTextExpansionResults.ChunkedResult(matchedText, weightedTokens));
+                chunkedResults.add(new MlChunkedTextExpansionResults.ChunkedResult(matchedText, weightedTokens));
             }
 
-            return new InferenceChunkedTextExpansionResults(
+            return new MlChunkedTextExpansionResults(
                 Optional.ofNullable(resultsField).orElse(DEFAULT_RESULTS_FIELD),
                 chunkedResults,
                 tokenization.anyTruncated()

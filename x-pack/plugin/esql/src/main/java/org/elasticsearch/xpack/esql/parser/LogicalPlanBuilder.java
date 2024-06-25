@@ -85,12 +85,28 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
      */
     public static final int MAX_QUERY_DEPTH = 500;
 
-    public LogicalPlanBuilder(Map<Token, TypedParamValue> params) {
+    public LogicalPlanBuilder(QueryParams params) {
         super(params);
     }
 
     protected LogicalPlan plan(ParseTree ctx) {
-        return ParserUtils.typedParsing(this, ctx, LogicalPlan.class);
+        LogicalPlan p = ParserUtils.typedParsing(this, ctx, LogicalPlan.class);
+        var errors = this.params.parsingErrors();
+        if (errors.hasNext() == false) {
+            return p;
+        } else {
+            StringBuilder message = new StringBuilder();
+            int i = 0;
+
+            while (errors.hasNext()) {
+                if (i > 0) {
+                    message.append("; ");
+                }
+                message.append(errors.next().getMessage());
+                i++;
+            }
+            throw new ParsingException(message.toString());
+        }
     }
 
     protected List<LogicalPlan> plans(List<? extends ParserRuleContext> ctxs) {
@@ -437,10 +453,16 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         }
         var source = source(ctx);
 
-        List<NamedExpression> matchFields = visitQualifiedNamePatterns(ctx.qualifiedNamePatterns(), ne -> {
+        @SuppressWarnings("unchecked")
+        List<Attribute> matchFields = (List<Attribute>) (List) visitQualifiedNamePatterns(ctx.qualifiedNamePatterns(), ne -> {
             if (ne instanceof UnresolvedNamePattern || ne instanceof UnresolvedStar) {
                 var src = ne.source();
                 throw new ParsingException(src, "Using wildcards [*] in LOOKUP ON is not allowed yet [{}]", src.text());
+            }
+            if ((ne instanceof UnresolvedAttribute) == false) {
+                throw new IllegalStateException(
+                    "visitQualifiedNamePatterns can only return UnresolvedNamePattern, UnresolvedStar or UnresolvedAttribute"
+                );
             }
         });
 

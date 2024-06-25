@@ -7,12 +7,16 @@
 
 package org.elasticsearch.blobcache.common;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.core.Nullable;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.LongConsumer;
 import java.util.function.Supplier;
 
 /**
@@ -24,29 +28,40 @@ import java.util.function.Supplier;
  */
 class ProgressListenableActionFuture extends PlainActionFuture<Long> {
 
+    private static final Logger logger = LogManager.getLogger(ProgressListenableActionFuture.class);
+
     private record PositionAndListener(long position, ActionListener<Long> listener) {}
 
-    protected final long start;
-    protected final long end;
+    final long start;
+    final long end;
 
-    // modified under 'this' mutex
-    private volatile List<PositionAndListener> listeners;
-    protected volatile long progress;
+    /**
+     * A consumer that accepts progress made by this {@link ProgressListenableActionFuture}. The consumer is called before listeners are
+     * notified of the updated progress value in {@link #onProgress(long)} if the value is less than the actual end. The consumer can be
+     * called with out-of-order progress values.
+     */
+    @Nullable
+    private final LongConsumer progressConsumer;
+
+    private List<PositionAndListener> listeners;
+    private long progress;
     private volatile boolean completed;
 
     /**
      * Creates a {@link ProgressListenableActionFuture} that accepts the progression
      * to be within {@code start} (inclusive) and {@code end} (exclusive) values.
      *
-     * @param start the start (inclusive)
-     * @param end   the end (exclusive)
+     * @param start             the start (inclusive)
+     * @param end               the end (exclusive)
+     * @param progressConsumer  a consumer that accepts the progress made by this {@link ProgressListenableActionFuture}
      */
-    ProgressListenableActionFuture(long start, long end) {
+    ProgressListenableActionFuture(long start, long end, @Nullable LongConsumer progressConsumer) {
         super();
         this.start = start;
         this.end = end;
         this.progress = start;
         this.completed = false;
+        this.progressConsumer = progressConsumer;
         assert invariant();
     }
 
@@ -108,6 +123,9 @@ class ProgressListenableActionFuture extends PlainActionFuture<Long> {
             }
         }
         if (listenersToExecute != null) {
+            if (progressConsumer != null) {
+                safeAcceptProgress(progressConsumer, progressValue);
+            }
             listenersToExecute.forEach(listener -> executeListener(listener, () -> progressValue));
         }
         assert invariant();
@@ -115,8 +133,8 @@ class ProgressListenableActionFuture extends PlainActionFuture<Long> {
 
     @Override
     public void onResponse(Long result) {
-        if (result == null || result < start || end < result) {
-            assert false : start + " < " + result + " < " + end;
+        if (result == null || end != result) {
+            assert false : result + " != " + end;
             throw new IllegalArgumentException("Invalid completion value [start=" + start + ",end=" + end + ",response=" + result + ']');
         }
         ensureNotCompleted();
@@ -143,6 +161,7 @@ class ProgressListenableActionFuture extends PlainActionFuture<Long> {
         synchronized (this) {
             assert completed == false;
             completed = true;
+            assert listeners == null || listeners.stream().allMatch(l -> progress < l.position() && l.position() <= end);
             listenersToExecute = this.listeners;
             listeners = null;
         }
@@ -189,8 +208,18 @@ class ProgressListenableActionFuture extends PlainActionFuture<Long> {
         }
     }
 
+    private static void safeAcceptProgress(LongConsumer consumer, long progress) {
+        assert consumer != null;
+        try {
+            consumer.accept(progress);
+        } catch (Exception e) {
+            assert false : e;
+            logger.warn("Failed to consume progress value", e);
+        }
+    }
+
     @Override
-    public String toString() {
+    public synchronized String toString() {
         return "ProgressListenableActionFuture[start="
             + start
             + ", end="

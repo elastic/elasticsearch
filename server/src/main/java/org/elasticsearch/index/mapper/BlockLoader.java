@@ -93,6 +93,16 @@ public interface BlockLoader {
     SortedSetDocValues ordinals(LeafReaderContext context) throws IOException;
 
     /**
+     * In support of 'Union Types', we sometimes desire that Blocks loaded from source are immediately
+     * converted in some way. Typically, this would be a type conversion, or an encoding conversion.
+     * @param block original block loaded from source
+     * @return converted block (or original if no conversion required)
+     */
+    default Block convert(Block block) {
+        return block;
+    }
+
+    /**
      * Load blocks with only null.
      */
     BlockLoader CONSTANT_NULLS = new BlockLoader() {
@@ -454,6 +464,13 @@ public interface BlockLoader {
          * Appends a BytesRef to the current entry.
          */
         BytesRefBuilder appendBytesRef(BytesRef value);
+    }
+
+    interface FloatBuilder extends Builder {
+        /**
+         * Appends a float to the current entry.
+         */
+        FloatBuilder appendFloat(float value);
     }
 
     interface DoubleBuilder extends Builder {

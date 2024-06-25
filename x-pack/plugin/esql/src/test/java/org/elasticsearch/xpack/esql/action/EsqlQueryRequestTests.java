@@ -29,12 +29,16 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.esql.Column;
+import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.parser.TypedParamValue;
+import org.elasticsearch.xpack.esql.parser.ParsingException;
+import org.elasticsearch.xpack.esql.parser.QueryParam;
+import org.elasticsearch.xpack.esql.parser.QueryParams;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -57,7 +61,7 @@ public class EsqlQueryRequestTests extends ESTestCase {
         Locale locale = randomLocale(random());
         QueryBuilder filter = randomQueryBuilder();
 
-        List<TypedParamValue> params = randomParameters();
+        List<QueryParam> params = randomParameters();
         boolean hasParams = params.isEmpty() == false;
         StringBuilder paramsString = paramsString(params, hasParams);
         String json = String.format(Locale.ROOT, """
@@ -75,11 +79,124 @@ public class EsqlQueryRequestTests extends ESTestCase {
         assertEquals(locale.toLanguageTag(), request.locale().toLanguageTag());
         assertEquals(locale, request.locale());
         assertEquals(filter, request.filter());
-
         assertEquals(params.size(), request.params().size());
         for (int i = 0; i < params.size(); i++) {
-            assertEquals(params.get(i), request.params().get(i));
+            assertEquals(params.get(i), request.params().get(i + 1));
         }
+    }
+
+    public void testNamedParams() throws IOException {
+        String query = randomAlphaOfLengthBetween(1, 100);
+        boolean columnar = randomBoolean();
+        Locale locale = randomLocale(random());
+        QueryBuilder filter = randomQueryBuilder();
+
+        String paramsString = """
+            ,"params":[ {"n1" : "8.15.0" }, { "n2" : 0.05 }, {"n3" : -799810013 },
+             {"n4" : "127.0.0.1"}, {"n5" : "esql"}, {"n_6" : null}, {"n7_" : false}] }""";
+        List<QueryParam> params = new ArrayList<>(4);
+        params.add(new QueryParam("n1", "8.15.0", DataType.KEYWORD));
+        params.add(new QueryParam("n2", 0.05, DataType.DOUBLE));
+        params.add(new QueryParam("n3", -799810013, DataType.INTEGER));
+        params.add(new QueryParam("n4", "127.0.0.1", DataType.KEYWORD));
+        params.add(new QueryParam("n5", "esql", DataType.KEYWORD));
+        params.add(new QueryParam("n_6", null, DataType.NULL));
+        params.add(new QueryParam("n7_", false, DataType.BOOLEAN));
+        String json = String.format(Locale.ROOT, """
+            {
+                "query": "%s",
+                "columnar": %s,
+                "locale": "%s",
+                "filter": %s
+                %s""", query, columnar, locale.toLanguageTag(), filter, paramsString);
+
+        EsqlQueryRequest request = parseEsqlQueryRequestSync(json);
+
+        assertEquals(query, request.query());
+        assertEquals(columnar, request.columnar());
+        assertEquals(locale.toLanguageTag(), request.locale().toLanguageTag());
+        assertEquals(locale, request.locale());
+        assertEquals(filter, request.filter());
+        assertEquals(params.size(), request.params().size());
+
+        for (int i = 0; i < request.params().size(); i++) {
+            assertEquals(params.get(i), request.params().get(i + 1));
+        }
+    }
+
+    public void testInvalidParams() throws IOException {
+        String query = randomAlphaOfLengthBetween(1, 100);
+        boolean columnar = randomBoolean();
+        Locale locale = randomLocale(random());
+        QueryBuilder filter = randomQueryBuilder();
+
+        String paramsString1 = """
+            "params":[ {"1" : "v1" }, {"1x" : "v1" }, {"_a" : "v1" }, {"@-#" : "v1" }, 1, 2]""";
+        String json1 = String.format(Locale.ROOT, """
+            {
+                %s
+                "query": "%s",
+                "columnar": %s,
+                "locale": "%s",
+                "filter": %s
+            }""", paramsString1, query, columnar, locale.toLanguageTag(), filter);
+
+        Exception e1 = expectThrows(XContentParseException.class, () -> parseEsqlQueryRequestSync(json1));
+        assertThat(
+            e1.getCause().getMessage(),
+            containsString(
+                "Failed to parse params: [2:16] [1] is not a valid parameter name, "
+                    + "a valid parameter name starts with a letter and contains letters, digits and underscores only"
+            )
+        );
+        assertThat(e1.getCause().getMessage(), containsString("[2:31] [1x] is not a valid parameter name"));
+        assertThat(e1.getCause().getMessage(), containsString("[2:47] [_a] is not a valid parameter name"));
+        assertThat(e1.getCause().getMessage(), containsString("[2:63] [@-#] is not a valid parameter name"));
+        assertThat(
+            e1.getCause().getMessage(),
+            containsString(
+                "Params cannot contain both named and unnamed parameters; got [{1:v1}, {1x:v1}, {_a:v1}, {@-#:v1}] and [{1}, {2}]"
+            )
+        );
+
+        String paramsString2 = """
+            "params":[ 1, 2, {"1" : "v1" }, {"1x" : "v1" }]""";
+        String json2 = String.format(Locale.ROOT, """
+            {
+                %s
+                "query": "%s",
+                "columnar": %s,
+                "locale": "%s",
+                "filter": %s
+            }""", paramsString2, query, columnar, locale.toLanguageTag(), filter);
+
+        Exception e2 = expectThrows(XContentParseException.class, () -> parseEsqlQueryRequestSync(json2));
+        assertThat(
+            e2.getCause().getMessage(),
+            containsString(
+                "Failed to parse params: [2:22] [1] is not a valid parameter name, "
+                    + "a valid parameter name starts with a letter and contains letters, digits and underscores only"
+            )
+        );
+        assertThat(e2.getCause().getMessage(), containsString("[2:37] [1x] is not a valid parameter name"));
+        assertThat(
+            e2.getCause().getMessage(),
+            containsString("Params cannot contain both named and unnamed parameters; got [{1:v1}, {1x:v1}] and [{1}, {2}]")
+        );
+    }
+
+    // Test for https://github.com/elastic/elasticsearch/issues/110028
+    public void testNamedParamsMutation() {
+        EsqlQueryRequest request1 = new EsqlQueryRequest();
+        assertThat(request1.params(), equalTo(new QueryParams()));
+        var exceptionMessage = randomAlphaOfLength(10);
+        var paramName = randomAlphaOfLength(5);
+        var paramValue = randomAlphaOfLength(5);
+        request1.params().addParsingError(new ParsingException(Source.EMPTY, exceptionMessage));
+        request1.params().addTokenParam(null, new QueryParam(paramName, paramValue, DataType.KEYWORD));
+
+        EsqlQueryRequest request2 = new EsqlQueryRequest();
+        assertThat(request2.params(), equalTo(new QueryParams()));
     }
 
     public void testParseFieldsForAsync() throws IOException {
@@ -88,7 +205,7 @@ public class EsqlQueryRequestTests extends ESTestCase {
         Locale locale = randomLocale(random());
         QueryBuilder filter = randomQueryBuilder();
 
-        List<TypedParamValue> params = randomParameters();
+        List<QueryParam> params = randomParameters();
         boolean hasParams = params.isEmpty() == false;
         StringBuilder paramsString = paramsString(params, hasParams);
         boolean keepOnCompletion = randomBoolean();
@@ -126,10 +243,9 @@ public class EsqlQueryRequestTests extends ESTestCase {
         assertEquals(keepOnCompletion, request.keepOnCompletion());
         assertEquals(waitForCompletion, request.waitForCompletionTimeout());
         assertEquals(keepAlive, request.keepAlive());
-
         assertEquals(params.size(), request.params().size());
         for (int i = 0; i < params.size(); i++) {
-            assertEquals(params.get(i), request.params().get(i));
+            assertEquals(params.get(i), request.params().get(i + 1));
         }
     }
 
@@ -378,22 +494,21 @@ public class EsqlQueryRequestTests extends ESTestCase {
         assertThat(json, equalTo(expected));
     }
 
-    private List<TypedParamValue> randomParameters() {
+    private List<QueryParam> randomParameters() {
         if (randomBoolean()) {
             return Collections.emptyList();
         } else {
             int len = randomIntBetween(1, 10);
-            List<TypedParamValue> arr = new ArrayList<>(len);
+            List<QueryParam> arr = new ArrayList<>(len);
             for (int i = 0; i < len; i++) {
-                boolean hasExplicitType = randomBoolean();
                 @SuppressWarnings("unchecked")
-                Supplier<TypedParamValue> supplier = randomFrom(
-                    () -> new TypedParamValue("boolean", randomBoolean(), hasExplicitType),
-                    () -> new TypedParamValue("integer", randomInt(), hasExplicitType),
-                    () -> new TypedParamValue("long", randomLong(), hasExplicitType),
-                    () -> new TypedParamValue("double", randomDouble(), hasExplicitType),
-                    () -> new TypedParamValue("null", null, hasExplicitType),
-                    () -> new TypedParamValue("keyword", randomAlphaOfLength(10), hasExplicitType)
+                Supplier<QueryParam> supplier = randomFrom(
+                    () -> new QueryParam(null, randomBoolean(), DataType.BOOLEAN),
+                    () -> new QueryParam(null, randomInt(), DataType.INTEGER),
+                    () -> new QueryParam(null, randomLong(), DataType.LONG),
+                    () -> new QueryParam(null, randomDouble(), DataType.DOUBLE),
+                    () -> new QueryParam(null, null, DataType.NULL),
+                    () -> new QueryParam(null, randomAlphaOfLength(10), DataType.KEYWORD)
                 );
                 arr.add(supplier.get());
             }
@@ -401,33 +516,22 @@ public class EsqlQueryRequestTests extends ESTestCase {
         }
     }
 
-    private StringBuilder paramsString(List<TypedParamValue> params, boolean hasParams) {
+    private StringBuilder paramsString(List<QueryParam> params, boolean hasParams) {
         StringBuilder paramsString = new StringBuilder();
         if (hasParams) {
             paramsString.append(",\"params\":[");
             boolean first = true;
-            for (TypedParamValue param : params) {
+            for (QueryParam param : params) {
                 if (first == false) {
                     paramsString.append(", ");
                 }
                 first = false;
-                if (param.hasExplicitType()) {
-                    paramsString.append("{\"type\":\"");
-                    paramsString.append(param.type);
-                    paramsString.append("\",\"value\":");
-                }
-                switch (param.type) {
-                    case "keyword" -> {
-                        paramsString.append("\"");
-                        paramsString.append(param.value);
-                        paramsString.append("\"");
-                    }
-                    case "integer", "long", "boolean", "null", "double" -> {
-                        paramsString.append(param.value);
-                    }
-                }
-                if (param.hasExplicitType()) {
-                    paramsString.append("}");
+                if (param.type() == DataType.KEYWORD) {
+                    paramsString.append("\"");
+                    paramsString.append(param.value());
+                    paramsString.append("\"");
+                } else if (param.type().isNumeric() || param.type() == DataType.BOOLEAN || param.type() == DataType.NULL) {
+                    paramsString.append(param.value());
                 }
             }
             paramsString.append("]}");

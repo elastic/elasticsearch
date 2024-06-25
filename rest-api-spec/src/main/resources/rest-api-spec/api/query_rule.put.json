@@ -4,7 +4,7 @@
       "url": "https://www.elastic.co/guide/en/elasticsearch/reference/master/put-query-rule.html",
       "description": "Creates or updates a query rule within a ruleset."
     },
-    "stability": "experimental",
+    "stability": "stable",
     "visibility": "public",
     "headers": {
       "accept": [
@@ -17,7 +17,7 @@
     "url": {
       "paths": [
         {
-          "path": "/_query_rules/{ruleset_id}/{rule_id}",
+          "path": "/_query_rules/{ruleset_id}/_rule/{rule_id}",
           "methods": [
             "PUT"
           ],

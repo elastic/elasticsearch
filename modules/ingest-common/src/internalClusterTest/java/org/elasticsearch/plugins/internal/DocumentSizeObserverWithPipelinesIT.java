@@ -12,7 +12,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.ingest.PutPipelineRequest;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.ingest.common.IngestCommonPlugin;
 import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -92,7 +92,7 @@ public class DocumentSizeObserverWithPipelinesIT extends ESIntegTestCase {
                 @Override
                 public DocumentSizeReporter newDocumentSizeReporter(
                     String indexName,
-                    IndexMode indexMode,
+                    MapperService mapperService,
                     DocumentSizeAccumulator documentSizeAccumulator
                 ) {
                     return DocumentSizeReporter.EMPTY_INSTANCE;

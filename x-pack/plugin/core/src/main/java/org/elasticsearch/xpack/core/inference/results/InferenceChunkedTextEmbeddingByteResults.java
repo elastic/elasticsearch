@@ -162,6 +162,7 @@ public record InferenceChunkedTextEmbeddingByteResults(List<InferenceByteEmbeddi
         }
     }
 
+    @Override
     public Iterator<Chunk> chunksAsMatchedTextAndByteReference(XContent xcontent) {
         return chunks.stream().map(chunk -> new Chunk(chunk.matchedText(), toBytesReference(xcontent, chunk.embedding()))).iterator();
     }

@@ -345,17 +345,17 @@ public class LocalExecutionPlanner {
         List<Layout.ChannelSet> inverse = source.layout.inverse();
         for (int channel = 0; channel < inverse.size(); channel++) {
             elementTypes[channel] = PlannerUtils.toElementType(inverse.get(channel).type());
-            encoders[channel] = switch (inverse.get(channel).type().typeName()) {
-                case "ip" -> TopNEncoder.IP;
-                case "text", "keyword" -> TopNEncoder.UTF8;
-                case "version" -> TopNEncoder.VERSION;
-                case "boolean", "null", "byte", "short", "integer", "long", "double", "float", "half_float", "datetime", "date_period",
-                    "time_duration", "object", "nested", "scaled_float", "unsigned_long", "_doc", "_tsid" -> TopNEncoder.DEFAULT_SORTABLE;
-                case "geo_point", "cartesian_point", "geo_shape", "cartesian_shape", "counter_long", "counter_integer", "counter_double" ->
+            encoders[channel] = switch (inverse.get(channel).type()) {
+                case IP -> TopNEncoder.IP;
+                case TEXT, KEYWORD -> TopNEncoder.UTF8;
+                case VERSION -> TopNEncoder.VERSION;
+                case BOOLEAN, NULL, BYTE, SHORT, INTEGER, LONG, DOUBLE, FLOAT, HALF_FLOAT, DATETIME, DATE_PERIOD, TIME_DURATION, OBJECT,
+                    NESTED, SCALED_FLOAT, UNSIGNED_LONG, DOC_DATA_TYPE, TSID_DATA_TYPE -> TopNEncoder.DEFAULT_SORTABLE;
+                case GEO_POINT, CARTESIAN_POINT, GEO_SHAPE, CARTESIAN_SHAPE, COUNTER_LONG, COUNTER_INTEGER, COUNTER_DOUBLE ->
                     TopNEncoder.DEFAULT_UNSORTABLE;
                 // unsupported fields are encoded as BytesRef, we'll use the same encoder; all values should be null at this point
-                case "unsupported" -> TopNEncoder.UNSUPPORTED;
-                default -> throw new EsqlIllegalArgumentException("No TopN sorting encoder for type " + inverse.get(channel).type());
+                case UNSUPPORTED -> TopNEncoder.UNSUPPORTED;
+                case SOURCE -> throw new EsqlIllegalArgumentException("No TopN sorting encoder for type " + inverse.get(channel).type());
             };
         }
         List<TopNOperator.SortOrder> orders = topNExec.order().stream().map(order -> {

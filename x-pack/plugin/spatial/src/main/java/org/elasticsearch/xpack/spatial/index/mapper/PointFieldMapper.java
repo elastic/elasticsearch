@@ -105,14 +105,14 @@ public class PointFieldMapper extends AbstractPointGeometryFieldMapper<Cartesian
                 );
             }
             CartesianPointParser parser = new CartesianPointParser(
-                name(),
+                leafName(),
                 p -> CartesianPoint.parsePoint(p, ignoreZValue.get().value()),
                 nullValue.get(),
                 ignoreZValue.get().value(),
                 ignoreMalformed.get().value()
             );
             PointFieldType ft = new PointFieldType(
-                context.buildFullName(name()),
+                context.buildFullName(leafName()),
                 indexed.get(),
                 stored.get(),
                 hasDocValues.get(),
@@ -120,7 +120,7 @@ public class PointFieldMapper extends AbstractPointGeometryFieldMapper<Cartesian
                 nullValue.get(),
                 meta.get()
             );
-            return new PointFieldMapper(name(), ft, multiFieldsBuilder.build(this, context), copyTo, parser, this);
+            return new PointFieldMapper(leafName(), ft, multiFieldsBuilder.build(this, context), copyTo, parser, this);
         }
 
     }
@@ -177,7 +177,7 @@ public class PointFieldMapper extends AbstractPointGeometryFieldMapper<Cartesian
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(simpleName(), builder.ignoreMalformed.getDefaultValue().value()).init(this);
+        return new Builder(leafName(), builder.ignoreMalformed.getDefaultValue().value()).init(this);
     }
 
     public static class PointFieldType extends AbstractPointFieldType<CartesianPoint> implements ShapeQueryable {

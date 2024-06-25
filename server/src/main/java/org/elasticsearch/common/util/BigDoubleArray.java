@@ -42,13 +42,11 @@ final class BigDoubleArray extends AbstractBigByteArray implements DoubleArray {
     }
 
     @Override
-    public double set(long index, double value) {
+    public void set(long index, double value) {
         final int pageIndex = pageIndex(index);
         final int indexInPage = indexInPage(index);
         final byte[] page = getPageForWriting(pageIndex);
-        final double ret = (double) VH_PLATFORM_NATIVE_DOUBLE.get(page, indexInPage << 3);
         VH_PLATFORM_NATIVE_DOUBLE.set(page, indexInPage << 3, value);
-        return ret;
     }
 
     @Override

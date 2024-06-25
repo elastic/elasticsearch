@@ -10,7 +10,7 @@ package org.elasticsearch.plugins.internal;
 
 import org.elasticsearch.action.DocWriteRequest;
 
-import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.mapper.MapperService;
 
 /**
  * An interface to provide instances of document parsing observer and reporter
@@ -24,7 +24,7 @@ public interface DocumentParsingProvider {
      */
     default DocumentSizeReporter newDocumentSizeReporter(
         String indexName,
-        IndexMode indexMode,
+        MapperService mapperService,
         DocumentSizeAccumulator documentSizeAccumulator
     ) {
         return DocumentSizeReporter.EMPTY_INSTANCE;
@@ -36,7 +36,9 @@ public interface DocumentParsingProvider {
     default DocumentSizeAccumulator createDocumentSizeAccumulator() {
         return DocumentSizeAccumulator.EMPTY_INSTANCE;
     }
-
+    /**
+     * @return an observer
+     */
     default <T> DocumentSizeObserver newDocumentSizeObserver(DocWriteRequest<T> request) {
         return DocumentSizeObserver.EMPTY_INSTANCE;
     }

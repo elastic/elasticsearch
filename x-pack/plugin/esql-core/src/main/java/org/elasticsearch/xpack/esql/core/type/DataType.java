@@ -22,7 +22,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
-import java.util.stream.Stream;
 
 import static java.util.stream.Collectors.toMap;
 import static java.util.stream.Collectors.toUnmodifiableMap;
@@ -125,8 +124,10 @@ public enum DataType {
         this.counter = builder.counter;
     }
 
-    private static final Collection<DataType> TYPES = Arrays.stream(values()).filter(d -> d != DOC_DATA_TYPE && d != TSID_DATA_TYPE)
-    .sorted(Comparator.comparing(DataType::typeName)).toList();
+    private static final Collection<DataType> TYPES = Arrays.stream(values())
+        .filter(d -> d != DOC_DATA_TYPE && d != TSID_DATA_TYPE)
+        .sorted(Comparator.comparing(DataType::typeName))
+        .toList();
 
     private static final Map<String, DataType> NAME_TO_TYPE = TYPES.stream().collect(toUnmodifiableMap(DataType::typeName, t -> t));
 

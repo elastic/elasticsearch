@@ -40,23 +40,23 @@ dependencies {
   api "com.ibm.icu:icu4j:${versions.icu4j}"
 
   runtimeOnly 'com.google.guava:guava:32.0.1-jre'
-  api 'com.google.code.gson:gson:2.10'
-  api "com.google.protobuf:protobuf-java-util:${versions.protobuf}"
-  api "com.google.protobuf:protobuf-java:${versions.protobuf}"
-  api 'com.google.api.grpc:proto-google-iam-v1:1.6.2'
-  api 'com.google.auth:google-auth-library-credentials:1.11.0'
-  api 'com.google.auth:google-auth-library-oauth2-http:1.11.0'
-  api "com.google.oauth-client:google-oauth-client:${versions.google_oauth_client}"
-  api 'com.google.api-client:google-api-client:2.1.1'
-  api 'com.google.http-client:google-http-client:1.42.3'
-  api 'com.google.http-client:google-http-client-gson:1.42.3'
-  api 'com.google.http-client:google-http-client-appengine:1.42.3'
-  api 'com.google.http-client:google-http-client-jackson2:1.42.3'
-  api "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
-  api 'com.google.api:gax-httpjson:0.105.1'
-  api 'io.grpc:grpc-context:1.49.2'
-  api 'io.opencensus:opencensus-api:0.31.1'
-  api 'io.opencensus:opencensus-contrib-http-util:0.31.1'
+  implementation 'com.google.code.gson:gson:2.10'
+  implementation "com.google.protobuf:protobuf-java-util:${versions.protobuf}"
+  implementation "com.google.protobuf:protobuf-java:${versions.protobuf}"
+  implementation 'com.google.api.grpc:proto-google-iam-v1:1.6.2'
+  implementation 'com.google.auth:google-auth-library-credentials:1.11.0'
+  implementation 'com.google.auth:google-auth-library-oauth2-http:1.11.0'
+  implementation "com.google.oauth-client:google-oauth-client:${versions.google_oauth_client}"
+  implementation 'com.google.api-client:google-api-client:2.1.1'
+  implementation 'com.google.http-client:google-http-client:1.42.3'
+  implementation 'com.google.http-client:google-http-client-gson:1.42.3'
+  implementation 'com.google.http-client:google-http-client-appengine:1.42.3'
+  implementation 'com.google.http-client:google-http-client-jackson2:1.42.3'
+  implementation "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
+  implementation 'com.google.api:gax-httpjson:0.105.1'
+  implementation 'io.grpc:grpc-context:1.49.2'
+  implementation 'io.opencensus:opencensus-api:0.31.1'
+  implementation 'io.opencensus:opencensus-contrib-http-util:0.31.1'
 }
 
 tasks.named("dependencyLicenses").configure {

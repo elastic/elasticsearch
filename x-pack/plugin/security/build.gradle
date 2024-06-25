@@ -80,7 +80,7 @@ dependencies {
 
   // Dependencies for oidc
   api "com.nimbusds:oauth2-oidc-sdk:11.10.1"
-  api "com.nimbusds:nimbus-jose-jwt:9.39.1"
+  api "com.nimbusds:nimbus-jose-jwt:9.39.3"
 //  api project(path: 'nimbus-jose-jwt', configuration: 'shadow')
 //  if (isEclipse) {
 //    /*

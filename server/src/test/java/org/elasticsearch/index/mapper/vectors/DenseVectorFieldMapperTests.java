@@ -65,7 +65,6 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-@com.carrotsearch.randomizedtesting.annotations.Repeat(iterations = 50)
 public class DenseVectorFieldMapperTests extends MapperTestCase {
 
     private static final IndexVersion INDEXED_BY_DEFAULT_PREVIOUS_INDEX_VERSION = IndexVersions.V_8_10_0;

@@ -7,7 +7,7 @@
 ++++
 
 Removes an individual query rule within an existing query ruleset.
-This is a destructive action that is only recoverable by re-adding the same rule via the <<put-query-rule, PUT query rule>> API.
+This is a destructive action that is only recoverable by re-adding the same rule via the <<put-query-rule, create or update query rule>> API.
 
 [[delete-query-rule-request]]
 ==== {api-request-title}

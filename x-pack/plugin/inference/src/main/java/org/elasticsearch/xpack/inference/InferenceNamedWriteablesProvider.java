@@ -24,6 +24,8 @@ import org.elasticsearch.xpack.core.inference.results.InferenceTextEmbeddingFloa
 import org.elasticsearch.xpack.core.inference.results.LegacyTextEmbeddingResults;
 import org.elasticsearch.xpack.core.inference.results.RankedDocsResults;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
+import org.elasticsearch.xpack.inference.services.anthropic.completion.AnthropicChatCompletionServiceSettings;
+import org.elasticsearch.xpack.inference.services.anthropic.completion.AnthropicChatCompletionTaskSettings;
 import org.elasticsearch.xpack.inference.services.azureaistudio.completion.AzureAiStudioChatCompletionServiceSettings;
 import org.elasticsearch.xpack.inference.services.azureaistudio.completion.AzureAiStudioChatCompletionTaskSettings;
 import org.elasticsearch.xpack.inference.services.azureaistudio.embeddings.AzureAiStudioEmbeddingsServiceSettings;
@@ -113,6 +115,7 @@ public class InferenceNamedWriteablesProvider {
         addGoogleAiStudioNamedWritables(namedWriteables);
         addMistralNamedWriteables(namedWriteables);
         addCustomElandWriteables(namedWriteables);
+        addAnthropicNamedWritables(namedWriteables);
 
         return namedWriteables;
     }
@@ -370,6 +373,23 @@ public class InferenceNamedWriteablesProvider {
         );
         namedWriteables.add(
             new NamedWriteableRegistry.Entry(TaskSettings.class, CustomElandRerankTaskSettings.NAME, CustomElandRerankTaskSettings::new)
+        );
+    }
+
+    private static void addAnthropicNamedWritables(List<NamedWriteableRegistry.Entry> namedWriteables) {
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(
+                ServiceSettings.class,
+                AnthropicChatCompletionServiceSettings.NAME,
+                AnthropicChatCompletionServiceSettings::new
+            )
+        );
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(
+                TaskSettings.class,
+                AnthropicChatCompletionTaskSettings.NAME,
+                AnthropicChatCompletionTaskSettings::new
+            )
         );
     }
 }

@@ -10,8 +10,7 @@ tests:
   method: "testGuessIsDayFirstFromLocale"
 - class: "org.elasticsearch.test.rest.ClientYamlTestSuiteIT"
   issue: "https://github.com/elastic/elasticsearch/issues/108857"
-  method: "test {yaml=search/180_locale_dependent_mapping/Test Index and Search locale\
-    \ dependent mappings / dates}"
+  method: "test {yaml=search/180_locale_dependent_mapping/Test Index and Search locale dependent mappings / dates}"
 - class: "org.elasticsearch.upgrades.SearchStatesIT"
   issue: "https://github.com/elastic/elasticsearch/issues/108991"
   method: "testCanMatch"
@@ -20,8 +19,7 @@ tests:
   method: "testTrainedModelInference"
 - class: "org.elasticsearch.xpack.security.CoreWithSecurityClientYamlTestSuiteIT"
   issue: "https://github.com/elastic/elasticsearch/issues/109188"
-  method: "test {yaml=search/180_locale_dependent_mapping/Test Index and Search locale\
-    \ dependent mappings / dates}"
+  method: "test {yaml=search/180_locale_dependent_mapping/Test Index and Search locale dependent mappings / dates}"
 - class: "org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT"
   issue: "https://github.com/elastic/elasticsearch/issues/109189"
   method: "test {p0=esql/70_locale/Date format with Italian locale}"
@@ -36,8 +34,7 @@ tests:
   method: "testTimestampFieldTypeExposedByAllIndicesServices"
 - class: "org.elasticsearch.analysis.common.CommonAnalysisClientYamlTestSuiteIT"
   issue: "https://github.com/elastic/elasticsearch/issues/109318"
-  method: "test {yaml=analysis-common/50_char_filters/pattern_replace error handling\
-    \ (too complex pattern)}"
+  method: "test {yaml=analysis-common/50_char_filters/pattern_replace error handling (too complex pattern)}"
 - class: "org.elasticsearch.xpack.ml.integration.ClassificationHousePricingIT"
   issue: "https://github.com/elastic/elasticsearch/issues/101598"
   method: "testFeatureImportanceValues"
@@ -62,9 +59,6 @@ tests:
 - class: org.elasticsearch.action.search.SearchProgressActionListenerIT
   method: testSearchProgressWithHits
   issue: https://github.com/elastic/elasticsearch/issues/109830
-- class: "org.elasticsearch.xpack.shutdown.NodeShutdownReadinessIT"
-  issue: "https://github.com/elastic/elasticsearch/issues/109838"
-  method: "testShutdownReadinessService"
 - class: "org.elasticsearch.xpack.security.ScrollHelperIntegTests"
   issue: "https://github.com/elastic/elasticsearch/issues/109905"
   method: "testFetchAllEntities"
@@ -77,8 +71,7 @@ tests:
   issue: "https://github.com/elastic/elasticsearch/issues/110015"
 - class: "org.elasticsearch.painless.LangPainlessClientYamlTestSuiteIT"
   issue: "https://github.com/elastic/elasticsearch/issues/110032"
-  method: "test {yaml=painless/140_dense_vector_basic/Test hamming distance fails\
-    \ on float}"
+  method: "test {yaml=painless/140_dense_vector_basic/Test hamming distance fails on float}"
 - class: "org.elasticsearch.action.admin.indices.rollover.RolloverIT"
   issue: "https://github.com/elastic/elasticsearch/issues/110034"
   method: "testRolloverWithClosedWriteIndex"
@@ -91,6 +84,12 @@ tests:
 - class: "org.elasticsearch.test.jvm_crash.JvmCrashIT"
   issue: "https://github.com/elastic/elasticsearch/issues/110052"
   method: "testJvmCrash"
+- class: org.elasticsearch.index.mapper.TextFieldMapperTests
+  method: testSyntheticSourceMany
+  issue: https://github.com/elastic/elasticsearch/issues/110161
+- class: org.elasticsearch.index.mapper.KeywordFieldMapperTests
+  method: testBlockLoaderFromRowStrideReader
+  issue: https://github.com/elastic/elasticsearch/issues/110163
 
 # Examples:
 #

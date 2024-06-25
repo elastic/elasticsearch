@@ -1059,7 +1059,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             float score(float similarity, ElementType elementType, int dim) {
                 return switch (elementType) {
                     case BYTE, FLOAT -> 1f / (1f + similarity * similarity);
-                    case BIT -> dim - (similarity * dim);
+                    case BIT -> (dim - similarity) / dim;
                 };
             }
 

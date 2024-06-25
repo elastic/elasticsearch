@@ -627,17 +627,13 @@ public class UnsignedLongFieldMapper extends FieldMapper {
         } else {
             try {
                 if (parser.currentToken().isValue() == false) {
-                    numericValue = null;
                     if (ignoreMalformed.value()) {
                         context.addIgnoredField(mappedFieldType.name());
                         if (isSourceSynthetic) {
                             context.doc().add(IgnoreMalformedStoredValues.storedField(fullPath(), context.parser()));
-                        } else {
-                            numericValue = parseUnsignedLong(parser.text());
                         }
-                    } else {
-                        numericValue = parseUnsignedLong(parser.text());
                     }
+                    numericValue = parseUnsignedLong(parser.text());
                 } else if (parser.currentToken() == XContentParser.Token.VALUE_NUMBER) {
                     numericValue = parseUnsignedLong(parser.numberValue());
                 } else {

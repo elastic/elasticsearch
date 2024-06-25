@@ -460,10 +460,16 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         }
         var source = source(ctx);
 
-        List<NamedExpression> matchFields = visitQualifiedNamePatterns(ctx.qualifiedNamePatterns(), ne -> {
+        @SuppressWarnings("unchecked")
+        List<Attribute> matchFields = (List<Attribute>) (List) visitQualifiedNamePatterns(ctx.qualifiedNamePatterns(), ne -> {
             if (ne instanceof UnresolvedNamePattern || ne instanceof UnresolvedStar) {
                 var src = ne.source();
                 throw new ParsingException(src, "Using wildcards [*] in LOOKUP ON is not allowed yet [{}]", src.text());
+            }
+            if ((ne instanceof UnresolvedAttribute) == false) {
+                throw new IllegalStateException(
+                    "visitQualifiedNamePatterns can only return UnresolvedNamePattern, UnresolvedStar or UnresolvedAttribute"
+                );
             }
         });
 

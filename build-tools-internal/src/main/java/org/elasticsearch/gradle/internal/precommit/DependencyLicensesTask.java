@@ -24,9 +24,9 @@ import org.gradle.api.provider.Property;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.specs.Spec;
 import org.gradle.api.tasks.CacheableTask;
-import org.gradle.api.tasks.Classpath;
 import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.InputDirectory;
+import org.gradle.api.tasks.InputFiles;
 import org.gradle.api.tasks.Optional;
 import org.gradle.api.tasks.OutputDirectory;
 import org.gradle.api.tasks.PathSensitive;
@@ -152,7 +152,8 @@ public abstract class DependencyLicensesTask extends DefaultTask {
         licensesDir = objects.directoryProperty().convention(projectLayout.getProjectDirectory().dir("licenses"));
     }
 
-    @Classpath
+    @InputFiles
+    @PathSensitive(PathSensitivity.NAME_ONLY)
     public FileCollection getDependencies() {
         return dependencies;
     }

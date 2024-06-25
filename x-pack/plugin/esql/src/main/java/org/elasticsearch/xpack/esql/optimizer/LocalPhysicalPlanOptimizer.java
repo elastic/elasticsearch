@@ -7,7 +7,12 @@
 
 package org.elasticsearch.xpack.esql.optimizer;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.geometry.Circle;
+import org.elasticsearch.geometry.Geometry;
+import org.elasticsearch.geometry.Point;
+import org.elasticsearch.geometry.utils.WellKnownBinary;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -19,6 +24,7 @@ import org.elasticsearch.xpack.esql.core.expression.AttributeMap;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.Order;
@@ -35,6 +41,7 @@ import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardLike
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.rule.ParameterizedRuleExecutor;
 import org.elasticsearch.xpack.esql.core.rule.Rule;
+import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Queries;
 import org.elasticsearch.xpack.esql.core.util.Queries.Clause;
@@ -42,8 +49,12 @@ import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialAggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.ip.CIDRMatch;
+import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialIntersects;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesFunction;
+import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesUtils;
+import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StDistance;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.InsensitiveBinaryComparison;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
@@ -65,6 +76,7 @@ import org.elasticsearch.xpack.esql.planner.AbstractPhysicalOperationProviders;
 import org.elasticsearch.xpack.esql.planner.EsqlTranslatorHandler;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 
+import java.nio.ByteOrder;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
@@ -111,6 +123,7 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
             esSourceRules.add(new PushLimitToSource());
             esSourceRules.add(new PushFiltersToSource());
             esSourceRules.add(new PushStatsToSource());
+            esSourceRules.add(new EnableSpatialDistancePushdown());
         }
 
         // execute the rules multiple times to improve the chances of things being pushed down
@@ -567,6 +580,116 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
             });
             // Disallow more than one spatial field to be extracted using doc-values (for now)
             return spatialRelatesAttributes.size() < 2;
+        }
+    }
+
+    /**
+     * When a spatial distance predicate can be pushed down to lucene, this is done by capturing the distance within the same function.
+     * In principle this is like re-writing the predicate:
+     * <pre>WHERE ST_DISTANCE(field, TO_GEOPOINT("POINT(0 0)")) &lt;= 10000</pre>
+     * as:
+     * <pre>WHERE ST_INTERSECTS(field, TO_GEOSHAPE("CIRCLE(0,0,10000)"))</pre>
+     */
+    public static class EnableSpatialDistancePushdown extends PhysicalOptimizerRules.ParameterizedOptimizerRule<
+        FilterExec,
+        LocalPhysicalOptimizerContext> {
+
+        @Override
+        protected PhysicalPlan rule(FilterExec filterExec, LocalPhysicalOptimizerContext ctx) {
+            PhysicalPlan plan = filterExec;
+            if (filterExec.child() instanceof EsQueryExec) {
+                if (filterExec.condition() instanceof EsqlBinaryComparison comparison) {
+                    ComparisonType comparisonType = ComparisonType.from(comparison.getFunctionType());
+                    if (comparison.left() instanceof StDistance dist && comparison.right().foldable()) {
+                        plan = rewriteComparison(filterExec, dist, comparison.right(), comparisonType);
+                    } else if (comparison.right() instanceof StDistance dist && comparison.left().foldable()) {
+                        plan = rewriteComparison(filterExec, dist, comparison.right(), ComparisonType.invert(comparisonType));
+                    }
+                }
+            }
+
+            return plan;
+        }
+
+        private FilterExec rewriteComparison(FilterExec filterExec, StDistance dist, Expression literal, ComparisonType comparisonType) {
+            // We currently only support spatial distance within a minimum range
+            if (comparisonType.lt) {
+                Object value = literal.fold();
+                if (value instanceof Number number) {
+                    if (dist.right().foldable()) {
+                        return rewriteDistanceFilter(filterExec, dist.source(), dist.left(), dist.right(), number, comparisonType.eq);
+                    } else if (dist.left().foldable()) {
+                        return rewriteDistanceFilter(filterExec, dist.source(), dist.right(), dist.left(), number, comparisonType.eq);
+                    }
+                }
+            }
+            return filterExec;
+        }
+
+        private FilterExec rewriteDistanceFilter(
+            FilterExec filterExec,
+            Source source,
+            Expression spatialExpression,
+            Expression literalExpression,
+            Number number,
+            boolean inclusive
+        ) {
+            Geometry geometry = SpatialRelatesUtils.makeGeometryFromLiteral(literalExpression);
+            if (geometry instanceof Point point) {
+                double distance = number.doubleValue();
+                if (inclusive == false) {
+                    distance = Math.nextDown(distance);
+                }
+                var circle = new Circle(point.getX(), point.getY(), distance);
+                var wkb = WellKnownBinary.toWKB(circle, ByteOrder.LITTLE_ENDIAN);
+                var cExp = new Literal(literalExpression.source(), new BytesRef(wkb), DataType.GEO_SHAPE);
+                return new FilterExec(filterExec.source(), filterExec.child(), new SpatialIntersects(source, spatialExpression, cExp));
+            }
+            return filterExec;
+        }
+
+        /**
+         * This enum captures the key differences between various inequalities as perceived from the spatial distance function.
+         * In particular, we need to know which direction the inequality points, with lt=true meaning the left is expected to be smaller
+         * than the right. And eq=true meaning we expect euality as well. We currently don't support Equals and NotEquals, so the third
+         * field disables those.
+         */
+        enum ComparisonType {
+            LTE(true, true, true),
+            LT(true, false, true),
+            GTE(false, true, true),
+            GT(false, false, true),
+            UNSUPPORTED(false, false, false);
+
+            private final boolean lt;
+            private final boolean eq;
+            private final boolean supported;
+
+            ComparisonType(boolean lt, boolean eq, boolean supported) {
+                this.lt = lt;
+                this.eq = eq;
+                this.supported = supported;
+            }
+
+            static ComparisonType from(EsqlBinaryComparison.BinaryComparisonOperation op) {
+                return switch (op) {
+                    case LT -> LT;
+                    case LTE -> LTE;
+                    case GT -> GT;
+                    case GTE -> GTE;
+                    default -> UNSUPPORTED;
+                };
+            }
+
+            static ComparisonType invert(ComparisonType comparisonType) {
+                return switch (comparisonType) {
+                    case LT -> GT;
+                    case LTE -> GTE;
+                    case GT -> LT;
+                    case GTE -> LTE;
+                    default -> UNSUPPORTED;
+                };
+            }
         }
     }
 }

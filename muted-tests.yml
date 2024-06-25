@@ -62,9 +62,6 @@ tests:
 - class: org.elasticsearch.action.search.SearchProgressActionListenerIT
   method: testSearchProgressWithHits
   issue: https://github.com/elastic/elasticsearch/issues/109830
-- class: "org.elasticsearch.xpack.shutdown.NodeShutdownReadinessIT"
-  issue: "https://github.com/elastic/elasticsearch/issues/109838"
-  method: "testShutdownReadinessService"
 - class: "org.elasticsearch.xpack.security.ScrollHelperIntegTests"
   issue: "https://github.com/elastic/elasticsearch/issues/109905"
   method: "testFetchAllEntities"

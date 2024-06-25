@@ -286,6 +286,10 @@ public class ClusterStateCreationUtils {
                 .settings(
                     indexSettings(IndexVersion.current(), numberOfPrimaries, 0).put(SETTING_CREATION_DATE, System.currentTimeMillis())
                 )
+                .eventIngestedRange(
+                    IndexLongFieldRange.UNKNOWN,
+                    randomFrom(TransportVersions.V_8_0_0, TransportVersions.EVENT_INGESTED_RANGE_IN_CLUSTER_STATE)
+                )
                 .build();
 
             IndexRoutingTable.Builder indexRoutingTable = IndexRoutingTable.builder(indexMetadata.getIndex());

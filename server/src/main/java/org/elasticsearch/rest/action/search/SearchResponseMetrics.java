@@ -17,9 +17,19 @@ import java.util.Map;
 public class SearchResponseMetrics {
 
     public enum ResponseCountTotalStatus {
-        SUCCESS,
-        PARTIAL_FAILURE,
-        FAILURE
+        SUCCESS("succes"),
+        PARTIAL_FAILURE("partial_failure"),
+        FAILURE("failure");
+
+        private final String displayName;
+
+        ResponseCountTotalStatus(String displayName) {
+            this.displayName = displayName;
+        }
+
+        public String getDisplayName() {
+            return displayName;
+        }
     }
 
     public static final String RESPONSE_COUNT_TOTAL_STATUS_ATTRIBUTE_NAME = "status";
@@ -57,6 +67,9 @@ public class SearchResponseMetrics {
     }
 
     public void incrementResponseCount(ResponseCountTotalStatus responseCountTotalStatus) {
-        responseCountTotalCounter.incrementBy(1L, Map.of(RESPONSE_COUNT_TOTAL_STATUS_ATTRIBUTE_NAME, responseCountTotalStatus));
+        responseCountTotalCounter.incrementBy(
+            1L,
+            Map.of(RESPONSE_COUNT_TOTAL_STATUS_ATTRIBUTE_NAME, responseCountTotalStatus.getDisplayName())
+        );
     }
 }

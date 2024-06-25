@@ -314,8 +314,10 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                             }
                         }
                     }
-                    searchResponseMetrics.incrementResponseCount(responseCountTotalStatus);
                     listener.onResponse(searchResponse);
+                    // increment after the delegated onResponse to ensure we don't
+                    // record both a success and a failure if there is an exception
+                    searchResponseMetrics.incrementResponseCount(responseCountTotalStatus);
                 } catch (Exception e) {
                     onFailure(e);
                 }

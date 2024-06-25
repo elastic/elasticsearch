@@ -106,7 +106,7 @@ public class SearchResponseCountTelemetryTests extends ESSingleNodeTestCase {
         assertThat(measurements.get(0).getLong(), equalTo(1L));
         assertThat(
             measurements.get(0).attributes().get(RESPONSE_COUNT_TOTAL_STATUS_ATTRIBUTE_NAME),
-            equalTo(SearchResponseMetrics.ResponseCountTotalStatus.SUCCESS)
+            equalTo(SearchResponseMetrics.ResponseCountTotalStatus.SUCCESS.getDisplayName())
         );
     }
 
@@ -121,7 +121,7 @@ public class SearchResponseCountTelemetryTests extends ESSingleNodeTestCase {
             assertThat(measurements.get(0).getLong(), equalTo(1L));
             assertThat(
                 measurements.get(0).attributes().get(RESPONSE_COUNT_TOTAL_STATUS_ATTRIBUTE_NAME),
-                equalTo(SearchResponseMetrics.ResponseCountTotalStatus.PARTIAL_FAILURE)
+                equalTo(SearchResponseMetrics.ResponseCountTotalStatus.PARTIAL_FAILURE.getDisplayName())
             );
         } finally {
             searchResponse.decRef();
@@ -140,7 +140,7 @@ public class SearchResponseCountTelemetryTests extends ESSingleNodeTestCase {
         assertThat(measurements.get(0).getLong(), equalTo(1L));
         assertThat(
             measurements.get(0).attributes().get(RESPONSE_COUNT_TOTAL_STATUS_ATTRIBUTE_NAME),
-            equalTo(SearchResponseMetrics.ResponseCountTotalStatus.FAILURE)
+            equalTo(SearchResponseMetrics.ResponseCountTotalStatus.FAILURE.getDisplayName())
         );
     }
 
@@ -157,7 +157,7 @@ public class SearchResponseCountTelemetryTests extends ESSingleNodeTestCase {
                     assertThat(measurements.get(0).getLong(), equalTo(1L));
                     assertThat(
                         measurements.get(0).attributes().get(RESPONSE_COUNT_TOTAL_STATUS_ATTRIBUTE_NAME),
-                        equalTo(SearchResponseMetrics.ResponseCountTotalStatus.SUCCESS)
+                        equalTo(SearchResponseMetrics.ResponseCountTotalStatus.SUCCESS.getDisplayName())
                     );
                 }
                 resetMeter();
@@ -180,7 +180,7 @@ public class SearchResponseCountTelemetryTests extends ESSingleNodeTestCase {
             assertThat(measurements.get(0).getLong(), equalTo(1L));  // should be one partially failed search response
             assertThat(
                 measurements.get(0).attributes().get(RESPONSE_COUNT_TOTAL_STATUS_ATTRIBUTE_NAME),
-                equalTo(SearchResponseMetrics.ResponseCountTotalStatus.PARTIAL_FAILURE)
+                equalTo(SearchResponseMetrics.ResponseCountTotalStatus.PARTIAL_FAILURE.getDisplayName())
             );
 
             while (scrollResponse.getHits().getHits().length > 0) {
@@ -194,7 +194,7 @@ public class SearchResponseCountTelemetryTests extends ESSingleNodeTestCase {
                 assertThat(measurements.get(expectedNumMeasurements - 1).getLong(), equalTo(1L));
                 assertThat(
                     measurements.get(expectedNumMeasurements - 1).attributes().get(RESPONSE_COUNT_TOTAL_STATUS_ATTRIBUTE_NAME),
-                    equalTo(SearchResponseMetrics.ResponseCountTotalStatus.SUCCESS)
+                    equalTo(SearchResponseMetrics.ResponseCountTotalStatus.SUCCESS.getDisplayName())
                 );
             }
         } finally {
@@ -216,7 +216,7 @@ public class SearchResponseCountTelemetryTests extends ESSingleNodeTestCase {
         assertThat(measurements.get(0).getLong(), equalTo(1L));
         assertThat(
             measurements.get(0).attributes().get(RESPONSE_COUNT_TOTAL_STATUS_ATTRIBUTE_NAME),
-            equalTo(SearchResponseMetrics.ResponseCountTotalStatus.FAILURE)
+            equalTo(SearchResponseMetrics.ResponseCountTotalStatus.FAILURE.getDisplayName())
         );
     }
 }

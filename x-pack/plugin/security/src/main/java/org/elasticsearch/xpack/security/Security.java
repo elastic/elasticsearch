@@ -789,7 +789,8 @@ public class Security extends Plugin
         this.persistentTasksService.set(persistentTasksService);
 
         systemIndices.getMainIndexManager().addStateListener((oldState, newState) -> {
-            if (clusterService.state().nodes().isLocalNodeElectedMaster() && oldState != UNRECOVERED_STATE) {
+            // Only consider applying migrations if it's the master node and the security index exists
+            if (clusterService.state().nodes().isLocalNodeElectedMaster() && newState.indexExists()) {
                 applyPendingSecurityMigrations(oldState, newState);
             }
         });
@@ -1203,8 +1204,15 @@ public class Security extends Plugin
         return components;
     }
 
+    private boolean newIndexCreated(SecurityIndexManager.State oldState, SecurityIndexManager.State newState) {
+        // If we went from an old state where the index didn't exist to a state where the index exists and the old state was recovered
+        // (valid), we can assume it's a newly created index. If the old state was not recovered and the index exists in the new state we
+        // can assume the recovered state contained the index, so it's not new.
+        return newState.indexExists() && oldState != UNRECOVERED_STATE && oldState.indexExists() == false;
+    }
+
     private void applyPendingSecurityMigrations(SecurityIndexManager.State oldState, SecurityIndexManager.State newState) {
-        if (oldState.creationTime == null) {
+        if (newIndexCreated(oldState, newState)) {
             // Bypass migrations for when the security index is new
             submitPersistentMigrationTask(SecurityMigrations.MIGRATIONS_BY_VERSION.lastKey(), false);
             return;

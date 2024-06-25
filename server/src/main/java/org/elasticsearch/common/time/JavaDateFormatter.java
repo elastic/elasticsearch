@@ -18,7 +18,6 @@ import java.time.temporal.IsoFields;
 import java.time.temporal.TemporalAccessor;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -149,19 +148,24 @@ class JavaDateFormatter implements DateFormatter {
         assert formatters.isEmpty() == false;
 
         DateTimePrinter printer = null;
-        List<DateTimeParser> parsers = new ArrayList<>(formatters.size());
-        List<DateTimeParser> roundUpParsers = new ArrayList<>(formatters.size());
+        List<DateTimeParser[]> parsers = new ArrayList<>(formatters.size());
+        List<DateTimeParser[]> roundUpParsers = new ArrayList<>(formatters.size());
 
         for (DateFormatter formatter : formatters) {
             JavaDateFormatter javaDateFormatter = (JavaDateFormatter) formatter;
             if (printer == null) {
                 printer = javaDateFormatter.printer;
             }
-            Collections.addAll(parsers, javaDateFormatter.parsers);
-            Collections.addAll(roundUpParsers, javaDateFormatter.roundupParsers);
+            parsers.add(javaDateFormatter.parsers);
+            roundUpParsers.add(javaDateFormatter.roundupParsers);
         }
 
-        return new JavaDateFormatter(input, printer, roundUpParsers.toArray(DateTimeParser[]::new), parsers.toArray(DateTimeParser[]::new));
+        return new JavaDateFormatter(
+            input,
+            printer,
+            roundUpParsers.stream().flatMap(Arrays::stream).toArray(DateTimeParser[]::new),
+            parsers.stream().flatMap(Arrays::stream).toArray(DateTimeParser[]::new)
+        );
     }
 
     private JavaDateFormatter(String format, DateTimePrinter printer, DateTimeParser[] roundupParsers, DateTimeParser[] parsers) {

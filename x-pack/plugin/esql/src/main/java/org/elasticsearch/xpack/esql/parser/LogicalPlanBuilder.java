@@ -95,15 +95,18 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     protected LogicalPlan plan(ParseTree ctx) {
         LogicalPlan p = ParserUtils.typedParsing(this, ctx, LogicalPlan.class);
         var errors = this.params.parsingErrors();
-        if (errors.isEmpty()) {
+        if (errors.hasNext() == false) {
             return p;
         } else {
             StringBuilder message = new StringBuilder();
-            for (int i = 0; i < errors.size(); i++) {
+            int i = 0;
+
+            while (errors.hasNext()) {
                 if (i > 0) {
                     message.append("; ");
                 }
-                message.append(errors.get(i).getMessage());
+                message.append(errors.next().getMessage());
+                i++;
             }
             throw new ParsingException(message.toString());
         }
@@ -453,10 +456,16 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         }
         var source = source(ctx);
 
-        List<NamedExpression> matchFields = visitQualifiedNamePatterns(ctx.qualifiedNamePatterns(), ne -> {
+        @SuppressWarnings("unchecked")
+        List<Attribute> matchFields = (List<Attribute>) (List) visitQualifiedNamePatterns(ctx.qualifiedNamePatterns(), ne -> {
             if (ne instanceof UnresolvedNamePattern || ne instanceof UnresolvedStar) {
                 var src = ne.source();
                 throw new ParsingException(src, "Using wildcards [*] in LOOKUP ON is not allowed yet [{}]", src.text());
+            }
+            if ((ne instanceof UnresolvedAttribute) == false) {
+                throw new IllegalStateException(
+                    "visitQualifiedNamePatterns can only return UnresolvedNamePattern, UnresolvedStar or UnresolvedAttribute"
+                );
             }
         });
 

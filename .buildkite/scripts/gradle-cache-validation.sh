@@ -27,5 +27,5 @@ elif [ $retval -eq 3 ]; then
     echo "An unclassified, fatal error happened while running the experiment"
 fi
 
-exit retval
+exit $retval
 

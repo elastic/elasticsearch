@@ -176,36 +176,47 @@ public final class IndexPrivilege extends Privilege {
         "internal:transport/proxy/indices:internal/admin/ccr/restore/file_chunk/get*"
     );
 
-    public static final IndexPrivilege NONE = new IndexPrivilege("none", Automatons.EMPTY);
-    public static final IndexPrivilege ALL = new IndexPrivilege("all", ALL_AUTOMATON);
-    public static final IndexPrivilege READ = new IndexPrivilege("read", READ_AUTOMATON);
-    public static final IndexPrivilege READ_CROSS_CLUSTER = new IndexPrivilege("read_cross_cluster", READ_CROSS_CLUSTER_AUTOMATON);
-    public static final IndexPrivilege CREATE = new IndexPrivilege("create", CREATE_AUTOMATON);
-    public static final IndexPrivilege INDEX = new IndexPrivilege("index", INDEX_AUTOMATON);
-    public static final IndexPrivilege DELETE = new IndexPrivilege("delete", DELETE_AUTOMATON);
-    public static final IndexPrivilege WRITE = new IndexPrivilege("write", WRITE_AUTOMATON);
-    public static final IndexPrivilege CREATE_DOC = new IndexPrivilege("create_doc", CREATE_DOC_AUTOMATON);
-    public static final IndexPrivilege MONITOR = new IndexPrivilege("monitor", MONITOR_AUTOMATON);
-    public static final IndexPrivilege MANAGE = new IndexPrivilege("manage", MANAGE_AUTOMATON);
-    public static final IndexPrivilege DELETE_INDEX = new IndexPrivilege("delete_index", DELETE_INDEX_AUTOMATON);
-    public static final IndexPrivilege CREATE_INDEX = new IndexPrivilege("create_index", CREATE_INDEX_AUTOMATON);
-    public static final IndexPrivilege VIEW_METADATA = new IndexPrivilege("view_index_metadata", VIEW_METADATA_AUTOMATON);
-    public static final IndexPrivilege MANAGE_FOLLOW_INDEX = new IndexPrivilege("manage_follow_index", MANAGE_FOLLOW_INDEX_AUTOMATON);
-    public static final IndexPrivilege MANAGE_LEADER_INDEX = new IndexPrivilege("manage_leader_index", MANAGE_LEADER_INDEX_AUTOMATON);
-    public static final IndexPrivilege MANAGE_ILM = new IndexPrivilege("manage_ilm", MANAGE_ILM_AUTOMATON);
+    public static final IndexPrivilege NONE = new IndexPrivilege("none", Automatons.EMPTY, true);
+    public static final IndexPrivilege ALL = new IndexPrivilege("all", ALL_AUTOMATON, true);
+    public static final IndexPrivilege READ = new IndexPrivilege("read", READ_AUTOMATON, true);
+    public static final IndexPrivilege READ_CROSS_CLUSTER = new IndexPrivilege("read_cross_cluster", READ_CROSS_CLUSTER_AUTOMATON, false);
+    public static final IndexPrivilege CREATE = new IndexPrivilege("create", CREATE_AUTOMATON, true);
+    public static final IndexPrivilege INDEX = new IndexPrivilege("index", INDEX_AUTOMATON, true);
+    public static final IndexPrivilege DELETE = new IndexPrivilege("delete", DELETE_AUTOMATON, true);
+    public static final IndexPrivilege WRITE = new IndexPrivilege("write", WRITE_AUTOMATON, true);
+    public static final IndexPrivilege CREATE_DOC = new IndexPrivilege("create_doc", CREATE_DOC_AUTOMATON, true);
+    public static final IndexPrivilege MONITOR = new IndexPrivilege("monitor", MONITOR_AUTOMATON, true);
+    public static final IndexPrivilege MANAGE = new IndexPrivilege("manage", MANAGE_AUTOMATON, true);
+    public static final IndexPrivilege DELETE_INDEX = new IndexPrivilege("delete_index", DELETE_INDEX_AUTOMATON, true);
+    public static final IndexPrivilege CREATE_INDEX = new IndexPrivilege("create_index", CREATE_INDEX_AUTOMATON, true);
+    public static final IndexPrivilege VIEW_METADATA = new IndexPrivilege("view_index_metadata", VIEW_METADATA_AUTOMATON, true);
+    public static final IndexPrivilege MANAGE_FOLLOW_INDEX = new IndexPrivilege(
+        "manage_follow_index",
+        MANAGE_FOLLOW_INDEX_AUTOMATON,
+        false
+    );
+    public static final IndexPrivilege MANAGE_LEADER_INDEX = new IndexPrivilege(
+        "manage_leader_index",
+        MANAGE_LEADER_INDEX_AUTOMATON,
+        false
+    );
+    public static final IndexPrivilege MANAGE_ILM = new IndexPrivilege("manage_ilm", MANAGE_ILM_AUTOMATON, false);
     public static final IndexPrivilege MANAGE_DATA_STREAM_LIFECYCLE = new IndexPrivilege(
         "manage_data_stream_lifecycle",
-        MANAGE_DATA_STREAM_LIFECYCLE_AUTOMATON
+        MANAGE_DATA_STREAM_LIFECYCLE_AUTOMATON,
+        true
     );
-    public static final IndexPrivilege MAINTENANCE = new IndexPrivilege("maintenance", MAINTENANCE_AUTOMATON);
-    public static final IndexPrivilege AUTO_CONFIGURE = new IndexPrivilege("auto_configure", AUTO_CONFIGURE_AUTOMATON);
+    public static final IndexPrivilege MAINTENANCE = new IndexPrivilege("maintenance", MAINTENANCE_AUTOMATON, true);
+    public static final IndexPrivilege AUTO_CONFIGURE = new IndexPrivilege("auto_configure", AUTO_CONFIGURE_AUTOMATON, true);
     public static final IndexPrivilege CROSS_CLUSTER_REPLICATION = new IndexPrivilege(
         "cross_cluster_replication",
-        CROSS_CLUSTER_REPLICATION_AUTOMATON
+        CROSS_CLUSTER_REPLICATION_AUTOMATON,
+        false
     );
     public static final IndexPrivilege CROSS_CLUSTER_REPLICATION_INTERNAL = new IndexPrivilege(
         "cross_cluster_replication_internal",
-        CROSS_CLUSTER_REPLICATION_INTERNAL_AUTOMATON
+        CROSS_CLUSTER_REPLICATION_INTERNAL_AUTOMATON,
+        false
     );
 
     @SuppressWarnings("unchecked")
@@ -241,12 +252,15 @@ public final class IndexPrivilege extends Privilege {
 
     private static final ConcurrentHashMap<Set<String>, IndexPrivilege> CACHE = new ConcurrentHashMap<>();
 
-    private IndexPrivilege(String name, Automaton automaton) {
-        super(Collections.singleton(name), automaton);
+    private final boolean isSupportedInServerlessMode;
+
+    private IndexPrivilege(String name, Automaton automaton, boolean isSupportedInServerlessMode) {
+        this(Collections.singleton(name), automaton, isSupportedInServerlessMode);
     }
 
-    private IndexPrivilege(Set<String> name, Automaton automaton) {
+    private IndexPrivilege(Set<String> name, Automaton automaton, boolean isSupportedInServerlessMode) {
         super(name, automaton);
+        this.isSupportedInServerlessMode = isSupportedInServerlessMode;
     }
 
     public static IndexPrivilege get(Set<String> name) {
@@ -299,11 +313,15 @@ public final class IndexPrivilege extends Privilege {
         if (actions.isEmpty() == false) {
             automata.add(patterns(actions));
         }
-        return new IndexPrivilege(name, unionAndMinimize(automata));
+        return new IndexPrivilege(name, unionAndMinimize(automata), false);
     }
 
     static Map<String, IndexPrivilege> values() {
         return VALUES;
+    }
+
+    public static Set<IndexPrivilege> privileges() {
+        return Set.copyOf(VALUES.values());
     }
 
     public static Set<String> names() {
@@ -318,5 +336,9 @@ public final class IndexPrivilege extends Privilege {
      */
     public static Collection<String> findPrivilegesThatGrant(String action) {
         return VALUES.entrySet().stream().filter(e -> e.getValue().predicate.test(action)).map(e -> e.getKey()).toList();
+    }
+
+    public boolean isSupportedInServerlessMode() {
+        return isSupportedInServerlessMode;
     }
 }

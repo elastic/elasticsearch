@@ -43,6 +43,11 @@ public class ManageOwnApiKeyClusterPrivilege implements NamedClusterPrivilege {
     }
 
     @Override
+    public boolean isSupportedInServerlessMode() {
+        return true;
+    }
+
+    @Override
     public ClusterPermission.Builder buildPermission(ClusterPermission.Builder builder) {
         return builder.add(this, ManageOwnClusterPermissionCheck.INSTANCE);
     }

@@ -28,4 +28,6 @@ public interface NamedClusterPrivilege extends ClusterPrivilege {
      */
     ClusterPermission permission();
 
+    boolean isSupportedInServerlessMode();
+
 }

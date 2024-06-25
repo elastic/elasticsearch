@@ -1,0 +1,5 @@
+pr: 110116
+summary: "[ESQL] Make query wrapped by `SingleValueQuery` cacheable"
+area: EQL
+type: enhancement
+issues: []

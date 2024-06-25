@@ -86,8 +86,11 @@ public class ClusterSerializationTests extends ESAllocationTestCase {
     }
 
     public void testClusterStateSerializationWithTimestampRangesWithOlderTransportVersion() throws Exception {
-        TransportVersion versionBeforeEventIngestedInClusterState = randomFrom(TransportVersions.V_7_0_0, TransportVersions.V_8_0_0);
-
+        TransportVersion versionBeforeEventIngestedInClusterState = randomFrom(
+            TransportVersions.V_7_0_0,
+            TransportVersions.V_8_0_0,
+            TransportVersions.ML_ANTHROPIC_INTEGRATION_ADDED  // version before EVENT_INGESTED_RANGE_IN_CLUSTER_STATE
+        );
         {
             IndexLongFieldRange eventIngestedRangeInput = randomFrom(
                 IndexLongFieldRange.UNKNOWN,
@@ -126,7 +129,7 @@ public class ClusterSerializationTests extends ESAllocationTestCase {
                 .settings(settings(IndexVersion.current()))
                 .numberOfShards(10)
                 .numberOfReplicas(1)
-                .eventIngestedRange(eventIngestedRangeInput, null);
+                .eventIngestedRange(eventIngestedRangeInput, TransportVersion.current());
 
             AssertionError assertionError = expectThrows(
                 AssertionError.class,

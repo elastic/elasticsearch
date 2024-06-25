@@ -945,8 +945,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             return this;
         }
         IndexLongFieldRange allowedEventIngestedRange = eventIngestedRange;
+        // remove this check when the EVENT_INGESTED_RANGE_IN_CLUSTER_STATE version is removed
         if (minClusterTransportVersion.before(TransportVersions.EVENT_INGESTED_RANGE_IN_CLUSTER_STATE)) {
-            // while still in mixed-cluster state, keep the event.ingested range as UNKNOWN in cluster state
             allowedEventIngestedRange = IndexLongFieldRange.UNKNOWN;
         }
         return new IndexMetadata(
@@ -2200,6 +2200,11 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
         public Builder eventIngestedRange(IndexLongFieldRange eventIngestedRange, TransportVersion minClusterTransportVersion) {
             assert eventIngestedRange != null : "eventIngestedRange cannot be null";
+            assert minClusterTransportVersion != null || eventIngestedRange == IndexLongFieldRange.UNKNOWN
+                : "eventIngestedRange should only be UNKNOWN if minClusterTransportVersion is null, but minClusterTransportVersion: "
+                    + minClusterTransportVersion
+                    + "; eventIngestedRange = "
+                    + eventIngestedRange;
             if (minClusterTransportVersion != null
                 && minClusterTransportVersion.before(TransportVersions.EVENT_INGESTED_RANGE_IN_CLUSTER_STATE)) {
                 this.eventIngestedRange = IndexLongFieldRange.UNKNOWN;
@@ -2649,7 +2654,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                             builder.timestampRange(IndexLongFieldRange.fromXContent(parser));
                             break;
                         case KEY_EVENT_INGESTED_RANGE:
-                            builder.eventIngestedRange(IndexLongFieldRange.fromXContent(parser), TransportVersion.current());
+                            builder.eventIngestedRange(IndexLongFieldRange.fromXContent(parser));
                             break;
                         case KEY_STATS:
                             builder.stats(IndexMetadataStats.fromXContent(parser));

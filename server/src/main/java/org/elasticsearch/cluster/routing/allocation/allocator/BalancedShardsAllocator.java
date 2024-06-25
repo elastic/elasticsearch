@@ -68,7 +68,7 @@ import static org.elasticsearch.common.settings.ClusterSettings.createBuiltInClu
  *     <li>even shard count across nodes (weighted by cluster.routing.allocation.balance.shard)</li>
  *     <li>spread shards of the same index across different nodes (weighted by cluster.routing.allocation.balance.index)</li>
  *     <li>even write load of the data streams write indices across nodes (weighted by cluster.routing.allocation.balance.write_load)</li>
- *     <li>even disk usage across nodes (weighted by cluster.routing.allocation.balance.write_load)</li>
+ *     <li>even disk usage across nodes (weighted by cluster.routing.allocation.balance.disk_usage)</li>
  * </ul>
  * The sensitivity of the algorithm is defined by cluster.routing.allocation.balance.threshold.
  * Allocator takes into account constraints set by {@code AllocationDeciders} when allocating and balancing shards.

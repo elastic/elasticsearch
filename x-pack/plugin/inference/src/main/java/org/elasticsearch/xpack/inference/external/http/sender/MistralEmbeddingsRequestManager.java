@@ -16,8 +16,8 @@ import org.elasticsearch.xpack.inference.common.Truncator;
 import org.elasticsearch.xpack.inference.external.http.retry.RequestSender;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
 import org.elasticsearch.xpack.inference.external.request.mistral.MistralEmbeddingsRequest;
-import org.elasticsearch.xpack.inference.external.response.AzureMistralOpenAiErrorResponseEntity;
 import org.elasticsearch.xpack.inference.external.response.AzureMistralOpenAiExternalResponseHandler;
+import org.elasticsearch.xpack.inference.external.response.ErrorMessageResponseEntity;
 import org.elasticsearch.xpack.inference.external.response.mistral.MistralEmbeddingsResponseEntity;
 import org.elasticsearch.xpack.inference.services.mistral.embeddings.MistralEmbeddingsModel;
 
@@ -38,7 +38,7 @@ public class MistralEmbeddingsRequestManager extends BaseRequestManager {
         return new AzureMistralOpenAiExternalResponseHandler(
             "mistral text embedding",
             new MistralEmbeddingsResponseEntity(),
-            AzureMistralOpenAiErrorResponseEntity::fromResponse
+            ErrorMessageResponseEntity::fromResponse
         );
     }
 

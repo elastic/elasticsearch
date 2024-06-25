@@ -7,6 +7,9 @@
 
 package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.TopListDoubleAggregatorFunctionSupplier;
@@ -38,6 +41,8 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isStr
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 
 public class TopList extends AggregateFunction implements ToAggregator, SurrogateExpression {
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "TopList", TopList::new);
+
     private static final String ORDER_ASC = "ASC";
     private static final String ORDER_DESC = "DESC";
 
@@ -64,24 +69,35 @@ public class TopList extends AggregateFunction implements ToAggregator, Surrogat
         super(source, field, Arrays.asList(limit, order));
     }
 
-    public static TopList readFrom(PlanStreamInput in) throws IOException {
-        return new TopList(Source.readFrom(in), in.readExpression(), in.readExpression(), in.readExpression());
+    private TopList(StreamInput in) throws IOException {
+        this(
+            Source.readFrom((PlanStreamInput) in),
+            ((PlanStreamInput) in).readExpression(),
+            ((PlanStreamInput) in).readExpression(),
+            ((PlanStreamInput) in).readExpression()
+        );
     }
 
-    public void writeTo(PlanStreamOutput out) throws IOException {
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
         source().writeTo(out);
         List<Expression> fields = children();
         assert fields.size() == 3;
-        out.writeExpression(fields.get(0));
-        out.writeExpression(fields.get(1));
-        out.writeExpression(fields.get(2));
+        ((PlanStreamOutput) out).writeExpression(fields.get(0));
+        ((PlanStreamOutput) out).writeExpression(fields.get(1));
+        ((PlanStreamOutput) out).writeExpression(fields.get(2));
     }
 
-    private Expression limitField() {
+    @Override
+    public String getWriteableName() {
+        return ENTRY.name;
+    }
+
+    Expression limitField() {
         return parameters().get(0);
     }
 
-    private Expression orderField() {
+    Expression orderField() {
         return parameters().get(1);
     }
 

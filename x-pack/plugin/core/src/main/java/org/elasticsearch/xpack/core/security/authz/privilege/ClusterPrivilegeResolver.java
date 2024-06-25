@@ -174,6 +174,7 @@ public class ClusterPrivilegeResolver {
     );
 
     private static final Set<String> MANAGE_SEARCH_APPLICATION_PATTERN = Set.of("cluster:admin/xpack/application/search_application/*");
+    private static final Set<String> MANAGE_SEARCH_CONNECTOR_PATTERN = Set.of("cluster:admin/xpack/connector/*");
     private static final Set<String> MANAGE_SEARCH_QUERY_RULES_PATTERN = Set.of("cluster:admin/xpack/query_rules/*");
     private static final Set<String> MANAGE_SEARCH_SYNONYMS_PATTERN = Set.of(
         "cluster:admin/synonyms/*",
@@ -332,6 +333,10 @@ public class ClusterPrivilegeResolver {
         "manage_search_application",
         MANAGE_SEARCH_APPLICATION_PATTERN
     );
+    public static final NamedClusterPrivilege MANAGE_SEARCH_CONNECTOR = new ActionClusterPrivilege(
+        "manage_search_connector",
+        MANAGE_SEARCH_CONNECTOR_PATTERN
+    );
     public static final NamedClusterPrivilege MANAGE_SEARCH_SYNONYMS = new ActionClusterPrivilege(
         "manage_search_synonyms",
         MANAGE_SEARCH_SYNONYMS_PATTERN
@@ -437,6 +442,7 @@ public class ClusterPrivilegeResolver {
             WRITE_FLEET_SECRETS,
             CANCEL_TASK,
             MANAGE_SEARCH_APPLICATION,
+            MANAGE_SEARCH_CONNECTOR,
             MANAGE_SEARCH_SYNONYMS,
             MANAGE_BEHAVIORAL_ANALYTICS,
             POST_BEHAVIORAL_ANALYTICS_EVENT,

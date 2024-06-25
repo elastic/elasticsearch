@@ -92,6 +92,7 @@ A successful call returns an object with "cluster", "index", and "remote_cluster
     "manage_rollup",
     "manage_saml",
     "manage_search_application",
+    "manage_search_connector",
     "manage_search_query_rules",
     "manage_search_synonyms",
     "manage_security",

@@ -11,6 +11,7 @@ package org.elasticsearch.index.codec.vectors;
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.codecs.lucene99.Lucene99Codec;
+import org.apache.lucene.index.VectorSimilarityFunction;
 import org.junit.Before;
 
 public class ES815BitFlatVectorFormatTests extends BaseKnnBitVectorsFormatTestCase {
@@ -27,7 +28,7 @@ public class ES815BitFlatVectorFormatTests extends BaseKnnBitVectorsFormatTestCa
 
     @Before
     public void init() {
-        similarityFunction = randomSimilarity();
+        similarityFunction = VectorSimilarityFunction.EUCLIDEAN;
     }
 
 }

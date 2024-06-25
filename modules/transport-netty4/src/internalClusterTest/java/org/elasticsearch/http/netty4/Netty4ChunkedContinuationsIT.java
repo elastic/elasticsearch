@@ -74,6 +74,7 @@ import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.LeakTracker;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.netty4.Netty4Utils;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -316,13 +317,14 @@ public class Netty4ChunkedContinuationsIT extends ESNetty4IntegTestCase {
     private static Releasable withResourceTracker() {
         assertNull(refs);
         final var latch = new CountDownLatch(1);
-        refs = AbstractRefCounted.of(latch::countDown);
+        refs = LeakTracker.wrap(AbstractRefCounted.of(latch::countDown));
         return () -> {
             refs.decRef();
             try {
                 safeAwait(latch);
             } finally {
                 refs = null;
+                System.gc();
             }
         };
     }

@@ -23,6 +23,7 @@ import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsRequest;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsResponse;
 import org.elasticsearch.action.admin.cluster.shards.TransportClusterSearchShardsAction;
+import org.elasticsearch.action.admin.cluster.stats.CCSUsage;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -83,6 +84,7 @@ import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.usage.UsageService;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentFactory;
 
@@ -155,6 +157,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     private final boolean ccsCheckCompatibility;
     private final SearchResponseMetrics searchResponseMetrics;
     private final Client client;
+    private final UsageService usageService;
 
     @Inject
     public TransportSearchAction(
@@ -171,7 +174,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         ExecutorSelector executorSelector,
         SearchTransportAPMMetrics searchTransportMetrics,
         SearchResponseMetrics searchResponseMetrics,
-        Client client
+        Client client,
+        UsageService usageService
     ) {
         super(TYPE.name(), transportService, actionFilters, SearchRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.threadPool = threadPool;
@@ -190,6 +194,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         this.ccsCheckCompatibility = SearchService.CCS_VERSION_CHECK_SETTING.get(clusterService.getSettings());
         this.searchResponseMetrics = searchResponseMetrics;
         this.client = client;
+        this.usageService = usageService;
     }
 
     private Map<String, OriginalIndices> buildPerIndexOriginalIndices(
@@ -326,10 +331,15 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                             }
                         }
                     }
-                    listener.onResponse(searchResponse);
                     // increment after the delegated onResponse to ensure we don't
                     // record both a success and a failure if there is an exception
                     searchResponseMetrics.incrementResponseCount(responseCountTotalStatus);
+
+                    if (CCS_TELEMETRY_FEATURE_FLAG.isEnabled() && searchResponse.getClusters().hasRemoteClusters()) {
+                        extractCCSTelemetry(searchResponse, (SearchTask) task);
+                    }
+                    // TODO: should this be last?
+                    listener.onResponse(searchResponse);
                 } catch (Exception e) {
                     onFailure(e);
                 }
@@ -1511,6 +1521,51 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 }
             }
         }
+    }
+
+    private void extractCCSTelemetry(SearchResponse searchResponse, SearchTask searchTask) {
+        Map<String, CCSUsage.PerClusterUsage> clusterUsageMap = new HashMap<>();
+        for (String clusterAlias : searchResponse.getClusters().getClusterAliases()) {
+            SearchResponse.Cluster cluster = searchResponse.getClusters().getCluster(clusterAlias);
+            CCSUsage.PerClusterUsage clusterUsageInfo = new CCSUsage.PerClusterUsage(cluster.getTook());
+            clusterUsageMap.put(clusterAlias, clusterUsageInfo);
+        }
+
+        CCSUsage ccsUsage = new CCSUsage.Builder().took(searchResponse.getTookInMillis())
+            .async(isAsyncSearchTask(searchTask))
+            .minimizeRoundTrips(searchResponse.getClusters().isCcsMinimizeRoundtrips())
+            .numSkippedRemotes(searchResponse.getClusters().getClusterStateCount(SearchResponse.Cluster.Status.SKIPPED))
+            .perClusterUsage(clusterUsageMap)
+            .build();
+        usageService.getCcsUsageHolder().updateUsage(ccsUsage);
+    }
+
+    /**
+     * TransportSearchAction cannot access async-search code, so can't check whether this the Task
+     * is an instance of AsyncSearchTask, so this roundabout method is used
+     * @param searchTask SearchTask to analyze
+     * @return true if this is an async search task; false if a synchronous search task
+     */
+    private boolean isAsyncSearchTask(SearchTask searchTask) {
+        assert assertAsyncSearchTaskListener(searchTask) : "AsyncSearchTask SearchProgressListener name has ";
+        // AsyncSearchTask will not return SearchProgressListener.NOOP, since it uses its own progress listener
+        // which delegates to CCSSingleCoordinatorSearchProgressListener when minimizing roundtrips.
+        // Only synchronous SearchTask uses SearchProgressListener.NOOP or CCSSingleCoordinatorSearchProgressListener directly
+        return searchTask.getProgressListener() != SearchProgressListener.NOOP
+            && searchTask.getProgressListener() instanceof CCSSingleCoordinatorSearchProgressListener == false;
+    }
+
+    /**
+     * @param searchTask SearchTask to analyze
+     * @return true if AsyncSearchTask still uses its own special listener, not one of the two that synchronous SearchTask uses
+     */
+    private boolean assertAsyncSearchTaskListener(SearchTask searchTask) {
+        if (searchTask.getClass().getSimpleName().contains("AsyncSearchTask")) {
+            SearchProgressListener progressListener = searchTask.getProgressListener();
+            return progressListener != SearchProgressListener.NOOP
+                && progressListener instanceof CCSSingleCoordinatorSearchProgressListener == false;
+        }
+        return true;
     }
 
     private static void validateAndResolveWaitForCheckpoint(

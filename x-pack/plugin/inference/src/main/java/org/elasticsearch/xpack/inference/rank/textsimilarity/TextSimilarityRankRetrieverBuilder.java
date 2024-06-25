@@ -22,6 +22,9 @@ import java.util.Objects;
 
 import static org.elasticsearch.search.rank.RankBuilder.DEFAULT_RANK_WINDOW_SIZE;
 
+/**
+ * A {@code RetrieverBuilder} for parsing and constructing a text similarity reranker retriever.
+ */
 public class TextSimilarityRankRetrieverBuilder extends RetrieverBuilder {
 
     public static final ParseField RETRIEVER_FIELD = new ParseField("retriever");

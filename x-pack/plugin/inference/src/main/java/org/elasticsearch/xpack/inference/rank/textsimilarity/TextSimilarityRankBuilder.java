@@ -41,6 +41,9 @@ import static org.elasticsearch.xpack.inference.rank.textsimilarity.TextSimilari
 import static org.elasticsearch.xpack.inference.rank.textsimilarity.TextSimilarityRankRetrieverBuilder.INFERENCE_TEXT_FIELD;
 import static org.elasticsearch.xpack.inference.rank.textsimilarity.TextSimilarityRankRetrieverBuilder.MIN_SCORE_FIELD;
 
+/**
+ * A {@code RankBuilder} that enables ranking with text similarity model inference. Supports parameters for configuring the inference call.
+ */
 public class TextSimilarityRankBuilder extends RankBuilder {
 
     public static final String NAME = "text_similarity_reranker";

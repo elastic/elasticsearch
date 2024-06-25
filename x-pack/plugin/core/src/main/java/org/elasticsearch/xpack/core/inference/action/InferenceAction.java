@@ -173,6 +173,18 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
                 e.addValidationError("input array is empty");
                 return e;
             }
+            if (taskType.equals(TaskType.RERANK)) {
+                if (query == null) {
+                    var e = new ActionRequestValidationException();
+                    e.addValidationError("missing query");
+                    return e;
+                }
+                if (query.isEmpty()) {
+                    var e = new ActionRequestValidationException();
+                    e.addValidationError("query is empty");
+                    return e;
+                }
+            }
             return null;
         }
 

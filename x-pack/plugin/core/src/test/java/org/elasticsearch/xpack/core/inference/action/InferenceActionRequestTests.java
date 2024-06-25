@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.core.inference.action;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
+import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
@@ -69,6 +70,84 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
             var request = InferenceAction.Request.parseRequest("model_id", TaskType.ANY, parser).build();
             assertThat(request.getInput(), contains("an array", "of", "inputs"));
         }
+    }
+
+    public void testValidation() throws IOException {
+        InferenceAction.Request inputNullRequest = new InferenceAction.Request(
+            TaskType.TEXT_EMBEDDING,
+            "model",
+            null,
+            null,
+            null,
+            null,
+            null
+        );
+        ActionRequestValidationException inputNullError = inputNullRequest.validate();
+        assertNotNull(inputNullError);
+        assertThat(inputNullError.getMessage(), is("Validation Failed: 1: missing input;"));
+
+        InferenceAction.Request inputEmptyRequest = new InferenceAction.Request(
+            TaskType.TEXT_EMBEDDING,
+            "model",
+            null,
+            List.of(),
+            null,
+            null,
+            null
+        );
+        ActionRequestValidationException inputEmptyError = inputEmptyRequest.validate();
+        assertNotNull(inputEmptyError);
+        assertThat(inputEmptyError.getMessage(), is("Validation Failed: 1: input array is empty;"));
+
+        InferenceAction.Request queryNullRequest = new InferenceAction.Request(
+            TaskType.RERANK,
+            "model",
+            null,
+            List.of("input"),
+            null,
+            null,
+            null
+        );
+        ActionRequestValidationException queryNullError = queryNullRequest.validate();
+        assertNotNull(queryNullError);
+        assertThat(queryNullError.getMessage(), is("Validation Failed: 1: missing query;"));
+
+        InferenceAction.Request queryEmptyRequest = new InferenceAction.Request(
+            TaskType.RERANK,
+            "model",
+            "",
+            List.of("input"),
+            null,
+            null,
+            null
+        );
+        ActionRequestValidationException queryEmptyError = queryEmptyRequest.validate();
+        assertNotNull(queryEmptyError);
+        assertThat(queryEmptyError.getMessage(), is("Validation Failed: 1: query is empty;"));
+
+        InferenceAction.Request request = new InferenceAction.Request(
+            TaskType.TEXT_EMBEDDING,
+            "model",
+            null,
+            List.of("input"),
+            null,
+            null,
+            null
+        );
+        ActionRequestValidationException e = request.validate();
+        assertNull(e);
+
+        InferenceAction.Request rerankRequest = new InferenceAction.Request(
+            TaskType.RERANK,
+            "model",
+            "query",
+            List.of("input"),
+            null,
+            null,
+            null
+        );
+        ActionRequestValidationException rerankError = rerankRequest.validate();
+        assertNull(rerankError);
     }
 
     public void testParseRequest_DefaultsInputTypeToIngest() throws IOException {

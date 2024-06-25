@@ -15,7 +15,7 @@ import org.elasticsearch.search.aggregations.InternalAggregations;
 /**
  * A single bucket aggregation
  */
-public interface SingleBucketAggregation extends Aggregation, HasAggregations {
+public interface SingleBucketAggregation extends Aggregation, HasAggregations, BucketCounter {
 
     /**
      * @return  The number of documents in this bucket
@@ -27,4 +27,22 @@ public interface SingleBucketAggregation extends Aggregation, HasAggregations {
      */
     @Override
     InternalAggregations getAggregations();
+
+    @Override
+    default int countBuckets() {
+        int count = 1;
+        InternalAggregations subAggregations = getAggregations();
+        if (subAggregations != null) {
+            for (Aggregation aggregation : subAggregations) {
+                if (aggregation instanceof MultiBucketsAggregation multiBucketsAggregation) {
+                    for (MultiBucketsAggregation.Bucket subBucket : multiBucketsAggregation.getBuckets()) {
+                        count += subBucket.countBuckets();
+                    }
+                } else if (aggregation instanceof SingleBucketAggregation singleBucketAggregation) {
+                    count += singleBucketAggregation.countBuckets();
+                }
+            }
+        }
+        return count;
+    }
 }

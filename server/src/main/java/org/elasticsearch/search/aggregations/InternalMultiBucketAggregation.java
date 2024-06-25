@@ -27,52 +27,20 @@ public abstract class InternalMultiBucketAggregation<
     A extends InternalMultiBucketAggregation,
     B extends InternalMultiBucketAggregation.InternalBucket> extends InternalAggregation implements MultiBucketsAggregation {
 
-    /**
-     * When we pre-count the empty buckets we report them periodically
-     * because you can configure the date_histogram to create an astounding
-     * number of buckets. It'd take a while to count that high only to abort.
-     * So we report every couple thousand buckets. It's be simpler to report
-     * every single bucket we plan to allocate one at a time but that'd cause
-     * needless overhead on the circuit breakers. Counting a couple thousand
-     * buckets is plenty fast to fail this quickly in pathological cases and
-     * plenty large to keep the overhead minimal.
-     */
     public static final int REPORT_EMPTY_EVERY = 10_000;
 
     public InternalMultiBucketAggregation(String name, Map<String, Object> metadata) {
         super(name, metadata);
     }
 
-    /**
-     * Read from a stream.
-     */
     protected InternalMultiBucketAggregation(StreamInput in) throws IOException {
         super(in);
     }
 
-    /**
-     * Create a new copy of this {@link Aggregation} with the same settings as
-     * this {@link Aggregation} and contains the provided buckets.
-     *
-     * @param buckets
-     *            the buckets to use in the new {@link Aggregation}
-     * @return the new {@link Aggregation}
-     */
     public abstract A create(List<B> buckets);
 
-    /**
-     * Create a new {@link InternalBucket} using the provided prototype bucket
-     * and aggregations.
-     *
-     * @param aggregations
-     *            the aggregations for the new bucket
-     * @param prototype
-     *            the bucket to use as a prototype
-     * @return the new bucket
-     */
     public abstract B createBucket(InternalAggregations aggregations, B prototype);
 
-    /** Helps to lazily construct the aggregation list for reduction */
     protected static class BucketAggregationList<B extends Bucket> extends AbstractList<InternalAggregations> {
         private final List<B> buckets;
 
@@ -108,14 +76,12 @@ public abstract class InternalMultiBucketAggregation<
             return buckets.size();
         }
 
-        // This is a bucket key, look through our buckets and see if we can find a match
         if (aggName.startsWith("'") && aggName.endsWith("'")) {
             for (InternalBucket bucket : buckets) {
                 if (bucket.getKeyAsString().equals(aggName.substring(1, aggName.length() - 1))) {
                     return bucket.getProperty(name, path.subList(1, path.size()));
                 }
             }
-            // No key match, time to give up
             throw new InvalidAggregationPathException("Cannot find an key [" + aggName + "] in [" + name + "]");
         }
 
@@ -124,12 +90,8 @@ public abstract class InternalMultiBucketAggregation<
             propertyArray[i] = buckets.get(i).getProperty(name, path);
         }
         return propertyArray;
-
     }
 
-    /**
-     * Counts the number of inner buckets inside the provided {@link InternalBucket}
-     */
     public static int countInnerBucket(InternalBucket bucket) {
         int count = 0;
         for (Aggregation agg : bucket.getAggregations().asList()) {
@@ -138,19 +100,18 @@ public abstract class InternalMultiBucketAggregation<
         return count;
     }
 
-    /**
-     * Counts the number of inner buckets inside the provided {@link Aggregation}
-     */
     public static int countInnerBucket(Aggregation agg) {
         int size = 0;
-        if (agg instanceof MultiBucketsAggregation multi) {
+        if (agg instanceof MultiBucketsAggregation) {
+            MultiBucketsAggregation multi = (MultiBucketsAggregation) agg;
             for (MultiBucketsAggregation.Bucket bucket : multi.getBuckets()) {
                 ++size;
                 for (Aggregation bucketAgg : bucket.getAggregations().asList()) {
                     size += countInnerBucket(bucketAgg);
                 }
             }
-        } else if (agg instanceof SingleBucketAggregation single) {
+        } else if (agg instanceof SingleBucketAggregation) {
+            SingleBucketAggregation single = (SingleBucketAggregation) agg;
             for (Aggregation bucketAgg : single.getAggregations().asList()) {
                 size += countInnerBucket(bucketAgg);
             }
@@ -158,10 +119,6 @@ public abstract class InternalMultiBucketAggregation<
         return size;
     }
 
-    /**
-     * A multi-bucket agg needs to first reduce the buckets and *their* pipelines
-     * before allowing sibling pipelines to materialize.
-     */
     @Override
     public final InternalAggregation reducePipelines(
         InternalAggregation reducedAggs,
@@ -220,6 +177,24 @@ public abstract class InternalMultiBucketAggregation<
     }
 
     public abstract static class InternalBucket implements Bucket, Writeable {
+
+        @Override
+        public int countBuckets() {
+            int count = 1;
+            InternalAggregations subAggregations = getAggregations();
+            if (subAggregations != null) {
+                for (Aggregation aggregation : subAggregations) {
+                    if (aggregation instanceof MultiBucketsAggregation multiBucketsAggregation) {
+                        for (MultiBucketsAggregation.Bucket subBucket : multiBucketsAggregation.getBuckets()) {
+                            count += subBucket.countBuckets();
+                        }
+                    } else if (aggregation instanceof SingleBucketAggregation singleBucketAggregation) {
+                        count += singleBucketAggregation.countBuckets();
+                    }
+                }
+            }
+            return count;
+        }
 
         public Object getProperty(String containingAggName, List<String> path) {
             if (path.isEmpty()) {

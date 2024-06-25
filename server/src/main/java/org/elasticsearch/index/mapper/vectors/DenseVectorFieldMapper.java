@@ -245,9 +245,9 @@ public class DenseVectorFieldMapper extends FieldMapper {
         @Override
         public DenseVectorFieldMapper build(MapperBuilderContext context) {
             return new DenseVectorFieldMapper(
-                name(),
+                leafName(),
                 new DenseVectorFieldType(
-                    context.buildFullName(name()),
+                    context.buildFullName(leafName()),
                     indexVersionCreated,
                     elementType.getValue(),
                     dims.getValue(),
@@ -1641,7 +1641,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         if (context.doc().getByKey(fieldType().name()) != null) {
             throw new IllegalArgumentException(
                 "Field ["
-                    + name()
+                    + fullPath()
                     + "] of type ["
                     + typeName()
                     + "] doesn't support indexing multiple values for the same field in the same document"
@@ -1666,7 +1666,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 fieldType().meta()
             );
             Mapper update = new DenseVectorFieldMapper(
-                simpleName(),
+                leafName(),
                 updatedDenseVectorFieldType,
                 indexOptions,
                 indexCreatedVersion,
@@ -1715,7 +1715,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 "The ["
                     + typeName()
                     + "] field ["
-                    + name()
+                    + fullPath()
                     + "] in doc ["
                     + context.documentDescription()
                     + "] has more dimensions "
@@ -1732,7 +1732,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 "The ["
                     + typeName()
                     + "] field ["
-                    + name()
+                    + fullPath()
                     + "] in doc ["
                     + context.documentDescription()
                     + "] has a different number of dimensions "
@@ -1757,7 +1757,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(simpleName(), indexCreatedVersion).init(this);
+        return new Builder(leafName(), indexCreatedVersion).init(this);
     }
 
     private static IndexOptions parseIndexOptions(String fieldName, Object propNode) {
@@ -1817,7 +1817,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
     public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
         if (copyTo.copyToFields().isEmpty() != true) {
             throw new IllegalArgumentException(
-                "field [" + name() + "] of type [" + typeName() + "] doesn't support synthetic source because it declares copy_to"
+                "field [" + fullPath() + "] of type [" + typeName() + "] doesn't support synthetic source because it declares copy_to"
             );
         }
         if (fieldType().indexed) {
@@ -1848,10 +1848,10 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
         @Override
         public DocValuesLoader docValuesLoader(LeafReader leafReader, int[] docIdsInLeaf) throws IOException {
-            values = leafReader.getFloatVectorValues(name());
+            values = leafReader.getFloatVectorValues(fullPath());
             if (values != null) {
                 if (indexCreatedVersion.onOrAfter(NORMALIZE_COSINE) && VectorSimilarity.COSINE.equals(vectorSimilarity)) {
-                    magnitudeReader = leafReader.getNumericDocValues(name() + COSINE_MAGNITUDE_FIELD_SUFFIX);
+                    magnitudeReader = leafReader.getNumericDocValues(fullPath() + COSINE_MAGNITUDE_FIELD_SUFFIX);
                 }
                 return docId -> {
                     hasValue = docId == values.advance(docId);
@@ -1859,7 +1859,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     return hasValue;
                 };
             }
-            byteVectorValues = leafReader.getByteVectorValues(name());
+            byteVectorValues = leafReader.getByteVectorValues(fullPath());
             if (byteVectorValues != null) {
                 return docId -> {
                     hasValue = docId == byteVectorValues.advance(docId);
@@ -1883,7 +1883,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             if (hasMagnitude) {
                 magnitude = Float.intBitsToFloat((int) magnitudeReader.longValue());
             }
-            b.startArray(simpleName());
+            b.startArray(leafName());
             if (values != null) {
                 for (float v : values.vectorValue()) {
                     if (hasMagnitude) {
@@ -1903,7 +1903,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
         @Override
         public String fieldName() {
-            return name();
+            return fullPath();
         }
     }
 
@@ -1923,7 +1923,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
         @Override
         public DocValuesLoader docValuesLoader(LeafReader leafReader, int[] docIdsInLeaf) throws IOException {
-            values = leafReader.getBinaryDocValues(name());
+            values = leafReader.getBinaryDocValues(fullPath());
             if (values == null) {
                 return null;
             }
@@ -1943,7 +1943,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             if (false == hasValue) {
                 return;
             }
-            b.startArray(simpleName());
+            b.startArray(leafName());
             BytesRef ref = values.binaryValue();
             ByteBuffer byteBuffer = ByteBuffer.wrap(ref.bytes, ref.offset, ref.length);
             if (indexCreatedVersion.onOrAfter(LITTLE_ENDIAN_FLOAT_STORED_INDEX_VERSION)) {
@@ -1958,7 +1958,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
         @Override
         public String fieldName() {
-            return name();
+            return fullPath();
         }
     }
 }

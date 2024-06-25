@@ -2,8 +2,6 @@
 [[get-query-ruleset]]
 === Get query ruleset
 
-preview::[]
-
 ++++
 <titleabbrev>Get query ruleset</titleabbrev>
 ++++

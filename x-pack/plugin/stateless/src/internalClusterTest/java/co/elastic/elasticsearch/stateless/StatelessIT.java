@@ -113,6 +113,7 @@ import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
 import static co.elastic.elasticsearch.stateless.recovery.TransportStatelessPrimaryRelocationAction.PRIMARY_CONTEXT_HANDOFF_ACTION_NAME;
+import static org.elasticsearch.index.IndexSettings.INDEX_REFRESH_INTERVAL_SETTING;
 import static org.elasticsearch.index.IndexSettings.STATELESS_DEFAULT_REFRESH_INTERVAL;
 import static org.elasticsearch.indices.IndexingMemoryController.SHARD_INACTIVE_TIME_SETTING;
 import static org.elasticsearch.indices.IndexingMemoryController.SHARD_MEMORY_INTERVAL_TIME_SETTING;
@@ -447,7 +448,8 @@ public class StatelessIT extends AbstractStatelessIntegTestCase {
         startIndexNodes(numberOfShards);
         startSearchNodes(numberOfShards);
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
-        createIndex(indexName, indexSettings(numberOfShards, 1).build());
+        // Disable scheduled refreshes so it doesn't add non-uploaded commits to the BCC
+        createIndex(indexName, indexSettings(numberOfShards, 1).put(INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1).build());
         ensureGreen(indexName);
 
         assertObjectStoreConsistentWithIndexShards();

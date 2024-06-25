@@ -252,7 +252,6 @@ public class PlannerUtils {
             case DOC_DATA_TYPE -> ElementType.DOC;
             case TSID_DATA_TYPE -> ElementType.BYTES_REF;
             case GEO_POINT, CARTESIAN_POINT -> fieldExtractPreference == DOC_VALUES ? ElementType.LONG : ElementType.BYTES_REF;
-            // TODO: support forStats for shape aggregations, like st_centroid
             case GEO_SHAPE, CARTESIAN_SHAPE -> ElementType.BYTES_REF;
             case SHORT, BYTE, DATE_PERIOD, TIME_DURATION, OBJECT, NESTED, FLOAT, HALF_FLOAT, SCALED_FLOAT ->
                 throw EsqlIllegalArgumentException.illegalDataType(dataType);

@@ -141,6 +141,7 @@ public enum DataType {
         KEYWORD,
         TEXT,
         DATETIME,
+        DATE_NANOS,
         IP,
         VERSION,
         OBJECT,

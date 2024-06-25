@@ -74,8 +74,12 @@ public final class ReplaceStatsNestedExpressionWithEval extends OptimizerRules.O
                 Expression child = as.child();
 
                 // do not replace nested aggregates
-                if (child instanceof AggregateFunction af && af.field() instanceof AggregateFunction) {
-                    return as;
+                if (child instanceof AggregateFunction af) {
+                    Holder<Boolean> foundNestedAggs = new Holder<>(Boolean.FALSE);
+                    af.children().forEach(e -> e.forEachDown(AggregateFunction.class, unused -> foundNestedAggs.set(Boolean.TRUE)));
+                    if (foundNestedAggs.get()) {
+                        return as;
+                    }
                 }
 
                 // shortcut for common scenario

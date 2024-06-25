@@ -591,4 +591,48 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
             }
         }
     }
+
+    public void testApplyRateBeforeFinalGrouping() {
+        record RateKey(String cluster, String host) {
+
+        }
+        Map<RateKey, List<RequestCounter>> groups = new HashMap<>();
+        for (Doc doc : docs) {
+            RateKey key = new RateKey(doc.cluster, doc.host);
+            groups.computeIfAbsent(key, k -> new ArrayList<>()).add(new RequestCounter(doc.timestamp, doc.requestCount));
+        }
+        List<Double> rates = new ArrayList<>();
+        for (List<RequestCounter> group : groups.values()) {
+            Double v = computeRate(group);
+            if (v != null) {
+                rates.add(v);
+            }
+        }
+        try (var resp = run("METRICS hosts sum(abs(rate(request_count, 1second)))")) {
+            assertThat(resp.columns(), equalTo(List.of(new ColumnInfo("sum(abs(rate(request_count, 1second)))", "double"))));
+            List<List<Object>> values = EsqlTestUtils.getValuesList(resp);
+            assertThat(values, hasSize(1));
+            assertThat(values.get(0), hasSize(1));
+            assertThat((double) values.get(0).get(0), closeTo(rates.stream().mapToDouble(d -> d).sum(), 0.1));
+        }
+        try (var resp = run("METRICS hosts sum(10.0 * rate(request_count, 1second))")) {
+            assertThat(resp.columns(), equalTo(List.of(new ColumnInfo("sum(10.0 * rate(request_count, 1second))", "double"))));
+            List<List<Object>> values = EsqlTestUtils.getValuesList(resp);
+            assertThat(values, hasSize(1));
+            assertThat(values.get(0), hasSize(1));
+            assertThat((double) values.get(0).get(0), closeTo(rates.stream().mapToDouble(d -> d * 10.0).sum(), 0.1));
+        }
+        try (var resp = run("METRICS hosts sum(20 * rate(request_count, 1second) + 10 * floor(rate(request_count, 1second)))")) {
+            assertThat(
+                resp.columns(),
+                equalTo(
+                    List.of(new ColumnInfo("sum(20 * rate(request_count, 1second) + 10 * floor(rate(request_count, 1second)))", "double"))
+                )
+            );
+            List<List<Object>> values = EsqlTestUtils.getValuesList(resp);
+            assertThat(values, hasSize(1));
+            assertThat(values.get(0), hasSize(1));
+            assertThat((double) values.get(0).get(0), closeTo(rates.stream().mapToDouble(d -> 20. * d + 10.0 * Math.floor(d)).sum(), 0.1));
+        }
+    }
 }

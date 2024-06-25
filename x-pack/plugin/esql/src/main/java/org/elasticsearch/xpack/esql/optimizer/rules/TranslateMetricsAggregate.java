@@ -104,11 +104,16 @@ public final class TranslateMetricsAggregate extends OptimizerRules.OptimizerRul
         for (NamedExpression agg : metrics.aggregates()) {
             if (agg instanceof Alias alias) {
                 // METRICS af(rate(counter)) becomes STATS $rate_1=rate(counter) | STATS `af(rate(counter))`=af($rate_1)
-                if (alias.child() instanceof AggregateFunction outerRate && outerRate.field() instanceof Rate rate) {
-                    var rateAgg = rateAggs.computeIfAbsent(rate, k -> new Alias(rate.source(), agg.name(), rate));
-                    var rateRef = rateAgg.toAttribute();
-                    var outerAgg = outerRate.replaceChildren(Stream.concat(Stream.of(rateRef), outerRate.parameters().stream()).toList());
-                    outerRateAggs.add(new Alias(alias.source(), alias.name(), null, outerAgg, agg.id()));
+                if (alias.child() instanceof AggregateFunction outerRate) {
+                    Holder<Boolean> changed = new Holder<>(Boolean.FALSE);
+                    Expression outerAgg = outerRate.transformDown(Rate.class, rate -> {
+                        changed.set(Boolean.TRUE);
+                        Alias rateAgg = rateAggs.computeIfAbsent(rate, k -> new Alias(rate.source(), agg.name(), rate));
+                        return rateAgg.toAttribute();
+                    });
+                    if (changed.get()) {
+                        outerRateAggs.add(new Alias(alias.source(), alias.name(), null, outerAgg, agg.id()));
+                    }
                 } else {
                     nonRateAggs.add(agg);
                 }

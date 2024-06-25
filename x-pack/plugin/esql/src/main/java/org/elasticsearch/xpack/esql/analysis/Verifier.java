@@ -226,11 +226,39 @@ public class Verifier {
                 // traverse the tree to find invalid matches
                 checkInvalidNamedExpressionUsage(exp, groupings, groupRefs, failures, 0);
             });
+            if (agg.aggregateType() == Aggregate.AggregateType.METRICS) {
+                aggs.forEach(a -> checkRateAggregates(a, 0, failures));
+            } else {
+                agg.forEachExpression(
+                    Rate.class,
+                    r -> failures.add(fail(r, "the rate aggregate[{}] can only be used within the metrics command", r.sourceText()))
+                );
+            }
         } else {
             p.forEachExpression(
                 GroupingFunction.class,
                 gf -> failures.add(fail(gf, "cannot use grouping function [{}] outside of a STATS command", gf.sourceText()))
             );
+        }
+    }
+
+    private static void checkRateAggregates(Expression expr, int nestedLevel, Set<Failure> failures) {
+        if (expr instanceof AggregateFunction) {
+            nestedLevel++;
+        }
+        if (expr instanceof Rate r) {
+            if (nestedLevel != 2) {
+                failures.add(
+                    fail(
+                        expr,
+                        "the rate aggregate [{}] can only be used within the metrics command and inside another aggregate",
+                        r.sourceText()
+                    )
+                );
+            }
+        }
+        for (Expression child : expr.children()) {
+            checkRateAggregates(child, nestedLevel, failures);
         }
     }
 
@@ -341,7 +369,11 @@ public class Verifier {
                 }
                 // check no aggregate functions are used
                 field.forEachDown(AggregateFunction.class, af -> {
-                    failures.add(fail(af, "aggregate function [{}] not allowed outside STATS command", af.sourceText()));
+                    if (af instanceof Rate) {
+                        failures.add(fail(af, "aggregate function [{}] not allowed outside METRICS command", af.sourceText()));
+                    } else {
+                        failures.add(fail(af, "aggregate function [{}] not allowed outside STATS command", af.sourceText()));
+                    }
                 });
             });
         }

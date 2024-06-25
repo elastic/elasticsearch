@@ -36,6 +36,8 @@ public abstract class InternalAggregation implements Aggregation, NamedWriteable
 
     protected final Map<String, Object> metadata;
 
+    private int bucketCount;
+
     /**
      * Constructs an aggregation result with a given name.
      *
@@ -44,6 +46,14 @@ public abstract class InternalAggregation implements Aggregation, NamedWriteable
     protected InternalAggregation(String name, Map<String, Object> metadata) {
         this.name = name;
         this.metadata = metadata;
+    }
+
+    public int getBucketCount() {
+        return bucketCount;
+    }
+
+    public void setBucketCount(int bucketCount) {
+        this.bucketCount = bucketCount;
     }
 
     /**
@@ -232,6 +242,7 @@ public abstract class InternalAggregation implements Aggregation, NamedWriteable
             builder.map(this.metadata);
         }
         doXContentBody(builder, params);
+        builder.field("bucket_count", bucketCount);
         builder.endObject();
         return builder;
     }

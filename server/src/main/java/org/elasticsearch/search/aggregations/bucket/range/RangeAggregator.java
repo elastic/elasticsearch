@@ -531,12 +531,12 @@ public abstract class RangeAggregator extends BucketsAggregator {
     @Override
     @SuppressWarnings("unchecked")
     public InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
-        return buildAggregationsForFixedBucketCount(
+        InternalAggregation[] aggregations = buildAggregationsForFixedBucketCount(
             owningBucketOrds,
             ranges.length,
             (offsetInOwningOrd, docCount, subAggregationResults) -> {
                 Range range = ranges[offsetInOwningOrd];
-                return rangeFactory.createBucket(
+                Bucket bucket = rangeFactory.createBucket(
                     range.key,
                     range.originalFrom,
                     range.originalTo,
@@ -545,10 +545,22 @@ public abstract class RangeAggregator extends BucketsAggregator {
                     keyed,
                     format
                 );
+                bucket.setBucketCount(1 + countAllBuckets(subAggregationResults));
+                return bucket;
             },
-            buckets -> rangeFactory.create(name, buckets, format, keyed, metadata())
+            buckets -> {
+                int totalBuckets = buckets.size();
+                for (Bucket bucket : buckets) {
+                    totalBuckets += bucket.getBucketCount();
+                }
+                InternalRange<Bucket> rangeBuckets = rangeFactory.create(name, buckets, format, keyed, metadata());
+                rangeBuckets.setBucketCount(totalBuckets);
+                return rangeBuckets;
+            }
         );
+        return aggregations;
     }
+
 
     @Override
     @SuppressWarnings("unchecked")

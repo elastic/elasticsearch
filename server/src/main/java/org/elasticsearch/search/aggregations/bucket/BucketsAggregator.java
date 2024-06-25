@@ -11,6 +11,10 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.search.aggregations.Aggregation;
+import org.elasticsearch.search.aggregations.InternalAggregations;
+//import org.elasticsearch.search.aggregations.bucket.MultiBucketAggregation;
+import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.AggregationErrors;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorBase;
@@ -43,6 +47,8 @@ public abstract class BucketsAggregator extends AggregatorBase {
     private LongArray docCounts;
     protected final DocCountProvider docCountProvider;
     private int callCount;
+    private int bucketCount = 0;
+
 
     @SuppressWarnings("this-escape")
     public BucketsAggregator(
@@ -57,6 +63,32 @@ public abstract class BucketsAggregator extends AggregatorBase {
         breaker = aggCtx.breaker();
         docCounts = bigArrays().newLongArray(1, true);
         docCountProvider = new DocCountProvider();
+    }
+
+    public int getBucketCount(){ return bucketCount; }
+
+    public int countAllBuckets(InternalAggregations aggregations) {
+        if (aggregations == null) {
+            return 0;
+        }
+        int bucketCount = 0;
+        for (Aggregation aggregation : aggregations) {
+            bucketCount += countBuckets(aggregation);
+        }
+        return bucketCount;
+    }
+
+    private int countBuckets(Aggregation aggregation) {
+        int bucketCount = 0;
+        if (aggregation instanceof InternalMultiBucketAggregation) {
+            InternalMultiBucketAggregation<?, ?> multiBucketAggregation = (InternalMultiBucketAggregation<?, ?>) aggregation;
+            bucketCount += multiBucketAggregation.getBuckets().size();
+            for (InternalMultiBucketAggregation.InternalBucket bucket : multiBucketAggregation.getBuckets()) {
+                InternalAggregations subAggregations = (InternalAggregations) bucket.getAggregations();
+                bucketCount += countAllBuckets(subAggregations);
+            }
+        }
+        return bucketCount;
     }
 
     /**

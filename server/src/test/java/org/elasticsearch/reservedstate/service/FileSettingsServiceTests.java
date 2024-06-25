@@ -35,7 +35,6 @@ import org.junit.Before;
 import org.mockito.stubbing.Answer;
 
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
@@ -263,8 +262,7 @@ public class FileSettingsServiceTests extends ESTestCase {
     // helpers
     private void writeTestFile(Path path, String contents) throws IOException {
         Path tempFilePath = createTempFile();
-
-        Files.write(tempFilePath, contents.getBytes(StandardCharsets.UTF_8));
+        Files.writeString(tempFilePath, contents);
         Files.move(tempFilePath, path, StandardCopyOption.ATOMIC_MOVE);
     }
 }

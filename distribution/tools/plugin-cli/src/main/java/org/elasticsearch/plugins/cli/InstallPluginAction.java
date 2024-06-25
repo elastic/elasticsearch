@@ -447,7 +447,7 @@ public class InstallPluginAction implements Closeable {
      **/
     private static List<String> checkMisspelledPlugin(String pluginId) {
         LevenshteinDistance ld = new LevenshteinDistance();
-        record ScoredKey(double distance, String pluginName){}
+        record ScoredKey(double distance, String pluginName) {}
         List<ScoredKey> scoredKeys = new ArrayList<>();
         for (String officialPlugin : OFFICIAL_PLUGINS) {
             float distance = ld.getDistance(pluginId, officialPlugin);
@@ -455,10 +455,7 @@ public class InstallPluginAction implements Closeable {
                 scoredKeys.add(new ScoredKey(distance, officialPlugin));
             }
         }
-        return scoredKeys.stream()
-            .sorted(comparingDouble(ScoredKey::distance).reversed())
-            .map(ScoredKey::pluginName)
-            .toList();
+        return scoredKeys.stream().sorted(comparingDouble(ScoredKey::distance).reversed()).map(ScoredKey::pluginName).toList();
     }
 
     /** Downloads a zip from the url, into a temp file under the given temp dir. */

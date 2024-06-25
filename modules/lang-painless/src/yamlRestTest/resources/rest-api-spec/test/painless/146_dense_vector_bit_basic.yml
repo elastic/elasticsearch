@@ -50,8 +50,60 @@ setup:
       indices.refresh: {}
 
 ---
-"Dot Product":
+"Test vector magnitude equality":
+  - skip:
+      features: close_to
+
   - do:
+      headers:
+        Content-Type: application/json
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query:
+            script_score:
+              query: {match_all: {} }
+              script:
+                source: "doc['vector'].magnitude"
+
+  - match: {hits.total: 3}
+
+  - match: {hits.hits.0._id: "2"}
+  - close_to: {hits.hits.0._score: {value: 4.690416, error: 0.01}}
+
+  - match: {hits.hits.1._id: "1"}
+  - close_to: {hits.hits.1._score: {value: 3.8729835, error: 0.01}}
+
+  - match: {hits.hits.2._id: "3"}
+  - close_to: {hits.hits.2._score: {value: 3.4641016, error: 0.01}}
+
+  - do:
+      headers:
+        Content-Type: application/json
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query:
+            script_score:
+              query: {match_all: {} }
+              script:
+                source: "doc['indexed_vector'].magnitude"
+
+  - match: {hits.total: 3}
+
+  - match: {hits.hits.0._id: "2"}
+  - close_to: {hits.hits.0._score: {value: 4.690416, error: 0.01}}
+
+  - match: {hits.hits.1._id: "1"}
+  - close_to: {hits.hits.1._score: {value: 3.8729835, error: 0.01}}
+
+  - match: {hits.hits.2._id: "3"}
+  - close_to: {hits.hits.2._score: {value: 3.4641016, error: 0.01}}
+
+---
+"Dot Product is not supported":
+  - do:
+      catch: bad_request
       headers:
         Content-Type: application/json
       search:
@@ -64,20 +116,8 @@ setup:
                 source: "dotProduct(params.query_vector, 'vector')"
                 params:
                   query_vector: [0, 111, -13, 14, -124]
-
-  - match: {hits.total: 3}
-
-  - match: {hits.hits.0._id: "3"}
-  - match: {hits.hits.0._score: 29.0}
-
-  - match: {hits.hits.1._id: "1"}
-  - match: {hits.hits.1._score: 24.0}
-
-  - match: {hits.hits.2._id: "2"}
-  - match: {hits.hits.2._score: 23.0}
----
-"Dot Product hexidecimal":
   - do:
+      catch: bad_request
       headers:
         Content-Type: application/json
       search:
@@ -91,19 +131,10 @@ setup:
                 params:
                   query_vector: "006ff30e84"
 
-  - match: {hits.total: 3}
-
-  - match: {hits.hits.0._id: "3"}
-  - match: {hits.hits.0._score: 29.0}
-
-  - match: {hits.hits.1._id: "1"}
-  - match: {hits.hits.1._score: 24.0}
-
-  - match: {hits.hits.2._id: "2"}
-  - match: {hits.hits.2._score: 23.0}
 ---
-"Cosine Similarity":
+"Cosine Similarity is not supported":
   - do:
+      catch: bad_request
       headers:
         Content-Type: application/json
       search:
@@ -116,21 +147,8 @@ setup:
                 source: "cosineSimilarity(params.query_vector, 'vector')"
                 params:
                   query_vector: [0, 111, -13, 14, -124]
-
-  - match: {hits.total: 3}
-
-  - match: {hits.hits.0._id: "3"}
-  - match: {hits.hits.0._score: 29.0}
-
-  - match: {hits.hits.1._id: "1"}
-  - match: {hits.hits.1._score: 24.0}
-
-  - match: {hits.hits.2._id: "2"}
-  - match: {hits.hits.2._score: 23.0}
-
----
-"Cosine Similarity hexidecimal":
   - do:
+      catch: bad_request
       headers:
         Content-Type: application/json
       search:
@@ -144,20 +162,8 @@ setup:
                 params:
                   query_vector: "006ff30e84"
 
-  - match: {hits.total: 3}
-
-  - match: {hits.hits.0._id: "3"}
-  - match: {hits.hits.0._score: 29.0}
-
-  - match: {hits.hits.1._id: "1"}
-  - match: {hits.hits.1._score: 24.0}
-
-  - match: {hits.hits.2._id: "2"}
-  - match: {hits.hits.2._score: 23.0}
-
----
-"Cosine similarity with indexed vector":
   - do:
+      catch: bad_request
       headers:
         Content-Type: application/json
       search:
@@ -170,17 +176,6 @@ setup:
                 source: "cosineSimilarity(params.query_vector, 'indexed_vector')"
                 params:
                   query_vector: [0, 111, -13, 14, -124]
-
-  - match: {hits.total: 3}
-
-  - match: {hits.hits.0._id: "3"}
-  - match: {hits.hits.0._score: 29.0}
-
-  - match: {hits.hits.1._id: "1"}
-  - match: {hits.hits.1._score: 24.0}
-
-  - match: {hits.hits.2._id: "2"}
-  - match: {hits.hits.2._score: 23.0}
 ---
 "L1 norm":
   - do:

@@ -30,6 +30,15 @@ public class BitKnnDenseVector extends ByteKnnDenseVector {
     }
 
     @Override
+    public float getMagnitude() {
+        if (magnitudeCalculated == false) {
+            magnitude = DenseVector.getBitMagnitude(docVector, docVector.length);
+            magnitudeCalculated = true;
+        }
+        return magnitude;
+    }
+
+    @Override
     public int l1Norm(byte[] queryVector) {
         return hamming(queryVector);
     }
@@ -51,24 +60,32 @@ public class BitKnnDenseVector extends ByteKnnDenseVector {
 
     @Override
     public int dotProduct(byte[] queryVector) {
-        int xor = hamming(queryVector);
-        return getDims() - xor;
+        throw new UnsupportedOperationException("dotProduct is not supported for bit vectors.");
+    }
+
+    @Override
+    public double cosineSimilarity(float[] queryVector, boolean normalizeQueryVector) {
+        throw new UnsupportedOperationException("cosineSimilarity is not supported for bit vectors.");
     }
 
     @Override
     public double dotProduct(List<Number> queryVector) {
-        int xor = hamming(queryVector);
-        return getDims() - xor;
+        throw new UnsupportedOperationException("dotProduct is not supported for bit vectors.");
     }
 
     @Override
     public double cosineSimilarity(byte[] queryVector, float qvMagnitude) {
-        return dotProduct(queryVector);
+        throw new UnsupportedOperationException("cosineSimilarity is not supported for bit vectors.");
     }
 
     @Override
     public double cosineSimilarity(List<Number> queryVector) {
-        return dotProduct(queryVector);
+        throw new UnsupportedOperationException("cosineSimilarity is not supported for bit vectors.");
+    }
+
+    @Override
+    public double dotProduct(float[] queryVector) {
+        throw new UnsupportedOperationException("dotProduct is not supported for bit vectors.");
     }
 
     @Override

@@ -8,6 +8,7 @@
 
 package org.elasticsearch.script.field.vectors;
 
+import org.apache.lucene.util.BitUtil;
 import org.apache.lucene.util.VectorUtil;
 
 import java.util.List;
@@ -186,6 +187,20 @@ public interface DenseVector {
             i++;
         }
         return (float) Math.sqrt(mag);
+    }
+
+    static float getBitMagnitude(byte[] vector, int dims) {
+        int count = 0;
+        int i = 0;
+        for (int upperBound = dims & -8; i < upperBound; i += 8) {
+            count += Long.bitCount((long) BitUtil.VH_NATIVE_LONG.get(vector, i));
+        }
+
+        while (i < dims) {
+            count += Integer.bitCount(vector[i] & 255);
+            ++i;
+        }
+        return (float) Math.sqrt(count);
     }
 
     static float getMagnitude(float[] vector) {

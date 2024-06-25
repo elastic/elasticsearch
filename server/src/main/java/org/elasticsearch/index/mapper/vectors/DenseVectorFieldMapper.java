@@ -31,6 +31,7 @@ import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.BitSetProducer;
+import org.apache.lucene.util.BitUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.common.ParsingException;
@@ -400,7 +401,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             }
 
             @Override
-            public double computeDotProduct(VectorData vectorData) {
+            public double computeSquaredMagnitude(VectorData vectorData) {
                 return VectorUtil.dotProduct(vectorData.asByteVector(), vectorData.asByteVector());
             }
 
@@ -457,7 +458,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 byte[] decodedVector = HexFormat.of().parseHex(context.parser().text());
                 fieldMapper.checkDimensionMatches(decodedVector.length, context);
                 VectorData vectorData = VectorData.fromBytes(decodedVector);
-                double squaredMagnitude = computeDotProduct(vectorData);
+                double squaredMagnitude = computeSquaredMagnitude(vectorData);
                 checkVectorMagnitude(
                     fieldMapper.fieldType().similarity,
                     errorByteElementsAppender(decodedVector),
@@ -625,7 +626,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             }
 
             @Override
-            public double computeDotProduct(VectorData vectorData) {
+            public double computeSquaredMagnitude(VectorData vectorData) {
                 return VectorUtil.dotProduct(vectorData.asFloatVector(), vectorData.asFloatVector());
             }
 
@@ -789,8 +790,19 @@ public class DenseVectorFieldMapper extends FieldMapper {
             ) {}
 
             @Override
-            public double computeDotProduct(VectorData vectorData) {
-                return VectorUtil.xorBitCount(vectorData.asByteVector(), vectorData.asByteVector());
+            public double computeSquaredMagnitude(VectorData vectorData) {
+                int count = 0;
+                int i = 0;
+                byte[] byteBits = vectorData.asByteVector();
+                for (int upperBound = byteBits.length & -8; i < upperBound; i += 8) {
+                    count += Long.bitCount((long) BitUtil.VH_NATIVE_LONG.get(byteBits, i));
+                }
+
+                while (i < byteBits.length) {
+                    count += Integer.bitCount(byteBits[i] & 255);
+                    ++i;
+                }
+                return count;
             }
 
             private VectorData parseVectorArray(DocumentParserContext context, DenseVectorFieldMapper fieldMapper) throws IOException {
@@ -1037,7 +1049,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             return sb -> appendErrorElements(sb, vector);
         }
 
-        public abstract double computeDotProduct(VectorData vectorData);
+        public abstract double computeSquaredMagnitude(VectorData vectorData);
 
         public static ElementType fromString(String name) {
             return valueOf(name.trim().toUpperCase(Locale.ROOT));
@@ -1950,7 +1962,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         vectorData.addToBuffer(byteBuffer);
         if (indexCreatedVersion.onOrAfter(MAGNITUDE_STORED_INDEX_VERSION)) {
             // encode vector magnitude at the end
-            double dotProduct = elementType.computeDotProduct(vectorData);
+            double dotProduct = elementType.computeSquaredMagnitude(vectorData);
             float vectorMagnitude = (float) Math.sqrt(dotProduct);
             byteBuffer.putFloat(vectorMagnitude);
         }

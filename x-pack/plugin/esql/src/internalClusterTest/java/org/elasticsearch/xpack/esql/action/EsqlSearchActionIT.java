@@ -195,6 +195,26 @@ public class EsqlSearchActionIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    public void testWithMatchPrefilter() {
+        var query = """
+            SEARCH test [
+              | WHERE MATCH(content, "fox")
+              | LIMIT 100
+              ]
+            | KEEP id, _score, content
+            """;
+
+        try (var resp = run(query)) {
+            logger.info("response=" + prettyResponse(resp));
+            assertThat(resp.columns().stream().map(ColumnInfo::name).toList(), contains("id", "_score", "content"));
+            assertThat(resp.columns().stream().map(ColumnInfo::type).toList(), contains("integer", "float", "text"));
+            // values
+            List<List<Object>> values = getValuesList(resp);
+            assertThat(values.get(0), contains(1, 0.0F, "This is a brown fox"));
+            assertThat(values.get(1), contains(6, 0.0F, "The quick brown fox jumps over the lazy dog"));
+        }
+    }
+
     public void testJustExperimentingWithRestFilter() {
 
         // var qb = QueryBuilders.matchAllQuery();

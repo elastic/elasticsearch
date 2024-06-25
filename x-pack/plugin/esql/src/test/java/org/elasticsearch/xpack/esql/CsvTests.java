@@ -240,6 +240,11 @@ public class CsvTests extends ESTestCase {
                     testCase.requiredCapabilities,
                     everyItem(in(EsqlCapabilities.CAPABILITIES))
                 );
+            } else {
+                assumeFalse(
+                    "lookup is not supported in non-snapshot releases",
+                    testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.LOOKUP_V3.capabilityName())
+                );
             }
 
             doTest();

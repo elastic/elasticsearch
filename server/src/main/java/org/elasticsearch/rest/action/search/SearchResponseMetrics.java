@@ -49,8 +49,9 @@ public class SearchResponseMetrics {
             ),
             meterRegistry.registerLongCounter(
                 RESPONSE_COUNT_TOTAL_COUNTER_NAME,
-                "The cumulative total of search responses with an attribute to describe"
-                    + "success, partial failure, or failure, expressed as a counter and an attribute",
+                "The cumulative total of search responses with an attribute to describe "
+                    + "success, partial failure, or failure, expressed as a single total counter and individual "
+                    + "attribute counters",
                 "count"
             )
         );

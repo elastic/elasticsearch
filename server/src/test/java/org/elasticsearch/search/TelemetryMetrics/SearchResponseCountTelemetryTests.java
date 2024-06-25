@@ -41,6 +41,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class SearchResponseCountTelemetryTests extends ESSingleNodeTestCase {
+
     private static final String indexName = "test_search_response_count_metrics";
 
     private TestTelemetryPlugin getTestTelemetryPlugin() {

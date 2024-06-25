@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.rank.textsimilarity;
+package org.elasticsearch.xpack.inference.rank.textsimilarity;
 
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.Query;
@@ -14,7 +14,9 @@ import org.elasticsearch.TransportVersions;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicenseUtils;
+import org.elasticsearch.license.LicensedFeature;
 import org.elasticsearch.search.rank.RankBuilder;
 import org.elasticsearch.search.rank.RankDoc;
 import org.elasticsearch.search.rank.context.QueryPhaseRankCoordinatorContext;
@@ -34,24 +36,29 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
-import static org.elasticsearch.xpack.rank.textsimilarity.TextSimilarityRankRetrieverBuilder.FIELD_FIELD;
-import static org.elasticsearch.xpack.rank.textsimilarity.TextSimilarityRankRetrieverBuilder.INFERENCE_ID_FIELD;
-import static org.elasticsearch.xpack.rank.textsimilarity.TextSimilarityRankRetrieverBuilder.INFERENCE_TEXT_FIELD;
-import static org.elasticsearch.xpack.rank.textsimilarity.TextSimilarityRankRetrieverBuilder.MIN_SCORE_FIELD;
+import static org.elasticsearch.xpack.inference.rank.textsimilarity.TextSimilarityRankRetrieverBuilder.FIELD_FIELD;
+import static org.elasticsearch.xpack.inference.rank.textsimilarity.TextSimilarityRankRetrieverBuilder.INFERENCE_ID_FIELD;
+import static org.elasticsearch.xpack.inference.rank.textsimilarity.TextSimilarityRankRetrieverBuilder.INFERENCE_TEXT_FIELD;
+import static org.elasticsearch.xpack.inference.rank.textsimilarity.TextSimilarityRankRetrieverBuilder.MIN_SCORE_FIELD;
 
 public class TextSimilarityRankBuilder extends RankBuilder {
 
-    static final ConstructingObjectParser<TextSimilarityRankBuilder, Void> PARSER = new ConstructingObjectParser<>(
-        TextSimilarityRankPlugin.NAME,
-        args -> {
-            String inferenceId = (String) args[0];
-            String inferenceText = (String) args[1];
-            String field = (String) args[2];
-            Float minScore = args[3] == null ? null : (Float) args[3];
+    public static final String NAME = "text_similarity_reranker";
 
-            return new TextSimilarityRankBuilder(field, inferenceId, inferenceText, DEFAULT_RANK_WINDOW_SIZE, minScore);
-        }
+    public static final LicensedFeature.Momentary FEATURE = LicensedFeature.momentary(
+        null,
+        "text-similarity-reranker",
+        License.OperationMode.PLATINUM
     );
+
+    static final ConstructingObjectParser<TextSimilarityRankBuilder, Void> PARSER = new ConstructingObjectParser<>(NAME, args -> {
+        String inferenceId = (String) args[0];
+        String inferenceText = (String) args[1];
+        String field = (String) args[2];
+        Float minScore = args[3] == null ? null : (Float) args[3];
+
+        return new TextSimilarityRankBuilder(field, inferenceId, inferenceText, DEFAULT_RANK_WINDOW_SIZE, minScore);
+    });
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), INFERENCE_ID_FIELD);
@@ -59,8 +66,6 @@ public class TextSimilarityRankBuilder extends RankBuilder {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), FIELD_FIELD);
         PARSER.declareFloat(ConstructingObjectParser.optionalConstructorArg(), MIN_SCORE_FIELD);
     }
-
-    public static final String NAME = "text_similarity_rank_builder";
 
     private final String inferenceId;
     private final String inferenceText;
@@ -102,8 +107,8 @@ public class TextSimilarityRankBuilder extends RankBuilder {
     }
 
     public static TextSimilarityRankBuilder fromXContent(XContentParser parser) throws IOException {
-        if (TextSimilarityRankPlugin.RANK_TEXT_SIMILARITY_FEATURE.check(XPackPlugin.getSharedLicenseState()) == false) {
-            throw LicenseUtils.newComplianceException(TextSimilarityRankPlugin.NAME);
+        if (TextSimilarityRankBuilder.FEATURE.check(XPackPlugin.getSharedLicenseState()) == false) {
+            throw LicenseUtils.newComplianceException(NAME);
         }
         return PARSER.parse(parser, null);
     }

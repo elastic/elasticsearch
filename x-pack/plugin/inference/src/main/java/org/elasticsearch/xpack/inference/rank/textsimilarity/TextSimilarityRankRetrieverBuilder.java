@@ -5,10 +5,8 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.rank.textsimilarity;
+package org.elasticsearch.xpack.inference.rank.textsimilarity;
 
-import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.retriever.RetrieverBuilder;
@@ -23,10 +21,8 @@ import java.io.IOException;
 import java.util.Objects;
 
 import static org.elasticsearch.search.rank.RankBuilder.DEFAULT_RANK_WINDOW_SIZE;
-import static org.elasticsearch.xpack.rank.textsimilarity.TextSimilarityRankPlugin.NAME;
 
 public class TextSimilarityRankRetrieverBuilder extends RetrieverBuilder {
-    public static final NodeFeature NODE_FEATURE = new NodeFeature("text_similarity_rank_retriever_supported");
 
     public static final ParseField RETRIEVER_FIELD = new ParseField("retriever");
     public static final ParseField FIELD_FIELD = new ParseField("field");
@@ -36,57 +32,54 @@ public class TextSimilarityRankRetrieverBuilder extends RetrieverBuilder {
     public static final ParseField MIN_SCORE_FIELD = new ParseField("min_score");
 
     public static final ObjectParser<TextSimilarityRankRetrieverBuilder, RetrieverParserContext> PARSER = new ObjectParser<>(
-        NAME,
+        TextSimilarityRankBuilder.NAME,
         TextSimilarityRankRetrieverBuilder::new
     );
 
     static {
         PARSER.declareObject((r, v) -> r.retrieverBuilder = v, (p, c) -> {
             RetrieverBuilder retrieverBuilder = RetrieverBuilder.parseInnerRetrieverBuilder(p, c);
-            c.trackSectionUsage(NAME + ":" + RETRIEVER_FIELD.getPreferredName());
+            c.trackSectionUsage(TextSimilarityRankBuilder.NAME + ":" + RETRIEVER_FIELD.getPreferredName());
             return retrieverBuilder;
         }, RETRIEVER_FIELD);
 
         PARSER.declareField((r, v) -> r.field = v, (p, c) -> {
             String field = p.text();
-            c.trackSectionUsage(NAME + ":" + FIELD_FIELD.getPreferredName());
+            c.trackSectionUsage(TextSimilarityRankBuilder.NAME + ":" + FIELD_FIELD.getPreferredName());
             return field;
         }, FIELD_FIELD, ObjectParser.ValueType.STRING);
 
         PARSER.declareField((r, v) -> r.rankWindowSize = v, (p, c) -> {
             int rankWindowSize = p.intValue();
-            c.trackSectionUsage(NAME + ":" + RANK_WINDOW_SIZE_FIELD.getPreferredName());
+            c.trackSectionUsage(TextSimilarityRankBuilder.NAME + ":" + RANK_WINDOW_SIZE_FIELD.getPreferredName());
             return rankWindowSize;
         }, RANK_WINDOW_SIZE_FIELD, ObjectParser.ValueType.INT_OR_NULL);
 
         PARSER.declareField((r, v) -> r.inferenceId = v, (p, c) -> {
             String inferenceId = p.text();
-            c.trackSectionUsage(NAME + ":" + INFERENCE_ID_FIELD.getPreferredName());
+            c.trackSectionUsage(TextSimilarityRankBuilder.NAME + ":" + INFERENCE_ID_FIELD.getPreferredName());
             return inferenceId;
         }, INFERENCE_ID_FIELD, ObjectParser.ValueType.STRING);
 
         PARSER.declareField((r, v) -> r.inferenceText = v, (p, c) -> {
             String inferenceText = p.text();
-            c.trackSectionUsage(NAME + ":" + INFERENCE_TEXT_FIELD.getPreferredName());
+            c.trackSectionUsage(TextSimilarityRankBuilder.NAME + ":" + INFERENCE_TEXT_FIELD.getPreferredName());
             return inferenceText;
         }, INFERENCE_TEXT_FIELD, ObjectParser.ValueType.STRING);
 
         PARSER.declareField((r, v) -> r.minScore = v, (p, c) -> {
             float minScore = p.floatValue();
-            c.trackSectionUsage(NAME + ":" + MIN_SCORE_FIELD.getPreferredName());
+            c.trackSectionUsage(TextSimilarityRankBuilder.NAME + ":" + MIN_SCORE_FIELD.getPreferredName());
             return minScore;
         }, MIN_SCORE_FIELD, ObjectParser.ValueType.FLOAT_OR_NULL);
 
-        RetrieverBuilder.declareBaseParserFields(NAME, PARSER);
+        RetrieverBuilder.declareBaseParserFields(TextSimilarityRankBuilder.NAME, PARSER);
     }
 
     public static TextSimilarityRankRetrieverBuilder fromXContent(XContentParser parser, RetrieverParserContext context)
         throws IOException {
-        if (context.clusterSupportsFeature(NODE_FEATURE) == false) {
-            throw new ParsingException(parser.getTokenLocation(), "unknown retriever [" + NAME + "]");
-        }
-        if (TextSimilarityRankPlugin.RANK_TEXT_SIMILARITY_FEATURE.check(XPackPlugin.getSharedLicenseState()) == false) {
-            throw LicenseUtils.newComplianceException(TextSimilarityRankPlugin.NAME);
+        if (TextSimilarityRankBuilder.FEATURE.check(XPackPlugin.getSharedLicenseState()) == false) {
+            throw LicenseUtils.newComplianceException(TextSimilarityRankBuilder.NAME);
         }
         return PARSER.apply(parser, context);
     }
@@ -115,7 +108,7 @@ public class TextSimilarityRankRetrieverBuilder extends RetrieverBuilder {
 
     @Override
     public String getName() {
-        return NAME;
+        return TextSimilarityRankBuilder.NAME;
     }
 
     @Override

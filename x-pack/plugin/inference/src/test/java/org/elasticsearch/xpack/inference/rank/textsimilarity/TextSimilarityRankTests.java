@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.rank.textsimilarity;
+package org.elasticsearch.xpack.inference.rank.textsimilarity;
 
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;

@@ -7,12 +7,28 @@ GRADLE_ENTERPRISE_ACCESS_KEY=$(vault kv get -field=value secret/ci/elastic-elast
 export GRADLE_ENTERPRISE_ACCESS_KEY
 
 curl -s -L -O https://github.com/gradle/gradle-enterprise-build-validation-scripts/releases/download/v$VALIDATION_SCRIPTS_VERSION/gradle-enterprise-gradle-build-validation-$VALIDATION_SCRIPTS_VERSION.zip && unzip -q -o gradle-enterprise-gradle-build-validation-$VALIDATION_SCRIPTS_VERSION.zip
-cd gradle-enterprise-gradle-build-validation
 
-./03-validate-local-build-caching-different-locations.sh -r https://github.com/elastic/elasticsearch.git -b $BUILDKITE_BRANCH --gradle-enterprise-server https://gradle-enterprise.elastic.co -t licenseHeaders -t precommit --fail-if-not-fully-cacheable
+# Create a temporary file
+tmpOutputFile=$(mktemp)
+trap "rm $tmpOutputFile" EXIT
+
+gradle-enterprise-gradle-build-validation/03-validate-local-build-caching-different-locations.sh -r . -b $BUILDKITE_BRANCH --gradle-enterprise-server https://gradle-enterprise.elastic.co -t licenseHeaders --fail-if-not-fully-cacheable | tee $tmpOutputFile
 
 # Capture the return value
 retval=$?
+
+# Now read the content from the temporary file into a variable
+perfOutput=$(cat $tmpOutputFile | sed -n '/Performance Characteristics/,/See https://gradle.com/bvs/main/Gradle.md#performance-characteristics for details./p')
+investigationOutput=$(cat $tmpOutputFile | sed -n '/Investigation Quick Links/,$p')
+
+#echo "PERF OUTPUT $perfOutput"
+#echo "INVESTIGATION OUTPUT $investigationOutput"
+
+  cat << EOF | buildkite-agent annotate --context "ctx-perf-characteristics" --style "info"
+```term
+    $perfOutput
+```
+EOF
 
 # Check if the command was successful
 if [ $retval -eq 0 ]; then

@@ -242,7 +242,7 @@ public class PlannerUtils {
     public static ElementType toElementType(DataType dataType, MappedFieldType.FieldExtractPreference fieldExtractPreference) {
 
         return switch (dataType) {
-            case LONG, DATETIME, UNSIGNED_LONG, COUNTER_LONG -> ElementType.LONG;
+            case LONG, DATETIME, DATE_NANOS, UNSIGNED_LONG, COUNTER_LONG -> ElementType.LONG;
             case INTEGER, COUNTER_INTEGER -> ElementType.INT;
             case DOUBLE, COUNTER_DOUBLE -> ElementType.DOUBLE;
             // unsupported fields are passed through as a BytesRef

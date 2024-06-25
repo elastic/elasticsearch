@@ -12,7 +12,7 @@ curl -s -L -O https://github.com/gradle/gradle-enterprise-build-validation-scrip
 tmpOutputFile=$(mktemp)
 trap "rm $tmpOutputFile" EXIT
 
-gradle-enterprise-gradle-build-validation./03-validate-local-build-caching-different-locations.sh -r https://github.com/elastic/elasticsearch.git -b $BUILDKITE_BRANCH --gradle-enterprise-server https://gradle-enterprise.elastic.co -t licenseHeaders --fail-if-not-fully-cacheable | tee $tmpOutputFile
+gradle-enterprise-gradle-build-validation/03-validate-local-build-caching-different-locations.sh -r https://github.com/elastic/elasticsearch.git -b $BUILDKITE_BRANCH --gradle-enterprise-server https://gradle-enterprise.elastic.co -t licenseHeaders --fail-if-not-fully-cacheable | tee $tmpOutputFile
 
 # Capture the return value
 retval=$?

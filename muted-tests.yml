@@ -87,6 +87,9 @@ tests:
 - class: org.elasticsearch.index.mapper.TextFieldMapperTests
   method: testSyntheticSourceMany
   issue: https://github.com/elastic/elasticsearch/issues/110161
+- class: org.elasticsearch.index.mapper.KeywordFieldMapperTests
+  method: testBlockLoaderFromRowStrideReader
+  issue: https://github.com/elastic/elasticsearch/issues/110163
 
 # Examples:
 #

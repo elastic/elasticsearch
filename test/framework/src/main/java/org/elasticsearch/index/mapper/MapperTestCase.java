@@ -1039,13 +1039,13 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             return "All fields that match routing_path must be configured with [time_series_dimension: true] "
                 + "or flattened fields with a list of dimensions in [time_series_dimensions] and "
                 + "without the [script] parameter. ["
-                + mapper.name()
+                + mapper.fullPath()
                 + "] was not a dimension.";
         }
         return "All fields that match routing_path must be configured with [time_series_dimension: true] "
             + "or flattened fields with a list of dimensions in [time_series_dimensions] and "
             + "without the [script] parameter. ["
-            + mapper.name()
+            + mapper.fullPath()
             + "] was ["
             + mapper.typeName()
             + "].";
@@ -1519,6 +1519,21 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             );
             assertThat(e.getMessage(), example.error);
         }
+    }
+
+    public final void testSyntheticSourceInNestedObject() throws IOException {
+        boolean ignoreMalformed = shouldUseIgnoreMalformed();
+        SyntheticSourceExample syntheticSourceExample = syntheticSourceSupport(ignoreMalformed).example(5);
+        DocumentMapper mapper = createDocumentMapper(syntheticSourceMapping(b -> {
+            b.startObject("obj").field("type", "nested").startObject("properties").startObject("field");
+            syntheticSourceExample.mapping().accept(b);
+            b.endObject().endObject().endObject();
+        }));
+        assertThat(syntheticSource(mapper, b -> {
+            b.startObject("obj");
+            syntheticSourceExample.buildInput(b);
+            b.endObject();
+        }), equalTo("{\"obj\":" + syntheticSourceExample.expected() + "}"));
     }
 
     @Override

@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.plan.physical;
 
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
-import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
@@ -24,7 +23,7 @@ import java.util.Set;
 
 public class HashJoinExec extends UnaryExec implements EstimatesRowSize {
     private final LocalSourceExec joinData;
-    private final List<NamedExpression> matchFields;
+    private final List<Attribute> matchFields;
     /**
      * Conditions that must match for rows to be joined. The {@link Equals#left()}
      * is always from the child and the {@link Equals#right()} is always from the
@@ -38,7 +37,7 @@ public class HashJoinExec extends UnaryExec implements EstimatesRowSize {
         Source source,
         PhysicalPlan child,
         LocalSourceExec hashData,
-        List<NamedExpression> matchFields,
+        List<Attribute> matchFields,
         List<Equals> conditions,
         List<Attribute> output
     ) {
@@ -52,7 +51,7 @@ public class HashJoinExec extends UnaryExec implements EstimatesRowSize {
     public HashJoinExec(PlanStreamInput in) throws IOException {
         super(Source.readFrom(in), in.readPhysicalPlanNode());
         this.joinData = new LocalSourceExec(in);
-        this.matchFields = in.readNamedWriteableCollectionAsList(NamedExpression.class);
+        this.matchFields = in.readNamedWriteableCollectionAsList(Attribute.class);
         this.conditions = in.readCollectionAsList(i -> (Equals) EsqlBinaryComparison.readFrom(in));
         this.output = in.readNamedWriteableCollectionAsList(Attribute.class);
     }
@@ -70,7 +69,7 @@ public class HashJoinExec extends UnaryExec implements EstimatesRowSize {
         return joinData;
     }
 
-    public List<NamedExpression> matchFields() {
+    public List<Attribute> matchFields() {
         return matchFields;
     }
 

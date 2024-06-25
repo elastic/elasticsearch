@@ -150,7 +150,7 @@ public class SLMSnapshotBlockingIntegTests extends AbstractSnapshotIntegTestCase
 
         // Cancel/delete the snapshot
         try {
-            clusterAdmin().prepareDeleteSnapshot(REPO, snapshotName).get();
+            clusterAdmin().prepareDeleteSnapshot(TEST_REQUEST_TIMEOUT, REPO, snapshotName).get();
         } catch (SnapshotMissingException e) {
             // ignore
         }
@@ -263,7 +263,7 @@ public class SLMSnapshotBlockingIntegTests extends AbstractSnapshotIntegTestCase
             assertBusy(() -> {
                 try {
                     logger.info("--> cancelling snapshot {}", secondSnapName);
-                    clusterAdmin().prepareDeleteSnapshot(REPO, secondSnapName).get();
+                    clusterAdmin().prepareDeleteSnapshot(TEST_REQUEST_TIMEOUT, REPO, secondSnapName).get();
                 } catch (ConcurrentSnapshotExecutionException e) {
                     logger.info("--> attempted to stop second snapshot", e);
                     // just wait and retry
@@ -385,7 +385,7 @@ public class SLMSnapshotBlockingIntegTests extends AbstractSnapshotIntegTestCase
             logger.info("-->  verify that snapshot [{}] is {}", failedSnapshotName.get(), expectedUnsuccessfulState);
             assertBusy(() -> {
                 try {
-                    GetSnapshotsResponse snapshotsStatusResponse = clusterAdmin().prepareGetSnapshots(REPO)
+                    GetSnapshotsResponse snapshotsStatusResponse = clusterAdmin().prepareGetSnapshots(TEST_REQUEST_TIMEOUT, REPO)
                         .setSnapshots(failedSnapshotName.get())
                         .get();
                     SnapshotInfo snapshotInfo = snapshotsStatusResponse.getSnapshots().get(0);
@@ -432,7 +432,7 @@ public class SLMSnapshotBlockingIntegTests extends AbstractSnapshotIntegTestCase
             assertBusy(() -> {
                 final SnapshotInfo snapshotInfo;
                 try {
-                    GetSnapshotsResponse snapshotsStatusResponse = clusterAdmin().prepareGetSnapshots(REPO)
+                    GetSnapshotsResponse snapshotsStatusResponse = clusterAdmin().prepareGetSnapshots(TEST_REQUEST_TIMEOUT, REPO)
                         .setSnapshots(successfulSnapshotName.get())
                         .get();
                     snapshotInfo = snapshotsStatusResponse.getSnapshots().get(0);
@@ -446,7 +446,7 @@ public class SLMSnapshotBlockingIntegTests extends AbstractSnapshotIntegTestCase
         // Check that the failed snapshot from before still exists, now that retention has run
         {
             logger.info("-->  verify that snapshot [{}] still exists", failedSnapshotName.get());
-            GetSnapshotsResponse snapshotsStatusResponse = clusterAdmin().prepareGetSnapshots(REPO)
+            GetSnapshotsResponse snapshotsStatusResponse = clusterAdmin().prepareGetSnapshots(TEST_REQUEST_TIMEOUT, REPO)
                 .setSnapshots(failedSnapshotName.get())
                 .get();
             SnapshotInfo snapshotInfo = snapshotsStatusResponse.getSnapshots().get(0);
@@ -465,7 +465,7 @@ public class SLMSnapshotBlockingIntegTests extends AbstractSnapshotIntegTestCase
             logger.info("--> waiting for {} snapshot [{}] to be deleted", expectedUnsuccessfulState, failedSnapshotName.get());
             assertBusy(() -> {
                 try {
-                    GetSnapshotsResponse snapshotsStatusResponse = clusterAdmin().prepareGetSnapshots(REPO)
+                    GetSnapshotsResponse snapshotsStatusResponse = clusterAdmin().prepareGetSnapshots(TEST_REQUEST_TIMEOUT, REPO)
                         .setSnapshots(failedSnapshotName.get())
                         .get();
                     assertThat(snapshotsStatusResponse.getSnapshots(), empty());
@@ -478,7 +478,7 @@ public class SLMSnapshotBlockingIntegTests extends AbstractSnapshotIntegTestCase
                     failedSnapshotName.get(),
                     successfulSnapshotName.get()
                 );
-                GetSnapshotsResponse snapshotsStatusResponse = clusterAdmin().prepareGetSnapshots(REPO)
+                GetSnapshotsResponse snapshotsStatusResponse = clusterAdmin().prepareGetSnapshots(TEST_REQUEST_TIMEOUT, REPO)
                     .setSnapshots(successfulSnapshotName.get())
                     .get();
                 SnapshotInfo snapshotInfo = snapshotsStatusResponse.getSnapshots().get(0);
@@ -524,7 +524,7 @@ public class SLMSnapshotBlockingIntegTests extends AbstractSnapshotIntegTestCase
         });
 
         logger.info("--> restoring index");
-        RestoreSnapshotRequest restoreReq = new RestoreSnapshotRequest(REPO, snapshotName);
+        RestoreSnapshotRequest restoreReq = new RestoreSnapshotRequest(TEST_REQUEST_TIMEOUT, REPO, snapshotName);
         restoreReq.indices(indexName);
         restoreReq.renamePattern("(.+)");
         restoreReq.renameReplacement("restored_$1");
@@ -542,7 +542,9 @@ public class SLMSnapshotBlockingIntegTests extends AbstractSnapshotIntegTestCase
         logger.info("--> waiting for {} snapshot to be deleted", snapshotName);
         assertBusy(() -> {
             try {
-                GetSnapshotsResponse snapshotsStatusResponse = clusterAdmin().prepareGetSnapshots(REPO).setSnapshots(snapshotName).get();
+                GetSnapshotsResponse snapshotsStatusResponse = clusterAdmin().prepareGetSnapshots(TEST_REQUEST_TIMEOUT, REPO)
+                    .setSnapshots(snapshotName)
+                    .get();
                 assertThat(snapshotsStatusResponse.getSnapshots(), empty());
             } catch (SnapshotMissingException e) {
                 // This is what we want to happen
@@ -552,7 +554,7 @@ public class SLMSnapshotBlockingIntegTests extends AbstractSnapshotIntegTestCase
     }
 
     private SnapshotsStatusResponse getSnapshotStatus(String snapshotName) {
-        return clusterAdmin().prepareSnapshotStatus(REPO).setSnapshots(snapshotName).get();
+        return clusterAdmin().prepareSnapshotStatus(TEST_REQUEST_TIMEOUT, REPO).setSnapshots(snapshotName).get();
     }
 
     private void createAndPopulateIndex(String indexName) throws InterruptedException {

@@ -10,7 +10,7 @@ package org.elasticsearch.gradle.internal.release;
 
 import com.github.javaparser.StaticJavaParser;
 import com.github.javaparser.ast.CompilationUnit;
-import com.github.javaparser.ast.body.TypeDeclaration;
+import com.github.javaparser.ast.body.ClassOrInterfaceDeclaration;
 import com.github.javaparser.ast.expr.NameExpr;
 import com.github.javaparser.printer.lexicalpreservation.LexicalPreservingPrinter;
 import com.google.common.annotations.VisibleForTesting;
@@ -24,7 +24,6 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-
 import javax.inject.Inject;
 
 public class SetCompatibleVersionsTask extends AbstractVersionsTask {
@@ -65,7 +64,7 @@ public class SetCompatibleVersionsTask extends AbstractVersionsTask {
 
     @VisibleForTesting
     static Optional<CompilationUnit> setMinimumCcsTransportVersion(CompilationUnit unit, int transportVersion) {
-        TypeDeclaration<?> transportVersions = unit.getType(0);
+        ClassOrInterfaceDeclaration transportVersions = unit.getClassByName("TransportVersions").get();
 
         String tvConstantName = transportVersions.getFields().stream().filter(f -> {
             var i = findSingleIntegerExpr(f);

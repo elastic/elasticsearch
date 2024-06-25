@@ -84,11 +84,20 @@ public final class TextFieldFamilySyntheticSourceTestSetup {
         private final String fieldType;
         private final boolean store;
         private final boolean index;
+        private final Integer ignoreAbove;
+        private final KeywordFieldSyntheticSourceSupport keywordMultiFieldSyntheticSourceSupport;
 
         TextFieldFamilySyntheticSourceSupport(String fieldType, boolean supportsCustomIndexConfiguration) {
             this.fieldType = fieldType;
             this.store = randomBoolean();
             this.index = supportsCustomIndexConfiguration == false || randomBoolean();
+            this.ignoreAbove = randomBoolean() ? null : between(10, 100);
+            this.keywordMultiFieldSyntheticSourceSupport = new KeywordFieldSyntheticSourceSupport(
+                ignoreAbove,
+                randomBoolean(),
+                null,
+                false
+            );
         }
 
         @Override
@@ -105,18 +114,10 @@ public final class TextFieldFamilySyntheticSourceTestSetup {
                 return storedFieldExample(maxValues, mapping);
             }
 
-            Integer ignoreAbove = randomBoolean() ? null : between(10, 100);
-            var syntheticSourceSupportForKeywordMultiField = new KeywordFieldSyntheticSourceSupport(
-                ignoreAbove,
-                randomBoolean(),
-                null,
-                false
-            );
-
             // Block loader will not use keyword multi-field if it has ignore_above configured.
             // And in this case it will use values from source.
             boolean loadingFromSource = ignoreAbove != null;
-            MapperTestCase.SyntheticSourceExample delegate = syntheticSourceSupportForKeywordMultiField.example(
+            MapperTestCase.SyntheticSourceExample delegate = keywordMultiFieldSyntheticSourceSupport.example(
                 maxValues,
                 loadingFromSource
             );

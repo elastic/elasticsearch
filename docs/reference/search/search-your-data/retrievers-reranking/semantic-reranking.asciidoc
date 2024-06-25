@@ -16,6 +16,7 @@ In a multi-stage pipeline, you can progressively use more computationally intens
 This helps avoid query latency degradation and keeps costs manageable.
 
 Semantic reranking requires relatively large and complex machine learning models and operates in real-time in response to queries.
+This technique makes sense on a small _top-k_ result set, as one the of the final steps in a pipeline.
 This is a powerful technique for improving search relevance that works equally well with keyword, semantic, or hybrid retrieval algorithms.
 
 The next sections provide more details on the benefits, use cases, and model types used for semantic reranking.
@@ -34,6 +35,7 @@ Semantic reranking enables a variety of use cases:
 
 * *Semantic retrieval results reranking*
 ** Improves results from semantic retrievers using ELSER sparse vector embeddings or dense vector embeddings by using more powerful models.
+** Adds a refinement layer on top of hybrid retrieval with <<rrf, reciprocal rank fusion (RRF)>>.
 
 * *General applications*
 ** Supports automatic and transparent chunking, eliminating the need for pre-chunking at index time.
@@ -43,9 +45,11 @@ Now that we've outlined the value of semantic reranking, we'll explore the speci
 
 [discrete]
 [[semantic-reranking-models]]
-==== Cross-encoder and bi-encoder models for semantic reranking
+==== Cross-encoder and bi-encoder models
 
 At a high level, two model types are used for semantic reranking: cross-encoders and bi-encoders.
+
+NOTE: In this version, {es} *only supports cross-encoders* for semantic reranking.
 
 * A *cross-encoder model* can be thought of as a more powerful, all-in-one solution, because it generates query-aware document representations.
 It takes the query and document texts as a single, concatenated input.
@@ -56,6 +60,7 @@ Documents and query embeddeings are computed separately, so they aren't aware of
 In brief, cross-encoders provide high accuracy but are more resource-intensive.
 Bi-encoders are faster and more cost-effective but less precise.
 
+In future versions, {es} will also support bi-encoders.
 If you're interested in a more detailed analysis of the practical differences between cross-encoders and bi-encoders, untoggle the next section.
 
 .Comparisons between cross-encoder and bi-encoder
@@ -84,8 +89,8 @@ In {es}, semantic rerankers are implemented using the {es} *Inference API* and a
 
 To use semantic reranking in {es}, you need to:
 
-. Choose a reranking model. In addition to cross-encoder and bi-encoder models running on {es} inference nodes, we also expose external models and services via the Inference API to semantic rerankers.
-** This includes cross-encoder models running in https://huggingface.co/inference-endpoints[HuggingFace Inference Endpoints] and the https://cohere.com/rerank[Cohere Rerank API], in addition to any available bi-encoders already exposed for text embedding tasks.
+. Choose a reranking model. In addition to cross-encoder models running on {es} inference nodes, we also expose external models and services via the Inference API to semantic rerankers.
+** This includes cross-encoder models running in https://huggingface.co/inference-endpoints[HuggingFace Inference Endpoints] and the https://cohere.com/rerank[Cohere Rerank API].
 . Create a `rerank` task using the <<put-inference-api,{es} Inference API>>.
 The Inference API creates an inference endpoint and configures your chosen machine learning model to perform the reranking task.
 . Define a `text_similarity_reranker` retriever in your search request.
@@ -136,26 +141,13 @@ This solution uses a hosted or 3rd party inference service which relies on a cro
 The model receives the text fields from the _top-K_ documents, as well as the search query, and calculates scores directly, which are then used to rerank the documents.
 
 Used with the Cohere inference service rolled out in 8.13, turn on semantic reranking that works out of the box.
-
-DEMO: You can find a working demo of hybrid search and reranking with Cohere in link:https://github.com/elastic/{es}-labs/blob/demjened/cohere-reranking/notebooks/integrations/cohere/cohere-reranking.ipynb[this Python notebook].
-
-*Text similarity with bi-encoder*
-
-Similarly to the cross-encoder approach, the inference service is invoked on both the text fields and the search query.
-The generated vector embeddings are then compared with vector similarity, in order to produce the scores.
-
-*Vector similarity*
-
-This approach assumes vectors are generated at ingestion time and stored in the documents.
-At query time the same bi-encoder model is used to generate embeddings for the search query, after which vector similarity is calculated.
-
-This is faster and cheaper due to front-loading of the bulk of the costly processing at ingest time.
+Check out our https://github.com/elastic/elasticsearch-labs/blob/main/notebooks/integrations/cohere/cohere-elasticsearch.ipynb[Python notebook] for using Cohere with {es}.
 
 [discrete]
-[[semantic-reranking-next-steps]]
-==== Next steps
+[[semantic-reranking-learn-more]]
+==== Learn more
 
-* Read the semantic reranking reference documentation for implementation details
-* Learn more about the retrievers abstraction
-* Learn more about the Elastic Inference API 
-
+* Read the <<retriever,retriever reference documentation>> for syntax and implementation details
+* Learn more about the <<retrievers-overview,retrievers>> abstraction
+* Learn more about the Elastic <<inference-apis,Inference APIs>>
+* Check out our https://github.com/elastic/elasticsearch-labs/blob/main/notebooks/integrations/cohere/cohere-elasticsearch.ipynb[Python notebook] for using Cohere with {es}

@@ -27,7 +27,7 @@ GET my-index/_search
             "query": {
              "sparse_vector": {
                 "field": "my_tokens",
-                "inference_id": "my-elser-model",
+                "inference_id": "my-elser-endpoint",
                 "query": "the query string"
               }
             }

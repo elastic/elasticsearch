@@ -89,7 +89,7 @@ GET example-index/_search
             "query": {
               "sparse_vector": {
                 "field": "vector.tokens",
-                "inference_id": "my-elser-model",
+                "inference_id": "my-elser-endpoint",
                 "query": "What blue shoes are on sale?"
               }
             }
@@ -135,7 +135,7 @@ GET example-index/_search
       "query":{
         "sparse_vector": {
             "field": "vector.tokens",
-            "inference_id": "my-elser-model",
+            "inference_id": "my-elser-endoint",
             "query": "What blue shoes are on sale?"
           }
         }

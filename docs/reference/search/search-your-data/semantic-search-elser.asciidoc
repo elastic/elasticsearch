@@ -13,16 +13,14 @@ The instructions in this tutorial shows you how to use ELSER to perform semantic
 IMPORTANT: For the easiest way to perform semantic search in the {stack}, refer to the <<semantic-search-semantic-text, `semantic_text`>> end-to-end tutorial.
 
 NOTE: Only the first 512 extracted tokens per field are considered during semantic search with ELSER.
-Refer to
-{ml-docs}/ml-nlp-limitations.html#ml-nlp-elser-v1-limit-512[this page] for more information.
+Refer to {ml-docs}/ml-nlp-limitations.html#ml-nlp-elser-v1-limit-512[this page] for more information.
 
 [discrete]
 [[requirements]]
 ==== Requirements
 
 To perform semantic search by using ELSER, you must have the NLP model deployed in your cluster.
-Refer to the
-{ml-docs}/ml-nlp-elser.html[ELSER documentation] to learn how to download and deploy the model.
+Refer to the {ml-docs}/ml-nlp-elser.html[ELSER documentation] to learn how to download and deploy the model.
 
 NOTE: The minimum dedicated ML node size for deploying and using the ELSER model is 4 GB in Elasticsearch Service if
 {cloud}/ec-autoscaling.html[deployment autoscaling] is turned off.
@@ -36,14 +34,11 @@ If autoscaling is turned off, you must provide suitably sized nodes yourself.
 ==== Create the index mapping
 
 First, the mapping of the destination index - the index that contains the tokens that the model created based on your text - must be created.
-The destination index must have a field with the
-<<sparse-vector, `sparse_vector`>> or <<rank-features,`rank_features`>> field type to index the ELSER output.
+The destination index must have a field with the <<sparse-vector, `sparse_vector`>> or <<rank-features,`rank_features`>> field type to index the ELSER output.
 
-NOTE: ELSER output must be ingested into a field with the `sparse_vector` or
-`rank_features` field type.
+NOTE: ELSER output must be ingested into a field with the `sparse_vector` or `rank_features` field type.
 Otherwise, {es} interprets the token-weight pairs as a massive amount of fields in a document.
-If you get an error similar to this
-`"Limit of total fields [1000] has been exceeded while adding new fields"` then the ELSER output field is not mapped properly and it has a field type different than `sparse_vector` or `rank_features`.
+If you get an error similar to this: `"Limit of total fields [1000] has been exceeded while adding new fields"` then the ELSER output field is not mapped properly and it has a field type different than `sparse_vector` or `rank_features`.
 
 [source,console]
 ----
@@ -63,12 +58,11 @@ PUT my-index
 ----
 // TEST[skip:TBD]
 <1> The name of the field to contain the generated tokens.
-It must be refrenced in the {infer} pipeline configuration in the next step.
+It must be referenced in the {infer} pipeline configuration in the next step.
 <2> The field to contain the tokens is a `sparse_vector` field.
 <3> The name of the field from which to create the sparse vector representation.
 In this example, the name of the field is `content`.
-It must be referenced in the
-{infer} pipeline configuration in the next step.
+It must be referenced in the {infer} pipeline configuration in the next step.
 <4> The field type which is text in this example.
 
 To learn how to optimize space, refer to the <<save-space>> section.
@@ -122,7 +116,7 @@ It consists of 200 queries, each accompanied by a list of relevant text passages
 All unique passages, along with their IDs, have been extracted from that data set and compiled into a
 https://github.com/elastic/stack-docs/blob/main/docs/en/stack/ml/nlp/data/msmarco-passagetest2019-unique.tsv[tsv file].
 
-IMOPRTANT: The `msmarco-passagetest2019-top1000` dataset was not utilized to train the model.
+IMPORTANT: The `msmarco-passagetest2019-top1000` dataset was not utilized to train the model.
 It is only used in this tutorial as a sample dataset that is easily accessible for demonstration purposes.
 You can use a different data set to test the workflow and become familiar with it.
 
@@ -172,8 +166,7 @@ You can also open the Trained Models UI, select the Pipelines tab under ELSER to
 ==== Semantic search by using the `sparse_vector` query
 
 To perform semantic search, use the <<query-dsl-sparse-vector-query, `sparse_vector` query>>, and provide the query text and the inference ID associated with your ELSER model.
-The example below uses the query text "How to avoid muscle soreness after running?", the `content_embedding`
-field contains the generated ELSER output:
+The example below uses the query text "How to avoid muscle soreness after running?", the `content_embedding` field contains the generated ELSER output:
 
 [source,console]
 ----
@@ -182,7 +175,7 @@ GET my-index/_search
    "query":{
       "sparse_vector":{
          "field": "content_embedding",
-         "inference_id": "my_elser_model",
+         "inference_id": "my-elser-endpoint",
          "query": "How to avoid muscle soreness after running?"
       }
    }
@@ -193,8 +186,7 @@ GET my-index/_search
 The result is the top 10 documents that are closest in meaning to your query text from the `my-index` index sorted by their relevancy.
 The result also contains the extracted tokens for each of the relevant search results with their weights.
 Tokens are learned associations capturing relevance, they are not synonyms.
-To learn more about what tokens are, refer to
-{ml-docs}/ml-nlp-elser.html#elser-tokens[this page].
+To learn more about what tokens are, refer to {ml-docs}/ml-nlp-elser.html#elser-tokens[this page].
 It is possible to exclude tokens from source, refer to <<save-space,this section>> to learn more.
 
 [source,consol-result]
@@ -262,7 +254,7 @@ GET my-index/_search
         {
           "sparse_vector": {
             "field": "content_embedding",
-            "inference_id": "my_elser_model",
+            "inference_id": "my-elser-endpoint",
             "query": "How to avoid muscle soreness after running?",
             "boost": 1 <2>
           }
@@ -280,8 +272,7 @@ GET my-index/_search
 }
 ----
 // TEST[skip:TBD]
-<1> Both the `sparse_vector` and the `query_string` queries are in a `should`
-clause of a `bool` query.
+<1> Both the `sparse_vector` and the `query_string` queries are in a `should` clause of a `bool` query.
 <2> The `boost` value is `1` for the `sparse_vector` query which is the default value.
 This means that the relevance score of the results of this query are not boosted.
 <3> The `boost` value is `4` for the `query_string` query.
@@ -296,14 +287,13 @@ The relevance score of the results of this query is increased causing them to ra
 [[save-space]]
 ==== Saving disk space by excluding the ELSER tokens from document source
 
-The tokens generated by ELSER must be indexed for use in the
-<<query-dsl-sparse-vector-query, sparse_vector query>>.
+The tokens generated by ELSER must be indexed for use in the <<query-dsl-sparse-vector-query, sparse_vector query>>.
 However, it is not necessary to retain those terms in the document source.
 You can save disk space by using the <<include-exclude,source exclude>> mapping to remove the ELSER terms from the document source.
 
 WARNING: Reindex uses the document source to populate the destination index.
-**Once the ELSER terms have been excluded from the source, they cannot be**
-**recovered through reindexing.** Excluding the tokens from the source is a space-saving optimization that should only be applied if you are certain that reindexing will not be required in the future!
+**Once the ELSER terms have been excluded from the source, they cannot be recovered through reindexing.**
+Excluding the tokens from the source is a space-saving optimization that should only be applied if you are certain that reindexing will not be required in the future!
 It's important to carefully consider this trade-off and make sure that excluding the ELSER terms from the source aligns with your specific requirements and use case.
 Review the
 <<disable-source-field>> and <<include-exclude>> sections carefully to learn more about the possible consequences of excluding the tokens from the `_source`.

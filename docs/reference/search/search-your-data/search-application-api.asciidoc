@@ -414,7 +414,7 @@ PUT _application/search_application/my-search-app
                     "sparse_vector": {
                       "field": "ml.inference.{{.}}_expanded.predicted_value",
                       "inference_id": "<elser_inference_id>",
-                      "model_text": "{{query_string}}"
+                      "query": "{{query_string}}"
                     }
                   }
                 }
@@ -505,7 +505,7 @@ PUT _application/search_application/my_search_application
                 "sparse_vector": {
                   "field": "ml.inference.{{.}}_expanded.predicted_value",
                   "inference_id": "<elser_inference_id>",
-                  "model_text": "{{query_string}}"
+                  "query": "{{query_string}}"
                 }
               },
               {{/elser_fields}}
@@ -667,7 +667,7 @@ PUT _application/search_application/my_search_application
                   "sparse_vector": {
                       "field": "ml.inference.{{.}}_expanded.predicted_value",
                       "inference_id": "<elser_inference_id>",
-                      "model_text": "{{query_string}}"
+                      "query": "{{query_string}}"
                     }
                 },
                 {{/elser_fields}}

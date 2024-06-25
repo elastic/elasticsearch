@@ -116,8 +116,8 @@ public abstract class EsqlArithmeticOperation extends ArithmeticOperation implem
     ) throws IOException {
         this(
             Source.readFrom((PlanStreamInput) in),
-            ((PlanStreamInput) in).readExpression(),
-            ((PlanStreamInput) in).readExpression(),
+            in.readNamedWriteable(Expression.class),
+            in.readNamedWriteable(Expression.class),
             op,
             ints,
             longs,

@@ -59,7 +59,7 @@ public class Lookup extends UnaryPlan {
 
     public Lookup(PlanStreamInput in) throws IOException {
         super(Source.readFrom(in), in.readLogicalPlanNode());
-        this.tableName = in.readExpression();
+        this.tableName = in.readNamedWriteable(Expression.class);
         this.matchFields = in.readNamedWriteableCollectionAsList(Attribute.class);
         this.localRelation = in.readBoolean() ? new LocalRelation(in) : null;
     }
@@ -67,7 +67,7 @@ public class Lookup extends UnaryPlan {
     public void writeTo(PlanStreamOutput out) throws IOException {
         source().writeTo(out);
         out.writeLogicalPlanNode(child());
-        out.writeExpression(tableName);
+        out.writeNamedWriteable(tableName);
         out.writeNamedWriteableCollection(matchFields);
         if (localRelation == null) {
             out.writeBoolean(false);

@@ -13,7 +13,7 @@ import org.elasticsearch.xpack.esql.expression.AbstractExpressionSerializationTe
 
 import java.io.IOException;
 
-public class MvSliceSerializationTests extends AbstractMvSerializationTests<MvSlice> {
+public class MvSliceSerializationTests extends AbstractExpressionSerializationTests<MvSlice> {
     @Override
     protected MvSlice createTestInstance() {
         Source source = randomSource();

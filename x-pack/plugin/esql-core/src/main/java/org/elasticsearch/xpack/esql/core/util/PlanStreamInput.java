@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.esql.core.util;
 
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
@@ -35,10 +33,4 @@ public interface PlanStreamInput {
      * the same result.
      */
     NameId mapNameId(long id) throws IOException;
-
-    /**
-     * Read an {@link Expression} from the stream. This will soon be replaced with
-     * {@link StreamInput#readNamedWriteable}.
-     */
-    Expression readExpression() throws IOException;
 }

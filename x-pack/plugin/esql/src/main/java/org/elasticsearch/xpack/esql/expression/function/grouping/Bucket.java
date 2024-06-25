@@ -33,7 +33,6 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.math.Floor;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mul;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
-import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 
 import java.io.IOException;
@@ -204,21 +203,20 @@ public class Bucket extends GroupingFunction implements Validatable, TwoOptional
     private Bucket(StreamInput in) throws IOException {
         this(
             Source.readFrom((PlanStreamInput) in),
-            ((PlanStreamInput) in).readExpression(),
-            ((PlanStreamInput) in).readExpression(),
-            ((PlanStreamInput) in).readOptionalNamed(Expression.class),
-            ((PlanStreamInput) in).readOptionalNamed(Expression.class)
+            in.readNamedWriteable(Expression.class),
+            in.readNamedWriteable(Expression.class),
+            in.readOptionalNamedWriteable(Expression.class),
+            in.readOptionalNamedWriteable(Expression.class)
         );
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         source().writeTo(out);
-        ((PlanStreamOutput) out).writeExpression(field);
-        ((PlanStreamOutput) out).writeExpression(buckets);
-        ((PlanStreamOutput) out).writeOptionalExpression(from);
-        ((PlanStreamOutput) out).writeOptionalExpression(to);
-
+        out.writeNamedWriteable(field);
+        out.writeNamedWriteable(buckets);
+        out.writeOptionalNamedWriteable(from);
+        out.writeOptionalNamedWriteable(to);
     }
 
     @Override

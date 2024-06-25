@@ -23,7 +23,6 @@ import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Cast;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.EsqlArithmeticOperation;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
-import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeRegistry;
 
 import java.io.IOException;
@@ -129,8 +128,8 @@ public abstract class EsqlBinaryComparison extends BinaryComparison implements E
         // TODO this uses a constructor on the operation *and* a name which is confusing. It only needs one. Everything else uses a name.
         var source = Source.readFrom((PlanStreamInput) in);
         EsqlBinaryComparison.BinaryComparisonOperation operation = EsqlBinaryComparison.BinaryComparisonOperation.readFromStream(in);
-        var left = ((PlanStreamInput) in).readExpression();
-        var right = ((PlanStreamInput) in).readExpression();
+        var left = in.readNamedWriteable(Expression.class);
+        var right = in.readNamedWriteable(Expression.class);
         // TODO: Remove zoneId entirely
         var zoneId = in.readOptionalZoneId();
         return operation.buildNewInstance(source, left, right);
@@ -140,8 +139,8 @@ public abstract class EsqlBinaryComparison extends BinaryComparison implements E
     public final void writeTo(StreamOutput out) throws IOException {
         source().writeTo(out);
         functionType.writeTo(out);
-        ((PlanStreamOutput) out).writeExpression(left());
-        ((PlanStreamOutput) out).writeExpression(right());
+        out.writeNamedWriteable(left());
+        out.writeNamedWriteable(right());
         out.writeOptionalZoneId(zoneId());
     }
 

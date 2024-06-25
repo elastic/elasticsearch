@@ -32,7 +32,6 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvCoun
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvDedupe;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
-import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 import org.elasticsearch.xpack.esql.planner.ToAggregator;
 
 import java.io.IOException;
@@ -71,16 +70,16 @@ public class CountDistinct extends AggregateFunction implements OptionalArgument
     private CountDistinct(StreamInput in) throws IOException {
         this(
             Source.readFrom((PlanStreamInput) in),
-            ((PlanStreamInput) in).readExpression(),
-            in.readOptionalWriteable(i -> ((PlanStreamInput) i).readExpression())
+            in.readNamedWriteable(Expression.class),
+            in.readOptionalNamedWriteable(Expression.class)
         );
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         Source.EMPTY.writeTo(out);
-        ((PlanStreamOutput) out).writeExpression(field());
-        ((PlanStreamOutput) out).writeOptionalExpression(precision);
+        out.writeNamedWriteable(field());
+        out.writeOptionalNamedWriteable(precision);
     }
 
     @Override
@@ -159,5 +158,9 @@ public class CountDistinct extends AggregateFunction implements OptionalArgument
         return field.foldable()
             ? new ToLong(s, new Coalesce(s, new MvCount(s, new MvDedupe(s, field)), List.of(new Literal(s, 0, DataType.INTEGER))))
             : null;
+    }
+
+    Expression precision() {
+        return precision;
     }
 }

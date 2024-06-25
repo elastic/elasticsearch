@@ -11,7 +11,7 @@ import org.elasticsearch.xpack.esql.expression.AbstractExpressionSerializationTe
 
 import java.io.IOException;
 
-public class MvDedupeSerializationTests extends AbstractMvSerializationTests<MvDedupe> {
+public class MvDedupeSerializationTests extends AbstractExpressionSerializationTests<MvDedupe> {
     @Override
     protected MvDedupe createTestInstance() {
         return new MvDedupe(randomSource(), randomChild());

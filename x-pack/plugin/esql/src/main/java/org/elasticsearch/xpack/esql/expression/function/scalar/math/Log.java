@@ -22,7 +22,6 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
-import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -70,8 +69,8 @@ public class Log extends EsqlScalarFunction implements OptionalArgument {
     private Log(StreamInput in) throws IOException {
         this(
             Source.readFrom((PlanStreamInput) in),
-            ((PlanStreamInput) in).readExpression(),
-            ((PlanStreamInput) in).readOptionalNamed(Expression.class)
+            in.readNamedWriteable(Expression.class),
+            in.readOptionalNamedWriteable(Expression.class)
         );
     }
 
@@ -79,8 +78,8 @@ public class Log extends EsqlScalarFunction implements OptionalArgument {
     public void writeTo(StreamOutput out) throws IOException {
         source().writeTo(out);
         assert children().size() == 1 || children().size() == 2;
-        ((PlanStreamOutput) out).writeExpression(children().get(0));
-        out.writeOptionalWriteable(children().size() == 2 ? o -> ((PlanStreamOutput) o).writeExpression(children().get(1)) : null);
+        out.writeNamedWriteable(children().get(0));
+        out.writeOptionalNamedWriteable(children().size() == 2 ? children().get(1) : null);
     }
 
     @Override

@@ -6,10 +6,13 @@
  */
 package org.elasticsearch.xpack.esql.core.expression;
 
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+
+import java.io.IOException;
 
 import static java.util.Arrays.asList;
 import static org.elasticsearch.xpack.esql.core.expression.Nullability.FALSE;
@@ -26,6 +29,16 @@ public class NullabilityTests extends ESTestCase {
         public Nullable(Source source, Nullability nullability) {
             super(source);
             this.nullability = nullability;
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public String getWriteableName() {
+            throw new UnsupportedOperationException();
         }
 
         @Override

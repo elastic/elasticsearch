@@ -7,22 +7,14 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.string;
 
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPattern;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.AbstractExpressionSerializationTests;
-import org.elasticsearch.xpack.esql.expression.function.scalar.UnaryScalarFunction;
 
 import java.io.IOException;
-import java.util.List;
 
 public class WildcardLikeSerializationTests extends AbstractExpressionSerializationTests<WildcardLike> {
-    @Override
-    protected List<NamedWriteableRegistry.Entry> getNamedWriteables() {
-        return UnaryScalarFunction.getNamedWriteables();
-    }
-
     @Override
     protected WildcardLike createTestInstance() {
         Source source = randomSource();

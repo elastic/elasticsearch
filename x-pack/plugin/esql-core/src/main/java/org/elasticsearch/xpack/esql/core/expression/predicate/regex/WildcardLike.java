@@ -6,9 +6,12 @@
  */
 package org.elasticsearch.xpack.esql.core.expression.predicate.regex;
 
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+
+import java.io.IOException;
 
 public class WildcardLike extends RegexMatch<WildcardPattern> {
 
@@ -18,6 +21,16 @@ public class WildcardLike extends RegexMatch<WildcardPattern> {
 
     public WildcardLike(Source source, Expression left, WildcardPattern pattern, boolean caseInsensitive) {
         super(source, left, pattern, caseInsensitive);
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public String getWriteableName() {
+        throw new UnsupportedOperationException();
     }
 
     @Override

@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.esql.core.expression.function;
 
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.core.capabilities.Unresolvable;
 import org.elasticsearch.xpack.esql.core.capabilities.UnresolvedException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -16,6 +17,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
 
+import java.io.IOException;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Objects;
@@ -36,6 +38,16 @@ public class UnresolvedFunction extends Function implements Unresolvable {
 
     public UnresolvedFunction(Source source, String name, FunctionResolutionStrategy resolutionStrategy, List<Expression> children) {
         this(source, name, resolutionStrategy, children, false, null);
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public String getWriteableName() {
+        throw new UnsupportedOperationException();
     }
 
     /**

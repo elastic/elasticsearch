@@ -95,7 +95,8 @@ public class MultiTypeEsFieldTests extends AbstractNamedWriteableTestCase<MultiT
         List<NamedWriteableRegistry.Entry> entries = new ArrayList<>(UnaryScalarFunction.getNamedWriteables());
         entries.addAll(Attribute.getNamedWriteables());
         entries.addAll(EsField.getNamedWriteables());
-        entries.add(new NamedWriteableRegistry.Entry(MultiTypeEsField.class, "MultiTypeEsField", MultiTypeEsField::new));
+        entries.add(MultiTypeEsField.ENTRY);
+        entries.addAll(Expression.getNamedWriteables());
         return new NamedWriteableRegistry(entries);
     }
 
@@ -112,7 +113,7 @@ public class MultiTypeEsFieldTests extends AbstractNamedWriteableTestCase<MultiT
             (out, v) -> new PlanStreamOutput(out, new PlanNameRegistry(), config).writeNamedWriteable(v),
             in -> {
                 PlanStreamInput pin = new PlanStreamInput(in, new PlanNameRegistry(), in.namedWriteableRegistry(), config);
-                return pin.readNamedWriteable(MultiTypeEsField.class);
+                return (MultiTypeEsField) pin.readNamedWriteable(EsField.class);
             },
             version
         );

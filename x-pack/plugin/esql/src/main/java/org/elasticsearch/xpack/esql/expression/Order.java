@@ -15,7 +15,6 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
-import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 
 import java.io.IOException;
 import java.util.List;
@@ -30,7 +29,7 @@ public class Order extends org.elasticsearch.xpack.esql.core.expression.Order {
     public Order(StreamInput in) throws IOException {
         this(
             Source.readFrom((PlanStreamInput) in),
-            ((PlanStreamInput) in).readExpression(),
+            in.readNamedWriteable(Expression.class),
             in.readEnum(org.elasticsearch.xpack.esql.core.expression.Order.OrderDirection.class),
             in.readEnum(org.elasticsearch.xpack.esql.core.expression.Order.NullsPosition.class)
         );
@@ -39,7 +38,7 @@ public class Order extends org.elasticsearch.xpack.esql.core.expression.Order {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         Source.EMPTY.writeTo(out);
-        ((PlanStreamOutput) out).writeExpression(child());
+        out.writeNamedWriteable(child());
         out.writeEnum(direction());
         out.writeEnum(nullsPosition());
     }

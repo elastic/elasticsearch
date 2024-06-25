@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.esql.core.expression.function;
 
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.ParsingException;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
@@ -18,6 +19,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.tree.SourceTests;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 
@@ -188,6 +190,16 @@ public class FunctionRegistryTests extends ESTestCase {
         }
 
         @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public String getWriteableName() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
         protected NodeInfo<DummyFunction> info() {
             return NodeInfo.create(this);
         }
@@ -213,6 +225,16 @@ public class FunctionRegistryTests extends ESTestCase {
 
         public DummyConfigurationOptionalArgumentFunction(Source source, List<Expression> fields, Configuration configuration) {
             super(source, fields, configuration);
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public String getWriteableName() {
+            throw new UnsupportedOperationException();
         }
 
         @Override

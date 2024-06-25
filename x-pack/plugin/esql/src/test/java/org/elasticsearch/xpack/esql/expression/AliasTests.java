@@ -81,6 +81,7 @@ public class AliasTests extends AbstractWireTestCase<Alias> {
         entries.addAll(Attribute.getNamedWriteables());
         entries.add(UnsupportedAttribute.ENTRY);
         entries.addAll(EsField.getNamedWriteables());
+        entries.addAll(Expression.getNamedWriteables());
         return new NamedWriteableRegistry(entries);
     }
 }

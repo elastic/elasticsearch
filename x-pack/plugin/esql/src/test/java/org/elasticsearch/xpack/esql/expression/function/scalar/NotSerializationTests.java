@@ -7,21 +7,14 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar;
 
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.AbstractExpressionSerializationTests;
 
 import java.io.IOException;
-import java.util.List;
 
 public class NotSerializationTests extends AbstractExpressionSerializationTests<Not> {
-    @Override
-    protected List<NamedWriteableRegistry.Entry> getNamedWriteables() {
-        return UnaryScalarFunction.getNamedWriteables();
-    }
-
     @Override
     protected Not createTestInstance() {
         return new Not(randomSource(), randomChild());

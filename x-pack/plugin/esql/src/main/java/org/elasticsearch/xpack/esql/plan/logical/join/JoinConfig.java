@@ -13,8 +13,6 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
-import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 
 import java.io.IOException;
 import java.util.List;
@@ -29,7 +27,7 @@ public record JoinConfig(JoinType type, List<Attribute> matchFields, List<Expres
         this(
             JoinType.readFrom(in),
             in.readNamedWriteableCollectionAsList(Attribute.class),
-            in.readCollectionAsList(i -> ((PlanStreamInput) i).readExpression())
+            in.readNamedWriteableCollectionAsList(Expression.class)
         );
     }
 
@@ -37,7 +35,7 @@ public record JoinConfig(JoinType type, List<Attribute> matchFields, List<Expres
     public void writeTo(StreamOutput out) throws IOException {
         type.writeTo(out);
         out.writeNamedWriteableCollection(matchFields);
-        out.writeCollection(conditions, (o, v) -> ((PlanStreamOutput) o).writeExpression(v));
+        out.writeNamedWriteableCollection(conditions);
     }
 
     public boolean expressionsResolved() {

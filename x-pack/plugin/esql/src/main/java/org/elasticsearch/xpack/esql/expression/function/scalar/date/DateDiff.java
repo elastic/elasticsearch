@@ -24,7 +24,6 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
-import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -176,18 +175,18 @@ public class DateDiff extends EsqlScalarFunction {
     private DateDiff(StreamInput in) throws IOException {
         this(
             Source.readFrom((PlanStreamInput) in),
-            ((PlanStreamInput) in).readExpression(),
-            ((PlanStreamInput) in).readExpression(),
-            ((PlanStreamInput) in).readExpression()
+            in.readNamedWriteable(Expression.class),
+            in.readNamedWriteable(Expression.class),
+            in.readNamedWriteable(Expression.class)
         );
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         Source.EMPTY.writeTo(out);
-        ((PlanStreamOutput) out).writeExpression(unit);
-        ((PlanStreamOutput) out).writeExpression(startTimestamp);
-        ((PlanStreamOutput) out).writeExpression(endTimestamp);
+        out.writeNamedWriteable(unit);
+        out.writeNamedWriteable(startTimestamp);
+        out.writeNamedWriteable(endTimestamp);
     }
 
     @Override

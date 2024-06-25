@@ -17,6 +17,8 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.expression.function.ReferenceAttributeTests;
 import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
+import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.esql.io.stream.PlanNameRegistry;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
@@ -76,8 +78,6 @@ public abstract class AbstractExpressionSerializationTests<T extends Expression>
         return false;
     }
 
-    protected abstract List<NamedWriteableRegistry.Entry> getNamedWriteables();
-
     public EsqlConfiguration configuration() {
         return config;
     }
@@ -85,10 +85,15 @@ public abstract class AbstractExpressionSerializationTests<T extends Expression>
     @Override
     protected final NamedWriteableRegistry getNamedWriteableRegistry() {
         List<NamedWriteableRegistry.Entry> entries = new ArrayList<>(NamedExpression.getNamedWriteables());
+        entries.addAll(Expression.getNamedWriteables());
         entries.addAll(Attribute.getNamedWriteables());
+        entries.addAll(EsqlScalarFunction.getNamedWriteables());
+        entries.addAll(AggregateFunction.getNamedWriteables());
         entries.add(UnsupportedAttribute.ENTRY);
+        entries.add(UnsupportedAttribute.NAMED_EXPRESSION_ENTRY);
+        entries.add(UnsupportedAttribute.EXPRESSION_ENTRY);
         entries.addAll(EsField.getNamedWriteables());
-        entries.addAll(getNamedWriteables());
+        entries.add(org.elasticsearch.xpack.esql.expression.Order.ENTRY);
         return new NamedWriteableRegistry(entries);
     }
 

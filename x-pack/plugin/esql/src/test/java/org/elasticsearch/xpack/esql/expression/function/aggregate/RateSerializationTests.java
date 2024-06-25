@@ -13,27 +13,27 @@ import org.elasticsearch.xpack.esql.expression.AbstractExpressionSerializationTe
 
 import java.io.IOException;
 
-public class TopListSerializationTests extends AbstractExpressionSerializationTests<TopList> {
+public class RateSerializationTests extends AbstractExpressionSerializationTests<Rate> {
     @Override
-    protected TopList createTestInstance() {
+    protected Rate createTestInstance() {
         Source source = randomSource();
         Expression field = randomChild();
-        Expression limit = randomChild();
-        Expression order = randomChild();
-        return new TopList(source, field, limit, order);
+        Expression timestamp = randomChild();
+        Expression unit = randomBoolean() ? null : randomChild();
+        return new Rate(source, field, timestamp, unit);
     }
 
     @Override
-    protected TopList mutateInstance(TopList instance) throws IOException {
-        Source source = instance.source();
+    protected Rate mutateInstance(Rate instance) throws IOException {
+        Source source = randomSource();
         Expression field = instance.field();
-        Expression limit = instance.limitField();
-        Expression order = instance.orderField();
+        Expression timestamp = instance.timestamp();
+        Expression unit = instance.unit();
         switch (between(0, 2)) {
             case 0 -> field = randomValueOtherThan(field, AbstractExpressionSerializationTests::randomChild);
-            case 1 -> limit = randomValueOtherThan(limit, AbstractExpressionSerializationTests::randomChild);
-            case 2 -> order = randomValueOtherThan(order, AbstractExpressionSerializationTests::randomChild);
+            case 1 -> timestamp = randomValueOtherThan(timestamp, AbstractExpressionSerializationTests::randomChild);
+            case 2 -> unit = randomValueOtherThan(unit, () -> randomBoolean() ? null : randomChild());
         }
-        return new TopList(source, field, limit, order);
+        return new Rate(source, field, timestamp, unit);
     }
 }

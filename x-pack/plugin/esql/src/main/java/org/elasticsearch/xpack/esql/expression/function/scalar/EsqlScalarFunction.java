@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.function.scalar.ScalarFunction;
+import org.elasticsearch.xpack.esql.core.expression.predicate.fulltext.FullTextPredicate;
 import org.elasticsearch.xpack.esql.core.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -34,6 +35,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.math.Pow;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Round;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Tau;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
+import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.BinarySpatialFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Concat;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.EndsWith;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Left;
@@ -46,9 +48,12 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Substring;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.ToLower;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.ToUpper;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.EsqlArithmeticOperation;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.InsensitiveEquals;
 
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -63,44 +68,49 @@ import java.util.List;
  */
 public abstract class EsqlScalarFunction extends ScalarFunction implements EvaluatorMapper {
     public static List<NamedWriteableRegistry.Entry> getNamedWriteables() {
-        return List.of(
-            And.ENTRY,
-            Atan2.ENTRY,
-            Bucket.ENTRY,
-            Case.ENTRY,
-            CIDRMatch.ENTRY,
-            Coalesce.ENTRY,
-            Concat.ENTRY,
-            E.ENTRY,
-            EndsWith.ENTRY,
-            Greatest.ENTRY,
-            In.ENTRY,
-            InsensitiveEquals.ENTRY,
-            DateExtract.ENTRY,
-            DateDiff.ENTRY,
-            DateFormat.ENTRY,
-            DateParse.ENTRY,
-            DateTrunc.ENTRY,
-            IpPrefix.ENTRY,
-            Least.ENTRY,
-            Left.ENTRY,
-            Locate.ENTRY,
-            Log.ENTRY,
-            Now.ENTRY,
-            Or.ENTRY,
-            Pi.ENTRY,
-            Pow.ENTRY,
-            Right.ENTRY,
-            Repeat.ENTRY,
-            Replace.ENTRY,
-            Round.ENTRY,
-            Split.ENTRY,
-            Substring.ENTRY,
-            StartsWith.ENTRY,
-            Tau.ENTRY,
-            ToLower.ENTRY,
-            ToUpper.ENTRY
-        );
+        List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
+        entries.add(And.ENTRY);
+        entries.add(Atan2.ENTRY);
+        entries.add(Bucket.ENTRY);
+        entries.add(Case.ENTRY);
+        entries.add(CIDRMatch.ENTRY);
+        entries.add(Coalesce.ENTRY);
+        entries.add(Concat.ENTRY);
+        entries.add(E.ENTRY);
+        entries.add(EndsWith.ENTRY);
+        entries.add(Greatest.ENTRY);
+        entries.add(In.ENTRY);
+        entries.add(InsensitiveEquals.ENTRY);
+        entries.add(DateExtract.ENTRY);
+        entries.add(DateDiff.ENTRY);
+        entries.add(DateFormat.ENTRY);
+        entries.add(DateParse.ENTRY);
+        entries.add(DateTrunc.ENTRY);
+        entries.add(IpPrefix.ENTRY);
+        entries.add(Least.ENTRY);
+        entries.add(Left.ENTRY);
+        entries.add(Locate.ENTRY);
+        entries.add(Log.ENTRY);
+        entries.add(Now.ENTRY);
+        entries.add(Or.ENTRY);
+        entries.add(Pi.ENTRY);
+        entries.add(Pow.ENTRY);
+        entries.add(Right.ENTRY);
+        entries.add(Repeat.ENTRY);
+        entries.add(Replace.ENTRY);
+        entries.add(Round.ENTRY);
+        entries.add(Split.ENTRY);
+        entries.add(Substring.ENTRY);
+        entries.add(StartsWith.ENTRY);
+        entries.add(Tau.ENTRY);
+        entries.add(ToLower.ENTRY);
+        entries.add(ToUpper.ENTRY);
+        entries.addAll(BinarySpatialFunction.getNamedWriteables());
+        entries.addAll(EsqlArithmeticOperation.getNamedWriteables());
+        entries.addAll(EsqlBinaryComparison.getNamedWriteables());
+        entries.addAll(FullTextPredicate.getNamedWriteables());
+        entries.addAll(UnaryScalarFunction.getNamedWriteables());
+        return entries;
     }
 
     protected EsqlScalarFunction(Source source) {

@@ -26,7 +26,6 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
-import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 
 import java.io.IOException;
@@ -78,16 +77,16 @@ public class DateParse extends EsqlScalarFunction implements OptionalArgument {
     private DateParse(StreamInput in) throws IOException {
         this(
             Source.readFrom((PlanStreamInput) in),
-            ((PlanStreamInput) in).readExpression(),
-            in.readOptionalWriteable(i -> ((PlanStreamInput) i).readExpression())
+            in.readNamedWriteable(Expression.class),
+            in.readOptionalNamedWriteable(Expression.class)
         );
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         source().writeTo(out);
-        ((PlanStreamOutput) out).writeExpression(children().get(0));
-        out.writeOptionalWriteable(children().size() == 2 ? o -> ((PlanStreamOutput) out).writeExpression(children().get(1)) : null);
+        out.writeNamedWriteable(children().get(0));
+        out.writeOptionalNamedWriteable(children().size() == 2 ? children().get(1) : null);
     }
 
     @Override

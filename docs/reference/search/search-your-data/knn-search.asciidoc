@@ -411,6 +411,24 @@ kNN search completes. Post-filtering has the downside that it sometimes
 returns fewer than k results, even when there are enough matching documents.
 
 [discrete]
+[[approximate-knn-search-and-filtering]]
+==== Approximate kNN search and filtering
+
+Unlike conventional query filtering, where more restrictive filters typically lead to faster queries,
+applying filters in an approximate kNN search with an HNSW index can decrease performance.
+This is because searching the HNSW graph requires additional exploration to obtain the `num_candidates`
+that meet the filter criteria.
+
+To avoid significant performance drawbacks, Lucene implements the following strategies per segment:
+
+* If the filtered document count is less than or equal to num_candidates, the search bypasses the HNSW graph and
+uses a brute force search on the filtered documents.
+
+* While exploring the HNSW graph, if the number of nodes explored exceeds the number of documents that satisfy the filter,
+the search will stop exploring the graph and switch to a brute force search over the filtered documents.
+
+
+[discrete]
 ==== Combine approximate kNN with other features
 
 You can perform 'hybrid retrieval' by providing both the

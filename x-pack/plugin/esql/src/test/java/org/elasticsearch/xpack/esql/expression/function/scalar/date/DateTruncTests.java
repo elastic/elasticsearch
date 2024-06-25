@@ -14,7 +14,7 @@ import org.elasticsearch.common.Rounding;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
+import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 
 import java.time.Duration;
@@ -28,7 +28,7 @@ import static org.elasticsearch.xpack.esql.expression.function.scalar.date.DateT
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
-public class DateTruncTests extends AbstractFunctionTestCase {
+public class DateTruncTests extends AbstractScalarFunctionTestCase {
 
     public DateTruncTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();

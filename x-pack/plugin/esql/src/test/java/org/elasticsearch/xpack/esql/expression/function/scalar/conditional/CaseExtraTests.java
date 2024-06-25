@@ -14,7 +14,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 
 import java.util.List;
 
-import static org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase.field;
+import static org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase.field;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.sameInstance;
 

@@ -33,7 +33,7 @@ import static org.hamcrest.Matchers.nullValue;
 /**
  * Base class for aggregation tests.
  */
-public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCase {
+public abstract class AbstractAggregationTestCase extends AbstractScalarFunctionTestCase {
     /**
      * Converts a list of aggregation test cases into a list of parameter suppliers.
      * Also, adds a default set of extra test cases.

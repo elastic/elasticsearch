@@ -217,7 +217,11 @@ API>>. Defaults to `true`.
 The vector similarity metric to use in kNN search. Documents are ranked by
 their vector field's similarity to the query vector. The `_score` of each
 document will be derived from the similarity, in a way that ensures scores are
-positive and that a larger score corresponds to a higher ranking. Defaults to `cosine`.
+positive and that a larger score corresponds to a higher ranking.
+Defaults to `l2_norm` when `element_type: bit` otherwise defaults to `cosine`.
+
+NOTE: `bit` vectors only support `l2_norm` as their similarity metric.
+
 +
 ^*^ This parameter can only be specified when `index` is `true`.
 +
@@ -228,6 +232,9 @@ positive and that a larger score corresponds to a higher ranking. Defaults to `c
 Computes similarity based on the L^2^ distance (also known as Euclidean
 distance) between the vectors. The document `_score` is computed as
 `1 / (1 + l2_norm(query, vector)^2)`.
+
+For `bit` vectors, instead of using `l2_norm`, the `hamming` distance between the vectors is used. The `_score`
+transformation is `(numBits - hamming(a, b)) / numBits`
 
 `dot_product`:::
 Computes the dot product of two unit vectors. This option provides an optimized way

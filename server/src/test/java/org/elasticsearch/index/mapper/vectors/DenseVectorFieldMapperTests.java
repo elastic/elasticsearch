@@ -65,17 +65,20 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+@com.carrotsearch.randomizedtesting.annotations.Repeat(iterations = 50)
 public class DenseVectorFieldMapperTests extends MapperTestCase {
 
     private static final IndexVersion INDEXED_BY_DEFAULT_PREVIOUS_INDEX_VERSION = IndexVersions.V_8_10_0;
     private final ElementType elementType;
     private final boolean indexed;
     private final boolean indexOptionsSet;
+    private final int dims;
 
     public DenseVectorFieldMapperTests() {
-        this.elementType = randomFrom(ElementType.BYTE, ElementType.FLOAT);
+        this.elementType = randomFrom(ElementType.BYTE, ElementType.FLOAT, ElementType.BIT);
         this.indexed = randomBoolean();
         this.indexOptionsSet = this.indexed && randomBoolean();
+        this.dims = ElementType.BIT == elementType ? 4 * Byte.SIZE : 4;
     }
 
     @Override
@@ -89,7 +92,7 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
     }
 
     private void indexMapping(XContentBuilder b, IndexVersion indexVersion) throws IOException {
-        b.field("type", "dense_vector").field("dims", 4);
+        b.field("type", "dense_vector").field("dims", dims);
         if (elementType != ElementType.FLOAT) {
             b.field("element_type", elementType.toString());
         }
@@ -108,7 +111,7 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
             b.endObject();
         }
         if (indexed) {
-            b.field("similarity", "dot_product");
+            b.field("similarity", elementType == ElementType.BIT ? "l2_norm" : "dot_product");
             if (indexOptionsSet) {
                 b.startObject("index_options");
                 b.field("type", "hnsw");
@@ -121,52 +124,86 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
 
     @Override
     protected Object getSampleValueForDocument() {
-        return elementType == ElementType.BYTE ? List.of((byte) 1, (byte) 1, (byte) 1, (byte) 1) : List.of(0.5, 0.5, 0.5, 0.5);
+        return elementType == ElementType.FLOAT ?  List.of(0.5, 0.5, 0.5, 0.5) : List.of((byte) 1, (byte) 1, (byte) 1, (byte) 1);
     }
 
     @Override
     protected void registerParameters(ParameterChecker checker) throws IOException {
         checker.registerConflictCheck(
             "dims",
-            fieldMapping(b -> b.field("type", "dense_vector").field("dims", 4)),
-            fieldMapping(b -> b.field("type", "dense_vector").field("dims", 5))
+            fieldMapping(b -> b.field("type", "dense_vector").field("dims", dims)),
+            fieldMapping(b -> b.field("type", "dense_vector").field("dims", dims + 8))
         );
         checker.registerConflictCheck(
             "similarity",
-            fieldMapping(b -> b.field("type", "dense_vector").field("dims", 4).field("index", true).field("similarity", "dot_product")),
-            fieldMapping(b -> b.field("type", "dense_vector").field("dims", 4).field("index", true).field("similarity", "l2_norm"))
+            fieldMapping(b -> b.field("type", "dense_vector").field("dims", dims).field("index", true).field("similarity", "dot_product")),
+            fieldMapping(b -> b.field("type", "dense_vector").field("dims", dims).field("index", true).field("similarity", "l2_norm"))
         );
         checker.registerConflictCheck(
             "index",
-            fieldMapping(b -> b.field("type", "dense_vector").field("dims", 4).field("index", true).field("similarity", "dot_product")),
-            fieldMapping(b -> b.field("type", "dense_vector").field("dims", 4).field("index", false))
+            fieldMapping(b -> b.field("type", "dense_vector").field("dims", dims).field("index", true).field("similarity", "dot_product")),
+            fieldMapping(b -> b.field("type", "dense_vector").field("dims", dims).field("index", false))
         );
         checker.registerConflictCheck(
             "element_type",
             fieldMapping(
                 b -> b.field("type", "dense_vector")
-                    .field("dims", 4)
+                    .field("dims", dims)
                     .field("index", true)
                     .field("similarity", "dot_product")
                     .field("element_type", "byte")
             ),
             fieldMapping(
                 b -> b.field("type", "dense_vector")
-                    .field("dims", 4)
+                    .field("dims", dims)
                     .field("index", true)
                     .field("similarity", "dot_product")
                     .field("element_type", "float")
             )
         );
+        checker.registerConflictCheck(
+            "element_type",
+            fieldMapping(
+                b -> b.field("type", "dense_vector")
+                    .field("dims", dims)
+                    .field("index", true)
+                    .field("similarity", "l2_norm")
+                    .field("element_type", "float")
+            ),
+            fieldMapping(
+                b -> b.field("type", "dense_vector")
+                    .field("dims", dims)
+                    .field("index", true)
+                    .field("similarity", "l2_norm")
+                    .field("element_type", "bit")
+            )
+        );
+        checker.registerConflictCheck(
+            "element_type",
+            fieldMapping(
+                b -> b.field("type", "dense_vector")
+                    .field("dims", dims)
+                    .field("index", true)
+                    .field("similarity", "l2_norm")
+                    .field("element_type", "byte")
+            ),
+            fieldMapping(
+                b -> b.field("type", "dense_vector")
+                    .field("dims", dims)
+                    .field("index", true)
+                    .field("similarity", "l2_norm")
+                    .field("element_type", "bit")
+            )
+        );
         checker.registerUpdateCheck(
             b -> b.field("type", "dense_vector")
-                .field("dims", 4)
+                .field("dims", dims)
                 .field("index", true)
                 .startObject("index_options")
                 .field("type", "flat")
                 .endObject(),
             b -> b.field("type", "dense_vector")
-                .field("dims", 4)
+                .field("dims", dims)
                 .field("index", true)
                 .startObject("index_options")
                 .field("type", "int8_flat")
@@ -175,13 +212,13 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
         );
         checker.registerUpdateCheck(
             b -> b.field("type", "dense_vector")
-                .field("dims", 4)
+                .field("dims", dims)
                 .field("index", true)
                 .startObject("index_options")
                 .field("type", "flat")
                 .endObject(),
             b -> b.field("type", "dense_vector")
-                .field("dims", 4)
+                .field("dims", dims)
                 .field("index", true)
                 .startObject("index_options")
                 .field("type", "hnsw")
@@ -190,13 +227,13 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
         );
         checker.registerUpdateCheck(
             b -> b.field("type", "dense_vector")
-                .field("dims", 4)
+                .field("dims", dims)
                 .field("index", true)
                 .startObject("index_options")
                 .field("type", "flat")
                 .endObject(),
             b -> b.field("type", "dense_vector")
-                .field("dims", 4)
+                .field("dims", dims)
                 .field("index", true)
                 .startObject("index_options")
                 .field("type", "int8_hnsw")
@@ -205,13 +242,13 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
         );
         checker.registerUpdateCheck(
             b -> b.field("type", "dense_vector")
-                .field("dims", 4)
+                .field("dims", dims)
                 .field("index", true)
                 .startObject("index_options")
                 .field("type", "int8_flat")
                 .endObject(),
             b -> b.field("type", "dense_vector")
-                .field("dims", 4)
+                .field("dims", dims)
                 .field("index", true)
                 .startObject("index_options")
                 .field("type", "hnsw")
@@ -220,13 +257,13 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
         );
         checker.registerUpdateCheck(
             b -> b.field("type", "dense_vector")
-                .field("dims", 4)
+                .field("dims", dims)
                 .field("index", true)
                 .startObject("index_options")
                 .field("type", "int8_flat")
                 .endObject(),
             b -> b.field("type", "dense_vector")
-                .field("dims", 4)
+                .field("dims", dims)
                 .field("index", true)
                 .startObject("index_options")
                 .field("type", "int8_hnsw")
@@ -235,13 +272,13 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
         );
         checker.registerUpdateCheck(
             b -> b.field("type", "dense_vector")
-                .field("dims", 4)
+                .field("dims", dims)
                 .field("index", true)
                 .startObject("index_options")
                 .field("type", "hnsw")
                 .endObject(),
             b -> b.field("type", "dense_vector")
-                .field("dims", 4)
+                .field("dims", dims)
                 .field("index", true)
                 .startObject("index_options")
                 .field("type", "int8_hnsw")
@@ -252,7 +289,7 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
             "index_options",
             fieldMapping(
                 b -> b.field("type", "dense_vector")
-                    .field("dims", 4)
+                    .field("dims", dims)
                     .field("index", true)
                     .startObject("index_options")
                     .field("type", "hnsw")
@@ -260,7 +297,7 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
             ),
             fieldMapping(
                 b -> b.field("type", "dense_vector")
-                    .field("dims", 4)
+                    .field("dims", dims)
                     .field("index", true)
                     .startObject("index_options")
                     .field("type", "flat")
@@ -353,7 +390,7 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
         mapping = mapping(b -> {
             b.startObject("field");
             b.field("type", "dense_vector")
-                .field("dims", 4)
+                .field("dims", dims)
                 .field("similarity", "cosine")
                 .field("index", true)
                 .startObject("index_options")
@@ -648,7 +685,7 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
                 () -> createDocumentMapper(
                     fieldMapping(
                         b -> b.field("type", "dense_vector")
-                            .field("dims", 4)
+                            .field("dims", dims)
                             .field("element_type", "byte")
                             .field("similarity", "l2_norm")
                             .field("index", true)
@@ -1197,7 +1234,7 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
         boolean setEfConstruction = randomBoolean();
         MapperService mapperService = createMapperService(fieldMapping(b -> {
             b.field("type", "dense_vector");
-            b.field("dims", 4);
+            b.field("dims", dims);
             b.field("index", true);
             b.field("similarity", "dot_product");
             b.startObject("index_options");
@@ -1235,7 +1272,7 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
         for (String quantizedFlatFormat : new String[] { "int8_flat", "int4_flat" }) {
             MapperService mapperService = createMapperService(fieldMapping(b -> {
                 b.field("type", "dense_vector");
-                b.field("dims", 4);
+                b.field("dims", dims);
                 b.field("index", true);
                 b.field("similarity", "dot_product");
                 b.startObject("index_options");
@@ -1276,7 +1313,7 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
         float confidenceInterval = (float) randomDoubleBetween(0.90f, 1.0f, true);
         MapperService mapperService = createMapperService(fieldMapping(b -> {
             b.field("type", "dense_vector");
-            b.field("dims", 4);
+            b.field("dims", dims);
             b.field("index", true);
             b.field("similarity", "dot_product");
             b.startObject("index_options");
@@ -1317,7 +1354,7 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
         float confidenceInterval = (float) randomDoubleBetween(0.90f, 1.0f, true);
         MapperService mapperService = createMapperService(fieldMapping(b -> {
             b.field("type", "dense_vector");
-            b.field("dims", 4);
+            b.field("dims", dims);
             b.field("index", true);
             b.field("similarity", "dot_product");
             b.startObject("index_options");

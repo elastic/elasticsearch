@@ -292,3 +292,65 @@ setup:
               similarity: l2_norm
               index_options:
                 type: int8_hnsw
+---
+"Defaults to l2_norm with bit vectors":
+  - do:
+      indices.create:
+        index: default_to_l2_norm_bit
+        body:
+          mappings:
+            properties:
+              vector:
+                type: dense_vector
+                element_type: bit
+                dims: 40
+                index: true
+
+  - do:
+      indices.get_mapping:
+        index: default_to_l2_norm_bit
+
+  - match: { default_to_l2_norm_bit.mappings.properties.vector.similarity: l2_norm }
+
+---
+"Only allow l2_norm with bit vectors":
+  - do:
+      catch: bad_request
+      indices.create:
+        index: dot_product_fails_for_bits
+        body:
+          mappings:
+            properties:
+              vector:
+                type: dense_vector
+                element_type: bit
+                dims: 40
+                index: true
+                similarity: dot_product
+
+  - do:
+      catch: bad_request
+      indices.create:
+        index: cosine_product_fails_for_bits
+        body:
+          mappings:
+            properties:
+              vector:
+                type: dense_vector
+                element_type: bit
+                dims: 40
+                index: true
+                similarity: cosine
+
+  - do:
+      catch: bad_request
+      indices.create:
+        index: cosine_product_fails_for_bits
+        body:
+          mappings:
+            properties:
+              type: dense_vector
+              element_type: bit
+              dims: 40
+              index: true
+              similarity: max_inner_product

@@ -186,9 +186,23 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 "similarity",
                 false,
                 m -> toType(m).fieldType().similarity,
-                (Supplier<VectorSimilarity>) () -> indexedByDefault && indexed.getValue() ? VectorSimilarity.COSINE : null,
+                (Supplier<VectorSimilarity>) () -> {
+                    if (indexedByDefault && indexed.getValue()) {
+                        return elementType.getValue() == ElementType.BIT ? VectorSimilarity.L2_NORM : VectorSimilarity.COSINE;
+                    }
+                    return null;
+                },
                 VectorSimilarity.class
-            ).acceptsNull().setSerializerCheck((id, ic, v) -> v != null);
+            ).acceptsNull().setSerializerCheck((id, ic, v) -> v != null).addValidator(vectorSim -> {
+                if (vectorSim == null) {
+                    return;
+                }
+                if (elementType.getValue() == ElementType.BIT && vectorSim != VectorSimilarity.L2_NORM) {
+                    throw new IllegalArgumentException(
+                        "The [" + VectorSimilarity.L2_NORM + "] similarity is the only supported similarity for bit vectors"
+                    );
+                }
+            });
             this.indexOptions = new Parameter<>(
                 "index_options",
                 true,
@@ -1057,9 +1071,10 @@ public class DenseVectorFieldMapper extends FieldMapper {
         COSINE {
             @Override
             float score(float similarity, ElementType elementType, int dim) {
+                assert elementType != ElementType.BIT;
                 return switch (elementType) {
                     case BYTE, FLOAT -> (1 + similarity) / 2f;
-                    case BIT -> dim - (similarity * dim);
+                    default -> throw new IllegalArgumentException("Unsupported element type [" + elementType + "]");
                 };
             }
 
@@ -1076,7 +1091,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 return switch (elementType) {
                     case BYTE -> 0.5f + similarity / (float) (dim * (1 << 15));
                     case FLOAT -> (1 + similarity) / 2f;
-                    case BIT -> dim - (similarity * dim);
+                    default -> throw new IllegalArgumentException("Unsupported element type [" + elementType + "]");
                 };
             }
 
@@ -1090,7 +1105,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             float score(float similarity, ElementType elementType, int dim) {
                 return switch (elementType) {
                     case BYTE, FLOAT -> similarity < 0 ? 1 / (1 + -1 * similarity) : similarity + 1;
-                    case BIT -> dim - (similarity * dim);
+                    default -> throw new IllegalArgumentException("Unsupported element type [" + elementType + "]");
                 };
             }
 

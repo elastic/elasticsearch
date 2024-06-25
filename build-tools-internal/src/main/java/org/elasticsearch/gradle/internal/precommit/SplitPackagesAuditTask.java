@@ -49,6 +49,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.function.Consumer;
+
 import javax.inject.Inject;
 
 import static org.elasticsearch.gradle.util.GradleUtils.projectPath;

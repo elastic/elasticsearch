@@ -141,7 +141,7 @@ public class GoogleVertexAiEmbeddingsServiceSettings extends FilteredXContentObj
         this.dimensionsSetByUser = dimensionsSetByUser;
         this.maxInputTokens = maxInputTokens;
         this.dims = dims;
-        this.similarity = similarity;
+        this.similarity = Objects.requireNonNullElse(similarity, SimilarityMeasure.DOT_PRODUCT);
         this.rateLimitSettings = Objects.requireNonNullElse(rateLimitSettings, DEFAULT_RATE_LIMIT_SETTINGS);
     }
 

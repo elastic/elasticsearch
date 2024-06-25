@@ -21,7 +21,6 @@ import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
-import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.inference.common.EmbeddingRequestChunker;
@@ -216,9 +215,6 @@ public class GoogleVertexAiService extends SenderService {
             );
         }
 
-        var similarityFromModel = model.getServiceSettings().similarity();
-        var similarityToUse = similarityFromModel == null ? SimilarityMeasure.DOT_PRODUCT : similarityFromModel;
-
         GoogleVertexAiEmbeddingsServiceSettings serviceSettings = new GoogleVertexAiEmbeddingsServiceSettings(
             model.getServiceSettings().location(),
             model.getServiceSettings().projectId(),
@@ -226,7 +222,7 @@ public class GoogleVertexAiService extends SenderService {
             model.getServiceSettings().dimensionsSetByUser(),
             model.getServiceSettings().maxInputTokens(),
             embeddingSize,
-            similarityToUse,
+            model.getServiceSettings().similarity(),
             model.getServiceSettings().rateLimitSettings()
         );
 

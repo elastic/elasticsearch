@@ -15,6 +15,7 @@ import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.MockSecureSettings;
@@ -91,9 +92,12 @@ public abstract class SecuritySingleNodeTestCase extends ESSingleNodeTestCase {
     }
 
     private boolean isMigrationComplete(ClusterState state) {
-        return getMigrationVersionFromIndexMetadata(
-            state.metadata().index(TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7)
-        ) == SecurityMigrations.MIGRATIONS_BY_VERSION.lastKey();
+        IndexMetadata indexMetadata = state.metadata().index(TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7);
+        if (indexMetadata == null) {
+            // If index doesn't exist, no migration needed
+            return true;
+        }
+        return getMigrationVersionFromIndexMetadata(indexMetadata) == SecurityMigrations.MIGRATIONS_BY_VERSION.lastKey();
     }
 
     private void awaitSecurityMigration() {

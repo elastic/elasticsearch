@@ -15,7 +15,6 @@ import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.MockSecureSettings;
@@ -45,9 +44,8 @@ import java.util.concurrent.CountDownLatch;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING;
-import static org.elasticsearch.xpack.core.security.action.UpdateIndexMigrationVersionAction.MIGRATION_VERSION_CUSTOM_DATA_KEY;
-import static org.elasticsearch.xpack.core.security.action.UpdateIndexMigrationVersionAction.MIGRATION_VERSION_CUSTOM_KEY;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
+import static org.elasticsearch.xpack.security.support.SecurityIndexManager.getMigrationVersionFromIndexMetadata;
 import static org.hamcrest.Matchers.hasItem;
 
 /**
@@ -93,17 +91,9 @@ public abstract class SecuritySingleNodeTestCase extends ESSingleNodeTestCase {
     }
 
     private boolean isMigrationComplete(ClusterState state) {
-        IndexMetadata indexMetadata = state.metadata().index(TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7);
-        if (indexMetadata == null) {
-            // If the security index doesn't exist, no migrations to apply
-            return true;
-        }
-        Map<String, String> customMetadata = indexMetadata.getCustomData(MIGRATION_VERSION_CUSTOM_KEY);
-        if (customMetadata == null) {
-            return false;
-        }
-        String version = customMetadata.get(MIGRATION_VERSION_CUSTOM_DATA_KEY);
-        return Integer.parseInt(version) == SecurityMigrations.MIGRATIONS_BY_VERSION.lastKey();
+        return getMigrationVersionFromIndexMetadata(
+            state.metadata().index(TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7)
+        ) == SecurityMigrations.MIGRATIONS_BY_VERSION.lastKey();
     }
 
     private void awaitSecurityMigration() {

@@ -254,7 +254,6 @@ public class SecurityIndexManager implements ClusterStateListener {
         }
         final State previousState = state;
         final IndexMetadata indexMetadata = resolveConcreteIndex(systemIndexDescriptor.getAliasName(), event.state().metadata());
-        final Map<String, String> customMetadata = indexMetadata == null ? null : indexMetadata.getCustomData(MIGRATION_VERSION_CUSTOM_KEY);
         final Instant creationTime = indexMetadata != null ? Instant.ofEpochMilli(indexMetadata.getCreationDate()) : null;
         final boolean isIndexUpToDate = indexMetadata == null
             || INDEX_FORMAT_SETTING.get(indexMetadata.getSettings()) == systemIndexDescriptor.getIndexFormat();
@@ -262,7 +261,7 @@ public class SecurityIndexManager implements ClusterStateListener {
         final boolean indexAvailableForWrite = available.v1();
         final boolean indexAvailableForSearch = available.v2();
         final boolean mappingIsUpToDate = indexMetadata == null || checkIndexMappingUpToDate(event.state());
-        final int migrationsVersion = customMetadata == null ? 0 : Integer.parseInt(customMetadata.get(MIGRATION_VERSION_CUSTOM_DATA_KEY));
+        final int migrationsVersion = getMigrationVersionFromIndexMetadata(indexMetadata);
         final SystemIndexDescriptor.MappingsVersion minClusterMappingVersion = getMinSecurityIndexMappingVersion(event.state());
         final int indexMappingVersion = loadIndexMappingVersion(systemIndexDescriptor.getAliasName(), event.state());
         final String concreteIndexName = indexMetadata == null
@@ -308,6 +307,15 @@ public class SecurityIndexManager implements ClusterStateListener {
                 listener.accept(previousState, newState);
             }
         }
+    }
+
+    public static int getMigrationVersionFromIndexMetadata(IndexMetadata indexMetadata) {
+        Map<String, String> customMetadata = indexMetadata == null ? null : indexMetadata.getCustomData(MIGRATION_VERSION_CUSTOM_KEY);
+        if (customMetadata == null) {
+            return 0;
+        }
+        String migrationVersion = customMetadata.get(MIGRATION_VERSION_CUSTOM_DATA_KEY);
+        return migrationVersion == null ? 0 : Integer.parseInt(migrationVersion);
     }
 
     public void onStateRecovered(Consumer<State> recoveredStateConsumer) {

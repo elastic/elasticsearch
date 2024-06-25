@@ -100,49 +100,54 @@ public class SearchResponseCountTelemetryTests extends ESSingleNodeTestCase {
         }
     }
 
-    public void testSimpleQuery() {
+    public void testSimpleQuery() throws Exception {
         assertSearchHitsWithoutFailures(client().prepareSearch(indexName).setQuery(simpleQueryStringQuery("green")), "2", "10");
-        List<Measurement> measurements = getTestTelemetryPlugin().getLongCounterMeasurement(RESPONSE_COUNT_TOTAL_COUNTER_NAME);
-        assertThat(measurements.size(), equalTo(1));
-        assertThat(measurements.get(0).getLong(), equalTo(1L));
-        assertThat(
-            measurements.get(0).attributes().get(RESPONSE_COUNT_TOTAL_STATUS_ATTRIBUTE_NAME),
-            equalTo(SearchResponseMetrics.ResponseCountTotalStatus.SUCCESS.getDisplayName())
-        );
-    }
-
-    public void testSearchWithSingleShardFailure() {
-        ThrowingQueryBuilder queryBuilder = new ThrowingQueryBuilder(randomLong(), new IllegalStateException("something bad"), 0);
-        SearchResponse searchResponse = client().prepareSearch(indexName).setQuery(queryBuilder).get();
-        try {
-            assertThat(searchResponse.getFailedShards(), equalTo(1));
-
+        assertBusy(() -> {
             List<Measurement> measurements = getTestTelemetryPlugin().getLongCounterMeasurement(RESPONSE_COUNT_TOTAL_COUNTER_NAME);
             assertThat(measurements.size(), equalTo(1));
             assertThat(measurements.get(0).getLong(), equalTo(1L));
             assertThat(
                 measurements.get(0).attributes().get(RESPONSE_COUNT_TOTAL_STATUS_ATTRIBUTE_NAME),
-                equalTo(SearchResponseMetrics.ResponseCountTotalStatus.PARTIAL_FAILURE.getDisplayName())
+                equalTo(SearchResponseMetrics.ResponseCountTotalStatus.SUCCESS.getDisplayName())
             );
+        });
+    }
+
+    public void testSearchWithSingleShardFailure() throws Exception {
+        ThrowingQueryBuilder queryBuilder = new ThrowingQueryBuilder(randomLong(), new IllegalStateException("something bad"), 0);
+        SearchResponse searchResponse = client().prepareSearch(indexName).setQuery(queryBuilder).get();
+        try {
+            assertThat(searchResponse.getFailedShards(), equalTo(1));
+            assertBusy(() -> {
+                List<Measurement> measurements = getTestTelemetryPlugin().getLongCounterMeasurement(RESPONSE_COUNT_TOTAL_COUNTER_NAME);
+                assertThat(measurements.size(), equalTo(1));
+                assertThat(measurements.get(0).getLong(), equalTo(1L));
+                assertThat(
+                    measurements.get(0).attributes().get(RESPONSE_COUNT_TOTAL_STATUS_ATTRIBUTE_NAME),
+                    equalTo(SearchResponseMetrics.ResponseCountTotalStatus.PARTIAL_FAILURE.getDisplayName())
+                );
+            });
         } finally {
             searchResponse.decRef();
         }
     }
 
-    public void testSearchWithAllShardsFail() {
+    public void testSearchWithAllShardsFail() throws Exception {
         ThrowingQueryBuilder queryBuilder = new ThrowingQueryBuilder(randomLong(), new IllegalStateException("something bad"), indexName);
         SearchPhaseExecutionException exception = expectThrows(
             SearchPhaseExecutionException.class,
             client().prepareSearch(indexName).setQuery(queryBuilder)
         );
         assertThat(exception.getCause().getMessage(), containsString("something bad"));
-        List<Measurement> measurements = getTestTelemetryPlugin().getLongCounterMeasurement(RESPONSE_COUNT_TOTAL_COUNTER_NAME);
-        assertThat(measurements.size(), equalTo(1));
-        assertThat(measurements.get(0).getLong(), equalTo(1L));
-        assertThat(
-            measurements.get(0).attributes().get(RESPONSE_COUNT_TOTAL_STATUS_ATTRIBUTE_NAME),
-            equalTo(SearchResponseMetrics.ResponseCountTotalStatus.FAILURE.getDisplayName())
-        );
+        assertBusy(() -> {
+            List<Measurement> measurements = getTestTelemetryPlugin().getLongCounterMeasurement(RESPONSE_COUNT_TOTAL_COUNTER_NAME);
+            assertThat(measurements.size(), equalTo(1));
+            assertThat(measurements.get(0).getLong(), equalTo(1L));
+            assertThat(
+                measurements.get(0).attributes().get(RESPONSE_COUNT_TOTAL_STATUS_ATTRIBUTE_NAME),
+                equalTo(SearchResponseMetrics.ResponseCountTotalStatus.FAILURE.getDisplayName())
+            );
+        });
     }
 
     public void testScroll() {
@@ -153,20 +158,28 @@ public class SearchResponseCountTelemetryTests extends ESSingleNodeTestCase {
             2,
             (respNum, response) -> {
                 if (respNum <= 2) {
-                    List<Measurement> measurements = getTestTelemetryPlugin().getLongCounterMeasurement(RESPONSE_COUNT_TOTAL_COUNTER_NAME);
-                    assertThat(measurements.size(), equalTo(1));
-                    assertThat(measurements.get(0).getLong(), equalTo(1L));
-                    assertThat(
-                        measurements.get(0).attributes().get(RESPONSE_COUNT_TOTAL_STATUS_ATTRIBUTE_NAME),
-                        equalTo(SearchResponseMetrics.ResponseCountTotalStatus.SUCCESS.getDisplayName())
-                    );
+                    try {
+                        assertBusy(() -> {
+                            List<Measurement> measurements = getTestTelemetryPlugin().getLongCounterMeasurement(
+                                RESPONSE_COUNT_TOTAL_COUNTER_NAME
+                            );
+                            assertThat(measurements.size(), equalTo(1));
+                            assertThat(measurements.get(0).getLong(), equalTo(1L));
+                            assertThat(
+                                measurements.get(0).attributes().get(RESPONSE_COUNT_TOTAL_STATUS_ATTRIBUTE_NAME),
+                                equalTo(SearchResponseMetrics.ResponseCountTotalStatus.SUCCESS.getDisplayName())
+                            );
+                        });
+                    } catch (Exception e) {
+                        throw new RuntimeException(e);
+                    }
                 }
                 resetMeter();
             }
         );
     }
 
-    public void testScrollWithSingleShardFailure() {
+    public void testScrollWithSingleShardFailure() throws Exception {
         ThrowingQueryBuilder queryBuilder = new ThrowingQueryBuilder(randomLong(), new IllegalStateException("something bad"), 0);
         SearchRequestBuilder searchRequestBuilder = client().prepareSearch(indexName).setSize(1).setQuery(queryBuilder);
         TimeValue keepAlive = TimeValue.timeValueSeconds(60);
@@ -175,28 +188,31 @@ public class SearchResponseCountTelemetryTests extends ESSingleNodeTestCase {
         var scrollResponse = searchRequestBuilder.get();
         responses.add(scrollResponse);
         try {
-            List<Measurement> measurements = getTestTelemetryPlugin().getLongCounterMeasurement(RESPONSE_COUNT_TOTAL_COUNTER_NAME);
-            int expectedNumMeasurements = 1;
-            assertThat(measurements.size(), equalTo(expectedNumMeasurements)); // one measurement recorded (in TransportSearchAction)
-            assertThat(measurements.get(0).getLong(), equalTo(1L));  // should be one partially failed search response
-            assertThat(
-                measurements.get(0).attributes().get(RESPONSE_COUNT_TOTAL_STATUS_ATTRIBUTE_NAME),
-                equalTo(SearchResponseMetrics.ResponseCountTotalStatus.PARTIAL_FAILURE.getDisplayName())
-            );
-
+            assertBusy(() -> {
+                List<Measurement> measurements = getTestTelemetryPlugin().getLongCounterMeasurement(RESPONSE_COUNT_TOTAL_COUNTER_NAME);
+                assertThat(measurements.size(), equalTo(1));
+                assertThat(measurements.get(0).getLong(), equalTo(1L));
+                assertThat(
+                    measurements.get(0).attributes().get(RESPONSE_COUNT_TOTAL_STATUS_ATTRIBUTE_NAME),
+                    equalTo(SearchResponseMetrics.ResponseCountTotalStatus.PARTIAL_FAILURE.getDisplayName())
+                );
+            });
+            int numResponses = 1;
             while (scrollResponse.getHits().getHits().length > 0) {
                 scrollResponse = client().prepareSearchScroll(scrollResponse.getScrollId()).setScroll(keepAlive).get();
-                expectedNumMeasurements++;
+                int expectedNumMeasurements = ++numResponses;
                 responses.add(scrollResponse);
-                measurements = getTestTelemetryPlugin().getLongCounterMeasurement(RESPONSE_COUNT_TOTAL_COUNTER_NAME);
-                // verify that one additional measurement recorded (in TransportScrollSearchAction)
-                assertThat(measurements.size(), equalTo(expectedNumMeasurements));
-                // verify that zero shards failed in secondary scroll search rounds
-                assertThat(measurements.get(expectedNumMeasurements - 1).getLong(), equalTo(1L));
-                assertThat(
-                    measurements.get(expectedNumMeasurements - 1).attributes().get(RESPONSE_COUNT_TOTAL_STATUS_ATTRIBUTE_NAME),
-                    equalTo(SearchResponseMetrics.ResponseCountTotalStatus.SUCCESS.getDisplayName())
-                );
+                assertBusy(() -> {
+                    List<Measurement> measurements = getTestTelemetryPlugin().getLongCounterMeasurement(RESPONSE_COUNT_TOTAL_COUNTER_NAME);
+                    // verify that one additional measurement recorded (in TransportScrollSearchAction)
+                    assertThat(measurements.size(), equalTo(expectedNumMeasurements));
+                    // verify that zero shards failed in secondary scroll search rounds
+                    assertThat(measurements.get(expectedNumMeasurements - 1).getLong(), equalTo(1L));
+                    assertThat(
+                        measurements.get(expectedNumMeasurements - 1).attributes().get(RESPONSE_COUNT_TOTAL_STATUS_ATTRIBUTE_NAME),
+                        equalTo(SearchResponseMetrics.ResponseCountTotalStatus.SUCCESS.getDisplayName())
+                    );
+                });
             }
         } finally {
             ClearScrollResponse clear = client().prepareClearScroll().setScrollIds(Arrays.asList(scrollResponse.getScrollId())).get();
@@ -205,19 +221,21 @@ public class SearchResponseCountTelemetryTests extends ESSingleNodeTestCase {
         }
     }
 
-    public void testScrollWithAllShardsFail() {
+    public void testScrollWithAllShardsFail() throws Exception {
         ThrowingQueryBuilder queryBuilder = new ThrowingQueryBuilder(randomLong(), new IllegalStateException("something bad"), indexName);
         SearchPhaseExecutionException exception = expectThrows(
             SearchPhaseExecutionException.class,
             client().prepareSearch(indexName).setSize(1).setQuery(queryBuilder).setScroll(TimeValue.timeValueSeconds(60))
         );
         assertThat(exception.getCause().getMessage(), containsString("something bad"));
-        List<Measurement> measurements = getTestTelemetryPlugin().getLongCounterMeasurement(RESPONSE_COUNT_TOTAL_COUNTER_NAME);
-        assertThat(measurements.size(), equalTo(1));
-        assertThat(measurements.get(0).getLong(), equalTo(1L));
-        assertThat(
-            measurements.get(0).attributes().get(RESPONSE_COUNT_TOTAL_STATUS_ATTRIBUTE_NAME),
-            equalTo(SearchResponseMetrics.ResponseCountTotalStatus.FAILURE.getDisplayName())
-        );
+        assertBusy(() -> {
+            List<Measurement> measurements = getTestTelemetryPlugin().getLongCounterMeasurement(RESPONSE_COUNT_TOTAL_COUNTER_NAME);
+            assertThat(measurements.size(), equalTo(1));
+            assertThat(measurements.get(0).getLong(), equalTo(1L));
+            assertThat(
+                measurements.get(0).attributes().get(RESPONSE_COUNT_TOTAL_STATUS_ATTRIBUTE_NAME),
+                equalTo(SearchResponseMetrics.ResponseCountTotalStatus.FAILURE.getDisplayName())
+            );
+        });
     }
 }

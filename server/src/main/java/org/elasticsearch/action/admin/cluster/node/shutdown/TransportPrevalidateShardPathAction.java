@@ -108,6 +108,7 @@ public class TransportPrevalidateShardPathAction extends TransportNodesAction<
                 } else {
                     // The index is not known to this node. This shouldn't happen, but it can be safely ignored for this operation.
                     logger.warn("node doesn't have metadata for the index [{}]", shardId.getIndex());
+                    continue;
                 }
                 shardPath = ShardPath.loadShardPath(logger, nodeEnv, shardId, customDataPath);
                 if (shardPath != null) {

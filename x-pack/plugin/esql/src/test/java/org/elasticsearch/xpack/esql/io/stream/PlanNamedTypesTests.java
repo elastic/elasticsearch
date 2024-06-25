@@ -33,24 +33,9 @@ import org.elasticsearch.xpack.esql.core.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
-import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
 import org.elasticsearch.xpack.esql.core.type.KeywordEsField;
-import org.elasticsearch.xpack.esql.core.type.TextEsField;
-import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
-import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
-import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
-import org.elasticsearch.xpack.esql.expression.function.aggregate.Avg;
-import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
-import org.elasticsearch.xpack.esql.expression.function.aggregate.CountDistinct;
-import org.elasticsearch.xpack.esql.expression.function.aggregate.Max;
-import org.elasticsearch.xpack.esql.expression.function.aggregate.Median;
-import org.elasticsearch.xpack.esql.expression.function.aggregate.MedianAbsoluteDeviation;
-import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
-import org.elasticsearch.xpack.esql.expression.function.aggregate.Percentile;
-import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialCentroid;
-import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Pow;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Round;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
@@ -243,19 +228,6 @@ public class PlanNamedTypesTests extends ESTestCase {
         Stream.generate(PlanNamedTypesTests::randomBinaryComparison).limit(100).forEach(obj -> assertNamedType(Expression.class, obj));
     }
 
-    public void testAggFunctionSimple() throws IOException {
-        var orig = new Avg(Source.EMPTY, field("foo_val", DataType.DOUBLE));
-        BytesStreamOutput bso = new BytesStreamOutput();
-        PlanStreamOutput out = new PlanStreamOutput(bso, planNameRegistry, null);
-        out.writeNamed(AggregateFunction.class, orig);
-        var deser = (Avg) planStreamInput(bso).readNamed(AggregateFunction.class);
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(orig, unused -> deser);
-    }
-
-    public void testAggFunction() {
-        Stream.generate(PlanNamedTypesTests::randomAggFunction).limit(100).forEach(obj -> assertNamedType(AggregateFunction.class, obj));
-    }
-
     public void testArithmeticOperationSimple() throws IOException {
         var orig = new Add(Source.EMPTY, field("foo", DataType.LONG), field("bar", DataType.LONG));
         BytesStreamOutput bso = new BytesStreamOutput();
@@ -394,16 +366,6 @@ public class PlanNamedTypesTests extends ESTestCase {
         );
     }
 
-    static UnsupportedAttribute randomUnsupportedAttribute() {
-        return new UnsupportedAttribute(
-            Source.EMPTY,
-            randomAlphaOfLength(randomIntBetween(1, 25)), // name
-            randomUnsupportedEsField(), // field
-            randomStringOrNull(), // customMessage
-            nameIdOrNull()
-        );
-    }
-
     static FieldAttribute randomFieldAttributeOrNull() {
         return randomBoolean() ? randomFieldAttribute() : null;
     }
@@ -433,22 +395,6 @@ public class PlanNamedTypesTests extends ESTestCase {
         );
     }
 
-    static TextEsField randomTextEsField() {
-        return new TextEsField(
-            randomAlphaOfLength(randomIntBetween(1, 25)), // name
-            randomProperties(),
-            randomBoolean(), // hasDocValues
-            randomBoolean() // alias
-        );
-    }
-
-    static InvalidMappedField randomInvalidMappedField() {
-        return new InvalidMappedField(
-            randomAlphaOfLength(randomIntBetween(1, 25)), // name
-            randomAlphaOfLength(randomIntBetween(1, 25)) // error message
-        );
-    }
-
     static EsqlBinaryComparison randomBinaryComparison() {
         int v = randomIntBetween(0, 5);
         var left = field(randomName(), randomDataType());
@@ -460,25 +406,6 @@ public class PlanNamedTypesTests extends ESTestCase {
             case 3 -> new GreaterThanOrEqual(Source.EMPTY, left, right);
             case 4 -> new LessThan(Source.EMPTY, left, right);
             case 5 -> new LessThanOrEqual(Source.EMPTY, left, right);
-            default -> throw new AssertionError(v);
-        };
-    }
-
-    static AggregateFunction randomAggFunction() {
-        int v = randomIntBetween(0, 8);
-        var field = field(randomName(), randomDataType());
-        var right = field(randomName(), randomDataType());
-        return switch (v) {
-            case 0 -> new Avg(Source.EMPTY, field);
-            case 1 -> new Count(Source.EMPTY, field);
-            case 2 -> new Sum(Source.EMPTY, field);
-            case 3 -> new Min(Source.EMPTY, field);
-            case 4 -> new Max(Source.EMPTY, field);
-            case 5 -> new Median(Source.EMPTY, field);
-            case 6 -> new MedianAbsoluteDeviation(Source.EMPTY, field);
-            case 7 -> new CountDistinct(Source.EMPTY, field, right);
-            case 8 -> new Percentile(Source.EMPTY, field, right);
-            case 9 -> new SpatialCentroid(Source.EMPTY, field);
             default -> throw new AssertionError(v);
         };
     }
@@ -522,15 +449,6 @@ public class PlanNamedTypesTests extends ESTestCase {
             randomProperties(depth),
             randomBoolean(), // aggregatable
             randomBoolean() // isAlias
-        );
-    }
-
-    static UnsupportedEsField randomUnsupportedEsField() {
-        return new UnsupportedEsField(
-            randomAlphaOfLength(randomIntBetween(1, 25)), // name
-            randomAlphaOfLength(randomIntBetween(1, 25)), // originalType
-            randomAlphaOfLength(randomIntBetween(1, 25)), // inherited
-            randomProperties()
         );
     }
 

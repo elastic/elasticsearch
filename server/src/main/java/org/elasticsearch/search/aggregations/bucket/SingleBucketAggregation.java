@@ -30,17 +30,16 @@ public interface SingleBucketAggregation extends Aggregation, HasAggregations, B
 
     @Override
     default int countBuckets() {
-        int count = 1;
+        int count = 0;
         InternalAggregations subAggregations = getAggregations();
-        if (subAggregations != null) {
-            for (Aggregation aggregation : subAggregations) {
-                if (aggregation instanceof MultiBucketsAggregation multiBucketsAggregation) {
-                    for (MultiBucketsAggregation.Bucket subBucket : multiBucketsAggregation.getBuckets()) {
-                        count += subBucket.countBuckets();
-                    }
-                } else if (aggregation instanceof SingleBucketAggregation singleBucketAggregation) {
-                    count += singleBucketAggregation.countBuckets();
+        if(subAggregations == null || subAggregations.asList().isEmpty()) return 1;
+        for (Aggregation aggregation : subAggregations) {
+            if (aggregation instanceof MultiBucketsAggregation multiBucketsAggregation) {
+                for (MultiBucketsAggregation.Bucket subBucket : multiBucketsAggregation.getBuckets()) {
+                    count += subBucket.countBuckets();
                 }
+            } else if (aggregation instanceof SingleBucketAggregation singleBucketAggregation) {
+                count += singleBucketAggregation.countBuckets();
             }
         }
         return count;

@@ -142,6 +142,7 @@ public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends Int
             if (showDocCountError) {
                 builder.field(InternalTerms.DOC_COUNT_ERROR_UPPER_BOUND_FIELD_NAME.getPreferredName(), getDocCountError());
             }
+            builder.field("bucket_count", countBuckets());
             aggregations.toXContentInternal(builder, params);
             builder.endObject();
             return builder;

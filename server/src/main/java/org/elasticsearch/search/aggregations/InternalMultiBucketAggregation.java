@@ -10,9 +10,11 @@ package org.elasticsearch.search.aggregations;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregation;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.AbstractList;
@@ -180,17 +182,16 @@ public abstract class InternalMultiBucketAggregation<
 
         @Override
         public int countBuckets() {
-            int count = 1;
+            int count = 0;
             InternalAggregations subAggregations = getAggregations();
-            if (subAggregations != null) {
-                for (Aggregation aggregation : subAggregations) {
-                    if (aggregation instanceof MultiBucketsAggregation multiBucketsAggregation) {
-                        for (MultiBucketsAggregation.Bucket subBucket : multiBucketsAggregation.getBuckets()) {
-                            count += subBucket.countBuckets();
-                        }
-                    } else if (aggregation instanceof SingleBucketAggregation singleBucketAggregation) {
-                        count += singleBucketAggregation.countBuckets();
+            if(subAggregations == null || subAggregations.asList().isEmpty()) return 1;
+            for (Aggregation aggregation : subAggregations) {
+                if (aggregation instanceof MultiBucketsAggregation multiBucketsAggregation) {
+                    for (MultiBucketsAggregation.Bucket subBucket : multiBucketsAggregation.getBuckets()) {
+                        count += subBucket.countBuckets();
                     }
+                } else if (aggregation instanceof SingleBucketAggregation singleBucketAggregation) {
+                    count += singleBucketAggregation.countBuckets();
                 }
             }
             return count;

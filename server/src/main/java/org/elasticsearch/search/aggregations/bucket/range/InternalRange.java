@@ -12,16 +12,12 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.AggregatorReducer;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
-import org.elasticsearch.search.aggregations.bucket.BucketCounter;
 import org.elasticsearch.search.aggregations.bucket.FixedMultiBucketAggregatorsReducer;
-import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
-import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregation;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
@@ -48,24 +44,6 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
         private final long docCount;
         private final InternalAggregations aggregations;
         private final String key;
-
-//        @Override
-//        public int countBuckets() {
-//            int count = 1;
-//            InternalAggregations subAggregations = getAggregations();
-//            if (subAggregations != null) {
-//                for (Aggregation aggregation : subAggregations) {
-//                    if (aggregation instanceof MultiBucketsAggregation multiBucketsAggregation) {
-//                        for (MultiBucketsAggregation.Bucket subBucket : multiBucketsAggregation.getBuckets()) {
-//                            count += subBucket.countBuckets();
-//                        }
-//                    } else if (aggregation instanceof SingleBucketAggregation singleBucketAggregation) {
-//                        count += singleBucketAggregation.countBuckets();
-//                    }
-//                }
-//            }
-//            return count;
-//        }
 
         public Bucket(
             String key,

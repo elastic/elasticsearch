@@ -69,7 +69,7 @@ import java.util.stream.Stream;
  * | EVAL `avg(rate(request))` = `sum(rate(request))` / `count(rate(request))`
  * | KEEP `avg(rate(request))`, host
  *
- * METRICS k8s avg(rate(request)) BY host, time_bucket=bucket(@timestamp, 1minute)
+ * METRICS k8s avg(rate(request)) BY host, bucket(@timestamp, 1minute)
  *
  * becomes
  *

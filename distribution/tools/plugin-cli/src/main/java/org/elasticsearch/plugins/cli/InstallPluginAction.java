@@ -9,7 +9,6 @@
 package org.elasticsearch.plugins.cli;
 
 import org.apache.lucene.search.spell.LevenshteinDistance;
-import org.apache.lucene.util.CollectionUtil;
 import org.apache.lucene.util.Constants;
 import org.bouncycastle.bcpg.ArmoredInputStream;
 import org.bouncycastle.jcajce.provider.BouncyCastleFipsProvider;
@@ -34,7 +33,6 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.jdk.JarHell;
 import org.elasticsearch.plugin.scanner.ClassReaders;
@@ -90,6 +88,7 @@ import java.util.stream.Stream;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
+import static java.util.Comparator.comparingDouble;
 import static org.elasticsearch.cli.Terminal.Verbosity.VERBOSE;
 
 /**
@@ -448,15 +447,18 @@ public class InstallPluginAction implements Closeable {
      **/
     private static List<String> checkMisspelledPlugin(String pluginId) {
         LevenshteinDistance ld = new LevenshteinDistance();
-        List<Tuple<Float, String>> scoredKeys = new ArrayList<>();
+        record ScoredKey(double distance, String pluginName){}
+        List<ScoredKey> scoredKeys = new ArrayList<>();
         for (String officialPlugin : OFFICIAL_PLUGINS) {
             float distance = ld.getDistance(pluginId, officialPlugin);
             if (distance > 0.7f) {
-                scoredKeys.add(new Tuple<>(distance, officialPlugin));
+                scoredKeys.add(new ScoredKey(distance, officialPlugin));
             }
         }
-        CollectionUtil.timSort(scoredKeys, (a, b) -> b.v1().compareTo(a.v1()));
-        return scoredKeys.stream().map(Tuple::v2).collect(Collectors.toList());
+        return scoredKeys.stream()
+            .sorted(comparingDouble(ScoredKey::distance).reversed())
+            .map(ScoredKey::pluginName)
+            .toList();
     }
 
     /** Downloads a zip from the url, into a temp file under the given temp dir. */

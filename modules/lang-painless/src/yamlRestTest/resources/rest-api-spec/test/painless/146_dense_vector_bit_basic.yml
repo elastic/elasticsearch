@@ -20,7 +20,7 @@ setup:
                 element_type: bit
                 dims: 40
                 index: true
-                similarity: cosine
+                similarity: l2_norm
 
   - do:
       index:

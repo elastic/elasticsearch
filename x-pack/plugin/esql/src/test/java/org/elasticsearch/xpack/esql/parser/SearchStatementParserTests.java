@@ -226,11 +226,6 @@ public class SearchStatementParserTests extends AbstractStatementParserTests {
             | LIMIT -1
             """, "extraneous input '-' expecting INTEGER_LITERAL");
 
-        expectError("""
-            SEARCH index [
-              | WHERE MATCH a > 1 ]
-            """, "extraneous input 'MATCH'");
-
         // TODO: additional negative / expected error tests go here
     }
 

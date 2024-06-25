@@ -58,6 +58,9 @@
 # result in less optimal vector performance
 20-:--add-modules=jdk.incubator.vector
 
+# Enable random access flags via madvise
+-Des.madv_random_feature_flag_enabled=true
+
 ## heap dumps
 
 # generate a heap dump when an allocation from the Java heap fails; heap dumps

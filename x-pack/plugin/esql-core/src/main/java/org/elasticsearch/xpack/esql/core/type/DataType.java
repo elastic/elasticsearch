@@ -14,6 +14,7 @@ import org.elasticsearch.index.mapper.SourceFieldMapper;
 import java.io.IOException;
 import java.math.BigInteger;
 import java.time.ZonedDateTime;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
@@ -124,37 +125,8 @@ public enum DataType {
         this.counter = builder.counter;
     }
 
-    private static final Collection<DataType> TYPES = Stream.of(
-        UNSUPPORTED,
-        NULL,
-        BOOLEAN,
-        BYTE,
-        SHORT,
-        INTEGER,
-        LONG,
-        UNSIGNED_LONG,
-        DOUBLE,
-        FLOAT,
-        HALF_FLOAT,
-        SCALED_FLOAT,
-        KEYWORD,
-        TEXT,
-        DATETIME,
-        IP,
-        VERSION,
-        OBJECT,
-        NESTED,
-        SOURCE,
-        DATE_PERIOD,
-        TIME_DURATION,
-        GEO_POINT,
-        CARTESIAN_POINT,
-        CARTESIAN_SHAPE,
-        GEO_SHAPE,
-        COUNTER_LONG,
-        COUNTER_INTEGER,
-        COUNTER_DOUBLE
-    ).sorted(Comparator.comparing(DataType::typeName)).toList();
+    private static final Collection<DataType> TYPES = Arrays.stream(values()).filter(d -> d != DOC_DATA_TYPE && d != TSID_DATA_TYPE)
+    .sorted(Comparator.comparing(DataType::typeName)).toList();
 
     private static final Map<String, DataType> NAME_TO_TYPE = TYPES.stream().collect(toUnmodifiableMap(DataType::typeName, t -> t));
 

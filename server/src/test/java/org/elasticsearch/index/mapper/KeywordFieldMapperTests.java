@@ -646,6 +646,7 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         return false;
     }
 
+    @Override
     protected BlockReaderSupport getSupportedReaders(MapperService mapper, String loaderFieldName) {
         MappedFieldType ft = mapper.fieldType(loaderFieldName);
         return new BlockReaderSupport(ft.hasDocValues(), ft.hasDocValues() || ft.isStored(), mapper, loaderFieldName);

@@ -268,10 +268,13 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
 
     /**
      * Resolves surrogates of aggregations until a non-surrogate expression is found.
-     * No-op on non-aggregations.
+     * <ul>
+     *   <li>No-op on non-aggregations, as they don't support surrogates</li>
+     *   <li>No-op if expecting errors, as surrogates depend on correct types</li>
+     * </ul>
      */
     private Expression resolveSurrogates(Expression expression) {
-        if (isAggregation() == false) {
+        if (isAggregation() == false || testCase.getExpectedTypeError() != null) {
             return expression;
         }
 

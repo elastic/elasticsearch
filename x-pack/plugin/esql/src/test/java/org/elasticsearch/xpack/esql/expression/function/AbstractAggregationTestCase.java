@@ -104,8 +104,6 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
     }
 
     private AggregatorFunctionSupplier resolveAggregatorFunctionSupplier() {
-        assumeTrue("Can't build evaluator", testCase.canBuildEvaluator());
-        assumeTrue("Expected type must be representable to build an evaluator", EsqlDataTypes.isRepresentable(testCase.expectedType()));
         logger.info(
             "Test Values: " + testCase.getData().stream().map(TestCaseSupplier.TypedData::toString).collect(Collectors.joining(","))
         );

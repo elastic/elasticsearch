@@ -92,15 +92,18 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     protected LogicalPlan plan(ParseTree ctx) {
         LogicalPlan p = ParserUtils.typedParsing(this, ctx, LogicalPlan.class);
         var errors = this.params.parsingErrors();
-        if (errors.isEmpty()) {
+        if (errors.hasNext() == false) {
             return p;
         } else {
             StringBuilder message = new StringBuilder();
-            for (int i = 0; i < errors.size(); i++) {
+            int i = 0;
+
+            while (errors.hasNext()) {
                 if (i > 0) {
                     message.append("; ");
                 }
-                message.append(errors.get(i).getMessage());
+                message.append(errors.next().getMessage());
+                i++;
             }
             throw new ParsingException(message.toString());
         }

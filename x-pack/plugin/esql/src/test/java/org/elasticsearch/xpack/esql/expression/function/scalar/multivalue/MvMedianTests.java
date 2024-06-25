@@ -92,7 +92,7 @@ public class MvMedianTests extends AbstractMultivalueFunctionTestCase {
                 )
             )
         );
-        return parameterSuppliersFromTypedData(errorsForCasesWithoutExamples(anyNullIsNull(false, cases)));
+        return parameterSuppliersFromTypedDataWithDefaultChecks(false, cases);
     }
 
     @Override

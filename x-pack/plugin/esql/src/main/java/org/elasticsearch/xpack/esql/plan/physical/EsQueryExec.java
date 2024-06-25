@@ -32,7 +32,6 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
     static final EsField DOC_ID_FIELD = new EsField("_doc", DataType.DOC_DATA_TYPE, Map.of(), false);
     static final EsField TSID_FIELD = new EsField("_tsid", DataType.TSID_DATA_TYPE, Map.of(), true);
     static final EsField TIMESTAMP_FIELD = new EsField("@timestamp", DataType.DATETIME, Map.of(), true);
-    static final EsField INTERVAL_FIELD = new EsField("@timestamp_interval", DataType.DATETIME, Map.of(), true);
     public static final EsField SCORE_FIELD = new EsField("_score", DataType.FLOAT, Map.of(), false);
 
     private final EsIndex index;
@@ -91,8 +90,7 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
             case TIME_SERIES -> List.of(
                 new FieldAttribute(source, DOC_ID_FIELD.getName(), DOC_ID_FIELD),
                 new FieldAttribute(source, TSID_FIELD.getName(), TSID_FIELD),
-                new FieldAttribute(source, TIMESTAMP_FIELD.getName(), TIMESTAMP_FIELD),
-                new FieldAttribute(source, INTERVAL_FIELD.getName(), INTERVAL_FIELD)
+                new FieldAttribute(source, TIMESTAMP_FIELD.getName(), TIMESTAMP_FIELD)
             );
         };
     }

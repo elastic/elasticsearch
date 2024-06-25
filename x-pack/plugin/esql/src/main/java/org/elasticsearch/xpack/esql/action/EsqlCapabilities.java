@@ -60,9 +60,11 @@ public class EsqlCapabilities {
         METADATA_IGNORED_FIELD,
 
         /**
-         * Support for the syntax {@code "tables": {"type": [<values>]}}.
+         * LOOKUP command with
+         * - tables using syntax {@code "tables": {"type": [<values>]}}
+         * - fixed variable shadowing
          */
-        TABLES_TYPES(true),
+        LOOKUP_V3(true),
 
         /**
          * Support for requesting the "REPEAT" command.

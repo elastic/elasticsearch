@@ -326,6 +326,12 @@ public class EsqlDataTypeConverter {
         return DEFAULT_DATE_TIME_FORMATTER.formatMillis(dateTime);
     }
 
+    public static String nanoTimeToString(long dateTime) {
+        // TODO: It feels like we should have a function for this somewhere in DateFormatter?
+        return DateFormatter.forPattern("strict_date_optional_time_nanos")
+            .format(Instant.ofEpochMilli(dateTime / 1_000_000).plusNanos(dateTime % 1_000_000));
+    }
+
     public static String dateTimeToString(long dateTime, DateFormatter formatter) {
         return formatter == null ? dateTimeToString(dateTime) : formatter.formatMillis(dateTime);
     }

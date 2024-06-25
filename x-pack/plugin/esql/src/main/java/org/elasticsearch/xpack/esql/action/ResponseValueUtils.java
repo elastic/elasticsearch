@@ -42,6 +42,7 @@ import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeTo
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeToString;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.ipToString;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.longToUnsignedLong;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.nanoTimeToString;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.spatialToString;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToIP;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToSpatial;
@@ -134,6 +135,10 @@ public final class ResponseValueUtils {
             case "date" -> {
                 long longVal = ((LongBlock) block).getLong(offset);
                 yield dateTimeToString(longVal);
+            }
+            case "date_nanos" -> {
+                long longVal = ((LongBlock) block).getLong(offset);
+                yield nanoTimeToString(longVal);
             }
             case "boolean" -> ((BooleanBlock) block).getBoolean(offset);
             case "version" -> versionToString(((BytesRefBlock) block).getBytesRef(offset, scratch));

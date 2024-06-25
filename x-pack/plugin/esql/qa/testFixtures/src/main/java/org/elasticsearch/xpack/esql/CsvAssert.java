@@ -127,6 +127,7 @@ public final class CsvAssert {
 
                 if (blockType == Type.LONG
                     && (expectedType == Type.DATETIME
+                        || expectedType == Type.DATE_NANOS
                         || expectedType == Type.GEO_POINT
                         || expectedType == Type.CARTESIAN_POINT
                         || expectedType == UNSIGNED_LONG)) {

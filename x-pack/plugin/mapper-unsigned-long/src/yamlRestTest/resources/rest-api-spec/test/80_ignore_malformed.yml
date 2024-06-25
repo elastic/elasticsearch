@@ -60,9 +60,8 @@
         id: "5"
         body: { "ul_ignored": [1, { "key": "foo", "value": "bar" }, 3], "ul_not_ignored": 4000 }
 
-# NOTE: temporarily commenting out since the behaviour is different between synthetic source and stored
-#  - match: { error.root_cause.0.type: "illegal_argument_exception" }
-#  - match: { error.root_cause.0.reason: "can't merge a non object mapping [ul_ignored] with an object mapping" }
+  - match: { error.root_cause.0.type: "illegal_argument_exception" }
+  - match: { error.root_cause.0.reason: "can't merge a non object mapping [ul_ignored] with an object mapping" }
 
   - do:
       index:
@@ -154,6 +153,7 @@
         id: "5"
         body: { "ul_ignored": [1, { "key": "foo", "value": "bar" }, 3], "ul_not_ignored": 4000 }
 
+  # NOTE: because we use the `SourceFieldMapper` which fails parsing
   - match: { error.root_cause.0.type: "document_parsing_exception" }
 
   - do:

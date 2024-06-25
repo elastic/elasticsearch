@@ -255,7 +255,7 @@ public abstract class RangeAggregator extends BucketsAggregator {
 
         static {
             PARSER.declareField(optionalConstructorArg(), (p, c) -> p.text(), KEY_FIELD, ValueType.DOUBLE); // DOUBLE supports string and
-                                                                                                            // number
+            // number
             ContextParser<Void, Object> fromToParser = (p, c) -> {
                 if (p.currentToken() == XContentParser.Token.VALUE_STRING) {
                     return p.text();
@@ -531,12 +531,12 @@ public abstract class RangeAggregator extends BucketsAggregator {
     @Override
     @SuppressWarnings("unchecked")
     public InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
-        InternalAggregation[] aggregations = buildAggregationsForFixedBucketCount(
+        return buildAggregationsForFixedBucketCount(
             owningBucketOrds,
             ranges.length,
             (offsetInOwningOrd, docCount, subAggregationResults) -> {
                 Range range = ranges[offsetInOwningOrd];
-                Bucket bucket = rangeFactory.createBucket(
+                return rangeFactory.createBucket(
                     range.key,
                     range.originalFrom,
                     range.originalTo,
@@ -545,22 +545,10 @@ public abstract class RangeAggregator extends BucketsAggregator {
                     keyed,
                     format
                 );
-                bucket.setBucketCount(1 + countAllBuckets(subAggregationResults));
-                return bucket;
             },
-            buckets -> {
-                int totalBuckets = buckets.size();
-                for (Bucket bucket : buckets) {
-                    totalBuckets += bucket.getBucketCount();
-                }
-                InternalRange<Bucket> rangeBuckets = rangeFactory.create(name, buckets, format, keyed, metadata());
-                rangeBuckets.setBucketCount(totalBuckets);
-                return rangeBuckets;
-            }
+            buckets -> rangeFactory.create(name, buckets, format, keyed, metadata())
         );
-        return aggregations;
     }
-
 
     @Override
     @SuppressWarnings("unchecked")

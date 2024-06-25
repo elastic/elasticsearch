@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.application.connector.syncjob.ConnectorSyncJob;
 
 import java.io.IOException;
 import java.time.Instant;
+import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
@@ -57,6 +58,7 @@ public class UpdateConnectorSyncJobIngestionStatsAction {
         private final Long indexedDocumentVolume;
         private final Long totalDocumentCount;
         private final Instant lastSeen;
+        private final Map<String, Object> metadata;
 
         public Request(StreamInput in) throws IOException {
             super(in);
@@ -66,6 +68,7 @@ public class UpdateConnectorSyncJobIngestionStatsAction {
             this.indexedDocumentVolume = in.readLong();
             this.totalDocumentCount = in.readOptionalLong();
             this.lastSeen = in.readOptionalInstant();
+            this.metadata = in.readGenericMap();
         }
 
         public Request(
@@ -74,7 +77,8 @@ public class UpdateConnectorSyncJobIngestionStatsAction {
             Long indexedDocumentCount,
             Long indexedDocumentVolume,
             Long totalDocumentCount,
-            Instant lastSeen
+            Instant lastSeen,
+            Map<String, Object> metadata
         ) {
             this.connectorSyncJobId = connectorSyncJobId;
             this.deletedDocumentCount = deletedDocumentCount;
@@ -82,6 +86,7 @@ public class UpdateConnectorSyncJobIngestionStatsAction {
             this.indexedDocumentVolume = indexedDocumentVolume;
             this.totalDocumentCount = totalDocumentCount;
             this.lastSeen = lastSeen;
+            this.metadata = metadata;
         }
 
         public String getConnectorSyncJobId() {
@@ -106,6 +111,10 @@ public class UpdateConnectorSyncJobIngestionStatsAction {
 
         public Instant getLastSeen() {
             return lastSeen;
+        }
+
+        public Map<String, Object> getMetadata() {
+            return metadata;
         }
 
         @Override
@@ -135,6 +144,7 @@ public class UpdateConnectorSyncJobIngestionStatsAction {
             return validationException;
         }
 
+        @SuppressWarnings("unchecked")
         private static final ConstructingObjectParser<UpdateConnectorSyncJobIngestionStatsAction.Request, String> PARSER =
             new ConstructingObjectParser<>("connector_sync_job_update_ingestion_stats", false, (args, connectorSyncJobId) -> {
                 Long deletedDocumentCount = (Long) args[0];
@@ -143,6 +153,7 @@ public class UpdateConnectorSyncJobIngestionStatsAction {
 
                 Long totalDocumentVolume = args[3] != null ? (Long) args[3] : null;
                 Instant lastSeen = args[4] != null ? (Instant) args[4] : null;
+                Map<String, Object> metadata = (Map<String, Object>) args[5];
 
                 return new Request(
                     connectorSyncJobId,
@@ -150,7 +161,8 @@ public class UpdateConnectorSyncJobIngestionStatsAction {
                     indexedDocumentCount,
                     indexedDocumentVolume,
                     totalDocumentVolume,
-                    lastSeen
+                    lastSeen,
+                    metadata
                 );
             });
 
@@ -165,6 +177,7 @@ public class UpdateConnectorSyncJobIngestionStatsAction {
                 ConnectorSyncJob.LAST_SEEN_FIELD,
                 ObjectParser.ValueType.OBJECT_OR_STRING
             );
+            PARSER.declareObject(optionalConstructorArg(), (p, c) -> p.map(), ConnectorSyncJob.METADATA_FIELD);
         }
 
         public static UpdateConnectorSyncJobIngestionStatsAction.Request fromXContentBytes(
@@ -192,6 +205,7 @@ public class UpdateConnectorSyncJobIngestionStatsAction {
                 builder.field(ConnectorSyncJob.INDEXED_DOCUMENT_VOLUME_FIELD.getPreferredName(), indexedDocumentVolume);
                 builder.field(ConnectorSyncJob.TOTAL_DOCUMENT_COUNT_FIELD.getPreferredName(), totalDocumentCount);
                 builder.field(ConnectorSyncJob.LAST_SEEN_FIELD.getPreferredName(), lastSeen);
+                builder.field(ConnectorSyncJob.METADATA_FIELD.getPreferredName(), metadata);
             }
             builder.endObject();
             return builder;
@@ -206,6 +220,7 @@ public class UpdateConnectorSyncJobIngestionStatsAction {
             out.writeLong(indexedDocumentVolume);
             out.writeOptionalLong(totalDocumentCount);
             out.writeOptionalInstant(lastSeen);
+            out.writeGenericMap(metadata);
         }
 
         @Override
@@ -218,7 +233,8 @@ public class UpdateConnectorSyncJobIngestionStatsAction {
                 && Objects.equals(indexedDocumentCount, request.indexedDocumentCount)
                 && Objects.equals(indexedDocumentVolume, request.indexedDocumentVolume)
                 && Objects.equals(totalDocumentCount, request.totalDocumentCount)
-                && Objects.equals(lastSeen, request.lastSeen);
+                && Objects.equals(lastSeen, request.lastSeen)
+                && Objects.equals(metadata, request.metadata);
         }
 
         @Override
@@ -229,7 +245,8 @@ public class UpdateConnectorSyncJobIngestionStatsAction {
                 indexedDocumentCount,
                 indexedDocumentVolume,
                 totalDocumentCount,
-                lastSeen
+                lastSeen,
+                metadata
             );
         }
     }

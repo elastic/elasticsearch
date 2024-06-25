@@ -68,6 +68,17 @@ import java.util.stream.Stream;
  * | STATS sum=sum(`rate(request)`), count(`rate(request)`) BY host=`VALUES(host)`
  * | EVAL `avg(rate(request))` = `sum(rate(request))` / `count(rate(request))`
  * | KEEP `avg(rate(request))`, host
+ *
+ * METRICS k8s avg(rate(request)) BY host, time_bucket=bucket(@timestamp, 1minute)
+ *
+ * becomes
+ *
+ * METRICS k8s
+ * | EVAL  `bucket(@timestamp, 1minute)`=datetrunc(@timestamp, 1minute)
+ * | STATS rate(request), VALUES(host) BY _tsid,`bucket(@timestamp, 1minute)`
+ * | STATS sum=sum(`rate(request)`), count(`rate(request)`) BY host=`VALUES(host)`, `bucket(@timestamp, 1minute)`
+ * | EVAL `avg(rate(request))` = `sum(rate(request))` / `count(rate(request))`
+ * | KEEP `avg(rate(request))`, host, `bucket(@timestamp, 1minute)`
  * </pre>
  * Mixing between rate and non-rate aggregates will be supported later.
  */

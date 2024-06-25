@@ -39,7 +39,7 @@ public class FunctionRegistryTests extends ESTestCase {
     }
 
     public static FunctionDefinition defineDummyNoArgFunction() {
-        return def(DummyFunction.class, DummyFunction::new, "DUMMY_FUNCTION");
+        return def(DummyFunction.class, DummyFunction::new, "dummy_function");
     }
 
     public void testUnaryFunction() {
@@ -64,7 +64,7 @@ public class FunctionRegistryTests extends ESTestCase {
         return def(DummyFunction.class, (Source l, Expression e) -> {
             assertSame(e, ur.children().get(0));
             return new DummyFunction(l);
-        }, "DUMMY_FUNCTION");
+        }, "dummy_function");
     }
 
     public void testBinaryFunction() {
@@ -73,7 +73,7 @@ public class FunctionRegistryTests extends ESTestCase {
             assertSame(lhs, ur.children().get(0));
             assertSame(rhs, ur.children().get(1));
             return new DummyFunction(l);
-        }, "DUMMY_FUNCTION"));
+        }, "dummy_function"));
         FunctionDefinition def = r.resolveFunction(ur.name());
         assertEquals(ur.source(), ur.buildResolved(randomConfiguration(), def).source());
 
@@ -130,7 +130,7 @@ public class FunctionRegistryTests extends ESTestCase {
         FunctionRegistry r = new FunctionRegistry(def(DummyFunction.class, (Source l, Expression e) -> {
             assertSame(e, ur.children().get(0));
             return new DummyFunction(l);
-        }, "DUMMY_FUNCTION", "DUMMY_FUNC"));
+        }, "dummy_function", "dummy_func"));
 
         // Resolve by primary name
         FunctionDefinition def = r.resolveFunction(r.resolveAlias("DuMMy_FuncTIon"));
@@ -160,10 +160,10 @@ public class FunctionRegistryTests extends ESTestCase {
             QlIllegalArgumentException.class,
             () -> r.resolveFunction(r.resolveAlias("DummyFunction"))
         );
-        assertThat(e.getMessage(), is("Cannot find function DUMMYFUNCTION; this should have been caught during analysis"));
+        assertThat(e.getMessage(), is("Cannot find function dummyfunction; this should have been caught during analysis"));
 
         e = expectThrows(QlIllegalArgumentException.class, () -> r.resolveFunction(r.resolveAlias("dummyFunction")));
-        assertThat(e.getMessage(), is("Cannot find function DUMMYFUNCTION; this should have been caught during analysis"));
+        assertThat(e.getMessage(), is("Cannot find function dummyfunction; this should have been caught during analysis"));
     }
 
     public void testConfigurationOptionalFunction() {
@@ -172,14 +172,14 @@ public class FunctionRegistryTests extends ESTestCase {
             def(DummyConfigurationOptionalArgumentFunction.class, (Source l, Expression e, Configuration c) -> {
                 assertSame(e, ur.children().get(0));
                 return new DummyConfigurationOptionalArgumentFunction(l, List.of(ur), c);
-            }, "DUMMY")
+            }, "dummy")
         );
         FunctionDefinition def = r.resolveFunction(r.resolveAlias("DUMMY"));
         assertEquals(ur.source(), ur.buildResolved(randomConfiguration(), def).source());
     }
 
     public static UnresolvedFunction uf(FunctionResolutionStrategy resolutionStrategy, Expression... children) {
-        return new UnresolvedFunction(SourceTests.randomSource(), "DUMMY_FUNCTION", resolutionStrategy, Arrays.asList(children));
+        return new UnresolvedFunction(SourceTests.randomSource(), "dummy_function", resolutionStrategy, Arrays.asList(children));
     }
 
     public static class DummyFunction extends ScalarFunction {

@@ -580,11 +580,11 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
     public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
         if (copyTo.copyToFields().isEmpty() != true) {
             throw new IllegalArgumentException(
-                "field [" + name() + "] of type [" + typeName() + "] doesn't support synthetic source because it declares copy_to"
+                "field [" + fullPath() + "] of type [" + typeName() + "] doesn't support synthetic source because it declares copy_to"
             );
         }
         if (fieldType.stored()) {
-            return new StringStoredFieldFieldLoader(name(), leafName(), null) {
+            return new StringStoredFieldFieldLoader(fullPath(), leafName(), null) {
                 @Override
                 protected void write(XContentBuilder b, Object value) throws IOException {
                     b.value((String) value);
@@ -602,7 +602,7 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
                 Locale.ROOT,
                 "field [%s] of type [%s] doesn't support synthetic source unless it is stored or has a sub-field of"
                     + " type [keyword] with doc values or stored and without a normalizer",
-                name(),
+                fullPath(),
                 typeName()
             )
         );

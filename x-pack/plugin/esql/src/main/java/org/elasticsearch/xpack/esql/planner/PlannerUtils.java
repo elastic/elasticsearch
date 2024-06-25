@@ -60,6 +60,7 @@ import java.util.function.Predicate;
 
 import static java.util.Arrays.asList;
 import static org.elasticsearch.index.mapper.MappedFieldType.FieldExtractPreference.DOC_VALUES;
+import static org.elasticsearch.index.mapper.MappedFieldType.FieldExtractPreference.NONE;
 import static org.elasticsearch.xpack.esql.core.util.Queries.Clause.FILTER;
 import static org.elasticsearch.xpack.esql.optimizer.LocalPhysicalPlanOptimizer.PushFiltersToSource.canPushToSource;
 import static org.elasticsearch.xpack.esql.optimizer.LocalPhysicalPlanOptimizer.TRANSLATOR_HANDLER;
@@ -230,7 +231,7 @@ public class PlannerUtils {
      * Map QL's {@link DataType} to the compute engine's {@link ElementType}.
      */
     public static ElementType toElementType(DataType dataType) {
-        return toElementType(dataType, MappedFieldType.FieldExtractPreference.NONE);
+        return toElementType(dataType, NONE);
     }
 
     /**
@@ -272,6 +273,6 @@ public class PlannerUtils {
      * Returns DOC_VALUES if the given boolean is set.
      */
     public static MappedFieldType.FieldExtractPreference extractPreference(boolean hasPreference) {
-        return hasPreference ? DOC_VALUES : MappedFieldType.FieldExtractPreference.NONE;
+        return hasPreference ? DOC_VALUES : NONE;
     }
 }

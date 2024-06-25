@@ -271,6 +271,15 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
         );
     }
 
+    /**
+     * Determines if an index name is associated with either an existing data stream or a template
+     * for one that has the failure store enabled.
+     * @param indexName The index name to check.
+     * @param metadata Cluster state metadata.
+     * @param epochMillis A timestamp to use when resolving date math in the index name.
+     * @return true if this is not a simulation, and the given index name corresponds to a data stream with a failure store
+     * or if it matches a template that has a data stream failure store enabled.
+     */
     protected abstract boolean shouldStoreFailure(String indexName, Metadata metadata, long epochMillis);
 
     /**

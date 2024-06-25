@@ -69,7 +69,7 @@ public class TransportSimulateBulkAction extends TransportAbstractBulkAction {
         final AtomicArray<BulkItemResponse> responses = new AtomicArray<>(bulkRequest.requests.size());
         for (int i = 0; i < bulkRequest.requests.size(); i++) {
             DocWriteRequest<?> docRequest = bulkRequest.requests.get(i);
-            assert docRequest instanceof IndexRequest; // This action is only ever called with IndexRequests
+            assert docRequest instanceof IndexRequest : "TransportSimulateBulkAction should only ever be called with IndexRequests";
             IndexRequest request = (IndexRequest) docRequest;
 
             responses.set(
@@ -106,6 +106,7 @@ public class TransportSimulateBulkAction extends TransportAbstractBulkAction {
 
     @Override
     protected boolean shouldStoreFailure(String indexName, Metadata metadata, long time) {
+        // A simulate bulk request should not change any persistent state in the system, so we never write to the failure store
         return false;
     }
 }

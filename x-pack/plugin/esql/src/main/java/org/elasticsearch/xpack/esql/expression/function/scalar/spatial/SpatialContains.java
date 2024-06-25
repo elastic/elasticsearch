@@ -11,6 +11,8 @@ import org.apache.lucene.document.ShapeField;
 import org.apache.lucene.geo.Component2D;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.geo.Orientation;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.geometry.Geometry;
@@ -51,6 +53,12 @@ import static org.elasticsearch.xpack.esql.expression.function.scalar.spatial.Sp
  * Here we simply wire the rules together specific to ST_CONTAINS and QueryRelation.CONTAINS.
  */
 public class SpatialContains extends SpatialRelatesFunction {
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
+        Expression.class,
+        "SpatialContains",
+        SpatialContains::new
+    );
+
     // public for test access with reflection
     public static final SpatialRelationsContains GEO = new SpatialRelationsContains(
         SpatialCoordinateTypes.GEO,
@@ -132,6 +140,15 @@ public class SpatialContains extends SpatialRelatesFunction {
 
     SpatialContains(Source source, Expression left, Expression right, boolean leftDocValues, boolean rightDocValues) {
         super(source, left, right, leftDocValues, rightDocValues);
+    }
+
+    private SpatialContains(StreamInput in) throws IOException {
+        super(in, false, false);
+    }
+
+    @Override
+    public String getWriteableName() {
+        return ENTRY.name;
     }
 
     @Override

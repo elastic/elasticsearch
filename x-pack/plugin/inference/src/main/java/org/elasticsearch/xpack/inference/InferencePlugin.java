@@ -66,6 +66,7 @@ import org.elasticsearch.xpack.inference.rest.RestGetInferenceModelAction;
 import org.elasticsearch.xpack.inference.rest.RestInferenceAction;
 import org.elasticsearch.xpack.inference.rest.RestPutInferenceModelAction;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
+import org.elasticsearch.xpack.inference.services.anthropic.AnthropicService;
 import org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioService;
 import org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiService;
 import org.elasticsearch.xpack.inference.services.cohere.CohereService;
@@ -200,6 +201,7 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
             context -> new AzureAiStudioService(httpFactory.get(), serviceComponents.get()),
             context -> new GoogleAiStudioService(httpFactory.get(), serviceComponents.get()),
             context -> new MistralService(httpFactory.get(), serviceComponents.get()),
+            context -> new AnthropicService(httpFactory.get(), serviceComponents.get()),
             ElasticsearchInternalService::new
         );
     }

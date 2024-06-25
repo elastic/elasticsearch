@@ -55,10 +55,10 @@ final class FieldTypeLookup {
         final Map<String, DynamicFieldType> dynamicFieldTypes = new HashMap<>();
         final Map<String, Set<String>> fieldToCopiedFields = new HashMap<>();
         for (FieldMapper fieldMapper : fieldMappers) {
-            String fieldName = fieldMapper.name();
+            String fieldName = fieldMapper.fullPath();
             MappedFieldType fieldType = fieldMapper.fieldType();
             fullNameToFieldType.put(fieldType.name(), fieldType);
-            fieldMapper.sourcePathUsedBy().forEachRemaining(mapper -> fullSubfieldNameToParentPath.put(mapper.name(), fieldName));
+            fieldMapper.sourcePathUsedBy().forEachRemaining(mapper -> fullSubfieldNameToParentPath.put(mapper.fullPath(), fieldName));
             if (fieldType instanceof DynamicFieldType) {
                 dynamicFieldTypes.put(fieldType.name(), (DynamicFieldType) fieldType);
             }
@@ -80,8 +80,8 @@ final class FieldTypeLookup {
         this.maxParentPathDots = maxParentPathDots;
 
         for (FieldAliasMapper fieldAliasMapper : fieldAliasMappers) {
-            String aliasName = fieldAliasMapper.name();
-            String path = fieldAliasMapper.path();
+            String aliasName = fieldAliasMapper.fullPath();
+            String path = fieldAliasMapper.targetPath();
             MappedFieldType fieldType = fullNameToFieldType.get(path);
             if (fieldType == null) {
                 continue;

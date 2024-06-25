@@ -197,7 +197,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
         boolean isWithinLeaf = context.path().isWithinLeafObject();
         try {
             context.path().setWithinLeafObject(true);
-            field = SemanticTextField.parse(parser, new Tuple<>(name(), context.parser().contentType()));
+            field = SemanticTextField.parse(parser, new Tuple<>(fullPath(), context.parser().contentType()));
         } finally {
             context.path().setWithinLeafObject(isWithinLeaf);
         }
@@ -242,7 +242,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                 throw new DocumentParsingException(
                     xContentLocation,
                     "Incompatible model settings for field ["
-                        + name()
+                        + fullPath()
                         + "]. Check that the "
                         + INFERENCE_ID_FIELD
                         + " is not using different model settings",
@@ -284,12 +284,12 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
         String[] copyFields = sourcePaths.toArray(String[]::new);
         // ensure consistent order
         Arrays.sort(copyFields);
-        return new InferenceFieldMetadata(name(), fieldType().inferenceId, copyFields);
+        return new InferenceFieldMetadata(fullPath(), fieldType().inferenceId, copyFields);
     }
 
     @Override
     public Object getOriginalValue(Map<String, Object> sourceAsMap) {
-        Object fieldValue = sourceAsMap.get(name());
+        Object fieldValue = sourceAsMap.get(fullPath());
         if (fieldValue == null) {
             return null;
         } else if (fieldValue instanceof Map<?, ?> == false) {
@@ -297,7 +297,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
             return fieldValue;
         }
 
-        Map<String, Object> fieldValueMap = XContentMapValues.nodeMapValue(fieldValue, "Field [" + name() + "]");
+        Map<String, Object> fieldValueMap = XContentMapValues.nodeMapValue(fieldValue, "Field [" + fullPath() + "]");
         return XContentMapValues.extractValue(TEXT_FIELD, fieldValueMap);
     }
 

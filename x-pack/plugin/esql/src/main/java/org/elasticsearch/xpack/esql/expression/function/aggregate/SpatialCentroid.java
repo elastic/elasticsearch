@@ -6,6 +6,8 @@
  */
 package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.spatial.SpatialCentroidCartesianPointDocValuesAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.spatial.SpatialCentroidCartesianPointSourceValuesAggregatorFunctionSupplier;
@@ -20,6 +22,7 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.planner.ToAggregator;
 
+import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
@@ -29,6 +32,11 @@ import static org.elasticsearch.xpack.esql.expression.EsqlTypeResolutions.isSpat
  * Calculate spatial centroid of all geo_point or cartesian point values of a field in matching documents.
  */
 public class SpatialCentroid extends SpatialAggregateFunction implements ToAggregator {
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
+        Expression.class,
+        "SpatialCentroid",
+        SpatialCentroid::new
+    );
 
     @FunctionInfo(returnType = { "geo_point", "cartesian_point" }, description = "The centroid of a spatial field.", isAggregation = true)
     public SpatialCentroid(Source source, @Param(name = "field", type = { "geo_point", "cartesian_point" }) Expression field) {
@@ -37,6 +45,15 @@ public class SpatialCentroid extends SpatialAggregateFunction implements ToAggre
 
     private SpatialCentroid(Source source, Expression field, boolean useDocValues) {
         super(source, field, useDocValues);
+    }
+
+    private SpatialCentroid(StreamInput in) throws IOException {
+        super(in, false);
+    }
+
+    @Override
+    public String getWriteableName() {
+        return ENTRY.name;
     }
 
     @Override

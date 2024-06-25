@@ -142,7 +142,7 @@ public class PassThroughObjectMapper extends ObjectMapper {
     @Override
     public PassThroughObjectMapper merge(Mapper mergeWith, MapperMergeContext parentBuilderContext) {
         if (mergeWith instanceof PassThroughObjectMapper == false) {
-            MapperErrors.throwObjectMappingConflictError(mergeWith.name());
+            MapperErrors.throwObjectMappingConflictError(mergeWith.fullPath());
         }
 
         PassThroughObjectMapper mergeWithObject = (PassThroughObjectMapper) mergeWith;
@@ -216,11 +216,11 @@ public class PassThroughObjectMapper extends ObjectMapper {
     public static void checkForDuplicatePriorities(Collection<PassThroughObjectMapper> passThroughMappers) {
         Map<Integer, String> seen = new HashMap<>();
         for (PassThroughObjectMapper mapper : passThroughMappers) {
-            String conflict = seen.put(mapper.priority, mapper.name());
+            String conflict = seen.put(mapper.priority, mapper.fullPath());
             if (conflict != null) {
                 throw new MapperException(
                     "Pass-through object ["
-                        + mapper.name()
+                        + mapper.fullPath()
                         + "] has a conflicting param [priority="
                         + mapper.priority
                         + "] with object ["

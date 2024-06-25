@@ -84,9 +84,6 @@ tests:
 - class: "org.elasticsearch.test.jvm_crash.JvmCrashIT"
   issue: "https://github.com/elastic/elasticsearch/issues/110052"
   method: "testJvmCrash"
-- class: org.elasticsearch.index.mapper.KeywordFieldMapperTests
-  method: testBlockLoaderFromRowStrideReader
-  issue: https://github.com/elastic/elasticsearch/issues/110163
 
 # Examples:
 #

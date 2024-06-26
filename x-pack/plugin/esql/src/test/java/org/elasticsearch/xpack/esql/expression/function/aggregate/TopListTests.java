@@ -219,7 +219,7 @@ public class TopListTests extends AbstractAggregationTestCase {
             )
         );
 
-        return parameterSuppliersFromTypedDataWithDefaultChecks(false, suppliers);
+        return parameterSuppliersFromTypedDataWithDefaultChecks(suppliers);
     }
 
     @Override

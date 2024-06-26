@@ -15,7 +15,7 @@ import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
+import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 
 import java.util.ArrayList;
@@ -25,7 +25,7 @@ import java.util.function.Supplier;
 import static java.lang.Math.max;
 import static org.hamcrest.Matchers.equalTo;
 
-public class MvZipTests extends AbstractFunctionTestCase {
+public class MvZipTests extends AbstractScalarFunctionTestCase {
     public MvZipTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }

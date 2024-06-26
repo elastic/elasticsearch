@@ -12,7 +12,7 @@ import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
-import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
+import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
@@ -22,7 +22,7 @@ import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.SerializationTestUtils.assertSerialization;
 
-public abstract class AbstractConfigurationFunctionTestCase extends AbstractFunctionTestCase {
+public abstract class AbstractConfigurationFunctionTestCase extends AbstractScalarFunctionTestCase {
     protected abstract Expression buildWithConfiguration(Source source, List<Expression> args, EsqlConfiguration configuration);
 
     @Override

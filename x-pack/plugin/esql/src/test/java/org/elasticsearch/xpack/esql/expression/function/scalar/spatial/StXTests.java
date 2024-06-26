@@ -13,7 +13,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
+import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.FunctionName;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 
@@ -25,7 +25,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.UNSPECIFIED;
 
 @FunctionName("st_x")
-public class StXTests extends AbstractFunctionTestCase {
+public class StXTests extends AbstractScalarFunctionTestCase {
     public StXTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }

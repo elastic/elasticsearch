@@ -18,7 +18,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 import org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes;
-import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
+import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.hamcrest.Matcher;
@@ -39,7 +39,7 @@ import java.util.stream.Stream;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.CARTESIAN;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
 
-public abstract class AbstractMultivalueFunctionTestCase extends AbstractFunctionTestCase {
+public abstract class AbstractMultivalueFunctionTestCase extends AbstractScalarFunctionTestCase {
     /**
      * Build many test cases with {@code boolean} values.
      */

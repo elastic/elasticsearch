@@ -14,7 +14,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.NumericUtils;
-import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
+import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 
 import java.math.BigInteger;
@@ -24,7 +24,7 @@ import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.unsignedLongToDouble;
 
-public class CbrtTests extends AbstractFunctionTestCase {
+public class CbrtTests extends AbstractScalarFunctionTestCase {
     public CbrtTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }

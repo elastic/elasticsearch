@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.string;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
+import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 
 import java.util.ArrayList;
@@ -18,7 +18,7 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public abstract class AbstractTrimTests extends AbstractFunctionTestCase {
+public abstract class AbstractTrimTests extends AbstractScalarFunctionTestCase {
     static Iterable<Object[]> parameters(String name, boolean trimLeading, boolean trimTrailing) {
         List<TestCaseSupplier> suppliers = new ArrayList<>();
         for (DataType type : strings()) {

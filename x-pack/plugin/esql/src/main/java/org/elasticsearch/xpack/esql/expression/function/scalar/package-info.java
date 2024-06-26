@@ -133,7 +133,7 @@
  *     </li>
  *     <li>
  *         Now it's time to make a unit test! The infrastructure for these is under some flux at
- *         the moment, but it's good to extend from {@code AbstractFunctionTestCase}. All of
+ *         the moment, but it's good to extend from {@code AbstractScalarFunctionTestCase}. All of
  *         these tests are parameterized and expect to spend some time finding good parameters.
  *     </li>
  *     <li>

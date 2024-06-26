@@ -10,6 +10,7 @@ package org.elasticsearch.search.fetch.subphase;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.SearchExecutionContext;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -24,7 +25,7 @@ import java.util.Map;
  */
 public class FetchDocValuesContext {
 
-    private final Collection<FieldAndFormat> fields;
+    private final List<FieldAndFormat> fields;
 
     /**
      * Create a new FetchDocValuesContext using the provided input list.
@@ -40,7 +41,7 @@ public class FetchDocValuesContext {
                 fieldToFormats.put(fieldName, new FieldAndFormat(fieldName, field.format, field.includeUnmapped));
             }
         }
-        this.fields = fieldToFormats.values();
+        this.fields = new ArrayList<>(fieldToFormats.values());
         int maxAllowedDocvalueFields = searchExecutionContext.getIndexSettings().getMaxDocvalueFields();
         if (fields.size() > maxAllowedDocvalueFields) {
             throw new IllegalArgumentException(
@@ -58,7 +59,7 @@ public class FetchDocValuesContext {
     /**
      * Returns the required docvalue fields.
      */
-    public Collection<FieldAndFormat> fields() {
+    public List<FieldAndFormat> fields() {
         return this.fields;
     }
 }

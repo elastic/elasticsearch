@@ -32,14 +32,11 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 import static java.util.Collections.singletonList;
 import static org.hamcrest.Matchers.containsString;
 
 public class TextSimilarityRankTests extends ESSingleNodeTestCase {
-
-    private static final AtomicBoolean failInference = new AtomicBoolean(false);
 
     public static class TestPlugin extends Plugin implements ActionPlugin {
 
@@ -61,6 +58,14 @@ public class TextSimilarityRankTests extends ESSingleNodeTestCase {
      * Action filter that captures the inference action and injects a mock response.
      */
     static class TestFilter implements ActionFilter {
+
+        enum TestFilterRunMode {
+            NORMAL, // No error
+            INFERENCE_FAILURE, // Simulate failure at inference call
+            INFERENCE_RESULT_MISMATCH // Simulate inference call that returns a different number of items than its input
+        }
+
+        static TestFilterRunMode runMode = TestFilterRunMode.NORMAL;
 
         /**
          * Mock response of rerank inference call.
@@ -93,11 +98,14 @@ public class TextSimilarityRankTests extends ESSingleNodeTestCase {
                 return;
             }
 
-            if (failInference.get()) {
+            // For inference action respond with rerank results or failure, depending on run mode
+            if (runMode == TestFilterRunMode.INFERENCE_FAILURE) {
                 listener.onFailure(new ElasticsearchException("rerank inference call failed"));
             } else {
-                // For inference action respond with rerank results
-                ActionResponse response = new InferenceAction.Response(new RankedDocsResults(RANKED_DOCS));
+                List<RankedDocsResults.RankedDoc> rankedDocsResults = runMode == TestFilterRunMode.INFERENCE_RESULT_MISMATCH
+                    ? RANKED_DOCS.subList(0, RANKED_DOCS.size() - 1)
+                    : RANKED_DOCS;
+                ActionResponse response = new InferenceAction.Response(new RankedDocsResults(rankedDocsResults));
                 listener.onResponse((Response) response);
             }
         }
@@ -112,7 +120,7 @@ public class TextSimilarityRankTests extends ESSingleNodeTestCase {
 
     @Before
     public void setup() {
-        failInference.set(false);
+        TestFilter.runMode = TestFilter.TestFilterRunMode.NORMAL;
 
         // Initialize index with a few documents
         client = client();
@@ -159,7 +167,22 @@ public class TextSimilarityRankTests extends ESSingleNodeTestCase {
     }
 
     public void testRerankInferenceFailure() {
-        failInference.set(true);
+        testAndExpectRankFeaturePhaseFailure(TestFilter.TestFilterRunMode.INFERENCE_FAILURE);
+    }
+
+    public void testRerankInferenceResultMismatch() {
+        testAndExpectRankFeaturePhaseFailure(TestFilter.TestFilterRunMode.INFERENCE_RESULT_MISMATCH);
+    }
+
+    private static void assertHitHasRankScoreAndText(SearchHit hit, int expectedRank, float expectedScore, String expectedText) {
+        assertEquals(expectedRank, hit.getRank());
+        assertEquals(expectedScore, hit.getScore(), 0.0f);
+        assertEquals(expectedText, Objects.requireNonNull(hit.getSourceAsMap()).get("text"));
+    }
+
+    private void testAndExpectRankFeaturePhaseFailure(TestFilter.TestFilterRunMode runMode) {
+        TestFilter.runMode = runMode;
+
         ElasticsearchAssertions.assertFailures(
             // Execute search with text similarity reranking
             client.prepareSearch()
@@ -170,10 +193,5 @@ public class TextSimilarityRankTests extends ESSingleNodeTestCase {
         );
     }
 
-    private static void assertHitHasRankScoreAndText(SearchHit hit, int expectedRank, float expectedScore, String expectedText) {
-        assertEquals(expectedRank, hit.getRank());
-        assertEquals(expectedScore, hit.getScore(), 0.0f);
-        assertEquals(expectedText, Objects.requireNonNull(hit.getSourceAsMap()).get("text"));
-    }
 
 }

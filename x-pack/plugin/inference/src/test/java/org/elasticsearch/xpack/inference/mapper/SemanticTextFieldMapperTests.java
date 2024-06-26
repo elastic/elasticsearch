@@ -44,6 +44,7 @@ import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.SparseVectorFieldMapper;
 import org.elasticsearch.index.search.ESToParentBlockJoinQuery;
 import org.elasticsearch.inference.Model;
+import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.LeafNestedDocuments;
@@ -61,6 +62,7 @@ import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.function.BiConsumer;
 
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.CHUNKED_EMBEDDINGS_FIELD;
@@ -490,6 +492,77 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
             )
         );
         assertThat(ex.getCause().getMessage(), containsString("failed to parse field [model_settings]"));
+    }
+
+    public void testDenseVectorElementType() throws IOException {
+        final String fieldName = "field";
+        final String inferenceId = "test_service";
+
+        BiConsumer<MapperService, DenseVectorFieldMapper.ElementType> assertMapperService = (m, e) -> {
+            Mapper mapper = m.mappingLookup().getMapper(fieldName);
+            assertThat(mapper, instanceOf(SemanticTextFieldMapper.class));
+            SemanticTextFieldMapper semanticTextFieldMapper = (SemanticTextFieldMapper) mapper;
+            assertThat(semanticTextFieldMapper.fieldType().getModelSettings().elementType(), equalTo(e));
+        };
+
+        MapperService floatMapperService = mapperServiceForFieldWithModelSettings(
+            fieldName,
+            inferenceId,
+            new SemanticTextField.ModelSettings(
+                TaskType.TEXT_EMBEDDING,
+                1024,
+                SimilarityMeasure.COSINE,
+                DenseVectorFieldMapper.ElementType.FLOAT
+            )
+        );
+        assertMapperService.accept(floatMapperService, DenseVectorFieldMapper.ElementType.FLOAT);
+
+        MapperService byteMapperService = mapperServiceForFieldWithModelSettings(
+            fieldName,
+            inferenceId,
+            new SemanticTextField.ModelSettings(
+                TaskType.TEXT_EMBEDDING,
+                1024,
+                SimilarityMeasure.COSINE,
+                DenseVectorFieldMapper.ElementType.BYTE
+            )
+        );
+        assertMapperService.accept(byteMapperService, DenseVectorFieldMapper.ElementType.BYTE);
+    }
+
+    private MapperService mapperServiceForFieldWithModelSettings(
+        String fieldName,
+        String inferenceId,
+        SemanticTextField.ModelSettings modelSettings
+    ) throws IOException {
+        MapperService mapperService = createMapperService(mapping(b -> {}));
+        mapperService.merge(
+            "_doc",
+            new CompressedXContent(
+                Strings.toString(PutMappingRequest.simpleMapping(fieldName, "type=semantic_text,inference_id=" + inferenceId))
+            ),
+            MapperService.MergeReason.MAPPING_UPDATE
+        );
+
+        SemanticTextField semanticTextField = new SemanticTextField(
+            fieldName,
+            List.of(),
+            new SemanticTextField.InferenceResult(inferenceId, modelSettings, List.of()),
+            XContentType.JSON
+        );
+        XContentBuilder builder = JsonXContent.contentBuilder().startObject();
+        builder.field(semanticTextField.fieldName());
+        builder.value(semanticTextField);
+        builder.endObject();
+
+        SourceToParse sourceToParse = new SourceToParse("test", BytesReference.bytes(builder), XContentType.JSON);
+        ParsedDocument parsedDocument = mapperService.documentMapper().parse(sourceToParse);
+        mapperService.merge(
+            "_doc",
+            parsedDocument.dynamicMappingsUpdate().toCompressedXContent(),
+            MapperService.MergeReason.MAPPING_UPDATE
+        );
+        return mapperService;
     }
 
     private static void addSemanticTextMapping(XContentBuilder mappingBuilder, String fieldName, String modelId) throws IOException {

@@ -175,7 +175,7 @@ public class FetchContext {
                     searchContext.getSearchExecutionContext(),
                     Collections.singletonList(new FieldAndFormat(name, null))
                 );
-            } else if (searchContext.docValuesContext().fields().stream().map(ff -> ff.field).anyMatch(name::equals) == false) {
+            } else if (searchContext.docValuesContext().fields().stream().map(ff -> ff.field).noneMatch(name::equals)) {
                 dvContext.fields().add(new FieldAndFormat(name, null));
             }
         }

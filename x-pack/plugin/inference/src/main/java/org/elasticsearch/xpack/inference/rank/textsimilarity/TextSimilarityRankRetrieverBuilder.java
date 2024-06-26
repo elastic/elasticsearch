@@ -50,11 +50,7 @@ public class TextSimilarityRankRetrieverBuilder extends RetrieverBuilder {
         );
         PARSER.declareField((r, v) -> r.inferenceId = v, (p, c) -> p.text(), INFERENCE_ID_FIELD, ObjectParser.ValueType.STRING);
         PARSER.declareField((r, v) -> r.inferenceText = v, (p, c) -> p.text(), INFERENCE_TEXT_FIELD, ObjectParser.ValueType.STRING);
-        PARSER.declareField((r, v) -> r.minScore = v, (p, c) -> {
-            float minScore = p.floatValue();
-            c.trackSectionUsage(TextSimilarityRankBuilder.NAME + ":" + MIN_SCORE_FIELD.getPreferredName());
-            return minScore;
-        }, MIN_SCORE_FIELD, ObjectParser.ValueType.FLOAT_OR_NULL);
+        PARSER.declareField((r, v) -> r.minScore = v, (p, c) -> p.floatValue(), MIN_SCORE_FIELD, ObjectParser.ValueType.FLOAT_OR_NULL);
 
         RetrieverBuilder.declareBaseParserFields(TextSimilarityRankBuilder.NAME, PARSER);
     }

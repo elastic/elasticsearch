@@ -205,7 +205,7 @@ from doc with aggregate_metric_double:
   - match: {columns.0.name: "@timestamp"}
   - match: {columns.0.type: "date"}
   - match: {columns.1.name: "agg_metric"}
-  - match: {columns.1.type: "unsupported"}
+  - match: {columns.1.type: "aggregate_metric_double"}
   - match: {columns.2.name: "dim"}
   - match: {columns.2.type: "keyword"}
   - match: {columns.3.name: "k8s.pod.ip"}
@@ -217,10 +217,25 @@ from doc with aggregate_metric_double:
 ---
 stats on aggregate_metric_double:
   - do:
-      catch: /Cannot use field \[agg_metric\] with unsupported type \[aggregate_metric_double\]/
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
-          query: 'FROM test2 | STATS max(agg_metric) BY dim'
+          query: 'FROM test2 | STATS max(agg_metric) BY dim | SORT dim'
+  - length: { values: 2 }
+  - match: { values.0.0: 10 }
+  - match: { values.0.1: 'A' }
+  - match: { values.1.0: 20 }
+  - match: { values.1.1: 'B' }
+
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM test2 | STATS max(agg_metric)'
+  - length: { values: 1 }
+  - match: { values.0.0: 20 }
 
 ---
 from index pattern unsupported counter:
@@ -234,7 +249,7 @@ from index pattern unsupported counter:
   - match: {columns.0.name: "@timestamp"}
   - match: {columns.0.type: "date"}
   - match: {columns.1.name: "agg_metric"}
-  - match: {columns.1.type: "unsupported"}
+  - match: {columns.1.type: "aggregate_metric_double"}
   - match: {columns.2.name: "dim"}
   - match: {columns.2.type: "keyword"}
   - match: {columns.3.name: "k8s.pod.ip"}

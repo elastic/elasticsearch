@@ -134,7 +134,7 @@ geo_point unsortable with limit from row:
 ---
 values unsupported for geo_point:
   - do:
-      catch: '/.+argument of \[VALUES\(location\)\] must be \[boolean, date, double, integer, ip, keyword, long, null, text, unsigned_long or version\].+/'
+      catch: '/.+argument of \[VALUES\(location\)\] must be \[aggregate_metric_double, boolean, date, double, integer, ip, keyword, long, null, text, unsigned_long or version\].+/'
       esql.query:
         body:
           query: 'FROM geo_points | STATS VALUES(location)'

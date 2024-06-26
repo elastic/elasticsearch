@@ -122,7 +122,7 @@ unsupported:
           query: 'from test'
 
   - match: { columns.0.name: aggregate_metric_double }
-  - match: { columns.0.type: unsupported }
+  - match: { columns.0.type: aggregate_metric_double }
   - match: { columns.1.name: binary }
   - match: { columns.1.type: unsupported }
   - match: { columns.2.name: completion }
@@ -181,7 +181,7 @@ unsupported:
   - match: { columns.28.type: integer }
 
   - length: { values: 1 }
-  - match: { values.0.0: null }
+  - match: { values.0.0: 3.0 }
   - match: { values.0.1: null }
   - match: { values.0.2: null }
   - match: { values.0.3: null }
@@ -218,7 +218,7 @@ unsupported:
         body:
           query: 'from test | limit 0'
   - match: { columns.0.name: aggregate_metric_double }
-  - match: { columns.0.type: unsupported }
+  - match: { columns.0.type: aggregate_metric_double }
   - match: { columns.1.name: binary }
   - match: { columns.1.type: unsupported }
   - match: { columns.2.name: completion }
@@ -302,7 +302,7 @@ unsupported with sort:
           query: 'from test | sort some_doc.bar'
 
   - match: { columns.0.name: aggregate_metric_double }
-  - match: { columns.0.type: unsupported }
+  - match: { columns.0.type: aggregate_metric_double }
   - match: { columns.1.name: binary }
   - match: { columns.1.type: unsupported }
   - match: { columns.2.name: completion }
@@ -361,7 +361,7 @@ unsupported with sort:
   - match: { columns.28.type: integer }
 
   - length: { values: 1 }
-  - match: { values.0.0: null }
+  - match: { values.0.0: 3.0 }
   - match: { values.0.1: null }
   - match: { values.0.2: null }
   - match: { values.0.3: null }

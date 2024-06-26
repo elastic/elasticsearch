@@ -296,11 +296,13 @@ public final class IndexSettings {
     static class RefreshIntervalValidator implements Setting.Validator<TimeValue> {
 
         static final String STATELESS_ALLOW_INDEX_REFRESH_INTERVAL_OVERRIDE = "es.stateless.allow.index.refresh_interval.override";
+
         private static class AllowOverrideLazyHolder {
             private static final boolean ALLOW_OVERRIDE = Boolean.parseBoolean(
                 System.getProperty(STATELESS_ALLOW_INDEX_REFRESH_INTERVAL_OVERRIDE, "false")
             );
         }
+
         private static boolean isOverrideAllowed() {
             return AllowOverrideLazyHolder.ALLOW_OVERRIDE;
         }

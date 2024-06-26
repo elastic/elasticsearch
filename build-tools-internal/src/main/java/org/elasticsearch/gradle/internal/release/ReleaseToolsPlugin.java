@@ -52,6 +52,7 @@ public class ReleaseToolsPlugin implements Plugin<Project> {
 
         project.getTasks().register("extractCurrentVersions", ExtractCurrentVersionsTask.class);
         project.getTasks().register("tagVersions", TagVersionsTask.class);
+        project.getTasks().register("setCompatibleVersions", SetCompatibleVersionsTask.class);
 
         final FileTree yamlFiles = projectDirectory.dir("docs/changelog")
             .getAsFileTree()

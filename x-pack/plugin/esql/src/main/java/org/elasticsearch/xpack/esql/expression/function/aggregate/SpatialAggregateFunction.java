@@ -7,9 +7,11 @@
 
 package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
+import java.io.IOException;
 import java.util.Objects;
 
 /**
@@ -22,6 +24,11 @@ public abstract class SpatialAggregateFunction extends AggregateFunction {
 
     protected SpatialAggregateFunction(Source source, Expression field, boolean useDocValues) {
         super(source, field);
+        this.useDocValues = useDocValues;
+    }
+
+    protected SpatialAggregateFunction(StreamInput in, boolean useDocValues) throws IOException {
+        super(in);
         this.useDocValues = useDocValues;
     }
 

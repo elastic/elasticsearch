@@ -55,7 +55,7 @@ public class ToBase64Tests extends AbstractFunctionTestCase {
             );
         }));
 
-        return parameterSuppliersFromTypedData(errorsForCasesWithoutExamples(anyNullIsNull(true, suppliers)));
+        return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers);
     }
 
     @Override

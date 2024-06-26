@@ -91,7 +91,7 @@ public class ConnectorSyncJob implements Writeable, ToXContentObject {
 
     public static final ParseField LAST_SEEN_FIELD = new ParseField("last_seen");
 
-    static final ParseField METADATA_FIELD = new ParseField("metadata");
+    public static final ParseField METADATA_FIELD = new ParseField("metadata");
 
     static final ParseField STARTED_AT_FIELD = new ParseField("started_at");
 

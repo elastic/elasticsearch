@@ -353,24 +353,17 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
 
     public void testRemoveFailureStoreWriteIndex() {
         DataStream original = createRandomDataStream();
+        int indexToRemove = original.getFailureIndices().getIndices().size() - 1;
 
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> original.removeFailureStoreIndex(
-                original.getFailureIndices().getIndices().get(original.getFailureIndices().getIndices().size() - 1)
-            )
-        );
-        assertThat(
-            e.getMessage(),
-            equalTo(
-                String.format(
-                    Locale.ROOT,
-                    "cannot remove backing index [%s] of data stream [%s] because it is the write index of the failure store",
-                    original.getFailureIndices().getIndices().get(original.getFailureIndices().getIndices().size() - 1).getName(),
-                    original.getName()
-                )
-            )
-        );
+        DataStream updated = original.removeFailureStoreIndex(original.getFailureIndices().getIndices().get(indexToRemove));
+        assertThat(updated.getName(), equalTo(original.getName()));
+        assertThat(updated.getGeneration(), equalTo(original.getGeneration() + 1));
+        assertThat(updated.getIndices().size(), equalTo(original.getIndices().size()));
+        assertThat(updated.getFailureIndices().getIndices().size(), equalTo(original.getFailureIndices().getIndices().size() - 1));
+        assertThat(updated.getFailureIndices().isRolloverOnWrite(), equalTo(true));
+        for (int k = 0; k < (original.getFailureIndices().getIndices().size() - 1); k++) {
+            assertThat(updated.getFailureIndices().getIndices().get(k), equalTo(original.getFailureIndices().getIndices().get(k)));
+        }
     }
 
     public void testAddBackingIndex() {

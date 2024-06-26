@@ -82,7 +82,8 @@ dependencies {
   internalClusterTestImplementation(project(":test:framework")) {
     exclude group: 'org.elasticsearch', module: 'server'
   }
-
+  internalClusterTestImplementation(project(':modules:reindex'))
+  internalClusterTestImplementation(project(':modules:mapper-extras'))
 }
 
 spotless {

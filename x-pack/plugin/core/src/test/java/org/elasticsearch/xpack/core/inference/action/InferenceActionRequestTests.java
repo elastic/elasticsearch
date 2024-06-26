@@ -72,7 +72,35 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
         }
     }
 
-    public void testValidation() throws IOException {
+    public void testValidation_TextEmbedding() {
+        InferenceAction.Request request = new InferenceAction.Request(
+            TaskType.TEXT_EMBEDDING,
+            "model",
+            null,
+            List.of("input"),
+            null,
+            null,
+            null
+        );
+        ActionRequestValidationException e = request.validate();
+        assertNull(e);
+    }
+
+    public void testValidation_Rerank() {
+        InferenceAction.Request request = new InferenceAction.Request(
+            TaskType.RERANK,
+            "model",
+            "query",
+            List.of("input"),
+            null,
+            null,
+            null
+        );
+        ActionRequestValidationException e = request.validate();
+        assertNull(e);
+    }
+
+    public void testValidation_TextEmbedding_Null() {
         InferenceAction.Request inputNullRequest = new InferenceAction.Request(
             TaskType.TEXT_EMBEDDING,
             "model",
@@ -85,7 +113,9 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
         ActionRequestValidationException inputNullError = inputNullRequest.validate();
         assertNotNull(inputNullError);
         assertThat(inputNullError.getMessage(), is("Validation Failed: 1: missing input;"));
+    }
 
+    public void testValidation_TextEmbedding_Empty() {
         InferenceAction.Request inputEmptyRequest = new InferenceAction.Request(
             TaskType.TEXT_EMBEDDING,
             "model",
@@ -98,7 +128,9 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
         ActionRequestValidationException inputEmptyError = inputEmptyRequest.validate();
         assertNotNull(inputEmptyError);
         assertThat(inputEmptyError.getMessage(), is("Validation Failed: 1: input array is empty;"));
+    }
 
+    public void testValidation_Rerank_Null() {
         InferenceAction.Request queryNullRequest = new InferenceAction.Request(
             TaskType.RERANK,
             "model",
@@ -110,8 +142,10 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
         );
         ActionRequestValidationException queryNullError = queryNullRequest.validate();
         assertNotNull(queryNullError);
-        assertThat(queryNullError.getMessage(), is("Validation Failed: 1: missing query;"));
+        assertThat(queryNullError.getMessage(), is("Validation Failed: 1: Field [query] cannot be null for task type [rerank];"));
+    }
 
+    public void testValidation_Rerank_Empty() {
         InferenceAction.Request queryEmptyRequest = new InferenceAction.Request(
             TaskType.RERANK,
             "model",
@@ -123,31 +157,7 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
         );
         ActionRequestValidationException queryEmptyError = queryEmptyRequest.validate();
         assertNotNull(queryEmptyError);
-        assertThat(queryEmptyError.getMessage(), is("Validation Failed: 1: query is empty;"));
-
-        InferenceAction.Request request = new InferenceAction.Request(
-            TaskType.TEXT_EMBEDDING,
-            "model",
-            null,
-            List.of("input"),
-            null,
-            null,
-            null
-        );
-        ActionRequestValidationException e = request.validate();
-        assertNull(e);
-
-        InferenceAction.Request rerankRequest = new InferenceAction.Request(
-            TaskType.RERANK,
-            "model",
-            "query",
-            List.of("input"),
-            null,
-            null,
-            null
-        );
-        ActionRequestValidationException rerankError = rerankRequest.validate();
-        assertNull(rerankError);
+        assertThat(queryEmptyError.getMessage(), is("Validation Failed: 1: Field [query] cannot be empty for task type [rerank];"));
     }
 
     public void testParseRequest_DefaultsInputTypeToIngest() throws IOException {

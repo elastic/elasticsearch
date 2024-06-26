@@ -38,6 +38,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.core.Strings.format;
+
 public class InferenceAction extends ActionType<InferenceAction.Response> {
 
     public static final InferenceAction INSTANCE = new InferenceAction();
@@ -176,12 +178,12 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
             if (taskType.equals(TaskType.RERANK)) {
                 if (query == null) {
                     var e = new ActionRequestValidationException();
-                    e.addValidationError("missing query");
+                    e.addValidationError(format("Field [query] cannot be null for task type [%s]", TaskType.RERANK));
                     return e;
                 }
                 if (query.isEmpty()) {
                     var e = new ActionRequestValidationException();
-                    e.addValidationError("query is empty");
+                    e.addValidationError(format("Field [query] cannot be empty for task type [%s]", TaskType.RERANK));
                     return e;
                 }
             }

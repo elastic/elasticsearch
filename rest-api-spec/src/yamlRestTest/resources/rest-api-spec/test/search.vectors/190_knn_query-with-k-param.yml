@@ -1,8 +1,8 @@
 # test how knn query interact with other queries
 setup:
   - requires:
-      cluster_features: "gte_v8.12.0"
-      reason: 'knn as query added in 8.12'
+      cluster_features: "search.vectors.k_param_supported"
+      reason: 'k param for knn as query is required'
       test_runner_features: close_to
 
   - do:
@@ -54,7 +54,63 @@ setup:
           - '{"my_vector": [1, 1, 1, 10], "my_name": "v2"}'
 
 ---
-"Function score query with knn query":
+"Simple knn query with k param":
+  - do:
+      search:
+        index: my_index
+        body:
+          query:
+            knn:
+              field: my_vector
+              query_vector: [1, 1, 1, 1]
+              k: 5
+
+  - match: { hits.total.value: 5 } # collector sees k docs
+  - length: {hits.hits: 5} # k docs retrieved
+  - match: { hits.hits.0._id: "1" }
+  - match: { hits.hits.1._id: "2" }
+  - match: { hits.hits.2._id: "3" }
+  - match: { hits.hits.3._id: "4" }
+  - match: { hits.hits.4._id: "5" }
+
+  - do:
+      search:
+        index: my_index
+        body:
+          size: 3
+          query:
+            knn:
+              field: my_vector
+              query_vector: [ 1, 1, 1, 1 ]
+              k: 5
+
+  - match: { hits.total.value: 5 } # collector sees k docs
+  - length: { hits.hits: 3 } # size docs retrieved
+  - match: { hits.hits.0._id: "1" }
+  - match: { hits.hits.1._id: "2" }
+  - match: { hits.hits.2._id: "3" }
+
+  - do:
+      search:
+        index: my_index
+        body:
+          size: 3
+          query:
+            knn:
+              field: my_vector
+              query_vector: [ 1, 1, 1, 1 ]
+              k: 5
+              num_candidates: 10
+
+  - match: { hits.total.value: 5 } # collector sees k docs
+  - length: { hits.hits: 3 } # size docs retrieved
+  - match: { hits.hits.0._id: "1" }
+  - match: { hits.hits.1._id: "2" }
+  - match: { hits.hits.2._id: "3" }
+
+
+---
+"Function score query with knn query with k param":
   # find top 5 knn docs, then boost docs with name v1 by 10 and docs with name v2 by 100
   - do:
       search:
@@ -68,7 +124,7 @@ setup:
                 knn:
                   field: my_vector
                   query_vector: [ 1, 1, 1, 1 ]
-                  num_candidates: 5
+                  k : 5
               functions:
                 - filter: { match: { my_name: v1 } }
                   weight: 10
@@ -76,7 +132,7 @@ setup:
                   weight: 100
               boost_mode: multiply
 
-  - match: { hits.total.value: 5 } # collector sees num_candidates docs
+  - match: { hits.total.value: 5 } # collector sees k docs
   - length: { hits.hits: 3 }
   - match: { hits.hits.0._id: "2" }
   - match: { hits.hits.0.fields.my_name.0: v2 }
@@ -99,7 +155,7 @@ setup:
           query:
             dis_max:
               queries:
-                - knn: { field: my_vector, query_vector: [ 1, 1, 1, 1 ], num_candidates: 5 }
+                - knn: { field: my_vector, query_vector: [ 1, 1, 1, 1 ], k: 5, num_candidates: 10 }
                 - match: { my_name: v2 }
               tie_breaker: 0.8
 
@@ -120,3 +176,29 @@ setup:
   - match: { hits.hits.6.fields.my_name.0: v1 }
   - match: { hits.hits.7._id: "5" }
   - match: { hits.hits.7.fields.my_name.0: v1 }
+
+---
+"Aggregations with collected number of docs depends on k param":
+  - do:
+      search:
+        index: my_index
+        body:
+          size: 2
+          query:
+            knn:
+              field: my_vector
+              query_vector: [1, 1, 1, 1]
+              k: 5 # collect 5 results from each shard
+          aggs:
+            my_agg:
+              terms:
+                field: my_name
+                order:
+                  _key: asc
+
+  - length: {hits.hits: 2}
+  - match: {hits.total.value: 5}
+  - match: {aggregations.my_agg.buckets.0.key: 'v1'}
+  - match: {aggregations.my_agg.buckets.1.key: 'v2'}
+  - match: {aggregations.my_agg.buckets.0.doc_count: 3}
+  - match: {aggregations.my_agg.buckets.1.doc_count: 2}

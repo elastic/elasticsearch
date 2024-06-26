@@ -436,17 +436,13 @@ public final class CsvTestUtils {
             (l, r) -> l instanceof Long maybeIP ? maybeIP.compareTo((Long) r) : l.toString().compareTo(r.toString()),
             Long.class
         ),
-        DATE_NANOS(
-            x -> {
-                if (x == null) {
-                    return null;
-                }
-                Instant parsed = DateFormatters.from(ISO_DATE_WITH_NANOS.parse(x)).toInstant();
-                return parsed.toEpochMilli() * 1_000_000L + parsed.getNano();
-            },
-            (l, r) -> l instanceof Long maybeIP ? maybeIP.compareTo((Long) r) : l.toString().compareTo(r.toString()),
-            Long.class
-        ),
+        DATE_NANOS(x -> {
+            if (x == null) {
+                return null;
+            }
+            Instant parsed = DateFormatters.from(ISO_DATE_WITH_NANOS.parse(x)).toInstant();
+            return parsed.toEpochMilli() * 1_000_000L + parsed.getNano();
+        }, (l, r) -> l instanceof Long maybeIP ? maybeIP.compareTo((Long) r) : l.toString().compareTo(r.toString()), Long.class),
         BOOLEAN(Booleans::parseBoolean, Boolean.class),
         GEO_POINT(x -> x == null ? null : GEO.wktToWkb(x), BytesRef.class),
         CARTESIAN_POINT(x -> x == null ? null : CARTESIAN.wktToWkb(x), BytesRef.class),

@@ -36,7 +36,6 @@ import static org.elasticsearch.xpack.esql.CsvTestUtils.ExpectedResults;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.Type;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.Type.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.logMetaData;
-import static org.elasticsearch.xpack.esql.core.util.DateUtils.ISO_DATE_WITH_NANOS;
 import static org.elasticsearch.xpack.esql.core.util.DateUtils.UTC_DATE_TIME_FORMATTER;
 import static org.elasticsearch.xpack.esql.core.util.NumericUtils.unsignedLongAsNumber;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.CARTESIAN;
@@ -222,9 +221,8 @@ public final class CsvAssert {
                             expectedValue = rebuildExpected(
                                 expectedValue,
                                 Long.class,
-                                x ->  DateFormatter.forPattern("strict_date_optional_time_nanos").format(
-                                    (Instant.ofEpochMilli((long) x / 1_000_000).plusNanos((long) x % 1_000_000))
-                                )
+                                x -> DateFormatter.forPattern("strict_date_optional_time_nanos")
+                                    .format((Instant.ofEpochMilli((long) x / 1_000_000).plusNanos((long) x % 1_000_000)))
                             );
                         } else if (expectedType == Type.GEO_POINT) {
                             expectedValue = rebuildExpected(expectedValue, BytesRef.class, x -> GEO.wkbToWkt((BytesRef) x));

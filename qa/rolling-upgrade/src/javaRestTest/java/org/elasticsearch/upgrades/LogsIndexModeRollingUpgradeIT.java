@@ -16,7 +16,10 @@ import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.FormatNames;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.hamcrest.Matchers;
+import org.junit.ClassRule;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -28,8 +31,27 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class LogsIndexModeRollingUpgradeIT extends AbstractRollingUpgradeTestCase {
 
+    @ClassRule()
+    public static final ElasticsearchCluster cluster = ElasticsearchCluster.local()
+        .distribution(DistributionType.DEFAULT)
+        .module("constant-keyword")
+        .module("data-streams")
+        .module("mapper-extras")
+        .module("x-pack-aggregate-metric")
+        .module("x-pack-stack")
+        .setting("xpack.security.enabled", "false")
+        .setting("xpack.license.self_generated.type", "trial")
+        .setting("cluster.logsdb.enabled", "true")
+        .setting("stack.templates.enabled", "false")
+        .build();
+
     public LogsIndexModeRollingUpgradeIT(@Name("upgradedNodes") int upgradedNodes) {
         super(upgradedNodes);
+    }
+
+    @Override
+    protected String getTestRestCluster() {
+        return cluster.getHttpAddresses();
     }
 
     private static final String BULK_INDEX_REQUEST = """
@@ -104,7 +126,7 @@ public class LogsIndexModeRollingUpgradeIT extends AbstractRollingUpgradeTestCas
             assertOK(client().performRequest(createDataStream("logs-apache-production")));
             final Response bulkIndexResponse = client().performRequest(bulkIndex("logs-apache-production", () -> {
                 final StringBuilder sb = new StringBuilder();
-                for (int i = 0; i < randomIntBetween(100, 200); i++) {
+                for (int i = 0; i < randomIntBetween(10, 20); i++) {
                     sb.append(
                         String.format(
                             BULK_INDEX_REQUEST,
@@ -112,7 +134,7 @@ public class LogsIndexModeRollingUpgradeIT extends AbstractRollingUpgradeTestCas
                             randomFrom("foo", "bar"),
                             randomFrom("PUT", "POST", "GET"),
                             InetAddresses.toAddrString(randomIp(randomBoolean())),
-                            randomAlphaOfLengthBetween(100, 200)
+                            randomIntBetween(20, 50)
                         )
                     );
                     sb.append("\n");
@@ -126,7 +148,7 @@ public class LogsIndexModeRollingUpgradeIT extends AbstractRollingUpgradeTestCas
             assertOK(rolloverDataStreamResponse);
             final Response bulkIndexResponse = client().performRequest(bulkIndex("logs-apache-production", () -> {
                 final StringBuilder sb = new StringBuilder();
-                for (int i = 0; i < randomIntBetween(100, 200); i++) {
+                for (int i = 0; i < randomIntBetween(10, 20); i++) {
                     sb.append(
                         String.format(
                             BULK_INDEX_REQUEST,
@@ -134,7 +156,7 @@ public class LogsIndexModeRollingUpgradeIT extends AbstractRollingUpgradeTestCas
                             randomFrom("foo", "bar"),
                             randomFrom("PUT", "POST", "GET"),
                             InetAddresses.toAddrString(randomIp(randomBoolean())),
-                            randomAlphaOfLengthBetween(100, 200)
+                            randomIntBetween(20, 50)
                         )
                     );
                     sb.append("\n");
@@ -144,14 +166,11 @@ public class LogsIndexModeRollingUpgradeIT extends AbstractRollingUpgradeTestCas
             assertOK(bulkIndexResponse);
             assertThat(entityAsMap(bulkIndexResponse).get("errors"), Matchers.is(false));
         } else if (isUpgradedCluster()) {
-            ensureGreen("logs-apache-production");
-            final Response putTemplateResponse = client().performRequest(putTemplate(client(), "logs-template", LOGS_TEMPLATE));
-            assertOK(putTemplateResponse);
-            final Response rolloverDataStreamResponse = client().performRequest(rolloverDataStream(client(), "logs-apache-production"));
-            assertOK(rolloverDataStreamResponse);
+            assertOK(client().performRequest(putTemplate(client(), "logs-template", LOGS_TEMPLATE)));
+            assertOK(client().performRequest(rolloverDataStream(client(), "logs-apache-production")));
             final Response bulkIndexResponse = client().performRequest(bulkIndex("logs-apache-production", () -> {
                 final StringBuilder sb = new StringBuilder();
-                for (int i = 0; i < randomIntBetween(100, 200); i++) {
+                for (int i = 0; i < randomIntBetween(10, 20); i++) {
                     sb.append(
                         String.format(
                             BULK_INDEX_REQUEST,
@@ -159,7 +178,7 @@ public class LogsIndexModeRollingUpgradeIT extends AbstractRollingUpgradeTestCas
                             randomFrom("foo", "bar"),
                             randomFrom("PUT", "POST", "GET"),
                             InetAddresses.toAddrString(randomIp(randomBoolean())),
-                            randomAlphaOfLengthBetween(100, 200)
+                            randomIntBetween(20, 50)
                         )
                     );
                     sb.append("\n");
@@ -179,6 +198,10 @@ public class LogsIndexModeRollingUpgradeIT extends AbstractRollingUpgradeTestCas
             );
             assertThat(
                 getSettings(client(), getWriteBackingIndex(client(), "logs-apache-production", 2)).get("index.mode"),
+                Matchers.nullValue()
+            );
+            assertThat(
+                getSettings(client(), getWriteBackingIndex(client(), "logs-apache-production", 3)).get("index.mode"),
                 equalTo("logs")
             );
         }

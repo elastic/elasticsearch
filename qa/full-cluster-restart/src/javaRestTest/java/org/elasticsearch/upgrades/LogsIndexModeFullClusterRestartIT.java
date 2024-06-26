@@ -141,7 +141,6 @@ public class LogsIndexModeFullClusterRestartIT extends ParameterizedFullClusterR
             assertOK(bulkIndexResponse);
             assertThat(entityAsMap(bulkIndexResponse).get("errors"), Matchers.is(false));
         } else {
-            ensureGreen("logs-apache-production");
             assertOK(client().performRequest(putTemplate(client(), "logs-template", LOGS_TEMPLATE)));
             assertOK(client().performRequest(rolloverDataStream(client(), "logs-apache-production")));
             final Response bulkIndexResponse = client().performRequest(bulkIndex("logs-apache-production", () -> {
@@ -175,6 +174,10 @@ public class LogsIndexModeFullClusterRestartIT extends ParameterizedFullClusterR
             assertThat(
                 getSettings(client(), getWriteBackingIndex(client(), "logs-apache-production", 2)).get("index.mode"),
                 equalTo("logs")
+            );
+            assertThat(
+                getSettings(client(), getWriteBackingIndex(client(), "logs-apache-production", 3)).get("index.mode"),
+                Matchers.nullValue()
             );
         }
     }

@@ -44,6 +44,7 @@ import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
+import static org.elasticsearch.test.TaskAssertions.assertAllTasksHaveFinished;
 import static org.elasticsearch.test.rest.ESRestTestCase.basicAuthHeaderValue;
 
 @ClusterScope(numDataNodes = 0, scope = Scope.TEST)
@@ -145,6 +146,7 @@ public class SecurityNetty4TransportCloseNotifyIT extends SecurityIntegTestCase 
             capturingAction.captureAndCancel(ssl::closeOutbound);
             try {
                 assertTrue(channel.closeFuture().await(5000));
+                assertAllTasksHaveFinished(actionName);
             } finally {
                 channel.close().sync();
             }

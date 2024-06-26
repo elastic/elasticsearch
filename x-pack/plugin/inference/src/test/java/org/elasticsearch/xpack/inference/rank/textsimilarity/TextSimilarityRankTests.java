@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.inference.rank.textsimilarity;
 
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
@@ -17,6 +18,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESSingleNodeTestCase;
@@ -30,10 +32,14 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static java.util.Collections.singletonList;
+import static org.hamcrest.Matchers.containsString;
 
 public class TextSimilarityRankTests extends ESSingleNodeTestCase {
+
+    private static final AtomicBoolean failInference = new AtomicBoolean(false);
 
     public static class TestPlugin extends Plugin implements ActionPlugin {
 
@@ -87,9 +93,14 @@ public class TextSimilarityRankTests extends ESSingleNodeTestCase {
                 return;
             }
 
-            // For inference action respond with rerank results
-            ActionResponse response = new InferenceAction.Response(new RankedDocsResults(RANKED_DOCS));
-            listener.onResponse((Response) response);
+            if (failInference.get()) {
+                System.out.println("failInference");
+                listener.onFailure(new ElasticsearchException("rerank inference call failed"));
+            } else {
+                // For inference action respond with rerank results
+                ActionResponse response = new InferenceAction.Response(new RankedDocsResults(RANKED_DOCS));
+                listener.onResponse((Response) response);
+            }
         }
     }
 
@@ -102,6 +113,8 @@ public class TextSimilarityRankTests extends ESSingleNodeTestCase {
 
     @Before
     public void setup() {
+        failInference.set(false);
+
         // Initialize index with a few documents
         client = client();
         for (int i = 0; i < 5; i++) {
@@ -143,6 +156,18 @@ public class TextSimilarityRankTests extends ESSingleNodeTestCase {
                 assertHitHasRankScoreAndText(hits[1], 2, 0.8f, "text 0");
                 assertHitHasRankScoreAndText(hits[2], 3, 0.7f, "text 2");
             }
+        );
+    }
+
+    public void testRerankInferenceFailure() {
+        failInference.set(true);
+        ElasticsearchAssertions.assertFailures(
+            // Execute search with text similarity reranking
+            client.prepareSearch()
+                .setRankBuilder(new TextSimilarityRankBuilder("text", "my-rerank-model", "my query", 100, 0.7f))
+                .setQuery(QueryBuilders.matchAllQuery()),
+            RestStatus.INTERNAL_SERVER_ERROR,
+            containsString("Failed to execute phase [rank-feature], Computing updated ranks for results failed")
         );
     }
 

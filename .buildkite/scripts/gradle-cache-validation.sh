@@ -31,14 +31,29 @@ cat << EOF | buildkite-agent annotate --context "ctx-perf-characteristics" --sty
 <summary>Performance Characteristics</summary>
 EOF
 
-cat << EOF | buildkite-agent annotate --context "ctx-perf-characteristics" --append --style "info"
-    "<code>$perfOutput</code>"
-EOF
+# Initialize HTML output variable
+perfHtml="<ul>"
+
+# Process each line of the string
+while IFS=: read -r label value; do
+    if [[ -n "$label" && -n "$value" ]]; then
+        # Trim whitespace from label and value
+        trimmed_label=$(echo "$label" | xargs)
+        trimmed_value=$(echo "$value" | xargs)
+
+        # Append to HTML output variable
+        perfHtml+="<li><strong>$trimmed_label:</strong> $trimmed_value</li>"
+    fi
+done <<< "$perfOutput"
+
+# End of the HTML content
+perfHtml+="</ul>"
+
+echo $perfHtml | buildkite-agent annotate --context "ctx-perf-characteristics" --append --style "info"
 
 
 # generate html for links
-html_output="<h3>Investigation Quick Links</h3>"
-html_output+="<ul>"
+linkHtml="<ul>"
 
 # Process each line of the string
 while IFS= read -r line; do
@@ -48,12 +63,12 @@ while IFS= read -r line; do
         description=$(echo "$line" | sed -e "s/:.*//")
 
         # Append to HTML output variable
-        html_output+="    <li><a href=\"$url\">$description</a></li>"
+        linkHtml+="    <li><a href=\"$url\">$description</a></li>"
     fi
 done <<< "$investigationOutput"
 
 # End of the HTML content
-html_output+="</ul>"
+linkHtml+="</ul>"
 
 cat << EOF | buildkite-agent annotate --context "ctx-investigation-links" --style "info"
 <details>
@@ -61,7 +76,7 @@ cat << EOF | buildkite-agent annotate --context "ctx-investigation-links" --styl
 <summary>Investigation Links</summary>
 EOF
 # Print the output to standard output or use it as needed
-echo $html_output | buildkite-agent annotate --context "ctx-investigation-links" --append --style "info" 
+echo $linkHtml | buildkite-agent annotate --context "ctx-investigation-links" --append --style "info" 
 
 
 # Check if the command was successful

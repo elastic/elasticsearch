@@ -2201,7 +2201,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         public Builder eventIngestedRange(IndexLongFieldRange eventIngestedRange, TransportVersion minClusterTransportVersion) {
             assert eventIngestedRange != null : "eventIngestedRange cannot be null";
             assert minClusterTransportVersion != null || eventIngestedRange == IndexLongFieldRange.UNKNOWN
-                : "eventIngestedRange should only be UNKNOWN if minClusterTransportVersion is null, but minClusterTransportVersion: "
+                : "eventIngestedRange must be UNKNOWN when minClusterTransportVersion is null, but minClusterTransportVersion: "
                     + minClusterTransportVersion
                     + "; eventIngestedRange = "
                     + eventIngestedRange;

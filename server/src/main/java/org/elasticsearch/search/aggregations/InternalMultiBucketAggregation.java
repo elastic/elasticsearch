@@ -179,16 +179,34 @@ public abstract class InternalMultiBucketAggregation<
     }
 
     public abstract static class InternalBucket implements Bucket, Writeable {
+//        @Override
+//        public int countBuckets() {
+//            int count = 0;
+//            InternalAggregations subAggregations = getAggregations();
+//            if(subAggregations == null || subAggregations.asList().isEmpty()) return 1;
+//            for (Aggregation aggregation : subAggregations) {
+//                if (aggregation instanceof MultiBucketsAggregation multiBucketsAggregation) {
+//                    for (MultiBucketsAggregation.Bucket subBucket : multiBucketsAggregation.getBuckets()) {
+//                        count += subBucket.countBuckets();
+//                    }
+//                } else if (aggregation instanceof SingleBucketAggregation singleBucketAggregation) {
+//                    count += singleBucketAggregation.countBuckets();
+//                }
+//            }
+//            return count;
+//        }
+
+        private int bucketCount;
 
         @Override
         public int countBuckets() {
-            int count = 0;
             InternalAggregations subAggregations = getAggregations();
             if(subAggregations == null || subAggregations.asList().isEmpty()) return 1;
+            int count = 0;
             for (Aggregation aggregation : subAggregations) {
                 if (aggregation instanceof MultiBucketsAggregation multiBucketsAggregation) {
                     for (MultiBucketsAggregation.Bucket subBucket : multiBucketsAggregation.getBuckets()) {
-                        count += subBucket.countBuckets();
+                        count += subBucket.getBucketCount();
                     }
                 } else if (aggregation instanceof SingleBucketAggregation singleBucketAggregation) {
                     count += singleBucketAggregation.countBuckets();
@@ -196,6 +214,12 @@ public abstract class InternalMultiBucketAggregation<
             }
             return count;
         }
+
+        @Override
+        public int getBucketCount(){ return bucketCount; }
+
+        @Override
+        public void setBucketCount(int count){ bucketCount = count; }
 
         public Object getProperty(String containingAggName, List<String> path) {
             if (path.isEmpty()) {

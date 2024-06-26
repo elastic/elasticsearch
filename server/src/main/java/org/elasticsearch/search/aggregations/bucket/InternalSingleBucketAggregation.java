@@ -38,6 +38,8 @@ public abstract class InternalSingleBucketAggregation extends InternalAggregatio
     private final long docCount;
     private final InternalAggregations aggregations;
 
+    private int bucketCount;
+
     /**
      * Creates a single bucket aggregation.
      *
@@ -49,6 +51,7 @@ public abstract class InternalSingleBucketAggregation extends InternalAggregatio
         super(name, metadata);
         this.docCount = docCount;
         this.aggregations = aggregations;
+        this.bucketCount = countBuckets();
     }
 
     /**
@@ -58,7 +61,31 @@ public abstract class InternalSingleBucketAggregation extends InternalAggregatio
         super(in);
         docCount = in.readVLong();
         aggregations = InternalAggregations.readFrom(in);
+        this.bucketCount = countBuckets();
     }
+
+    @Override
+    public int countBuckets() {
+        InternalAggregations subAggregations = getAggregations();
+        if(subAggregations == null || subAggregations.asList().isEmpty()) return 1;
+        int count = 0;
+        for (Aggregation aggregation : subAggregations) {
+            if (aggregation instanceof MultiBucketsAggregation multiBucketsAggregation) {
+                for (MultiBucketsAggregation.Bucket subBucket : multiBucketsAggregation.getBuckets()) {
+                    count += subBucket.getBucketCount();
+                }
+            } else if (aggregation instanceof SingleBucketAggregation singleBucketAggregation) {
+                count += singleBucketAggregation.getBucketCount();
+            }
+        }
+        return count;
+    }
+
+    @Override
+    public int getBucketCount(){ return bucketCount; }
+
+    @Override
+    public void setBucketCount(int count){ bucketCount = count; }
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {

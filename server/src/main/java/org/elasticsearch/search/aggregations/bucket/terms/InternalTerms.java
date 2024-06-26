@@ -57,6 +57,7 @@ public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends Int
             this.docCount = docCount;
             this.aggregations = aggregations;
             this.docCountError = docCountError;
+            setBucketCount(countBuckets());
         }
 
         /**
@@ -71,6 +72,7 @@ public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends Int
                 docCountError = in.readLong();
             }
             aggregations = InternalAggregations.readFrom(in);
+            setBucketCount(countBuckets());
         }
 
         @Override
@@ -142,7 +144,7 @@ public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends Int
             if (showDocCountError) {
                 builder.field(InternalTerms.DOC_COUNT_ERROR_UPPER_BOUND_FIELD_NAME.getPreferredName(), getDocCountError());
             }
-            builder.field("bucket_count", countBuckets());
+            builder.field("bucket_count", getBucketCount());
             aggregations.toXContentInternal(builder, params);
             builder.endObject();
             return builder;

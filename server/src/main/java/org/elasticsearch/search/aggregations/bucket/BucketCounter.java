@@ -9,11 +9,12 @@
 package org.elasticsearch.search.aggregations.bucket;
 
 public interface BucketCounter {
-
     /**
-     * Counts the total number of buckets including nested ones.
-     *
-     * @return the total bucket count
+     * Counts the leaf buckets in the sub-tree
      */
     int countBuckets();
+
+    int getBucketCount();
+
+    void setBucketCount(int count);
 }

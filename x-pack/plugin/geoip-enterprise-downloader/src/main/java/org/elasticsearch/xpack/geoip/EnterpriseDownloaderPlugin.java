@@ -55,6 +55,6 @@ public class EnterpriseDownloaderPlugin extends Plugin implements IngestPlugin, 
         SettingsModule settingsModule,
         IndexNameExpressionResolver expressionResolver
     ) {
-        return List.of(enterpriseGeoIpDownloaderTaskExecutor);
+        return List.of();
     }
 }

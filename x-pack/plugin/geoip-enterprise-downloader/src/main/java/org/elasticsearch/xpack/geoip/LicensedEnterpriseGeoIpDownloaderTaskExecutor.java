@@ -23,19 +23,15 @@ import org.elasticsearch.ingest.geoip.enterprise.EnterpriseGeoIpTaskParams;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicensedFeature;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.persistent.AllocatedPersistentTask;
-import org.elasticsearch.persistent.PersistentTaskParams;
-import org.elasticsearch.persistent.PersistentTaskState;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
-import org.elasticsearch.persistent.PersistentTasksExecutor;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.xpack.core.XPackField;
 
-@SuppressWarnings("rawtypes")
-public class LicensedEnterpriseGeoIpDownloaderTaskExecutor extends PersistentTasksExecutor implements ClusterStateListener {
-    private static final String TASK_NAME = "enterprise-geoip-downloader";
+import static org.elasticsearch.ingest.geoip.enterprise.EnterpriseGeoIpTaskParams.ENTERPRISE_GEOIP_DOWNLOADER;
+
+public class LicensedEnterpriseGeoIpDownloaderTaskExecutor implements ClusterStateListener {
     private static final Logger logger = LogManager.getLogger(LicensedEnterpriseGeoIpDownloaderTaskExecutor.class);
 
     private final PersistentTasksService persistentTasksService;
@@ -49,7 +45,6 @@ public class LicensedEnterpriseGeoIpDownloaderTaskExecutor extends PersistentTas
         ThreadPool threadPool,
         XPackLicenseState licenseState
     ) {
-        super(TASK_NAME, threadPool.generic());
         this.persistentTasksService = new PersistentTasksService(clusterService, threadPool, client);
         this.clusterService = clusterService;
         this.feature = LicensedFeature.momentary(null, XPackField.ENTERPRISE_GEOIP_DOWNLOADER, License.OperationMode.PLATINUM);
@@ -65,8 +60,8 @@ public class LicensedEnterpriseGeoIpDownloaderTaskExecutor extends PersistentTas
 
     private void startTask() {
         persistentTasksService.sendStartRequest(
-            TASK_NAME,
-            TASK_NAME,
+            ENTERPRISE_GEOIP_DOWNLOADER,
+            ENTERPRISE_GEOIP_DOWNLOADER,
             new EnterpriseGeoIpTaskParams(),
             MASTER_TIMEOUT,
             ActionListener.wrap(r -> logger.debug("Started geoip downloader task"), e -> {
@@ -88,7 +83,7 @@ public class LicensedEnterpriseGeoIpDownloaderTaskExecutor extends PersistentTas
                 }
             }
         );
-        persistentTasksService.sendRemoveRequest(TASK_NAME, MASTER_TIMEOUT, listener);
+        persistentTasksService.sendRemoveRequest(ENTERPRISE_GEOIP_DOWNLOADER, MASTER_TIMEOUT, listener);
     }
 
     @Override
@@ -102,8 +97,4 @@ public class LicensedEnterpriseGeoIpDownloaderTaskExecutor extends PersistentTas
         }
     }
 
-    @Override
-    protected void nodeOperation(AllocatedPersistentTask task, PersistentTaskParams params, PersistentTaskState state) {
-        logger.info("Running enterprise downloader");
-    }
 }

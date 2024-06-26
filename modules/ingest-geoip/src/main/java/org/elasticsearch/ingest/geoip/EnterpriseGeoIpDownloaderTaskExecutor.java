@@ -21,8 +21,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import static org.elasticsearch.ingest.geoip.enterprise.EnterpriseGeoIpTaskParams.ENTERPRISE_GEOIP_DOWNLOADER;
 
-@SuppressWarnings("rawtypes")
-public class EnterpriseGeoIpDownloaderTaskExecutor extends PersistentTasksExecutor {
+public class EnterpriseGeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<PersistentTaskParams> {
     private static final Logger logger = LogManager.getLogger(GeoIpDownloader.class);
 
     private final PersistentTasksService persistentTasksService;

@@ -298,7 +298,7 @@ public final class IndexSettings {
         static final String STATELESS_ALLOW_INDEX_REFRESH_INTERVAL_OVERRIDE = "es.stateless.allow.index.refresh_interval.override";
         // conditional flag to facilitate property check in unit testing
         private static boolean INIT_OVERRIDE_CHECK;
-        private static boolean ALLOW_OVERRIDE;
+        private static volatile boolean ALLOW_OVERRIDE;
 
         @Override
         public void validate(TimeValue value) {}
@@ -322,7 +322,7 @@ public final class IndexSettings {
                 && value.compareTo(STATELESS_MIN_NON_FAST_REFRESH_INTERVAL) < 0
                 && indexVersion.after(IndexVersions.V_8_10_0)) {
 
-                // ALLOW_OVERRIDE lets `index.refresh_interval` setting be in a range (0 .. `STATELESS_MIN_NON_FAST_REFRESH_INTERVAL`)
+                // ALLOW_OVERRIDE=true lets `index.refresh_interval` setting be in a range (0 .. `STATELESS_MIN_NON_FAST_REFRESH_INTERVAL`)
                 if (ALLOW_OVERRIDE == false) {
                     throw new IllegalArgumentException(
                         "index setting ["

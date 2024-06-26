@@ -31,15 +31,15 @@ import org.elasticsearch.xpack.core.XPackField;
 
 import static org.elasticsearch.ingest.geoip.enterprise.EnterpriseGeoIpTaskParams.ENTERPRISE_GEOIP_DOWNLOADER;
 
-public class LicensedEnterpriseGeoIpDownloaderTaskExecutor implements ClusterStateListener {
-    private static final Logger logger = LogManager.getLogger(LicensedEnterpriseGeoIpDownloaderTaskExecutor.class);
+public class EnterpriseGeoIpDownloaderLicenseListener implements ClusterStateListener {
+    private static final Logger logger = LogManager.getLogger(EnterpriseGeoIpDownloaderLicenseListener.class);
 
     private final PersistentTasksService persistentTasksService;
     private final ClusterService clusterService;
     private final XPackLicenseState licenseState;
     private final LicensedFeature.Momentary feature;
 
-    protected LicensedEnterpriseGeoIpDownloaderTaskExecutor(
+    protected EnterpriseGeoIpDownloaderLicenseListener(
         Client client,
         ClusterService clusterService,
         ThreadPool threadPool,

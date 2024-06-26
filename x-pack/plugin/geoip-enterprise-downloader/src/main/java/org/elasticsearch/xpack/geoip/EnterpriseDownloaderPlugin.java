@@ -25,7 +25,7 @@ import java.util.List;
 public class EnterpriseDownloaderPlugin extends Plugin implements IngestPlugin, PersistentTaskPlugin {
 
     private final Settings settings;
-    private LicensedEnterpriseGeoIpDownloaderTaskExecutor enterpriseGeoIpDownloaderTaskExecutor;
+    private EnterpriseGeoIpDownloaderLicenseListener enterpriseGeoIpDownloaderTaskExecutor;
 
     public EnterpriseDownloaderPlugin(final Settings settings) {
         this.settings = settings;
@@ -37,7 +37,7 @@ public class EnterpriseDownloaderPlugin extends Plugin implements IngestPlugin, 
 
     @Override
     public Collection<?> createComponents(PluginServices services) {
-        enterpriseGeoIpDownloaderTaskExecutor = new LicensedEnterpriseGeoIpDownloaderTaskExecutor(
+        enterpriseGeoIpDownloaderTaskExecutor = new EnterpriseGeoIpDownloaderLicenseListener(
             services.client(),
             services.clusterService(),
             services.threadPool(),

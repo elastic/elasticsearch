@@ -6,6 +6,8 @@
  */
 package org.elasticsearch.xpack.esql.core.expression;
 
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -118,7 +120,7 @@ public class FieldAttribute extends TypedAttribute {
             in.readEnum(Nullability.class),
             NameId.readFrom((StreamInput & PlanStreamInput) in),
             in.readBoolean(),
-            in.readOptionalString()
+            in.getTransportVersion().onOrAfter(TransportVersions.ESQL_AGGREGATE_DOUBLE_METRIC_FIELD) ? in.readOptionalString() : null
         );
     }
 
@@ -133,7 +135,9 @@ public class FieldAttribute extends TypedAttribute {
         out.writeEnum(nullable());
         id().writeTo(out);
         out.writeBoolean(synthetic());
-        out.writeOptionalString(aggregateHint);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_AGGREGATE_DOUBLE_METRIC_FIELD)) {
+            out.writeOptionalString(aggregateHint);
+        }
     }
 
     @Override

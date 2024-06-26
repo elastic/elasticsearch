@@ -11,28 +11,23 @@ package org.elasticsearch.index.codec.vectors;
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.codecs.lucene99.Lucene99Codec;
-import org.apache.lucene.tests.index.BaseKnnVectorsFormatTestCase;
-import org.elasticsearch.common.logging.LogConfigurator;
+import org.apache.lucene.index.VectorSimilarityFunction;
+import org.junit.Before;
 
-public class ES813Int8FlatVectorFormatTests extends BaseKnnVectorsFormatTestCase {
-
-    static {
-        LogConfigurator.loadLog4jPlugins();
-        LogConfigurator.configureESLogging(); // native access requires logging to be initialized
-    }
+public class ES815HnswBitVectorsFormatTests extends BaseKnnBitVectorsFormatTestCase {
 
     @Override
     protected Codec getCodec() {
         return new Lucene99Codec() {
             @Override
             public KnnVectorsFormat getKnnVectorsFormatForField(String field) {
-                return new ES813Int8FlatVectorFormat();
+                return new ES815HnswBitVectorsFormat();
             }
         };
     }
 
-    public void testSearchWithVisitedLimit() {
-        assumeTrue("requires graph based vector codec", false);
+    @Before
+    public void init() {
+        similarityFunction = VectorSimilarityFunction.EUCLIDEAN;
     }
-
 }

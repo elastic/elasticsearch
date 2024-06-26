@@ -59,7 +59,7 @@ public class DynamicFieldsBuilderTests extends ESTestCase {
         DynamicFieldsBuilder.DYNAMIC_TRUE.createDynamicFieldFromValue(ctx, fieldname);
         List<Mapper> dynamicMappers = ctx.getDynamicMappers();
         assertEquals(1, dynamicMappers.size());
-        assertEquals(fieldname, dynamicMappers.get(0).name());
+        assertEquals(fieldname, dynamicMappers.get(0).fullPath());
         assertEquals(expectedType, dynamicMappers.get(0).typeName());
     }
 
@@ -90,7 +90,7 @@ public class DynamicFieldsBuilderTests extends ESTestCase {
         DynamicFieldsBuilder.DYNAMIC_TRUE.createDynamicFieldFromValue(ctx, "f1");
         List<Mapper> dynamicMappers = ctx.getDynamicMappers();
         assertEquals(1, dynamicMappers.size());
-        assertEquals("labels.f1", dynamicMappers.get(0).name());
+        assertEquals("labels.f1", dynamicMappers.get(0).fullPath());
         assertEquals("keyword", dynamicMappers.get(0).typeName());
     }
 }

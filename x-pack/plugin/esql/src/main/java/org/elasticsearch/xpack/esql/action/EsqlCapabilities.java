@@ -60,9 +60,11 @@ public class EsqlCapabilities {
         METADATA_IGNORED_FIELD,
 
         /**
-         * Support for the syntax {@code "tables": {"type": [<values>]}}.
+         * LOOKUP command with
+         * - tables using syntax {@code "tables": {"type": [<values>]}}
+         * - fixed variable shadowing
          */
-        TABLES_TYPES(true),
+        LOOKUP_V3(true),
 
         /**
          * Support for requesting the "REPEAT" command.
@@ -82,7 +84,12 @@ public class EsqlCapabilities {
         /**
          * Support multiple field mappings if appropriate conversion function is used (union types)
          */
-        UNION_TYPES;
+        UNION_TYPES,
+
+        /**
+         * Support for function {@code ST_DISTANCE}. Done in #108764.
+         */
+        ST_DISTANCE;
 
         Cap() {
             snapshotOnly = false;

@@ -719,7 +719,6 @@ public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
         assertThat("Cause should be engine closed", cause, instanceOf(AlreadyClosedException.class));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch-serverless/issues/2036")
     public void testPreferredNodeIdsAreUsedDuringRelocation() {
         startMasterOnlyNode();
 

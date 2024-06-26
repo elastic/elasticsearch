@@ -89,7 +89,7 @@ public class ClusterSerializationTests extends ESAllocationTestCase {
         TransportVersion versionBeforeEventIngestedInClusterState = randomFrom(
             TransportVersions.V_7_0_0,
             TransportVersions.V_8_0_0,
-            TransportVersions.ML_ANTHROPIC_INTEGRATION_ADDED  // version before EVENT_INGESTED_RANGE_IN_CLUSTER_STATE
+            TransportVersions.ML_INFERENCE_GOOGLE_VERTEX_AI_EMBEDDINGS_ADDED  // version before EVENT_INGESTED_RANGE_IN_CLUSTER_STATE
         );
         {
             IndexLongFieldRange eventIngestedRangeInput = randomFrom(

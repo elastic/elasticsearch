@@ -149,6 +149,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                     new BytesRef(InetAddressPoint.encode(randomIp(randomBoolean())))
                 );
                 case "date" -> ((LongBlock.Builder) builder).appendLong(randomInstant().toEpochMilli());
+                case "date_nanos" -> ((LongBlock.Builder) builder).appendLong(randomLong());
                 case "boolean" -> ((BooleanBlock.Builder) builder).appendBoolean(randomBoolean());
                 case "unsupported" -> ((BytesRefBlock.Builder) builder).appendBytesRef(
                     new BytesRef(UnsupportedValueSource.UNSUPPORTED_OUTPUT)

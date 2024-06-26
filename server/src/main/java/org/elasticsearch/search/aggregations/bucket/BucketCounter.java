@@ -12,9 +12,13 @@ public interface BucketCounter {
     /**
      * Counts the leaf buckets in the sub-tree
      */
-    int countBuckets();
+    default int countBuckets(){
+        return 0;
+    };
 
-    int getBucketCount();
+    default int getBucketCount(){
+        return 0;
+    };
 
-    void setBucketCount(int count);
+    default void setBucketCount(int count){};
 }

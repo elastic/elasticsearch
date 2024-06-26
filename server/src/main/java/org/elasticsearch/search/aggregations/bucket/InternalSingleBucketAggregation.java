@@ -51,7 +51,7 @@ public abstract class InternalSingleBucketAggregation extends InternalAggregatio
         super(name, metadata);
         this.docCount = docCount;
         this.aggregations = aggregations;
-        this.bucketCount = countBuckets();
+        setBucketCount(countBuckets());
     }
 
     /**
@@ -61,7 +61,7 @@ public abstract class InternalSingleBucketAggregation extends InternalAggregatio
         super(in);
         docCount = in.readVLong();
         aggregations = InternalAggregations.readFrom(in);
-        this.bucketCount = countBuckets();
+        setBucketCount(countBuckets());
     }
 
     @Override
@@ -70,13 +70,7 @@ public abstract class InternalSingleBucketAggregation extends InternalAggregatio
         if(subAggregations == null || subAggregations.asList().isEmpty()) return 1;
         int count = 0;
         for (Aggregation aggregation : subAggregations) {
-            if (aggregation instanceof MultiBucketsAggregation multiBucketsAggregation) {
-                for (MultiBucketsAggregation.Bucket subBucket : multiBucketsAggregation.getBuckets()) {
-                    count += subBucket.getBucketCount();
-                }
-            } else if (aggregation instanceof SingleBucketAggregation singleBucketAggregation) {
-                count += singleBucketAggregation.getBucketCount();
-            }
+            count += aggregation.getBucketCount();
         }
         return count;
     }

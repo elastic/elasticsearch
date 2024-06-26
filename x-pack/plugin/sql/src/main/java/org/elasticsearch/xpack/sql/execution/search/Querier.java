@@ -360,17 +360,6 @@ public class Querier {
     static class ImplicitGroupActionListener extends BaseAggActionListener {
 
         private static final List<? extends Bucket> EMPTY_BUCKET = singletonList(new Bucket() {
-
-            //idk what this is for
-            @Override
-            public int countBuckets(){return 0;}
-
-            @Override
-            public int getBucketCount(){return 0;}
-
-            @Override
-            public void setBucketCount(int count){}
-
             @Override
             public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
                 throw new SqlIllegalArgumentException("No group-by/aggs defined");

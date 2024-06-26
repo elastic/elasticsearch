@@ -15,7 +15,7 @@ import org.elasticsearch.search.aggregations.InternalAggregations;
 /**
  * A single bucket aggregation
  */
-public interface SingleBucketAggregation extends Aggregation, HasAggregations, BucketCounter {
+public interface SingleBucketAggregation extends Aggregation, HasAggregations {
 
     /**
      * @return  The number of documents in this bucket

@@ -61,7 +61,6 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
             this.to = to;
             this.docCount = docCount;
             this.aggregations = aggregations;
-            setBucketCount(countBuckets());
         }
 
         @Override
@@ -142,7 +141,6 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
                 }
             }
             builder.field(CommonFields.DOC_COUNT.getPreferredName(), docCount);
-            builder.field("bucket_count", getBucketCount());
             aggregations.toXContentInternal(builder, params);
             builder.endObject();
             return builder;
@@ -248,6 +246,7 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
         this.ranges = ranges;
         this.format = format;
         this.keyed = keyed;
+        setBucketCount(countBuckets());
     }
 
     /**
@@ -289,6 +288,7 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
             ranges.add(getFactory().createBucket(key, from, to, docCount, aggregations, keyed, format));
         }
         this.ranges = ranges;
+        setBucketCount(countBuckets());
     }
 
     @Override

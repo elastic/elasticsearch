@@ -55,6 +55,7 @@ public abstract class InternalMappedTerms<A extends InternalTerms<A, B>, B exten
         this.otherDocCount = otherDocCount;
         this.docCountError = docCountError;
         this.buckets = buckets;
+        setBucketCount(countBuckets());
     }
 
     /**
@@ -72,6 +73,7 @@ public abstract class InternalMappedTerms<A extends InternalTerms<A, B>, B exten
         showTermDocCountError = in.readBoolean();
         otherDocCount = in.readVLong();
         buckets = in.readCollectionAsList(stream -> bucketReader.read(stream, format, showTermDocCountError));
+        setBucketCount(countBuckets());
     }
 
     @Override

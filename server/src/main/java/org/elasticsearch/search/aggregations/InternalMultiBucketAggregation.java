@@ -10,12 +10,9 @@ package org.elasticsearch.search.aggregations;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregation;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
-import org.elasticsearch.xcontent.XContentBuilder;
-
 import java.io.IOException;
 import java.util.AbstractList;
 import java.util.ArrayList;
@@ -33,11 +30,39 @@ public abstract class InternalMultiBucketAggregation<
 
     public InternalMultiBucketAggregation(String name, Map<String, Object> metadata) {
         super(name, metadata);
+//        setBucketCount(countBuckets());
     }
 
     protected InternalMultiBucketAggregation(StreamInput in) throws IOException {
         super(in);
+//        setBucketCount(countBuckets());
     }
+
+    private int bucketCount;
+
+    @Override
+    public int countBuckets() {
+        int count = 0;
+        List<B> buckets = getBuckets();
+        if(buckets == null) return 0;
+        for(Bucket B : buckets){
+            InternalAggregations subAggregations = B.getAggregations();
+            if (subAggregations == null || subAggregations.asList().isEmpty()) {
+                count++;
+                continue;
+            }
+            for (Aggregation aggregation : subAggregations) {
+                count += aggregation.getBucketCount();
+            }
+        }
+        return count;
+    }
+
+    @Override
+    public int getBucketCount(){ return bucketCount; }
+
+    @Override
+    public void setBucketCount(int count){ bucketCount = count; }
 
     public abstract A create(List<B> buckets);
 
@@ -179,48 +204,6 @@ public abstract class InternalMultiBucketAggregation<
     }
 
     public abstract static class InternalBucket implements Bucket, Writeable {
-//        @Override
-//        public int countBuckets() {
-//            int count = 0;
-//            InternalAggregations subAggregations = getAggregations();
-//            if(subAggregations == null || subAggregations.asList().isEmpty()) return 1;
-//            for (Aggregation aggregation : subAggregations) {
-//                if (aggregation instanceof MultiBucketsAggregation multiBucketsAggregation) {
-//                    for (MultiBucketsAggregation.Bucket subBucket : multiBucketsAggregation.getBuckets()) {
-//                        count += subBucket.countBuckets();
-//                    }
-//                } else if (aggregation instanceof SingleBucketAggregation singleBucketAggregation) {
-//                    count += singleBucketAggregation.countBuckets();
-//                }
-//            }
-//            return count;
-//        }
-
-        private int bucketCount;
-
-        @Override
-        public int countBuckets() {
-            InternalAggregations subAggregations = getAggregations();
-            if(subAggregations == null || subAggregations.asList().isEmpty()) return 1;
-            int count = 0;
-            for (Aggregation aggregation : subAggregations) {
-                if (aggregation instanceof MultiBucketsAggregation multiBucketsAggregation) {
-                    for (MultiBucketsAggregation.Bucket subBucket : multiBucketsAggregation.getBuckets()) {
-                        count += subBucket.getBucketCount();
-                    }
-                } else if (aggregation instanceof SingleBucketAggregation singleBucketAggregation) {
-                    count += singleBucketAggregation.countBuckets();
-                }
-            }
-            return count;
-        }
-
-        @Override
-        public int getBucketCount(){ return bucketCount; }
-
-        @Override
-        public void setBucketCount(int count){ bucketCount = count; }
-
         public Object getProperty(String containingAggName, List<String> path) {
             if (path.isEmpty()) {
                 return this;

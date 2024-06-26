@@ -37,7 +37,6 @@ import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.search.rank.RankBuilder;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.ScalingExecutorBuilder;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
@@ -219,17 +218,6 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
         var entries = new ArrayList<>(InferenceNamedWriteablesProvider.getNamedWriteables());
         entries.add(new NamedWriteableRegistry.Entry(RankBuilder.class, TextSimilarityRankBuilder.NAME, TextSimilarityRankBuilder::new));
         return entries;
-    }
-
-    @Override
-    public List<NamedXContentRegistry.Entry> getNamedXContent() {
-        return List.of(
-            new NamedXContentRegistry.Entry(
-                RankBuilder.class,
-                new ParseField(TextSimilarityRankBuilder.NAME),
-                TextSimilarityRankBuilder::fromXContent
-            )
-        );
     }
 
     @Override

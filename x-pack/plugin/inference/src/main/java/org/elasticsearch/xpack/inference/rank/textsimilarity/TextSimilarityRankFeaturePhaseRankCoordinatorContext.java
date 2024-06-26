@@ -54,8 +54,13 @@ public class TextSimilarityRankFeaturePhaseRankCoordinatorContext extends RankFe
         // and then pass the results
         final ActionListener<InferenceAction.Response> actionListener = scoreListener.delegateFailureAndWrap((l, r) -> {
             float[] scores = extractScoresFromResponse(r);
-            assert scores.length == featureDocs.length;
-            l.onResponse(scores);
+            if (scores.length != featureDocs.length) {
+                l.onFailure(
+                    new IllegalStateException("Document and score count mismatch: [" + featureDocs.length + "] vs [" + scores.length + "]")
+                );
+            } else {
+                l.onResponse(scores);
+            }
         });
 
         List<String> featureData = Arrays.stream(featureDocs).map(x -> x.featureData).toList();

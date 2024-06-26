@@ -55,7 +55,8 @@ public class UpdateConnectorSyncJobIngestionStatsActionRequestBWCSerializingTest
             instance.getIndexedDocumentCount(),
             instance.getIndexedDocumentVolume(),
             instance.getTotalDocumentCount(),
-            instance.getLastSeen()
+            instance.getLastSeen(),
+            instance.getMetadata()
         );
     }
 }

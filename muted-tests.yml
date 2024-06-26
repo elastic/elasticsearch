@@ -75,6 +75,9 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/109844
 - class: org.elasticsearch.xpack.esql.tree.EsqlNodeSubclassTests
   issue: https://github.com/elastic/elasticsearch/issues/110203
+- class: org.elasticsearch.http.netty4.Netty4ChunkedContinuationsIT
+  method: testClientCancellation
+  issue: https://github.com/elastic/elasticsearch/issues/109866
 
 # Examples:
 #

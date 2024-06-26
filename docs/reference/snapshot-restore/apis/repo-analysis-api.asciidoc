@@ -39,9 +39,6 @@ POST /_snapshot/my_repository/_analyze?blob_count=10&max_blob_size=1mb&timeout=1
 <<privileges-list-cluster,cluster privilege>> to use this API. For more
 information, see <<security-privileges>>.
 
-* If the <<operator-privileges,{operator-feature}>> is enabled, only operator
-users can use this API.
-
 [[repo-analysis-api-desc]]
 ==== {api-description-title}
 

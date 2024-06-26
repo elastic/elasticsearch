@@ -12,25 +12,22 @@ import org.elasticsearch.xpack.core.security.authz.permission.ClusterPermission;
 import java.util.Set;
 
 /**
- * A {@link NamedClusterPrivilege} that can be used to define an access to cluster level actions.
+ * A {@link NamedClusterPrivilege} that can be used to define access to cluster level actions.
  */
-public final class ActionClusterPrivilege implements NamedClusterPrivilege {
+public abstract class ActionClusterPrivilege implements NamedClusterPrivilege {
     private final String name;
     private final Set<String> allowedActionPatterns;
     private final Set<String> excludedActionPatterns;
     private final ClusterPermission permission;
-    private final boolean supportedInServerlessMode;
 
     /**
      * Constructor for {@link ActionClusterPrivilege} defining what cluster actions are accessible for the user with this privilege.
      *
      * @param name                  name for the cluster privilege
      * @param allowedActionPatterns a set of cluster action patterns that are allowed for the user with this privilege.
-     * @param supportedInServerlessMode whether this privilege is supported in serverless mode, i.e., whether it should be available to
-     *                                  end-users
      */
-    public ActionClusterPrivilege(final String name, final Set<String> allowedActionPatterns, boolean supportedInServerlessMode) {
-        this(name, allowedActionPatterns, Set.of(), supportedInServerlessMode);
+    public ActionClusterPrivilege(final String name, final Set<String> allowedActionPatterns) {
+        this(name, allowedActionPatterns, Set.of());
     }
 
     /**
@@ -41,20 +38,12 @@ public final class ActionClusterPrivilege implements NamedClusterPrivilege {
      * @param name                   name for the cluster privilege
      * @param allowedActionPatterns  a set of cluster action patterns
      * @param excludedActionPatterns a set of cluster action patterns
-     * @param supportedInServerlessMode whether this privilege is supported in serverless mode, i.e., whether it should be available to
-     *                                  end-users
      */
-    public ActionClusterPrivilege(
-        final String name,
-        final Set<String> allowedActionPatterns,
-        final Set<String> excludedActionPatterns,
-        boolean supportedInServerlessMode
-    ) {
+    public ActionClusterPrivilege(final String name, final Set<String> allowedActionPatterns, final Set<String> excludedActionPatterns) {
         this.name = name;
         this.allowedActionPatterns = allowedActionPatterns;
         this.excludedActionPatterns = excludedActionPatterns;
         this.permission = buildPermission(ClusterPermission.builder()).build();
-        this.supportedInServerlessMode = supportedInServerlessMode;
     }
 
     @Override
@@ -78,10 +67,5 @@ public final class ActionClusterPrivilege implements NamedClusterPrivilege {
     @Override
     public ClusterPermission permission() {
         return permission;
-    }
-
-    @Override
-    public boolean isSupportedInServerlessMode() {
-        return supportedInServerlessMode;
     }
 }

@@ -340,58 +340,61 @@ public class ReplicasUpdaterService extends AbstractLifecycleComponent implement
      */
     void performReplicaUpdates() {
         if (running.compareAndSet(false, true)) {
-            // if the feature is currently disabled, we only need to check if we need to clean something up and return
             try {
-                if (checkDisabled()) return;
-            } finally {
-                this.running.compareAndSet(true, false);
-            }
-            LOGGER.debug("running replicas update task. SP_min: " + this.searchPowerMinSetting);
-            if (searchPowerMinSetting < SEARCH_POWER_MIN_NO_REPLICATION) {
-                // we can scale everything down immediately
-                publishUpdateReplicaSetting(1, resetReplicasForAllIndices());
-            } else {
-                Map<Integer, Set<String>> numberOfReplicaChanges = getRecommendedReplicaChanges();
-
-                // apply scaling up to two replica suggestions immediately
-                Set<String> indicesToScaleUp = numberOfReplicaChanges.remove(2);
-                if (indicesToScaleUp != null) {
-                    publishUpdateReplicaSetting(2, indicesToScaleUp);
+                // if the feature is currently disabled, we only need to check if we need to clean something up and return
+                if (checkDisabled()) {
+                    return;
                 }
-
-                // Scale down decisions requires a certain number of repetitions to be considered stable.
-                // We want to avoid flapping up/down scaling decisions because if we scale up again soon
-                // the performance cost of this outweighs the cost of keeping two replicas around longer.
-                // This is also necessary for SPmin >= {@link #SEARCH_POWER_MIN_FULL_REPLICATION} because
-                // even in that case indices might enter and fall out of the interactive boosting window.
-
-                Set<String> indicesToScaleDown = numberOfReplicaChanges.remove(1);
-                if (indicesToScaleDown != null) {
-                    if (ensureRunning() == false) {
-                        // break out if some other thread canceled the job at this point.
-                        return;
-                    }
-                    Set<String> scaleDownUpdatesToSend = new HashSet<>();
-                    for (String index : indicesToScaleDown) {
-                        AtomicInteger scaleDownRepetitions = scaleDownCounters.computeIfAbsent(index, k -> new AtomicInteger(0));
-                        if (scaleDownRepetitions.incrementAndGet() >= scaledownRepetitionSetting) {
-                            scaleDownUpdatesToSend.add(index);
-                        }
-                        publishUpdateReplicaSetting(1, scaleDownUpdatesToSend);
-                    }
-                }
-                // We only need to keep counters for scaling down candidates that haven't been included in this round's
-                // updates, e.g. because they haven't reached the number of repetitions needed for stabilization yet.
-                // We can remove all counters that are not part of this update's indices to scale down.
-                if (indicesToScaleDown == null) {
-                    clearCounters();
+                LOGGER.debug("running replicas update task. SP_min: " + this.searchPowerMinSetting);
+                if (searchPowerMinSetting < SEARCH_POWER_MIN_NO_REPLICATION) {
+                    // we can scale everything down immediately
+                    publishUpdateReplicaSetting(1, resetReplicasForAllIndices());
                 } else {
-                    scaleDownCounters.entrySet().removeIf(e -> indicesToScaleDown.contains(e.getKey()) == false);
+                    Map<Integer, Set<String>> numberOfReplicaChanges = getRecommendedReplicaChanges();
+
+                    // apply scaling up to two replica suggestions immediately
+                    Set<String> indicesToScaleUp = numberOfReplicaChanges.remove(2);
+                    if (indicesToScaleUp != null) {
+                        publishUpdateReplicaSetting(2, indicesToScaleUp);
+                    }
+
+                    // Scale down decisions requires a certain number of repetitions to be considered stable.
+                    // We want to avoid flapping up/down scaling decisions because if we scale up again soon
+                    // the performance cost of this outweighs the cost of keeping two replicas around longer.
+                    // This is also necessary for SPmin >= {@link #SEARCH_POWER_MIN_FULL_REPLICATION} because
+                    // even in that case indices might enter and fall out of the interactive boosting window.
+
+                    Set<String> indicesToScaleDown = numberOfReplicaChanges.remove(1);
+                    if (indicesToScaleDown != null) {
+                        if (ensureRunning() == false) {
+                            // break out if some other thread canceled the job at this point.
+                            return;
+                        }
+                        Set<String> scaleDownUpdatesToSend = new HashSet<>();
+                        for (String index : indicesToScaleDown) {
+                            AtomicInteger scaleDownRepetitions = scaleDownCounters.computeIfAbsent(index, k -> new AtomicInteger(0));
+                            if (scaleDownRepetitions.incrementAndGet() >= scaledownRepetitionSetting) {
+                                scaleDownUpdatesToSend.add(index);
+                            }
+                            publishUpdateReplicaSetting(1, scaleDownUpdatesToSend);
+                        }
+                    }
+                    // We only need to keep counters for scaling down candidates that haven't been included in this round's
+                    // updates, e.g. because they haven't reached the number of repetitions needed for stabilization yet.
+                    // We can remove all counters that are not part of this update's indices to scale down.
+                    if (indicesToScaleDown == null) {
+                        clearCounters();
+                    } else {
+                        scaleDownCounters.entrySet().removeIf(e -> indicesToScaleDown.contains(e.getKey()) == false);
+                    }
+                    assert numberOfReplicaChanges.isEmpty() : "we should have processed all requested replica demand changes";
                 }
-                assert numberOfReplicaChanges.isEmpty() : "we should have processed all requested replica demand changes";
+
+                LOGGER.debug("completed replicas update task");
+            } finally {
+                boolean running = this.running.compareAndSet(true, false);
+                assert running : "Job should still have been running at this moment";
             }
-            this.running.compareAndSet(true, false);
-            LOGGER.debug("completed replicas update task");
         } else {
             LOGGER.debug("skip running replicas update task, there is one instance in progress already");
         }

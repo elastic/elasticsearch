@@ -100,19 +100,15 @@ public class RestControllerIT extends ESIntegTestCase {
     }
 
     private static TestTelemetryPlugin getTelemetryPlugin() {
-        return internalCluster().getInstance(PluginsService.class)
-            .filterPlugins(TestTelemetryPlugin.class)
-            .findFirst()
-            .orElseThrow();
+        return internalCluster().getInstance(PluginsService.class).filterPlugins(TestTelemetryPlugin.class).findFirst().orElseThrow();
     }
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Stream.concat(
             super.nodePlugins().stream(),
-                Stream.of(ChunkedResponseWithHeadersPlugin.class, TestEchoStatusCodePlugin.class, TestTelemetryPlugin.class)
-            )
-            .toList();
+            Stream.of(ChunkedResponseWithHeadersPlugin.class, TestEchoStatusCodePlugin.class, TestTelemetryPlugin.class)
+        ).toList();
     }
 
     public static class TestEchoStatusCodePlugin extends Plugin implements ActionPlugin {
@@ -139,10 +135,7 @@ public class RestControllerIT extends ESIntegTestCase {
 
                 @Override
                 public List<Route> routes() {
-                    return List.of(
-                        new Route(RestRequest.Method.GET, ROUTE),
-                        new Route(RestRequest.Method.POST, ROUTE)
-                    );
+                    return List.of(new Route(RestRequest.Method.GET, ROUTE), new Route(RestRequest.Method.POST, ROUTE));
                 }
 
                 @Override

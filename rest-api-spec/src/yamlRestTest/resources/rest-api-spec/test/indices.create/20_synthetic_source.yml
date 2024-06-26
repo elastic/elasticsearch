@@ -13,7 +13,7 @@ invalid:
               mode: synthetic
             properties:
               kwd:
-                type: keyword
+                type: boolean
                 doc_values: false
 
 

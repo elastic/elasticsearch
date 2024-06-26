@@ -40,15 +40,21 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecycleMetadata;
 import org.elasticsearch.xpack.core.slm.action.DeleteSnapshotLifecycleAction;
 import org.elasticsearch.xpack.core.slm.action.PutSnapshotLifecycleAction;
+import org.junit.Assert;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doAnswer;
@@ -69,7 +75,7 @@ public class ReservedSnapshotLifecycleStateServiceTests extends ESTestCase {
 
     public void testDependencies() {
         var action = new ReservedSnapshotAction();
-        assertTrue(action.optionalDependencies().contains(ReservedRepositoryAction.NAME));
+        assertThat(action.optionalDependencies(), contains(ReservedRepositoryAction.NAME));
     }
 
     public void testValidationFails() {
@@ -79,7 +85,7 @@ public class ReservedSnapshotLifecycleStateServiceTests extends ESTestCase {
 
         ClusterState state = ClusterState.builder(clusterName).build();
         ReservedSnapshotAction action = new ReservedSnapshotAction();
-        TransformState prevState = new TransformState(state, Collections.emptySet());
+        TransformState prevState = new TransformState(state, Set.of());
 
         String badPolicyJSON = """
             {
@@ -100,9 +106,9 @@ public class ReservedSnapshotLifecycleStateServiceTests extends ESTestCase {
               }
             }""";
 
-        assertEquals(
-            "Required [schedule]",
-            expectThrows(IllegalArgumentException.class, () -> processJSON(action, prevState, badPolicyJSON)).getMessage()
+        assertThat(
+            expectThrows(IllegalArgumentException.class, () -> processJSON(action, prevState, badPolicyJSON)).getMessage(),
+            is("Required [schedule]")
         );
     }
 
@@ -121,10 +127,10 @@ public class ReservedSnapshotLifecycleStateServiceTests extends ESTestCase {
 
         String emptyJSON = "";
 
-        TransformState prevState = new TransformState(state, Collections.emptySet());
+        TransformState prevState = new TransformState(state, Set.of());
 
         TransformState updatedState = processJSON(action, prevState, emptyJSON);
-        assertEquals(0, updatedState.keys().size());
+        assertThat(updatedState.keys(), empty());
         assertEquals(prevState.state(), updatedState.state());
 
         String twoPoliciesJSON = """
@@ -337,9 +343,9 @@ public class ReservedSnapshotLifecycleStateServiceTests extends ESTestCase {
         AtomicReference<Exception> x = new AtomicReference<>();
 
         try (XContentParser parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, testJSON)) {
-            controller.process("operator", parser, (e) -> x.set(e));
+            controller.process("operator", parser, x::set);
 
-            assertTrue(x.get() instanceof IllegalStateException);
+            assertThat(x.get(), instanceOf(IllegalStateException.class));
             assertThat(x.get().getMessage(), containsString("Error processing state change request for operator"));
         }
 
@@ -357,11 +363,7 @@ public class ReservedSnapshotLifecycleStateServiceTests extends ESTestCase {
         );
 
         try (XContentParser parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, testJSON)) {
-            controller.process("operator", parser, (e) -> {
-                if (e != null) {
-                    fail("Should not fail");
-                }
-            });
+            controller.process("operator", parser, Assert::assertNull);
         }
     }
 
@@ -375,7 +377,7 @@ public class ReservedSnapshotLifecycleStateServiceTests extends ESTestCase {
             mock(ActionFilters.class),
             mock(IndexNameExpressionResolver.class)
         );
-        assertEquals(ReservedSnapshotAction.NAME, deleteAction.reservedStateHandlerName().get());
+        assertThat(deleteAction.reservedStateHandlerName().get(), equalTo(ReservedSnapshotAction.NAME));
 
         var request = new DeleteSnapshotLifecycleAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "daily-snapshots1");
         assertThat(deleteAction.modifiedKeys(request), containsInAnyOrder("daily-snapshots1"));
@@ -391,7 +393,7 @@ public class ReservedSnapshotLifecycleStateServiceTests extends ESTestCase {
             mock(ActionFilters.class),
             mock(IndexNameExpressionResolver.class)
         );
-        assertEquals(ReservedSnapshotAction.NAME, putAction.reservedStateHandlerName().get());
+        assertThat(putAction.reservedStateHandlerName().get(), equalTo(ReservedSnapshotAction.NAME));
 
         String json = """
             {

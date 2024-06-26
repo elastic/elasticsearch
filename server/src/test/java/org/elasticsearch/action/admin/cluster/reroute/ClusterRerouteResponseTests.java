@@ -8,6 +8,7 @@
 
 package org.elasticsearch.action.admin.cluster.reroute;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
@@ -28,6 +29,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.index.shard.IndexLongFieldRange;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
@@ -190,6 +192,9 @@ public class ClusterRerouteResponseTests extends ESTestCase {
                               "system": false,
                               "timestamp_range": {
                                 "shards": []
+                              },
+                              "event_ingested_range": {
+                                "unknown":true
                               }
                             }
                           },
@@ -271,6 +276,9 @@ public class ClusterRerouteResponseTests extends ESTestCase {
                           "system" : false,
                           "timestamp_range" : {
                             "shards" : [ ]
+                          },
+                          "event_ingested_range" : {
+                            "unknown" : true
                           }
                         }
                       },
@@ -354,6 +362,7 @@ public class ClusterRerouteResponseTests extends ESTestCase {
                                     .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
                                     .build()
                             )
+                            .eventIngestedRange(IndexLongFieldRange.UNKNOWN, TransportVersion.current())
                             .build(),
                         false
                     )

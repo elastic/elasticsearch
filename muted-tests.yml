@@ -73,9 +73,8 @@ tests:
 - class: org.elasticsearch.xpack.transform.transforms.TransformIndexerTests
   method: testMaxPageSearchSizeIsResetToConfiguredValue
   issue: https://github.com/elastic/elasticsearch/issues/109844
-- class: "org.elasticsearch.test.jvm_crash.JvmCrashIT"
-  issue: "https://github.com/elastic/elasticsearch/issues/110052"
-  method: "testJvmCrash"
+- class: org.elasticsearch.xpack.esql.tree.EsqlNodeSubclassTests
+  issue: https://github.com/elastic/elasticsearch/issues/110203
 
 # Examples:
 #

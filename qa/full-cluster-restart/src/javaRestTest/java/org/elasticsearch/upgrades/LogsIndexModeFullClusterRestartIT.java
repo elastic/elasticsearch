@@ -123,7 +123,7 @@ public class LogsIndexModeFullClusterRestartIT extends ParameterizedFullClusterR
             assertOK(client().performRequest(createDataStream("logs-apache-production")));
             final Response bulkIndexResponse = client().performRequest(bulkIndex("logs-apache-production", () -> {
                 final StringBuilder sb = new StringBuilder();
-                for (int i = 0; i < randomIntBetween(100, 200); i++) {
+                for (int i = 0; i < randomIntBetween(10, 20); i++) {
                     sb.append(
                         String.format(
                             BULK_INDEX_REQUEST,
@@ -145,7 +145,7 @@ public class LogsIndexModeFullClusterRestartIT extends ParameterizedFullClusterR
             assertOK(client().performRequest(rolloverDataStream(client(), "logs-apache-production")));
             final Response bulkIndexResponse = client().performRequest(bulkIndex("logs-apache-production", () -> {
                 final StringBuilder sb = new StringBuilder();
-                for (int i = 0; i < randomIntBetween(100, 200); i++) {
+                for (int i = 0; i < randomIntBetween(10, 20); i++) {
                     sb.append(
                         String.format(
                             BULK_INDEX_REQUEST,

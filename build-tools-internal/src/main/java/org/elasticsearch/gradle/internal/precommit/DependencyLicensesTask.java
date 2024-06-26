@@ -23,11 +23,14 @@ import org.gradle.api.model.ObjectFactory;
 import org.gradle.api.provider.Property;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.specs.Spec;
+import org.gradle.api.tasks.CacheableTask;
 import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.InputDirectory;
 import org.gradle.api.tasks.InputFiles;
 import org.gradle.api.tasks.Optional;
 import org.gradle.api.tasks.OutputDirectory;
+import org.gradle.api.tasks.PathSensitive;
+import org.gradle.api.tasks.PathSensitivity;
 import org.gradle.api.tasks.TaskAction;
 
 import java.io.File;
@@ -89,6 +92,7 @@ import static org.elasticsearch.gradle.internal.util.DependenciesUtils.createFil
  * for the dependency. This artifact will be redistributed by us with the release to
  * comply with the license terms.
  */
+@CacheableTask
 public abstract class DependencyLicensesTask extends DefaultTask {
 
     private final Pattern regex = Pattern.compile("-v?\\d+.*");
@@ -149,6 +153,7 @@ public abstract class DependencyLicensesTask extends DefaultTask {
     }
 
     @InputFiles
+    @PathSensitive(PathSensitivity.NAME_ONLY)
     public FileCollection getDependencies() {
         return dependencies;
     }
@@ -159,6 +164,7 @@ public abstract class DependencyLicensesTask extends DefaultTask {
 
     @Optional
     @InputDirectory
+    @PathSensitive(PathSensitivity.RELATIVE)
     public File getLicensesDir() {
         File asFile = licensesDir.get().getAsFile();
         if (asFile.exists()) {

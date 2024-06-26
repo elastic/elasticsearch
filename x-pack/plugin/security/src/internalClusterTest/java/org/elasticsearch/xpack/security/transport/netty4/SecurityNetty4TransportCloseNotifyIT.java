@@ -27,14 +27,19 @@ import io.netty.handler.ssl.SslHandler;
 import io.netty.handler.ssl.util.InsecureTrustManagerFactory;
 import io.netty.handler.ssl.util.SelfSignedCertificate;
 
+import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
+import org.elasticsearch.action.support.CancellableActionTestPlugin;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.http.HttpServerTransport;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.SecurityIntegTestCase;
 
+import java.util.Collection;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
@@ -64,6 +69,11 @@ public class SecurityNetty4TransportCloseNotifyIT extends SecurityIntegTestCase 
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
+    }
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return CollectionUtils.appendToCopy(super.nodePlugins(), CancellableActionTestPlugin.class);
     }
 
     Bootstrap setupNettyClient(String node, Consumer<FullHttpResponse> responseHandler) throws Exception {
@@ -101,8 +111,7 @@ public class SecurityNetty4TransportCloseNotifyIT extends SecurityIntegTestCase 
             // send some HTTP GET requests before closing a channel
             var nReq = randomIntBetween(1, 10); // nothing particular about number 10
             for (int i = 0; i < nReq; i++) {
-                var req = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "/");
-                req.headers().add(HttpHeaderNames.AUTHORIZATION, basicAuthHeaderValue(nodeClientUsername(), nodeClientPassword()));
+                var req = newHttpGetReq("/");
                 channel.writeAndFlush(req).get(5, TimeUnit.SECONDS);
             }
             assertBusy(() -> assertEquals(nReq, serverRespQueue.size()));
@@ -119,6 +128,35 @@ public class SecurityNetty4TransportCloseNotifyIT extends SecurityIntegTestCase 
         } finally {
             client.config().group().shutdownGracefully().sync();
         }
+    }
+
+    public void testSendCloseNotifyCancelAction() throws Exception {
+        var node = internalCluster().startNode();
+        var indexName = "close-notify-cancel";
+        createIndex(indexName);
+        ensureGreen(indexName);
+        var client = setupNettyClient(node, resp -> {});
+        var actionName = ClusterStateAction.NAME;
+        try (var capturingAction = CancellableActionTestPlugin.capturingActionOnNode(actionName, node)) {
+            var channel = client.connect().sync().channel();
+            var req = newHttpGetReq("/_cluster/state");
+            channel.writeAndFlush(req);
+            var ssl = channel.pipeline().get(SslHandler.class);
+            capturingAction.captureAndCancel(ssl::closeOutbound);
+            try {
+                assertTrue(channel.closeFuture().await(5000));
+            } finally {
+                channel.close().sync();
+            }
+        } finally {
+            client.config().group().shutdownGracefully().sync();
+        }
+    }
+
+    private DefaultFullHttpRequest newHttpGetReq(String uri) {
+        var req = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, uri);
+        req.headers().add(HttpHeaderNames.AUTHORIZATION, basicAuthHeaderValue(nodeClientUsername(), nodeClientPassword()));
+        return req;
     }
 
 }

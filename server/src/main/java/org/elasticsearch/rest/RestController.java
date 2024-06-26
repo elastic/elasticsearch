@@ -808,23 +808,19 @@ public class RestController implements HttpServerTransport.Dispatcher {
 
     private static void recordRequestMetric(RestStatus statusCode, LongCounter requestsCounter) {
         try {
-            Map<String, Object> attributes = Map.of("es_rest_status_code", statusCode.getStatus());
+            Map<String, Object> attributes = Map.of(STATUS_CODE_KEY, statusCode.getStatus());
             requestsCounter.incrementBy(1, attributes);
         } catch (Exception ex) {
             logger.error("Cannot track request status code", ex);
         }
     }
 
-    private static final class MeteringRestChannelDecorator implements RestChannel {
+    private static class DelegatingRestChannel implements RestChannel {
 
         private final RestChannel delegate;
-        private final LongCounter requestsCounter;
-        private final RestHandler restHandler;
 
-        private MeteringRestChannelDecorator(RestChannel delegate, LongCounter requestCounter, RestHandler restHandler) {
+        private DelegatingRestChannel(RestChannel delegate) {
             this.delegate = delegate;
-            this.requestsCounter = requestCounter;
-            this.restHandler = restHandler;
         }
 
         @Override
@@ -881,12 +877,28 @@ public class RestController implements HttpServerTransport.Dispatcher {
         @Override
         public void sendResponse(RestResponse response) {
             delegate.sendResponse(response);
+        }
+    }
+
+    private static final class MeteringRestChannelDecorator extends DelegatingRestChannel {
+
+        private final LongCounter requestsCounter;
+        private final RestHandler restHandler;
+
+        private MeteringRestChannelDecorator(RestChannel delegate, LongCounter requestCounter, RestHandler restHandler) {
+            super(delegate);
+            this.requestsCounter = requestCounter;
+            this.restHandler = restHandler;
+        }
+
+        @Override
+        public void sendResponse(RestResponse response) {
+            super.sendResponse(response);
             recordRequestMetric(response.status(), restHandler.getName(), request().method().name(), requestsCounter);
         }
     }
 
-    private static final class ResourceHandlingHttpChannel implements RestChannel {
-        private final RestChannel delegate;
+    private static final class ResourceHandlingHttpChannel extends DelegatingRestChannel {
         private final CircuitBreakerService circuitBreakerService;
         private final int contentLength;
         private final MethodHandlers methodHandlers;
@@ -899,62 +911,11 @@ public class RestController implements HttpServerTransport.Dispatcher {
             int contentLength,
             MethodHandlers methodHandlers
         ) {
-            this.delegate = delegate;
+            super(delegate);
             this.circuitBreakerService = circuitBreakerService;
             this.contentLength = contentLength;
             this.methodHandlers = methodHandlers;
             this.startTime = rawRelativeTimeInMillis();
-        }
-
-        @Override
-        public XContentBuilder newBuilder() throws IOException {
-            return delegate.newBuilder();
-        }
-
-        @Override
-        public XContentBuilder newErrorBuilder() throws IOException {
-            return delegate.newErrorBuilder();
-        }
-
-        @Override
-        public XContentBuilder newBuilder(@Nullable XContentType xContentType, boolean useFiltering) throws IOException {
-            return delegate.newBuilder(xContentType, useFiltering);
-        }
-
-        @Override
-        public XContentBuilder newBuilder(XContentType xContentType, XContentType responseContentType, boolean useFiltering)
-            throws IOException {
-            return delegate.newBuilder(xContentType, responseContentType, useFiltering);
-        }
-
-        @Override
-        public XContentBuilder newBuilder(
-            XContentType xContentType,
-            XContentType responseContentType,
-            boolean useFiltering,
-            OutputStream out
-        ) throws IOException {
-            return delegate.newBuilder(xContentType, responseContentType, useFiltering, out);
-        }
-
-        @Override
-        public BytesStream bytesOutput() {
-            return delegate.bytesOutput();
-        }
-
-        @Override
-        public void releaseOutputBuffer() {
-            delegate.releaseOutputBuffer();
-        }
-
-        @Override
-        public RestRequest request() {
-            return delegate.request();
-        }
-
-        @Override
-        public boolean detailedErrorsEnabled() {
-            return delegate.detailedErrorsEnabled();
         }
 
         @Override
@@ -980,7 +941,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
                         }
                     }
                 }
-                delegate.sendResponse(response);
+                super.sendResponse(response);
                 success = true;
             } finally {
                 if (success == false) {

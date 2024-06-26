@@ -18,8 +18,8 @@ gradle-enterprise-gradle-build-validation/03-validate-local-build-caching-differ
 retval=$?
 
 # Now read the content from the temporary file into a variable
-perfOutput=$(cat $tmpOutputFile | sed -n '/Performance Characteristics/,/See https:\/\/gradle.com\/bvs\/main\/Gradle.md#performance-characteristics for details./p')
-investigationOutput=$(cat $tmpOutputFile | sed -n '/Investigation Quick Links/,$p')
+perfOutput=$(cat $tmpOutputFile | sed -n '/Performance Characteristics/,/See https:\/\/gradle.com\/bvs\/main\/Gradle.md#performance-characteristics for details./p' | sed 's/\x1b\[[0-9;]*m//g')
+investigationOutput=$(cat $tmpOutputFile | sed -n '/Investigation Quick Links/,$p' | sed 's/\x1b\[[0-9;]*m//g')
 
 #echo "PERF OUTPUT $perfOutput"
 #echo "INVESTIGATION OUTPUT $investigationOutput"

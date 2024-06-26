@@ -11,6 +11,7 @@ package org.elasticsearch.index;
 import org.apache.logging.log4j.Level;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
@@ -27,6 +28,7 @@ public class IndexSettingsOverrideTests extends ESTestCase {
             .build();
     }
 
+    @SuppressForbidden(reason = "manipulates system properties for testing")
     public void testStatelessMinRefreshIntervalOverride() {
         System.setProperty(IndexSettings.RefreshIntervalValidator.STATELESS_ALLOW_INDEX_REFRESH_INTERVAL_OVERRIDE, "true");
         try (var mockLog = MockLog.capture(IndexSettings.RefreshIntervalValidator.class)) {

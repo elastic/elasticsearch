@@ -100,10 +100,8 @@ public class LogsIndexModeRollingUpgradeIT extends AbstractRollingUpgradeTestCas
 
     public void testLogsIndexing() throws IOException {
         if (isOldCluster()) {
-            final Response putTemplateResponse = client().performRequest(putTemplate(client(), "logs-template", STANDARD_TEMPLATE));
-            assertOK(putTemplateResponse);
-            final Response createDataStreamResponse = client().performRequest(createDataStream("logs-apache-production"));
-            assertOK(createDataStreamResponse);
+            assertOK(client().performRequest(putTemplate(client(), "logs-template", STANDARD_TEMPLATE)));
+            assertOK(client().performRequest(createDataStream("logs-apache-production")));
             final Response bulkIndexResponse = client().performRequest(bulkIndex("logs-apache-production", () -> {
                 final StringBuilder sb = new StringBuilder();
                 for (int i = 0; i < randomIntBetween(100, 200); i++) {

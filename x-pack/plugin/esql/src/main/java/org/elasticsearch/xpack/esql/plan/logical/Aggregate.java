@@ -6,6 +6,9 @@
  */
 package org.elasticsearch.xpack.esql.plan.logical;
 
+import org.elasticsearch.TransportVersions;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -15,29 +18,87 @@ import org.elasticsearch.xpack.esql.core.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.core.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
+import static org.elasticsearch.xpack.esql.io.stream.PlanNameRegistry.PlanReader.readerFromPlanReader;
+import static org.elasticsearch.xpack.esql.io.stream.PlanNameRegistry.PlanWriter.writerFromPlanWriter;
+
 public class Aggregate extends UnaryPlan {
 
+    public enum AggregateType {
+        STANDARD,
+        // include metrics aggregates such as rates
+        METRICS;
+
+        static void writeType(StreamOutput out, AggregateType type) throws IOException {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_ADD_AGGREGATE_TYPE)) {
+                out.writeString(type.name());
+            } else if (type != STANDARD) {
+                throw new IllegalStateException("cluster is not ready to support aggregate type [" + type + "]");
+            }
+        }
+
+        static AggregateType readType(StreamInput in) throws IOException {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_ADD_AGGREGATE_TYPE)) {
+                return AggregateType.valueOf(in.readString());
+            } else {
+                return STANDARD;
+            }
+        }
+    }
+
+    private final AggregateType aggregateType;
     private final List<Expression> groupings;
     private final List<? extends NamedExpression> aggregates;
 
-    public Aggregate(Source source, LogicalPlan child, List<Expression> groupings, List<? extends NamedExpression> aggregates) {
+    public Aggregate(
+        Source source,
+        LogicalPlan child,
+        AggregateType aggregateType,
+        List<Expression> groupings,
+        List<? extends NamedExpression> aggregates
+    ) {
         super(source, child);
+        this.aggregateType = aggregateType;
         this.groupings = groupings;
         this.aggregates = aggregates;
     }
 
+    public Aggregate(PlanStreamInput in) throws IOException {
+        this(
+            Source.readFrom(in),
+            in.readLogicalPlanNode(),
+            AggregateType.readType(in),
+            in.readCollectionAsList(readerFromPlanReader(org.elasticsearch.xpack.esql.io.stream.PlanStreamInput::readExpression)),
+            in.readNamedWriteableCollectionAsList(NamedExpression.class)
+        );
+    }
+
+    public static void writeAggregate(PlanStreamOutput out, Aggregate aggregate) throws IOException {
+        Source.EMPTY.writeTo(out);
+        out.writeLogicalPlanNode(aggregate.child());
+        AggregateType.writeType(out, aggregate.aggregateType());
+        out.writeCollection(aggregate.groupings(), writerFromPlanWriter(PlanStreamOutput::writeExpression));
+        out.writeNamedWriteableCollection(aggregate.aggregates());
+    }
+
     @Override
     protected NodeInfo<Aggregate> info() {
-        return NodeInfo.create(this, Aggregate::new, child(), groupings, aggregates);
+        return NodeInfo.create(this, Aggregate::new, child(), aggregateType, groupings, aggregates);
     }
 
     @Override
     public Aggregate replaceChild(LogicalPlan newChild) {
-        return new Aggregate(source(), newChild, groupings, aggregates);
+        return new Aggregate(source(), newChild, aggregateType, groupings, aggregates);
+    }
+
+    public AggregateType aggregateType() {
+        return aggregateType;
     }
 
     public List<Expression> groupings() {
@@ -60,7 +121,7 @@ public class Aggregate extends UnaryPlan {
 
     @Override
     public int hashCode() {
-        return Objects.hash(groupings, aggregates, child());
+        return Objects.hash(aggregateType, groupings, aggregates, child());
     }
 
     @Override
@@ -74,7 +135,8 @@ public class Aggregate extends UnaryPlan {
         }
 
         Aggregate other = (Aggregate) obj;
-        return Objects.equals(groupings, other.groupings)
+        return aggregateType == other.aggregateType
+            && Objects.equals(groupings, other.groupings)
             && Objects.equals(aggregates, other.aggregates)
             && Objects.equals(child(), other.child());
     }

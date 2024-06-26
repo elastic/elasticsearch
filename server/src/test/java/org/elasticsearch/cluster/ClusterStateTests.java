@@ -45,6 +45,7 @@ import org.elasticsearch.health.metadata.HealthMetadata;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.index.shard.IndexLongFieldRange;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.SystemIndices;
@@ -314,6 +315,9 @@ public class ClusterStateTests extends ESTestCase {
                                 "timestamp_range": {
                                   "shards": []
                                 },
+                                "event_ingested_range": {
+                                  "unknown": true
+                                },
                                 "stats": {
                                     "write_load": {
                                       "loads": [-1.0],
@@ -578,6 +582,9 @@ public class ClusterStateTests extends ESTestCase {
                             "system" : false,
                             "timestamp_range" : {
                               "shards" : [ ]
+                            },
+                            "event_ingested_range" : {
+                              "unknown" : true
                             },
                             "stats" : {
                               "write_load" : {
@@ -854,6 +861,9 @@ public class ClusterStateTests extends ESTestCase {
                             "timestamp_range" : {
                               "shards" : [ ]
                             },
+                            "event_ingested_range" : {
+                              "unknown" : true
+                            },
                             "stats" : {
                               "write_load" : {
                                 "loads" : [
@@ -1024,6 +1034,9 @@ public class ClusterStateTests extends ESTestCase {
                     "system" : false,
                     "timestamp_range" : {
                       "shards" : [ ]
+                    },
+                    "event_ingested_range" : {
+                      "shards" : [ ]
                     }
                   }
                 },
@@ -1095,6 +1108,7 @@ public class ClusterStateTests extends ESTestCase {
             .putRolloverInfo(new RolloverInfo("rolloveAlias", new ArrayList<>(), 1L))
             .stats(new IndexMetadataStats(IndexWriteLoad.builder(1).build(), 120, 1))
             .indexWriteLoadForecast(8.0)
+            .eventIngestedRange(IndexLongFieldRange.UNKNOWN, TransportVersions.V_8_0_0)
             .build();
 
         return ClusterState.builder(ClusterName.DEFAULT)

@@ -21,16 +21,6 @@ retval=$?
 perfOutput=$(cat $tmpOutputFile | sed -n '/Performance Characteristics/,/See https:\/\/gradle.com\/bvs\/main\/Gradle.md#performance-characteristics for details./p' | sed '$d' | sed 's/\x1b\[[0-9;]*m//g')
 investigationOutput=$(cat $tmpOutputFile | sed -n '/Investigation Quick Links/,$p' | sed 's/\x1b\[[0-9;]*m//g')
 
-#echo "PERF OUTPUT $perfOutput"
-#echo "INVESTIGATION OUTPUT $investigationOutput"
-
-
-cat << EOF | buildkite-agent annotate --context "ctx-perf-characteristics" --style "info"
-<details>
-
-<summary>Performance Characteristics</summary>
-EOF
-
 # Initialize HTML output variable
 perfHtml="<ul>"
 
@@ -49,8 +39,12 @@ done <<< "$perfOutput"
 # End of the HTML content
 perfHtml+="</ul>"
 
-echo $perfHtml | buildkite-agent annotate --context "ctx-perf-characteristics" --append --style "info"
+cat << EOF | buildkite-agent annotate --context "ctx-perf-characteristics" --style "info"
+<details>
 
+<summary>Performance Characteristics</summary>
+$perfHtml
+EOF
 
 # generate html for links
 linkHtml="<ul>"
@@ -74,10 +68,8 @@ cat << EOF | buildkite-agent annotate --context "ctx-investigation-links" --styl
 <details>
 
 <summary>Investigation Links</summary>
+$linkHtml
 EOF
-# Print the output to standard output or use it as needed
-echo $linkHtml | buildkite-agent annotate --context "ctx-investigation-links" --append --style "info" 
-
 
 # Check if the command was successful
 if [ $retval -eq 0 ]; then

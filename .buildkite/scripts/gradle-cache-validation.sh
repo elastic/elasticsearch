@@ -12,7 +12,7 @@ curl -s -L -O https://github.com/gradle/gradle-enterprise-build-validation-scrip
 tmpOutputFile=$(mktemp)
 trap "rm $tmpOutputFile" EXIT
 
-gradle-enterprise-gradle-build-validation/03-validate-local-build-caching-different-locations.sh -r https://github.com/elastic/elasticsearch.git -b $BUILDKITE_BRANCH --gradle-enterprise-server https://gradle-enterprise.elastic.co -t licenseHeaders --fail-if-not-fully-cacheable | tee $tmpOutputFile
+gradle-enterprise-gradle-build-validation/03-validate-local-build-caching-different-locations.sh -r https://github.com/elastic/elasticsearch.git -b $BUILDKITE_BRANCH --gradle-enterprise-server https://gradle-enterprise.elastic.co -t precommit --fail-if-not-fully-cacheable | tee $tmpOutputFile
 
 # Capture the return value
 retval=$?
@@ -22,7 +22,7 @@ perfOutput=$(cat $tmpOutputFile | sed -n '/Performance Characteristics/,/See htt
 investigationOutput=$(cat $tmpOutputFile | sed -n '/Investigation Quick Links/,$p' | sed 's/\x1b\[[0-9;]*m//g')
 
 # Initialize HTML output variable
-summaryHtml="<h2>Performance Characteristics</h2>"
+summaryHtml="<h3>Performance Characteristics</h3>"
 summaryHtml+="<ul>"
 
 # Process each line of the string
@@ -40,7 +40,7 @@ done <<< "$perfOutput"
 summaryHtml+="</ul>"
 
 # generate html for links
-summaryHtml+="<h2>Investigation Links</h2>"
+summaryHtml+="<h3>Investigation Links</h3>"
 summaryHtml+="<ul>"
 
 # Process each line of the string

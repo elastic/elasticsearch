@@ -12,6 +12,9 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
+import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Not;
+import org.elasticsearch.xpack.esql.core.expression.predicate.nulls.IsNotNull;
+import org.elasticsearch.xpack.esql.core.expression.predicate.nulls.IsNull;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.FromBase64;
@@ -51,8 +54,10 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StX;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StY;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.LTrim;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Length;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.RLike;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.RTrim;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Trim;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.WildcardLike;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Neg;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
@@ -76,10 +81,14 @@ public abstract class UnaryScalarFunction extends EsqlScalarFunction {
             Cosh.ENTRY,
             Floor.ENTRY,
             FromBase64.ENTRY,
+            IsNotNull.ENTRY,
+            IsNull.ENTRY,
             Length.ENTRY,
             Log10.ENTRY,
             LTrim.ENTRY,
             Neg.ENTRY,
+            Not.ENTRY,
+            RLike.ENTRY,
             RTrim.ENTRY,
             Signum.ENTRY,
             Sin.ENTRY,
@@ -105,7 +114,8 @@ public abstract class UnaryScalarFunction extends EsqlScalarFunction {
             ToString.ENTRY,
             ToUnsignedLong.ENTRY,
             ToVersion.ENTRY,
-            Trim.ENTRY
+            Trim.ENTRY,
+            WildcardLike.ENTRY
         );
     }
 

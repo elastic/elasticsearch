@@ -67,7 +67,7 @@ public abstract class AbstractTrimTests extends AbstractFunctionTestCase {
                 }));
             }
         }
-        return parameterSuppliersFromTypedData(errorsForCasesWithoutExamples(anyNullIsNull(false, suppliers)));
+        return parameterSuppliersFromTypedDataWithDefaultChecks(false, suppliers);
     }
 
     private static TestCaseSupplier.TestCase testCase(String name, DataType type, String data, String expected) {

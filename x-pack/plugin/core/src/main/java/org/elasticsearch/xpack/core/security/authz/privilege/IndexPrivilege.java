@@ -219,6 +219,10 @@ public final class IndexPrivilege extends Privilege {
         false
     );
 
+    /**
+     * If you are adding a new named index privilege, also add it to the
+     * <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-privileges.html#privileges-list-indices">docs</a>.
+     */
     @SuppressWarnings("unchecked")
     private static final Map<String, IndexPrivilege> VALUES = sortByAccessLevel(
         Stream.of(

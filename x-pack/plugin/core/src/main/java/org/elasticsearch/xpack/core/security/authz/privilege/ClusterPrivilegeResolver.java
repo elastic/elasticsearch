@@ -440,6 +440,10 @@ public class ClusterPrivilegeResolver {
         false
     );
 
+    /**
+     * If you are adding a new named cluster privilege, also add it to the
+     * <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-privileges.html#privileges-list-cluster">docs</a>.
+     */
     private static final Map<String, NamedClusterPrivilege> VALUES = sortByAccessLevel(
         Stream.of(
             NONE,

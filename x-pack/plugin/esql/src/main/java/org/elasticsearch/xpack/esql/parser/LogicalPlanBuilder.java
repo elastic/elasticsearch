@@ -502,7 +502,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
     @Override
     public PlanFactory visitSearchFilterCommand(EsqlBaseParser.SearchFilterCommandContext ctx) {
-        Expression expression = expression(ctx.searchQueryOrReference());
+        Expression expression = expression(ctx.searchFilterExpression());
         return input -> new Filter(source(ctx), input, expression);
     }
 

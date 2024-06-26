@@ -599,14 +599,7 @@ public class EsqlBaseParserBaseVisitor<T> extends AbstractParseTreeVisitor<T> im
    * <p>The default implementation returns the result of calling
    * {@link #visitChildren} on {@code ctx}.</p>
    */
-  @Override public T visitSearchQueryOrReference(EsqlBaseParser.SearchQueryOrReferenceContext ctx) { return visitChildren(ctx); }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation returns the result of calling
-   * {@link #visitChildren} on {@code ctx}.</p>
-   */
-  @Override public T visitSearchQueryIdentifier(EsqlBaseParser.SearchQueryIdentifierContext ctx) { return visitChildren(ctx); }
+  @Override public T visitSearchFilterExpression(EsqlBaseParser.SearchFilterExpressionContext ctx) { return visitChildren(ctx); }
   /**
    * {@inheritDoc}
    *
@@ -627,21 +620,14 @@ public class EsqlBaseParserBaseVisitor<T> extends AbstractParseTreeVisitor<T> im
    * <p>The default implementation returns the result of calling
    * {@link #visitChildren} on {@code ctx}.</p>
    */
+  @Override public T visitSearchRankExpression(EsqlBaseParser.SearchRankExpressionContext ctx) { return visitChildren(ctx); }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation returns the result of calling
+   * {@link #visitChildren} on {@code ctx}.</p>
+   */
   @Override public T visitSearchSortCommmand(EsqlBaseParser.SearchSortCommmandContext ctx) { return visitChildren(ctx); }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation returns the result of calling
-   * {@link #visitChildren} on {@code ctx}.</p>
-   */
-  @Override public T visitSearchQueryExpression(EsqlBaseParser.SearchQueryExpressionContext ctx) { return visitChildren(ctx); }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation returns the result of calling
-   * {@link #visitChildren} on {@code ctx}.</p>
-   */
-  @Override public T visitSearchMatchingExpression(EsqlBaseParser.SearchMatchingExpressionContext ctx) { return visitChildren(ctx); }
   /**
    * {@inheritDoc}
    *

@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.esql.core.expression.Order;
 import org.elasticsearch.xpack.esql.core.expression.TypedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.function.scalar.UnaryScalarFunction;
 import org.elasticsearch.xpack.esql.core.expression.predicate.Predicates;
+import org.elasticsearch.xpack.esql.core.expression.predicate.fulltext.MatchQueryPredicate;
 import org.elasticsearch.xpack.esql.core.expression.predicate.logical.BinaryLogic;
 import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.core.expression.predicate.nulls.IsNotNull;
@@ -280,6 +281,8 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
                     && Expressions.foldable(cidrMatch.matches());
             } else if (exp instanceof SpatialRelatesFunction bc) {
                 return bc.canPushToSource(LocalPhysicalPlanOptimizer::isAggregatable);
+            } else if (exp instanceof MatchQueryPredicate) {
+                return true;
             }
             return false;
         }

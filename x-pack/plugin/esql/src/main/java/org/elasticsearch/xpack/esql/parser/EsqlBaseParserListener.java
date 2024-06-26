@@ -904,25 +904,15 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    */
   void exitSearchFilterCommand(EsqlBaseParser.SearchFilterCommandContext ctx);
   /**
-   * Enter a parse tree produced by {@link EsqlBaseParser#searchQueryOrReference}.
+   * Enter a parse tree produced by {@link EsqlBaseParser#searchFilterExpression}.
    * @param ctx the parse tree
    */
-  void enterSearchQueryOrReference(EsqlBaseParser.SearchQueryOrReferenceContext ctx);
+  void enterSearchFilterExpression(EsqlBaseParser.SearchFilterExpressionContext ctx);
   /**
-   * Exit a parse tree produced by {@link EsqlBaseParser#searchQueryOrReference}.
+   * Exit a parse tree produced by {@link EsqlBaseParser#searchFilterExpression}.
    * @param ctx the parse tree
    */
-  void exitSearchQueryOrReference(EsqlBaseParser.SearchQueryOrReferenceContext ctx);
-  /**
-   * Enter a parse tree produced by {@link EsqlBaseParser#searchQueryIdentifier}.
-   * @param ctx the parse tree
-   */
-  void enterSearchQueryIdentifier(EsqlBaseParser.SearchQueryIdentifierContext ctx);
-  /**
-   * Exit a parse tree produced by {@link EsqlBaseParser#searchQueryIdentifier}.
-   * @param ctx the parse tree
-   */
-  void exitSearchQueryIdentifier(EsqlBaseParser.SearchQueryIdentifierContext ctx);
+  void exitSearchFilterExpression(EsqlBaseParser.SearchFilterExpressionContext ctx);
   /**
    * Enter a parse tree produced by {@link EsqlBaseParser#searchLimitCommand}.
    * @param ctx the parse tree
@@ -944,6 +934,16 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    */
   void exitSearchRankCommand(EsqlBaseParser.SearchRankCommandContext ctx);
   /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#searchRankExpression}.
+   * @param ctx the parse tree
+   */
+  void enterSearchRankExpression(EsqlBaseParser.SearchRankExpressionContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#searchRankExpression}.
+   * @param ctx the parse tree
+   */
+  void exitSearchRankExpression(EsqlBaseParser.SearchRankExpressionContext ctx);
+  /**
    * Enter a parse tree produced by {@link EsqlBaseParser#searchSortCommmand}.
    * @param ctx the parse tree
    */
@@ -954,82 +954,62 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    */
   void exitSearchSortCommmand(EsqlBaseParser.SearchSortCommmandContext ctx);
   /**
-   * Enter a parse tree produced by {@link EsqlBaseParser#searchQueryExpression}.
-   * @param ctx the parse tree
-   */
-  void enterSearchQueryExpression(EsqlBaseParser.SearchQueryExpressionContext ctx);
-  /**
-   * Exit a parse tree produced by {@link EsqlBaseParser#searchQueryExpression}.
-   * @param ctx the parse tree
-   */
-  void exitSearchQueryExpression(EsqlBaseParser.SearchQueryExpressionContext ctx);
-  /**
-   * Enter a parse tree produced by {@link EsqlBaseParser#searchMatchingExpression}.
-   * @param ctx the parse tree
-   */
-  void enterSearchMatchingExpression(EsqlBaseParser.SearchMatchingExpressionContext ctx);
-  /**
-   * Exit a parse tree produced by {@link EsqlBaseParser#searchMatchingExpression}.
-   * @param ctx the parse tree
-   */
-  void exitSearchMatchingExpression(EsqlBaseParser.SearchMatchingExpressionContext ctx);
-  /**
    * Enter a parse tree produced by the {@code searchLogicalBinary}
-   * labeled alternative in {@link EsqlBaseParser#searchRankExpression}.
+   * labeled alternative in {@link EsqlBaseParser#searchQueryExpression}.
    * @param ctx the parse tree
    */
   void enterSearchLogicalBinary(EsqlBaseParser.SearchLogicalBinaryContext ctx);
   /**
    * Exit a parse tree produced by the {@code searchLogicalBinary}
-   * labeled alternative in {@link EsqlBaseParser#searchRankExpression}.
+   * labeled alternative in {@link EsqlBaseParser#searchQueryExpression}.
    * @param ctx the parse tree
    */
   void exitSearchLogicalBinary(EsqlBaseParser.SearchLogicalBinaryContext ctx);
   /**
    * Enter a parse tree produced by the {@code searchParenthesizedExpression}
-   * labeled alternative in {@link EsqlBaseParser#searchRankExpression}.
+   * labeled alternative in {@link EsqlBaseParser#searchQueryExpression}.
    * @param ctx the parse tree
    */
   void enterSearchParenthesizedExpression(EsqlBaseParser.SearchParenthesizedExpressionContext ctx);
   /**
    * Exit a parse tree produced by the {@code searchParenthesizedExpression}
-   * labeled alternative in {@link EsqlBaseParser#searchRankExpression}.
+   * labeled alternative in {@link EsqlBaseParser#searchQueryExpression}.
    * @param ctx the parse tree
    */
   void exitSearchParenthesizedExpression(EsqlBaseParser.SearchParenthesizedExpressionContext ctx);
   /**
    * Enter a parse tree produced by the {@code searchMatchQuery}
-   * labeled alternative in {@link EsqlBaseParser#searchRankExpression}.
+   * labeled alternative in {@link EsqlBaseParser#searchQueryExpression}.
    * @param ctx the parse tree
    */
   void enterSearchMatchQuery(EsqlBaseParser.SearchMatchQueryContext ctx);
   /**
    * Exit a parse tree produced by the {@code searchMatchQuery}
-   * labeled alternative in {@link EsqlBaseParser#searchRankExpression}.
+   * labeled alternative in {@link EsqlBaseParser#searchQueryExpression}.
    * @param ctx the parse tree
    */
   void exitSearchMatchQuery(EsqlBaseParser.SearchMatchQueryContext ctx);
   /**
    * Enter a parse tree produced by the {@code searchBooleanDefault}
-   * labeled alternative in {@link EsqlBaseParser#searchRankExpression}.
+   * labeled alternative in {@link EsqlBaseParser#searchQueryExpression}.
    * @param ctx the parse tree
    */
   void enterSearchBooleanDefault(EsqlBaseParser.SearchBooleanDefaultContext ctx);
   /**
    * Exit a parse tree produced by the {@code searchBooleanDefault}
-   * labeled alternative in {@link EsqlBaseParser#searchRankExpression}.
+   * labeled alternative in {@link EsqlBaseParser#searchQueryExpression}.
    * @param ctx the parse tree
    */
   void exitSearchBooleanDefault(EsqlBaseParser.SearchBooleanDefaultContext ctx);
   /**
    * Enter a parse tree produced by the {@code searchLogicalNot}
-   * labeled alternative in {@link EsqlBaseParser#searchRankExpression}.
+   * labeled alternative in {@link EsqlBaseParser#searchQueryExpression}.
    * @param ctx the parse tree
    */
   void enterSearchLogicalNot(EsqlBaseParser.SearchLogicalNotContext ctx);
   /**
    * Exit a parse tree produced by the {@code searchLogicalNot}
-   * labeled alternative in {@link EsqlBaseParser#searchRankExpression}.
+   * labeled alternative in {@link EsqlBaseParser#searchQueryExpression}.
    * @param ctx the parse tree
    */
   void exitSearchLogicalNot(EsqlBaseParser.SearchLogicalNotContext ctx);

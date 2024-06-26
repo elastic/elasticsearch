@@ -789,6 +789,26 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         assertThat(actualLuceneQuery.toString(), is(expectedLuceneQuery.toString()));
     }
 
+    public void testSearchWithMatchFilters() {
+        var plan = plannerOptimizer.plan("""
+            search test [
+                | WHERE match(first_name, "Meg")
+                | WHERE match(last_name, "Ryan")
+            ]
+            """);
+
+        var limit = as(plan, LimitExec.class);
+        var exchange = as(limit.child(), ExchangeExec.class);
+        var project = as(exchange.child(), ProjectExec.class);
+        var fieldExtract = as(project.child(), FieldExtractExec.class);
+        var actualLuceneQuery = as(fieldExtract.child(), EsQueryExec.class).query();
+
+        var expectedLuceneQuery = new BoolQueryBuilder().filter(
+            new BoolQueryBuilder().must(new MatchQueryBuilder("first_name", "Meg")).must(new MatchQueryBuilder("last_name", "Ryan"))
+        );
+        assertThat(actualLuceneQuery, equalTo(expectedLuceneQuery));
+    }
+
     private QueryBuilder wrapWithSingleQuery(QueryBuilder inner, String fieldName, Source source) {
         return FilterTests.singleValueQuery(inner, fieldName, source);
     }

@@ -226,7 +226,6 @@ public class UpdateHelper {
                 .waitForActiveShards(request.waitForActiveShards())
                 .timeout(request.timeout())
                 .setRefreshPolicy(request.getRefreshPolicy());
-            // .setNormalisedBytesParsed(documentSizeObserver.normalisedBytesParsed());
             documentSizeObserver.setNormalisedBytesParsedOn(finalIndexRequest);
             return new Result(finalIndexRequest, DocWriteResponse.Result.UPDATED, updatedSourceAsMap, updateSourceContentType);
         }
@@ -242,7 +241,12 @@ public class UpdateHelper {
 
         final IndexRequest currentRequest = request.doc();
         final String routing = calculateRouting(getResult, currentRequest);
-        final Tuple<XContentType, Map<String, Object>> sourceAndContent = XContentHelper.convertToMap(getResult.internalSourceRef(), true);
+        final Tuple<XContentType, Map<String, Object>> sourceAndContent = XContentHelper.convertToMap(
+            getResult.internalSourceRef(),
+            true,
+            null,
+            documentSizeObserver
+        );
         final XContentType updateSourceContentType = sourceAndContent.v1();
 
         UpdateCtxMap ctxMap = executeScript(
@@ -272,7 +276,6 @@ public class UpdateHelper {
                     .waitForActiveShards(request.waitForActiveShards())
                     .timeout(request.timeout())
                     .setRefreshPolicy(request.getRefreshPolicy());
-                // .setNormalisedBytesParsed(documentSizeObserver.normalisedBytesParsed());
                 indexRequest = documentSizeObserver.setNormalisedBytesParsedOn(indexRequest);
                 return new Result(indexRequest, DocWriteResponse.Result.UPDATED, updatedSourceAsMap, updateSourceContentType);
             }

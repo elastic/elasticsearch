@@ -9,7 +9,6 @@
 package org.elasticsearch.plugins.internal;
 
 import org.elasticsearch.action.DocWriteRequest;
-
 import org.elasticsearch.index.mapper.MapperService;
 
 /**
@@ -36,6 +35,7 @@ public interface DocumentParsingProvider {
     default DocumentSizeAccumulator createDocumentSizeAccumulator() {
         return DocumentSizeAccumulator.EMPTY_INSTANCE;
     }
+
     /**
      * @return an observer
      */

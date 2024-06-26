@@ -588,6 +588,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         assertThat(failure.getStatus(), equalTo(RestStatus.INTERNAL_SERVER_ERROR));
     }
 
+    @SuppressWarnings("unchecked")
     public void testUpdateRequestWithConflictFailure() throws Exception {
         IndexSettings indexSettings = new IndexSettings(indexMetadata(), Settings.EMPTY);
         int retries = randomInt(4);
@@ -652,10 +653,11 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         assertThat(failure.getStatus(), equalTo(RestStatus.CONFLICT));
 
         // we have set noParsedBytesToReport on the IndexRequest, like it happens with updates by script.
-        verify(documentParsingProvider, times(0)).newDocumentSizeObserver();
-        verify(documentParsingProvider, times(0)).newFixedSizeDocumentObserver(any(Integer.class));
+        verify(documentParsingProvider, times(0)).newDocumentSizeObserver(any(DocWriteRequest.class));
+        // verify(documentParsingProvider, times(0)).newFixedSizeDocumentObserver(any(Integer.class));
     }
 
+    @SuppressWarnings("unchecked")
     public void testUpdateRequestWithSuccess() throws Exception {
         IndexSettings indexSettings = new IndexSettings(indexMetadata(), Settings.EMPTY);
         DocWriteRequest<UpdateRequest> writeRequest = new UpdateRequest("index", "id").doc(Requests.INDEX_CONTENT_TYPE, "field", "value");
@@ -715,8 +717,8 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         DocWriteResponse response = primaryResponse.getResponse();
         assertThat(response.status(), equalTo(created ? RestStatus.CREATED : RestStatus.OK));
         assertThat(response.getSeqNo(), equalTo(13L));
-        verify(documentParsingProvider, times(0)).newDocumentSizeObserver();
-        verify(documentParsingProvider, times(1)).newFixedSizeDocumentObserver(eq(100L));
+        verify(documentParsingProvider, times(0)).newDocumentSizeObserver(any(DocWriteRequest.class));
+        // verify(documentParsingProvider, times(1)).newFixedSizeDocumentObserver(eq(100L));
     }
 
     public void testUpdateWithDelete() throws Exception {

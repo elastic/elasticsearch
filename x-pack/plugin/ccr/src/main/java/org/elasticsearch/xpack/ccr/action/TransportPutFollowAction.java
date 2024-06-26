@@ -187,13 +187,14 @@ public final class TransportPutFollowAction extends TransportMasterNodeAction<Pu
             .build();
 
         final String leaderClusterRepoName = CcrRepository.NAME_PREFIX + request.getRemoteCluster();
-        final RestoreSnapshotRequest restoreRequest = new RestoreSnapshotRequest(leaderClusterRepoName, CcrRepository.LATEST).indices(
-            request.getLeaderIndex()
-        )
+        final RestoreSnapshotRequest restoreRequest = new RestoreSnapshotRequest(
+            request.masterNodeTimeout(),
+            leaderClusterRepoName,
+            CcrRepository.LATEST
+        ).indices(request.getLeaderIndex())
             .indicesOptions(request.indicesOptions())
             .renamePattern("^(.*)$")
             .renameReplacement(Matcher.quoteReplacement(request.getFollowerIndex()))
-            .masterNodeTimeout(request.masterNodeTimeout())
             .indexSettings(overrideSettings)
             .quiet(true);
 
@@ -334,6 +335,9 @@ public final class TransportPutFollowAction extends TransportMasterNodeAction<Pu
                     // (and potentially even break things).
                     remoteDataStream.getBackingIndices().copy().setIndices(List.of(backingIndexToFollow)).setRolloverOnWrite(false).build()
                 )
+                // Replicated data streams should not have the failure store marked for lazy rollover (which they do by default for lazy
+                // failure store creation).
+                .setFailureIndices(remoteDataStream.getFailureIndices().copy().setRolloverOnWrite(false).build())
                 .setReplicated(true)
                 .build();
         } else {

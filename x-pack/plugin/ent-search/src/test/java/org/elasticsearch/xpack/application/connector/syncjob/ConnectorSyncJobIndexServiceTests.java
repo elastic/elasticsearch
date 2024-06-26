@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.application.connector.ConnectorFiltering;
 import org.elasticsearch.xpack.application.connector.ConnectorIndexService;
 import org.elasticsearch.xpack.application.connector.ConnectorSyncStatus;
 import org.elasticsearch.xpack.application.connector.ConnectorTestUtils;
+import org.elasticsearch.xpack.application.connector.syncjob.action.ClaimConnectorSyncJobAction;
 import org.elasticsearch.xpack.application.connector.syncjob.action.PostConnectorSyncJobAction;
 import org.elasticsearch.xpack.application.connector.syncjob.action.UpdateConnectorSyncJobErrorAction;
 import org.elasticsearch.xpack.application.connector.syncjob.action.UpdateConnectorSyncJobIngestionStatsAction;
@@ -783,6 +784,7 @@ public class ConnectorSyncJobIndexServiceTests extends ESSingleNodeTestCase {
         assertThrows(ElasticsearchStatusException.class, () -> awaitUpdateConnectorSyncJob(syncJobId, "some error"));
     }
 
+    @SuppressWarnings("unchecked")
     public void testUpdateConnectorSyncJobIngestionStats() throws Exception {
         PostConnectorSyncJobAction.Request syncJobRequest = ConnectorSyncJobTestUtils.getRandomPostConnectorSyncJobActionRequest(
             connectorOneId
@@ -801,6 +803,7 @@ public class ConnectorSyncJobIndexServiceTests extends ESSingleNodeTestCase {
         Long requestIndexedDocumentVolume = request.getIndexedDocumentVolume();
         Long requestTotalDocumentCount = request.getTotalDocumentCount();
         Instant requestLastSeen = request.getLastSeen();
+        Map<String, Object> metadata = request.getMetadata();
 
         Long deletedDocumentCountAfterUpdate = (Long) syncJobSourceAfterUpdate.get(
             ConnectorSyncJob.DELETED_DOCUMENT_COUNT_FIELD.getPreferredName()
@@ -817,6 +820,9 @@ public class ConnectorSyncJobIndexServiceTests extends ESSingleNodeTestCase {
         Instant lastSeenAfterUpdate = Instant.parse(
             (String) syncJobSourceAfterUpdate.get(ConnectorSyncJob.LAST_SEEN_FIELD.getPreferredName())
         );
+        Map<String, Object> metadataAfterUpdate = (Map<String, Object>) syncJobSourceAfterUpdate.get(
+            ConnectorSyncJob.METADATA_FIELD.getPreferredName()
+        );
 
         assertThat(updateResponse.status(), equalTo(RestStatus.OK));
         assertThat(deletedDocumentCountAfterUpdate, equalTo(requestDeletedDocumentCount));
@@ -824,6 +830,7 @@ public class ConnectorSyncJobIndexServiceTests extends ESSingleNodeTestCase {
         assertThat(indexedDocumentVolumeAfterUpdate, equalTo(requestIndexedDocumentVolume));
         assertThat(totalDocumentCountAfterUpdate, equalTo(requestTotalDocumentCount));
         assertThat(lastSeenAfterUpdate, equalTo(requestLastSeen));
+        assertThat(metadataAfterUpdate, equalTo(metadata));
         assertFieldsExceptAllIngestionStatsDidNotUpdate(syncJobSourceBeforeUpdate, syncJobSourceAfterUpdate);
     }
 
@@ -837,12 +844,14 @@ public class ConnectorSyncJobIndexServiceTests extends ESSingleNodeTestCase {
         Instant lastSeenBeforeUpdate = Instant.parse(
             (String) syncJobSourceBeforeUpdate.get(ConnectorSyncJob.LAST_SEEN_FIELD.getPreferredName())
         );
+
         UpdateConnectorSyncJobIngestionStatsAction.Request request = new UpdateConnectorSyncJobIngestionStatsAction.Request(
             syncJobId,
             10L,
             20L,
             100L,
             10L,
+            null,
             null
         );
 
@@ -865,7 +874,7 @@ public class ConnectorSyncJobIndexServiceTests extends ESSingleNodeTestCase {
         expectThrows(
             ResourceNotFoundException.class,
             () -> awaitUpdateConnectorSyncJobIngestionStats(
-                new UpdateConnectorSyncJobIngestionStatsAction.Request(NON_EXISTING_SYNC_JOB_ID, 0L, 0L, 0L, 0L, Instant.now())
+                new UpdateConnectorSyncJobIngestionStatsAction.Request(NON_EXISTING_SYNC_JOB_ID, 0L, 0L, 0L, 0L, Instant.now(), null)
             )
         );
     }
@@ -885,6 +894,147 @@ public class ConnectorSyncJobIndexServiceTests extends ESSingleNodeTestCase {
 
         List<ConnectorFiltering> filtering = List.of(filtering1, ConnectorTestUtils.getRandomConnectorFiltering());
         assertEquals(connectorSyncJobIndexService.transformConnectorFilteringToSyncJobRepresentation(filtering), filtering1.getActive());
+    }
+
+    public void testClaimConnectorSyncJob() throws Exception {
+        // Create sync job
+        PostConnectorSyncJobAction.Request syncJobRequest = ConnectorSyncJobTestUtils.getRandomPostConnectorSyncJobActionRequest(
+            connectorOneId
+        );
+        PostConnectorSyncJobAction.Response response = awaitPutConnectorSyncJob(syncJobRequest);
+        String syncJobId = response.getId();
+        Map<String, Object> syncJobSourceBeforeUpdate = getConnectorSyncJobSourceById(syncJobId);
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> syncJobConnectorBeforeUpdate = (Map<String, Object>) syncJobSourceBeforeUpdate.get(
+            ConnectorSyncJob.CONNECTOR_FIELD.getPreferredName()
+        );
+
+        // Claim sync job
+        ClaimConnectorSyncJobAction.Request claimRequest = new ClaimConnectorSyncJobAction.Request(
+            syncJobId,
+            randomAlphaOfLengthBetween(5, 100),
+            Map.of(randomAlphaOfLengthBetween(5, 100), randomAlphaOfLengthBetween(5, 100))
+        );
+        UpdateResponse claimResponse = awaitClaimConnectorSyncJob(claimRequest);
+        Map<String, Object> syncJobSourceAfterUpdate = getConnectorSyncJobSourceById(syncJobId);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> syncJobConnectorAfterUpdate = (Map<String, Object>) syncJobSourceAfterUpdate.get(
+            ConnectorSyncJob.CONNECTOR_FIELD.getPreferredName()
+        );
+
+        assertThat(claimResponse.status(), equalTo(RestStatus.OK));
+        assertThat(syncJobConnectorAfterUpdate.get("sync_cursor"), equalTo(claimRequest.getSyncCursor()));
+        assertFieldsDidNotUpdateExceptFieldList(
+            syncJobConnectorBeforeUpdate,
+            syncJobConnectorAfterUpdate,
+            List.of(Connector.SYNC_CURSOR_FIELD)
+        );
+
+        assertThat(
+            syncJobSourceBeforeUpdate.get(ConnectorSyncJob.STATUS_FIELD.getPreferredName()),
+            equalTo(ConnectorSyncStatus.PENDING.toString())
+        );
+        assertThat(
+            syncJobSourceAfterUpdate.get(ConnectorSyncJob.STATUS_FIELD.getPreferredName()),
+            equalTo(ConnectorSyncStatus.IN_PROGRESS.toString())
+        );
+        assertFieldsDidNotUpdateExceptFieldList(
+            syncJobSourceBeforeUpdate,
+            syncJobSourceAfterUpdate,
+            List.of(
+                ConnectorSyncJob.STATUS_FIELD,
+                ConnectorSyncJob.CONNECTOR_FIELD,
+                ConnectorSyncJob.LAST_SEEN_FIELD,
+                ConnectorSyncJob.WORKER_HOSTNAME_FIELD
+            )
+        );
+    }
+
+    public void testClaimConnectorSyncJob_WithMissingSyncJobId_ExpectException() {
+        expectThrows(
+            ResourceNotFoundException.class,
+            () -> awaitClaimConnectorSyncJob(
+                new ClaimConnectorSyncJobAction.Request(NON_EXISTING_SYNC_JOB_ID, randomAlphaOfLengthBetween(5, 100), Map.of())
+            )
+        );
+    }
+
+    public void testClaimConnectorSyncJob_WithMissingSyncCursor() throws Exception {
+        PostConnectorSyncJobAction.Request syncJobRequest = ConnectorSyncJobTestUtils.getRandomPostConnectorSyncJobActionRequest(
+            connectorOneId
+        );
+        PostConnectorSyncJobAction.Response response = awaitPutConnectorSyncJob(syncJobRequest);
+        String syncJobId = response.getId();
+        Map<String, Object> syncJobSourceBeforeUpdate = getConnectorSyncJobSourceById(syncJobId);
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> syncJobConnectorBeforeUpdate = (Map<String, Object>) syncJobSourceBeforeUpdate.get(
+            ConnectorSyncJob.CONNECTOR_FIELD.getPreferredName()
+        );
+
+        // Claim sync job
+        ClaimConnectorSyncJobAction.Request claimRequest = new ClaimConnectorSyncJobAction.Request(
+            syncJobId,
+            randomAlphaOfLengthBetween(5, 100),
+            null
+        );
+
+        UpdateResponse claimResponse = awaitClaimConnectorSyncJob(claimRequest);
+        Map<String, Object> syncJobSourceAfterUpdate = getConnectorSyncJobSourceById(syncJobId);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> syncJobConnectorAfterUpdate = (Map<String, Object>) syncJobSourceAfterUpdate.get(
+            ConnectorSyncJob.CONNECTOR_FIELD.getPreferredName()
+        );
+
+        assertThat(claimResponse.status(), equalTo(RestStatus.OK));
+        assertThat(syncJobConnectorAfterUpdate.get("sync_cursor"), nullValue());
+        assertThat(syncJobConnectorBeforeUpdate, equalTo(syncJobConnectorAfterUpdate));
+        assertFieldsDidNotUpdateExceptFieldList(
+            syncJobSourceBeforeUpdate,
+            syncJobSourceAfterUpdate,
+            List.of(ConnectorSyncJob.STATUS_FIELD, ConnectorSyncJob.LAST_SEEN_FIELD, ConnectorSyncJob.WORKER_HOSTNAME_FIELD)
+        );
+
+        assertThat(
+            syncJobSourceBeforeUpdate.get(ConnectorSyncJob.STATUS_FIELD.getPreferredName()),
+            equalTo(ConnectorSyncStatus.PENDING.toString())
+        );
+        assertThat(
+            syncJobSourceAfterUpdate.get(ConnectorSyncJob.STATUS_FIELD.getPreferredName()),
+            equalTo(ConnectorSyncStatus.IN_PROGRESS.toString())
+        );
+
+    }
+
+    private UpdateResponse awaitClaimConnectorSyncJob(ClaimConnectorSyncJobAction.Request request) throws Exception {
+        CountDownLatch latch = new CountDownLatch(1);
+        final AtomicReference<UpdateResponse> resp = new AtomicReference<>(null);
+        final AtomicReference<Exception> exc = new AtomicReference<>(null);
+        connectorSyncJobIndexService.claimConnectorSyncJob(
+            request.getConnectorSyncJobId(),
+            request.getWorkerHostname(),
+            request.getSyncCursor(),
+            new ActionListener<>() {
+                @Override
+                public void onResponse(UpdateResponse updateResponse) {
+                    resp.set(updateResponse);
+                    latch.countDown();
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    exc.set(e);
+                    latch.countDown();
+                }
+            }
+        );
+        assertTrue("Timeout waiting for claim request", latch.await(TIMEOUT_SECONDS, TimeUnit.SECONDS));
+        if (exc.get() != null) {
+            throw exc.get();
+        }
+        assertNotNull("Received null response from claim request", resp.get());
+        return resp.get();
     }
 
     private UpdateResponse awaitUpdateConnectorSyncJobIngestionStats(UpdateConnectorSyncJobIngestionStatsAction.Request request)
@@ -925,7 +1075,8 @@ public class ConnectorSyncJobIndexServiceTests extends ESSingleNodeTestCase {
                 ConnectorSyncJob.INDEXED_DOCUMENT_COUNT_FIELD,
                 ConnectorSyncJob.INDEXED_DOCUMENT_VOLUME_FIELD,
                 ConnectorSyncJob.TOTAL_DOCUMENT_COUNT_FIELD,
-                ConnectorSyncJob.LAST_SEEN_FIELD
+                ConnectorSyncJob.LAST_SEEN_FIELD,
+                ConnectorSyncJob.METADATA_FIELD
             )
         );
     }

@@ -29,7 +29,12 @@ public interface IntArray extends BigArray, Writeable {
     /**
      * Set a value at the given index and return the previous value.
      */
-    int set(long index, int value);
+    int getAndSet(long index, int value);
+
+    /**
+     * Set a value at the given index
+     */
+    void set(long index, int value);
 
     /**
      * Increment value at the given index by <code>inc</code> and return the value.

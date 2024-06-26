@@ -7,21 +7,18 @@
 
 package org.elasticsearch.xpack.application.connector.action;
 
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xcontent.XContentParserConfiguration;
-import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.application.connector.Connector;
 import org.elasticsearch.xpack.application.connector.ConnectorSyncInfo;
 import org.elasticsearch.xpack.application.connector.ConnectorSyncStatus;
 import org.elasticsearch.xpack.application.connector.ConnectorUtils;
@@ -45,16 +42,20 @@ public class UpdateConnectorLastSyncStatsAction {
         private final String connectorId;
 
         private final ConnectorSyncInfo syncInfo;
+        @Nullable
+        private final Object syncCursor;
 
-        public Request(String connectorId, ConnectorSyncInfo syncInfo) {
+        private Request(String connectorId, ConnectorSyncInfo syncInfo, Object syncCursor) {
             this.connectorId = connectorId;
             this.syncInfo = syncInfo;
+            this.syncCursor = syncCursor;
         }
 
         public Request(StreamInput in) throws IOException {
             super(in);
             this.connectorId = in.readString();
             this.syncInfo = in.readOptionalWriteable(ConnectorSyncInfo::new);
+            this.syncCursor = in.readGenericValue();
         }
 
         public String getConnectorId() {
@@ -63,6 +64,10 @@ public class UpdateConnectorLastSyncStatsAction {
 
         public ConnectorSyncInfo getSyncInfo() {
             return syncInfo;
+        }
+
+        public Object getSyncCursor() {
+            return syncCursor;
         }
 
         @Override
@@ -79,20 +84,22 @@ public class UpdateConnectorLastSyncStatsAction {
         private static final ConstructingObjectParser<UpdateConnectorLastSyncStatsAction.Request, String> PARSER =
             new ConstructingObjectParser<>("connector_update_last_sync_stats_request", false, ((args, connectorId) -> {
                 int i = 0;
-                return new UpdateConnectorLastSyncStatsAction.Request(
-                    connectorId,
-                    new ConnectorSyncInfo.Builder().setLastAccessControlSyncError((String) args[i++])
-                        .setLastAccessControlSyncScheduledAt((Instant) args[i++])
-                        .setLastAccessControlSyncStatus((ConnectorSyncStatus) args[i++])
-                        .setLastDeletedDocumentCount((Long) args[i++])
-                        .setLastIncrementalSyncScheduledAt((Instant) args[i++])
-                        .setLastIndexedDocumentCount((Long) args[i++])
-                        .setLastSyncError((String) args[i++])
-                        .setLastSyncScheduledAt((Instant) args[i++])
-                        .setLastSyncStatus((ConnectorSyncStatus) args[i++])
-                        .setLastSynced((Instant) args[i++])
-                        .build()
-                );
+                return new Builder().setConnectorId(connectorId)
+                    .setSyncInfo(
+                        new ConnectorSyncInfo.Builder().setLastAccessControlSyncError((String) args[i++])
+                            .setLastAccessControlSyncScheduledAt((Instant) args[i++])
+                            .setLastAccessControlSyncStatus((ConnectorSyncStatus) args[i++])
+                            .setLastDeletedDocumentCount((Long) args[i++])
+                            .setLastIncrementalSyncScheduledAt((Instant) args[i++])
+                            .setLastIndexedDocumentCount((Long) args[i++])
+                            .setLastSyncError((String) args[i++])
+                            .setLastSyncScheduledAt((Instant) args[i++])
+                            .setLastSyncStatus((ConnectorSyncStatus) args[i++])
+                            .setLastSynced((Instant) args[i++])
+                            .build()
+                    )
+                    .setSyncCursor(args[i])
+                    .build();
             }));
 
         static {
@@ -142,18 +149,7 @@ public class UpdateConnectorLastSyncStatsAction {
                 ConnectorSyncInfo.LAST_SYNCED_FIELD,
                 ObjectParser.ValueType.STRING_OR_NULL
             );
-        }
-
-        public static UpdateConnectorLastSyncStatsAction.Request fromXContentBytes(
-            String connectorId,
-            BytesReference source,
-            XContentType xContentType
-        ) {
-            try (XContentParser parser = XContentHelper.createParser(XContentParserConfiguration.EMPTY, source, xContentType)) {
-                return UpdateConnectorLastSyncStatsAction.Request.fromXContent(parser, connectorId);
-            } catch (IOException e) {
-                throw new ElasticsearchParseException("Failed to parse: " + source.utf8ToString(), e);
-            }
+            PARSER.declareObjectOrNull(optionalConstructorArg(), (p, c) -> p.map(), null, Connector.SYNC_CURSOR_FIELD);
         }
 
         public static UpdateConnectorLastSyncStatsAction.Request fromXContent(XContentParser parser, String connectorId)
@@ -166,6 +162,9 @@ public class UpdateConnectorLastSyncStatsAction {
             builder.startObject();
             {
                 syncInfo.toXContent(builder, params);
+                if (syncCursor != null) {
+                    builder.field(Connector.SYNC_CURSOR_FIELD.getPreferredName(), syncCursor);
+                }
             }
             builder.endObject();
             return builder;
@@ -176,6 +175,7 @@ public class UpdateConnectorLastSyncStatsAction {
             super.writeTo(out);
             out.writeString(connectorId);
             out.writeOptionalWriteable(syncInfo);
+            out.writeGenericValue(syncCursor);
         }
 
         @Override
@@ -183,12 +183,41 @@ public class UpdateConnectorLastSyncStatsAction {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Request request = (Request) o;
-            return Objects.equals(connectorId, request.connectorId) && Objects.equals(syncInfo, request.syncInfo);
+            return Objects.equals(connectorId, request.connectorId)
+                && Objects.equals(syncInfo, request.syncInfo)
+                && Objects.equals(syncCursor, request.syncCursor);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(connectorId, syncInfo);
+            return Objects.hash(connectorId, syncInfo, syncCursor);
         }
+
+        public static class Builder {
+
+            private String connectorId;
+            private ConnectorSyncInfo syncInfo;
+            private Object syncCursor;
+
+            public Builder setConnectorId(String connectorId) {
+                this.connectorId = connectorId;
+                return this;
+            }
+
+            public Builder setSyncInfo(ConnectorSyncInfo syncInfo) {
+                this.syncInfo = syncInfo;
+                return this;
+            }
+
+            public Builder setSyncCursor(Object syncCursor) {
+                this.syncCursor = syncCursor;
+                return this;
+            }
+
+            public Request build() {
+                return new Request(connectorId, syncInfo, syncCursor);
+            }
+        }
+
     }
 }

@@ -72,8 +72,10 @@ import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.MockLog;
+import org.elasticsearch.test.ReachabilityChecker;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.LeakTracker;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.netty4.Netty4Utils;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -310,19 +312,25 @@ public class Netty4ChunkedContinuationsIT extends ESNetty4IntegTestCase {
                 safeSleep(scaledRandomIntBetween(10, 500)); // make it more likely the request started executing
             }
             cancellable.cancel();
-        } // closing the request tracker ensures that everything is released, including all response chunks and the overall response
+        } // closing the resource tracker ensures that everything is released, including all response chunks and the overall response
     }
 
     private static Releasable withResourceTracker() {
         assertNull(refs);
+        final ReachabilityChecker reachabilityChecker = new ReachabilityChecker();
         final var latch = new CountDownLatch(1);
-        refs = AbstractRefCounted.of(latch::countDown);
+        refs = LeakTracker.wrap(reachabilityChecker.register(AbstractRefCounted.of(latch::countDown)));
         return () -> {
             refs.decRef();
+            boolean success = false;
             try {
                 safeAwait(latch);
+                success = true;
             } finally {
                 refs = null;
+                if (success == false) {
+                    reachabilityChecker.ensureUnreachable();
+                }
             }
         };
     }
@@ -525,6 +533,7 @@ public class Netty4ChunkedContinuationsIT extends ESNetty4IntegTestCase {
         public static class Response extends ActionResponse {
             private final Executor executor;
             volatile boolean computingContinuation;
+            boolean recursive = false;
 
             public Response(Executor executor) {
                 this.executor = executor;
@@ -551,11 +560,17 @@ public class Netty4ChunkedContinuationsIT extends ESNetty4IntegTestCase {
 
                     @Override
                     public void getNextPart(ActionListener<ChunkedRestResponseBodyPart> listener) {
-                        computingContinuation = true;
-                        executor.execute(ActionRunnable.supply(listener, () -> {
-                            computingContinuation = false;
-                            return getResponseBodyPart();
-                        }));
+                        assertFalse(recursive);
+                        recursive = true;
+                        try {
+                            computingContinuation = true;
+                            executor.execute(ActionRunnable.supply(listener, () -> {
+                                computingContinuation = false;
+                                return getResponseBodyPart();
+                            }));
+                        } finally {
+                            recursive = false;
+                        }
                     }
 
                     @Override
@@ -585,7 +600,10 @@ public class Netty4ChunkedContinuationsIT extends ESNetty4IntegTestCase {
             @Override
             protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
                 executor.execute(
-                    ActionRunnable.supply(ActionTestUtils.assertNoFailureListener(listener::onResponse), () -> new Response(executor))
+                    ActionRunnable.supply(
+                        ActionTestUtils.assertNoFailureListener(listener::onResponse),
+                        () -> new Response(randomFrom(executor, EsExecutors.DIRECT_EXECUTOR_SERVICE))
+                    )
                 );
             }
         }

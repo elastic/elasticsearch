@@ -14,7 +14,6 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.type.DataTypes;
 import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
@@ -33,11 +32,11 @@ public class MvConcatTests extends AbstractFunctionTestCase {
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
         List<TestCaseSupplier> suppliers = new ArrayList<>();
-        for (DataType fieldType : DataTypes.types()) {
+        for (DataType fieldType : DataType.types()) {
             if (EsqlDataTypes.isString(fieldType) == false) {
                 continue;
             }
-            for (DataType delimType : DataTypes.types()) {
+            for (DataType delimType : DataType.types()) {
                 if (EsqlDataTypes.isString(delimType) == false) {
                     continue;
                 }
@@ -62,14 +61,14 @@ public class MvConcatTests extends AbstractFunctionTestCase {
                                 new TestCaseSupplier.TypedData(new BytesRef(delim), delimType, "delim")
                             ),
                             "MvConcat[field=Attribute[channel=0], delim=Attribute[channel=1]]",
-                            DataTypes.KEYWORD,
+                            DataType.KEYWORD,
                             equalTo(new BytesRef(expected))
                         );
                     }));
                 }
             }
         }
-        return parameterSuppliersFromTypedData(errorsForCasesWithoutExamples(anyNullIsNull(false, suppliers)));
+        return parameterSuppliersFromTypedDataWithDefaultChecks(false, suppliers);
     }
 
     @Override

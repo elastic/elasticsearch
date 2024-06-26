@@ -28,7 +28,6 @@ import org.elasticsearch.xpack.esql.core.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.core.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.type.DataTypes;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.core.util.Queries;
 import org.elasticsearch.xpack.esql.optimizer.LocalLogicalOptimizerContext;
@@ -61,6 +60,7 @@ import java.util.function.Predicate;
 
 import static java.util.Arrays.asList;
 import static org.elasticsearch.index.mapper.MappedFieldType.FieldExtractPreference.DOC_VALUES;
+import static org.elasticsearch.index.mapper.MappedFieldType.FieldExtractPreference.NONE;
 import static org.elasticsearch.xpack.esql.core.util.Queries.Clause.FILTER;
 import static org.elasticsearch.xpack.esql.optimizer.LocalPhysicalPlanOptimizer.PushFiltersToSource.canPushToSource;
 import static org.elasticsearch.xpack.esql.optimizer.LocalPhysicalPlanOptimizer.TRANSLATOR_HANDLER;
@@ -231,7 +231,7 @@ public class PlannerUtils {
      * Map QL's {@link DataType} to the compute engine's {@link ElementType}.
      */
     public static ElementType toElementType(DataType dataType) {
-        return toElementType(dataType, MappedFieldType.FieldExtractPreference.NONE);
+        return toElementType(dataType, NONE);
     }
 
     /**
@@ -240,47 +240,22 @@ public class PlannerUtils {
      * For example, spatial types can be extracted into doc-values under specific conditions, otherwise they extract as BytesRef.
      */
     public static ElementType toElementType(DataType dataType, MappedFieldType.FieldExtractPreference fieldExtractPreference) {
-        if (dataType == DataTypes.LONG
-            || dataType == DataTypes.DATETIME
-            || dataType == DataTypes.UNSIGNED_LONG
-            || dataType == DataTypes.COUNTER_LONG) {
-            return ElementType.LONG;
-        }
-        if (dataType == DataTypes.INTEGER || dataType == DataTypes.COUNTER_INTEGER) {
-            return ElementType.INT;
-        }
-        if (dataType == DataTypes.DOUBLE || dataType == DataTypes.COUNTER_DOUBLE) {
-            return ElementType.DOUBLE;
-        }
-        // unsupported fields are passed through as a BytesRef
-        if (dataType == DataTypes.KEYWORD
-            || dataType == DataTypes.TEXT
-            || dataType == DataTypes.IP
-            || dataType == DataTypes.SOURCE
-            || dataType == DataTypes.VERSION
-            || dataType == DataTypes.UNSUPPORTED) {
-            return ElementType.BYTES_REF;
-        }
-        if (dataType == DataTypes.NULL) {
-            return ElementType.NULL;
-        }
-        if (dataType == DataTypes.BOOLEAN) {
-            return ElementType.BOOLEAN;
-        }
-        if (dataType == DataTypes.DOC_DATA_TYPE) {
-            return ElementType.DOC;
-        }
-        if (dataType == DataTypes.TSID_DATA_TYPE) {
-            return ElementType.BYTES_REF;
-        }
-        if (EsqlDataTypes.isSpatialPoint(dataType)) {
-            return fieldExtractPreference == DOC_VALUES ? ElementType.LONG : ElementType.BYTES_REF;
-        }
-        if (EsqlDataTypes.isSpatial(dataType)) {
-            // TODO: support forStats for shape aggregations, like st_centroid
-            return ElementType.BYTES_REF;
-        }
-        throw EsqlIllegalArgumentException.illegalDataType(dataType);
+
+        return switch (dataType) {
+            case LONG, DATETIME, UNSIGNED_LONG, COUNTER_LONG -> ElementType.LONG;
+            case INTEGER, COUNTER_INTEGER -> ElementType.INT;
+            case DOUBLE, COUNTER_DOUBLE -> ElementType.DOUBLE;
+            // unsupported fields are passed through as a BytesRef
+            case KEYWORD, TEXT, IP, SOURCE, VERSION, UNSUPPORTED -> ElementType.BYTES_REF;
+            case NULL -> ElementType.NULL;
+            case BOOLEAN -> ElementType.BOOLEAN;
+            case DOC_DATA_TYPE -> ElementType.DOC;
+            case TSID_DATA_TYPE -> ElementType.BYTES_REF;
+            case GEO_POINT, CARTESIAN_POINT -> fieldExtractPreference == DOC_VALUES ? ElementType.LONG : ElementType.BYTES_REF;
+            case GEO_SHAPE, CARTESIAN_SHAPE -> ElementType.BYTES_REF;
+            case SHORT, BYTE, DATE_PERIOD, TIME_DURATION, OBJECT, NESTED, FLOAT, HALF_FLOAT, SCALED_FLOAT ->
+                throw EsqlIllegalArgumentException.illegalDataType(dataType);
+        };
     }
 
     /**
@@ -297,6 +272,6 @@ public class PlannerUtils {
      * Returns DOC_VALUES if the given boolean is set.
      */
     public static MappedFieldType.FieldExtractPreference extractPreference(boolean hasPreference) {
-        return hasPreference ? MappedFieldType.FieldExtractPreference.DOC_VALUES : MappedFieldType.FieldExtractPreference.NONE;
+        return hasPreference ? DOC_VALUES : NONE;
     }
 }

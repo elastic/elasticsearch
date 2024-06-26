@@ -44,7 +44,12 @@ class ReleasableIntArray implements IntArray {
     }
 
     @Override
-    public int set(long index, int value) {
+    public int getAndSet(long index, int value) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public void set(long index, int value) {
         throw new UnsupportedOperationException();
     }
 

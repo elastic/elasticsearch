@@ -6,6 +6,8 @@
  */
 package org.elasticsearch.xpack.esql.core.expression.predicate.logical;
 
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal;
@@ -13,7 +15,10 @@ import org.elasticsearch.xpack.esql.core.expression.predicate.BinaryOperator;
 import org.elasticsearch.xpack.esql.core.expression.predicate.logical.BinaryLogicProcessor.BinaryLogicOperation;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.type.DataTypes;
+import org.elasticsearch.xpack.esql.core.util.PlanStreamInput;
+import org.elasticsearch.xpack.esql.core.util.PlanStreamOutput;
+
+import java.io.IOException;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isBoolean;
 
@@ -23,9 +28,25 @@ public abstract class BinaryLogic extends BinaryOperator<Boolean, Boolean, Boole
         super(source, left, right, operation);
     }
 
+    protected BinaryLogic(StreamInput in, BinaryLogicOperation op) throws IOException {
+        this(
+            Source.readFrom((StreamInput & PlanStreamInput) in),
+            ((StreamInput & PlanStreamInput) in).readExpression(),
+            ((StreamInput & PlanStreamInput) in).readExpression(),
+            op
+        );
+    }
+
+    @Override
+    public final void writeTo(StreamOutput out) throws IOException {
+        Source.EMPTY.writeTo(out);
+        ((StreamOutput & PlanStreamOutput) out).writeExpression(left());
+        ((StreamOutput & PlanStreamOutput) out).writeExpression(right());
+    }
+
     @Override
     public DataType dataType() {
-        return DataTypes.BOOLEAN;
+        return DataType.BOOLEAN;
     }
 
     @Override

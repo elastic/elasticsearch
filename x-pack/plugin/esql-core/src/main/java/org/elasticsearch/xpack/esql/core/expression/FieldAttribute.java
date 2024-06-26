@@ -78,9 +78,9 @@ public class FieldAttribute extends TypedAttribute {
     }
 
     @SuppressWarnings("unchecked")
-    public <S extends StreamInput & PlanStreamInput> FieldAttribute(StreamInput in) throws IOException {
+    public FieldAttribute(StreamInput in) throws IOException {
         /*
-         * The funny casting dance with `<S extends...>` and `(S) in` is required
+         * The funny casting dance with `(StreamInput & PlanStreamInput) in` is required
          * because we're in esql-core here and the real PlanStreamInput is in
          * esql-proper. And because NamedWriteableRegistry.Entry needs StreamInput,
          * not a PlanStreamInput. And we need PlanStreamInput to handle Source
@@ -88,14 +88,14 @@ public class FieldAttribute extends TypedAttribute {
          * of esql-core.
          */
         this(
-            Source.readFrom((S) in),
+            Source.readFrom((StreamInput & PlanStreamInput) in),
             in.readOptionalWriteable(FieldAttribute::new),
             in.readString(),
             DataType.readFrom(in),
             in.readNamedWriteable(EsField.class),
             in.readOptionalString(),
             in.readEnum(Nullability.class),
-            NameId.readFrom((S) in),
+            NameId.readFrom((StreamInput & PlanStreamInput) in),
             in.readBoolean()
         );
     }
@@ -168,12 +168,14 @@ public class FieldAttribute extends TypedAttribute {
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), path);
+        return Objects.hash(super.hashCode(), path, field);
     }
 
     @Override
     public boolean equals(Object obj) {
-        return super.equals(obj) && Objects.equals(path, ((FieldAttribute) obj).path);
+        return super.equals(obj)
+            && Objects.equals(path, ((FieldAttribute) obj).path)
+            && Objects.equals(field, ((FieldAttribute) obj).field);
     }
 
     @Override

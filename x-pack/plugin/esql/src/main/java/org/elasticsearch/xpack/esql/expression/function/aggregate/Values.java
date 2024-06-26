@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.ValuesBooleanAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.ValuesBytesRefAggregatorFunctionSupplier;
@@ -18,17 +20,19 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.type.DataTypes;
 import org.elasticsearch.xpack.esql.expression.EsqlTypeResolutions;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.planner.ToAggregator;
 
+import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 
 public class Values extends AggregateFunction implements ToAggregator {
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Values", Values::new);
+
     @FunctionInfo(
         returnType = { "boolean|date|double|integer|ip|keyword|long|text|version" },
         description = "Collect values for a field.",
@@ -39,6 +43,15 @@ public class Values extends AggregateFunction implements ToAggregator {
         @Param(name = "field", type = { "boolean|date|double|integer|ip|keyword|long|text|version" }) Expression v
     ) {
         super(source, v);
+    }
+
+    private Values(StreamInput in) throws IOException {
+        super(in);
+    }
+
+    @Override
+    public String getWriteableName() {
+        return ENTRY.name;
     }
 
     @Override
@@ -64,19 +77,19 @@ public class Values extends AggregateFunction implements ToAggregator {
     @Override
     public AggregatorFunctionSupplier supplier(List<Integer> inputChannels) {
         DataType type = field().dataType();
-        if (type == DataTypes.INTEGER) {
+        if (type == DataType.INTEGER) {
             return new ValuesIntAggregatorFunctionSupplier(inputChannels);
         }
-        if (type == DataTypes.LONG || type == DataTypes.DATETIME) {
+        if (type == DataType.LONG || type == DataType.DATETIME) {
             return new ValuesLongAggregatorFunctionSupplier(inputChannels);
         }
-        if (type == DataTypes.DOUBLE) {
+        if (type == DataType.DOUBLE) {
             return new ValuesDoubleAggregatorFunctionSupplier(inputChannels);
         }
-        if (DataTypes.isString(type) || type == DataTypes.IP || type == DataTypes.VERSION) {
+        if (DataType.isString(type) || type == DataType.IP || type == DataType.VERSION) {
             return new ValuesBytesRefAggregatorFunctionSupplier(inputChannels);
         }
-        if (type == DataTypes.BOOLEAN) {
+        if (type == DataType.BOOLEAN) {
             return new ValuesBooleanAggregatorFunctionSupplier(inputChannels);
         }
         // TODO cartesian_point, geo_point

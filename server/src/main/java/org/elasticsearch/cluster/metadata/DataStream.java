@@ -581,23 +581,13 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             );
         }
 
-        // TODO: When failure stores are lazily created, this wont necessarily be required anymore. We can remove the failure store write
-        // index as long as we mark the data stream to lazily rollover the failure store with no conditions on its next write
-        if (failureIndices.indices.size() == (failureIndexPosition + 1)) {
-            throw new IllegalArgumentException(
-                String.format(
-                    Locale.ROOT,
-                    "cannot remove backing index [%s] of data stream [%s] because it is the write index of the failure store",
-                    index.getName(),
-                    name
-                )
-            );
-        }
-
+        // If this is the write index, we're marking the failure store for lazy rollover, to make sure a new write index gets created on the
+        // next write. We do this regardless of whether it's the last index in the failure store or not.
+        boolean rolloverOnWrite = failureIndices.indices.size() == (failureIndexPosition + 1);
         List<Index> updatedFailureIndices = new ArrayList<>(failureIndices.indices);
         updatedFailureIndices.remove(index);
         assert updatedFailureIndices.size() == failureIndices.indices.size() - 1;
-        return copy().setFailureIndices(failureIndices.copy().setIndices(updatedFailureIndices).build())
+        return copy().setFailureIndices(failureIndices.copy().setIndices(updatedFailureIndices).setRolloverOnWrite(rolloverOnWrite).build())
             .setGeneration(generation + 1)
             .build();
     }
@@ -632,6 +622,40 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         }
         backingIndices.set(backingIndexPosition, newBackingIndex);
         return copy().setBackingIndices(this.backingIndices.copy().setIndices(backingIndices).build())
+            .setGeneration(generation + 1)
+            .build();
+    }
+
+    /**
+     * Replaces the specified failure store index with a new index and returns a new {@code DataStream} instance with
+     * the modified backing indices. An {@code IllegalArgumentException} is thrown if the index to be replaced
+     * is not a failure store index for this data stream or if it is the {@code DataStream}'s failure store write index.
+     *
+     * @param existingFailureIndex the failure store index to be replaced
+     * @param newFailureIndex      the new index that will be part of the {@code DataStream}
+     * @return new {@code DataStream} instance with failure store indices that contain replacement index instead of the specified
+     * existing index.
+     */
+    public DataStream replaceFailureStoreIndex(Index existingFailureIndex, Index newFailureIndex) {
+        List<Index> currentFailureIndices = new ArrayList<>(failureIndices.indices);
+        int failureIndexPosition = currentFailureIndices.indexOf(existingFailureIndex);
+        if (failureIndexPosition == -1) {
+            throw new IllegalArgumentException(
+                String.format(Locale.ROOT, "index [%s] is not part of data stream [%s] failure store", existingFailureIndex.getName(), name)
+            );
+        }
+        if (failureIndices.indices.size() == (failureIndexPosition + 1)) {
+            throw new IllegalArgumentException(
+                String.format(
+                    Locale.ROOT,
+                    "cannot replace failure index [%s] of data stream [%s] because it is the failure store write index",
+                    existingFailureIndex.getName(),
+                    name
+                )
+            );
+        }
+        currentFailureIndices.set(failureIndexPosition, newFailureIndex);
+        return copy().setFailureIndices(this.failureIndices.copy().setIndices(currentFailureIndices).build())
             .setGeneration(generation + 1)
             .build();
     }

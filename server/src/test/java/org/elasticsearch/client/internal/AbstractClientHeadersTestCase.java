@@ -11,6 +11,7 @@ package org.elasticsearch.client.internal;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteRequest;
 import org.elasticsearch.action.admin.cluster.reroute.TransportClusterRerouteAction;
 import org.elasticsearch.action.admin.cluster.snapshots.create.TransportCreateSnapshotAction;
 import org.elasticsearch.action.admin.cluster.stats.TransportClusterStatsAction;
@@ -116,12 +117,13 @@ public abstract class AbstractClientHeadersTestCase extends ESTestCase {
             .execute(new AssertingActionListener<>(TransportClusterStatsAction.TYPE.name(), client.threadPool()));
         client.admin()
             .cluster()
-            .prepareCreateSnapshot("repo", "bck")
+            .prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, "repo", "bck")
             .execute(new AssertingActionListener<>(TransportCreateSnapshotAction.TYPE.name(), client.threadPool()));
-        client.admin()
-            .cluster()
-            .prepareReroute()
-            .execute(new AssertingActionListener<>(TransportClusterRerouteAction.TYPE.name(), client.threadPool()));
+        client.execute(
+            TransportClusterRerouteAction.TYPE,
+            new ClusterRerouteRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT),
+            new AssertingActionListener<>(TransportClusterRerouteAction.TYPE.name(), client.threadPool())
+        );
 
         // choosing arbitrary indices admin actions to test
         client.admin()

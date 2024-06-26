@@ -315,7 +315,7 @@ public class DataStreamGetWriteIndexTests extends ESTestCase {
             TimeValue.ZERO,
             false
         );
-        return createDataStreamService.createDataStream(request, state, ActionListener.noop());
+        return createDataStreamService.createDataStream(request, state, ActionListener.noop(), false);
     }
 
     private MetadataRolloverService.RolloverResult rolloverOver(ClusterState state, String name, Instant time) throws Exception {

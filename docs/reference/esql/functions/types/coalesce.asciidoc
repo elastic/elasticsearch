@@ -21,4 +21,5 @@ long | long | long
 long | | long
 text | text | text
 text | | text
+version | version | version
 |===

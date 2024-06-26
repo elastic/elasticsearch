@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.expression.predicate.operator.comparison;
 
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -18,21 +19,26 @@ import org.elasticsearch.xpack.esql.core.expression.predicate.operator.compariso
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparisonProcessor;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.type.DataTypes;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Cast;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.EsqlArithmeticOperation;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeRegistry;
 
 import java.io.IOException;
 import java.time.ZoneId;
+import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.UNSIGNED_LONG;
+import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
 
 public abstract class EsqlBinaryComparison extends BinaryComparison implements EvaluatorMapper {
+    public static List<NamedWriteableRegistry.Entry> getNamedWriteables() {
+        return List.of(Equals.ENTRY, GreaterThan.ENTRY, GreaterThanOrEqual.ENTRY, LessThan.ENTRY, LessThanOrEqual.ENTRY, NotEquals.ENTRY);
+    }
 
     private final Map<DataType, EsqlArithmeticOperation.BinaryEvaluator> evaluatorMap;
 
@@ -119,6 +125,26 @@ public abstract class EsqlBinaryComparison extends BinaryComparison implements E
         this.functionType = operation;
     }
 
+    public static EsqlBinaryComparison readFrom(StreamInput in) throws IOException {
+        // TODO this uses a constructor on the operation *and* a name which is confusing. It only needs one. Everything else uses a name.
+        var source = Source.readFrom((PlanStreamInput) in);
+        EsqlBinaryComparison.BinaryComparisonOperation operation = EsqlBinaryComparison.BinaryComparisonOperation.readFromStream(in);
+        var left = ((PlanStreamInput) in).readExpression();
+        var right = ((PlanStreamInput) in).readExpression();
+        // TODO: Remove zoneId entirely
+        var zoneId = in.readOptionalZoneId();
+        return operation.buildNewInstance(source, left, right);
+    }
+
+    @Override
+    public final void writeTo(StreamOutput out) throws IOException {
+        source().writeTo(out);
+        functionType.writeTo(out);
+        ((PlanStreamOutput) out).writeExpression(left());
+        ((PlanStreamOutput) out).writeExpression(right());
+        out.writeOptionalZoneId(zoneId());
+    }
+
     public BinaryComparisonOperation getFunctionType() {
         return functionType;
     }
@@ -182,16 +208,16 @@ public abstract class EsqlBinaryComparison extends BinaryComparison implements E
         DataType rightType = right().dataType();
 
         // Unsigned long is only interoperable with other unsigned longs
-        if ((rightType == UNSIGNED_LONG && (false == (leftType == UNSIGNED_LONG || leftType == DataTypes.NULL)))
-            || (leftType == UNSIGNED_LONG && (false == (rightType == UNSIGNED_LONG || rightType == DataTypes.NULL)))) {
+        if ((rightType == UNSIGNED_LONG && (false == (leftType == UNSIGNED_LONG || leftType == DataType.NULL)))
+            || (leftType == UNSIGNED_LONG && (false == (rightType == UNSIGNED_LONG || rightType == DataType.NULL)))) {
             return new TypeResolution(formatIncompatibleTypesMessage());
         }
 
         if ((leftType.isNumeric() && rightType.isNumeric())
-            || (DataTypes.isString(leftType) && DataTypes.isString(rightType))
+            || (DataType.isString(leftType) && DataType.isString(rightType))
             || leftType.equals(rightType)
-            || DataTypes.isNull(leftType)
-            || DataTypes.isNull(rightType)) {
+            || DataType.isNull(leftType)
+            || DataType.isNull(rightType)) {
             return TypeResolution.TYPE_RESOLVED;
         }
         return new TypeResolution(formatIncompatibleTypesMessage());

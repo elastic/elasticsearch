@@ -19,22 +19,22 @@ public class DefaultDataTypeRegistry implements DataTypeRegistry {
 
     @Override
     public Collection<DataType> dataTypes() {
-        return DataTypes.types();
+        return DataType.types();
     }
 
     @Override
     public DataType fromEs(String typeName, TimeSeriesParams.MetricType metricType) {
-        return DataTypes.fromEs(typeName);
+        return DataType.fromEs(typeName);
     }
 
     @Override
     public DataType fromJava(Object value) {
-        return DataTypes.fromJava(value);
+        return DataType.fromJava(value);
     }
 
     @Override
     public boolean isUnsupported(DataType type) {
-        return DataTypes.isUnsupported(type);
+        return DataType.isUnsupported(type);
     }
 
     @Override

@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
+import org.elasticsearch.cluster.routing.allocation.Explanations;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
@@ -74,6 +75,7 @@ import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.doAnswer;
@@ -410,7 +412,7 @@ public class TransportGetShutdownStatusActionTests extends ESTestCase {
             status,
             SingleNodeShutdownMetadata.Status.STALLED,
             1,
-            allOf(containsString(index.getName()), containsString("[2] [primary]"))
+            allOf(containsString(index.getName()), containsString("[2] [primary]"), containsString("cannot move"))
         );
     }
 
@@ -643,6 +645,49 @@ public class TransportGetShutdownStatusActionTests extends ESTestCase {
         );
 
         assertShardMigration(status, SingleNodeShutdownMetadata.Status.NOT_STARTED, 0, is("node is not currently part of the cluster"));
+    }
+
+    public void testExplainThrottled() {
+        Index index = new Index(randomAlphaOfLength(5), randomAlphaOfLengthBetween(1, 20));
+        IndexMetadata imd = generateIndexMetadata(index, 3, 0);
+        IndexRoutingTable indexRoutingTable = IndexRoutingTable.builder(index)
+            .addShard(TestShardRouting.newShardRouting(new ShardId(index, 0), LIVE_NODE_ID, true, ShardRoutingState.INITIALIZING))
+            .addShard(TestShardRouting.newShardRouting(new ShardId(index, 1), LIVE_NODE_ID, true, ShardRoutingState.INITIALIZING))
+            .addShard(TestShardRouting.newShardRouting(new ShardId(index, 2), SHUTTING_DOWN_NODE_ID, true, ShardRoutingState.STARTED))
+            .build();
+
+        RoutingTable.Builder routingTable = RoutingTable.builder();
+        routingTable.add(indexRoutingTable);
+        ClusterState state = createTestClusterState(routingTable.build(), List.of(imd), SingleNodeShutdownMetadata.Type.REMOVE);
+
+        // LIVE_NODE_ID can not accept the remaining shard as it is temporarily initializing 2 other shards
+        canAllocate.set((r, n, a) -> n.nodeId().equals(LIVE_NODE_ID) ? Decision.THROTTLE : Decision.NO);
+        // And the remain decider simulates NodeShutdownAllocationDecider
+        canRemain.set((r, n, a) -> n.nodeId().equals(SHUTTING_DOWN_NODE_ID) ? Decision.NO : Decision.YES);
+
+        ShutdownShardMigrationStatus status = TransportGetShutdownStatusAction.shardMigrationStatus(
+            new CancellableTask(1, "direct", GetShutdownStatusAction.NAME, "", TaskId.EMPTY_TASK_ID, Map.of()),
+            state,
+            SHUTTING_DOWN_NODE_ID,
+            SingleNodeShutdownMetadata.Type.REMOVE,
+            true,
+            clusterInfoService,
+            snapshotsInfoService,
+            allocationService,
+            allocationDeciders
+        );
+
+        assertShardMigration(
+            status,
+            SingleNodeShutdownMetadata.Status.IN_PROGRESS,
+            1,
+            allOf(containsString(index.getName()), containsString("[2] [primary]"), containsString("is waiting to be moved"))
+        );
+        var explain = status.getAllocationDecision();
+        assertThat(explain, notNullValue());
+        assertThat(explain.getAllocateDecision().isDecisionTaken(), is(false));
+        assertThat(explain.getMoveDecision().isDecisionTaken(), is(true));
+        assertThat(explain.getMoveDecision().getExplanation(), equalTo(Explanations.Move.THROTTLED));
     }
 
     public void testIlmShrinkingIndexAvoidsStall() {

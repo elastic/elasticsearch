@@ -21,14 +21,14 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 
 import static java.util.Collections.emptyList;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.BOOLEAN;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.BYTE;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.DOUBLE;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.FLOAT;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.INTEGER;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.KEYWORD;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.LONG;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.SHORT;
+import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
+import static org.elasticsearch.xpack.esql.core.type.DataType.BYTE;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.DataType.FLOAT;
+import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
+import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
+import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
+import static org.elasticsearch.xpack.esql.core.type.DataType.SHORT;
 
 public class LiteralTests extends AbstractNodeTestCase<Literal, Expression> {
     static class ValueAndCompatibleTypes {
@@ -76,6 +76,10 @@ public class LiteralTests extends AbstractNodeTestCase<Literal, Expression> {
 
     @Override
     protected Literal mutate(Literal instance) {
+        return mutateLiteral(instance);
+    }
+
+    public static Literal mutateLiteral(Literal instance) {
         List<Function<Literal, Literal>> mutators = new ArrayList<>();
         // Changing the location doesn't count as mutation because..... it just doesn't, ok?!
         // Change the value to another valid value
@@ -116,7 +120,7 @@ public class LiteralTests extends AbstractNodeTestCase<Literal, Expression> {
         assertEquals("this type of node doesn't have any children to replace", e.getMessage());
     }
 
-    private Object randomValueOfTypeOtherThan(Object original, DataType type) {
+    private static Object randomValueOfTypeOtherThan(Object original, DataType type) {
         for (ValueAndCompatibleTypes gen : GENERATORS) {
             if (gen.validDataTypes.get(0) == type) {
                 return randomValueOtherThan(original, () -> DataTypeConverter.convert(gen.valueSupplier.get(), type));
@@ -125,7 +129,7 @@ public class LiteralTests extends AbstractNodeTestCase<Literal, Expression> {
         throw new IllegalArgumentException("No native generator for [" + type + "]");
     }
 
-    private List<DataType> validReplacementDataTypes(Object value, DataType type) {
+    private static List<DataType> validReplacementDataTypes(Object value, DataType type) {
         List<DataType> validDataTypes = new ArrayList<>();
         List<DataType> options = Arrays.asList(BYTE, SHORT, INTEGER, LONG, FLOAT, DOUBLE, BOOLEAN);
         for (DataType candidate : options) {

@@ -103,9 +103,9 @@ public class ClusterAllocationExplainActionTests extends ESTestCase {
                     """
                         ,"unassigned_info": {"reason": "%s", "at": "%s", "last_allocation_status": "%s"}
                         """,
-                    shard.unassignedInfo().getReason(),
-                    UnassignedInfo.DATE_TIME_FORMATTER.format(Instant.ofEpochMilli(shard.unassignedInfo().getUnassignedTimeInMillis())),
-                    AllocationDecision.fromAllocationStatus(shard.unassignedInfo().getLastAllocationStatus())
+                    shard.unassignedInfo().reason(),
+                    UnassignedInfo.DATE_TIME_FORMATTER.format(Instant.ofEpochMilli(shard.unassignedInfo().unassignedTimeMillis())),
+                    AllocationDecision.fromAllocationStatus(shard.unassignedInfo().lastAllocationStatus())
                 )
                 : "",
             cae.getCurrentNode().getId(),

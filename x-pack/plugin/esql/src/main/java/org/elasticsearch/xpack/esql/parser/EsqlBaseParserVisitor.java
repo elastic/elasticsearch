@@ -317,12 +317,12 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitBooleanLiteral(EsqlBaseParser.BooleanLiteralContext ctx);
   /**
-   * Visit a parse tree produced by the {@code inputParam}
+   * Visit a parse tree produced by the {@code inputParams}
    * labeled alternative in {@link EsqlBaseParser#constant}.
    * @param ctx the parse tree
    * @return the visitor result
    */
-  T visitInputParam(EsqlBaseParser.InputParamContext ctx);
+  T visitInputParams(EsqlBaseParser.InputParamsContext ctx);
   /**
    * Visit a parse tree produced by the {@code stringLiteral}
    * labeled alternative in {@link EsqlBaseParser#constant}.
@@ -351,6 +351,20 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    * @return the visitor result
    */
   T visitStringArrayLiteral(EsqlBaseParser.StringArrayLiteralContext ctx);
+  /**
+   * Visit a parse tree produced by the {@code inputParam}
+   * labeled alternative in {@link EsqlBaseParser#params}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitInputParam(EsqlBaseParser.InputParamContext ctx);
+  /**
+   * Visit a parse tree produced by the {@code inputNamedOrPositionalParam}
+   * labeled alternative in {@link EsqlBaseParser#params}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitInputNamedOrPositionalParam(EsqlBaseParser.InputNamedOrPositionalParamContext ctx);
   /**
    * Visit a parse tree produced by {@link EsqlBaseParser#limitCommand}.
    * @param ctx the parse tree

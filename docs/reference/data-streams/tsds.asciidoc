@@ -109,19 +109,6 @@ parameter:
 
 For a flattened field, use the `time_series_dimensions` parameter to configure an array of fields as dimensions. For details refer to <<flattened-params,`flattened`>>.
 
-[[dimension-limits]]
-.Dimension limits
-****
-In a TSDS, {es} uses dimensions to
-generate the document `_id` and <<tsid,`_tsid`>> values. The resulting `_id` is
-always a short encoded hash. To prevent the `_tsid` value from being overly
-large, {es} limits the number of dimensions for an index using the
-<<index-mapping-dimension-fields-limit,`index.mapping.dimension_fields.limit`>>
-index setting. While you can increase this limit, the resulting document `_tsid`
-value can't exceed 32KB. Additionally the field name of a dimension cannot be
-longer than 512 bytes and the each dimension value can't exceed 1kb.
-****
-
 [discrete]
 [[time-series-metric]]
 ==== Metrics
@@ -285,7 +272,7 @@ field values that are older than 2 hours (the `index.look_back_time` default).
 A TSDS is designed to ingest current metrics data. When the TSDS is first
 created the initial backing index has:
 
-* an `index.time_series.start_time` value set to `now - index.look_ahead_time`
+* an `index.time_series.start_time` value set to `now - index.look_back_time`
 * an `index.time_series.end_time` value set to `now + index.look_ahead_time`
 
 Only data that falls inside that range can be indexed.

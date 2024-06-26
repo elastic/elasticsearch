@@ -100,10 +100,10 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
 
         // verify unassigned info
         assertNotNull(unassignedInfo);
-        assertEquals(Reason.NODE_LEFT, unassignedInfo.getReason());
+        assertEquals(Reason.NODE_LEFT, unassignedInfo.reason());
         assertTrue(
-            unassignedInfo.getLastAllocationStatus() == AllocationStatus.FETCHING_SHARD_DATA
-                || unassignedInfo.getLastAllocationStatus() == AllocationStatus.NO_VALID_SHARD_COPY
+            unassignedInfo.lastAllocationStatus() == AllocationStatus.FETCHING_SHARD_DATA
+                || unassignedInfo.lastAllocationStatus() == AllocationStatus.NO_VALID_SHARD_COPY
         );
 
         // verify cluster info
@@ -190,8 +190,8 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
 
         // verify unassigned info
         assertNotNull(unassignedInfo);
-        assertEquals(Reason.NODE_LEFT, unassignedInfo.getReason());
-        assertEquals(AllocationStatus.NO_ATTEMPT, unassignedInfo.getLastAllocationStatus());
+        assertEquals(Reason.NODE_LEFT, unassignedInfo.reason());
+        assertEquals(AllocationStatus.NO_ATTEMPT, unassignedInfo.lastAllocationStatus());
 
         // verify cluster info
         verifyClusterInfo(clusterInfo, includeDiskInfo, 2);
@@ -320,8 +320,8 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
 
         // verify unassigned info
         assertNotNull(unassignedInfo);
-        assertEquals(Reason.NODE_LEFT, unassignedInfo.getReason());
-        assertEquals(AllocationStatus.NO_ATTEMPT, unassignedInfo.getLastAllocationStatus());
+        assertEquals(Reason.NODE_LEFT, unassignedInfo.reason());
+        assertEquals(AllocationStatus.NO_ATTEMPT, unassignedInfo.lastAllocationStatus());
 
         // verify cluster info
         verifyClusterInfo(clusterInfo, includeDiskInfo, 3);
@@ -432,8 +432,8 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
 
         // verify unassigned info
         assertNotNull(unassignedInfo);
-        assertEquals(Reason.INDEX_CREATED, unassignedInfo.getReason());
-        assertEquals(AllocationStatus.DECIDERS_NO, unassignedInfo.getLastAllocationStatus());
+        assertEquals(Reason.INDEX_CREATED, unassignedInfo.reason());
+        assertEquals(AllocationStatus.DECIDERS_NO, unassignedInfo.lastAllocationStatus());
 
         // verify cluster info
         verifyClusterInfo(clusterInfo, includeDiskInfo, 2);

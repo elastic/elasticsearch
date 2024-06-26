@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.inference.external.http.sender;
 
-import org.apache.http.client.protocol.HttpClientContext;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
@@ -17,8 +16,8 @@ import org.elasticsearch.xpack.inference.common.Truncator;
 import org.elasticsearch.xpack.inference.external.http.retry.RequestSender;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
 import org.elasticsearch.xpack.inference.external.request.mistral.MistralEmbeddingsRequest;
-import org.elasticsearch.xpack.inference.external.response.AzureMistralOpenAiErrorResponseEntity;
 import org.elasticsearch.xpack.inference.external.response.AzureMistralOpenAiExternalResponseHandler;
+import org.elasticsearch.xpack.inference.external.response.ErrorMessageResponseEntity;
 import org.elasticsearch.xpack.inference.external.response.mistral.MistralEmbeddingsResponseEntity;
 import org.elasticsearch.xpack.inference.services.mistral.embeddings.MistralEmbeddingsModel;
 
@@ -39,7 +38,7 @@ public class MistralEmbeddingsRequestManager extends BaseRequestManager {
         return new AzureMistralOpenAiExternalResponseHandler(
             "mistral text embedding",
             new MistralEmbeddingsResponseEntity(),
-            AzureMistralOpenAiErrorResponseEntity::fromResponse
+            ErrorMessageResponseEntity::fromResponse
         );
     }
 
@@ -51,18 +50,17 @@ public class MistralEmbeddingsRequestManager extends BaseRequestManager {
     }
 
     @Override
-    public Runnable create(
+    public void execute(
         String query,
         List<String> input,
         RequestSender requestSender,
         Supplier<Boolean> hasRequestCompletedFunction,
-        HttpClientContext context,
         ActionListener<InferenceServiceResults> listener
     ) {
         var truncatedInput = truncate(input, model.getServiceSettings().maxInputTokens());
         MistralEmbeddingsRequest request = new MistralEmbeddingsRequest(truncator, truncatedInput, model);
 
-        return new ExecutableInferenceRequest(requestSender, logger, request, context, HANDLER, hasRequestCompletedFunction, listener);
+        execute(new ExecutableInferenceRequest(requestSender, logger, request, HANDLER, hasRequestCompletedFunction, listener));
     }
 
     record RateLimitGrouping(int keyHashCode) {

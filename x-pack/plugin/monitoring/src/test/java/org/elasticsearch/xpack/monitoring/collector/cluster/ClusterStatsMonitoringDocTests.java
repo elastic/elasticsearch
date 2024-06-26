@@ -589,6 +589,9 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                   },
                   "dense_vector": {
                     "value_count": 0
+                  },
+                  "sparse_vector": {
+                    "value_count": 0
                   }
                 },
                 "nodes": {

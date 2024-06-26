@@ -4,10 +4,6 @@
 <titleabbrev>Using {esql} to query multiple indexes</titleabbrev>
 ++++
 
-[partintro]
-
-With {esql}, you can execute a single query across multiple indexes, data streams or aliases.
-
 [discrete]
 [[esql-multi-index-examples]]
 === Examples

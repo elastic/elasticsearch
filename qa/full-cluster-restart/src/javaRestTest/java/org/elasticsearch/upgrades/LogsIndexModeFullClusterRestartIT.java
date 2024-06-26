@@ -19,6 +19,7 @@ import org.elasticsearch.common.time.FormatNames;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.hamcrest.Matchers;
+import org.junit.ClassRule;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -30,7 +31,8 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class LogsIndexModeFullClusterRestartIT extends ParameterizedFullClusterRestartTestCase {
 
-    private static final ElasticsearchCluster cluster = ElasticsearchCluster.local()
+    @ClassRule
+    public static final ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .distribution(DistributionType.DEFAULT)
         .module("constant-keyword")
         .module("data-streams")

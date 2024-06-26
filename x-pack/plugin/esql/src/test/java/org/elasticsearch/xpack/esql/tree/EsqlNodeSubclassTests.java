@@ -12,10 +12,10 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.dissect.DissectParser;
 import org.elasticsearch.xpack.esql.core.capabilities.UnresolvedException;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
-import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.Order;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedNamedExpression;
@@ -89,7 +89,7 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
         } else if (argClass == JoinConfig.class) {
             return new JoinConfig(
                 randomFrom(JoinType.values()),
-                randomList(0, 10, () -> (NamedExpression) makeArg(NamedExpression.class)),
+                randomList(0, 10, () -> (Attribute) makeArg(Attribute.class)),
                 randomList(0, 10, () -> (Expression) makeArg(Expression.class))
             );
         }

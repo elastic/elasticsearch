@@ -45,7 +45,7 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
     private Locale locale;
     private QueryBuilder filter;
     private QueryPragmas pragmas = new QueryPragmas(Settings.EMPTY);
-    private QueryParams params = QueryParams.EMPTY;
+    private QueryParams params = new QueryParams();
     private TimeValue waitForCompletionTimeout = DEFAULT_WAIT_FOR_COMPLETION;
     private TimeValue keepAlive = DEFAULT_KEEP_ALIVE;
     private boolean keepOnCompletion;

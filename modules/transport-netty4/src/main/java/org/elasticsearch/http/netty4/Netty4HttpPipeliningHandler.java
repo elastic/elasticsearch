@@ -482,7 +482,7 @@ public class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
     public void userEventTriggered(ChannelHandlerContext ctx, Object evt) throws Exception {
         if (evt instanceof SslCloseCompletionEvent closeEvent) {
             if (closeEvent.isSuccess() && ctx.channel().isActive()) {
-                logger.warn("received TLS close_notify, closing connection {}", ctx.channel());
+                logger.trace("received TLS close_notify, closing connection {}", ctx.channel());
                 ctx.close();
             }
         }

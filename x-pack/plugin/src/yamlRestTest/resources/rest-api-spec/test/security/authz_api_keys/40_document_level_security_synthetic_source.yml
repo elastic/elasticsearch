@@ -1,0 +1,156 @@
+---
+setup:
+  - skip:
+      features: headers
+
+  - do:
+      cluster.health:
+        wait_for_status: yellow
+
+---
+Filter on single field:
+  - do:
+      indices.create:
+        index: index_fls
+        body:
+          mappings:
+            _source:
+              mode: synthetic
+            properties:
+              name:
+                type: keyword
+
+  - do:
+      bulk:
+        index: index_fls
+        refresh: true
+        body:
+          - '{"create": { }}'
+          - '{"name": "A", "type": "foo"}'
+          - '{"create": { }}'
+          - '{"name": "B", "type": "bar"}'
+  - match: { errors: false }
+
+  - do:
+      security.create_api_key:
+        body:
+          name: "test-fls"
+          expiration: "1d"
+          role_descriptors:
+            index_access:
+              indices:
+                - names: [ "index_fls" ]
+                  privileges: [ "read" ]
+                  query:
+                    match:
+                      name: A
+  - match: { name: "test-fls" }
+  - is_true: id
+  - set:
+      id: api_key_id
+      encoded: credentials
+
+  # With superuser...
+  - do:
+      search:
+        index: index_fls
+        sort: name
+  - match: { hits.total.value: 2 }
+  - match: { hits.hits.0._source.name: A }
+  - match: { hits.hits.0._source.type: foo }
+  - match: { hits.hits.1._source.name: B }
+  - match: { hits.hits.1._source.type: bar }
+
+  # With FLS API Key
+  - do:
+      headers:
+        Authorization: "ApiKey ${credentials}"
+      search:
+        index: index_fls
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._source.name: A }
+  - match: { hits.hits.0._source.type: foo }
+
+
+---
+Filter on nested field:
+  - do:
+      indices.create:
+        index: index_fls
+        body:
+          mappings:
+            _source:
+              mode: synthetic
+            properties:
+              name:
+                type: keyword
+              object:
+                type: nested
+                properties:
+                  secret:
+                    type: keyword
+
+  - do:
+      bulk:
+        index: index_fls
+        refresh: true
+        body:
+          - '{"create": { }}'
+          - '{"name": "A", "object": [ { "secret": "mission" }, { "secret": "nomatch" } ] }'
+          - '{"create": { }}'
+          - '{"name": "B", "object": { "secret": "mission", "public": "interest" } }'
+          - '{"create": { }}'
+          - '{"name": "C", "object": { "foo": "bar" } }'
+  - match: { errors: false }
+
+  - do:
+      security.create_api_key:
+        body:
+          name: "test-fls"
+          expiration: "1d"
+          role_descriptors:
+            index_access:
+              indices:
+                - names: [ "index_fls" ]
+                  privileges: [ "read" ]
+                  query:
+                    nested:
+                      path: object
+                      query:
+                        term:
+                          object.secret: mission
+  - match: { name: "test-fls" }
+  - is_true: id
+  - set:
+      id: api_key_id
+      encoded: credentials
+
+  # With superuser...
+  - do:
+      search:
+        index: index_fls
+        sort: name
+  - match: { hits.total.value: 3 }
+  - match: { hits.hits.0._source.name: A }
+  - match: { hits.hits.0._source.object.0.secret: mission }
+  - match: { hits.hits.0._source.object.1.secret: nomatch }
+  - match: { hits.hits.1._source.name: B }
+  - match: { hits.hits.1._source.object.secret: mission }
+  - match: { hits.hits.1._source.object.public: interest }
+  - match: { hits.hits.2._source.name: C }
+  - match: { hits.hits.2._source.object.foo: bar }
+
+  # With FLS API Key
+  - do:
+      headers:
+        Authorization: "ApiKey ${credentials}"
+      search:
+        index: index_fls
+        sort: name
+  - match: { hits.total.value: 2 }
+  - match: { hits.hits.0._source.name: A }
+  - match: { hits.hits.0._source.object.0.secret: mission }
+  - match: { hits.hits.0._source.object.1.secret: nomatch }
+  - match: { hits.hits.1._source.name: B }
+  - match: { hits.hits.1._source.object.secret: mission }
+  - match: { hits.hits.1._source.object.public: interest }

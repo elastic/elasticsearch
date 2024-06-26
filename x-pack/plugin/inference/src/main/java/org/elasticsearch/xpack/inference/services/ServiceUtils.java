@@ -233,11 +233,7 @@ public final class ServiceUtils {
 
     public static URI convertToUri(@Nullable String url, String settingName, String settingScope, ValidationException validationException) {
         try {
-            if (url == null) {
-                return null;
-            }
-
-            return createUri(url);
+            return createOptionalUri(url);
         } catch (IllegalArgumentException cause) {
             validationException.addValidationError(ServiceUtils.invalidUrlErrorMsg(url, settingName, settingScope, cause.getMessage()));
             return null;
@@ -353,6 +349,32 @@ public final class ServiceUtils {
         }
 
         return optionalField;
+    }
+
+    public static Integer extractRequiredPositiveInteger(
+        Map<String, Object> map,
+        String settingName,
+        String scope,
+        ValidationException validationException
+    ) {
+        int initialValidationErrorCount = validationException.validationErrors().size();
+        Integer field = ServiceUtils.removeAsType(map, settingName, Integer.class, validationException);
+
+        if (validationException.validationErrors().size() > initialValidationErrorCount) {
+            return null;
+        }
+
+        if (field == null) {
+            validationException.addValidationError(ServiceUtils.missingSettingErrorMsg(settingName, scope));
+        } else if (field <= 0) {
+            validationException.addValidationError(ServiceUtils.mustBeAPositiveIntegerErrorMessage(settingName, scope, field));
+        }
+
+        if (validationException.validationErrors().size() > initialValidationErrorCount) {
+            return null;
+        }
+
+        return field;
     }
 
     public static Integer extractOptionalPositiveInteger(
@@ -623,6 +645,10 @@ public final class ServiceUtils {
     public static SecureString apiKey(@Nullable ApiKeySecrets secrets) {
         // To avoid a possible null pointer throughout the code we'll create a noop api key of an empty array
         return secrets == null ? new SecureString(new char[0]) : secrets.apiKey();
+    }
+
+    public static <T> T nonNullOrDefault(@Nullable T requestValue, @Nullable T originalSettingsValue) {
+        return requestValue == null ? originalSettingsValue : requestValue;
     }
 
     private ServiceUtils() {}

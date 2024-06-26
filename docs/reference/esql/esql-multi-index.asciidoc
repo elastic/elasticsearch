@@ -17,15 +17,13 @@ For example, use comma-separated lists or wildcards:
 FROM employees-00001,other-employees-*
 ----
 
-Use the format `<remote_cluster_name>:<target>` to query data streams and indices
-on remote clusters:
+Use the format `<remote_cluster_name>:<target>` to <<esql-cross-clusters, query data streams and indices
+on remote clusters>>:
 
 [source,esql]
 ----
 FROM cluster_one:employees-00001,cluster_two:other-employees-*
 ----
-
-See <<esql-cross-clusters, using {esql} across clusters>>.
 
 [discrete]
 [[esql-multi-index-invalid-mapping]]

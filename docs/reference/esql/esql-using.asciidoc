@@ -13,7 +13,7 @@ Using {esql} in {elastic-sec} to investigate events in Timeline, create
 detection rules, and build {esql} queries using Elastic AI Assistant.
 
 <<esql-multi-index>>::
-Using {esql} to query multiple indexes.
+Using {esql} to query multiple indexes, and resolve field type mismatches.
 
 <<esql-cross-clusters>>::
 Using {esql} to query across multiple clusters.

@@ -1,4 +1,6 @@
 simple
+required_capability: date_nanos_type
+
 from date_nanos | sort millis desc | keep millis, nanos | limit 1;
 
 millis:date              | nanos:date_nanos

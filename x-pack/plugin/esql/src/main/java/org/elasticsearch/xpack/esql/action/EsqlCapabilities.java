@@ -89,7 +89,12 @@ public class EsqlCapabilities {
         /**
          * Support for function {@code ST_DISTANCE}. Done in #108764.
          */
-        ST_DISTANCE;
+        ST_DISTANCE,
+
+        /**
+         * Support for nanosecond dates as a data type
+         */
+        DATE_NANOS_TYPE;
 
         Cap() {
             snapshotOnly = false;

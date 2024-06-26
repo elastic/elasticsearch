@@ -70,8 +70,6 @@ import static org.hamcrest.Matchers.is;
 //@TestLogging(value = "org.elasticsearch.xpack.esql:TRACE", reason = "debug")
 public class StatementParserTests extends AbstractStatementParserTests {
 
-    private static String FROM = "from test";
-
     public void testRowCommand() {
         assertEquals(
             new Row(EMPTY, List.of(new Alias(EMPTY, "a", integer(1)), new Alias(EMPTY, "b", integer(2)))),
@@ -327,30 +325,124 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testStringAsIndexPattern() {
-        assertStringAsIndexPattern("foo", "from \"foo\"");
-        assertStringAsIndexPattern("foo,test-*", """
-            from "foo","test-*"
+        for (String command : List.of("FROM", "METRICS")) {
+            assertStringAsIndexPattern("foo", command + " \"foo\"");
+            assertStringAsIndexPattern("foo,test-*", command + """
+                 "foo","test-*"
+                """);
+            assertStringAsIndexPattern("foo,test-*", command + " foo,test-*");
+            assertStringAsIndexPattern("123-test@foo_bar+baz1", command + " 123-test@foo_bar+baz1");
+            assertStringAsIndexPattern("foo,test-*,abc", command + """
+                 "foo","test-*",abc
+                """);
+            assertStringAsIndexPattern("foo, test-*, abc, xyz", command + """
+                     "foo, test-*, abc, xyz"
+                """);
+            assertStringAsIndexPattern("foo, test-*, abc, xyz,test123", command + """
+                     "foo, test-*, abc, xyz", test123
+                """);
+            assertStringAsIndexPattern("foo,test,xyz", command + " foo,   test,xyz");
+            assertStringAsIndexPattern(
+                "<logstash-{now/M{yyyy.MM}}>,<logstash-{now/d{yyyy.MM.dd|+12:00}}>",
+                command + " <logstash-{now/M{yyyy.MM}}>, \"<logstash-{now/d{yyyy.MM.dd|+12:00}}>\""
+            );
+
+            assertStringAsIndexPattern("foo,test,xyz", command + " \"\"\"foo\"\"\",   test,\"xyz\"");
+
+            assertStringAsIndexPattern("`backtick`,``multiple`back``ticks```", command + " `backtick`, ``multiple`back``ticks```");
+
+            assertStringAsIndexPattern("test,metadata,metaata,.metadata", command + " test,\"metadata\", metaata, .metadata");
+
+            assertStringAsIndexPattern(".dot", command + " .dot");
+
+            assertStringAsIndexPattern("cluster:index", command + " cluster:index");
+            assertStringAsIndexPattern("cluster:.index", command + " cluster:.index");
+            assertStringAsIndexPattern("cluster*:index*", command + " cluster*:index*");
+            assertStringAsIndexPattern("cluster*:*", command + " cluster*:*");
+            assertStringAsIndexPattern("*:index*", command + " *:index*");
+            assertStringAsIndexPattern("*:*", command + " *:*");
+        }
+    }
+
+    public void testStringAsLookupIndexPattern() {
+        assertStringAsLookupIndexPattern("foo", "ROW x = 1 | LOOKUP \"foo\" ON j");
+        assertStringAsLookupIndexPattern("test-*", """
+            ROW x = 1 | LOOKUP "test-*" ON j
             """);
-        assertStringAsIndexPattern("foo,test-*", "from foo,test-*");
-        assertStringAsIndexPattern("123-test@foo_bar+baz1", "from 123-test@foo_bar+baz1");
-        assertStringAsIndexPattern("foo,test-*,abc", """
-            from "foo","test-*",abc
+        assertStringAsLookupIndexPattern("test-*", "ROW x = 1 | LOOKUP test-* ON j");
+        assertStringAsLookupIndexPattern("123-test@foo_bar+baz1", "ROW x = 1 | LOOKUP 123-test@foo_bar+baz1 ON j");
+        assertStringAsLookupIndexPattern("foo, test-*, abc, xyz", """
+            ROW x = 1 | LOOKUP     "foo, test-*, abc, xyz"  ON j
             """);
-        assertStringAsIndexPattern("foo, test-*, abc, xyz", """
-                from "foo, test-*, abc, xyz"
-            """);
-        assertStringAsIndexPattern("foo, test-*, abc, xyz,test123", """
-                from "foo, test-*, abc, xyz", test123
-            """);
-        assertStringAsIndexPattern("foo,test,xyz", "from foo,   test,xyz");
-        assertStringAsIndexPattern(
-            "<logstash-{now/M{yyyy.MM}}>,<logstash-{now/d{yyyy.MM.dd|+12:00}}>",
-            "from <logstash-{now/M{yyyy.MM}}>, \"<logstash-{now/d{yyyy.MM.dd|+12:00}}>\""
+        assertStringAsLookupIndexPattern("<logstash-{now/M{yyyy.MM}}>", "ROW x = 1 | LOOKUP <logstash-{now/M{yyyy.MM}}> ON j");
+        assertStringAsLookupIndexPattern(
+            "<logstash-{now/d{yyyy.MM.dd|+12:00}}>",
+            "ROW x = 1 | LOOKUP \"<logstash-{now/d{yyyy.MM.dd|+12:00}}>\" ON j"
         );
 
-        assertStringAsIndexPattern("foo,test,xyz", "from \"\"\"foo\"\"\",   test,\"xyz\"");
+        assertStringAsLookupIndexPattern("foo", "ROW x = 1 | LOOKUP \"\"\"foo\"\"\" ON j");
 
-        assertStringAsIndexPattern("`backtick`,``multiple`back``ticks```", "from `backtick`, ``multiple`back``ticks```");
+        assertStringAsLookupIndexPattern("`backtick`", "ROW x = 1 | LOOKUP `backtick` ON j");
+        assertStringAsLookupIndexPattern("``multiple`back``ticks```", "ROW x = 1 | LOOKUP ``multiple`back``ticks``` ON j");
+
+        assertStringAsLookupIndexPattern(".dot", "ROW x = 1 | LOOKUP .dot ON j");
+
+        assertStringAsLookupIndexPattern("cluster:index", "ROW x = 1 | LOOKUP cluster:index ON j");
+        assertStringAsLookupIndexPattern("cluster:.index", "ROW x = 1 | LOOKUP cluster:.index ON j");
+        assertStringAsLookupIndexPattern("cluster*:index*", "ROW x = 1 | LOOKUP cluster*:index* ON j");
+        assertStringAsLookupIndexPattern("cluster*:*", "ROW x = 1 | LOOKUP cluster*:* ON j");
+        assertStringAsLookupIndexPattern("*:index*", "ROW x = 1 | LOOKUP  *:index* ON j");
+        assertStringAsLookupIndexPattern("*:*", "ROW x = 1 | LOOKUP  *:* ON j");
+
+    }
+
+    public void testInvalidQuotingAsFromIndexPattern() {
+        expectError("FROM \"foo", ": token recognition error at: '\"foo'");
+        expectError("FROM \"foo | LIMIT 1", ": token recognition error at: '\"foo | LIMIT 1'");
+        expectError("FROM \"\"\"foo", ": token recognition error at: '\"foo'");
+
+        expectError("FROM foo\"", ": token recognition error at: '\"'");
+        expectError("FROM foo\" | LIMIT 2", ": token recognition error at: '\" | LIMIT 2'");
+        expectError("FROM foo\"\"\"", ": token recognition error at: '\"'");
+
+        expectError("FROM \"foo\"bar\"", ": token recognition error at: '\"'");
+        expectError("FROM \"foo\"\"bar\"", ": extraneous input '\"bar\"' expecting <EOF>");
+
+        expectError("FROM \"\"\"foo\"\"\"bar\"\"\"", ": mismatched input 'bar' expecting {<EOF>, '|', ',', OPENING_BRACKET, 'metadata'}");
+        expectError(
+            "FROM \"\"\"foo\"\"\"\"\"\"bar\"\"\"",
+            ": mismatched input '\"bar\"' expecting {<EOF>, '|', ',', OPENING_BRACKET, 'metadata'}"
+        );
+    }
+
+    public void testInvalidQuotingAsMetricsIndexPattern() {
+        expectError("METRICS \"foo", ": token recognition error at: '\"foo'");
+        expectError("METRICS \"foo | LIMIT 1", ": token recognition error at: '\"foo | LIMIT 1'");
+        expectError("METRICS \"\"\"foo", ": token recognition error at: '\"'");
+
+        expectError("METRICS foo\"", ": token recognition error at: '\"'");
+        expectError("METRICS foo\" | LIMIT 2", ": token recognition error at: '\"'");
+        expectError("METRICS foo\"\"\"", ": token recognition error at: '\"'");
+
+        expectError("METRICS \"foo\"bar\"", ": token recognition error at: '\"'");
+        expectError("METRICS \"foo\"\"bar\"", ": token recognition error at: '\"'");
+
+        expectError("METRICS \"\"\"foo\"\"\"bar\"\"\"", ": token recognition error at: '\"'");
+        expectError("METRICS \"\"\"foo\"\"\"\"\"\"bar\"\"\"", ": token recognition error at: '\"'");
+    }
+
+    public void testInvalidQuotingAsLookupIndexPattern() {
+        expectError("ROW x = 1 | LOOKUP \"foo ON j", ": token recognition error at: '\"foo ON j'");
+        expectError("ROW x = 1 | LOOKUP \"\"\"foo ON j", ": token recognition error at: '\"foo ON j'");
+
+        expectError("ROW x = 1 | LOOKUP foo\" ON j", ": token recognition error at: '\" ON j'");
+        expectError("ROW x = 1 | LOOKUP foo\"\"\" ON j", ": token recognition error at: '\" ON j'");
+
+        expectError("ROW x = 1 | LOOKUP \"foo\"bar\" ON j", ": token recognition error at: '\" ON j'");
+        expectError("ROW x = 1 | LOOKUP \"foo\"\"bar\" ON j", ": extraneous input '\"bar\"' expecting 'on'");
+
+        expectError("ROW x = 1 | LOOKUP \"\"\"foo\"\"\"bar\"\"\" ON j", ": mismatched input 'bar' expecting 'on'");
+        expectError("ROW x = 1 | LOOKUP \"\"\"foo\"\"\"\"\"\"bar\"\"\" ON j", "line 1:31: mismatched input '\"bar\"' expecting 'on'");
     }
 
     public void testIdentifierAsFieldName() {
@@ -1174,6 +1266,13 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertThat(from, instanceOf(EsqlUnresolvedRelation.class));
         EsqlUnresolvedRelation table = (EsqlUnresolvedRelation) from;
         assertThat(table.table().index(), is(string));
+    }
+
+    private void assertStringAsLookupIndexPattern(String string, String statement) {
+        var plan = statement(statement);
+        var lookup = as(plan, Lookup.class);
+        var tableName = as(lookup.tableName(), Literal.class);
+        assertThat(tableName.fold(), equalTo(string));
     }
 
     public void testIdPatternUnquoted() throws Exception {

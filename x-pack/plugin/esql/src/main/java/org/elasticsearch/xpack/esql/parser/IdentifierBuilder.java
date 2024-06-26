@@ -40,7 +40,7 @@ abstract class IdentifierBuilder extends AbstractBuilder {
     @Override
     public String visitIndexString(IndexStringContext ctx) {
         TerminalNode n = ctx.UNQUOTED_SOURCE();
-        return n != null ? n.getText() : unquoteString(ctx.QUOTED_STRING().getText());
+        return n != null ? n.getText() : unquote(ctx.QUOTED_STRING().getText());
     }
 
     public String visitIndexString(List<IndexStringContext> ctx) {

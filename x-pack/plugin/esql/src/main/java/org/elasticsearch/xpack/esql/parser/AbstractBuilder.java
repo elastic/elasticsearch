@@ -24,11 +24,11 @@ abstract class AbstractBuilder extends EsqlBaseParserBaseVisitor<Object> {
         return ParserUtils.source(node);
     }
 
-    static String unquoteString(Source source) {
-        return unquoteString(source.text());
+    static String unquote(Source source) {
+        return unquote(source.text());
     }
 
-    static String unquoteString(String string) {
+    static String unquote(String string) {
         if (string == null) {
             return null;
         }

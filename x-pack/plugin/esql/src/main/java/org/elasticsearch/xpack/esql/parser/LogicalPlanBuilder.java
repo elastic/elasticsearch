@@ -466,7 +466,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             }
         });
 
-        Literal tableName = new Literal(source, ctx.tableName.getText(), DataType.KEYWORD);
+        Literal tableName = new Literal(source, visitIndexString(ctx.tableName), DataType.KEYWORD);
 
         return p -> new Lookup(source, p, tableName, matchFields, null /* localRelation will be resolved later*/);
     }

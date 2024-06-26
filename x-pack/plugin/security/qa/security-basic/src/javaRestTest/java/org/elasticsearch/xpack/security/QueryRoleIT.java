@@ -77,6 +77,7 @@ public class QueryRoleIT extends SecurityInBasicRestTestCase {
         });
     }
 
+    @SuppressWarnings("unchecked")
     public void testSimpleSort() throws IOException {
         // some other non-matching roles
         int nOtherRoles = randomIntBetween(1, 5);
@@ -109,7 +110,13 @@ public class QueryRoleIT extends SecurityInBasicRestTestCase {
         assertQuery("""
             {"query":{"bool":{"filter":[{"wildcard":{"applications.application":"a*z"}}]}},"sort":["name"]}""", nMatchingRoles, roles -> {
             assertThat(roles, iterableWithSize(nMatchingRoles));
-            // assert the sort order
+            // assert sorting on name
+            for (int i = 0; i < nMatchingRoles; i++) {
+                assertThat(roles.get(i).get("_sort"), instanceOf(List.class));
+                assertThat(((List<String>) roles.get(i).get("_sort")), iterableWithSize(1));
+                assertThat(((List<String>) roles.get(i).get("_sort")).get(0), equalTo(roles.get(i).get("name")));
+            }
+            // assert the ascending sort order
             for (int i = 1; i < nMatchingRoles; i++) {
                 int compareNames = roles.get(i - 1).get("name").toString().compareTo(roles.get(i).get("name").toString());
                 assertThat(compareNames < 0, is(true));

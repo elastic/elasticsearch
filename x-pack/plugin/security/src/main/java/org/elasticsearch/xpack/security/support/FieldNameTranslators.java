@@ -38,6 +38,7 @@ import java.util.Set;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.xpack.security.action.apikey.TransportQueryApiKeyAction.API_KEY_TYPE_RUNTIME_MAPPING_FIELD;
+import static org.elasticsearch.xpack.security.action.role.TransportQueryRoleAction.ROLE_NAME_RUNTIME_MAPPING_FIELD;
 
 public final class FieldNameTranslators {
 
@@ -72,7 +73,8 @@ public final class FieldNameTranslators {
 
     public static final FieldNameTranslators ROLE_FIELD_NAME_TRANSLATORS = new FieldNameTranslators(
         List.of(
-            idemFieldNameTranslator("name"),
+            // idemFieldNameTranslator("name"),
+            new SimpleFieldNameTranslator(ROLE_NAME_RUNTIME_MAPPING_FIELD, "name"),
             idemFieldNameTranslator("description"),
             idemFieldNameTranslator("applications.application"),
             idemFieldNameTranslator("applications.resources"),

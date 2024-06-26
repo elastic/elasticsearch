@@ -23,11 +23,18 @@ import org.elasticsearch.xpack.security.authz.store.NativeRolesStore;
 import org.elasticsearch.xpack.security.support.FieldNameTranslators;
 import org.elasticsearch.xpack.security.support.RoleBoolQueryBuilder;
 
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.xpack.security.support.FieldNameTranslators.ROLE_FIELD_NAME_TRANSLATORS;
 
 public class TransportQueryRoleAction extends TransportAction<QueryRoleRequest, QueryRoleResponse> {
+
+    public static final String ROLE_NAME_RUNTIME_MAPPING_FIELD = "runtime_role_name";
+    private static final Map<String, Object> ROLE_NAME_RUNTIME_MAPPING = Map.of(
+        ROLE_NAME_RUNTIME_MAPPING_FIELD,
+        Map.of("type", "keyword", "script", Map.of("source", "emit(params._fields['_id'].value.substring(5));"))
+    );
 
     private final NativeRolesStore nativeRolesStore;
 
@@ -50,15 +57,20 @@ public class TransportQueryRoleAction extends TransportAction<QueryRoleRequest, 
             searchSourceBuilder.searchAfter(request.getSearchAfterBuilder().getSortValues());
         }
         AtomicBoolean accessesMetadata = new AtomicBoolean(false);
+        AtomicBoolean accessesRoleName = new AtomicBoolean(false);
         searchSourceBuilder.query(RoleBoolQueryBuilder.build(request.getQueryBuilder(), indexFieldName -> {
             if (indexFieldName.startsWith(FieldNameTranslators.FLATTENED_METADATA_INDEX_FIELD_NAME)) {
                 accessesMetadata.set(true);
+            } else if (indexFieldName.equals(ROLE_NAME_RUNTIME_MAPPING_FIELD)) {
+                accessesRoleName.set(true);
             }
         }));
         if (request.getFieldSortBuilders() != null) {
             ROLE_FIELD_NAME_TRANSLATORS.translateFieldSortBuilders(request.getFieldSortBuilders(), searchSourceBuilder, indexFieldName -> {
                 if (indexFieldName.startsWith(FieldNameTranslators.FLATTENED_METADATA_INDEX_FIELD_NAME)) {
                     accessesMetadata.set(true);
+                } else if (indexFieldName.equals(ROLE_NAME_RUNTIME_MAPPING_FIELD)) {
+                    accessesRoleName.set(true);
                 }
             });
         }
@@ -70,6 +82,10 @@ public class TransportQueryRoleAction extends TransportAction<QueryRoleRequest, 
                 )
             );
             return;
+        }
+        // only add the query-level runtime field to the search request if it's actually referring the role name
+        if (accessesRoleName.get()) {
+            searchSourceBuilder.runtimeMappings(ROLE_NAME_RUNTIME_MAPPING);
         }
         nativeRolesStore.queryRoleDescriptors(
             searchSourceBuilder,

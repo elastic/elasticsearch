@@ -58,6 +58,10 @@ public final class CompositeBlock extends AbstractNonThreadSafeRefCounted implem
         return block;
     }
 
+    public Page asPage() {
+        return new Page(positionCount, blocks);
+    }
+
     /**
      * Returns the number of blocks in this composite block.
      */

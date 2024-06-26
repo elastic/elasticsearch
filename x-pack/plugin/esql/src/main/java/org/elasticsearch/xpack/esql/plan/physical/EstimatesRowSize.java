@@ -119,7 +119,7 @@ public interface EstimatesRowSize {
             case LONG -> Long.BYTES;
             case NULL -> 0;
             // TODO: provide a specific estimate for aggregated_metrics_double
-            case COMPOSITE -> throw new EsqlIllegalArgumentException("can't estimate size for composite blocks");
+            case COMPOSITE -> 50;
             case UNKNOWN -> throw new EsqlIllegalArgumentException("[unknown] can't be the result of field extraction");
         };
     }

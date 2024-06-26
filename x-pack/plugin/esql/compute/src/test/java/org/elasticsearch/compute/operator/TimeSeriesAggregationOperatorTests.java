@@ -262,6 +262,7 @@ public class TimeSeriesAggregationOperatorTests extends ComputeTestCase {
             intermediateOperators.add(ValuesSourceReaderOperatorTests.factory(reader, groupingField, ElementType.BYTES_REF).get(ctx));
         }
         // _doc, tsid, timestamp, bucket, requests, grouping1, grouping2
+
         Operator intialAgg = new TimeSeriesAggregationOperatorFactories.Initial(
             1,
             3,

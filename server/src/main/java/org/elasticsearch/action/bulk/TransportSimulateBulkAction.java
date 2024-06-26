@@ -99,7 +99,7 @@ public class TransportSimulateBulkAction extends TransportBulkAction {
                 )
             );
         }
-        listener.onResponse(new BulkResponse(responses.toArray(new BulkItemResponse[responses.length()]), buildTookInMillis(startTime)));
+        listener.onResponse(new BulkResponse(responses.toArray(BulkItemResponse.class), buildTookInMillis(startTime)));
     }
 
     /*

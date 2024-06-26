@@ -638,7 +638,7 @@ public class MetadataIndexStateService {
 
                     private void processIfFinished() {
                         if (countDown.countDown()) {
-                            onResponse.accept(new IndexResult(index, results.toArray(new ShardResult[results.length()])));
+                            onResponse.accept(new IndexResult(index, results.toArray(ShardResult.class)));
                         }
                     }
                 }));
@@ -768,7 +768,7 @@ public class MetadataIndexStateService {
 
                     private void processIfFinished() {
                         if (countDown.countDown()) {
-                            AddBlockResult result = new AddBlockResult(index, results.toArray(new AddBlockShardResult[results.length()]));
+                            AddBlockResult result = new AddBlockResult(index, results.toArray(AddBlockShardResult.class));
                             logger.debug("result of applying block to index {}: {}", index, result);
                             onResponse.accept(result);
                         }

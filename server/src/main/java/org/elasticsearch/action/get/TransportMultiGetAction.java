@@ -99,7 +99,7 @@ public class TransportMultiGetAction extends HandledTransportAction<MultiGetRequ
 
         if (shardRequests.isEmpty()) {
             // only failures..
-            listener.onResponse(new MultiGetResponse(responses.toArray(new MultiGetItemResponse[responses.length()])));
+            listener.onResponse(new MultiGetResponse(responses.toArray(MultiGetItemResponse.class)));
         }
 
         executeShardAction(listener, responses, shardRequests);
@@ -138,7 +138,7 @@ public class TransportMultiGetAction extends HandledTransportAction<MultiGetRequ
                 }
 
                 private void finishHim() {
-                    delegate.onResponse(new MultiGetResponse(responses.toArray(new MultiGetItemResponse[responses.length()])));
+                    delegate.onResponse(new MultiGetResponse(responses.toArray(MultiGetItemResponse.class)));
                 }
             });
         }

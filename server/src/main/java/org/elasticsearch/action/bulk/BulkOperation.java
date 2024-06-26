@@ -393,9 +393,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
     }
 
     private void completeBulkOperation() {
-        listener.onResponse(
-            new BulkResponse(responses.toArray(new BulkItemResponse[responses.length()]), buildTookInMillis(startTimeNanos))
-        );
+        listener.onResponse(new BulkResponse(responses.toArray(BulkItemResponse.class), buildTookInMillis(startTimeNanos)));
         // Allow memory for bulk shard request items to be reclaimed before all items have been completed
         bulkRequest = null;
     }

@@ -322,11 +322,15 @@ public class Netty4ChunkedContinuationsIT extends ESNetty4IntegTestCase {
         refs = LeakTracker.wrap(reachabilityChecker.register(AbstractRefCounted.of(latch::countDown)));
         return () -> {
             refs.decRef();
+            boolean success = false;
             try {
                 safeAwait(latch);
+                success = true;
             } finally {
                 refs = null;
-                reachabilityChecker.ensureUnreachable();
+                if (success == false) {
+                    reachabilityChecker.ensureUnreachable();
+                }
             }
         };
     }

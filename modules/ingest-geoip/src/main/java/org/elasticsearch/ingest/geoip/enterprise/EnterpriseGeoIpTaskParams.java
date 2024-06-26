@@ -25,8 +25,11 @@ public class EnterpriseGeoIpTaskParams implements PersistentTaskParams {
 
     public static final String ENTERPRISE_GEOIP_DOWNLOADER = "enterprise-" + GEOIP_DOWNLOADER;
 
-    public static final ObjectParser<EnterpriseGeoIpTaskParams, Void> PARSER =
-        new ObjectParser<>(ENTERPRISE_GEOIP_DOWNLOADER, true, EnterpriseGeoIpTaskParams::new);
+    public static final ObjectParser<EnterpriseGeoIpTaskParams, Void> PARSER = new ObjectParser<>(
+        ENTERPRISE_GEOIP_DOWNLOADER,
+        true,
+        EnterpriseGeoIpTaskParams::new
+    );
 
     public EnterpriseGeoIpTaskParams() {}
 
@@ -46,8 +49,8 @@ public class EnterpriseGeoIpTaskParams implements PersistentTaskParams {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_7_13_0;
-    } //TODO
+        return TransportVersions.ENTERPRISE_GEOIP_DOWNLOADER;
+    }
 
     @Override
     public void writeTo(StreamOutput out) {}

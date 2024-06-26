@@ -8,18 +8,10 @@
 
 package org.elasticsearch.persistent;
 
-import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
 import org.elasticsearch.xcontent.ToXContentObject;
-import org.elasticsearch.xcontent.XContentBuilder;
-
-import java.io.IOException;
 
 /**
  * Parameters used to start persistent task
  */
-public interface PersistentTaskParams extends VersionedNamedWriteable, ToXContentObject {
-}
+public interface PersistentTaskParams extends VersionedNamedWriteable, ToXContentObject {}

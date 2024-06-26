@@ -12,9 +12,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.UpdateForV9;
-import org.elasticsearch.ingest.geoip.enterprise.EnterpriseGeoIpTaskParams;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.persistent.PersistentTaskParams;
 import org.elasticsearch.persistent.PersistentTaskState;
@@ -39,11 +36,6 @@ public class EnterpriseGeoIpDownloaderTaskExecutor extends PersistentTasksExecut
         super(ENTERPRISE_GEOIP_DOWNLOADER, threadPool.generic());
         persistentTasksService = new PersistentTasksService(clusterService, threadPool, client);
     }
-
-//    @Override
-//    protected void nodeOperation(AllocatedPersistentTask task, EnterpriseGeoIpTaskParams params, PersistentTaskState state) {
-//        logger.info("Running enterprise downloader");
-//    }
 
     @Override
     protected void nodeOperation(AllocatedPersistentTask task, PersistentTaskParams params, PersistentTaskState state) {

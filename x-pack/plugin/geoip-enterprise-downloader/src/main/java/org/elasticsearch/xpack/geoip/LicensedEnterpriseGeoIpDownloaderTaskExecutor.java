@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.UpdateForV9;
+import org.elasticsearch.ingest.geoip.enterprise.EnterpriseGeoIpTaskParams;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicensedFeature;
 import org.elasticsearch.license.XPackLicenseState;
@@ -31,12 +32,9 @@ import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.xpack.core.XPackField;
-import org.elasticsearch.ingest.geoip.enterprise.EnterpriseGeoIpTaskParams;
 
 @SuppressWarnings("rawtypes")
-public class LicensedEnterpriseGeoIpDownloaderTaskExecutor extends PersistentTasksExecutor
-    implements
-        ClusterStateListener {
+public class LicensedEnterpriseGeoIpDownloaderTaskExecutor extends PersistentTasksExecutor implements ClusterStateListener {
     private static final String TASK_NAME = "enterprise-geoip-downloader";
     private static final Logger logger = LogManager.getLogger(LicensedEnterpriseGeoIpDownloaderTaskExecutor.class);
 
@@ -58,22 +56,11 @@ public class LicensedEnterpriseGeoIpDownloaderTaskExecutor extends PersistentTas
         this.licenseState = licenseState;
     }
 
-//    @Override
-//    protected void nodeOperation(AllocatedPersistentTask task, EnterpriseGeoIpTaskParams params, PersistentTaskState state) {
-//        logger.info("Running enterprise downloader");
-//    }
-
     @UpdateForV9 // use MINUS_ONE once that means no timeout
     private static final TimeValue MASTER_TIMEOUT = TimeValue.MAX_VALUE;
 
     public void init() {
         clusterService.addListener(this);
-//        if (feature.check(licenseState)) {
-//            logger.info("Have a valid license, starting enterprise downloader");
-//            startTask();
-//        } else {
-//            logger.info("Do not have a valid license, not starting enterprise downloader");
-//        }
     }
 
     private void startTask() {

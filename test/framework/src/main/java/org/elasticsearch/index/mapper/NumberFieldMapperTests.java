@@ -422,8 +422,7 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
                 if (preservesExactSource()) {
                     var rawInput = v.v1();
 
-                    // Confusing as it is this code actually runs
-                    // with synthetic source disabled
+                    // This code actually runs with synthetic source disabled
                     // to test block loader loading from source.
                     // That's why we need to set expected block loader value here.
                     var blockLoaderResult = v.v2() instanceof Number n ? round.apply(n) : null;
@@ -441,8 +440,7 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
             Object out;
             List<Object> outBlockList;
             if (preservesExactSource()) {
-                // Confusing as it is this code actually runs
-                // with synthetic source disabled
+                // This code actually runs with synthetic source disabled
                 // to test block loader loading from source.
                 // That's why we need to set expected block loader value here.
                 out = in;

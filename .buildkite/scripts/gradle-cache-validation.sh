@@ -22,7 +22,8 @@ perfOutput=$(cat $tmpOutputFile | sed -n '/Performance Characteristics/,/See htt
 investigationOutput=$(cat $tmpOutputFile | sed -n '/Investigation Quick Links/,$p' | sed 's/\x1b\[[0-9;]*m//g')
 
 # Initialize HTML output variable
-perfHtml="<ul>"
+summaryHtml="<h2>Performance Characteristics</h2>"
+summaryHtml+="<ul>"
 
 # Process each line of the string
 while IFS=: read -r label value; do
@@ -32,22 +33,15 @@ while IFS=: read -r label value; do
         trimmed_value=$(echo "$value" | xargs)
 
         # Append to HTML output variable
-        perfHtml+="<li><strong>$trimmed_label:</strong> $trimmed_value</li>"
+        summaryHtml+="<li><strong>$trimmed_label:</strong> $trimmed_value</li>"
     fi
 done <<< "$perfOutput"
 
-# End of the HTML content
-perfHtml+="</ul>"
-
-cat << EOF | buildkite-agent annotate --context "ctx-perf-characteristics" --style "info"
-<details>
-
-<summary>Performance Characteristics</summary>
-$perfHtml
-EOF
+summaryHtml+="</ul>"
 
 # generate html for links
-linkHtml="<ul>"
+summaryHtml="<h2>Investigation Links</h2>"
+summaryHtml+="<ul>"
 
 # Process each line of the string
 while IFS= read -r line; do
@@ -57,18 +51,15 @@ while IFS= read -r line; do
         description=$(echo "$line" | sed -e "s/:.*//")
 
         # Append to HTML output variable
-        linkHtml+="    <li><a href=\"$url\">$description</a></li>"
+        summaryHtml+="    <li><a href=\"$url\">$description</a></li>"
     fi
 done <<< "$investigationOutput"
 
 # End of the HTML content
-linkHtml+="</ul>"
+summaryHtml+="</ul>"
 
-cat << EOF | buildkite-agent annotate --context "ctx-investigation-links" --style "info"
-<details>
-
-<summary>Investigation Links</summary>
-$linkHtml
+cat << EOF | buildkite-agent annotate --context "ctx-validation-summary" --style "info"
+$summaryHtml
 EOF
 
 # Check if the command was successful

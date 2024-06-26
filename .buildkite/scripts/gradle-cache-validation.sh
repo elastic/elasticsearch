@@ -26,7 +26,13 @@ investigationOutput=$(cat $tmpOutputFile | sed -n '/Investigation Quick Links/,$
 
 
 cat << EOF | buildkite-agent annotate --context "ctx-perf-characteristics" --style "info"
-    $perfOutput
+<details>
+
+<summary>Performance Characteristics</summary>
+EOF
+
+cat << EOF | buildkite-agent annotate --context "ctx-perf-characteristics" --append --style "info"
+    "<code>$perfOutput</code>"
 EOF
 
 
@@ -49,10 +55,13 @@ done <<< "$investigationOutput"
 # End of the HTML content
 html_output+="</ul>"
 
-# Print the output to standard output or use it as needed
 cat << EOF | buildkite-agent annotate --context "ctx-investigation-links" --style "info"
-    $html_output
+<details>
+
+<summary>Investigation Links</summary>
 EOF
+# Print the output to standard output or use it as needed
+echo $html_output | buildkite-agent annotate --context "ctx-investigation-links" --append --style "info" 
 
 
 # Check if the command was successful

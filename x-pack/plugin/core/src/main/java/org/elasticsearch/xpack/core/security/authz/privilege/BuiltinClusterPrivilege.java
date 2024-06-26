@@ -20,11 +20,11 @@ final class BuiltinClusterPrivilege extends ActionClusterPrivilege {
      * @param supportedInServerlessMode whether this privilege is supported in serverless mode, i.e., whether it should be available to
      *                                  end-users
      */
-    public BuiltinClusterPrivilege(final String name, final Set<String> allowedActionPatterns, boolean supportedInServerlessMode) {
+    BuiltinClusterPrivilege(final String name, final Set<String> allowedActionPatterns, boolean supportedInServerlessMode) {
         this(name, allowedActionPatterns, Set.of(), supportedInServerlessMode);
     }
 
-    public BuiltinClusterPrivilege(
+    BuiltinClusterPrivilege(
         final String name,
         final Set<String> allowedActionPatterns,
         final Set<String> excludedActionPatterns,

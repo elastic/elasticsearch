@@ -26,7 +26,7 @@ public abstract class ActionClusterPrivilege implements NamedClusterPrivilege {
      * @param name                  name for the cluster privilege
      * @param allowedActionPatterns a set of cluster action patterns that are allowed for the user with this privilege.
      */
-    public ActionClusterPrivilege(final String name, final Set<String> allowedActionPatterns) {
+    protected ActionClusterPrivilege(final String name, final Set<String> allowedActionPatterns) {
         this(name, allowedActionPatterns, Set.of());
     }
 
@@ -39,7 +39,7 @@ public abstract class ActionClusterPrivilege implements NamedClusterPrivilege {
      * @param allowedActionPatterns  a set of cluster action patterns
      * @param excludedActionPatterns a set of cluster action patterns
      */
-    public ActionClusterPrivilege(final String name, final Set<String> allowedActionPatterns, final Set<String> excludedActionPatterns) {
+    protected ActionClusterPrivilege(final String name, final Set<String> allowedActionPatterns, final Set<String> excludedActionPatterns) {
         this.name = name;
         this.allowedActionPatterns = allowedActionPatterns;
         this.excludedActionPatterns = excludedActionPatterns;

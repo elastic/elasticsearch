@@ -11,8 +11,12 @@ import java.util.Set;
 
 import static org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver.isClusterAction;
 
+/**
+ * An {@link ActionClusterPrivilege} that defines access to a raw cluster action name,
+ * instead of a predefined {@link BuiltinClusterPrivilege}.
+ */
 final class RawActionPatternClusterPrivilege extends ActionClusterPrivilege {
-    public RawActionPatternClusterPrivilege(String name) {
+    RawActionPatternClusterPrivilege(String name) {
         super(name, Set.of(actionToPattern(name)));
         assert isClusterAction(name);
     }
@@ -21,6 +25,9 @@ final class RawActionPatternClusterPrivilege extends ActionClusterPrivilege {
         return text + "*";
     }
 
+    /**
+     * A raw cluster action patterns are never supported in serverless mode.
+     */
     @Override
     public boolean isSupportedInServerlessMode() {
         return false;

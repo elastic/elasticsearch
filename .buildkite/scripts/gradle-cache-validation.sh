@@ -24,14 +24,6 @@ investigationOutput=$(cat $tmpOutputFile | sed -n '/Investigation Quick Links/,$
 #echo "PERF OUTPUT $perfOutput"
 #echo "INVESTIGATION OUTPUT $investigationOutput"
 
-# End of the HTML file
-echo "</ul>" >> "$output_file"
-
-# Inform user of completion
-echo "HTML file created: $output_file"
-
-echo $(cat $output_file)
-
 cat << EOF | buildkite-agent annotate --context "ctx-perf-characteristics" --style "info"
 ```term
     $perfOutput

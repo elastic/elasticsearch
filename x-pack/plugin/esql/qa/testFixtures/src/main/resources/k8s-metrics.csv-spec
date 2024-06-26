@@ -12,7 +12,7 @@ METRICS k8s | sort @timestamp DESC, cluster, pod | keep @timestamp,cluster,pod,n
 
 quotedSourceAndMetricsWithAggs
 required_capability: metrics_syntax
-METRICS "k8s" max_bytes=max(to_long(network.total_bytes_in)) BY cluster | SORT max_bytes DESC;
+METRICS k8s max_bytes=max(to_long(network.total_bytes_in)) BY cluster | SORT max_bytes DESC;
 
 max_bytes:long | cluster: keyword
 10797          | qa        

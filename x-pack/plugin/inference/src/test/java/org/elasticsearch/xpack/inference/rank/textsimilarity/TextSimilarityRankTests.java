@@ -94,7 +94,6 @@ public class TextSimilarityRankTests extends ESSingleNodeTestCase {
             }
 
             if (failInference.get()) {
-                System.out.println("failInference");
                 listener.onFailure(new ElasticsearchException("rerank inference call failed"));
             } else {
                 // For inference action respond with rerank results

@@ -46,11 +46,13 @@ public abstract class RankFeaturePhaseRankCoordinatorContext {
     protected abstract void computeScores(RankFeatureDoc[] featureDocs, ActionListener<float[]> scoreListener);
 
     /**
-     * Should we keep or discard this feature before adding it to the final result set?
-     * @param doc the feature
+     * Filters and sorts the provided documents.
+     * @param originalDocs documents to process
      */
-    protected boolean keepRankFeatureDoc(RankFeatureDoc doc) {
-        return true;
+    protected RankFeatureDoc[] filterAndSort(RankFeatureDoc[] originalDocs) {
+        return Arrays.stream(originalDocs)
+            .sorted(Comparator.comparing((RankFeatureDoc doc) -> doc.score).reversed())
+            .toArray(RankFeatureDoc[]::new);
     }
 
     /**
@@ -86,13 +88,10 @@ public abstract class RankFeaturePhaseRankCoordinatorContext {
      * @param rankFeatureDocs documents to process
      */
     public RankFeatureDoc[] rankAndPaginate(RankFeatureDoc[] rankFeatureDocs) {
-        RankFeatureDoc[] rankFeatureDocsAboveMinScore = Arrays.stream(rankFeatureDocs)
-            .filter(this::keepRankFeatureDoc)
-            .sorted(Comparator.comparing((RankFeatureDoc doc) -> doc.score).reversed())
-            .toArray(RankFeatureDoc[]::new);
-        RankFeatureDoc[] topResults = new RankFeatureDoc[Math.max(0, Math.min(size, rankFeatureDocsAboveMinScore.length - from))];
+        RankFeatureDoc[] sortedDocs = filterAndSort(rankFeatureDocs);
+        RankFeatureDoc[] topResults = new RankFeatureDoc[Math.max(0, Math.min(size, sortedDocs.length - from))];
         for (int rank = 0; rank < topResults.length; ++rank) {
-            topResults[rank] = rankFeatureDocsAboveMinScore[from + rank];
+            topResults[rank] = sortedDocs[from + rank];
             topResults[rank].rank = from + rank + 1;
         }
         return topResults;

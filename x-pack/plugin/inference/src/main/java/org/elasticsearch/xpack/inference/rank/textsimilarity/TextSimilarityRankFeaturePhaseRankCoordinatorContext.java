@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.RankedDocsResults;
 
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 
@@ -98,7 +99,10 @@ public class TextSimilarityRankFeaturePhaseRankCoordinatorContext extends RankFe
     }
 
     @Override
-    protected boolean keepRankFeatureDoc(RankFeatureDoc doc) {
-        return minScore == null || doc.score >= minScore;
+    protected RankFeatureDoc[] filterAndSort(RankFeatureDoc[] originalDocs) {
+        return Arrays.stream(originalDocs)
+            .filter(doc -> minScore == null || doc.score >= minScore)
+            .sorted(Comparator.comparing((RankFeatureDoc doc) -> doc.score).reversed())
+            .toArray(RankFeatureDoc[]::new);
     }
 }

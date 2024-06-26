@@ -27,6 +27,7 @@ import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.ingest.Processor;
+import org.elasticsearch.ingest.geoip.enterprise.EnterpriseGeoIpTaskParams;
 import org.elasticsearch.ingest.geoip.stats.GeoIpDownloaderStats;
 import org.elasticsearch.ingest.geoip.stats.GeoIpStatsAction;
 import org.elasticsearch.ingest.geoip.stats.GeoIpStatsTransportAction;
@@ -61,6 +62,7 @@ import static org.elasticsearch.ingest.IngestService.INGEST_ORIGIN;
 import static org.elasticsearch.ingest.geoip.GeoIpDownloader.DATABASES_INDEX;
 import static org.elasticsearch.ingest.geoip.GeoIpDownloader.DATABASES_INDEX_PATTERN;
 import static org.elasticsearch.ingest.geoip.GeoIpDownloader.GEOIP_DOWNLOADER;
+import static org.elasticsearch.ingest.geoip.enterprise.EnterpriseGeoIpTaskParams.ENTERPRISE_GEOIP_DOWNLOADER;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 
 public class IngestGeoIpPlugin extends Plugin implements IngestPlugin, SystemIndexPlugin, Closeable, PersistentTaskPlugin, ActionPlugin {
@@ -78,6 +80,7 @@ public class IngestGeoIpPlugin extends Plugin implements IngestPlugin, SystemInd
     private final SetOnce<IngestService> ingestService = new SetOnce<>();
     private final SetOnce<DatabaseNodeService> databaseRegistry = new SetOnce<>();
     private GeoIpDownloaderTaskExecutor geoIpDownloaderTaskExecutor;
+    private EnterpriseGeoIpDownloaderTaskExecutor enterpriseGeoIpDownloaderTaskExecutor;
 
     @Override
     public List<Setting<?>> getSettings() {
@@ -88,6 +91,33 @@ public class IngestGeoIpPlugin extends Plugin implements IngestPlugin, SystemInd
             GeoIpDownloader.ENDPOINT_SETTING,
             GeoIpDownloaderTaskExecutor.POLL_INTERVAL_SETTING
         );
+    }
+
+    @Override
+    public Collection<?> createComponents(PluginServices services) {
+        try {
+            String nodeId = services.nodeEnvironment().nodeId();
+            databaseRegistry.get().initialize(nodeId, services.resourceWatcherService(), ingestService.get());
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+
+        geoIpDownloaderTaskExecutor = new GeoIpDownloaderTaskExecutor(
+            services.client(),
+            new HttpClient(),
+            services.clusterService(),
+            services.threadPool()
+        );
+        geoIpDownloaderTaskExecutor.init();
+
+        enterpriseGeoIpDownloaderTaskExecutor = new EnterpriseGeoIpDownloaderTaskExecutor(
+            services.client(),
+            new HttpClient(),
+            services.clusterService(),
+            services.threadPool()
+        );
+
+        return List.of(databaseRegistry.get(), geoIpDownloaderTaskExecutor, enterpriseGeoIpDownloaderTaskExecutor);
     }
 
     @Override
@@ -108,25 +138,6 @@ public class IngestGeoIpPlugin extends Plugin implements IngestPlugin, SystemInd
     }
 
     @Override
-    public Collection<?> createComponents(PluginServices services) {
-        try {
-            String nodeId = services.nodeEnvironment().nodeId();
-            databaseRegistry.get().initialize(nodeId, services.resourceWatcherService(), ingestService.get());
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        }
-
-        geoIpDownloaderTaskExecutor = new GeoIpDownloaderTaskExecutor(
-            services.client(),
-            new HttpClient(),
-            services.clusterService(),
-            services.threadPool()
-        );
-        geoIpDownloaderTaskExecutor.init();
-        return List.of(databaseRegistry.get(), geoIpDownloaderTaskExecutor);
-    }
-
-    @Override
     public void close() throws IOException {
         databaseRegistry.get().close();
     }
@@ -139,7 +150,7 @@ public class IngestGeoIpPlugin extends Plugin implements IngestPlugin, SystemInd
         SettingsModule settingsModule,
         IndexNameExpressionResolver expressionResolver
     ) {
-        return List.of(geoIpDownloaderTaskExecutor);
+        return List.of(geoIpDownloaderTaskExecutor, enterpriseGeoIpDownloaderTaskExecutor);
     }
 
     @Override
@@ -166,7 +177,9 @@ public class IngestGeoIpPlugin extends Plugin implements IngestPlugin, SystemInd
     public List<NamedXContentRegistry.Entry> getNamedXContent() {
         return List.of(
             new NamedXContentRegistry.Entry(PersistentTaskParams.class, new ParseField(GEOIP_DOWNLOADER), GeoIpTaskParams::fromXContent),
-            new NamedXContentRegistry.Entry(PersistentTaskState.class, new ParseField(GEOIP_DOWNLOADER), GeoIpTaskState::fromXContent)
+            new NamedXContentRegistry.Entry(PersistentTaskState.class, new ParseField(GEOIP_DOWNLOADER), GeoIpTaskState::fromXContent),
+            new NamedXContentRegistry.Entry(PersistentTaskParams.class,
+                new ParseField(ENTERPRISE_GEOIP_DOWNLOADER), EnterpriseGeoIpTaskParams::fromXContent)
         );
     }
 
@@ -175,6 +188,7 @@ public class IngestGeoIpPlugin extends Plugin implements IngestPlugin, SystemInd
         return List.of(
             new NamedWriteableRegistry.Entry(PersistentTaskState.class, GEOIP_DOWNLOADER, GeoIpTaskState::new),
             new NamedWriteableRegistry.Entry(PersistentTaskParams.class, GEOIP_DOWNLOADER, GeoIpTaskParams::new),
+            new NamedWriteableRegistry.Entry(PersistentTaskParams.class, ENTERPRISE_GEOIP_DOWNLOADER, EnterpriseGeoIpTaskParams::new),
             new NamedWriteableRegistry.Entry(Task.Status.class, GEOIP_DOWNLOADER, GeoIpDownloaderStats::new)
         );
     }

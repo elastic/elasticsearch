@@ -18,17 +18,51 @@ gradle-enterprise-gradle-build-validation/03-validate-local-build-caching-differ
 retval=$?
 
 # Now read the content from the temporary file into a variable
-perfOutput=$(cat $tmpOutputFile | sed -n '/Performance Characteristics/,/See https://gradle.com/bvs/main/Gradle.md#performance-characteristics for details./p')
+perfOutput=$(cat $tmpOutputFile | sed -n '/Performance Characteristics/,/See https:\/\/gradle.com\/bvs\/main\/Gradle.md#performance-characteristics for details./p')
 investigationOutput=$(cat $tmpOutputFile | sed -n '/Investigation Quick Links/,$p')
 
 #echo "PERF OUTPUT $perfOutput"
 #echo "INVESTIGATION OUTPUT $investigationOutput"
 
-  cat << EOF | buildkite-agent annotate --context "ctx-perf-characteristics" --style "info"
+# End of the HTML file
+echo "</ul>" >> "$output_file"
+
+# Inform user of completion
+echo "HTML file created: $output_file"
+
+echo $(cat $output_file)
+
+cat << EOF | buildkite-agent annotate --context "ctx-perf-characteristics" --style "info"
 ```term
     $perfOutput
 ```
 EOF
+
+
+# generate html for links
+html_output="<h3>Investigation Quick Links</h3>"
+html_output+="<ul>"
+
+# Process each line of the string
+while IFS= read -r line; do
+    if [[ "$line" =~ http.* ]]; then
+        # Extract URL and description using awk
+        url=$(echo "$line" | awk '{print $NF}')
+        description=$(echo "$line" | sed -e "s/:.*//")
+
+        # Append to HTML output variable
+        html_output+="    <li><a href=\"$url\">$description</a></li>"
+    fi
+done <<< "$investigationOutput"
+
+# End of the HTML content
+html_output+="</ul>"
+
+# Print the output to standard output or use it as needed
+cat << EOF | buildkite-agent annotate --context "ctx-investigation-links" --style "info"
+    $html_output
+EOF
+
 
 # Check if the command was successful
 if [ $retval -eq 0 ]; then

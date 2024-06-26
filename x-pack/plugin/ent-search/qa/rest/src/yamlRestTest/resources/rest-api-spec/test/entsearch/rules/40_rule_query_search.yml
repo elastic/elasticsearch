@@ -40,7 +40,7 @@ setup:
           - { "text": "observability" }
 
   - do:
-      query_ruleset.put:
+      query_rules.query_ruleset_put:
         ruleset_id: test-ruleset
         body:
           rules:
@@ -84,7 +84,7 @@ setup:
                   - 'doc7'
 
   - do:
-      query_ruleset.put:
+      query_rules.query_ruleset_put:
         ruleset_id: another-test-ruleset
         body:
           rules:
@@ -101,17 +101,17 @@ setup:
 ---
 teardown:
   - do:
-      query_ruleset.delete:
+      query_rules.query_ruleset_delete:
         ruleset_id: test-ruleset
         ignore: 404
 
   - do:
-      query_ruleset.delete:
+      query_rules.query_ruleset_delete:
         ruleset_id: another-test-ruleset
         ignore: 404
 
   - do:
-      query_ruleset.delete:
+      query_rules.query_ruleset_delete:
         ruleset_id: combined-ruleset
         ignore: 404
 
@@ -314,7 +314,7 @@ teardown:
 "Perform a rule query over a ruleset with combined numeric and text rule matching":
 
   - do:
-      query_ruleset.put:
+      query_rules.query_ruleset_put:
         ruleset_id: combined-ruleset
         body:
           rules:
@@ -426,7 +426,7 @@ teardown:
         wait_for: started
 
   - do:
-      query_ruleset.put:
+      query_rules.query_ruleset_put:
         ruleset_id: combined-ruleset
         body:
           rules:

@@ -1,5 +1,5 @@
 {
-  "query_ruleset.list": {
+  "query_rules.query_ruleset_list": {
     "documentation": {
       "url": "https://www.elastic.co/guide/en/elasticsearch/reference/master/list-query-rulesets.html",
       "description": "Lists query rulesets."

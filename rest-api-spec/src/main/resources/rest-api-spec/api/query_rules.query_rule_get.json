@@ -1,5 +1,5 @@
 {
-  "query_rule.get": {
+  "query_rules.query_rule_get": {
     "documentation": {
       "url": "https://www.elastic.co/guide/en/elasticsearch/reference/master/get-query-rule.html",
       "description": "Returns the details about an individual query rule within a ruleset."

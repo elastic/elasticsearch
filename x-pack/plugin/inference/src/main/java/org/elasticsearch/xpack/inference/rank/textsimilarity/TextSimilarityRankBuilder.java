@@ -45,7 +45,7 @@ public class TextSimilarityRankBuilder extends RankBuilder {
 
     public static final String NAME = "text_similarity_reranker";
 
-    public static final LicensedFeature.Momentary FEATURE = LicensedFeature.momentary(
+    public static final LicensedFeature.Momentary TEXT_SIMILARITY_RERANKER_FEATURE = LicensedFeature.momentary(
         null,
         "text-similarity-reranker",
         License.OperationMode.PLATINUM

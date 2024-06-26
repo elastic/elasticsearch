@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.inference.rank.textsimilarity;
 
+import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.retriever.RetrieverBuilder;
@@ -26,6 +28,10 @@ import static org.elasticsearch.search.rank.RankBuilder.DEFAULT_RANK_WINDOW_SIZE
  * A {@code RetrieverBuilder} for parsing and constructing a text similarity reranker retriever.
  */
 public class TextSimilarityRankRetrieverBuilder extends RetrieverBuilder {
+
+    public static final NodeFeature TEXT_SIMILARITY_RERANKER_RETRIEVER_SUPPORTED = new NodeFeature(
+        "text_similarity_reranker_retriever_supported"
+    );
 
     public static final ParseField RETRIEVER_FIELD = new ParseField("retriever");
     public static final ParseField FIELD_FIELD = new ParseField("field");
@@ -57,7 +63,10 @@ public class TextSimilarityRankRetrieverBuilder extends RetrieverBuilder {
 
     public static TextSimilarityRankRetrieverBuilder fromXContent(XContentParser parser, RetrieverParserContext context)
         throws IOException {
-        if (TextSimilarityRankBuilder.FEATURE.check(XPackPlugin.getSharedLicenseState()) == false) {
+        if (context.clusterSupportsFeature(TEXT_SIMILARITY_RERANKER_RETRIEVER_SUPPORTED) == false) {
+            throw new ParsingException(parser.getTokenLocation(), "unknown retriever [" + TextSimilarityRankBuilder.NAME + "]");
+        }
+        if (TextSimilarityRankBuilder.TEXT_SIMILARITY_RERANKER_FEATURE.check(XPackPlugin.getSharedLicenseState()) == false) {
             throw LicenseUtils.newComplianceException(TextSimilarityRankBuilder.NAME);
         }
         return PARSER.apply(parser, context);

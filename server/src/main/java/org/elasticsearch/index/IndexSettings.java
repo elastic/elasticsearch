@@ -7,7 +7,6 @@
  */
 package org.elasticsearch.index;
 
-import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.util.Strings;
 import org.apache.lucene.index.MergePolicy;
@@ -296,7 +295,10 @@ public final class IndexSettings {
 
     static class RefreshIntervalValidator implements Setting.Validator<TimeValue> {
 
-        public static final String STATELESS_ALLOW_INDEX_REFRESH_INTERVAL_OVERRIDE = "stateless.allow.index.refresh_interval.override";
+        static final String STATELESS_ALLOW_INDEX_REFRESH_INTERVAL_OVERRIDE = "es.stateless.allow.index.refresh_interval.override";
+        // conditional flag to facilitate property check in unit testing
+        private static boolean INIT_OVERRIDE_CHECK;
+        private static boolean ALLOW_OVERRIDE;
 
         @Override
         public void validate(TimeValue value) {}
@@ -307,9 +309,12 @@ public final class IndexSettings {
             final Boolean fastRefresh = (Boolean) settings.get(INDEX_FAST_REFRESH_SETTING);
             final IndexVersion indexVersion = (IndexVersion) settings.get(SETTING_INDEX_VERSION_CREATED);
 
-            final boolean allowOverride = Boolean.parseBoolean(
-                System.getProperty(STATELESS_ALLOW_INDEX_REFRESH_INTERVAL_OVERRIDE, "false")
-            );
+            if (INIT_OVERRIDE_CHECK == false) {
+                synchronized (RefreshIntervalValidator.class) {
+                    INIT_OVERRIDE_CHECK = true;
+                    ALLOW_OVERRIDE = Boolean.parseBoolean(System.getProperty(STATELESS_ALLOW_INDEX_REFRESH_INTERVAL_OVERRIDE, "false"));
+                }
+            }
 
             if (existingShardsAllocator.equals("stateless")
                 && fastRefresh == false
@@ -317,23 +322,19 @@ public final class IndexSettings {
                 && value.compareTo(STATELESS_MIN_NON_FAST_REFRESH_INTERVAL) < 0
                 && indexVersion.after(IndexVersions.V_8_10_0)) {
 
-                if (allowOverride) {
-                    final Logger logger = LogManager.getLogger(RefreshIntervalValidator.class);
-                    logger.warn("Overriding `index.refresh_interval` setting to {}", value);
-                    // allow `index.refresh_interval` setting be in a range (0 .. `STATELESS_MIN_NON_FAST_REFRESH_INTERVAL`)
-                    return;
+                // ALLOW_OVERRIDE lets `index.refresh_interval` setting be in a range (0 .. `STATELESS_MIN_NON_FAST_REFRESH_INTERVAL`)
+                if (ALLOW_OVERRIDE == false) {
+                    throw new IllegalArgumentException(
+                        "index setting ["
+                            + IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey()
+                            + "="
+                            + value
+                            + "] should be either "
+                            + TimeValue.MINUS_ONE
+                            + " or equal to or greater than "
+                            + STATELESS_MIN_NON_FAST_REFRESH_INTERVAL
+                    );
                 }
-
-                throw new IllegalArgumentException(
-                    "index setting ["
-                        + IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey()
-                        + "="
-                        + value
-                        + "] should be either "
-                        + TimeValue.MINUS_ONE
-                        + " or equal to or greater than "
-                        + STATELESS_MIN_NON_FAST_REFRESH_INTERVAL
-                );
             }
         }
 

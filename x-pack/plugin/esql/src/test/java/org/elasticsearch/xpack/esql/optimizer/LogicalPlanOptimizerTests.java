@@ -5249,7 +5249,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         Rate rate = as(Alias.unwrap(aggsByTsid.aggregates().get(0)), Rate.class);
         assertThat(Expressions.attribute(rate.field()).name(), equalTo("network.total_bytes_in"));
         assertThat(Expressions.attribute(aggsByTsid.groupings().get(1)).id(), equalTo(eval.fields().get(0).id()));
-        Bucket bucket = as(eval.fields().get(0), Bucket.class);
+        Bucket bucket = as(Alias.unwrap(eval.fields().get(0)), Bucket.class);
         assertThat(Expressions.attribute(bucket.field()).name(), equalTo("@timestamp"));
     }
 
@@ -5268,25 +5268,28 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         Div div = as(Alias.unwrap(eval.fields().get(0)), Div.class);
         Aggregate finalAgg = as(eval.child(), Aggregate.class);
         Aggregate aggsByTsid = as(finalAgg.child(), Aggregate.class);
-        as(aggsByTsid.child(), EsRelation.class);
+        Eval bucket = as(aggsByTsid.child(), Eval.class);
+        as(bucket.child(), EsRelation.class);
         assertThat(Expressions.attribute(div.left()).id(), equalTo(finalAgg.aggregates().get(0).id()));
         assertThat(Expressions.attribute(div.right()).id(), equalTo(finalAgg.aggregates().get(1).id()));
 
         assertThat(finalAgg.aggregateType(), equalTo(Aggregate.AggregateType.STANDARD));
-        assertThat(finalAgg.aggregates(), hasSize(3));
+        assertThat(finalAgg.aggregates(), hasSize(5)); // sum, count, pod, bucket, cluster
         Sum sum = as(Alias.unwrap(finalAgg.aggregates().get(0)), Sum.class);
         Count count = as(Alias.unwrap(finalAgg.aggregates().get(1)), Count.class);
         assertThat(Expressions.attribute(sum.field()).id(), equalTo(aggsByTsid.aggregates().get(0).id()));
         assertThat(Expressions.attribute(count.field()).id(), equalTo(aggsByTsid.aggregates().get(0).id()));
-        assertThat(finalAgg.groupings(), hasSize(1));
+        assertThat(finalAgg.groupings(), hasSize(3));
         assertThat(Expressions.attribute(finalAgg.groupings().get(0)).id(), equalTo(aggsByTsid.aggregates().get(1).id()));
 
         assertThat(aggsByTsid.aggregateType(), equalTo(Aggregate.AggregateType.METRICS));
-        assertThat(aggsByTsid.aggregates(), hasSize(2)); // _tsid is dropped
+        assertThat(aggsByTsid.aggregates(), hasSize(4)); // rate, values(pod), values(cluster), bucket
         Rate rate = as(Alias.unwrap(aggsByTsid.aggregates().get(0)), Rate.class);
         assertThat(Expressions.attribute(rate.field()).name(), equalTo("network.total_bytes_in"));
-        Values values = as(Alias.unwrap(aggsByTsid.aggregates().get(1)), Values.class);
-        assertThat(Expressions.attribute(values.field()).name(), equalTo("cluster"));
+        Values podValues = as(Alias.unwrap(aggsByTsid.aggregates().get(1)), Values.class);
+        assertThat(Expressions.attribute(podValues.field()).name(), equalTo("pod"));
+        Values clusterValues = as(Alias.unwrap(aggsByTsid.aggregates().get(3)), Values.class);
+        assertThat(Expressions.attribute(clusterValues.field()).name(), equalTo("cluster"));
     }
 
     public void testAdjustMetricsRateBeforeFinalAgg() {

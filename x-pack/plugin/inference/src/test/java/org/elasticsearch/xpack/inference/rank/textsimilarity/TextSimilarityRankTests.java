@@ -193,5 +193,4 @@ public class TextSimilarityRankTests extends ESSingleNodeTestCase {
         );
     }
 
-
 }

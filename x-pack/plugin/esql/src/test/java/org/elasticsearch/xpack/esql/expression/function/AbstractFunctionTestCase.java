@@ -196,6 +196,9 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         return new Page(1, BlockUtils.fromListRow(TestBlockFactory.getNonBreakingInstance(), values));
     }
 
+    /**
+     * Creates a page based on a list of lists, where each list represents a column.
+     */
     protected final Page rows(List<List<Object>> values) {
         if (values.isEmpty()) {
             return new Page(0, BlockUtils.NO_BLOCKS);

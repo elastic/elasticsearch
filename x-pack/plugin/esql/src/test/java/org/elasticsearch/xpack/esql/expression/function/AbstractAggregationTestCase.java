@@ -15,6 +15,8 @@ import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.optimizer.FoldNull;
@@ -22,6 +24,7 @@ import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.planner.ToAggregator;
 
 import java.util.List;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -48,12 +51,49 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
     }
 
     public void testAggregate() {
-        var aggregatorFunctionSupplier = resolveAggregatorFunctionSupplier();
+        Expression expression = randomBoolean() ? buildDeepCopyOfFieldExpression(testCase) : buildFieldExpression(testCase);
 
-        if (aggregatorFunctionSupplier == null) {
-            return;
-        }
+        resolveExpression(expression, this::aggregateSingleMode, this::evaluate);
+    }
 
+    public void testAggregateNoInput() {
+        Expression expression = randomBoolean() ? buildDeepCopyOfFieldExpression(testCase) : buildFieldExpression(testCase);
+
+        resolveExpression(expression, aggregatorFunctionSupplier -> {
+            Object result;
+            try (var aggregator = new Aggregator(aggregatorFunctionSupplier.aggregator(driverContext()), AggregatorMode.SINGLE)) {
+                result = extractResultFromAggregator(aggregator, ElementType.NULL);
+            }
+
+            assertThat(result, nullValue());
+        }, this::evaluate);
+    }
+
+    public void testFold() {
+        Expression expression = buildLiteralExpression(testCase);
+
+        resolveExpression(expression, aggregatorFunctionSupplier -> {
+            // An aggregation cannot be folded
+        }, evaluableExpression -> {
+            assertTrue(evaluableExpression.foldable());
+            if (testCase.foldingExceptionClass() == null) {
+                Object result = evaluableExpression.fold();
+                // Decode unsigned longs into BigIntegers
+                if (testCase.expectedType() == DataType.UNSIGNED_LONG && result != null) {
+                    result = NumericUtils.unsignedLongAsBigInteger((Long) result);
+                }
+                assertThat(result, testCase.getMatcher());
+                if (testCase.getExpectedWarnings() != null) {
+                    assertWarnings(testCase.getExpectedWarnings());
+                }
+            } else {
+                Throwable t = expectThrows(testCase.foldingExceptionClass(), evaluableExpression::fold);
+                assertThat(t.getMessage(), equalTo(testCase.foldingExceptionMessage()));
+            }
+        });
+    }
+
+    private void aggregateSingleMode(AggregatorFunctionSupplier aggregatorFunctionSupplier) {
         Object result;
         try (var aggregator = new Aggregator(aggregatorFunctionSupplier.aggregator(driverContext()), AggregatorMode.SINGLE)) {
             Page inputPage = rows(testCase.getMultiRowDataValues());
@@ -67,8 +107,24 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
             result = extractResultFromAggregator(aggregator, PlannerUtils.toElementType(testCase.expectedType()));
         }
 
-        // TODO: Tests for grouping aggregators
-        // TODO: Tests for different AggregatorModes
+        assertThat(result, not(equalTo(Double.NaN)));
+        assert testCase.getMatcher().matches(Double.POSITIVE_INFINITY) == false;
+        assertThat(result, not(equalTo(Double.POSITIVE_INFINITY)));
+        assert testCase.getMatcher().matches(Double.NEGATIVE_INFINITY) == false;
+        assertThat(result, not(equalTo(Double.NEGATIVE_INFINITY)));
+        assertThat(result, testCase.getMatcher());
+        if (testCase.getExpectedWarnings() != null) {
+            assertWarnings(testCase.getExpectedWarnings());
+        }
+    }
+
+    private void evaluate(Expression evaluableExpression) {
+        Object result;
+        try (var evaluator = evaluator(evaluableExpression).get(driverContext())) {
+            try (Block block = evaluator.eval(row(testCase.getDataValues()))) {
+                result = toJavaObjectUnsignedLongAware(block, 0);
+            }
+        }
 
         assertThat(result, not(equalTo(Double.NaN)));
         assert testCase.getMatcher().matches(Double.POSITIVE_INFINITY) == false;
@@ -81,45 +137,38 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
         }
     }
 
-    public void testAggregateNoInput() {
-        var aggregatorFunctionSupplier = resolveAggregatorFunctionSupplier();
-
-        if (aggregatorFunctionSupplier == null) {
-            return;
-        }
-
-        Object result;
-        try (var aggregator = new Aggregator(aggregatorFunctionSupplier.aggregator(driverContext()), AggregatorMode.SINGLE)) {
-            result = extractResultFromAggregator(aggregator, ElementType.NULL);
-        }
-
-        assertThat(result, nullValue());
-    }
-
-    private AggregatorFunctionSupplier resolveAggregatorFunctionSupplier() {
+    private void resolveExpression(
+        Expression expression,
+        Consumer<AggregatorFunctionSupplier> onAggregator,
+        Consumer<Expression> onEvaluableExpression
+    ) {
         logger.info(
             "Test Values: " + testCase.getData().stream().map(TestCaseSupplier.TypedData::toString).collect(Collectors.joining(","))
         );
-        boolean readFloating = randomBoolean();
-        Expression expression = resolveSurrogates(readFloating ? buildDeepCopyOfFieldExpression(testCase) : buildFieldExpression(testCase));
         if (testCase.getExpectedTypeError() != null) {
             assertTypeResolutionFailure(expression);
-            return null;
+            return;
         }
-        assertThat(expression, instanceOf(AggregateFunction.class));
-        assertThat(expression, instanceOf(ToAggregator.class));
+        expression = resolveSurrogates(expression);
+
         Expression.TypeResolution resolution = expression.typeResolved();
         if (resolution.unresolved()) {
             throw new AssertionError("expected resolved " + resolution.message());
         }
+
         expression = new FoldNull().rule(expression);
         assertThat(expression.dataType(), equalTo(testCase.expectedType()));
-        logger.info("Result type: " + expression.dataType());
+
+        if (expression instanceof AggregateFunction == false) {
+            onEvaluableExpression.accept(expression);
+            return;
+        }
 
         assertThat(expression, instanceOf(ToAggregator.class));
+        logger.info("Result type: " + expression.dataType());
 
         var inputChannels = inputChannels();
-        return ((ToAggregator) expression).supplier(inputChannels);
+        onAggregator.accept(((ToAggregator) expression).supplier(inputChannels));
     }
 
     private Object extractResultFromAggregator(Aggregator aggregator, ElementType expectedElementType) {
@@ -141,15 +190,15 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
 
     private List<Integer> inputChannels() {
         // TODO: Randomize channels
+        // TODO: If surrogated, channels may change
         return IntStream.range(0, testCase.getMultiRowDataValues().size()).boxed().toList();
     }
 
     /**
      * Resolves surrogates of aggregations until a non-surrogate expression is found.
-     * <ul>
-     *   <li>No-op on non-aggregations, as they don't support surrogates</li>
-     *   <li>No-op if expecting errors, as surrogates depend on correct types</li>
-     * </ul>
+     * <p>
+     *     No-op if expecting errors, as surrogates depend on correct types
+     * </p>
      */
     private Expression resolveSurrogates(Expression expression) {
         if (testCase.getExpectedTypeError() != null) {

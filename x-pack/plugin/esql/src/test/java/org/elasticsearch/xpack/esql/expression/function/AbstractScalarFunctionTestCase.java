@@ -22,16 +22,13 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.indices.CrankyCircuitBreakerService;
 import org.elasticsearch.xpack.esql.TestBlockFactory;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.NumericUtils;
-import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Greatest;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.AbstractMultivalueFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
 import org.elasticsearch.xpack.esql.optimizer.FoldNull;
-import org.elasticsearch.xpack.esql.planner.Layout;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.hamcrest.Matcher;
@@ -82,24 +79,6 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
         return parameterSuppliersFromTypedData(
             errorsForCasesWithoutExamples(anyNullIsNull(entirelyNullPreservesType, randomizeBytesRefsOffset(suppliers)))
         );
-    }
-
-    /**
-     * Convert an {@link Expression} tree into a {@link ExpressionEvaluator.Factory}
-     * for {@link ExpressionEvaluator}s in the same way as our planner.
-     */
-    public static ExpressionEvaluator.Factory evaluator(Expression e) {
-        e = new FoldNull().rule(e);
-        if (e.foldable()) {
-            e = new Literal(e.source(), e.fold(), e.dataType());
-        }
-        Layout.Builder builder = new Layout.Builder();
-        buildLayout(builder, e);
-        Expression.TypeResolution resolution = e.typeResolved();
-        if (resolution.unresolved()) {
-            throw new AssertionError("expected resolved " + resolution.message());
-        }
-        return EvalMapper.toEvaluator(e, builder.build());
     }
 
     public final void testEvaluate() {

@@ -11,9 +11,10 @@ import com.google.auth.oauth2.GoogleCredentials;
 import com.google.auth.oauth2.ServiceAccountCredentials;
 
 import org.apache.http.client.methods.HttpPost;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.SpecialPermission;
-import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.inference.external.request.Request;
 import org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVertexAiSecretSettings;
 
@@ -42,9 +43,7 @@ public interface GoogleVertexAiRequest extends Request {
                 return null;
             });
         } catch (Exception e) {
-            ValidationException validationException = new ValidationException(e);
-            validationException.addValidationError(e.getMessage());
-            throw validationException;
+            throw new ElasticsearchStatusException(e.getMessage(), RestStatus.FORBIDDEN, e);
         }
     }
 }

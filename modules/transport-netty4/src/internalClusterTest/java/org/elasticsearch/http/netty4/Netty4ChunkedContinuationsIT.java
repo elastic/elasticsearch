@@ -72,6 +72,7 @@ import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.MockLog;
+import org.elasticsearch.test.ReachabilityChecker;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.LeakTracker;
@@ -316,15 +317,16 @@ public class Netty4ChunkedContinuationsIT extends ESNetty4IntegTestCase {
 
     private static Releasable withResourceTracker() {
         assertNull(refs);
+        final ReachabilityChecker reachabilityChecker = new ReachabilityChecker();
         final var latch = new CountDownLatch(1);
-        refs = LeakTracker.wrap(AbstractRefCounted.of(latch::countDown));
+        refs = LeakTracker.wrap(reachabilityChecker.register(AbstractRefCounted.of(latch::countDown)));
         return () -> {
             refs.decRef();
             try {
                 safeAwait(latch);
             } finally {
                 refs = null;
-                System.gc();
+                reachabilityChecker.ensureUnreachable();
             }
         };
     }

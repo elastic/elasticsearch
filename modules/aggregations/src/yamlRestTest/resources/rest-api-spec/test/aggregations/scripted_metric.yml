@@ -24,14 +24,6 @@ setup:
           - { transaction: "cost", amount: 30 }
           - { index: { } }
           - { transaction: "sale", amount: 130 }
-  - do:
-      cluster.put_settings:
-        body: >
-          {
-            "persistent": {
-              "search.aggs.only_allowed_metric_scripts": false
-            }
-          }
 
 
 ---

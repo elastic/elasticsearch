@@ -42,7 +42,8 @@ public abstract class AggregateFunction extends Function {
             SpatialCentroid.ENTRY,
             Sum.ENTRY,
             TopList.ENTRY,
-            Values.ENTRY
+            Values.ENTRY,
+            Rate.ENTRY
         );
     }
 

@@ -291,7 +291,6 @@ public class InternalHistogram extends InternalMultiBucketAggregation<InternalHi
     }
 
     private List<Bucket> reduceBuckets(PriorityQueue<IteratorAndCurrent<Bucket>> pq, AggregationReduceContext reduceContext) {
-        int consumeBucketCount = 0;
         List<Bucket> reducedBuckets = new ArrayList<>();
         if (pq.size() > 0) {
             // list of buckets coming from different shards that have the same key
@@ -306,11 +305,8 @@ public class InternalHistogram extends InternalMultiBucketAggregation<InternalHi
                     // Using Double.compare instead of != to handle NaN correctly.
                     final Bucket reduced = reduceBucket(currentBuckets, reduceContext);
                     if (reduced.getDocCount() >= minDocCount || reduceContext.isFinalReduce() == false) {
+                        reduceContext.consumeBucketsAndMaybeBreak(1);
                         reducedBuckets.add(reduced);
-                        if (consumeBucketCount++ >= REPORT_EMPTY_EVERY) {
-                            reduceContext.consumeBucketsAndMaybeBreak(consumeBucketCount);
-                            consumeBucketCount = 0;
-                        }
                     }
                     currentBuckets.clear();
                     key = top.current().key;
@@ -330,16 +326,11 @@ public class InternalHistogram extends InternalMultiBucketAggregation<InternalHi
             if (currentBuckets.isEmpty() == false) {
                 final Bucket reduced = reduceBucket(currentBuckets, reduceContext);
                 if (reduced.getDocCount() >= minDocCount || reduceContext.isFinalReduce() == false) {
+                    reduceContext.consumeBucketsAndMaybeBreak(1);
                     reducedBuckets.add(reduced);
-                    if (consumeBucketCount++ >= REPORT_EMPTY_EVERY) {
-                        reduceContext.consumeBucketsAndMaybeBreak(consumeBucketCount);
-                        consumeBucketCount = 0;
-                    }
                 }
             }
         }
-
-        reduceContext.consumeBucketsAndMaybeBreak(consumeBucketCount);
         return reducedBuckets;
     }
 

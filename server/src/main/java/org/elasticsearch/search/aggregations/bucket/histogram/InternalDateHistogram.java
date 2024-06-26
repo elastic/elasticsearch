@@ -327,7 +327,6 @@ public final class InternalDateHistogram extends InternalMultiBucketAggregation<
     }
 
     private List<Bucket> reduceBuckets(final PriorityQueue<IteratorAndCurrent<Bucket>> pq, AggregationReduceContext reduceContext) {
-        int consumeBucketCount = 0;
         List<Bucket> reducedBuckets = new ArrayList<>();
         if (pq.size() > 0) {
             // list of buckets coming from different shards that have the same key
@@ -341,10 +340,7 @@ public final class InternalDateHistogram extends InternalMultiBucketAggregation<
                     // the key changes, reduce what we already buffered and reset the buffer for current buckets
                     final Bucket reduced = reduceBucket(currentBuckets, reduceContext);
                     if (reduced.getDocCount() >= minDocCount || reduceContext.isFinalReduce() == false) {
-                        if (consumeBucketCount++ >= REPORT_EMPTY_EVERY) {
-                            reduceContext.consumeBucketsAndMaybeBreak(consumeBucketCount);
-                            consumeBucketCount = 0;
-                        }
+                        reduceContext.consumeBucketsAndMaybeBreak(1);
                         reducedBuckets.add(reduced);
                     }
                     currentBuckets.clear();
@@ -365,15 +361,11 @@ public final class InternalDateHistogram extends InternalMultiBucketAggregation<
             if (currentBuckets.isEmpty() == false) {
                 final Bucket reduced = reduceBucket(currentBuckets, reduceContext);
                 if (reduced.getDocCount() >= minDocCount || reduceContext.isFinalReduce() == false) {
+                    reduceContext.consumeBucketsAndMaybeBreak(1);
                     reducedBuckets.add(reduced);
-                    if (consumeBucketCount++ >= REPORT_EMPTY_EVERY) {
-                        reduceContext.consumeBucketsAndMaybeBreak(consumeBucketCount);
-                        consumeBucketCount = 0;
-                    }
                 }
             }
         }
-        reduceContext.consumeBucketsAndMaybeBreak(consumeBucketCount);
         return reducedBuckets;
     }
 

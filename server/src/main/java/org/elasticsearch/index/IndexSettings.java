@@ -296,9 +296,14 @@ public final class IndexSettings {
     static class RefreshIntervalValidator implements Setting.Validator<TimeValue> {
 
         static final String STATELESS_ALLOW_INDEX_REFRESH_INTERVAL_OVERRIDE = "es.stateless.allow.index.refresh_interval.override";
-        // conditional flag to facilitate property check in unit testing
-        private static boolean INIT_OVERRIDE_CHECK;
-        private static volatile boolean ALLOW_OVERRIDE;
+        private static class AllowOverrideLazyHolder {
+            private static final boolean ALLOW_OVERRIDE = Boolean.parseBoolean(
+                System.getProperty(STATELESS_ALLOW_INDEX_REFRESH_INTERVAL_OVERRIDE, "false")
+            );
+        }
+        private static boolean isOverrideAllowed() {
+            return AllowOverrideLazyHolder.ALLOW_OVERRIDE;
+        }
 
         @Override
         public void validate(TimeValue value) {}
@@ -309,21 +314,13 @@ public final class IndexSettings {
             final Boolean fastRefresh = (Boolean) settings.get(INDEX_FAST_REFRESH_SETTING);
             final IndexVersion indexVersion = (IndexVersion) settings.get(SETTING_INDEX_VERSION_CREATED);
 
-            if (INIT_OVERRIDE_CHECK == false) {
-                synchronized (RefreshIntervalValidator.class) {
-                    INIT_OVERRIDE_CHECK = true;
-                    ALLOW_OVERRIDE = Boolean.parseBoolean(System.getProperty(STATELESS_ALLOW_INDEX_REFRESH_INTERVAL_OVERRIDE, "false"));
-                }
-            }
-
             if (existingShardsAllocator.equals("stateless")
                 && fastRefresh == false
                 && value.compareTo(TimeValue.ZERO) > 0
                 && value.compareTo(STATELESS_MIN_NON_FAST_REFRESH_INTERVAL) < 0
                 && indexVersion.after(IndexVersions.V_8_10_0)) {
 
-                // ALLOW_OVERRIDE=true lets `index.refresh_interval` setting be in a range (0 .. `STATELESS_MIN_NON_FAST_REFRESH_INTERVAL`)
-                if (ALLOW_OVERRIDE == false) {
+                if (isOverrideAllowed() == false) {
                     throw new IllegalArgumentException(
                         "index setting ["
                             + IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey()

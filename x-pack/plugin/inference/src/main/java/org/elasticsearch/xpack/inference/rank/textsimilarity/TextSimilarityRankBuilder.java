@@ -48,7 +48,7 @@ public class TextSimilarityRankBuilder extends RankBuilder {
     public static final LicensedFeature.Momentary TEXT_SIMILARITY_RERANKER_FEATURE = LicensedFeature.momentary(
         null,
         "text-similarity-reranker",
-        License.OperationMode.PLATINUM
+        License.OperationMode.ENTERPRISE
     );
 
     static final ConstructingObjectParser<TextSimilarityRankBuilder, Void> PARSER = new ConstructingObjectParser<>(NAME, args -> {

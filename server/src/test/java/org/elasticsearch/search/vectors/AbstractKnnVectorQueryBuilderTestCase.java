@@ -122,7 +122,7 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
         Query filterQuery = booleanQuery.clauses().isEmpty() ? null : booleanQuery;
         // The field should always be resolved to the concrete field
         Query knnVectorQueryBuilt = switch (elementType()) {
-            case BYTE -> new ESKnnByteVectorQuery(
+            case BYTE, BIT -> new ESKnnByteVectorQuery(
                 VECTOR_FIELD,
                 queryBuilder.queryVector().asByteVector(),
                 queryBuilder.numCands(),
@@ -145,7 +145,10 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
         SearchExecutionContext context = createSearchExecutionContext();
         KnnVectorQueryBuilder query = new KnnVectorQueryBuilder(VECTOR_FIELD, new float[] { 1.0f, 2.0f }, 10, null);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> query.doToQuery(context));
-        assertThat(e.getMessage(), containsString("the query vector has a different dimension [2] than the index vectors [3]"));
+        assertThat(
+            e.getMessage(),
+            containsString("The query vector has a different number of dimensions [2] than the document vectors [3]")
+        );
     }
 
     public void testNonexistentField() {

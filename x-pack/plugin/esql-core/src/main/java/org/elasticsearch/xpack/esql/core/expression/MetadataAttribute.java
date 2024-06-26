@@ -26,6 +26,9 @@ import java.util.Objects;
 import static org.elasticsearch.core.Tuple.tuple;
 
 public class MetadataAttribute extends TypedAttribute {
+    public static final String TIMESTAMP_FIELD = "@timestamp";
+    public static final String TSID_FIELD = "_tsid";
+
     static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Attribute.class,
         "MetadataAttribute",

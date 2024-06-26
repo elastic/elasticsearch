@@ -40,36 +40,16 @@ public class TextSimilarityRankRetrieverBuilder extends RetrieverBuilder {
     );
 
     static {
-        PARSER.declareObject((r, v) -> r.retrieverBuilder = v, (p, c) -> {
-            RetrieverBuilder retrieverBuilder = RetrieverBuilder.parseInnerRetrieverBuilder(p, c);
-            c.trackSectionUsage(TextSimilarityRankBuilder.NAME + ":" + RETRIEVER_FIELD.getPreferredName());
-            return retrieverBuilder;
-        }, RETRIEVER_FIELD);
-
-        PARSER.declareField((r, v) -> r.field = v, (p, c) -> {
-            String field = p.text();
-            c.trackSectionUsage(TextSimilarityRankBuilder.NAME + ":" + FIELD_FIELD.getPreferredName());
-            return field;
-        }, FIELD_FIELD, ObjectParser.ValueType.STRING);
-
-        PARSER.declareField((r, v) -> r.rankWindowSize = v, (p, c) -> {
-            int rankWindowSize = p.intValue();
-            c.trackSectionUsage(TextSimilarityRankBuilder.NAME + ":" + RANK_WINDOW_SIZE_FIELD.getPreferredName());
-            return rankWindowSize;
-        }, RANK_WINDOW_SIZE_FIELD, ObjectParser.ValueType.INT_OR_NULL);
-
-        PARSER.declareField((r, v) -> r.inferenceId = v, (p, c) -> {
-            String inferenceId = p.text();
-            c.trackSectionUsage(TextSimilarityRankBuilder.NAME + ":" + INFERENCE_ID_FIELD.getPreferredName());
-            return inferenceId;
-        }, INFERENCE_ID_FIELD, ObjectParser.ValueType.STRING);
-
-        PARSER.declareField((r, v) -> r.inferenceText = v, (p, c) -> {
-            String inferenceText = p.text();
-            c.trackSectionUsage(TextSimilarityRankBuilder.NAME + ":" + INFERENCE_TEXT_FIELD.getPreferredName());
-            return inferenceText;
-        }, INFERENCE_TEXT_FIELD, ObjectParser.ValueType.STRING);
-
+        PARSER.declareObject((r, v) -> r.retrieverBuilder = v, RetrieverBuilder::parseInnerRetrieverBuilder, RETRIEVER_FIELD);
+        PARSER.declareField((r, v) -> r.field = v, (p, c) -> p.text(), FIELD_FIELD, ObjectParser.ValueType.STRING);
+        PARSER.declareField(
+            (r, v) -> r.rankWindowSize = v,
+            (p, c) -> p.intValue(),
+            RANK_WINDOW_SIZE_FIELD,
+            ObjectParser.ValueType.INT_OR_NULL
+        );
+        PARSER.declareField((r, v) -> r.inferenceId = v, (p, c) -> p.text(), INFERENCE_ID_FIELD, ObjectParser.ValueType.STRING);
+        PARSER.declareField((r, v) -> r.inferenceText = v, (p, c) -> p.text(), INFERENCE_TEXT_FIELD, ObjectParser.ValueType.STRING);
         PARSER.declareField((r, v) -> r.minScore = v, (p, c) -> {
             float minScore = p.floatValue();
             c.trackSectionUsage(TextSimilarityRankBuilder.NAME + ":" + MIN_SCORE_FIELD.getPreferredName());

@@ -2519,7 +2519,8 @@ public class AuthenticationServiceTests extends ESTestCase {
             indexStatus,
             IndexMetadata.State.OPEN,
             "my_uuid",
-            Set.of()
+            Set.of(),
+            null
         );
     }
 

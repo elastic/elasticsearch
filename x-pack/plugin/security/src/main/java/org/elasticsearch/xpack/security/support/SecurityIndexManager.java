@@ -38,6 +38,7 @@ import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.rest.RestStatus;
@@ -55,6 +56,7 @@ import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_FORMAT_SETTING;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_INDEX_VERSION_CREATED;
 import static org.elasticsearch.indices.SystemIndexDescriptor.VERSION_META_KEY;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 import static org.elasticsearch.xpack.core.security.action.UpdateIndexMigrationVersionAction.MIGRATION_VERSION_CUSTOM_DATA_KEY;
@@ -254,6 +256,9 @@ public class SecurityIndexManager implements ClusterStateListener {
         }
         final State previousState = state;
         final IndexMetadata indexMetadata = resolveConcreteIndex(systemIndexDescriptor.getAliasName(), event.state().metadata());
+        final IndexVersion indexVersionCreated = indexMetadata != null
+            ? SETTING_INDEX_VERSION_CREATED.get(indexMetadata.getSettings())
+            : null;
         final Instant creationTime = indexMetadata != null ? Instant.ofEpochMilli(indexMetadata.getCreationDate()) : null;
         final boolean isIndexUpToDate = indexMetadata == null
             || INDEX_FORMAT_SETTING.get(indexMetadata.getSettings()) == systemIndexDescriptor.getIndexFormat();
@@ -298,7 +303,8 @@ public class SecurityIndexManager implements ClusterStateListener {
             indexUUID,
             allSecurityFeatures.stream()
                 .filter(feature -> featureService.clusterHasFeature(event.state(), feature))
-                .collect(Collectors.toSet())
+                .collect(Collectors.toSet()),
+            indexVersionCreated
         );
         this.state = newState;
 
@@ -603,7 +609,8 @@ public class SecurityIndexManager implements ClusterStateListener {
             null,
             null,
             null,
-            Set.of()
+            Set.of(),
+            null
         );
         public final Instant creationTime;
         public final boolean isIndexUpToDate;
@@ -620,6 +627,7 @@ public class SecurityIndexManager implements ClusterStateListener {
         public final IndexMetadata.State indexState;
         public final String indexUUID;
         public final Set<NodeFeature> securityFeatures;
+        public final IndexVersion indexVersionCreated;
 
         public State(
             Instant creationTime,
@@ -634,7 +642,8 @@ public class SecurityIndexManager implements ClusterStateListener {
             ClusterHealthStatus indexHealth,
             IndexMetadata.State indexState,
             String indexUUID,
-            Set<NodeFeature> securityFeatures
+            Set<NodeFeature> securityFeatures,
+            IndexVersion indexVersionCreated
         ) {
             this.creationTime = creationTime;
             this.isIndexUpToDate = isIndexUpToDate;
@@ -649,6 +658,7 @@ public class SecurityIndexManager implements ClusterStateListener {
             this.indexState = indexState;
             this.indexUUID = indexUUID;
             this.securityFeatures = securityFeatures;
+            this.indexVersionCreated = indexVersionCreated;
         }
 
         @Override

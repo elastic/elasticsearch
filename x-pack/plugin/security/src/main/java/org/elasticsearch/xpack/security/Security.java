@@ -70,6 +70,7 @@ import org.elasticsearch.http.netty4.Netty4HttpServerTransport;
 import org.elasticsearch.http.netty4.internal.HttpHeadersAuthenticatorUtils;
 import org.elasticsearch.http.netty4.internal.HttpValidator;
 import org.elasticsearch.index.IndexModule;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.ingest.Processor;
@@ -451,7 +452,6 @@ import static org.elasticsearch.xpack.core.XPackSettings.HTTP_SSL_ENABLED;
 import static org.elasticsearch.xpack.core.security.SecurityField.FIELD_LEVEL_SECURITY_FEATURE;
 import static org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore.INCLUDED_RESERVED_ROLES_SETTING;
 import static org.elasticsearch.xpack.security.operator.OperatorPrivileges.OPERATOR_PRIVILEGES_ENABLED;
-import static org.elasticsearch.xpack.security.support.SecurityIndexManager.State.UNRECOVERED_STATE;
 import static org.elasticsearch.xpack.security.transport.SSLEngineUtils.extractClientCertificates;
 
 public class Security extends Plugin
@@ -791,7 +791,7 @@ public class Security extends Plugin
         systemIndices.getMainIndexManager().addStateListener((oldState, newState) -> {
             // Only consider applying migrations if it's the master node and the security index exists
             if (clusterService.state().nodes().isLocalNodeElectedMaster() && newState.indexExists()) {
-                applyPendingSecurityMigrations(oldState, newState);
+                applyPendingSecurityMigrations(newState, clusterService.state().nodes().getMaxDataNodeCompatibleIndexVersion());
             }
         });
 
@@ -1204,16 +1204,18 @@ public class Security extends Plugin
         return components;
     }
 
-    private boolean newIndexCreated(SecurityIndexManager.State oldState, SecurityIndexManager.State newState) {
-        // If we went from an old state where the index didn't exist to a state where the index exists and the old state was recovered
-        // (valid), we can assume it's a newly created index. If the old state was not recovered and the index exists in the new state we
-        // can assume the recovered state contained the index, so it's not new.
-        return newState.indexExists() && oldState != UNRECOVERED_STATE && oldState.indexExists() == false;
+    private boolean isMigrationNeededForIndexVersion(
+        IndexVersion currentSecurityIndexVersion,
+        IndexVersion maxDataNodeCompatibleIndexVersion
+    ) {
+        // If the index was created on the current cluster max index version, it's considered a new index that doesn't need migrations
+        return currentSecurityIndexVersion.onOrAfter(IndexVersion.min(IndexVersion.current(), maxDataNodeCompatibleIndexVersion));
     }
 
-    private void applyPendingSecurityMigrations(SecurityIndexManager.State oldState, SecurityIndexManager.State newState) {
-        if (newIndexCreated(oldState, newState)) {
-            // Bypass migrations for when the security index is new
+    private void applyPendingSecurityMigrations(SecurityIndexManager.State newState, IndexVersion maxDataNodeCompatibleIndexVersion) {
+        // If no migrations have been applied yet and the security index is on the latest index version, all migrations can be skipped
+        if (newState.migrationsVersion == 0
+            && isMigrationNeededForIndexVersion(newState.indexVersionCreated, maxDataNodeCompatibleIndexVersion)) {
             submitPersistentMigrationTask(SecurityMigrations.MIGRATIONS_BY_VERSION.lastKey(), false);
             return;
         }

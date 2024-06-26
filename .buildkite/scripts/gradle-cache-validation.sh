@@ -40,7 +40,7 @@ done <<< "$perfOutput"
 summaryHtml+="</ul>"
 
 # generate html for links
-summaryHtml="<h2>Investigation Links</h2>"
+summaryHtml+="<h2>Investigation Links</h2>"
 summaryHtml+="<ul>"
 
 # Process each line of the string

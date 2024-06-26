@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.ml.inference.adapitiveallocations;
+package org.elasticsearch.xpack.ml.inference.adaptiveallocations;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;

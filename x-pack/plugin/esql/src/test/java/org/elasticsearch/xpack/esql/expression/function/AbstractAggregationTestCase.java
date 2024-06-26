@@ -33,7 +33,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.not;
-import static org.hamcrest.Matchers.nullValue;
 
 /**
  * Base class for aggregation tests.
@@ -47,6 +46,7 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
      * </p>
      */
     protected static Iterable<Object[]> parameterSuppliersFromTypedDataWithDefaultChecks(List<TestCaseSupplier> suppliers) {
+        // TODO: Add case with no input expecting null
         return parameterSuppliersFromTypedData(randomizeBytesRefsOffset(suppliers));
     }
 
@@ -54,19 +54,6 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
         Expression expression = randomBoolean() ? buildDeepCopyOfFieldExpression(testCase) : buildFieldExpression(testCase);
 
         resolveExpression(expression, this::aggregateSingleMode, this::evaluate);
-    }
-
-    public void testAggregateNoInput() {
-        Expression expression = randomBoolean() ? buildDeepCopyOfFieldExpression(testCase) : buildFieldExpression(testCase);
-
-        resolveExpression(expression, aggregatorFunctionSupplier -> {
-            Object result;
-            try (var aggregator = new Aggregator(aggregatorFunctionSupplier.aggregator(driverContext()), AggregatorMode.SINGLE)) {
-                result = extractResultFromAggregator(aggregator, ElementType.NULL);
-            }
-
-            assertThat(result, nullValue());
-        }, this::evaluate);
     }
 
     public void testFold() {
@@ -220,21 +207,6 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
 
             expression = surrogate;
         }
-
-        return expression;
-    }
-
-    // TODO: vvvvv Reorganize/Inline/Rename vvvvv
-
-    /**
-     * Build an {@link Expression} where all inputs are field references,
-     * <strong>except</strong> those that have been marked with {@link TestCaseSupplier.TypedData#forceLiteral()}.
-     * <p>Test is ignored if the expression is an aggregation.</p>
-     */
-    protected final Expression buildFieldEvaluableExpression(TestCaseSupplier.TestCase testCase) {
-        var expression = resolveSurrogates(buildFieldExpression(testCase));
-
-        assumeFalse("Resolved expression is not an evaluable function", expression instanceof AggregateFunction);
 
         return expression;
     }

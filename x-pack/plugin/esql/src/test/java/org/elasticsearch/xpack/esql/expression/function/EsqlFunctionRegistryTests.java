@@ -24,7 +24,6 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.tree.SourceTests;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlConfigurationFunction;
-import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
 
 import java.util.Arrays;
 import java.util.List;

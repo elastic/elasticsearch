@@ -50,7 +50,7 @@ public class JvmCrashIT extends ESRestTestCase {
 
     @BeforeClass
     public static void dontRunWindows() {
-        assumeFalse("Stdout redirects don't work on windows", OS.current() == OS.WINDOWS);
+        assumeFalse("JVM crash log doesn't go to stdout on windows", OS.current() == OS.WINDOWS);
     }
 
     private static class StdOutCatchingClusterBuilder extends AbstractLocalClusterSpecBuilder<ElasticsearchCluster> {

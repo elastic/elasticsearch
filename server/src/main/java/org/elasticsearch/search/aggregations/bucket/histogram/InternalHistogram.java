@@ -304,10 +304,7 @@ public class InternalHistogram extends InternalMultiBucketAggregation<InternalHi
                     // The key changes, reduce what we already buffered and reset the buffer for current buckets.
                     // Using Double.compare instead of != to handle NaN correctly.
                     final Bucket reduced = reduceBucket(currentBuckets, reduceContext);
-                    if (reduced.getDocCount() >= minDocCount || reduceContext.isFinalReduce() == false) {
-                        reduceContext.consumeBucketsAndMaybeBreak(1);
-                        reducedBuckets.add(reduced);
-                    }
+                    maybeAddBucket(reduceContext, reducedBuckets, reduced);
                     currentBuckets.clear();
                     key = top.current().key;
                 }
@@ -325,13 +322,19 @@ public class InternalHistogram extends InternalMultiBucketAggregation<InternalHi
 
             if (currentBuckets.isEmpty() == false) {
                 final Bucket reduced = reduceBucket(currentBuckets, reduceContext);
-                if (reduced.getDocCount() >= minDocCount || reduceContext.isFinalReduce() == false) {
-                    reduceContext.consumeBucketsAndMaybeBreak(1);
-                    reducedBuckets.add(reduced);
-                }
+                maybeAddBucket(reduceContext, reducedBuckets, reduced);
             }
         }
         return reducedBuckets;
+    }
+
+    private void maybeAddBucket(AggregationReduceContext reduceContext, List<Bucket> reducedBuckets, Bucket reduced) {
+        if (reduced.getDocCount() >= minDocCount || reduceContext.isFinalReduce() == false) {
+            reduceContext.consumeBucketsAndMaybeBreak(1);
+            reducedBuckets.add(reduced);
+        } else {
+            reduceContext.consumeBucketsAndMaybeBreak(-countInnerBucket(reduced));
+        }
     }
 
     private Bucket reduceBucket(List<Bucket> buckets, AggregationReduceContext context) {

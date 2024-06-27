@@ -92,6 +92,12 @@ public class EsqlCapabilities {
         ST_DISTANCE,
 
         /**
+         * Fix to GROK and DISSECT that allows extracting attributes with the same name as the input
+         * https://github.com/elastic/elasticsearch/issues/110184
+         */
+        GROK_DISSECT_MASKING,
+
+        /**
          * Support for nanosecond dates as a data type
          */
         DATE_NANOS_TYPE;

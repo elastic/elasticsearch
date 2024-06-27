@@ -14,7 +14,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
+import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.FunctionName;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
@@ -25,7 +25,7 @@ import java.util.function.Supplier;
 import static org.hamcrest.Matchers.equalTo;
 
 @FunctionName("cidr_match")
-public class CIDRMatchTests extends AbstractFunctionTestCase {
+public class CIDRMatchTests extends AbstractScalarFunctionTestCase {
     public CIDRMatchTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }

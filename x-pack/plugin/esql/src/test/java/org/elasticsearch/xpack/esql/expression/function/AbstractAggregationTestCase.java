@@ -132,10 +132,21 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
         logger.info(
             "Test Values: " + testCase.getData().stream().map(TestCaseSupplier.TypedData::toString).collect(Collectors.joining(","))
         );
+
         if (testCase.getExpectedTypeError() != null) {
             assertTypeResolutionFailure(expression);
             return;
         }
+        if (testCase.getExpectedValidationFailures() != null) {
+            assertValidationFailures(expression);
+            return;
+        }
+
+        var failures = validate(expression);
+        if (failures.hasFailures()) {
+            throw new AssertionError("unexpected validation failures: " + failures);
+        }
+
         expression = resolveSurrogates(expression);
 
         Expression.TypeResolution resolution = expression.typeResolved();

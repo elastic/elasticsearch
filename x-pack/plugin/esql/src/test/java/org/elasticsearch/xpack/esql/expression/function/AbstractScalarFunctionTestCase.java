@@ -441,6 +441,7 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
                         null,
                         oc.getExpectedTypeError(),
                         null,
+                        null,
                         null
                     );
                 }));
@@ -463,6 +464,7 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
                                 nullValue(),
                                 null,
                                 oc.getExpectedTypeError(),
+                                null,
                                 null,
                                 null
                             );

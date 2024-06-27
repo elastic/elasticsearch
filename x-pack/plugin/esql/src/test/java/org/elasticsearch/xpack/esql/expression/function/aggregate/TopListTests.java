@@ -192,32 +192,32 @@ public class TopListTests extends AbstractAggregationTestCase {
                 )
             ),
 
-            // Resolution errors
+            // Validation errors
             new TestCaseSupplier(
                 List.of(DataType.LONG, DataType.INTEGER, DataType.KEYWORD),
-                () -> TestCaseSupplier.TestCase.typeError(
+                () -> TestCaseSupplier.TestCase.validationFailure(
                     List.of(
                         TestCaseSupplier.TypedData.multiRow(List.of(5L, 8L, 2L, 0L, 200L), DataType.LONG, "field"),
                         new TestCaseSupplier.TypedData(0, DataType.INTEGER, "limit").forceLiteral(),
                         new TestCaseSupplier.TypedData(new BytesRef("desc"), DataType.KEYWORD, "order").forceLiteral()
                     ),
-                    "Limit must be greater than 0 in [], found [0]"
+                    "second argument of [] must be greater than 0, received [limit]"
                 )
             ),
             new TestCaseSupplier(
                 List.of(DataType.LONG, DataType.INTEGER, DataType.KEYWORD),
-                () -> TestCaseSupplier.TestCase.typeError(
+                () -> TestCaseSupplier.TestCase.validationFailure(
                     List.of(
                         TestCaseSupplier.TypedData.multiRow(List.of(5L, 8L, 2L, 0L, 200L), DataType.LONG, "field"),
                         new TestCaseSupplier.TypedData(2, DataType.INTEGER, "limit").forceLiteral(),
                         new TestCaseSupplier.TypedData(new BytesRef("wrong-order"), DataType.KEYWORD, "order").forceLiteral()
                     ),
-                    "Invalid order value in [], expected [ASC, DESC] but got [wrong-order]"
+                    "third argument of [] must be either 'ASC' or 'DESC', received [order]"
                 )
             ),
             new TestCaseSupplier(
                 List.of(DataType.LONG, DataType.INTEGER, DataType.KEYWORD),
-                () -> TestCaseSupplier.TestCase.typeError(
+                () -> TestCaseSupplier.TestCase.validationFailure(
                     List.of(
                         TestCaseSupplier.TypedData.multiRow(List.of(5L, 8L, 2L, 0L, 200L), DataType.LONG, "field"),
                         new TestCaseSupplier.TypedData(null, DataType.INTEGER, "limit").forceLiteral(),
@@ -228,7 +228,7 @@ public class TopListTests extends AbstractAggregationTestCase {
             ),
             new TestCaseSupplier(
                 List.of(DataType.LONG, DataType.INTEGER, DataType.KEYWORD),
-                () -> TestCaseSupplier.TestCase.typeError(
+                () -> TestCaseSupplier.TestCase.validationFailure(
                     List.of(
                         TestCaseSupplier.TypedData.multiRow(List.of(5L, 8L, 2L, 0L, 200L), DataType.LONG, "field"),
                         new TestCaseSupplier.TypedData(1, DataType.INTEGER, "limit").forceLiteral(),

@@ -66,14 +66,20 @@ public final class Validations {
         var failure = isFoldable(e, operationName, paramOrd);
 
         if (failure == null) {
-            failure = validateFolded.apply(e.fold(), message -> Failure.fail(e, format(
-                null,
-                "{}argument of [{}] {}, received [{}]",
-                paramOrd == null || paramOrd == DEFAULT ? "" : paramOrd.name().toLowerCase(Locale.ROOT) + " ",
-                operationName,
-                message,
-                Expressions.name(e)
-            )));
+            failure = validateFolded.apply(
+                e.fold(),
+                message -> Failure.fail(
+                    e,
+                    format(
+                        null,
+                        "{}argument of [{}] {}, received [{}]",
+                        paramOrd == null || paramOrd == DEFAULT ? "" : paramOrd.name().toLowerCase(Locale.ROOT) + " ",
+                        operationName,
+                        message,
+                        Expressions.name(e)
+                    )
+                )
+            );
         }
 
         return failure;

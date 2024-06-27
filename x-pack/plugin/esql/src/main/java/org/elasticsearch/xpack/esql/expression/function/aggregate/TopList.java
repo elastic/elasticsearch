@@ -132,31 +132,29 @@ public class TopList extends AggregateFunction implements ToAggregator, Surrogat
 
     @Override
     public void validate(Failures failures) {
-        failures
-            .add(isFoldableAnd(limitField(), sourceText(), SECOND, (limitValue, formatFailure) -> {
-                if (limitValue == null) {
-                    return formatFailure.apply("cannot be null");
-                }
+        failures.add(isFoldableAnd(limitField(), sourceText(), SECOND, (limitValue, formatFailure) -> {
+            if (limitValue == null) {
+                return formatFailure.apply("cannot be null");
+            }
 
-                if ((int) limitValue <= 0) {
-                    return formatFailure.apply("must be greater than 0");
-                }
+            if ((int) limitValue <= 0) {
+                return formatFailure.apply("must be greater than 0");
+            }
 
-                return null;
-            }))
-            .add(isFoldableAnd(orderField(), sourceText(), THIRD, (orderValue, formatFailure) -> {
-                if (orderValue == null) {
-                    return formatFailure.apply("cannot be null");
-                }
+            return null;
+        })).add(isFoldableAnd(orderField(), sourceText(), THIRD, (orderValue, formatFailure) -> {
+            if (orderValue == null) {
+                return formatFailure.apply("cannot be null");
+            }
 
-                String order = BytesRefs.toString(orderValue);
+            String order = BytesRefs.toString(orderValue);
 
-                if (order.equalsIgnoreCase(ORDER_ASC) == false && order.equalsIgnoreCase(ORDER_DESC) == false) {
-                    return formatFailure.apply("must be either '" + ORDER_ASC + "' or '" + ORDER_DESC + "'");
-                }
+            if (order.equalsIgnoreCase(ORDER_ASC) == false && order.equalsIgnoreCase(ORDER_DESC) == false) {
+                return formatFailure.apply("must be either '" + ORDER_ASC + "' or '" + ORDER_DESC + "'");
+            }
 
-                return null;
-            }));
+            return null;
+        }));
     }
 
     @Override

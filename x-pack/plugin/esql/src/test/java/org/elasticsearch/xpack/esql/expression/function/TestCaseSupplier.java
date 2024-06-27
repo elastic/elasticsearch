@@ -1240,6 +1240,12 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         private final String expectedTypeError;
         private final boolean canBuildEvaluator;
 
+        /**
+         * Failures this test is expected to produce.
+         * Requires that the function implements {@link org.elasticsearch.xpack.esql.capabilities.Validatable}.
+         */
+        private final String[] expectedValidationFailures;
+
         private final Class<? extends Throwable> foldingExceptionClass;
         private final String foldingExceptionMessage;
 
@@ -1248,11 +1254,15 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         }
 
         public TestCase(List<TypedData> data, Matcher<String> evaluatorToString, DataType expectedType, Matcher<Object> matcher) {
-            this(data, evaluatorToString, expectedType, matcher, null, null, null, null);
+            this(data, evaluatorToString, expectedType, matcher, null, null, null, null, null);
         }
 
         public static TestCase typeError(List<TypedData> data, String expectedTypeError) {
-            return new TestCase(data, null, null, null, null, expectedTypeError, null, null);
+            return new TestCase(data, null, null, null, null, expectedTypeError, null, null, null);
+        }
+
+        public static TestCase validationFailure(List<TypedData> data, String... expectedValidationFailures) {
+            return new TestCase(data, null, null, null, null, null, expectedValidationFailures, null, null);
         }
 
         TestCase(
@@ -1262,6 +1272,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
             Matcher<Object> matcher,
             String[] expectedWarnings,
             String expectedTypeError,
+            String[] expectedValidationFailures,
             Class<? extends Throwable> foldingExceptionClass,
             String foldingExceptionMessage
         ) {
@@ -1272,6 +1283,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
             this.matcher = matcher;
             this.expectedWarnings = expectedWarnings;
             this.expectedTypeError = expectedTypeError;
+            this.expectedValidationFailures = expectedValidationFailures;
             this.canBuildEvaluator = data.stream().allMatch(d -> d.forceLiteral || EsqlDataTypes.isRepresentable(d.type));
             this.foldingExceptionClass = foldingExceptionClass;
             this.foldingExceptionMessage = foldingExceptionMessage;
@@ -1333,6 +1345,10 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
             return expectedTypeError;
         }
 
+        public String[] getExpectedValidationFailures() {
+            return expectedValidationFailures;
+        }
+
         public TestCase withWarning(String warning) {
             String[] newWarnings;
             if (expectedWarnings != null) {
@@ -1348,13 +1364,24 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
                 matcher,
                 newWarnings,
                 expectedTypeError,
+                expectedValidationFailures,
                 foldingExceptionClass,
                 foldingExceptionMessage
             );
         }
 
         public TestCase withFoldingException(Class<? extends Throwable> clazz, String message) {
-            return new TestCase(data, evaluatorToString, expectedType, matcher, expectedWarnings, expectedTypeError, clazz, message);
+            return new TestCase(
+                data,
+                evaluatorToString,
+                expectedType,
+                matcher,
+                expectedWarnings,
+                expectedTypeError,
+                expectedValidationFailures,
+                clazz,
+                message
+            );
         }
 
         public DataType expectedType() {

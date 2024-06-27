@@ -71,9 +71,15 @@ tests:
 - class: org.elasticsearch.xpack.transform.transforms.TransformIndexerTests
   method: testMaxPageSearchSizeIsResetToConfiguredValue
   issue: https://github.com/elastic/elasticsearch/issues/109844
-- class: "org.elasticsearch.test.jvm_crash.JvmCrashIT"
-  issue: "https://github.com/elastic/elasticsearch/issues/110052"
-  method: "testJvmCrash"
+- class: org.elasticsearch.index.store.FsDirectoryFactoryTests
+  method: testStoreDirectory
+  issue: https://github.com/elastic/elasticsearch/issues/110210
+- class: org.elasticsearch.index.store.FsDirectoryFactoryTests
+  method: testPreload
+  issue: https://github.com/elastic/elasticsearch/issues/110211
+- class: org.elasticsearch.synonyms.SynonymsManagementAPIServiceIT
+  method: testUpdateRuleWithMaxSynonyms
+  issue: https://github.com/elastic/elasticsearch/issues/110212
 
 # Examples:
 #

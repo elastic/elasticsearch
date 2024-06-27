@@ -90,7 +90,8 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
             return new JoinConfig(
                 JoinType.LEFT,
                 randomList(0, 10, () -> (Attribute) makeArg(Attribute.class)),
-                randomList(0, 10, () -> (Expression) makeArg(Expression.class))
+                randomList(0, 10, () -> (Attribute) makeArg(Attribute.class)),
+                randomList(0, 10, () -> (Attribute) makeArg(Attribute.class))
             );
         }
 

@@ -643,16 +643,14 @@ public class ReplicasUpdaterServiceTests extends ESTestCase {
         replicasUpdaterService.performReplicaUpdates();
         mockClient.assertUpdates("SPmin: " + spMin, Map.of(1, Set.of("index1")));
 
-        // check for SP < 100 update is immediate
-        spMin = randomIntBetween(0, 99);
-        replicasUpdaterService.updateSearchPower(spMin);
-
         when(searchMetricsService.getIndices()).thenReturn(
             new ConcurrentHashMap<>(
                 Map.of(new Index("index2", "uuid"), new SearchMetricsService.IndexProperties("index2", 1, 2, false, false, 0))
             )
         );
-        replicasUpdaterService.performReplicaUpdates();
+        // check for SP < 100 update is immediate
+        spMin = randomIntBetween(0, 99);
+        replicasUpdaterService.updateSearchPower(spMin); // this implicitely re-calculates the settings updates
         mockClient.assertUpdates("SPmin: " + spMin, Map.of(1, Set.of("index2")));
     }
 
@@ -867,8 +865,10 @@ public class ReplicasUpdaterServiceTests extends ESTestCase {
         void assertUpdates(String message, Map<Integer, Set<String>> expectedUpdates) {
             assertTrue("update settings not yet called", updateSettingsToBeVerified);
             assertEquals(message, expectedUpdates, updates);
+            assertEquals(1, this.executionCount.get());
             updates.clear();
             updateSettingsToBeVerified = false;
+            this.executionCount.set(0);
         }
 
         void assertNoUpdate() {

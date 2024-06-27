@@ -33,7 +33,7 @@ import static org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBed
 
 public abstract class AmazonBedrockServiceSettings extends FilteredXContentObject implements ServiceSettings {
 
-    protected final static String AMAZON_BEDROCK_BASE_NAME = "amazon_bedrock";
+    protected static final String AMAZON_BEDROCK_BASE_NAME = "amazon_bedrock";
 
     protected final String region;
     protected final String model;

@@ -356,6 +356,36 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         assertEquals(returnFromSignature, returnTypes);
     }
 
+    /**
+     * Checks expected errors, and returns true if an error was expected.
+     * <p>
+     *     This method also checks that there are not errors if they weren't expected.
+     * </p>
+     */
+    protected boolean checkExpectedErrors(Expression expression) {
+        if (testCase.getExpectedTypeError() != null) {
+            assertTypeResolutionFailure(expression);
+            return true;
+        }
+
+        if (testCase.getExpectedValidationFailures() != null) {
+            assertValidationFailures(expression);
+            return true;
+        }
+
+        var resolution = expression.typeResolved();
+        if (resolution.unresolved()) {
+            throw new AssertionError("expected resolved types: " + resolution.message());
+        }
+
+        var failures = validate(expression);
+        if (failures.hasFailures()) {
+            throw new AssertionError("unexpected validation failures: " + failures);
+        }
+
+        return false;
+    }
+
     protected final void assertTypeResolutionFailure(Expression expression) {
         assertTrue("expected unresolved", expression.typeResolved().unresolved());
         assertThat(expression.typeResolved().message(), equalTo(testCase.getExpectedTypeError()));

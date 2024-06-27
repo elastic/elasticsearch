@@ -382,11 +382,23 @@ public class Bucket extends GroupingFunction implements Validatable, TwoOptional
 
     @Override
     public void validate(Failures failures) {
+        var fieldType = field.dataType();
+        var bucketsType = buckets.dataType();
+
+        if (fieldType == DataType.NULL || bucketsType == DataType.NULL || bucketsType.isInteger() == false) {
+            return;
+        }
+
         String operation = sourceText();
 
-        failures.add(isFoldable(buckets, operation, SECOND))
-            .add(from != null ? isFoldable(from, operation, THIRD) : null)
-            .add(to != null ? isFoldable(to, operation, FOURTH) : null);
+        failures.add(isFoldable(buckets, operation, SECOND));
+
+        // Any null return null; no need to validate
+        if (from == null || from.dataType() == DataType.NULL || to == null || to.dataType() == DataType.NULL) {
+            return;
+        }
+
+        failures.add(isFoldable(from, operation, THIRD)).add(isFoldable(to, operation, FOURTH));
     }
 
     private long foldToLong(Expression e) {

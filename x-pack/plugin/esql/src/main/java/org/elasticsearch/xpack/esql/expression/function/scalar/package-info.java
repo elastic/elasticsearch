@@ -69,6 +69,23 @@
  *         </ul>
  *     </li>
  *     <li>
+ *         Your function may also implement some of those interfaces:
+ *         <ul>
+ *             <li>
+ *                 {@link org.elasticsearch.xpack.esql.core.expression.function.OptionalArgument}:
+ *                 Required if the last argument of your function is optional
+ *             </li>
+ *             <li>
+ *                 {@link org.elasticsearch.xpack.esql.core.expression.function.TwoOptionalArguments}:
+ *                 Required if the last 2 arguments of your function are optional
+ *             </li>
+ *             <li>
+ *                 {@link org.elasticsearch.xpack.esql.capabilities.Validatable}:
+ *                 If it needs validation post-optimization. Useful to validate foldable parameters
+ *             </li>
+ *         </ul>
+ *     </li>
+ *     <li>
  *         There are also methods annotated with {@link org.elasticsearch.compute.ann.Evaluator}
  *         that contain the actual inner implementation of the function. They are usually named
  *         "process" or "processInts" or "processBar". Modify those to look right and run the {@code CsvTests}

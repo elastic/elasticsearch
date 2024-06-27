@@ -85,18 +85,13 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
         assumeTrue("Can't build evaluator", testCase.canBuildEvaluator());
         boolean readFloating = randomBoolean();
         Expression expression = readFloating ? buildDeepCopyOfFieldExpression(testCase) : buildFieldExpression(testCase);
-        if (testCase.getExpectedTypeError() != null) {
-            assertTypeResolutionFailure(expression);
+        if (checkExpectedErrors(expression)) {
             return;
         }
         assumeTrue("Expected type must be representable to build an evaluator", EsqlDataTypes.isRepresentable(testCase.expectedType()));
         logger.info(
             "Test Values: " + testCase.getData().stream().map(TestCaseSupplier.TypedData::toString).collect(Collectors.joining(","))
         );
-        Expression.TypeResolution resolution = expression.typeResolved();
-        if (resolution.unresolved()) {
-            throw new AssertionError("expected resolved " + resolution.message());
-        }
         expression = new FoldNull().rule(expression);
         assertThat(expression.dataType(), equalTo(testCase.expectedType()));
         logger.info("Result type: " + expression.dataType());
@@ -185,8 +180,7 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
 
     private void testEvaluateBlock(BlockFactory inputBlockFactory, DriverContext context, boolean insertNulls) {
         Expression expression = randomBoolean() ? buildDeepCopyOfFieldExpression(testCase) : buildFieldExpression(testCase);
-        if (testCase.getExpectedTypeError() != null) {
-            assertTypeResolutionFailure(expression);
+        if (checkExpectedErrors(expression)) {
             return;
         }
         assumeTrue("Can't build evaluator", testCase.canBuildEvaluator());
@@ -247,8 +241,7 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
 
     public void testSimpleWithNulls() { // TODO replace this with nulls inserted into the test case like anyNullIsNull
         Expression expression = buildFieldExpression(testCase);
-        if (testCase.getExpectedTypeError() != null) {
-            assertTypeResolutionFailure(expression);
+        if (checkExpectedErrors(expression)) {
             return;
         }
         assumeTrue("Can't build evaluator", testCase.canBuildEvaluator());
@@ -288,8 +281,7 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
 
     public final void testEvaluateInManyThreads() throws ExecutionException, InterruptedException {
         Expression expression = buildFieldExpression(testCase);
-        if (testCase.getExpectedTypeError() != null) {
-            assertTypeResolutionFailure(expression);
+        if (checkExpectedErrors(expression)) {
             return;
         }
         assumeTrue("Can't build evaluator", testCase.canBuildEvaluator());
@@ -324,8 +316,7 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
 
     public final void testEvaluatorToString() {
         Expression expression = buildFieldExpression(testCase);
-        if (testCase.getExpectedTypeError() != null) {
-            assertTypeResolutionFailure(expression);
+        if (checkExpectedErrors(expression)) {
             return;
         }
         assumeTrue("Can't build evaluator", testCase.canBuildEvaluator());
@@ -337,8 +328,7 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
 
     public final void testFactoryToString() {
         Expression expression = buildFieldExpression(testCase);
-        if (testCase.getExpectedTypeError() != null) {
-            assertTypeResolutionFailure(expression);
+        if (checkExpectedErrors(expression)) {
             return;
         }
         assumeTrue("Can't build evaluator", testCase.canBuildEvaluator());
@@ -348,11 +338,9 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
 
     public final void testFold() {
         Expression expression = buildLiteralExpression(testCase);
-        if (testCase.getExpectedTypeError() != null) {
-            assertTypeResolutionFailure(expression);
+        if (checkExpectedErrors(expression)) {
             return;
         }
-        assertFalse(expression.typeResolved().unresolved());
         Expression nullOptimized = new FoldNull().rule(expression);
         assertThat(nullOptimized.dataType(), equalTo(testCase.expectedType()));
         assertTrue(nullOptimized.foldable());

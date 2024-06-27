@@ -50,6 +50,31 @@
  *         </ul>
  *     </li>
  *     <li>
+ *         Your function may also implement some of those interfaces:
+ *         <ul>
+ *             <li>
+ *                 {@link org.elasticsearch.xpack.esql.core.expression.function.OptionalArgument}:
+ *                 Required if the last argument of your function is optional
+ *             </li>
+ *             <li>
+ *                 {@link org.elasticsearch.xpack.esql.core.expression.function.TwoOptionalArguments}:
+ *                 Required if the last 2 arguments of your function are optional
+ *             </li>
+ *             <li>
+ *                 {@link org.elasticsearch.xpack.esql.capabilities.Validatable}:
+ *                 If it needs validation post-optimization. Useful to validate foldable parameters
+ *             </li>
+ *             <li>
+ *                 {@link org.elasticsearch.xpack.esql.planner.ToAggregator}: (More information about aggregators below)
+ *             </li>
+ *             <li>
+ *                 {@link org.elasticsearch.xpack.esql.expression.SurrogateExpression}:
+ *                 Lets the aggregation be transformed to another aggregation or evaluable function.
+ *                 This could be used to reuse code, improve performance based on foldable parameters, or fold the function.
+ *             </li>
+ *         </ul>
+ *     </li>
+ *     <li>
  *         Fill the required methods in your new function. Check their JavaDoc for more information.
  *         Here are some of the important ones:
  *         <ul>
@@ -67,17 +92,6 @@
  *             <li>
  *                 {@code dataType}: This will return the datatype of your function.
  *                 May be based on its current parameters.
- *             </li>
- *         </ul>
- *
- *         Finally, you may want to implement some interfaces.
- *         Check their JavaDocs to see if they are suitable for your function:
- *         <ul>
- *             <li>
- *                 {@link org.elasticsearch.xpack.esql.planner.ToAggregator}: (More information about aggregators below)
- *             </li>
- *             <li>
- *                 {@link org.elasticsearch.xpack.esql.expression.SurrogateExpression}
  *             </li>
  *         </ul>
  *     </li>

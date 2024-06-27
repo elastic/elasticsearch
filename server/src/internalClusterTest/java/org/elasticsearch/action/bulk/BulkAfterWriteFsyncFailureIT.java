@@ -75,6 +75,9 @@ public class BulkAfterWriteFsyncFailureIT extends ESSingleNodeTestCase {
         // Since background refreshes are disabled, the shard is considered green until the next operation is appended into the translog
         ensureGreen(indexName);
 
+        // If the after write fsync fails, it'll fail the TranslogWriter but not the Engine, we'll need to try to append a new operation
+        // into the translog so the exception bubbles up and fails the engine. On the other hand, the TranslogReplicationAction will retry
+        // this action on AlreadyClosedExceptions, that's why the operation ends up succeeding even after the engine failed.
         var bulkResponse2 = client().prepareBulk().add(prepareIndex(indexName).setId("2").setSource("key", "bar", "val", 20)).get();
         assertFalse(bulkResponse2.hasFailures());
 

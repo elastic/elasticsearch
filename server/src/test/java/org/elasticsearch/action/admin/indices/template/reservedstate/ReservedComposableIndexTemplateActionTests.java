@@ -266,7 +266,7 @@ public class ReservedComposableIndexTemplateActionTests extends ESTestCase {
                         "day_of_week": {
                           "type": "keyword",
                           "script": {
-                            "source": "emit(doc['@timestamp'].value.dayOfWeekEnum.getDisplayName(TextStyle.FULL, Locale.ROOT))"
+                            "source": "emit(doc['@timestamp'].value.dayOfWeekEnum.getDisplayName(TextStyle.FULL, Locale.ENGLISH))"
                           }
                         }
                       }
@@ -290,7 +290,7 @@ public class ReservedComposableIndexTemplateActionTests extends ESTestCase {
                         "day_of_week": {
                           "type": "keyword",
                           "script": {
-                            "source": "emit(doc['@timestamp'].value.dayOfWeekEnum.getDisplayName(TextStyle.FULL, Locale.ROOT))"
+                            "source": "emit(doc['@timestamp'].value.dayOfWeekEnum.getDisplayName(TextStyle.FULL, Locale.ENGLISH))"
                           }
                         }
                       }

@@ -103,6 +103,8 @@ public class TextSimilarityRankRetrieverBuilder extends RetrieverBuilder {
     public void extractToSearchSourceBuilder(SearchSourceBuilder searchSourceBuilder, boolean compoundUsed) {
         retrieverBuilder.extractToSearchSourceBuilder(searchSourceBuilder, compoundUsed);
 
+
+
         searchSourceBuilder.rankBuilder(
             new TextSimilarityRankBuilder(this.field, this.inferenceId, this.inferenceText, this.rankWindowSize, this.minScore)
         );
@@ -115,7 +117,10 @@ public class TextSimilarityRankRetrieverBuilder extends RetrieverBuilder {
 
     @Override
     protected void doToXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.field(RETRIEVER_FIELD.getPreferredName(), retrieverBuilder);
+        builder.field(RETRIEVER_FIELD.getPreferredName());
+        builder.startObject();
+        builder.field(retrieverBuilder.getName(), retrieverBuilder);
+        builder.endObject();
         builder.field(INFERENCE_ID_FIELD.getPreferredName(), inferenceId);
         builder.field(INFERENCE_TEXT_FIELD.getPreferredName(), inferenceText);
         builder.field(FIELD_FIELD.getPreferredName(), field);

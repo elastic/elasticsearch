@@ -68,5 +68,4 @@ public class TextSimilarityRankBuilderTests extends AbstractXContentSerializingT
         return randomFloatBetween(-1.0f, 1.0f, true);
     }
 
-
 }

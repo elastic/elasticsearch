@@ -202,7 +202,6 @@ public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends Int
         this.order = order;
         this.requiredSize = requiredSize;
         this.minDocCount = minDocCount;
-//        setBucketCount(countBuckets());
     }
 
     /**
@@ -214,7 +213,6 @@ public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends Int
         order = InternalOrder.Streams.readOrder(in);
         requiredSize = readSize(in);
         minDocCount = in.readVLong();
-//        setBucketCount(countBuckets());
     }
 
     @Override

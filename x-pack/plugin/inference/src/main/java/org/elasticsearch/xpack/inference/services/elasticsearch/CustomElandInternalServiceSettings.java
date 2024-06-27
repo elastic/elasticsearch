@@ -14,6 +14,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationsSettings;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 
 import java.io.IOException;
@@ -23,8 +24,13 @@ public class CustomElandInternalServiceSettings extends ElasticsearchInternalSer
 
     public static final String NAME = "custom_eland_model_internal_service_settings";
 
-    public CustomElandInternalServiceSettings(int numAllocations, int numThreads, String modelId) {
-        super(numAllocations, numThreads, modelId);
+    public CustomElandInternalServiceSettings(
+        int numAllocations,
+        int numThreads,
+        String modelId,
+        AdaptiveAllocationsSettings adaptiveAllocationsSettings
+    ) {
+        super(numAllocations, numThreads, modelId, adaptiveAllocationsSettings);
     }
 
     /**
@@ -43,8 +49,12 @@ public class CustomElandInternalServiceSettings extends ElasticsearchInternalSer
         ValidationException validationException = new ValidationException();
         Integer numAllocations = ServiceUtils.removeAsType(map, NUM_ALLOCATIONS, Integer.class);
         Integer numThreads = ServiceUtils.removeAsType(map, NUM_THREADS, Integer.class);
+        AdaptiveAllocationsSettings adaptiveAllocationsSettings = ServiceUtils.removeAsAdaptiveAllocationsSettings(
+            map,
+            ADAPTIVE_ALLOCATIONS
+        );
 
-        validateParameters(numAllocations, validationException, numThreads);
+        validateParameters(numAllocations, validationException, numThreads, adaptiveAllocationsSettings);
 
         String modelId = ServiceUtils.extractRequiredString(map, MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
 
@@ -55,12 +65,18 @@ public class CustomElandInternalServiceSettings extends ElasticsearchInternalSer
         var builder = new Builder() {
             @Override
             public CustomElandInternalServiceSettings build() {
-                return new CustomElandInternalServiceSettings(getNumAllocations(), getNumThreads(), getModelId());
+                return new CustomElandInternalServiceSettings(
+                    getNumAllocations(),
+                    getNumThreads(),
+                    getModelId(),
+                    getAdaptiveAllocationsSettings()
+                );
             }
         };
         builder.setNumAllocations(numAllocations);
         builder.setNumThreads(numThreads);
         builder.setModelId(modelId);
+        builder.setAdaptiveAllocationsSettings(adaptiveAllocationsSettings);
         return builder.build();
     }
 
@@ -70,7 +86,14 @@ public class CustomElandInternalServiceSettings extends ElasticsearchInternalSer
     }
 
     public CustomElandInternalServiceSettings(StreamInput in) throws IOException {
-        super(in.readVInt(), in.readVInt(), in.readString());
+        super(
+            in.readVInt(),
+            in.readVInt(),
+            in.readString(),
+            in.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_ADAPTIVE_ALLOCATIONS)
+                ? in.readOptionalWriteable(AdaptiveAllocationsSettings::new)
+                : null
+        );
     }
 
     @Override

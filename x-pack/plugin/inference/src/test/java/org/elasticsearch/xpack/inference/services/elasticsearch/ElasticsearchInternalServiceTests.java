@@ -134,7 +134,8 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
             var e5ServiceSettings = new MultilingualE5SmallInternalServiceSettings(
                 1,
                 4,
-                ElasticsearchInternalService.MULTILINGUAL_E5_SMALL_MODEL_ID
+                ElasticsearchInternalService.MULTILINGUAL_E5_SMALL_MODEL_ID,
+                null
             );
 
             service.parseRequestConfig(
@@ -400,7 +401,7 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
                 taskType,
                 settings
             );
-            var elandServiceSettings = new CustomElandInternalTextEmbeddingServiceSettings(1, 4, "invalid");
+            var elandServiceSettings = new CustomElandInternalTextEmbeddingServiceSettings(1, 4, "invalid", null);
             assertEquals(
                 new CustomElandEmbeddingModel(randomInferenceEntityId, taskType, ElasticsearchInternalService.NAME, elandServiceSettings),
                 parsedModel
@@ -430,7 +431,8 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
             var e5ServiceSettings = new MultilingualE5SmallInternalServiceSettings(
                 1,
                 4,
-                ElasticsearchInternalService.MULTILINGUAL_E5_SMALL_MODEL_ID
+                ElasticsearchInternalService.MULTILINGUAL_E5_SMALL_MODEL_ID,
+                null
             );
 
             MultilingualE5SmallModel parsedModel = (MultilingualE5SmallModel) service.parsePersistedConfig(
@@ -500,7 +502,7 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
             "foo",
             TaskType.TEXT_EMBEDDING,
             "e5",
-            new MultilingualE5SmallInternalServiceSettings(1, 1, "cross-platform")
+            new MultilingualE5SmallInternalServiceSettings(1, 1, "cross-platform", null)
         );
         var service = createService(client);
 
@@ -594,7 +596,7 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
                 "foo",
                 TaskType.TEXT_EMBEDDING,
                 "e5",
-                new MultilingualE5SmallInternalServiceSettings(1, 1, "cross-platform")
+                new MultilingualE5SmallInternalServiceSettings(1, 1, "cross-platform", null)
             );
             var service = createService(client);
 
@@ -726,11 +728,11 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
                 randomInferenceEntityId,
                 taskType,
                 ElasticsearchInternalService.NAME,
-                new CustomElandInternalServiceSettings(1, 4, "custom-model"),
+                new CustomElandInternalServiceSettings(1, 4, "custom-model", null),
                 CustomElandRerankTaskSettings.DEFAULT_SETTINGS
             );
         } else if (taskType == TaskType.TEXT_EMBEDDING) {
-            var serviceSettings = new CustomElandInternalTextEmbeddingServiceSettings(1, 4, "custom-model");
+            var serviceSettings = new CustomElandInternalTextEmbeddingServiceSettings(1, 4, "custom-model", null);
 
             expectedModel = new CustomElandEmbeddingModel(
                 randomInferenceEntityId,
@@ -786,7 +788,7 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
             "my-e5",
             TaskType.TEXT_EMBEDDING,
             "e5",
-            new MultilingualE5SmallInternalServiceSettings(1, 1, ".multilingual-e5-small")
+            new MultilingualE5SmallInternalServiceSettings(1, 1, ".multilingual-e5-small", null)
         );
 
         service.putModel(model, new ActionListener<>() {
@@ -827,6 +829,7 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
             1,
             4,
             "custom-model",
+            null,
             1,
             SimilarityMeasure.COSINE,
             DenseVectorFieldMapper.ElementType.FLOAT
@@ -849,6 +852,7 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
                     1,
                     4,
                     "custom-model",
+                    null,
                     null,
                     SimilarityMeasure.COSINE,
                     DenseVectorFieldMapper.ElementType.FLOAT

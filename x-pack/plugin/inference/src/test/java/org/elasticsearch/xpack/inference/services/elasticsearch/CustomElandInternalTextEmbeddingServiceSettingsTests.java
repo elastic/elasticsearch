@@ -47,6 +47,7 @@ public class CustomElandInternalTextEmbeddingServiceSettingsTests extends Abstra
             numAllocations,
             numThreads,
             modelId,
+            null,
             dims,
             similarityMeasure,
             elementType
@@ -84,6 +85,7 @@ public class CustomElandInternalTextEmbeddingServiceSettingsTests extends Abstra
                     numThreads,
                     modelId,
                     null,
+                    null,
                     SimilarityMeasure.DOT_PRODUCT,
                     DenseVectorFieldMapper.ElementType.FLOAT
                 )
@@ -107,6 +109,7 @@ public class CustomElandInternalTextEmbeddingServiceSettingsTests extends Abstra
                     numAllocations,
                     numThreads,
                     modelId,
+                    null,
                     null,
                     SimilarityMeasure.COSINE,
                     DenseVectorFieldMapper.ElementType.FLOAT
@@ -148,6 +151,7 @@ public class CustomElandInternalTextEmbeddingServiceSettingsTests extends Abstra
                     numThreads,
                     modelId,
                     null,
+                    null,
                     SimilarityMeasure.DOT_PRODUCT,
                     DenseVectorFieldMapper.ElementType.FLOAT
                 )
@@ -187,6 +191,7 @@ public class CustomElandInternalTextEmbeddingServiceSettingsTests extends Abstra
                     numAllocations,
                     numThreads,
                     modelId,
+                    null,
                     1,
                     SimilarityMeasure.DOT_PRODUCT,
                     DenseVectorFieldMapper.ElementType.FLOAT
@@ -200,6 +205,7 @@ public class CustomElandInternalTextEmbeddingServiceSettingsTests extends Abstra
             1,
             1,
             "model_id",
+            null,
             100,
             SimilarityMeasure.COSINE,
             DenseVectorFieldMapper.ElementType.BYTE

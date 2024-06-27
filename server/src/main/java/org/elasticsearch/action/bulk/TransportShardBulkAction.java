@@ -47,7 +47,6 @@ import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.get.GetResult;
-import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.SourceToParse;
@@ -345,9 +344,8 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
 
         final IndexShard primary = context.getPrimary();
         final long version = context.getRequestToExecute().version();
-        final boolean isDelete = context.getRequestToExecute().opType() == DocWriteRequest.OpType.DELETE;
         final Engine.Result result;
-        if (isDelete) {
+        if (context.getRequestToExecute().opType() == DocWriteRequest.OpType.DELETE) {
             final DeleteRequest request = context.getRequestToExecute();
             result = primary.applyDeleteOperationOnPrimary(
                 version,
@@ -405,16 +403,24 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         long version,
         UpdateHelper.Result updateResult
     ) {
-        final var mapperService = primary.mapperService();
         try {
+            final var sourceToMerge = new CompressedXContent(result.getRequiredMappingUpdate());
+            final var mapperService = primary.mapperService();
+            final long initialMappingVersion = mapperService.mappingVersion();
+            final var existingMapper = mapperService.documentMapper();
+            if (existingMapper != null && sourceToMerge.equals(existingMapper.mappingSource())) {
+                context.resetForNoopMappingUpdateRetry(initialMappingVersion);
+                return true;
+            }
             CompressedXContent mergedSource = mapperService.merge(
                 MapperService.SINGLE_MAPPING_NAME,
-                new CompressedXContent(result.getRequiredMappingUpdate()),
+                sourceToMerge,
                 MapperService.MergeReason.MAPPING_AUTO_UPDATE_PREFLIGHT
             ).mappingSource();
-            final DocumentMapper existingDocumentMapper = mapperService.documentMapper();
-            if (existingDocumentMapper != null && mergedSource.equals(existingDocumentMapper.mappingSource())) {
-                context.resetForNoopMappingUpdateRetry(mapperService.mappingVersion());
+            // computing mergedSource might have taken a while, compare the merged mapping to a potentially new instance of it
+            final var maybeUpdatedMapper = mapperService.documentMapper();
+            if (maybeUpdatedMapper != null && mergedSource.equals(maybeUpdatedMapper.mappingSource())) {
+                context.resetForNoopMappingUpdateRetry(initialMappingVersion);
                 return true;
             }
         } catch (Exception e) {

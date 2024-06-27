@@ -38,7 +38,9 @@ import java.util.Objects;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.core.Strings.format;
-import static org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationsSettings.*;
+import static org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationsSettings.ENABLED;
+import static org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationsSettings.MAX_NUMBER_OF_ALLOCATIONS;
+import static org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationsSettings.MIN_NUMBER_OF_ALLOCATIONS;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.SIMILARITY;
 
 public final class ServiceUtils {

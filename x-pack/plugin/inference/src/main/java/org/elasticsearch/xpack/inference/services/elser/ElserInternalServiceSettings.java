@@ -12,12 +12,15 @@ import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.xpack.inference.services.ServiceUtils;
+import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.xpack.inference.services.settings.InternalServiceSettings;
 
 import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
+
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalString;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredPositiveInteger;
 
 public class ElserInternalServiceSettings extends InternalServiceSettings {
 
@@ -34,14 +37,18 @@ public class ElserInternalServiceSettings extends InternalServiceSettings {
      */
     public static ElserInternalServiceSettings.Builder fromMap(Map<String, Object> map) {
         ValidationException validationException = new ValidationException();
-        Integer numAllocations = ServiceUtils.removeAsType(map, NUM_ALLOCATIONS, Integer.class);
-        Integer numThreads = ServiceUtils.removeAsType(map, NUM_THREADS, Integer.class);
 
-        validateParameters(numAllocations, validationException, numThreads);
+        Integer numAllocations = extractRequiredPositiveInteger(
+            map,
+            NUM_ALLOCATIONS,
+            ModelConfigurations.SERVICE_SETTINGS,
+            validationException
+        );
+        Integer numThreads = extractRequiredPositiveInteger(map, NUM_THREADS, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        String modelId = extractOptionalString(map, MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
 
-        String model_id = ServiceUtils.removeAsType(map, MODEL_ID, String.class);
-        if (model_id != null && ElserInternalService.VALID_ELSER_MODEL_IDS.contains(model_id) == false) {
-            validationException.addValidationError("unknown ELSER model id [" + model_id + "]");
+        if (modelId != null && ElserInternalService.VALID_ELSER_MODEL_IDS.contains(modelId) == false) {
+            validationException.addValidationError("unknown ELSER model id [" + modelId + "]");
         }
 
         if (validationException.validationErrors().isEmpty() == false) {
@@ -56,7 +63,7 @@ public class ElserInternalServiceSettings extends InternalServiceSettings {
         };
         builder.setNumAllocations(numAllocations);
         builder.setNumThreads(numThreads);
-        builder.setModelId(model_id);
+        builder.setModelId(modelId);
         return builder;
     }
 

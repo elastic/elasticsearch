@@ -226,6 +226,7 @@ public class InternalHistogram extends InternalMultiBucketAggregation<InternalHi
         this.emptyBucketInfo = emptyBucketInfo;
         this.format = formatter;
         this.keyed = keyed;
+        setBucketCount(countBuckets());
     }
 
     /**
@@ -248,6 +249,7 @@ public class InternalHistogram extends InternalMultiBucketAggregation<InternalHi
             // list is mutable by #readCollectionAsList contract
             buckets.sort(Comparator.comparingDouble(b -> b.key));
         }
+        setBucketCount(countBuckets());
     }
 
     @Override

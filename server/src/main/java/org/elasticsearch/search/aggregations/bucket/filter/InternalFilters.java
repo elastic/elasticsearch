@@ -142,6 +142,7 @@ public class InternalFilters extends InternalMultiBucketAggregation<InternalFilt
         this.buckets = buckets;
         this.keyed = keyed;
         this.keyedBucket = keyedBucket;
+        setBucketCount(countBuckets());
     }
 
     /**
@@ -158,6 +159,7 @@ public class InternalFilters extends InternalMultiBucketAggregation<InternalFilt
         }
         this.buckets = buckets;
         this.bucketMap = null;
+        setBucketCount(countBuckets());
     }
 
     @Override

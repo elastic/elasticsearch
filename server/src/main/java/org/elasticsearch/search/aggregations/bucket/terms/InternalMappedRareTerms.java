@@ -51,6 +51,7 @@ public abstract class InternalMappedRareTerms<A extends InternalRareTerms<A, B>,
         this.format = format;
         this.buckets = buckets;
         this.filter = filter;
+        setBucketCount(countBuckets());
     }
 
     SetBackedScalingCuckooFilter getFilter() {
@@ -65,6 +66,7 @@ public abstract class InternalMappedRareTerms<A extends InternalRareTerms<A, B>,
         format = in.readNamedWriteable(DocValueFormat.class);
         buckets = in.readCollectionAsList(stream -> bucketReader.read(stream, format));
         filter = new SetBackedScalingCuckooFilter(in, Randomness.get());
+        setBucketCount(countBuckets());
     }
 
     @Override

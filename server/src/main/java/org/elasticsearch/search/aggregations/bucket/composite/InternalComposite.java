@@ -70,6 +70,7 @@ public class InternalComposite extends InternalMultiBucketAggregation<InternalCo
         this.reverseMuls = reverseMuls;
         this.missingOrders = missingOrders;
         this.earlyTerminated = earlyTerminated;
+        setBucketCount(countBuckets());
     }
 
     /**
@@ -105,6 +106,7 @@ public class InternalComposite extends InternalMultiBucketAggregation<InternalCo
         this.buckets = in.readCollectionAsList((input) -> new InternalBucket(input, sourceNames, formats, reverseMuls, missingOrders));
         this.afterKey = in.readOptionalWriteable(CompositeKey::new);
         this.earlyTerminated = in.readBoolean();
+        setBucketCount(countBuckets());
     }
 
     @Override

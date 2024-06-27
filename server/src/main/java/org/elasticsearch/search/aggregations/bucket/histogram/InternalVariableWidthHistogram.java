@@ -249,6 +249,7 @@ public class InternalVariableWidthHistogram extends InternalMultiBucketAggregati
         this.emptyBucketInfo = emptyBucketInfo;
         this.format = formatter;
         this.targetNumBuckets = targetNumBuckets;
+        setBucketCount(countBuckets());
     }
 
     /**
@@ -265,6 +266,7 @@ public class InternalVariableWidthHistogram extends InternalMultiBucketAggregati
             // list is mutable by #readCollectionAsList contract
             buckets.sort(Comparator.comparingDouble(b -> b.centroid));
         }
+        setBucketCount(countBuckets());
     }
 
     @Override

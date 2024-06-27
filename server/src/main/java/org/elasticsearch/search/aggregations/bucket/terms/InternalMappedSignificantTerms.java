@@ -50,6 +50,7 @@ public abstract class InternalMappedSignificantTerms<
         this.subsetSize = subsetSize;
         this.supersetSize = supersetSize;
         this.significanceHeuristic = significanceHeuristic;
+        setBucketCount(countBuckets());
     }
 
     protected InternalMappedSignificantTerms(StreamInput in, Bucket.Reader<B> bucketReader) throws IOException {
@@ -59,6 +60,7 @@ public abstract class InternalMappedSignificantTerms<
         supersetSize = in.readVLong();
         significanceHeuristic = in.readNamedWriteable(SignificanceHeuristic.class);
         buckets = in.readCollectionAsList(stream -> bucketReader.read(stream, subsetSize, supersetSize, format));
+        setBucketCount(countBuckets());
     }
 
     @Override

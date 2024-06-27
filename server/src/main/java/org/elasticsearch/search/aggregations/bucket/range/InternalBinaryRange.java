@@ -204,6 +204,7 @@ public final class InternalBinaryRange extends InternalMultiBucketAggregation<In
         this.format = format;
         this.keyed = keyed;
         this.buckets = buckets;
+        setBucketCount(countBuckets());
     }
 
     /**
@@ -214,6 +215,7 @@ public final class InternalBinaryRange extends InternalMultiBucketAggregation<In
         format = in.readNamedWriteable(DocValueFormat.class);
         keyed = in.readBoolean();
         buckets = in.readCollectionAsList(stream -> Bucket.createFromStream(stream, format, keyed));
+        setBucketCount(countBuckets());
     }
 
     @Override

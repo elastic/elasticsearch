@@ -233,6 +233,7 @@ public final class InternalDateHistogram extends InternalMultiBucketAggregation<
         this.format = formatter;
         this.keyed = keyed;
         this.downsampledResultsOffset = downsampledResultsOffset;
+        setBucketCount(countBuckets());
     }
 
     boolean versionSupportsDownsamplingTimezone(TransportVersion version) {
@@ -265,6 +266,7 @@ public final class InternalDateHistogram extends InternalMultiBucketAggregation<
             // list is mutable by #readCollectionAsList contract
             buckets.sort(Comparator.comparingLong(b -> b.key));
         }
+        setBucketCount(countBuckets());
     }
 
     @Override

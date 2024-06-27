@@ -195,6 +195,7 @@ public class InternalIpPrefix extends InternalMultiBucketAggregation<InternalIpP
         this.minDocCount = minDocCount;
         this.format = format;
         this.buckets = buckets;
+        setBucketCount(countBuckets());
     }
 
     /**
@@ -206,6 +207,7 @@ public class InternalIpPrefix extends InternalMultiBucketAggregation<InternalIpP
         keyed = in.readBoolean();
         minDocCount = in.readVLong();
         buckets = in.readCollectionAsList(stream -> new Bucket(stream, format, keyed));
+        setBucketCount(countBuckets());
     }
 
     @Override

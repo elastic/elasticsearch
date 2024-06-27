@@ -109,6 +109,9 @@ public class ElserInternalServiceSettings extends InternalServiceSettings {
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_11_X)) {
             out.writeString(getModelId());
         }
+        if (out.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_ADAPTIVE_ALLOCATIONS)) {
+            out.writeOptionalWriteable(getAdaptiveAllocationsSettings());
+        }
     }
 
     @Override

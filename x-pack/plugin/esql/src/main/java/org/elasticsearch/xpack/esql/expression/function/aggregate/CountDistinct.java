@@ -17,6 +17,8 @@ import org.elasticsearch.compute.aggregation.CountDistinctDoubleAggregatorFuncti
 import org.elasticsearch.compute.aggregation.CountDistinctIntAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.CountDistinctLongAggregatorFunctionSupplier;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.capabilities.Validatable;
+import org.elasticsearch.xpack.esql.core.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.function.OptionalArgument;
@@ -40,11 +42,11 @@ import java.util.List;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
-import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isFoldable;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isInteger;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
+import static org.elasticsearch.xpack.esql.expression.Validations.isFoldable;
 
-public class CountDistinct extends AggregateFunction implements OptionalArgument, ToAggregator, SurrogateExpression {
+public class CountDistinct extends AggregateFunction implements OptionalArgument, ToAggregator, SurrogateExpression, Validatable {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "CountDistinct",
@@ -125,7 +127,12 @@ public class CountDistinct extends AggregateFunction implements OptionalArgument
         if (resolution.unresolved() || precision == null) {
             return resolution;
         }
-        return isInteger(precision, sourceText(), SECOND).and(isFoldable(precision, sourceText(), SECOND));
+        return isInteger(precision, sourceText(), SECOND);
+    }
+
+    @Override
+    public void validate(Failures failures) {
+        failures.add(precision == null ? null : isFoldable(precision, sourceText(), SECOND));
     }
 
     @Override

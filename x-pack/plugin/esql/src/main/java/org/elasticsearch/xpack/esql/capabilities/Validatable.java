@@ -19,5 +19,5 @@ public interface Validatable {
      * Validates the implementing expression - discovered failures are reported to the given
      * {@link Failures} class.
      */
-    default void validate(Failures failures) {}
+    void validate(Failures failures);
 }

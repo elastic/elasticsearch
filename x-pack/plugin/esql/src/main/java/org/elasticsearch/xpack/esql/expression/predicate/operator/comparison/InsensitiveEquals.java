@@ -15,6 +15,8 @@ import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
+import org.elasticsearch.xpack.esql.capabilities.Validatable;
+import org.elasticsearch.xpack.esql.core.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -22,7 +24,9 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 
 import java.io.IOException;
 
-public class InsensitiveEquals extends InsensitiveBinaryComparison {
+import static org.elasticsearch.xpack.esql.expression.Validations.isFoldable;
+
+public class InsensitiveEquals extends InsensitiveBinaryComparison implements Validatable {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "InsensitiveEquals",
@@ -66,10 +70,15 @@ public class InsensitiveEquals extends InsensitiveBinaryComparison {
         return "=~";
     }
 
+    @Override
     protected TypeResolution resolveType() {
         return TypeResolutions.isString(left(), sourceText(), TypeResolutions.ParamOrdinal.FIRST)
-            .and(TypeResolutions.isString(right(), sourceText(), TypeResolutions.ParamOrdinal.SECOND))
-            .and(TypeResolutions.isFoldable(right(), sourceText(), TypeResolutions.ParamOrdinal.SECOND));
+            .and(TypeResolutions.isString(right(), sourceText(), TypeResolutions.ParamOrdinal.SECOND));
+    }
+
+    @Override
+    public void validate(Failures failures) {
+        failures.add(isFoldable(right(), sourceText(), TypeResolutions.ParamOrdinal.SECOND));
     }
 
     public static Automaton automaton(BytesRef val) {

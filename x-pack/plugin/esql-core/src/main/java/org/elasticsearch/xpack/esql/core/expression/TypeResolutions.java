@@ -117,58 +117,6 @@ public final class TypeResolutions {
         return isExact(e, operationName, paramOrd);
     }
 
-    public static TypeResolution isFoldable(Expression e, String operationName, ParamOrdinal paramOrd) {
-        if (e.foldable() == false) {
-            return new TypeResolution(
-                format(
-                    null,
-                    "{}argument of [{}] must be a constant, received [{}]",
-                    paramOrd == null || paramOrd == DEFAULT ? "" : paramOrd.name().toLowerCase(Locale.ROOT) + " ",
-                    operationName,
-                    Expressions.name(e)
-                )
-            );
-        }
-        return TypeResolution.TYPE_RESOLVED;
-    }
-
-    public static TypeResolution isNotNullAndFoldable(Expression e, String operationName, ParamOrdinal paramOrd) {
-        TypeResolution resolution = isFoldable(e, operationName, paramOrd);
-
-        if (resolution.unresolved()) {
-            return resolution;
-        }
-
-        if (e.dataType() == DataType.NULL || e.fold() == null) {
-            resolution = new TypeResolution(
-                format(
-                    null,
-                    "{}argument of [{}] cannot be null, received [{}]",
-                    paramOrd == null || paramOrd == DEFAULT ? "" : paramOrd.name().toLowerCase(Locale.ROOT) + " ",
-                    operationName,
-                    Expressions.name(e)
-                )
-            );
-        }
-
-        return resolution;
-    }
-
-    public static TypeResolution isNotFoldable(Expression e, String operationName, ParamOrdinal paramOrd) {
-        if (e.foldable()) {
-            return new TypeResolution(
-                format(
-                    null,
-                    "{}argument of [{}] must be a table column, found constant [{}]",
-                    paramOrd == null || paramOrd == DEFAULT ? "" : paramOrd.name().toLowerCase(Locale.ROOT) + " ",
-                    operationName,
-                    Expressions.name(e)
-                )
-            );
-        }
-        return TypeResolution.TYPE_RESOLVED;
-    }
-
     public static TypeResolution isType(
         Expression e,
         Predicate<DataType> predicate,

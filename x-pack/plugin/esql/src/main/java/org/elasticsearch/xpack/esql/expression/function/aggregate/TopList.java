@@ -16,6 +16,8 @@ import org.elasticsearch.compute.aggregation.TopListDoubleAggregatorFunctionSupp
 import org.elasticsearch.compute.aggregation.TopListIntAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.TopListLongAggregatorFunctionSupplier;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.capabilities.Validatable;
+import org.elasticsearch.xpack.esql.core.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -32,15 +34,14 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 
-import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.THIRD;
-import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNotNullAndFoldable;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
+import static org.elasticsearch.xpack.esql.expression.Validations.isFoldableAnd;
 
-public class TopList extends AggregateFunction implements ToAggregator, SurrogateExpression {
+public class TopList extends AggregateFunction implements ToAggregator, SurrogateExpression, Validatable {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "TopList", TopList::new);
 
     private static final String ORDER_ASC = "ASC";
@@ -119,35 +120,43 @@ public class TopList extends AggregateFunction implements ToAggregator, Surrogat
             return new TypeResolution("Unresolved children");
         }
 
-        var typeResolution = isType(
+        return isType(
             field(),
             dt -> dt == DataType.DATETIME || dt.isNumeric() && dt != DataType.UNSIGNED_LONG,
             sourceText(),
             FIRST,
             "numeric except unsigned_long or counter types"
-        ).and(isNotNullAndFoldable(limitField(), sourceText(), SECOND))
-            .and(isType(limitField(), dt -> dt == DataType.INTEGER, sourceText(), SECOND, "integer"))
-            .and(isNotNullAndFoldable(orderField(), sourceText(), THIRD))
+        ).and(isType(limitField(), dt -> dt == DataType.INTEGER, sourceText(), SECOND, "integer"))
             .and(isString(orderField(), sourceText(), THIRD));
+    }
 
-        if (typeResolution.unresolved()) {
-            return typeResolution;
-        }
+    @Override
+    public void validate(Failures failures) {
+        failures
+            .add(isFoldableAnd(limitField(), sourceText(), SECOND, (limitValue, formatFailure) -> {
+                if (limitValue == null) {
+                    return formatFailure.apply("cannot be null");
+                }
 
-        var limit = limitValue();
-        var order = orderRawValue();
+                if ((int) limitValue <= 0) {
+                    return formatFailure.apply("must be greater than 0");
+                }
 
-        if (limit <= 0) {
-            return new TypeResolution(format(null, "Limit must be greater than 0 in [{}], found [{}]", sourceText(), limit));
-        }
+                return null;
+            }))
+            .add(isFoldableAnd(orderField(), sourceText(), THIRD, (orderValue, formatFailure) -> {
+                if (orderValue == null) {
+                    return formatFailure.apply("cannot be null");
+                }
 
-        if (order.equalsIgnoreCase(ORDER_ASC) == false && order.equalsIgnoreCase(ORDER_DESC) == false) {
-            return new TypeResolution(
-                format(null, "Invalid order value in [{}], expected [{}, {}] but got [{}]", sourceText(), ORDER_ASC, ORDER_DESC, order)
-            );
-        }
+                String order = BytesRefs.toString(orderValue);
 
-        return TypeResolution.TYPE_RESOLVED;
+                if (order.equalsIgnoreCase(ORDER_ASC) == false && order.equalsIgnoreCase(ORDER_DESC) == false) {
+                    return formatFailure.apply("must be either '" + ORDER_ASC + "' or '" + ORDER_DESC + "'");
+                }
+
+                return null;
+            }));
     }
 
     @Override

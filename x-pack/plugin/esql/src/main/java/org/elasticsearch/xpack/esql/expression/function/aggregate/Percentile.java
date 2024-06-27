@@ -14,6 +14,8 @@ import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.PercentileDoubleAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.PercentileIntAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.PercentileLongAggregatorFunctionSupplier;
+import org.elasticsearch.xpack.esql.capabilities.Validatable;
+import org.elasticsearch.xpack.esql.core.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -28,11 +30,11 @@ import java.util.List;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
-import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isFoldable;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNumeric;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
+import static org.elasticsearch.xpack.esql.expression.Validations.isFoldable;
 
-public class Percentile extends NumericAggregate {
+public class Percentile extends NumericAggregate implements Validatable {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "Percentile",
@@ -102,7 +104,12 @@ public class Percentile extends NumericAggregate {
             return resolution;
         }
 
-        return isNumeric(percentile, sourceText(), SECOND).and(isFoldable(percentile, sourceText(), SECOND));
+        return isNumeric(percentile, sourceText(), SECOND);
+    }
+
+    @Override
+    public void validate(Failures failures) {
+        failures.add(isFoldable(percentile, sourceText(), SECOND));
     }
 
     @Override

@@ -160,7 +160,7 @@ public final class ResponseValueUtils {
      * Converts a list of values to Pages so that we can parse from xcontent. It's not
      * super efficient, but it doesn't really have to be.
      */
-    static Page valuesToPage(BlockFactory blockFactory, List<ColumnInfo> columns, List<List<Object>> values) {
+    static Page valuesToPage(BlockFactory blockFactory, List<ColumnInfoImpl> columns, List<List<Object>> values) {
         List<String> dataTypes = columns.stream().map(ColumnInfo::type).toList();
         List<Block.Builder> results = dataTypes.stream()
             .map(c -> PlannerUtils.toElementType(DataType.fromEs(c)).newBlockBuilder(values.size(), blockFactory))

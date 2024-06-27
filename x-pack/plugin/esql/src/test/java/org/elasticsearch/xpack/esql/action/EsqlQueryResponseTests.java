@@ -45,7 +45,6 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
-import org.elasticsearch.xpack.core.esql.action.ColumnInfoImpl;
 import org.elasticsearch.xpack.esql.TestBlockFactory;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
@@ -110,7 +109,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
 
     EsqlQueryResponse randomResponseAsync(boolean columnar, EsqlQueryResponse.Profile profile, boolean async) {
         int noCols = randomIntBetween(1, 10);
-        List<ColumnInfo> columns = randomList(noCols, noCols, this::randomColumnInfo);
+        List<ColumnInfoImpl> columns = randomList(noCols, noCols, this::randomColumnInfo);
         int noPages = randomIntBetween(1, 20);
         List<Page> values = randomList(noPages, noPages, () -> randomPage(columns));
         String id = null;
@@ -122,7 +121,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
         return new EsqlQueryResponse(columns, values, profile, columnar, id, isRunning, async);
     }
 
-    private ColumnInfo randomColumnInfo() {
+    private ColumnInfoImpl randomColumnInfo() {
         DataType type = randomValueOtherThanMany(
             t -> false == DataType.isPrimitive(t) || t == DataType.DATE_PERIOD || t == DataType.TIME_DURATION,
             () -> randomFrom(DataType.types())
@@ -137,7 +136,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
         return new EsqlQueryResponseProfileTests().createTestInstance();
     }
 
-    private Page randomPage(List<ColumnInfo> columns) {
+    private Page randomPage(List<ColumnInfoImpl> columns) {
         return new Page(columns.stream().map(c -> {
             Block.Builder builder = PlannerUtils.toElementType(DataType.fromEs(c.type())).newBlockBuilder(1, blockFactory);
             switch (c.type()) {
@@ -195,7 +194,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
         return switch (allNull ? between(0, 2) : between(0, 3)) {
             case 0 -> {
                 int mutCol = between(0, instance.columns().size() - 1);
-                List<ColumnInfo> cols = new ArrayList<>(instance.columns());
+                List<ColumnInfoImpl> cols = new ArrayList<>(instance.columns());
                 // keep the type the same so the values are still valid but change the name
                 cols.set(mutCol, new ColumnInfoImpl(cols.get(mutCol).name() + "mut", cols.get(mutCol).type()));
                 yield new EsqlQueryResponse(cols, deepCopyOfPages(instance), instance.profile(), instance.columnar(), instance.isAsync());
@@ -283,7 +282,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
         private final EsqlQueryResponse response;
 
         @ParserConstructor
-        public ResponseBuilder(@Nullable String asyncExecutionId, Boolean isRunning, List<ColumnInfo> columns, List<List<Object>> values) {
+        public ResponseBuilder(@Nullable String asyncExecutionId, Boolean isRunning, List<ColumnInfoImpl> columns, List<List<Object>> values) {
             this.response = new EsqlQueryResponse(
                 columns,
                 List.of(valuesToPage(TestBlockFactory.getNonBreakingInstance(), columns, values)),
@@ -584,7 +583,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
     public void testRowValues() {
         for (int times = 0; times < 10; times++) {
             int numColumns = randomIntBetween(1, 10);
-            List<ColumnInfo> columns = randomList(numColumns, numColumns, this::randomColumnInfo);
+            List<ColumnInfoImpl> columns = randomList(numColumns, numColumns, this::randomColumnInfo);
             int noPages = randomIntBetween(1, 20);
             List<Page> pages = randomList(noPages, noPages, () -> randomPage(columns));
             try (var resp = new EsqlQueryResponse(columns, pages, null, false, "", false, false)) {

@@ -15,9 +15,8 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
-import org.elasticsearch.xpack.core.esql.action.ColumnInfoImpl;
 import org.elasticsearch.xpack.esql.TestBlockFactory;
+import org.elasticsearch.xpack.esql.action.ColumnInfoImpl;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 
 import java.util.Arrays;
@@ -33,7 +32,7 @@ public class TextFormatterTests extends ESTestCase {
 
     static BlockFactory blockFactory = TestBlockFactory.getNonBreakingInstance();
 
-    private final List<ColumnInfo> columns = Arrays.asList(
+    private final List<ColumnInfoImpl> columns = Arrays.asList(
         new ColumnInfoImpl("foo", "keyword"),
         new ColumnInfoImpl("bar", "long"),
         new ColumnInfoImpl("15charwidename!", "double"),

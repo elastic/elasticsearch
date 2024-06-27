@@ -12,7 +12,6 @@ import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.xpack.core.esql.action.ColumnInfoImpl;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.junit.Before;
 

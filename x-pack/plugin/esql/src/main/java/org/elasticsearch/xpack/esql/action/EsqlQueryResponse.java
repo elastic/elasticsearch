@@ -26,7 +26,6 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
-import org.elasticsearch.xpack.core.esql.action.ColumnInfoImpl;
 import org.elasticsearch.xpack.core.esql.action.EsqlResponse;
 
 import java.io.IOException;
@@ -46,7 +45,7 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
 
     public static final String DROP_NULL_COLUMNS_OPTION = "drop_null_columns";
 
-    private final List<ColumnInfo> columns;
+    private final List<ColumnInfoImpl> columns;
     private final List<Page> pages;
     private final Profile profile;
     private final boolean columnar;
@@ -56,7 +55,7 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
     private final boolean isAsync;
 
     public EsqlQueryResponse(
-        List<ColumnInfo> columns,
+        List<ColumnInfoImpl> columns,
         List<Page> pages,
         @Nullable Profile profile,
         boolean columnar,
@@ -73,7 +72,7 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
         this.isAsync = isAsync;
     }
 
-    public EsqlQueryResponse(List<ColumnInfo> columns, List<Page> pages, @Nullable Profile profile, boolean columnar, boolean isAsync) {
+    public EsqlQueryResponse(List<ColumnInfoImpl> columns, List<Page> pages, @Nullable Profile profile, boolean columnar, boolean isAsync) {
         this(columns, pages, profile, columnar, null, false, isAsync);
     }
 
@@ -98,7 +97,7 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
             isRunning = in.readBoolean();
             isAsync = in.readBoolean();
         }
-        List<ColumnInfo> columns = in.readCollectionAsList(ColumnInfoImpl::new);
+        List<ColumnInfoImpl> columns = in.readCollectionAsList(ColumnInfoImpl::new);
         List<Page> pages = in.readCollectionAsList(Page::new);
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
             profile = in.readOptionalWriteable(Profile::new);
@@ -122,7 +121,7 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
         out.writeBoolean(columnar);
     }
 
-    public List<ColumnInfo> columns() {
+    public List<ColumnInfoImpl> columns() {
         return columns;
     }
 

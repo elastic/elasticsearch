@@ -10,14 +10,17 @@ package org.elasticsearch.xpack.core.esql.action;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentParser;
+// import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 
 public interface ColumnInfo extends Writeable {
+    /*
     static ColumnInfo fromXContent(XContentParser parser) {
         return ColumnInfoImpl.PARSER.apply(parser, null);
     }
+
+     */
 
     XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException;
 

@@ -59,7 +59,6 @@ import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.function.Consumer;
-
 import javax.net.ssl.SSLException;
 
 @ESTestCase.WithoutSecurityManager
@@ -256,6 +255,8 @@ public class SecurityNetty4HttpServerTransportCloseNotifyTests extends AbstractH
 
         @Override
         public void close() {
+            // need to release not consumed requests, will complain about buffer leaks after GC
+            server.dispatcher.reqQueue.forEach(r -> r.request.getHttpRequest().release());
             server.netty.stop();
             server.threadPool.shutdownNow();
             safeAwait(client.netty.config().group().shutdownGracefully());

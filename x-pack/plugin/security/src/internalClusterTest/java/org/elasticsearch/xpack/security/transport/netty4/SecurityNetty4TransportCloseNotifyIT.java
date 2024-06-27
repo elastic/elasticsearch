@@ -42,6 +42,7 @@ import org.elasticsearch.test.SecurityIntegTestCase;
 import java.util.Collection;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.test.TaskAssertions.assertAllTasksHaveFinished;
@@ -102,6 +103,11 @@ public class SecurityNetty4TransportCloseNotifyIT extends SecurityIntegTestCase 
             });
     }
 
+    /**
+     * Ensures that receiving close_notify on server will close connection.
+     * Simulates normal connection flow where client and server exchange a few requests and responses.
+     * After an exchange client sends close_notify and expects the server to close connection.
+     */
     public void testSendCloseNotifyAfterHttpGetRequests() throws Exception {
         var node = internalCluster().startNode();
         var serverRespQueue = new ArrayBlockingQueue<FullHttpResponse>(10);
@@ -122,7 +128,7 @@ public class SecurityNetty4TransportCloseNotifyIT extends SecurityIntegTestCase 
             var sslHandler = channel.pipeline().get(SslHandler.class);
             sslHandler.closeOutbound();
             try {
-                assertTrue(channel.closeFuture().await(5000));
+                assertTrue("server must close connection", channel.closeFuture().await(5000));
             } finally {
                 channel.close().sync();
             }
@@ -131,12 +137,16 @@ public class SecurityNetty4TransportCloseNotifyIT extends SecurityIntegTestCase 
         }
     }
 
+    /**
+     * Ensures that receiving close_notify will close connection and cancel running action.
+     */
     public void testSendCloseNotifyCancelAction() throws Exception {
         var node = internalCluster().startNode();
         var indexName = "close-notify-cancel";
         createIndex(indexName);
         ensureGreen(indexName);
-        var client = setupNettyClient(node, resp -> {});
+        var gotResponse = new AtomicBoolean(false);
+        var client = setupNettyClient(node, resp -> gotResponse.set(true));
         var actionName = ClusterStateAction.NAME;
         try (var capturingAction = CancellableActionTestPlugin.capturingActionOnNode(actionName, node)) {
             var channel = client.connect().sync().channel();
@@ -145,8 +155,9 @@ public class SecurityNetty4TransportCloseNotifyIT extends SecurityIntegTestCase 
             var ssl = channel.pipeline().get(SslHandler.class);
             capturingAction.captureAndCancel(ssl::closeOutbound);
             try {
-                assertTrue(channel.closeFuture().await(5000));
+                assertTrue("server must close connection", channel.closeFuture().await(5000));
                 assertAllTasksHaveFinished(actionName);
+                assertFalse("must cancel action before http response", gotResponse.get());
             } finally {
                 channel.close().sync();
             }

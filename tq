@@ -1,0 +1,32 @@
+[1mdiff --git a/x-pack/plugin/esql-core/src/main/java/org/elasticsearch/xpack/esql/core/tree/Node.java b/x-pack/plugin/esql-core/src/main/java/org/elasticsearch/xpack/esql/core/tree/Node.java[m
+[1mindex f7561d0c2b3..f42d454ef00 100644[m
+[1m--- a/x-pack/plugin/esql-core/src/main/java/org/elasticsearch/xpack/esql/core/tree/Node.java[m
+[1m+++ b/x-pack/plugin/esql-core/src/main/java/org/elasticsearch/xpack/esql/core/tree/Node.java[m
+[36m@@ -262,6 +262,15 @@[m [mpublic abstract class Node<T extends Node<T>> {[m
+ [m
+     /**[m
+      * Return the information about this node.[m
+[32m+[m[32m     * <p>[m
+[32m+[m[32m     * Normally, you want to use one of the static {@code create} methods to implement this.[m
+[32m+[m[32m     * <p>[m
+[32m+[m[32m     * For {@link org.elasticsearch.xpack.esql.core.plan.QueryPlan}s, it is very important that[m
+[32m+[m[32m     * the properties contain all of the expressions and references relevant to this node, and[m
+[32m+[m[32m     * that all of the properties are used in the provided constructor; otherwise query plan[m
+[32m+[m[32m     * transformations like[m
+[32m+[m[32m     * {@link org.elasticsearch.xpack.esql.core.plan.QueryPlan#transformExpressionsOnly(Function)}[m
+[32m+[m[32m     * will not have an effect.[m
+      */[m
+     protected abstract NodeInfo<? extends T> info();[m
+ [m
+[1mdiff --git a/x-pack/plugin/esql-core/src/main/java/org/elasticsearch/xpack/esql/core/tree/NodeInfo.java b/x-pack/plugin/esql-core/src/main/java/org/elasticsearch/xpack/esql/core/tree/NodeInfo.java[m
+[1mindex e8ce23bc20f..0043de23632 100644[m
+[1m--- a/x-pack/plugin/esql-core/src/main/java/org/elasticsearch/xpack/esql/core/tree/NodeInfo.java[m
+[1m+++ b/x-pack/plugin/esql-core/src/main/java/org/elasticsearch/xpack/esql/core/tree/NodeInfo.java[m
+[36m@@ -17,7 +17,6 @@[m [mimport static java.util.Collections.unmodifiableList;[m
+ [m
+ /**[m
+  * Information about a {@link Node}.[m
+[31m- * <p>[m
+  * All the uses of this are fairly non-OO and we're looking[m
+  * for ways to use this less and less.[m
+  * <p>[m

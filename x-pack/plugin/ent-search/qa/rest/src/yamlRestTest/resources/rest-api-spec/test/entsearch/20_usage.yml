@@ -129,7 +129,7 @@ teardown:
   }
 
   - do:
-      query_rules.query_ruleset_put:
+      query_rules.put_ruleset:
         ruleset_id: test-query-ruleset
         body:
           rules:
@@ -155,7 +155,7 @@ teardown:
                   - 'id4'
 
   - do:
-      query_rules.query_ruleset_put:
+      query_rules.put_ruleset:
         ruleset_id: test-query-ruleset2
         body:
           rules:
@@ -204,7 +204,7 @@ teardown:
   }
 
   - do:
-      query_rules.query_ruleset_delete:
+      query_rules.delete_ruleset:
         ruleset_id: test-query-ruleset2
 
   - do:

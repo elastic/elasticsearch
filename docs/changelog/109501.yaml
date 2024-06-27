@@ -4,8 +4,11 @@ area: Mapping
 type: docs
 issues: []
 highlight:
-  title: Reflect latest changes in synthetic source documentation
+  title: Synthetic `_source` improvements
   body: |-
-    This PR changes synthetic source documentation to reflect recent
-    improvements.
-  notable: true
+    There are multiple improvements to synthetic `_source` functionality:
+
+    * Synthetic `_source` is now supported for all field types including `nested` and `object`.
+
+    * Synthetic `_source` can be enabled together with `ignore_malformed` and `ignore_above` parameters for all field types that support them.
+  notable: false

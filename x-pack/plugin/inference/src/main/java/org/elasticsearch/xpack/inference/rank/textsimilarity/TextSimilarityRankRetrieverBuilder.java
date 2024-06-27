@@ -13,7 +13,7 @@ import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.retriever.RetrieverBuilder;
 import org.elasticsearch.search.retriever.RetrieverParserContext;
-import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -23,6 +23,8 @@ import java.io.IOException;
 import java.util.Objects;
 
 import static org.elasticsearch.search.rank.RankBuilder.DEFAULT_RANK_WINDOW_SIZE;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 /**
  * A {@code RetrieverBuilder} for parsing and constructing a text similarity reranker retriever.
@@ -34,29 +36,31 @@ public class TextSimilarityRankRetrieverBuilder extends RetrieverBuilder {
     );
 
     public static final ParseField RETRIEVER_FIELD = new ParseField("retriever");
-    public static final ParseField FIELD_FIELD = new ParseField("field");
-    public static final ParseField RANK_WINDOW_SIZE_FIELD = new ParseField("rank_window_size");
     public static final ParseField INFERENCE_ID_FIELD = new ParseField("inference_id");
     public static final ParseField INFERENCE_TEXT_FIELD = new ParseField("inference_text");
+    public static final ParseField FIELD_FIELD = new ParseField("field");
+    public static final ParseField RANK_WINDOW_SIZE_FIELD = new ParseField("rank_window_size");
     public static final ParseField MIN_SCORE_FIELD = new ParseField("min_score");
 
-    public static final ObjectParser<TextSimilarityRankRetrieverBuilder, RetrieverParserContext> PARSER = new ObjectParser<>(
-        TextSimilarityRankBuilder.NAME,
-        TextSimilarityRankRetrieverBuilder::new
-    );
+    public static final ConstructingObjectParser<TextSimilarityRankRetrieverBuilder, RetrieverParserContext> PARSER =
+        new ConstructingObjectParser<>(TextSimilarityRankBuilder.NAME, args -> {
+            RetrieverBuilder retrieverBuilder = (RetrieverBuilder) args[0];
+            String inferenceId = (String) args[1];
+            String inferenceText = (String) args[2];
+            String field = (String) args[3];
+            int rankWindowSize = args[4] == null ? DEFAULT_RANK_WINDOW_SIZE : (int) args[4];
+            Float minScore = args[5] == null ? null : (float) args[5];
+
+            return new TextSimilarityRankRetrieverBuilder(retrieverBuilder, inferenceId, inferenceText, field, rankWindowSize, minScore);
+        });
 
     static {
-        PARSER.declareObject((r, v) -> r.retrieverBuilder = v, RetrieverBuilder::parseInnerRetrieverBuilder, RETRIEVER_FIELD);
-        PARSER.declareField((r, v) -> r.field = v, (p, c) -> p.text(), FIELD_FIELD, ObjectParser.ValueType.STRING);
-        PARSER.declareField(
-            (r, v) -> r.rankWindowSize = v,
-            (p, c) -> p.intValue(),
-            RANK_WINDOW_SIZE_FIELD,
-            ObjectParser.ValueType.INT_OR_NULL
-        );
-        PARSER.declareField((r, v) -> r.inferenceId = v, (p, c) -> p.text(), INFERENCE_ID_FIELD, ObjectParser.ValueType.STRING);
-        PARSER.declareField((r, v) -> r.inferenceText = v, (p, c) -> p.text(), INFERENCE_TEXT_FIELD, ObjectParser.ValueType.STRING);
-        PARSER.declareField((r, v) -> r.minScore = v, (p, c) -> p.floatValue(), MIN_SCORE_FIELD, ObjectParser.ValueType.FLOAT_OR_NULL);
+        PARSER.declareNamedObject(constructorArg(), (p, c, n) -> p.namedObject(RetrieverBuilder.class, n, c), RETRIEVER_FIELD);
+        PARSER.declareString(constructorArg(), INFERENCE_ID_FIELD);
+        PARSER.declareString(constructorArg(), INFERENCE_TEXT_FIELD);
+        PARSER.declareString(constructorArg(), FIELD_FIELD);
+        PARSER.declareInt(optionalConstructorArg(), RANK_WINDOW_SIZE_FIELD);
+        PARSER.declareFloat(optionalConstructorArg(), MIN_SCORE_FIELD);
 
         RetrieverBuilder.declareBaseParserFields(TextSimilarityRankBuilder.NAME, PARSER);
     }
@@ -72,26 +76,36 @@ public class TextSimilarityRankRetrieverBuilder extends RetrieverBuilder {
         return PARSER.apply(parser, context);
     }
 
-    private RetrieverBuilder retrieverBuilder;
-    private String field;
-    private int rankWindowSize;
-    private String inferenceId;
-    private String inferenceText;
-    private Float minScore;
+    private final RetrieverBuilder retrieverBuilder;
+    private final String inferenceId;
+    private final String inferenceText;
+    private final String field;
+    private final int rankWindowSize;
+    private final Float minScore;
 
-    public TextSimilarityRankRetrieverBuilder() {
-        this.rankWindowSize = DEFAULT_RANK_WINDOW_SIZE;
+    public TextSimilarityRankRetrieverBuilder(
+        RetrieverBuilder retrieverBuilder,
+        String inferenceId,
+        String inferenceText,
+        String field,
+        int rankWindowSize,
+        Float minScore
+    ) {
+        this.retrieverBuilder = retrieverBuilder;
+        this.inferenceId = inferenceId;
+        this.inferenceText = inferenceText;
+        this.field = field;
+        this.rankWindowSize = rankWindowSize;
+        this.minScore = minScore;
     }
 
     @Override
     public void extractToSearchSourceBuilder(SearchSourceBuilder searchSourceBuilder, boolean compoundUsed) {
         retrieverBuilder.extractToSearchSourceBuilder(searchSourceBuilder, compoundUsed);
 
-        if (searchSourceBuilder.rankBuilder() == null) {
-            searchSourceBuilder.rankBuilder(
-                new TextSimilarityRankBuilder(this.field, this.inferenceId, this.inferenceText, this.rankWindowSize, this.minScore)
-            );
-        }
+        searchSourceBuilder.rankBuilder(
+            new TextSimilarityRankBuilder(this.field, this.inferenceId, this.inferenceText, this.rankWindowSize, this.minScore)
+        );
     }
 
     @Override
@@ -102,15 +116,21 @@ public class TextSimilarityRankRetrieverBuilder extends RetrieverBuilder {
     @Override
     protected void doToXContent(XContentBuilder builder, Params params) throws IOException {
         builder.field(RETRIEVER_FIELD.getPreferredName(), retrieverBuilder);
+        builder.field(INFERENCE_ID_FIELD.getPreferredName(), inferenceId);
+        builder.field(INFERENCE_TEXT_FIELD.getPreferredName(), inferenceText);
         builder.field(FIELD_FIELD.getPreferredName(), field);
         builder.field(RANK_WINDOW_SIZE_FIELD.getPreferredName(), rankWindowSize);
-        builder.field(MIN_SCORE_FIELD.getPreferredName(), minScore);
+        if (minScore != null) {
+            builder.field(MIN_SCORE_FIELD.getPreferredName(), minScore);
+        }
     }
 
     @Override
     protected boolean doEquals(Object other) {
         TextSimilarityRankRetrieverBuilder that = (TextSimilarityRankRetrieverBuilder) other;
         return Objects.equals(retrieverBuilder, that.retrieverBuilder)
+            && Objects.equals(inferenceId, that.inferenceId)
+            && Objects.equals(inferenceText, that.inferenceText)
             && Objects.equals(field, that.field)
             && Objects.equals(rankWindowSize, that.rankWindowSize)
             && Objects.equals(minScore, that.minScore);
@@ -118,6 +138,6 @@ public class TextSimilarityRankRetrieverBuilder extends RetrieverBuilder {
 
     @Override
     protected int doHashCode() {
-        return Objects.hash(retrieverBuilder, field, rankWindowSize, minScore);
+        return Objects.hash(retrieverBuilder, inferenceId, inferenceText, field, rankWindowSize, minScore);
     }
 }

@@ -1,0 +1,5 @@
+pr: 109989
+summary: "ESQL: Fix Join references"
+area: ES|QL
+type: bug
+issues: []

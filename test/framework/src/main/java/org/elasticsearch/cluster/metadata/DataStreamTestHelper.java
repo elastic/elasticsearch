@@ -8,6 +8,7 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.apache.lucene.tests.util.LuceneTestCase;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.admin.indices.rollover.MetadataRolloverService;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -43,6 +44,7 @@ import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.mapper.RootObjectMapper;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.shard.IndexEventListener;
+import org.elasticsearch.index.shard.IndexLongFieldRange;
 import org.elasticsearch.indices.EmptySystemIndices;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.ShardLimitValidator;
@@ -221,7 +223,8 @@ public final class DataStreamTestHelper {
         return IndexMetadata.builder(index.getName())
             .settings(Settings.builder().put(SETTINGS.build()).put(SETTING_INDEX_UUID, index.getUUID()))
             .numberOfShards(NUMBER_OF_SHARDS)
-            .numberOfReplicas(NUMBER_OF_REPLICAS);
+            .numberOfReplicas(NUMBER_OF_REPLICAS)
+            .eventIngestedRange(IndexLongFieldRange.UNKNOWN, TransportVersion.current());
     }
 
     public static String generateMapping(String timestampFieldName) {

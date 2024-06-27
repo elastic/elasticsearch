@@ -43,6 +43,7 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.alias.RandomAliasActionsGenerator;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.shard.IndexLongFieldRange;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.plugins.FieldPredicate;
 import org.elasticsearch.plugins.MapperPlugin;
@@ -999,7 +1000,8 @@ public class MetadataTests extends ESTestCase {
             .creationDate(randomNonNegativeLong())
             .putAlias(AliasMetadata.builder(alias).writeIndex(writeIndex))
             .numberOfShards(1)
-            .numberOfReplicas(0);
+            .numberOfReplicas(0)
+            .eventIngestedRange(IndexLongFieldRange.UNKNOWN, TransportVersion.current());
     }
 
     @SuppressWarnings("unchecked")

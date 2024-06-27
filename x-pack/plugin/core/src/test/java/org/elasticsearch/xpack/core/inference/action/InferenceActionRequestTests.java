@@ -112,7 +112,7 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
         );
         ActionRequestValidationException inputNullError = inputNullRequest.validate();
         assertNotNull(inputNullError);
-        assertThat(inputNullError.getMessage(), is("Validation Failed: 1: missing input;"));
+        assertThat(inputNullError.getMessage(), is("Validation Failed: 1: Field [input] cannot be null;"));
     }
 
     public void testValidation_TextEmbedding_Empty() {
@@ -127,7 +127,7 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
         );
         ActionRequestValidationException inputEmptyError = inputEmptyRequest.validate();
         assertNotNull(inputEmptyError);
-        assertThat(inputEmptyError.getMessage(), is("Validation Failed: 1: input array is empty;"));
+        assertThat(inputEmptyError.getMessage(), is("Validation Failed: 1: Field [input] cannot be an empty array;"));
     }
 
     public void testValidation_Rerank_Null() {

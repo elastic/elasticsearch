@@ -167,14 +167,16 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
         public ActionRequestValidationException validate() {
             if (input == null) {
                 var e = new ActionRequestValidationException();
-                e.addValidationError("missing input");
+                e.addValidationError("Field [input] cannot be null");
                 return e;
             }
+
             if (input.isEmpty()) {
                 var e = new ActionRequestValidationException();
-                e.addValidationError("input array is empty");
+                e.addValidationError("Field [input] cannot be an empty array");
                 return e;
             }
+
             if (taskType.equals(TaskType.RERANK)) {
                 if (query == null) {
                     var e = new ActionRequestValidationException();
@@ -187,6 +189,7 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
                     return e;
                 }
             }
+
             return null;
         }
 

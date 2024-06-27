@@ -90,7 +90,6 @@ import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardLongFieldRange;
 import org.elasticsearch.index.store.Store;
-import org.elasticsearch.index.translog.ChannelFactory;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.index.translog.TranslogCorruptedException;
@@ -101,7 +100,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
 import java.io.IOException;
-import java.nio.channels.FileChannel;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -655,8 +653,7 @@ public class InternalEngine extends Engine {
             translogDeletionPolicy,
             globalCheckpointSupplier,
             engineConfig.getPrimaryTermSupplier(),
-            persistedSequenceNumberConsumer,
-            getTranslogChannelFactory()
+            persistedSequenceNumberConsumer
         );
     }
 
@@ -664,10 +661,6 @@ public class InternalEngine extends Engine {
     Translog getTranslog() {
         ensureOpen();
         return translog;
-    }
-
-    protected ChannelFactory getTranslogChannelFactory() {
-        return FileChannel::open;
     }
 
     // Package private for testing purposes only

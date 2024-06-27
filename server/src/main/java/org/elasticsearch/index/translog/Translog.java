@@ -123,7 +123,6 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     private final TranslogDeletionPolicy deletionPolicy;
     private final LongConsumer persistedSequenceNumberConsumer;
     private final OperationListener operationListener;
-    private final ChannelFactory channelFactory;
 
     /**
      * Creates a new Translog instance. This method will create a new transaction log unless the given {@link TranslogGeneration} is
@@ -153,46 +152,6 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         final LongSupplier primaryTermSupplier,
         final LongConsumer persistedSequenceNumberConsumer
     ) throws IOException {
-        this(
-            config,
-            translogUUID,
-            deletionPolicy,
-            globalCheckpointSupplier,
-            primaryTermSupplier,
-            persistedSequenceNumberConsumer,
-            FileChannel::open
-        );
-    }
-
-    /**
-     * Creates a new Translog instance. This method will create a new transaction log unless the given {@link TranslogGeneration} is
-     * {@code null}. If the generation is {@code null} this method is destructive and will delete all files in the translog path given. If
-     * the generation is not {@code null}, this method tries to open the given translog generation. The generation is treated as the last
-     * generation referenced from already committed data. This means all operations that have not yet been committed should be in the
-     * translog file referenced by this generation. The translog creation will fail if this generation can't be opened.
-     *
-     * @param config                   the configuration of this translog
-     * @param translogUUID             the translog uuid to open, null for a new translog
-     * @param deletionPolicy           an instance of {@link TranslogDeletionPolicy} that controls when a translog file can be safely
-     *                                 deleted
-     * @param globalCheckpointSupplier a supplier for the global checkpoint
-     * @param primaryTermSupplier      a supplier for the latest value of primary term of the owning index shard. The latest term value is
-     *                                 examined and stored in the header whenever a new generation is rolled. It's guaranteed from outside
-     *                                 that a new generation is rolled when the term is increased. This guarantee allows to us to validate
-     *                                 and reject operation whose term is higher than the primary term stored in the translog header.
-     * @param persistedSequenceNumberConsumer a callback that's called whenever an operation with a given sequence number is successfully
-     *                                        persisted.
-     */
-    @SuppressWarnings("this-escape")
-    public Translog(
-        final TranslogConfig config,
-        final String translogUUID,
-        TranslogDeletionPolicy deletionPolicy,
-        final LongSupplier globalCheckpointSupplier,
-        final LongSupplier primaryTermSupplier,
-        final LongConsumer persistedSequenceNumberConsumer,
-        ChannelFactory channelFactory
-    ) throws IOException {
         super(config.getShardId(), config.getIndexSettings());
         this.config = config;
         this.globalCheckpointSupplier = globalCheckpointSupplier;
@@ -207,7 +166,6 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         this.readLock = new ReleasableLock(rwl.readLock());
         this.writeLock = new ReleasableLock(rwl.writeLock());
         this.location = config.getTranslogPath();
-        this.channelFactory = channelFactory;
         Files.createDirectories(this.location);
 
         try {
@@ -1820,7 +1778,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     }
 
     ChannelFactory getChannelFactory() {
-        return channelFactory;
+        return FileChannel::open;
     }
 
     /**

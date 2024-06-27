@@ -9,22 +9,23 @@
 package org.elasticsearch.action.bulk;
 
 import org.apache.lucene.tests.mockfile.FilterFileChannel;
+import org.apache.lucene.tests.mockfile.FilterFileSystemProvider;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.engine.EngineFactory;
-import org.elasticsearch.index.engine.InternalEngine;
-import org.elasticsearch.index.translog.ChannelFactory;
+import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.core.PathUtilsForTesting;
 import org.elasticsearch.indices.IndicesService;
-import org.elasticsearch.plugins.EnginePlugin;
-import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.junit.AfterClass;
+import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.nio.channels.FileChannel;
-import java.util.Collection;
-import java.util.List;
-import java.util.Optional;
+import java.nio.file.FileSystem;
+import java.nio.file.OpenOption;
+import java.nio.file.Path;
+import java.nio.file.attribute.FileAttribute;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.index.IndexSettings.INDEX_REFRESH_INTERVAL_SETTING;
@@ -33,32 +34,18 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 
 public class BulkAfterWriteFsyncFailureIT extends ESSingleNodeTestCase {
-    @Override
-    protected Collection<Class<? extends Plugin>> getPlugins() {
-        return List.of(FailingFsyncEnginePlugin.class);
+    private static FSyncFailureFileSystemProvider fsyncFailureFileSystemProvider;
+
+    @BeforeClass
+    public static void installDisruptTranslogFS() {
+        FileSystem current = PathUtils.getDefaultFileSystem();
+        fsyncFailureFileSystemProvider = new FSyncFailureFileSystemProvider(current);
+        PathUtilsForTesting.installMock(fsyncFailureFileSystemProvider.getFileSystem(null));
     }
 
-    public static class FailingFsyncEnginePlugin extends Plugin implements EnginePlugin {
-        static final AtomicBoolean simulateFsyncFailure = new AtomicBoolean(false);
-
-        @Override
-        public Optional<EngineFactory> getEngineFactory(IndexSettings indexSettings) {
-            return Optional.of(config -> new InternalEngine(config) {
-                @Override
-                protected ChannelFactory getTranslogChannelFactory() {
-                    return (file, openOption) -> new FilterFileChannel(FileChannel.open(file, openOption)) {
-                        @Override
-                        public void force(boolean metaData) throws IOException {
-                            if (simulateFsyncFailure.compareAndSet(true, false)) {
-                                throw new IOException("Simulated fsync failure");
-                            } else {
-                                super.force(metaData);
-                            }
-                        }
-                    };
-                }
-            });
-        }
+    @AfterClass
+    public static void removeDisruptTranslogFS() {
+        PathUtilsForTesting.teardown();
     }
 
     public void testFsyncFailureDoesNotAdvanceLocalCheckpoints() {
@@ -76,7 +63,7 @@ public class BulkAfterWriteFsyncFailureIT extends ESSingleNodeTestCase {
             .get();
         ensureGreen(indexName);
 
-        FailingFsyncEnginePlugin.simulateFsyncFailure.set(true);
+        fsyncFailureFileSystemProvider.failFSyncs(true);
         var localCheckpointBeforeBulk = getLocalCheckpointForShard(indexName, 0);
         var bulkResponse = client().prepareBulk().add(prepareIndex(indexName).setId("1").setSource("key", "foo", "val", 10)).get();
         assertTrue(bulkResponse.hasFailures());
@@ -98,5 +85,38 @@ public class BulkAfterWriteFsyncFailureIT extends ESSingleNodeTestCase {
         var indicesService = getInstanceFromNode(IndicesService.class);
         var indexShard = indicesService.indexServiceSafe(resolveIndex(index)).getShard(shardId);
         return indexShard.getLocalCheckpoint();
+    }
+
+    public static class FSyncFailureFileSystemProvider extends FilterFileSystemProvider {
+
+        private final AtomicBoolean failFSyncs = new AtomicBoolean();
+        private final FileSystem delegateInstance;
+
+        public FSyncFailureFileSystemProvider(FileSystem delegate) {
+            super("fsyncfailure://", delegate);
+            this.delegateInstance = delegate;
+        }
+
+        public void failFSyncs(boolean shouldFail) {
+            failFSyncs.set(shouldFail);
+        }
+
+        @Override
+        public FileChannel newFileChannel(Path path, Set<? extends OpenOption> options, FileAttribute<?>... attrs) throws IOException {
+            return new FilterFileChannel(super.newFileChannel(path, options, attrs)) {
+
+                @Override
+                public void force(boolean metaData) throws IOException {
+                    if (failFSyncs.get()) {
+                        throw new IOException("simulated");
+                    }
+                    super.force(metaData);
+                }
+            };
+        }
+
+        public void tearDown() {
+            PathUtilsForTesting.installMock(delegateInstance);
+        }
     }
 }

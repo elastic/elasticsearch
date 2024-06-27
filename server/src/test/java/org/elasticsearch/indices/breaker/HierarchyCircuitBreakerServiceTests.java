@@ -254,6 +254,8 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
             assertThat(exception.getMessage(), containsString("request=157286400/150mb"));
             assertThat(exception.getDurability(), equalTo(CircuitBreaker.Durability.TRANSIENT));
         }
+
+        assertCircuitBreakerLimitWarning();
     }
 
     public void testParentBreaksOnRealMemoryUsage() {
@@ -325,6 +327,8 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
         memoryUsage.set(100);
         requestBreaker.addEstimateBytesAndMaybeBreak(reservationInBytes, "request");
         assertEquals(0, requestBreaker.getTrippedCount());
+
+        assertCircuitBreakerLimitWarning();
     }
 
     /**
@@ -749,6 +753,7 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
                 equalTo(expectedDurability)
             );
         }
+        assertCircuitBreakerLimitWarning();
     }
 
     public void testAllocationBucketsBreaker() {
@@ -785,6 +790,8 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
             assertThat(exception.getMessage(), containsString("[parent] Data too large, data for [allocated_buckets] would be"));
             assertThat(exception.getMessage(), containsString("which is larger than the limit of [100/100b]"));
         }
+
+        assertCircuitBreakerLimitWarning();
     }
 
     public void testRegisterCustomCircuitBreakers_WithDuplicates() {
@@ -971,5 +978,13 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
         } finally {
             HierarchyCircuitBreakerService.permitNegativeValues = false;
         }
+    }
+
+    void assertCircuitBreakerLimitWarning() {
+        assertWarnings(
+            "[indices.breaker.total.limit] should be specified using a percentage of the heap. " +
+                "Absolute size settings will be forbidden in a future release"
+        );
+
     }
 }

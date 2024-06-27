@@ -175,7 +175,10 @@ Parto Bamford     | Parto          | Bamford
 ;
 
 
+// different from shadowingSelf because in this case we dissect an indexed field
+// see https://github.com/elastic/elasticsearch/issues/110184
 overwriteInputName
+required_capability: grok_dissect_masking
 from employees | sort emp_no asc | dissect first_name "%{first_name}o%{rest}" | keep emp_no, first_name, rest | limit 1;
 
 emp_no:integer | first_name:keyword | rest:keyword

@@ -1,0 +1,11 @@
+pr: 109501
+summary: Reflect latest changes in synthetic source documentation
+area: Mapping
+type: docs
+issues: []
+highlight:
+  title: Reflect latest changes in synthetic source documentation
+  body: |-
+    This PR changes synthetic source documentation to reflect recent
+    improvements.
+  notable: true

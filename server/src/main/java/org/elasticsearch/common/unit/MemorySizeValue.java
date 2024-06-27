@@ -9,6 +9,9 @@
 package org.elasticsearch.common.unit;
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
+import org.elasticsearch.common.logging.DeprecationCategory;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 
 import java.util.Objects;
@@ -25,18 +28,39 @@ public enum MemorySizeValue {
     public static ByteSizeValue parseBytesSizeValueOrHeapRatio(String sValue, String settingName) {
         settingName = Objects.requireNonNull(settingName);
         if (sValue != null && sValue.endsWith("%")) {
-            final String percentAsString = sValue.substring(0, sValue.length() - 1);
-            try {
-                final double percent = Double.parseDouble(percentAsString);
-                if (percent < 0 || percent > 100) {
-                    throw new ElasticsearchParseException("percentage should be in [0-100], got [{}]", percentAsString);
-                }
-                return ByteSizeValue.ofBytes((long) ((percent / 100) * JvmInfo.jvmInfo().getMem().getHeapMax().getBytes()));
-            } catch (NumberFormatException e) {
-                throw new ElasticsearchParseException("failed to parse [{}] as a double", e, percentAsString);
-            }
+            return parseHeapRatio(sValue);
         } else {
             return parseBytesSizeValue(sValue, settingName);
         }
     }
+
+    public static ByteSizeValue parseHeapRatioOrDeprecatedByteSizeValue(String sValue, String settingName) {
+        settingName = Objects.requireNonNull(settingName);
+        if (sValue != null && sValue.endsWith("%")) {
+            return parseHeapRatio(sValue);
+        } else {
+            DeprecationLogger.getLogger(BalancedShardsAllocator.class)
+                .critical(
+                    DeprecationCategory.SETTINGS,
+                    "absolute_size_not_supported",
+                    "[{}] should be specified using a percentage of the heap. Absolute size settings will be forbidden in a future release",
+                    settingName
+                );
+            return parseBytesSizeValue(sValue, settingName);
+        }
+    }
+
+    private static ByteSizeValue parseHeapRatio(String sValue) {
+        final String percentAsString = sValue.substring(0, sValue.length() - 1);
+        try {
+            final double percent = Double.parseDouble(percentAsString);
+            if (percent < 0 || percent > 100) {
+                throw new ElasticsearchParseException("percentage should be in [0-100], got [{}]", percentAsString);
+            }
+            return ByteSizeValue.ofBytes((long) ((percent / 100) * JvmInfo.jvmInfo().getMem().getHeapMax().getBytes()));
+        } catch (NumberFormatException e) {
+            throw new ElasticsearchParseException("failed to parse [{}] as a double", e, percentAsString);
+        }
+    }
+
 }

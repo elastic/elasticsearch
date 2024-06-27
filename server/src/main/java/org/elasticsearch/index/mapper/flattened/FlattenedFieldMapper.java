@@ -275,6 +275,10 @@ public final class FlattenedFieldMapper extends FieldMapper {
             return CONTENT_TYPE;
         }
 
+        public String rootName() {
+            return this.rootName;
+        }
+
         public String key() {
             return key;
         }

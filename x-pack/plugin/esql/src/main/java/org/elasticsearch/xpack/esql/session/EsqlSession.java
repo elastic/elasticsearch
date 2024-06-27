@@ -235,14 +235,12 @@ public class EsqlSession {
 
         parsed.forEachDown(p -> {// go over each plan top-down
             if (p instanceof RegexExtract re) { // for Grok and Dissect
-                AttributeSet dissectRefs = p.references();
-                // don't add to the list of fields the extracted ones (they are not real fields in mappings)
-                dissectRefs.removeAll(re.extractedFields());
-                references.addAll(dissectRefs);
-                // also remove other down-the-tree references to the extracted fields
+                // remove other down-the-tree references to the extracted fields
                 for (Attribute extracted : re.extractedFields()) {
                     references.removeIf(attr -> matchByName(attr, extracted.qualifiedName(), false));
                 }
+                // but keep the inputs needed by Grok/Dissect
+                references.addAll(re.input().references());
             } else if (p instanceof Enrich) {
                 AttributeSet enrichRefs = p.references();
                 // Enrich adds an EmptyAttribute if no match field is specified

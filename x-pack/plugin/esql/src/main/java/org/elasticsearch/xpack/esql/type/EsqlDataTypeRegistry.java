@@ -35,7 +35,13 @@ public class EsqlDataTypeRegistry implements DataTypeRegistry {
 
     @Override
     public DataType fromEs(String typeName, TimeSeriesParams.MetricType metricType) {
-        DataType type = EsqlDataTypes.fromName(typeName);
+        DataType type = DataType.fromEs(typeName);
+        /*
+         * If we're handling a time series COUNTER type field then convert it
+         * into it's counter. But *first* we have to widen it because we only
+         * have time series counters for `double`, `long` and `int`, not `float`
+         * and `half_float`, etc.
+         */
         return metricType == TimeSeriesParams.MetricType.COUNTER ? type.widenSmallNumeric().counter() : type;
     }
 
@@ -46,7 +52,7 @@ public class EsqlDataTypeRegistry implements DataTypeRegistry {
 
     @Override
     public boolean isUnsupported(DataType type) {
-        return EsqlDataTypes.isUnsupported(type);
+        return type == DataType.UNSUPPORTED;
     }
 
     @Override

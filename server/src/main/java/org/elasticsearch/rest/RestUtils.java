@@ -146,17 +146,16 @@ public class RestUtils {
     }
 
     private static boolean decodingNeeded(String s, int size, boolean plusAsSpace) {
-        boolean decodingNeeded = false;
-        for (int i = 0; i < size; i++) {
+        if (Strings.isEmpty(s)) {
+            return false;
+        }
+        for (int i = 0; i < Math.min(s.length(), size); i++) {
             final char c = s.charAt(i);
-            if (c == '%') {
-                i++;  // We can skip at least one char, e.g. `%%'.
-                decodingNeeded = true;
-            } else if (plusAsSpace && c == '+') {
-                decodingNeeded = true;
+            if (c == '%' || (plusAsSpace && c == '+')) {
+                return true;
             }
         }
-        return decodingNeeded;
+        return false;
     }
 
     @SuppressWarnings("fallthrough")

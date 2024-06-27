@@ -15,7 +15,6 @@ import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.type.DataTypes;
 import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.FunctionName;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
@@ -40,10 +39,10 @@ public class ToGeoShapeTests extends AbstractFunctionTestCase {
         final Function<String, String> evaluatorName = s -> "ToGeoShape" + s + "Evaluator[field=" + attribute + "]";
         final List<TestCaseSupplier> suppliers = new ArrayList<>();
 
-        TestCaseSupplier.forUnaryGeoPoint(suppliers, attribute, DataTypes.GEO_SHAPE, v -> v, List.of());
-        TestCaseSupplier.forUnaryGeoShape(suppliers, attribute, DataTypes.GEO_SHAPE, v -> v, List.of());
+        TestCaseSupplier.forUnaryGeoPoint(suppliers, attribute, DataType.GEO_SHAPE, v -> v, List.of());
+        TestCaseSupplier.forUnaryGeoShape(suppliers, attribute, DataType.GEO_SHAPE, v -> v, List.of());
         // random strings that don't look like a geo shape
-        TestCaseSupplier.forUnaryStrings(suppliers, evaluatorName.apply("FromString"), DataTypes.GEO_SHAPE, bytesRef -> null, bytesRef -> {
+        TestCaseSupplier.forUnaryStrings(suppliers, evaluatorName.apply("FromString"), DataType.GEO_SHAPE, bytesRef -> null, bytesRef -> {
             var exception = expectThrows(Exception.class, () -> GEO.wktToWkb(bytesRef.utf8ToString()));
             return List.of(
                 "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
@@ -51,7 +50,7 @@ public class ToGeoShapeTests extends AbstractFunctionTestCase {
             );
         });
         // strings that are geo_shape representations
-        for (DataType dt : List.of(DataTypes.KEYWORD, DataTypes.TEXT)) {
+        for (DataType dt : List.of(DataType.KEYWORD, DataType.TEXT)) {
             TestCaseSupplier.unary(
                 suppliers,
                 evaluatorName.apply("FromString"),
@@ -62,12 +61,12 @@ public class ToGeoShapeTests extends AbstractFunctionTestCase {
                         dt
                     )
                 ),
-                DataTypes.GEO_SHAPE,
+                DataType.GEO_SHAPE,
                 bytesRef -> GEO.wktToWkb(((BytesRef) bytesRef).utf8ToString()),
                 List.of()
             );
         }
-        return parameterSuppliersFromTypedData(errorsForCasesWithoutExamples(anyNullIsNull(true, suppliers)));
+        return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers);
     }
 
     @Override

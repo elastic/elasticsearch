@@ -10,7 +10,10 @@ package org.elasticsearch.snapshots;
 
 import org.apache.logging.log4j.Level;
 import org.elasticsearch.action.ActionFuture;
+import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.cluster.SnapshotDeletionsInProgress;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
@@ -20,6 +23,7 @@ import org.elasticsearch.test.MockLog;
 
 import java.util.List;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
@@ -109,6 +113,76 @@ public class SnapshotsServiceIT extends AbstractSnapshotIntegTestCase {
         } finally {
             deleteRepository("test-repo");
         }
+    }
+
+    public void testDeleteSnapshotWhenNotWaitingForCompletion() throws Exception {
+        createIndexWithRandomDocs("test-index", randomIntBetween(1, 5));
+        createRepository("test-repo", "mock");
+        createSnapshot("test-repo", "test-snapshot", List.of("test-index"));
+        MockRepository repository = getRepositoryOnMaster("test-repo");
+        PlainActionFuture<AcknowledgedResponse> listener = new PlainActionFuture<>();
+        SubscribableListener<Void> snapshotDeletionListener = createSnapshotDeletionListener("test-repo");
+        repository.blockOnDataFiles();
+        try {
+            clusterAdmin().prepareDeleteSnapshot(TEST_REQUEST_TIMEOUT, "test-repo", "test-snapshot")
+                .setWaitForCompletion(false)
+                .execute(listener);
+            // The request will complete as soon as the deletion is scheduled
+            safeGet(listener);
+            // The deletion won't complete until the block is removed
+            assertFalse(snapshotDeletionListener.isDone());
+        } finally {
+            repository.unblock();
+        }
+        safeAwait(snapshotDeletionListener);
+    }
+
+    public void testDeleteSnapshotWhenWaitingForCompletion() throws Exception {
+        createIndexWithRandomDocs("test-index", randomIntBetween(1, 5));
+        createRepository("test-repo", "mock");
+        createSnapshot("test-repo", "test-snapshot", List.of("test-index"));
+        MockRepository repository = getRepositoryOnMaster("test-repo");
+        PlainActionFuture<AcknowledgedResponse> requestCompleteListener = new PlainActionFuture<>();
+        SubscribableListener<Void> snapshotDeletionListener = createSnapshotDeletionListener("test-repo");
+        repository.blockOnDataFiles();
+        try {
+            clusterAdmin().prepareDeleteSnapshot(TEST_REQUEST_TIMEOUT, "test-repo", "test-snapshot")
+                .setWaitForCompletion(true)
+                .execute(requestCompleteListener);
+            // Neither the request nor the deletion will complete until we remove the block
+            assertFalse(requestCompleteListener.isDone());
+            assertFalse(snapshotDeletionListener.isDone());
+        } finally {
+            repository.unblock();
+        }
+        safeGet(requestCompleteListener);
+        safeAwait(snapshotDeletionListener);
+    }
+
+    /**
+     * Create a listener that completes once it has observed a snapshot delete begin and end for a specific repository
+     *
+     * @param repositoryName The repository to monitor for deletions
+     * @return the listener
+     */
+    private SubscribableListener<Void> createSnapshotDeletionListener(String repositoryName) {
+        AtomicBoolean deleteHasStarted = new AtomicBoolean(false);
+        return ClusterServiceUtils.addTemporaryStateListener(
+            internalCluster().getCurrentMasterNodeInstance(ClusterService.class),
+            state -> {
+                SnapshotDeletionsInProgress deletionsInProgress = (SnapshotDeletionsInProgress) state.getCustoms()
+                    .get(SnapshotDeletionsInProgress.TYPE);
+                if (deletionsInProgress == null) {
+                    return false;
+                }
+                if (deleteHasStarted.get() == false) {
+                    deleteHasStarted.set(deletionsInProgress.hasExecutingDeletion(repositoryName));
+                    return false;
+                } else {
+                    return deletionsInProgress.hasExecutingDeletion(repositoryName) == false;
+                }
+            }
+        );
     }
 
     public void testRerouteWhenShardSnapshotsCompleted() throws Exception {

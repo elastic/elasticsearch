@@ -99,6 +99,7 @@ public class Constants {
         "cluster:admin/features/reset",
         "cluster:admin/tasks/cancel",
         "cluster:admin/transform/delete",
+        "cluster:admin/transform/node_stats",
         "cluster:admin/transform/preview",
         "cluster:admin/transform/put",
         "cluster:admin/transform/reset",
@@ -133,6 +134,7 @@ public class Constants {
         "indices:data/write/xpack/connector/update_api_key_id",
         "indices:data/write/xpack/connector/update_configuration",
         "indices:data/write/xpack/connector/update_error",
+        "indices:data/write/xpack/connector/update_features",
         "indices:data/write/xpack/connector/update_filtering",
         "indices:data/write/xpack/connector/update_filtering/activate",
         "indices:data/write/xpack/connector/update_filtering/draft_validation",
@@ -151,6 +153,7 @@ public class Constants {
         "cluster:admin/xpack/connector/secret/put",
         "indices:data/write/xpack/connector/sync_job/cancel",
         "indices:data/write/xpack/connector/sync_job/check_in",
+        "indices:data/write/xpack/connector/sync_job/claim",
         "indices:data/write/xpack/connector/sync_job/delete",
         "indices:data/read/xpack/connector/sync_job/get",
         "indices:data/read/xpack/connector/sync_job/list",
@@ -230,6 +233,9 @@ public class Constants {
         "cluster:admin/xpack/ml/upgrade_mode",
         "cluster:admin/xpack/monitoring/bulk",
         "cluster:admin/xpack/monitoring/migrate/alerts",
+        "cluster:admin/xpack/query_rules/rule/delete",
+        "cluster:admin/xpack/query_rules/rule/get",
+        "cluster:admin/xpack/query_rules/rule/put",
         "cluster:admin/xpack/query_rules/delete",
         "cluster:admin/xpack/query_rules/get",
         "cluster:admin/xpack/query_rules/list",
@@ -609,6 +615,8 @@ public class Constants {
         "internal:cluster/formation/info",
         "internal:gateway/local/started_shards",
         "internal:admin/indices/prevalidate_shard_path",
-        "internal:index/metadata/migration_version/update"
+        "internal:index/metadata/migration_version/update",
+        "internal:admin/repository/verify",
+        "internal:admin/repository/verify/coordinate"
     ).filter(Objects::nonNull).collect(Collectors.toUnmodifiableSet());
 }

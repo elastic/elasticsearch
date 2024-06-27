@@ -18,7 +18,6 @@ import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.SegmentInfos;
-import org.apache.lucene.index.Term;
 import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.search.Sort;
@@ -101,7 +100,6 @@ import org.elasticsearch.index.get.GetStats;
 import org.elasticsearch.index.get.ShardGetService;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.MapperService;
@@ -1045,9 +1043,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             // whether mappings were provided or not.
             doc.addDynamicMappingsUpdate(mapping);
         }
-        Term uid = new Term(IdFieldMapper.NAME, Uid.encodeId(doc.id()));
         return new Engine.Index(
-            uid,
+            Uid.encodeId(doc.id()),
             doc,
             seqNo,
             primaryTerm,
@@ -1210,7 +1207,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             final Engine.DeleteResult result;
             try {
                 if (logger.isTraceEnabled()) {
-                    logger.trace("delete [{}] (seq no [{}])", delete.uid().text(), delete.seqNo());
+                    logger.trace("delete [{}] (seq no [{}])", delete.uid(), delete.seqNo());
                 }
                 result = engine.delete(delete);
             } catch (Exception e) {
@@ -1235,8 +1232,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         long ifPrimaryTerm
     ) {
         long startTime = System.nanoTime();
-        final Term uid = new Term(IdFieldMapper.NAME, Uid.encodeId(id));
-        return new Engine.Delete(id, uid, seqNo, primaryTerm, version, versionType, origin, startTime, ifSeqNo, ifPrimaryTerm);
+        return new Engine.Delete(id, Uid.encodeId(id), seqNo, primaryTerm, version, versionType, origin, startTime, ifSeqNo, ifPrimaryTerm);
     }
 
     public Engine.GetResult get(Engine.Get get) {
@@ -1430,6 +1426,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     public DenseVectorStats denseVectorStats() {
         readAllowed();
         return getEngine().denseVectorStats();
+    }
+
+    public SparseVectorStats sparseVectorStats() {
+        readAllowed();
+        MappingLookup mappingLookup = mapperService != null ? mapperService.mappingLookup() : null;
+        return getEngine().sparseVectorStats(mappingLookup);
     }
 
     public BulkStats bulkStats() {
@@ -2228,10 +2230,19 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     @Override
     public ShardLongFieldRange getTimestampRange() {
+        return determineShardLongFieldRange(DataStream.TIMESTAMP_FIELD_NAME);
+    }
+
+    @Override
+    public ShardLongFieldRange getEventIngestedRange() {
+        return determineShardLongFieldRange(IndexMetadata.EVENT_INGESTED_FIELD_NAME);
+    }
+
+    private ShardLongFieldRange determineShardLongFieldRange(String fieldName) {
         if (mapperService() == null) {
             return ShardLongFieldRange.UNKNOWN; // no mapper service, no idea if the field even exists
         }
-        final MappedFieldType mappedFieldType = mapperService().fieldType(DataStream.TIMESTAMP_FIELD_NAME);
+        final MappedFieldType mappedFieldType = mapperService().fieldType(fieldName);
         if (mappedFieldType instanceof DateFieldMapper.DateFieldType == false) {
             return ShardLongFieldRange.UNKNOWN; // field missing or not a date
         }
@@ -2241,10 +2252,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
         final ShardLongFieldRange rawTimestampFieldRange;
         try {
-            rawTimestampFieldRange = getEngine().getRawFieldRange(DataStream.TIMESTAMP_FIELD_NAME);
+            rawTimestampFieldRange = getEngine().getRawFieldRange(fieldName);
             assert rawTimestampFieldRange != null;
         } catch (IOException | AlreadyClosedException e) {
-            logger.debug("exception obtaining range for timestamp field", e);
+            logger.debug("exception obtaining range for field " + fieldName, e);
             return ShardLongFieldRange.UNKNOWN;
         }
         if (rawTimestampFieldRange == ShardLongFieldRange.UNKNOWN) {
@@ -3335,7 +3346,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         markAsRecovering(reason, recoveryState); // mark the shard as recovering on the cluster state thread
         threadPool.generic().execute(ActionRunnable.wrap(ActionListener.wrap(r -> {
             if (r) {
-                recoveryListener.onRecoveryDone(recoveryState, getTimestampRange());
+                recoveryListener.onRecoveryDone(recoveryState, getTimestampRange(), getEventIngestedRange());
             }
         }, e -> recoveryListener.onRecoveryFailure(new RecoveryFailedException(recoveryState, null, e), true)), action));
     }
@@ -3489,7 +3500,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             isTimeBasedIndex ? TIMESERIES_LEAF_READERS_SORTER : null,
             relativeTimeInNanosSupplier,
             indexCommitListener,
-            routingEntry().isPromotableToPrimary()
+            routingEntry().isPromotableToPrimary(),
+            mapperService()
         );
     }
 

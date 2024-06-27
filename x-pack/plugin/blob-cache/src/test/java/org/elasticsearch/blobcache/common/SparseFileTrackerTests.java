@@ -326,9 +326,14 @@ public class SparseFileTrackerTests extends ESTestCase {
                 assertThat(gap.start(), greaterThanOrEqualTo(range.start()));
                 assertThat(gap.end(), lessThanOrEqualTo(range.end()));
 
+                final boolean completeBeforeEndOfGap = triggeringProgress < gap.end() - 1L; // gap.end is exclusive
+                long from = gap.start();
+                long written = 0L;
+
                 for (long i = gap.start(); i < gap.end(); i++) {
                     assertThat(fileContents[toIntBytes(i)], equalTo(UNAVAILABLE));
                     fileContents[toIntBytes(i)] = AVAILABLE;
+                    written += 1L;
                     if (triggeringProgress == i) {
                         assertFalse(expectNotification.getAndSet(true));
                     }
@@ -342,19 +347,35 @@ public class SparseFileTrackerTests extends ESTestCase {
                         equalTo(triggeringProgress < i)
                     );
 
-                    gap.onProgress(i + 1L);
+                    long progress = from + written;
+                    gap.onProgress(progress);
 
-                    assertThat(
-                        "Listener should not have been called before ["
-                            + triggeringProgress
-                            + "] is reached, but it was triggered after progress got updated to ["
-                            + i
-                            + ']',
-                        wasNotified.get() && waitIfPendingWasNotified.get(),
-                        equalTo(triggeringProgress < i + 1L)
-                    );
+                    if (completeBeforeEndOfGap) {
+                        assertThat(
+                            "Listener should not have been called before ["
+                                + triggeringProgress
+                                + "] is reached, but it was triggered after progress got updated to ["
+                                + i
+                                + ']',
+                            wasNotified.get() && waitIfPendingWasNotified.get(),
+                            equalTo(triggeringProgress < progress)
+                        );
+                    } else {
+                        assertThat(
+                            "Listener should not have been called before gap  ["
+                                + gap
+                                + "] is completed, but it was triggered after progress got updated to ["
+                                + i
+                                + ']',
+                            wasNotified.get() && waitIfPendingWasNotified.get(),
+                            equalTo(false)
+                        );
+                    }
+
+                    if (progress == gap.end()) {
+                        gap.onCompletion();
+                    }
                 }
-                gap.onCompletion();
 
                 assertThat(
                     "Listener should not have been called before ["
@@ -494,6 +515,68 @@ public class SparseFileTrackerTests extends ESTestCase {
         final SortedSet<ByteRange> completedRanges = sparseFileTracker.getCompletedRanges();
         assertThat(completedRanges, hasSize(expectedCompletedRanges.size()));
         assertThat(completedRanges, equalTo(expectedCompletedRanges));
+    }
+
+    public void testCompletePointerUpdatesOnProgress() {
+        // min length of 2 to have at least one progress update before reaching the end
+        byte[] bytes = new byte[between(2, 1024)];
+        var tracker = new SparseFileTracker(getTestName(), bytes.length);
+
+        long position = 0L;
+        for (int i = 0; i < 25 && position < tracker.getLength() - 1L; i++) {
+            var progress = randomLongBetween(position + 1L, tracker.getLength() - 1L);
+
+            var listener = new PlainActionFuture<Void>();
+            var gaps = tracker.waitForRange(
+                ByteRange.of(position, progress),
+                ByteRange.of(position, progress),
+                ActionListener.runBefore(listener, () -> assertThat(tracker.getComplete(), equalTo(progress)))
+            );
+            assertThat(listener.isDone(), equalTo(false));
+            assertThat(gaps, hasSize(1));
+
+            gaps.forEach(gap -> {
+                long latestUpdatedCompletePointer = gap.start();
+
+                for (long j = gap.start(); j < gap.end(); j++) {
+                    final PlainActionFuture<Void> awaitingListener;
+                    if (randomBoolean()) {
+                        awaitingListener = new PlainActionFuture<>();
+                        var moreGaps = tracker.waitForRange(
+                            ByteRange.of(gap.start(), j + 1L),
+                            ByteRange.of(gap.start(), j + 1L),
+                            awaitingListener
+                        );
+                        assertThat(moreGaps.isEmpty(), equalTo(true));
+                    } else {
+                        awaitingListener = null;
+                    }
+
+                    assertThat(bytes[toIntBytes(j)], equalTo(UNAVAILABLE));
+                    bytes[toIntBytes(j)] = AVAILABLE;
+                    gap.onProgress(j + 1L);
+
+                    if (awaitingListener != null && j < gap.end() - 1L) {
+                        assertThat(
+                            "Complete pointer should have been updated when a listener is waiting for the gap to be completed",
+                            tracker.getComplete(),
+                            equalTo(j + 1L)
+                        );
+                        assertThat(awaitingListener.isDone(), equalTo(true));
+                        latestUpdatedCompletePointer = tracker.getComplete();
+                    } else {
+                        assertThat(
+                            "Complete pointer is not updated if no listeners are waiting for the gap to be completed",
+                            tracker.getComplete(),
+                            equalTo(latestUpdatedCompletePointer)
+                        );
+                    }
+                }
+                gap.onCompletion();
+                assertThat(tracker.getComplete(), equalTo(gap.end()));
+            });
+            position = progress;
+        }
     }
 
     private static void checkRandomAbsentRange(byte[] fileContents, SparseFileTracker sparseFileTracker, boolean expectExact) {

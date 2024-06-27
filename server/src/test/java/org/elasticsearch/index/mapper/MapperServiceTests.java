@@ -273,7 +273,7 @@ public class MapperServiceTests extends MapperServiceTestCase {
 
         DocumentMapper documentMapper = mapperService.merge("_doc", mapping, MergeReason.MAPPING_RECOVERY);
 
-        assertEquals(testString, documentMapper.mappers().getMapper(testString).simpleName());
+        assertEquals(testString, documentMapper.mappers().getMapper(testString).leafName());
     }
 
     public void testIsMetadataField() throws IOException {
@@ -1473,7 +1473,7 @@ public class MapperServiceTests extends MapperServiceTestCase {
         assertNotNull(mapper.mappers().getMapper("text_field"));
         FieldMapper.MultiFields multiFields = ((TextFieldMapper) mapper.mappers().getMapper("text_field")).multiFields();
         Map<String, FieldMapper> multiFieldMap = StreamSupport.stream(multiFields.spliterator(), false)
-            .collect(Collectors.toMap(FieldMapper::name, Function.identity()));
+            .collect(Collectors.toMap(FieldMapper::fullPath, Function.identity()));
         assertThat(multiFieldMap.keySet(), contains("text_field.multi_field1"));
         assertTrue(multiFieldMap.get("text_field.multi_field1").ignoreMalformed());
     }

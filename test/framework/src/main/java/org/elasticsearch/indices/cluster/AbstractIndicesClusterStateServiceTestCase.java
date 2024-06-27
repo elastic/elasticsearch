@@ -424,6 +424,10 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
             return ShardLongFieldRange.EMPTY;
         }
 
+        @Override
+        public ShardLongFieldRange getEventIngestedRange() {
+            return ShardLongFieldRange.EMPTY;
+        }
     }
 
     public static void awaitIndexShardCloseAsyncTasks(IndicesClusterStateService indicesClusterStateService) {

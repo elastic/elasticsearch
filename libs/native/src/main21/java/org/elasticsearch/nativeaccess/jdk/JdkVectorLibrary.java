@@ -36,11 +36,27 @@ public final class JdkVectorLibrary implements VectorLibrary {
             int caps = (int) vecCaps$mh.invokeExact();
             if (caps != 0) {
                 if (caps == 2) {
-                    dot7u$mh = downcallHandle("dot7u_2", FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS, JAVA_INT));
-                    sqr7u$mh = downcallHandle("sqr7u_2", FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS, JAVA_INT));
+                    dot7u$mh = downcallHandle(
+                        "dot7u_2",
+                        FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS, JAVA_INT),
+                        LinkerHelperUtil.critical()
+                    );
+                    sqr7u$mh = downcallHandle(
+                        "sqr7u_2",
+                        FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS, JAVA_INT),
+                        LinkerHelperUtil.critical()
+                    );
                 } else {
-                    dot7u$mh = downcallHandle("dot7u", FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS, JAVA_INT));
-                    sqr7u$mh = downcallHandle("sqr7u", FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS, JAVA_INT));
+                    dot7u$mh = downcallHandle(
+                        "dot7u",
+                        FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS, JAVA_INT),
+                        LinkerHelperUtil.critical()
+                    );
+                    sqr7u$mh = downcallHandle(
+                        "sqr7u",
+                        FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS, JAVA_INT),
+                        LinkerHelperUtil.critical()
+                    );
                 }
                 INSTANCE = new JdkVectorSimilarityFunctions();
             } else {

@@ -13,7 +13,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.DataTypes;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 
@@ -54,7 +54,7 @@ public class DateTruncTests extends AbstractFunctionTestCase {
             ofDuration(Duration.ofSeconds(30), ts, "2023-02-17T10:25:30.00Z"),
             randomSecond()
         );
-        return parameterSuppliersFromTypedData(errorsForCasesWithoutExamples(anyNullIsNull(true, suppliers)));
+        return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers);
     }
 
     public void testCreateRoundingDuration() {
@@ -139,14 +139,14 @@ public class DateTruncTests extends AbstractFunctionTestCase {
 
     private static TestCaseSupplier ofDatePeriod(Period period, long value, String expectedDate) {
         return new TestCaseSupplier(
-            List.of(DataTypes.DATE_PERIOD, DataTypes.DATETIME),
+            List.of(DataType.DATE_PERIOD, DataType.DATETIME),
             () -> new TestCaseSupplier.TestCase(
                 List.of(
-                    new TestCaseSupplier.TypedData(period, DataTypes.DATE_PERIOD, "interval"),
-                    new TestCaseSupplier.TypedData(value, DataTypes.DATETIME, "date")
+                    new TestCaseSupplier.TypedData(period, DataType.DATE_PERIOD, "interval"),
+                    new TestCaseSupplier.TypedData(value, DataType.DATETIME, "date")
                 ),
                 "DateTruncEvaluator[date=Attribute[channel=1], interval=Attribute[channel=0]]",
-                DataTypes.DATETIME,
+                DataType.DATETIME,
                 equalTo(toMillis(expectedDate))
             )
         );
@@ -154,21 +154,21 @@ public class DateTruncTests extends AbstractFunctionTestCase {
 
     private static TestCaseSupplier ofDuration(Duration duration, long value, String expectedDate) {
         return new TestCaseSupplier(
-            List.of(DataTypes.TIME_DURATION, DataTypes.DATETIME),
+            List.of(DataType.TIME_DURATION, DataType.DATETIME),
             () -> new TestCaseSupplier.TestCase(
                 List.of(
-                    new TestCaseSupplier.TypedData(duration, DataTypes.TIME_DURATION, "interval"),
-                    new TestCaseSupplier.TypedData(value, DataTypes.DATETIME, "date")
+                    new TestCaseSupplier.TypedData(duration, DataType.TIME_DURATION, "interval"),
+                    new TestCaseSupplier.TypedData(value, DataType.DATETIME, "date")
                 ),
                 "DateTruncEvaluator[date=Attribute[channel=1], interval=Attribute[channel=0]]",
-                DataTypes.DATETIME,
+                DataType.DATETIME,
                 equalTo(toMillis(expectedDate))
             )
         );
     }
 
     private static TestCaseSupplier randomSecond() {
-        return new TestCaseSupplier("random second", List.of(DataTypes.TIME_DURATION, DataTypes.DATETIME), () -> {
+        return new TestCaseSupplier("random second", List.of(DataType.TIME_DURATION, DataType.DATETIME), () -> {
             String dateFragment = randomIntBetween(2000, 2050)
                 + "-"
                 + pad(randomIntBetween(1, 12))
@@ -182,11 +182,11 @@ public class DateTruncTests extends AbstractFunctionTestCase {
                 + pad(randomIntBetween(0, 59));
             return new TestCaseSupplier.TestCase(
                 List.of(
-                    new TestCaseSupplier.TypedData(Duration.ofSeconds(1), DataTypes.TIME_DURATION, "interval"),
-                    new TestCaseSupplier.TypedData(toMillis(dateFragment + ".38Z"), DataTypes.DATETIME, "date")
+                    new TestCaseSupplier.TypedData(Duration.ofSeconds(1), DataType.TIME_DURATION, "interval"),
+                    new TestCaseSupplier.TypedData(toMillis(dateFragment + ".38Z"), DataType.DATETIME, "date")
                 ),
                 "DateTruncEvaluator[date=Attribute[channel=1], interval=Attribute[channel=0]]",
-                DataTypes.DATETIME,
+                DataType.DATETIME,
                 equalTo(toMillis(dateFragment + ".00Z"))
             );
         });

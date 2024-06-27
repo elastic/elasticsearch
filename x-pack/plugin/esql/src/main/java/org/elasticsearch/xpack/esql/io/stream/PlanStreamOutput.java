@@ -19,11 +19,10 @@ import org.elasticsearch.compute.data.IntBigArrayBlock;
 import org.elasticsearch.compute.data.LongBigArrayBlock;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.Column;
-import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.io.stream.PlanNameRegistry.PlanWriter;
+import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
 
@@ -36,7 +35,7 @@ import java.util.function.Function;
  * A customized stream output used to serialize ESQL physical plan fragments. Complements stream
  * output with methods that write plan nodes, Attributes, Expressions, etc.
  */
-public final class PlanStreamOutput extends StreamOutput {
+public final class PlanStreamOutput extends StreamOutput implements org.elasticsearch.xpack.esql.core.util.PlanStreamOutput {
 
     /**
      * Cache of written blocks. We use an {@link IdentityHashMap} for this
@@ -77,7 +76,7 @@ public final class PlanStreamOutput extends StreamOutput {
     }
 
     public void writeLogicalPlanNode(LogicalPlan logicalPlan) throws IOException {
-        assert logicalPlan.children().size() <= 1;
+        assert logicalPlan.children().size() <= 1 || (logicalPlan instanceof Join && logicalPlan.children().size() == 2);
         writeNamed(LogicalPlan.class, logicalPlan);
     }
 
@@ -95,16 +94,9 @@ public final class PlanStreamOutput extends StreamOutput {
         }
     }
 
+    @Override
     public void writeExpression(Expression expression) throws IOException {
         writeNamed(Expression.class, expression);
-    }
-
-    public void writeNamedExpression(NamedExpression namedExpression) throws IOException {
-        writeNamed(NamedExpression.class, namedExpression);
-    }
-
-    public void writeAttribute(Attribute attribute) throws IOException {
-        writeNamed(Attribute.class, attribute);
     }
 
     public void writeOptionalExpression(Expression expression) throws IOException {

@@ -7,16 +7,22 @@
 
 package org.elasticsearch.xpack.esql.expression.function;
 
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.core.capabilities.Unresolvable;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
+import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
+import java.io.IOException;
 import java.util.Objects;
 
 /**
@@ -26,9 +32,19 @@ import java.util.Objects;
  * As such the field is marked as unresolved (so the verifier can pick up its usage outside project).
  */
 public final class UnsupportedAttribute extends FieldAttribute implements Unresolvable {
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
+        Attribute.class,
+        "UnsupportedAttribute",
+        UnsupportedAttribute::new
+    );
+    public static final NamedWriteableRegistry.Entry NAMED_EXPRESSION_ENTRY = new NamedWriteableRegistry.Entry(
+        NamedExpression.class,
+        ENTRY.name,
+        UnsupportedAttribute::new
+    );
 
     private final String message;
-    private final boolean hasCustomMessage;
+    private final boolean hasCustomMessage; // TODO remove me and just use message != null?
 
     private static String errorMessage(String name, UnsupportedEsField field) {
         return "Cannot use field [" + name + "] with unsupported type [" + field.getOriginalType() + "]";
@@ -46,6 +62,30 @@ public final class UnsupportedAttribute extends FieldAttribute implements Unreso
         super(source, null, name, field, null, Nullability.TRUE, id, false);
         this.hasCustomMessage = customMessage != null;
         this.message = customMessage == null ? errorMessage(qualifiedName(), field) : customMessage;
+    }
+
+    public UnsupportedAttribute(StreamInput in) throws IOException {
+        this(
+            Source.readFrom((PlanStreamInput) in),
+            in.readString(),
+            new UnsupportedEsField(in),
+            in.readOptionalString(),
+            NameId.readFrom((PlanStreamInput) in)
+        );
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        Source.EMPTY.writeTo(out);
+        out.writeString(name());
+        field().writeTo(out);
+        out.writeOptionalString(hasCustomMessage ? message : null);
+        id().writeTo(out);
+    }
+
+    @Override
+    public String getWriteableName() {
+        return ENTRY.name;
     }
 
     @Override

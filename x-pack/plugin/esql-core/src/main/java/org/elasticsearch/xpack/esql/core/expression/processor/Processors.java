@@ -8,10 +8,8 @@ package org.elasticsearch.xpack.esql.core.expression.processor;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry.Entry;
-import org.elasticsearch.xpack.esql.core.expression.gen.processor.BucketExtractorProcessor;
 import org.elasticsearch.xpack.esql.core.expression.gen.processor.ChainingProcessor;
 import org.elasticsearch.xpack.esql.core.expression.gen.processor.ConstantProcessor;
-import org.elasticsearch.xpack.esql.core.expression.gen.processor.HitExtractorProcessor;
 import org.elasticsearch.xpack.esql.core.expression.gen.processor.Processor;
 import org.elasticsearch.xpack.esql.core.expression.predicate.logical.BinaryLogicProcessor;
 import org.elasticsearch.xpack.esql.core.expression.predicate.logical.NotProcessor;
@@ -42,8 +40,6 @@ public final class Processors {
         entries.add(new Entry(Converter.class, DefaultConverter.NAME, DefaultConverter::read));
 
         entries.add(new Entry(Processor.class, ConstantProcessor.NAME, ConstantProcessor::new));
-        entries.add(new Entry(Processor.class, HitExtractorProcessor.NAME, HitExtractorProcessor::new));
-        entries.add(new Entry(Processor.class, BucketExtractorProcessor.NAME, BucketExtractorProcessor::new));
         entries.add(new Entry(Processor.class, ChainingProcessor.NAME, ChainingProcessor::new));
 
         // logical

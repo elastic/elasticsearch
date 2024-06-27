@@ -39,18 +39,21 @@ import static org.hamcrest.Matchers.oneOf;
 public class ArchiveLicenseIntegTests extends AbstractArchiveTestCase {
 
     public void testFeatureUsage() throws Exception {
-        XPackUsageFeatureResponse usage = client().execute(XPackUsageFeatureAction.ARCHIVE, new XPackUsageRequest()).get();
+        XPackUsageFeatureResponse usage = safeGet(
+            client().execute(XPackUsageFeatureAction.ARCHIVE, new XPackUsageRequest(SAFE_AWAIT_TIMEOUT))
+        );
         assertThat(usage.getUsage(), instanceOf(ArchiveFeatureSetUsage.class));
         ArchiveFeatureSetUsage archiveUsage = (ArchiveFeatureSetUsage) usage.getUsage();
         assertEquals(0, archiveUsage.getNumberOfArchiveIndices());
 
-        final RestoreSnapshotRequest req = new RestoreSnapshotRequest(repoName, snapshotName).indices(indexName).waitForCompletion(true);
+        final RestoreSnapshotRequest req = new RestoreSnapshotRequest(TEST_REQUEST_TIMEOUT, repoName, snapshotName).indices(indexName)
+            .waitForCompletion(true);
 
         final RestoreSnapshotResponse restoreSnapshotResponse = clusterAdmin().restoreSnapshot(req).get();
         assertThat(restoreSnapshotResponse.getRestoreInfo().failedShards(), equalTo(0));
         ensureGreen(indexName);
 
-        usage = client().execute(XPackUsageFeatureAction.ARCHIVE, new XPackUsageRequest()).get();
+        usage = safeGet(client().execute(XPackUsageFeatureAction.ARCHIVE, new XPackUsageRequest(SAFE_AWAIT_TIMEOUT)));
         assertThat(usage.getUsage(), instanceOf(ArchiveFeatureSetUsage.class));
         archiveUsage = (ArchiveFeatureSetUsage) usage.getUsage();
         assertEquals(1, archiveUsage.getNumberOfArchiveIndices());
@@ -68,7 +71,8 @@ public class ArchiveLicenseIntegTests extends AbstractArchiveTestCase {
         ensureClusterSizeConsistency();
         ensureClusterStateConsistency();
 
-        final RestoreSnapshotRequest req = new RestoreSnapshotRequest(repoName, snapshotName).indices(indexName).waitForCompletion(true);
+        final RestoreSnapshotRequest req = new RestoreSnapshotRequest(TEST_REQUEST_TIMEOUT, repoName, snapshotName).indices(indexName)
+            .waitForCompletion(true);
         ElasticsearchSecurityException e = expectThrows(
             ElasticsearchSecurityException.class,
             () -> clusterAdmin().restoreSnapshot(req).actionGet()
@@ -82,7 +86,8 @@ public class ArchiveLicenseIntegTests extends AbstractArchiveTestCase {
             TestRepositoryPlugin.FAKE_VERSIONS_TYPE,
             Settings.builder().put(getRepositoryOnMaster(repoName).getMetadata().settings()).put("version", Version.fromString("2.0.0").id)
         );
-        final RestoreSnapshotRequest req = new RestoreSnapshotRequest(repoName, snapshotName).indices(indexName).waitForCompletion(true);
+        final RestoreSnapshotRequest req = new RestoreSnapshotRequest(TEST_REQUEST_TIMEOUT, repoName, snapshotName).indices(indexName)
+            .waitForCompletion(true);
         SnapshotRestoreException e = expectThrows(SnapshotRestoreException.class, () -> clusterAdmin().restoreSnapshot(req).actionGet());
         assertThat(
             e.getMessage(),
@@ -92,7 +97,8 @@ public class ArchiveLicenseIntegTests extends AbstractArchiveTestCase {
 
     // checks that shards are failed if license becomes invalid after successful restore
     public void testShardAllocationOnInvalidLicense() throws Exception {
-        final RestoreSnapshotRequest req = new RestoreSnapshotRequest(repoName, snapshotName).indices(indexName).waitForCompletion(true);
+        final RestoreSnapshotRequest req = new RestoreSnapshotRequest(TEST_REQUEST_TIMEOUT, repoName, snapshotName).indices(indexName)
+            .waitForCompletion(true);
 
         final RestoreSnapshotResponse restoreSnapshotResponse = clusterAdmin().restoreSnapshot(req).get();
         assertThat(restoreSnapshotResponse.getRestoreInfo().failedShards(), equalTo(0));

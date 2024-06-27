@@ -234,7 +234,7 @@ public class JoinValidationServiceTests extends ESTestCase {
             for (final var thread : threads) {
                 thread.join();
             }
-            assertTrue(validationPermits.tryAcquire(permitCount, 10, TimeUnit.SECONDS));
+            safeAcquire(permitCount, validationPermits);
             assertBusy(() -> assertTrue(joinValidationService.isIdle()));
         } finally {
             Collections.reverse(releasables);

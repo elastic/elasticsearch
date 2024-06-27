@@ -41,6 +41,7 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.RequestBuilder;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.bootstrap.BootstrapForTesting;
@@ -78,6 +79,7 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.PathUtilsForTesting;
@@ -144,6 +146,7 @@ import java.lang.annotation.Inherited;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
+import java.lang.invoke.MethodHandles;
 import java.math.BigInteger;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
@@ -256,8 +259,9 @@ public abstract class ESTestCase extends LuceneTestCase {
     private static final SetOnce<Boolean> WARN_SECURE_RANDOM_FIPS_NOT_DETERMINISTIC = new SetOnce<>();
 
     static {
+        Random random = initTestSeed();
         TEST_WORKER_VM_ID = System.getProperty(TEST_WORKER_SYS_PROPERTY, DEFAULT_TEST_WORKER_ID);
-        setTestSysProps();
+        setTestSysProps(random);
         // TODO: consolidate logging initialization for tests so it all occurs in logconfigurator
         LogConfigurator.loadLog4jPlugins();
         LogConfigurator.configureESLogging();
@@ -358,8 +362,46 @@ public abstract class ESTestCase extends LuceneTestCase {
         JAVA_ZONE_IDS = ZoneId.getAvailableZoneIds().stream().filter(unsupportedZoneIdsPredicate.negate()).sorted().toList();
     }
 
+    static Random initTestSeed() {
+        String inputSeed = System.getProperty("tests.seed");
+        long seed;
+        if (inputSeed == null) {
+            // when running tests in intellij, we don't have a seed. Setup the seed early here, before getting to RandomizedRunner,
+            // so that we can use it in ESTestCase static init
+            seed = System.nanoTime();
+            setTestSeed(Long.toHexString(seed));
+        } else {
+            String[] seedParts = inputSeed.split("[\\:]");
+            seed = Long.parseUnsignedLong(seedParts[0], 16);
+        }
+
+        if (Booleans.parseBoolean(System.getProperty("tests.hackImmutableCollections", "false"))) {
+            forceImmutableCollectionsSeed(seed);
+        }
+
+        return new Random(seed);
+    }
+
+    @SuppressForbidden(reason = "set tests.seed for intellij")
+    static void setTestSeed(String seed) {
+        System.setProperty("tests.seed", seed);
+    }
+
+    private static void forceImmutableCollectionsSeed(long seed) {
+        try {
+            MethodHandles.Lookup lookup = MethodHandles.lookup();
+            Class<?> collectionsClass = Class.forName("java.util.ImmutableCollections");
+            var salt32l = lookup.findStaticVarHandle(collectionsClass, "SALT32L", long.class);
+            var reverse = lookup.findStaticVarHandle(collectionsClass, "REVERSE", boolean.class);
+            salt32l.set(seed & 0xFFFF_FFFFL);
+            reverse.set((seed & 1) == 0);
+        } catch (Exception e) {
+            throw new AssertionError(e);
+        }
+    }
+
     @SuppressForbidden(reason = "force log4j and netty sysprops")
-    private static void setTestSysProps() {
+    private static void setTestSysProps(Random random) {
         System.setProperty("log4j.shutdownHookEnabled", "false");
         System.setProperty("log4j2.disable.jmx", "true");
 
@@ -376,11 +418,7 @@ public abstract class ESTestCase extends LuceneTestCase {
         System.setProperty("es.set.netty.runtime.available.processors", "false");
 
         // sometimes use the java.time date formatters
-        // we can't use randomBoolean here, the random context isn't set properly
-        // so read it directly from the test seed in an unfortunately hacky way
-        String testSeed = System.getProperty("tests.seed", "0");
-        boolean firstBit = (Integer.parseInt(testSeed.substring(testSeed.length() - 1), 16) & 1) == 1;
-        if (firstBit) {
+        if (random.nextBoolean()) {
             System.setProperty("es.datetime.java_time_parsers", "true");
         }
     }
@@ -750,6 +788,17 @@ public abstract class ESTestCase extends LuceneTestCase {
         }
     }
 
+    /**
+     * Assert that at least one leak was detected, also clear the list of detected leaks
+     * so the test won't fail for leaks detected up until this point.
+     */
+    protected static void assertLeakDetected() {
+        synchronized (loggedLeaks) {
+            assertFalse("No leaks have been detected", loggedLeaks.isEmpty());
+            loggedLeaks.clear();
+        }
+    }
+
     // this must be a separate method from other ensure checks above so suite scoped integ tests can call...TODO: fix that
     public final void ensureAllSearchContextsReleased() throws Exception {
         assertBusy(() -> MockSearchService.assertNoInFlightContext());
@@ -950,6 +999,35 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     public static float randomFloat() {
         return random().nextFloat();
+    }
+
+    /**
+     * Returns a float value in the interval [start, end) if lowerInclusive is
+     * set to true, (start, end) otherwise.
+     *
+     * @param start          lower bound of interval to draw uniformly distributed random numbers from
+     * @param end            upper bound
+     * @param lowerInclusive whether or not to include lower end of the interval
+     */
+    public static float randomFloatBetween(float start, float end, boolean lowerInclusive) {
+        float result;
+
+        if (start == -Float.MAX_VALUE || end == Float.MAX_VALUE) {
+            // formula below does not work with very large floats
+            result = Float.intBitsToFloat(randomInt());
+            while (result < start || result > end || Double.isNaN(result)) {
+                result = Float.intBitsToFloat(randomInt());
+            }
+        } else {
+            result = randomFloat();
+            if (lowerInclusive == false) {
+                while (result <= 0.0f) {
+                    result = randomFloat();
+                }
+            }
+            result = result * end + (1.0f - result) * start;
+        }
+        return result;
     }
 
     public static double randomDouble() {
@@ -2157,14 +2235,18 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     public static void safeAcquire(Semaphore semaphore) {
+        safeAcquire(1, semaphore);
+    }
+
+    public static void safeAcquire(int permits, Semaphore semaphore) {
         try {
             assertTrue(
                 "safeAcquire: Semaphore did not acquire permit within the timeout",
-                semaphore.tryAcquire(SAFE_AWAIT_TIMEOUT.millis(), TimeUnit.MILLISECONDS)
+                semaphore.tryAcquire(permits, SAFE_AWAIT_TIMEOUT.millis(), TimeUnit.MILLISECONDS)
             );
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            fail(e, "safeAcquire: interrupted waiting for Semaphore to acquire permit");
+            fail(e, "safeAcquire: interrupted waiting for Semaphore to acquire " + permits + " permit(s)");
         }
     }
 
@@ -2185,6 +2267,14 @@ public abstract class ESTestCase extends LuceneTestCase {
         } catch (TimeoutException e) {
             throw new AssertionError("safeGet: listener was not completed within the timeout", e);
         }
+    }
+
+    public static Exception safeAwaitFailure(SubscribableListener<?> listener) {
+        return safeAwait(
+            SubscribableListener.newForked(
+                exceptionListener -> listener.addListener(ActionTestUtils.assertNoSuccessListener(exceptionListener::onResponse))
+            )
+        );
     }
 
     public static void safeSleep(TimeValue timeValue) {

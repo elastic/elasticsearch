@@ -1,50 +1,88 @@
 tests:
-- class: "org.elasticsearch.xpack.transform.transforms.scheduling.MonotonicClockTests"
-  issue: "https://github.com/elastic/elasticsearch/issues/108529"
 - class: "org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilterTests"
   issue: "https://github.com/elastic/elasticsearch/issues/108649"
   method: "testManyRandomDocs"
 - class: "org.elasticsearch.cluster.coordination.CoordinatorVotingConfigurationTests"
   issue: "https://github.com/elastic/elasticsearch/issues/108729"
   method: "testClusterUUIDLogging"
-- class: "org.elasticsearch.xpack.core.ssl.SSLConfigurationReloaderTests"
-  issue: "https://github.com/elastic/elasticsearch/issues/108774"
-  method: "testReloadingKeyStore"
-- class: "org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT"
-  issue: "https://github.com/elastic/elasticsearch/issues/108808"
-  method: "test {k8s-metrics.MetricsWithAggs}"
-- class: "org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT"
-  issue: "https://github.com/elastic/elasticsearch/issues/108809"
-  method: "test {k8s-metrics.MetricsWithoutAggs}"
 - class: "org.elasticsearch.xpack.textstructure.structurefinder.TimestampFormatFinderTests"
   issue: "https://github.com/elastic/elasticsearch/issues/108855"
   method: "testGuessIsDayFirstFromLocale"
 - class: "org.elasticsearch.test.rest.ClientYamlTestSuiteIT"
   issue: "https://github.com/elastic/elasticsearch/issues/108857"
-  method: "test {yaml=search/180_locale_dependent_mapping/Test Index and Search locale\
-    \ dependent mappings / dates}"
-- class: "org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT"
-  issue: "https://github.com/elastic/elasticsearch/issues/108950"
-  method: "test {p0=health/10_basic/cluster health basic test}"
+  method: "test {yaml=search/180_locale_dependent_mapping/Test Index and Search locale dependent mappings / dates}"
 - class: "org.elasticsearch.upgrades.SearchStatesIT"
   issue: "https://github.com/elastic/elasticsearch/issues/108991"
   method: "testCanMatch"
-- class: "org.elasticsearch.upgrades.AggregationsIT"
-  issue: "https://github.com/elastic/elasticsearch/issues/108992"
-  method: "testHistogram"
 - class: "org.elasticsearch.upgrades.MlTrainedModelsUpgradeIT"
   issue: "https://github.com/elastic/elasticsearch/issues/108993"
   method: "testTrainedModelInference"
 - class: "org.elasticsearch.xpack.security.CoreWithSecurityClientYamlTestSuiteIT"
   issue: "https://github.com/elastic/elasticsearch/issues/109188"
-  method: "test {yaml=search/180_locale_dependent_mapping/Test Index and Search locale\
-    \ dependent mappings / dates}"
+  method: "test {yaml=search/180_locale_dependent_mapping/Test Index and Search locale dependent mappings / dates}"
 - class: "org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT"
   issue: "https://github.com/elastic/elasticsearch/issues/109189"
   method: "test {p0=esql/70_locale/Date format with Italian locale}"
 - class: "org.elasticsearch.xpack.test.rest.XPackRestIT"
   issue: "https://github.com/elastic/elasticsearch/issues/109200"
   method: "test {p0=esql/70_locale/Date format with Italian locale}"
+- class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
+  method: test {yaml=reference/esql/esql-async-query-api/line_17}
+  issue: https://github.com/elastic/elasticsearch/issues/109260
+- class: "org.elasticsearch.index.engine.frozen.FrozenIndexIT"
+  issue: "https://github.com/elastic/elasticsearch/issues/109315"
+  method: "testTimestampFieldTypeExposedByAllIndicesServices"
+- class: "org.elasticsearch.analysis.common.CommonAnalysisClientYamlTestSuiteIT"
+  issue: "https://github.com/elastic/elasticsearch/issues/109318"
+  method: "test {yaml=analysis-common/50_char_filters/pattern_replace error handling (too complex pattern)}"
+- class: "org.elasticsearch.xpack.ml.integration.ClassificationHousePricingIT"
+  issue: "https://github.com/elastic/elasticsearch/issues/101598"
+  method: "testFeatureImportanceValues"
+- class: "org.elasticsearch.client.RestClientSingleHostIntegTests"
+  issue: "https://github.com/elastic/elasticsearch/issues/102717"
+  method: "testRequestResetAndAbort"
+- class: "org.elasticsearch.xpack.deprecation.DeprecationHttpIT"
+  issue: "https://github.com/elastic/elasticsearch/issues/108628"
+  method: "testDeprecatedSettingsReturnWarnings"
+- class: "org.elasticsearch.xpack.inference.InferenceCrudIT"
+  issue: "https://github.com/elastic/elasticsearch/issues/109391"
+  method: "testDeleteEndpointWhileReferencedByPipeline"
+- class: "org.elasticsearch.xpack.rollup.job.RollupIndexerStateTests"
+  issue: "https://github.com/elastic/elasticsearch/issues/109627"
+  method: "testMultipleJobTriggering"
+- class: "org.elasticsearch.xpack.test.rest.XPackRestIT"
+  issue: "https://github.com/elastic/elasticsearch/issues/109687"
+  method: "test {p0=sql/translate/Translate SQL}"
+- class: "org.elasticsearch.xpack.esql.EsqlAsyncSecurityIT"
+  issue: "https://github.com/elastic/elasticsearch/issues/109806"
+  method: "testInsufficientPrivilege"
+- class: org.elasticsearch.action.search.SearchProgressActionListenerIT
+  method: testSearchProgressWithHits
+  issue: https://github.com/elastic/elasticsearch/issues/109830
+- class: "org.elasticsearch.xpack.security.ScrollHelperIntegTests"
+  issue: "https://github.com/elastic/elasticsearch/issues/109905"
+  method: "testFetchAllEntities"
+- class: "org.elasticsearch.xpack.esql.action.AsyncEsqlQueryActionIT"
+  issue: "https://github.com/elastic/elasticsearch/issues/109944"
+  method: "testBasicAsyncExecution"
+- class: "org.elasticsearch.xpack.security.authz.store.NativePrivilegeStoreCacheTests"
+  issue: "https://github.com/elastic/elasticsearch/issues/110015"
+- class: "org.elasticsearch.action.admin.indices.rollover.RolloverIT"
+  issue: "https://github.com/elastic/elasticsearch/issues/110034"
+  method: "testRolloverWithClosedWriteIndex"
+- class: org.elasticsearch.xpack.transform.transforms.TransformIndexerTests
+  method: testMaxPageSearchSizeIsResetToConfiguredValue
+  issue: https://github.com/elastic/elasticsearch/issues/109844
+- class: org.elasticsearch.index.store.FsDirectoryFactoryTests
+  method: testStoreDirectory
+  issue: https://github.com/elastic/elasticsearch/issues/110210
+- class: org.elasticsearch.index.store.FsDirectoryFactoryTests
+  method: testPreload
+  issue: https://github.com/elastic/elasticsearch/issues/110211
+- class: org.elasticsearch.synonyms.SynonymsManagementAPIServiceIT
+  method: testUpdateRuleWithMaxSynonyms
+  issue: https://github.com/elastic/elasticsearch/issues/110212
+
 # Examples:
 #
 #  Mute a single test case in a YAML test suite:
@@ -68,3 +106,10 @@ tests:
 #  - class: org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToIPTests
 #    method: testCrankyEvaluateBlockWithoutNulls
 #    issue: https://github.com/elastic/elasticsearch/...
+#
+#  Mute a single test in an ES|QL csv-spec test file:
+#  - class: "org.elasticsearch.xpack.esql.CsvTests"
+#    method: "test {union_types.MultiIndexIpStringStatsInline}"
+#    issue: "https://github.com/elastic/elasticsearch/..."
+#  Note that this mutes for the unit-test-like CsvTests only.
+#  Muting for the integration tests needs to be done for each IT class individually.

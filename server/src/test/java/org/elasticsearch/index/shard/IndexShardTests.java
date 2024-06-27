@@ -1546,7 +1546,7 @@ public class IndexShardTests extends IndexShardTestCase {
                 thread[i].join();
             }
         }
-        assertTrue(semaphore.tryAcquire(Integer.MAX_VALUE, 10, TimeUnit.SECONDS));
+        safeAcquire(Integer.MAX_VALUE, semaphore);
 
         closeShards(shard);
     }
@@ -1604,7 +1604,7 @@ public class IndexShardTests extends IndexShardTestCase {
         for (int i = 0; i < thread.length; i++) {
             thread[i].join();
         }
-        assertTrue(semaphore.tryAcquire(Integer.MAX_VALUE, 10, TimeUnit.SECONDS));
+        safeAcquire(Integer.MAX_VALUE, semaphore);
         assertEquals(shard.getLastKnownGlobalCheckpoint(), shard.getLastSyncedGlobalCheckpoint());
 
         closeShards(shard);
@@ -4820,7 +4820,8 @@ public class IndexShardTests extends IndexShardTestCase {
                 config.getLeafSorter(),
                 config.getRelativeTimeInNanosSupplier(),
                 config.getIndexCommitListener(),
-                config.isPromotableToPrimary()
+                config.isPromotableToPrimary(),
+                config.getMapperService()
             );
             return new InternalEngine(configWithWarmer);
         });
@@ -4921,7 +4922,11 @@ public class IndexShardTests extends IndexShardTestCase {
         final var recoveryFinishedLatch = new CountDownLatch(1);
         final var recoveryListener = new PeerRecoveryTargetService.RecoveryListener() {
             @Override
-            public void onRecoveryDone(RecoveryState state, ShardLongFieldRange timestampMillisFieldRange) {
+            public void onRecoveryDone(
+                RecoveryState state,
+                ShardLongFieldRange timestampMillisFieldRange,
+                ShardLongFieldRange eventIngestedMillisFieldRange
+            ) {
                 recoveryFinishedLatch.countDown();
             }
 

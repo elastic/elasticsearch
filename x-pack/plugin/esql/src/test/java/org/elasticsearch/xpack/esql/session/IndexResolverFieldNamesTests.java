@@ -13,8 +13,8 @@ import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import java.util.Collections;
 import java.util.Set;
 
-import static org.elasticsearch.xpack.esql.core.index.IndexResolver.ALL_FIELDS;
-import static org.elasticsearch.xpack.esql.core.index.IndexResolver.INDEX_METADATA_FIELD;
+import static org.elasticsearch.xpack.esql.session.IndexResolver.ALL_FIELDS;
+import static org.elasticsearch.xpack.esql.session.IndexResolver.INDEX_METADATA_FIELD;
 import static org.hamcrest.Matchers.equalTo;
 
 public class IndexResolverFieldNamesTests extends ESTestCase {
@@ -1210,6 +1210,14 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
             | enrich languages_policy
             | keep emp_no"""), Set.of("language_name"));
         assertThat(fieldNames, equalTo(Set.of("emp_no", "emp_no.*", "language_name", "language_name.*")));
+    }
+
+    public void testDissectOverwriteName() {
+        Set<String> fieldNames = EsqlSession.fieldNames(parser.createStatement("""
+            from employees
+            | dissect first_name "%{first_name} %{more}"
+            | keep emp_no, first_name, more"""), Set.of());
+        assertThat(fieldNames, equalTo(Set.of("emp_no", "emp_no.*", "first_name", "first_name.*")));
     }
 
     public void testEnrichOnDefaultField() {

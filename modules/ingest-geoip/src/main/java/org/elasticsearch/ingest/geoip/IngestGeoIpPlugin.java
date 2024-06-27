@@ -127,12 +127,7 @@ public class IngestGeoIpPlugin extends Plugin implements IngestPlugin, SystemInd
         );
         geoIpDownloaderTaskExecutor.init();
 
-        enterpriseGeoIpDownloaderTaskExecutor = new EnterpriseGeoIpDownloaderTaskExecutor(
-            services.client(),
-            new HttpClient(),
-            services.clusterService(),
-            services.threadPool()
-        );
+        enterpriseGeoIpDownloaderTaskExecutor = new EnterpriseGeoIpDownloaderTaskExecutor(services.threadPool());
 
         return List.of(databaseRegistry.get(), geoIpDownloaderTaskExecutor, enterpriseGeoIpDownloaderTaskExecutor);
     }

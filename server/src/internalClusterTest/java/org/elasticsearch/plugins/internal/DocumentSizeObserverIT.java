@@ -8,6 +8,7 @@
 
 package org.elasticsearch.plugins.internal;
 
+import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.EngineFactory;
@@ -25,6 +26,7 @@ import org.elasticsearch.xcontent.XContentType;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -122,6 +124,10 @@ public class DocumentSizeObserverIT extends ESIntegTestCase {
         @Override
         public DocumentParsingProvider getDocumentParsingProvider() {
             return new DocumentParsingProvider() {
+                @Override
+                public <T> DocumentSizeObserver newDocumentSizeObserver(DocWriteRequest<T> request) {
+                    return new TestDocumentSizeObserver(0L);
+                }
 
                 @Override
                 public DocumentSizeReporter newDocumentSizeReporter(
@@ -154,10 +160,15 @@ public class DocumentSizeObserverIT extends ESIntegTestCase {
     public static class TestDocumentSizeObserver implements DocumentSizeObserver {
         long counter = 0;
 
+        public TestDocumentSizeObserver(long counter) {
+            this.counter = counter;
+        }
+
         @Override
         public XContentParser wrapParser(XContentParser xContentParser) {
             hasWrappedParser = true;
             return new FilterXContentParserWrapper(xContentParser) {
+
                 @Override
                 public Token nextToken() throws IOException {
                     counter++;
@@ -169,6 +180,11 @@ public class DocumentSizeObserverIT extends ESIntegTestCase {
         @Override
         public long normalisedBytesParsed() {
             return counter;
+        }
+
+        @Override
+        public IndexRequest setNormalisedBytesParsedOn(IndexRequest indexRequest) {
+            return indexRequest.setNormalisedBytesParsed(counter);
         }
     }
 }

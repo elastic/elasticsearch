@@ -10,7 +10,7 @@ METRICS k8s | sort @timestamp DESC, cluster, pod | keep @timestamp,cluster,pod,n
 2024-05-10T00:22:49.000Z | staging         | two         | 3                     | 1.75
 ;
 
-quotedSourceAndMetricsWithAggs
+metricsWithAggs
 required_capability: metrics_syntax
 METRICS k8s max_bytes=max(to_long(network.total_bytes_in)) BY cluster | SORT max_bytes DESC;
 

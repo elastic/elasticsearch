@@ -241,12 +241,7 @@ public class UpdateHelper {
 
         final IndexRequest currentRequest = request.doc();
         final String routing = calculateRouting(getResult, currentRequest);
-        final Tuple<XContentType, Map<String, Object>> sourceAndContent = XContentHelper.convertToMap(
-            getResult.internalSourceRef(),
-            true,
-            null,
-            documentSizeObserver
-        );
+        final Tuple<XContentType, Map<String, Object>> sourceAndContent = XContentHelper.convertToMap(getResult.internalSourceRef(), true);
         final XContentType updateSourceContentType = sourceAndContent.v1();
 
         UpdateCtxMap ctxMap = executeScript(

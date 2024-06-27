@@ -8,7 +8,6 @@ RUN apt update
 RUN apt install -y clang-18 openjdk-17-jdk
 RUN ln -s /usr/bin/clang-18 /usr/bin/clang
 RUN ln -s /usr/bin/clang++-18 /usr/bin/clang++
-RUN apt install -y
 COPY . /workspace
 WORKDIR /workspace
 RUN ./gradlew --quiet --console=plain clean buildSharedLibrary

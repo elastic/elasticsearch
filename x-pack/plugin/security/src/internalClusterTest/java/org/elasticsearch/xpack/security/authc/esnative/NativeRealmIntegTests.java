@@ -503,7 +503,7 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
         ensureGreen(SECURITY_MAIN_ALIAS);
         logger.info("-->  creating repository");
         assertAcked(
-            clusterAdmin().preparePutRepository("test-repo")
+            clusterAdmin().preparePutRepository(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "test-repo")
                 .setType("fs")
                 .setSettings(
                     Settings.builder()
@@ -517,7 +517,7 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
         SnapshotInfo snapshotInfo = client().filterWithHeader(Collections.singletonMap("Authorization", token))
             .admin()
             .cluster()
-            .prepareCreateSnapshot("test-repo", "test-snap-1")
+            .prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, "test-repo", "test-snap-1")
             .setWaitForCompletion(true)
             .setIncludeGlobalState(false)
             .setFeatureStates(SECURITY_FEATURE_NAME)
@@ -540,7 +540,7 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
         GetRolesResponse getRolesResponse = new GetRolesRequestBuilder(client()).names("test_role").get();
         assertThat(getRolesResponse.roles().length, is(0));
         // restore
-        RestoreSnapshotResponse response = clusterAdmin().prepareRestoreSnapshot("test-repo", "test-snap-1")
+        RestoreSnapshotResponse response = clusterAdmin().prepareRestoreSnapshot(TEST_REQUEST_TIMEOUT, "test-repo", "test-snap-1")
             .setWaitForCompletion(true)
             .setIncludeAliases(randomBoolean()) // Aliases are always restored for system indices
             .setFeatureStates(SECURITY_FEATURE_NAME)
@@ -566,7 +566,7 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
             .prepareCreate("idx")
             .get();
         assertThat(createIndexResponse.isAcknowledged(), is(true));
-        assertAcked(clusterAdmin().prepareDeleteRepository("test-repo"));
+        assertAcked(clusterAdmin().prepareDeleteRepository(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "test-repo"));
     }
 
     public void testAuthenticateWithDeletedRole() {

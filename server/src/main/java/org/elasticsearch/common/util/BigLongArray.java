@@ -41,13 +41,21 @@ final class BigLongArray extends AbstractBigByteArray implements LongArray {
     }
 
     @Override
-    public long set(long index, long value) {
+    public long getAndSet(long index, long value) {
         final int pageIndex = pageIndex(index);
         final int indexInPage = indexInPage(index);
         final byte[] page = getPageForWriting(pageIndex);
         final long ret = (long) VH_PLATFORM_NATIVE_LONG.get(page, indexInPage << 3);
         VH_PLATFORM_NATIVE_LONG.set(page, indexInPage << 3, value);
         return ret;
+    }
+
+    @Override
+    public void set(long index, long value) {
+        final int pageIndex = pageIndex(index);
+        final int indexInPage = indexInPage(index);
+        final byte[] page = getPageForWriting(pageIndex);
+        VH_PLATFORM_NATIVE_LONG.set(page, indexInPage << 3, value);
     }
 
     @Override

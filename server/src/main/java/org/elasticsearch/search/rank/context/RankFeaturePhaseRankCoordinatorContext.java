@@ -55,11 +55,14 @@ public abstract class RankFeaturePhaseRankCoordinatorContext {
      * @param rankSearchResults a list of rank feature results from each shard
      * @param rankListener      a rankListener to handle the global ranking result
      */
-    public void rankGlobalResults(List<RankFeatureResult> rankSearchResults, ActionListener<RankFeatureDoc[]> rankListener) {
+    public void computeRankScoresForGlobalResults(
+        List<RankFeatureResult> rankSearchResults,
+        ActionListener<RankFeatureDoc[]> rankListener
+    ) {
         // extract feature data from each shard rank-feature phase result
         RankFeatureDoc[] featureDocs = extractFeatureDocs(rankSearchResults);
 
-        // generate the final `topResults` paginated results, and pass them to fetch phase through the `rankListener`
+        // generate the final `topResults` results, and pass them to fetch phase through the `rankListener`
         computeScores(featureDocs, rankListener.delegateFailureAndWrap((listener, scores) -> {
             for (int i = 0; i < featureDocs.length; i++) {
                 featureDocs[i].score = scores[i];

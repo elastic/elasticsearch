@@ -156,6 +156,11 @@ ASTERISK : '*';
 SLASH : '/';
 PERCENT : '%';
 
+NAMED_OR_POSITIONAL_PARAM
+    : PARAM LETTER UNQUOTED_ID_BODY*
+    | PARAM DIGIT+
+    ;
+
 // Brackets are funny. We can happen upon a CLOSING_BRACKET in two ways - one
 // way is to start in an explain command which then shifts us to expression
 // mode. Thus, the two popModes on CLOSING_BRACKET. The other way could as

@@ -29,8 +29,10 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
+import org.elasticsearch.common.network.ThreadWatchdog;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
@@ -56,6 +58,7 @@ public class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
     private static final Logger logger = LogManager.getLogger(Netty4HttpPipeliningHandler.class);
 
     private final int maxEventsHeld;
+    private final ThreadWatchdog.ActivityTracker activityTracker;
     private final PriorityQueue<Tuple<? extends Netty4HttpResponse, ChannelPromise>> outboundHoldingQueue;
 
     private record ChunkedWrite(PromiseCombiner combiner, ChannelPromise onDone, ChunkedRestResponseBodyPart responseBodyPart) {}
@@ -90,31 +93,41 @@ public class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
      * @param maxEventsHeld the maximum number of channel events that will be retained prior to aborting the channel connection; this is
      *                      required as events cannot queue up indefinitely
      */
-    public Netty4HttpPipeliningHandler(final int maxEventsHeld, final Netty4HttpServerTransport serverTransport) {
+    public Netty4HttpPipeliningHandler(
+        final int maxEventsHeld,
+        final Netty4HttpServerTransport serverTransport,
+        final ThreadWatchdog.ActivityTracker activityTracker
+    ) {
         this.maxEventsHeld = maxEventsHeld;
+        this.activityTracker = activityTracker;
         this.outboundHoldingQueue = new PriorityQueue<>(1, Comparator.comparingInt(t -> t.v1().getSequence()));
         this.serverTransport = serverTransport;
     }
 
     @Override
     public void channelRead(final ChannelHandlerContext ctx, final Object msg) {
-        assert msg instanceof FullHttpRequest : "Should have fully aggregated message already but saw [" + msg + "]";
-        final FullHttpRequest fullHttpRequest = (FullHttpRequest) msg;
-        final Netty4HttpRequest netty4HttpRequest;
-        if (fullHttpRequest.decoderResult().isFailure()) {
-            final Throwable cause = fullHttpRequest.decoderResult().cause();
-            final Exception nonError;
-            if (cause instanceof Error) {
-                ExceptionsHelper.maybeDieOnAnotherThread(cause);
-                nonError = new Exception(cause);
+        activityTracker.startActivity();
+        try {
+            assert msg instanceof FullHttpRequest : "Should have fully aggregated message already but saw [" + msg + "]";
+            final FullHttpRequest fullHttpRequest = (FullHttpRequest) msg;
+            final Netty4HttpRequest netty4HttpRequest;
+            if (fullHttpRequest.decoderResult().isFailure()) {
+                final Throwable cause = fullHttpRequest.decoderResult().cause();
+                final Exception nonError;
+                if (cause instanceof Error) {
+                    ExceptionsHelper.maybeDieOnAnotherThread(cause);
+                    nonError = new Exception(cause);
+                } else {
+                    nonError = (Exception) cause;
+                }
+                netty4HttpRequest = new Netty4HttpRequest(readSequence++, fullHttpRequest, nonError);
             } else {
-                nonError = (Exception) cause;
+                netty4HttpRequest = new Netty4HttpRequest(readSequence++, fullHttpRequest);
             }
-            netty4HttpRequest = new Netty4HttpRequest(readSequence++, fullHttpRequest, nonError);
-        } else {
-            netty4HttpRequest = new Netty4HttpRequest(readSequence++, fullHttpRequest);
+            handlePipelinedRequest(ctx, netty4HttpRequest);
+        } finally {
+            activityTracker.stopActivity();
         }
-        handlePipelinedRequest(ctx, netty4HttpRequest);
     }
 
     // protected so tests can override it
@@ -259,45 +272,59 @@ public class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
             writeSequence++;
             finishingWrite.combiner().finish(finishingWrite.onDone());
         } else {
+            final var threadContext = serverTransport.getThreadPool().getThreadContext();
+            assert Transports.assertDefaultThreadContext(threadContext);
             final var channel = finishingWrite.onDone().channel();
-            ActionListener.run(ActionListener.assertOnce(new ActionListener<>() {
-                @Override
-                public void onResponse(ChunkedRestResponseBodyPart continuation) {
-                    channel.writeAndFlush(
-                        new Netty4ChunkedHttpContinuation(writeSequence, continuation, finishingWrite.combiner()),
-                        finishingWrite.onDone() // pass the terminal listener/promise along the line
-                    );
-                    checkShutdown();
-                }
+            ActionListener.run(
+                new ContextPreservingActionListener<>(
+                    threadContext.newRestorableContext(false),
+                    ActionListener.assertOnce(new ActionListener<>() {
+                        @Override
+                        public void onResponse(ChunkedRestResponseBodyPart continuation) {
+                            // always fork a fresh task to avoid stack overflow
+                            assert Transports.assertDefaultThreadContext(threadContext);
+                            channel.eventLoop()
+                                .execute(
+                                    () -> channel.writeAndFlush(
+                                        new Netty4ChunkedHttpContinuation(writeSequence, continuation, finishingWrite.combiner()),
+                                        finishingWrite.onDone() // pass the terminal listener/promise along the line
+                                    )
+                                );
+                            checkShutdown();
+                        }
 
-                @Override
-                public void onFailure(Exception e) {
-                    logger.error(
-                        Strings.format("failed to get continuation of HTTP response body for [%s], closing connection", channel),
-                        e
-                    );
-                    channel.close().addListener(ignored -> {
-                        finishingWrite.combiner().add(channel.newFailedFuture(e));
-                        finishingWrite.combiner().finish(finishingWrite.onDone());
-                    });
-                    checkShutdown();
-                }
+                        @Override
+                        public void onFailure(Exception e) {
+                            assert Transports.assertDefaultThreadContext(threadContext);
+                            logger.error(
+                                Strings.format("failed to get continuation of HTTP response body for [%s], closing connection", channel),
+                                e
+                            );
+                            channel.close().addListener(ignored -> {
+                                finishingWrite.combiner().add(channel.newFailedFuture(e));
+                                finishingWrite.combiner().finish(finishingWrite.onDone());
+                            });
+                            checkShutdown();
+                        }
 
-                private void checkShutdown() {
-                    if (channel.eventLoop().isShuttingDown()) {
-                        // The event loop is shutting down, and https://github.com/netty/netty/issues/8007 means that we cannot know if the
-                        // preceding activity made it onto its queue before shutdown or whether it will just vanish without a trace, so
-                        // to avoid a leak we must double-check that the final listener is completed once the event loop is terminated.
-                        // Note that the final listener came from Netty4Utils#safeWriteAndFlush so its executor is an ImmediateEventExecutor
-                        // which means this completion is not subject to the same issue, it still works even if the event loop has already
-                        // terminated.
-                        channel.eventLoop()
-                            .terminationFuture()
-                            .addListener(ignored -> finishingWrite.onDone().tryFailure(new ClosedChannelException()));
-                    }
-                }
+                        private void checkShutdown() {
+                            if (channel.eventLoop().isShuttingDown()) {
+                                // The event loop is shutting down, and https://github.com/netty/netty/issues/8007 means that we cannot know
+                                // if the preceding activity made it onto its queue before shutdown or whether it will just vanish without a
+                                // trace, so to avoid a leak we must double-check that the final listener is completed once the event loop
+                                // is terminated. Note that the final listener came from Netty4Utils#safeWriteAndFlush so its executor is an
+                                // ImmediateEventExecutor which means this completion is not subject to the same issue, it still works even
+                                // if the event loop has already terminated.
+                                channel.eventLoop()
+                                    .terminationFuture()
+                                    .addListener(ignored -> finishingWrite.onDone().tryFailure(new ClosedChannelException()));
+                            }
+                        }
 
-            }), finishingWriteBodyPart::getNextPart);
+                    })
+                ),
+                finishingWriteBodyPart::getNextPart
+            );
         }
     }
 

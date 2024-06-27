@@ -89,9 +89,9 @@ public final class GreaterThanDoublesEvaluator implements EvalOperator.Expressio
   }
 
   public BooleanVector eval(int positionCount, DoubleVector lhsVector, DoubleVector rhsVector) {
-    try(BooleanVector.Builder result = driverContext.blockFactory().newBooleanVectorBuilder(positionCount)) {
+    try(BooleanVector.FixedBuilder result = driverContext.blockFactory().newBooleanVectorFixedBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendBoolean(GreaterThan.processDoubles(lhsVector.getDouble(p), rhsVector.getDouble(p)));
+        result.appendBoolean(p, GreaterThan.processDoubles(lhsVector.getDouble(p), rhsVector.getDouble(p)));
       }
       return result.build();
     }

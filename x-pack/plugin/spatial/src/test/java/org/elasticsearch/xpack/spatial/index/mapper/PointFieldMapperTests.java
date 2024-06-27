@@ -489,7 +489,7 @@ public class PointFieldMapperTests extends CartesianFieldMapperTests {
                     return new Value(nullValue, null);
                 }
 
-                if (ignoreMalformed) {
+                if (ignoreMalformed && randomBoolean()) {
                     // #exampleMalformedValues() covers a lot of cases
 
                     // nice complex object

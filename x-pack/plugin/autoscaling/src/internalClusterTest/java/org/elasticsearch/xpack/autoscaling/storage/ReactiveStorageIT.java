@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.autoscaling.storage;
 
+import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteUtils;
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
@@ -331,7 +332,7 @@ public class ReactiveStorageIT extends AutoscalingStorageIntegTestCase {
         long enoughSpaceForColocation = used + LOW_WATERMARK_BYTES;
         setTotalSpace(dataNode1Name, enoughSpaceForColocation);
         setTotalSpace(dataNode2Name, enoughSpaceForColocation);
-        assertAcked(clusterAdmin().prepareReroute());
+        ClusterRerouteUtils.reroute(client());
         waitForRelocation();
 
         // Ensure that the relocated shard index files are removed from the data 2 node,
@@ -385,10 +386,10 @@ public class ReactiveStorageIT extends AutoscalingStorageIntegTestCase {
         long tooLittleSpaceForShrink = requiredSpaceForShrink - Math.min(LOW_WATERMARK_BYTES - HIGH_WATERMARK_BYTES, used) - 1;
         assert tooLittleSpaceForShrink <= requiredSpaceForShrink;
         setTotalSpace(dataNode1Name, tooLittleSpaceForShrink);
-        assertAcked(clusterAdmin().prepareReroute());
+        ClusterRerouteUtils.reroute(client());
         assertThat(clusterAdmin().prepareHealth(shrinkName).get().getUnassignedShards(), equalTo(1));
         setTotalSpace(dataNode1Name, tooLittleSpaceForShrink + 1);
-        assertAcked(clusterAdmin().prepareReroute());
+        ClusterRerouteUtils.reroute(client());
         ensureGreen();
 
         indicesAdmin().prepareDelete(indexName).get();
@@ -495,10 +496,10 @@ public class ReactiveStorageIT extends AutoscalingStorageIntegTestCase {
         long tooLittleSpaceForClone = requiredSpaceForClone - Math.min(LOW_WATERMARK_BYTES - HIGH_WATERMARK_BYTES, used) - 1;
         assert tooLittleSpaceForClone <= requiredSpaceForClone;
         setTotalSpace(dataNode1Name, tooLittleSpaceForClone);
-        assertAcked(clusterAdmin().prepareReroute());
+        ClusterRerouteUtils.reroute(client());
         assertThat(clusterAdmin().prepareHealth(cloneName).get().getUnassignedShards(), equalTo(resizedShardCount));
         setTotalSpace(dataNode1Name, requiredSpaceForClone);
-        assertAcked(clusterAdmin().prepareReroute());
+        ClusterRerouteUtils.reroute(client());
         ensureGreen();
 
         indicesAdmin().prepareDelete(indexName).get();

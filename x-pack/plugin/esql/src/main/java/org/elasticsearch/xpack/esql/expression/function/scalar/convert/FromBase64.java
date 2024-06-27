@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.operator.EvalOperator;
@@ -24,6 +26,7 @@ import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.UnaryScalarFunction;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 
+import java.io.IOException;
 import java.util.Base64;
 import java.util.List;
 import java.util.function.Function;
@@ -32,6 +35,11 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isStr
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 
 public class FromBase64 extends UnaryScalarFunction {
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
+        Expression.class,
+        "FromBase64",
+        FromBase64::new
+    );
 
     @FunctionInfo(
         returnType = "keyword",
@@ -51,6 +59,15 @@ public class FromBase64 extends UnaryScalarFunction {
             return new TypeResolution("Unresolved children");
         }
         return isString(field, sourceText(), TypeResolutions.ParamOrdinal.DEFAULT);
+    }
+
+    private FromBase64(StreamInput in) throws IOException {
+        super(in);
+    }
+
+    @Override
+    public String getWriteableName() {
+        return ENTRY.name;
     }
 
     @Override

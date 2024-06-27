@@ -57,12 +57,12 @@ public class TransportUpdateSecuritySettingsAction extends TransportMasterNodeAc
         IndexNameExpressionResolver indexNameExpressionResolver
     ) {
         super(
-            UpdateSecuritySettingsAction.NAME,
+            UpdateSecuritySettingsAction.INSTANCE.name(),
             transportService,
             clusterService,
             threadPool,
             actionFilters,
-            UpdateSecuritySettingsAction.Request::new,
+            UpdateSecuritySettingsAction.Request::readFrom,
             indexNameExpressionResolver,
             AcknowledgedResponse::readFrom,
             EsExecutors.DIRECT_EXECUTOR_SERVICE

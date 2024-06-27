@@ -165,8 +165,7 @@ public final class ClusterAllocationExplanationTests extends ESTestCase {
         DiscoveryNode node = assignedShard ? DiscoveryNodeUtils.builder("node-0").roles(emptySet()).build() : null;
         ShardAllocationDecision shardAllocationDecision;
         if (assignedShard) {
-            MoveDecision moveDecision = MoveDecision.cannotRebalance(Decision.YES, AllocationDecision.NO, 3, null)
-                .withRemainDecision(Decision.YES);
+            MoveDecision moveDecision = MoveDecision.rebalance(Decision.YES, Decision.YES, AllocationDecision.NO, null, 3, null);
             shardAllocationDecision = new ShardAllocationDecision(AllocateUnassignedDecision.NOT_TAKEN, moveDecision);
         } else {
             AllocateUnassignedDecision allocateDecision = AllocateUnassignedDecision.no(UnassignedInfo.AllocationStatus.DECIDERS_NO, null);

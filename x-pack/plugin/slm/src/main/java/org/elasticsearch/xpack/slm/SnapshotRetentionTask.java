@@ -309,8 +309,7 @@ public class SnapshotRetentionTask implements SchedulerEngine.Listener {
         // don't time out on this request to not produce failed SLM runs in case of a temporarily slow master node
         client.admin()
             .cluster()
-            .prepareDeleteSnapshot(repo, snapshot.getName())
-            .setMasterNodeTimeout(TimeValue.MAX_VALUE)
+            .prepareDeleteSnapshot(TimeValue.MAX_VALUE, repo, snapshot.getName())
             .execute(ActionListener.wrap(acknowledgedResponse -> {
                 slmStats.snapshotDeleted(slmPolicy);
                 listener.onResponse(acknowledgedResponse);

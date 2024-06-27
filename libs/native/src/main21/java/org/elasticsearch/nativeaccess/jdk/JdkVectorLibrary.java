@@ -50,8 +50,16 @@ public final class JdkVectorLibrary implements VectorLibrary {
 
     private static final class JdkVectorSimilarityFunctions implements VectorSimilarityFunctions {
 
-        static final MethodHandle dot7u$mh = downcallHandle("dot7u", FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS, JAVA_INT));
-        static final MethodHandle sqr7u$mh = downcallHandle("sqr7u", FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS, JAVA_INT));
+        static final MethodHandle dot7u$mh = downcallHandle(
+            "dot7u",
+            FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS, JAVA_INT),
+            LinkerHelperUtil.critical()
+        );
+        static final MethodHandle sqr7u$mh = downcallHandle(
+            "sqr7u",
+            FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS, JAVA_INT),
+            LinkerHelperUtil.critical()
+        );
 
         /**
          * Computes the dot product of given unsigned int7 byte vectors.

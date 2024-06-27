@@ -69,9 +69,9 @@ public final class CastIntToLongEvaluator implements EvalOperator.ExpressionEval
   }
 
   public LongVector eval(int positionCount, IntVector vVector) {
-    try(LongVector.Builder result = driverContext.blockFactory().newLongVectorBuilder(positionCount)) {
+    try(LongVector.FixedBuilder result = driverContext.blockFactory().newLongVectorFixedBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendLong(Cast.castIntToLong(vVector.getInt(p)));
+        result.appendLong(p, Cast.castIntToLong(vVector.getInt(p)));
       }
       return result.build();
     }

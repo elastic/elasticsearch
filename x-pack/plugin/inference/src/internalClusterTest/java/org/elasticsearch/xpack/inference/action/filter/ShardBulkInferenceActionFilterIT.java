@@ -54,7 +54,6 @@ public class ShardBulkInferenceActionFilterIT extends ESIntegTestCase {
         return Arrays.asList(Utils.TestInferencePlugin.class);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/109005")
     public void testBulkOperations() throws Exception {
         Map<String, Integer> shardsSettings = Collections.singletonMap(IndexMetadata.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 10));
         indicesAdmin().prepareCreate(INDEX_NAME)

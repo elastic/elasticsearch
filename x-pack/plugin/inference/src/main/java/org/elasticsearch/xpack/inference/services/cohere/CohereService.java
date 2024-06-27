@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.inference.services.SenderService;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.cohere.completion.CohereCompletionModel;
+import org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbeddingType;
 import org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.cohere.rerank.CohereRerankModel;
@@ -247,7 +248,11 @@ public class CohereService extends SenderService {
         CohereModel cohereModel = (CohereModel) model;
         var actionCreator = new CohereActionCreator(getSender(), getServiceComponents());
 
-        var batchedRequests = new EmbeddingRequestChunker(input, EMBEDDING_MAX_BATCH_SIZE).batchRequestsWithListeners(listener);
+        var batchedRequests = new EmbeddingRequestChunker(
+            input,
+            EMBEDDING_MAX_BATCH_SIZE,
+            EmbeddingRequestChunker.EmbeddingType.fromDenseVectorElementType(model.getServiceSettings().elementType())
+        ).batchRequestsWithListeners(listener);
         for (var request : batchedRequests) {
             var action = cohereModel.accept(actionCreator, taskSettings, inputType);
             action.execute(new DocumentsOnlyInput(request.batch().inputs()), timeout, request.listener());
@@ -276,7 +281,9 @@ public class CohereService extends SenderService {
 
     private CohereEmbeddingsModel updateModelWithEmbeddingDetails(CohereEmbeddingsModel model, int embeddingSize) {
         var similarityFromModel = model.getServiceSettings().similarity();
-        var similarityToUse = similarityFromModel == null ? SimilarityMeasure.DOT_PRODUCT : similarityFromModel;
+        var similarityToUse = similarityFromModel == null
+            ? defaultSimilarity(model.getServiceSettings().getEmbeddingType())
+            : similarityFromModel;
 
         CohereEmbeddingsServiceSettings serviceSettings = new CohereEmbeddingsServiceSettings(
             new CohereServiceSettings(
@@ -291,6 +298,29 @@ public class CohereService extends SenderService {
         );
 
         return new CohereEmbeddingsModel(model, serviceSettings);
+    }
+
+    /**
+     * Return the default similarity measure for the embedding type.
+     * Cohere embeddings are normalized to unit vectors so Dot Product
+     * can be used. However, Elasticsearch rejects the byte vectors with
+     * Dot Product similarity complaining they are not normalized so
+     * Cosine is used for bytes.
+     * TODO investigate why the byte vectors are not normalized.
+     *
+     * @param embeddingType The embedding type (can be null)
+     * @return The default similarity.
+     */
+    static SimilarityMeasure defaultSimilarity(@Nullable CohereEmbeddingType embeddingType) {
+        if (embeddingType == null) {
+            return SimilarityMeasure.DOT_PRODUCT;
+        }
+
+        return switch (embeddingType) {
+            case FLOAT -> SimilarityMeasure.DOT_PRODUCT;
+            case BYTE -> SimilarityMeasure.COSINE;
+            case INT8 -> SimilarityMeasure.COSINE;
+        };
     }
 
     @Override

@@ -44,8 +44,8 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.esql.CsvTestUtils.isEnabled;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.ENRICH_SOURCE_INDICES;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.classpathResources;
 import static org.elasticsearch.xpack.esql.core.CsvSpecReader.specParser;
-import static org.elasticsearch.xpack.esql.core.TestUtils.classpathResources;
 import static org.elasticsearch.xpack.esql.qa.rest.EsqlSpecTestCase.Mode.SYNC;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
@@ -97,7 +97,6 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
         super.shouldSkipTest(testName);
         checkCapabilities(remoteClusterClient(), remoteFeaturesService(), testName, testCase);
         assumeFalse("can't test with _index metadata", hasIndexMetadata(testCase.query));
-        assumeTrue("can't test with metrics across cluster", hasMetricsCommand(testCase.query));
         assumeTrue("Test " + testName + " is skipped on " + Clusters.oldVersion(), isEnabled(testName, Clusters.oldVersion()));
     }
 
@@ -195,7 +194,6 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
         String query = testCase.query;
         String[] commands = query.split("\\|");
         String first = commands[0].trim();
-
         if (commands[0].toLowerCase(Locale.ROOT).startsWith("from")) {
             String[] parts = commands[0].split("(?i)metadata");
             assert parts.length >= 1 : parts;
@@ -207,6 +205,14 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
                 .collect(Collectors.joining(","));
             var newFrom = "FROM " + remoteIndices + " " + commands[0].substring(fromStatement.length());
             testCase.query = newFrom + query.substring(first.length());
+        }
+        if (commands[0].toLowerCase(Locale.ROOT).startsWith("metrics")) {
+            String[] parts = commands[0].split("\\s+");
+            assert parts.length >= 2 : commands[0];
+            String[] indices = parts[1].split(",");
+            parts[1] = Arrays.stream(indices).map(index -> "*:" + index + "," + index).collect(Collectors.joining(","));
+            String newNewMetrics = String.join(" ", parts);
+            testCase.query = newNewMetrics + query.substring(first.length());
         }
         int offset = testCase.query.length() - query.length();
         if (offset != 0) {
@@ -235,9 +241,5 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
             return parts.length > 1 && parts[1].contains("_index");
         }
         return false;
-    }
-
-    static boolean hasMetricsCommand(String query) {
-        return Arrays.stream(query.split("\\|")).anyMatch(s -> s.trim().toLowerCase(Locale.ROOT).startsWith("metrics"));
     }
 }

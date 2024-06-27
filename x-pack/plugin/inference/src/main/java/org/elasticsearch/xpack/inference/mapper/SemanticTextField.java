@@ -278,12 +278,7 @@ public record SemanticTextField(String fieldName, List<String> originalValues, I
     /**
      * Converts the provided {@link ChunkedInferenceServiceResults} into a list of {@link Chunk}.
      */
-    public static List<Chunk> toSemanticTextFieldChunks(
-        String field,
-        String inferenceId,
-        List<ChunkedInferenceServiceResults> results,
-        XContentType contentType
-    ) {
+    public static List<Chunk> toSemanticTextFieldChunks(List<ChunkedInferenceServiceResults> results, XContentType contentType) {
         List<Chunk> chunks = new ArrayList<>();
         for (var result : results) {
             for (Iterator<ChunkedInferenceServiceResults.Chunk> it = result.chunksAsMatchedTextAndByteReference(contentType.xContent()); it

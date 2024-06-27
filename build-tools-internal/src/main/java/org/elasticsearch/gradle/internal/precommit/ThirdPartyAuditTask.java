@@ -119,8 +119,8 @@ public abstract class ThirdPartyAuditTask extends DefaultTask {
         return targetCompatibility;
     }
 
+    @Classpath
     @InputFiles
-    @PathSensitive(PathSensitivity.NAME_ONLY)
     public abstract ConfigurableFileCollection getForbiddenAPIsClasspath();
 
     @InputFile

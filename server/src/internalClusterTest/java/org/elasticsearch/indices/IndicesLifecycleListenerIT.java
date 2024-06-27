@@ -8,6 +8,7 @@
 package org.elasticsearch.indices;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteUtils;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
@@ -115,7 +116,7 @@ public class IndicesLifecycleListenerIT extends ESIntegTestCase {
                     throw new RuntimeException("FAIL");
                 }
             });
-        clusterAdmin().prepareReroute().add(new MoveAllocationCommand("index1", 0, node1, node2)).get();
+        ClusterRerouteUtils.reroute(client(), new MoveAllocationCommand("index1", 0, node1, node2));
         ensureGreen("index1");
 
         var state = clusterAdmin().prepareState().get().getState();

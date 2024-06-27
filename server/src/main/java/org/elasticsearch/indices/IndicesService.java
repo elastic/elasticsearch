@@ -1764,7 +1764,13 @@ public class IndicesService extends AbstractLifecycleComponent
     }
 
     public CoordinatorRewriteContextProvider getCoordinatorRewriteContextProvider(LongSupplier nowInMillis) {
-        return new CoordinatorRewriteContextProvider(parserConfig, client, nowInMillis, clusterService::state, this::getTimestampFieldType);
+        return new CoordinatorRewriteContextProvider(
+            parserConfig,
+            client,
+            nowInMillis,
+            clusterService::state,
+            this::getTimestampFieldTypeMap
+        );
     }
 
     /**
@@ -1854,14 +1860,15 @@ public class IndicesService extends AbstractLifecycleComponent
     }
 
     /**
-     * @return the field type of the {@code @timestamp} field of the given index, or {@code null} if:
+     * @return a map holding the field types of the {@code @timestamp} and {@code event.ingested} fields of the given index,
      * - the index is not found,
      * - the field is not found, or
-     * - the field is not a timestamp field.
+     * - the mapping is not known yet, or
+     * - the index does not have a useful timestamp field.
      */
     @Nullable
-    public DateFieldMapper.DateFieldType getTimestampFieldType(Index index) {
-        return timestampFieldMapperService.getTimestampFieldType(index);
+    public Map<String, DateFieldMapper.DateFieldType> getTimestampFieldTypeMap(Index index) {
+        return timestampFieldMapperService.getTimestampFieldTypeMap(index);
     }
 
     public IndexScopedSettings getIndexScopedSettings() {

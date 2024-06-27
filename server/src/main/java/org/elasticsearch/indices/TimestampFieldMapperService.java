@@ -31,6 +31,7 @@ import org.elasticsearch.index.shard.IndexLongFieldRange;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ExecutorService;
@@ -40,8 +41,9 @@ import static org.elasticsearch.common.util.concurrent.EsExecutors.daemonThreadF
 import static org.elasticsearch.core.Strings.format;
 
 /**
- * Tracks the mapping of the {@code @timestamp} field of immutable indices that expose their timestamp range in their index metadata.
- * Coordinating nodes do not have (easy) access to mappings for all indices, so we extract the type of this one field from the mapping here.
+ * Tracks the mapping of the '@timestamp' and 'event.ingested' fields of immutable indices that expose their timestamp range in their
+ * index metadata. Coordinating nodes do not have (easy) access to mappings for all indices, so we extract the type of these two fields
+ * from the mapping here, since timestamp fields can have millis or nanos level resolution.
  */
 public class TimestampFieldMapperService extends AbstractLifecycleComponent implements ClusterStateApplier {
 
@@ -51,10 +53,13 @@ public class TimestampFieldMapperService extends AbstractLifecycleComponent impl
     private final ExecutorService executor; // single thread to construct mapper services async as needed
 
     /**
-     * The type of the {@code @timestamp} field keyed by index. Futures may be completed with {@code null} to indicate that there is
-     * no usable {@code @timestamp} field.
+     * The type of the 'event.ingested' and/or '@timestamp' fields keyed by index.
+     * The inner map is keyed by field name ('@timestamp' or 'event.ingested').
+     * Futures may be completed with {@code null} to indicate that there is
+     * no usable timestamp field.
      */
-    private final Map<Index, PlainActionFuture<DateFieldMapper.DateFieldType>> fieldTypesByIndex = ConcurrentCollections.newConcurrentMap();
+    private final Map<Index, PlainActionFuture<Map<String, DateFieldMapper.DateFieldType>>> fieldTypesByIndex = ConcurrentCollections
+        .newConcurrentMap();
 
     public TimestampFieldMapperService(Settings settings, ThreadPool threadPool, IndicesService indicesService) {
         this.indicesService = indicesService;
@@ -100,8 +105,8 @@ public class TimestampFieldMapperService extends AbstractLifecycleComponent impl
             final Index index = indexMetadata.getIndex();
 
             if (hasUsefulTimestampField(indexMetadata) && fieldTypesByIndex.containsKey(index) == false) {
-                logger.trace("computing timestamp mapping for {}", index);
-                final PlainActionFuture<DateFieldMapper.DateFieldType> future = new PlainActionFuture<>();
+                logger.trace("computing timestamp mapping(s) for {}", index);
+                final PlainActionFuture<Map<String, DateFieldMapper.DateFieldType>> future = new PlainActionFuture<>();
                 fieldTypesByIndex.put(index, future);
 
                 final IndexService indexService = indicesService.indexService(index);
@@ -146,34 +151,47 @@ public class TimestampFieldMapperService extends AbstractLifecycleComponent impl
             return true;
         }
 
-        final IndexLongFieldRange timestampRange = indexMetadata.getTimestampRange();
-        return timestampRange.isComplete() && timestampRange != IndexLongFieldRange.UNKNOWN;
+        IndexLongFieldRange timestampRange = indexMetadata.getTimestampRange();
+        if (timestampRange.isComplete() && timestampRange != IndexLongFieldRange.UNKNOWN) {
+            return true;
+        }
+
+        IndexLongFieldRange eventIngestedRange = indexMetadata.getEventIngestedRange();
+        return eventIngestedRange.isComplete() && eventIngestedRange != IndexLongFieldRange.UNKNOWN;
     }
 
-    private static DateFieldMapper.DateFieldType fromMapperService(MapperService mapperService) {
-        final MappedFieldType mappedFieldType = mapperService.fieldType(DataStream.TIMESTAMP_FIELD_NAME);
-        if (mappedFieldType instanceof DateFieldMapper.DateFieldType) {
-            return (DateFieldMapper.DateFieldType) mappedFieldType;
-        } else {
+    private static Map<String, DateFieldMapper.DateFieldType> fromMapperService(MapperService mapperService) {
+        Map<String, DateFieldMapper.DateFieldType> fieldToType = new HashMap<>();
+
+        final MappedFieldType timestampFieldType = mapperService.fieldType(DataStream.TIMESTAMP_FIELD_NAME);
+        if (timestampFieldType instanceof DateFieldMapper.DateFieldType dateFieldType) {
+            fieldToType.put(DataStream.TIMESTAMP_FIELD_NAME, dateFieldType);
+        }
+        final MappedFieldType eventIngestedFieldType = mapperService.fieldType(IndexMetadata.EVENT_INGESTED_FIELD_NAME);
+        if (eventIngestedFieldType instanceof DateFieldMapper.DateFieldType dateFieldType) {
+            fieldToType.put(IndexMetadata.EVENT_INGESTED_FIELD_NAME, dateFieldType);
+        }
+        if (fieldToType.isEmpty()) {
             return null;
         }
+        return fieldToType;
     }
 
     /**
-     * @return the field type of the {@code @timestamp} field of the given index, or {@code null} if:
+     * @return a map holding the field types of the {@code @timestamp} and {@code event.ingested} fields of the given index,
+     * or {@code null} if:
      * - the index is not found,
      * - the field is not found,
      * - the mapping is not known yet, or
-     * - the field is not a timestamp field.
+     * - the index does not have a useful timestamp field.
      */
     @Nullable
-    public DateFieldMapper.DateFieldType getTimestampFieldType(Index index) {
-        final PlainActionFuture<DateFieldMapper.DateFieldType> future = fieldTypesByIndex.get(index);
+    public Map<String, DateFieldMapper.DateFieldType> getTimestampFieldTypeMap(Index index) {
+        final PlainActionFuture<Map<String, DateFieldMapper.DateFieldType>> future = fieldTypesByIndex.get(index);
         if (future == null || future.isDone() == false) {
             return null;
         }
         // call non-blocking actionResult() as we could be on a network or scheduler thread which we must not block
         return future.actionResult();
     }
-
 }

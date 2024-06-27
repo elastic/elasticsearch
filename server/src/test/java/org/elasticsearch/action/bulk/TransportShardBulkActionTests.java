@@ -1200,7 +1200,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         when(mapperService.merge(any(), any(CompressedXContent.class), any())).thenReturn(documentMapper);
         // on the second invocation, the mapping version is incremented
         // so that the second mapping update attempt doesn't trigger the infinite loop prevention
-        when(mapperService.mappingVersion()).thenReturn(0L, 1L);
+        when(mapperService.mappingVersion()).thenReturn(0L, 0L, 1L);
 
         UpdateHelper updateHelper = mock(UpdateHelper.class);
         when(updateHelper.prepare(any(), eq(shard), any())).thenReturn(

@@ -65,7 +65,7 @@ class FlattenedFieldParser {
         XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser);
 
         XContentBuilder rawDataForSyntheticSource = null;
-        if (documentParserContext.mappingLookup().isSourceSynthetic() && ignoreAbove < Integer.MAX_VALUE) {
+        if (documentParserContext.canAddIgnoredField() && ignoreAbove < Integer.MAX_VALUE) {
             var copyingParser = new CopyingXContentParser(parser);
             rawDataForSyntheticSource = copyingParser.getBuilder();
             parser = copyingParser;

@@ -45,6 +45,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
+import org.elasticsearch.xpack.core.esql.action.ColumnInfoImpl;
 import org.elasticsearch.xpack.esql.TestBlockFactory;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
@@ -126,7 +127,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
             t -> false == DataType.isPrimitive(t) || t == DataType.DATE_PERIOD || t == DataType.TIME_DURATION,
             () -> randomFrom(DataType.types())
         ).widenSmallNumeric();
-        return new ColumnInfo(randomAlphaOfLength(10), type.esType());
+        return new ColumnInfoImpl(randomAlphaOfLength(10), type.esType());
     }
 
     private EsqlQueryResponse.Profile randomProfile() {
@@ -196,7 +197,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                 int mutCol = between(0, instance.columns().size() - 1);
                 List<ColumnInfo> cols = new ArrayList<>(instance.columns());
                 // keep the type the same so the values are still valid but change the name
-                cols.set(mutCol, new ColumnInfo(cols.get(mutCol).name() + "mut", cols.get(mutCol).type()));
+                cols.set(mutCol, new ColumnInfoImpl(cols.get(mutCol).name() + "mut", cols.get(mutCol).type()));
                 yield new EsqlQueryResponse(cols, deepCopyOfPages(instance), instance.profile(), instance.columnar(), instance.isAsync());
             }
             case 1 -> new EsqlQueryResponse(
@@ -372,7 +373,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
     public void testBasicXContentIdAndRunning() {
         try (
             EsqlQueryResponse response = new EsqlQueryResponse(
-                List.of(new ColumnInfo("foo", "integer")),
+                List.of(new ColumnInfoImpl("foo", "integer")),
                 List.of(new Page(blockFactory.newIntArrayVector(new int[] { 40, 80 }, 2).asBlock())),
                 null,
                 false,
@@ -389,7 +390,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
     public void testNullColumnsXContentDropNulls() {
         try (
             EsqlQueryResponse response = new EsqlQueryResponse(
-                List.of(new ColumnInfo("foo", "integer"), new ColumnInfo("all_null", "integer")),
+                List.of(new ColumnInfoImpl("foo", "integer"), new ColumnInfoImpl("all_null", "integer")),
                 List.of(new Page(blockFactory.newIntArrayVector(new int[] { 40, 80 }, 2).asBlock(), blockFactory.newConstantNullBlock(2))),
                 null,
                 false,
@@ -418,7 +419,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
             b.appendNull();
             try (
                 EsqlQueryResponse response = new EsqlQueryResponse(
-                    List.of(new ColumnInfo("foo", "integer"), new ColumnInfo("all_null", "integer")),
+                    List.of(new ColumnInfoImpl("foo", "integer"), new ColumnInfoImpl("all_null", "integer")),
                     List.of(new Page(blockFactory.newIntArrayVector(new int[] { 40, 80 }, 2).asBlock(), b.build())),
                     null,
                     false,
@@ -444,7 +445,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
 
     private EsqlQueryResponse simple(boolean columnar, boolean async) {
         return new EsqlQueryResponse(
-            List.of(new ColumnInfo("foo", "integer")),
+            List.of(new ColumnInfoImpl("foo", "integer")),
             List.of(new Page(blockFactory.newIntArrayVector(new int[] { 40, 80 }, 2).asBlock())),
             null,
             columnar,
@@ -455,7 +456,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
     public void testProfileXContent() {
         try (
             EsqlQueryResponse response = new EsqlQueryResponse(
-                List.of(new ColumnInfo("foo", "integer")),
+                List.of(new ColumnInfoImpl("foo", "integer")),
                 List.of(new Page(blockFactory.newIntArrayVector(new int[] { 40, 80 }, 2).asBlock())),
                 new EsqlQueryResponse.Profile(
                     List.of(
@@ -520,7 +521,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
         var intBlk2 = blockFactory.newIntArrayVector(new int[] { 30, 40, 50 }, 3).asBlock();
         var longBlk1 = blockFactory.newLongArrayVector(new long[] { 100L, 200L }, 2).asBlock();
         var longBlk2 = blockFactory.newLongArrayVector(new long[] { 300L, 400L, 500L }, 3).asBlock();
-        var columnInfo = List.of(new ColumnInfo("foo", "integer"), new ColumnInfo("bar", "long"));
+        var columnInfo = List.of(new ColumnInfoImpl("foo", "integer"), new ColumnInfoImpl("bar", "long"));
         var pages = List.of(new Page(intBlk1, longBlk1), new Page(intBlk2, longBlk2));
         try (var response = new EsqlQueryResponse(columnInfo, pages, null, false, null, false, false)) {
             assertThat(columnValues(response.column(0)), contains(10, 20, 30, 40, 50));
@@ -532,7 +533,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
 
     public void testColumnsIllegalArg() {
         var intBlk1 = blockFactory.newIntArrayVector(new int[] { 10 }, 1).asBlock();
-        var columnInfo = List.of(new ColumnInfo("foo", "integer"));
+        var columnInfo = List.of(new ColumnInfoImpl("foo", "integer"));
         var pages = List.of(new Page(intBlk1));
         try (var response = new EsqlQueryResponse(columnInfo, pages, null, false, null, false, false)) {
             expectThrows(IllegalArgumentException.class, () -> response.column(-1));
@@ -551,7 +552,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
             blk2 = bb2.appendInt(30).appendNull().appendNull().appendInt(60).build();
             blk3 = bb3.appendNull().appendInt(80).appendInt(90).appendNull().build();
         }
-        var columnInfo = List.of(new ColumnInfo("foo", "integer"));
+        var columnInfo = List.of(new ColumnInfoImpl("foo", "integer"));
         var pages = List.of(new Page(blk1), new Page(blk2), new Page(blk3));
         try (var response = new EsqlQueryResponse(columnInfo, pages, null, false, null, false, false)) {
             assertThat(columnValues(response.column(0)), contains(10, null, 30, null, null, 60, null, 80, 90, null));
@@ -571,7 +572,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
             blk2 = bb2.beginPositionEntry().appendInt(40).appendInt(50).endPositionEntry().build();
             blk3 = bb3.appendNull().appendInt(70).appendInt(80).appendNull().build();
         }
-        var columnInfo = List.of(new ColumnInfo("foo", "integer"));
+        var columnInfo = List.of(new ColumnInfoImpl("foo", "integer"));
         var pages = List.of(new Page(blk1), new Page(blk2), new Page(blk3));
         try (var response = new EsqlQueryResponse(columnInfo, pages, null, false, null, false, false)) {
             assertThat(columnValues(response.column(0)), contains(List.of(10, 20), null, List.of(40, 50), null, 70, 80, null));

@@ -26,6 +26,7 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
+import org.elasticsearch.xpack.core.esql.action.ColumnInfoImpl;
 import org.elasticsearch.xpack.core.esql.action.EsqlResponse;
 
 import java.io.IOException;
@@ -97,7 +98,7 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
             isRunning = in.readBoolean();
             isAsync = in.readBoolean();
         }
-        List<ColumnInfo> columns = in.readCollectionAsList(ColumnInfo::new);
+        List<ColumnInfo> columns = in.readCollectionAsList(ColumnInfoImpl::new);
         List<Page> pages = in.readCollectionAsList(Page::new);
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
             profile = in.readOptionalWriteable(Profile::new);

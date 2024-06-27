@@ -47,6 +47,7 @@ public class EnterpriseGeoIpDownloaderLicenseListener implements ClusterStateLis
     ) {
         this.persistentTasksService = new PersistentTasksService(clusterService, threadPool, client);
         this.clusterService = clusterService;
+        // TODO maybe a static feature is more conventional? i dunno!
         this.feature = LicensedFeature.momentary(null, XPackField.ENTERPRISE_GEOIP_DOWNLOADER, License.OperationMode.PLATINUM);
         this.licenseState = licenseState;
     }
@@ -55,6 +56,7 @@ public class EnterpriseGeoIpDownloaderLicenseListener implements ClusterStateLis
     private static final TimeValue MASTER_TIMEOUT = TimeValue.MAX_VALUE;
 
     public void init() {
+        // TODO alternatively we could have the equivalent of this code in EnterpriseDownloaderPlugin itself... :shrug:
         clusterService.addListener(this);
     }
 

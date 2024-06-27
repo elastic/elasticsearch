@@ -36,6 +36,7 @@ public class EnterpriseDownloaderPlugin extends Plugin {
             getLicenseState()
         );
         enterpriseGeoIpDownloaderTaskExecutor.init();
+        // TODO do we even need to return this? is there a benefit or cost to doing or not doing it?
         return List.of(enterpriseGeoIpDownloaderTaskExecutor);
     }
 }

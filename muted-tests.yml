@@ -85,6 +85,9 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/110212
 - class: "org.elasticsearch.rest.RestControllerIT"
   issue: "https://github.com/elastic/elasticsearch/issues/110225"
+- class: "org.elasticsearch.xpack.security.authz.store.NativePrivilegeStoreCacheTests"
+  issue: "https://github.com/elastic/elasticsearch/issues/110227"
+  method: "testGetPrivilegesUsesCache"
 
 # Examples:
 #

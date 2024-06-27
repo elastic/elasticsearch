@@ -25,7 +25,8 @@ public class AggregationsClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase
 
         // On Serverless, we want to disallow scripted metrics aggs per default.
         // The following override allows us to still run the scripted metrics agg tests without breaking bwc.
-        if (System.getProperty("tests.ignore_scripted_metric_allow_list").equals("true")) {
+
+        if (System.getProperty("tests.disable_scripted_metric_allow_list_per_default").equals("true")) {
             return cluster.setting("search.aggs.only_allowed_metric_scripts", "false").build();
         }
         return cluster.build();

@@ -113,7 +113,7 @@ to CBOR
 
 |arrow
 |application/vnd.apache.arrow.stream
-|https://arrow.apache.org/[Apache Arrow] dataframes, https://arrow.apache.org/docs/format/Columnar.html#ipc-streaming-format[IPC streaming format] (Technical preview)
+|**Experimental.** https://arrow.apache.org/[Apache Arrow] dataframes, https://arrow.apache.org/docs/format/Columnar.html#ipc-streaming-format[IPC streaming format]
 |===
 
 The `csv` format accepts a formatting URL query attribute, `delimiter`, which

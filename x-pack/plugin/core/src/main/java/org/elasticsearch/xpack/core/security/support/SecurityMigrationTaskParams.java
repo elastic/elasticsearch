@@ -21,6 +21,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import java.io.IOException;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 public class SecurityMigrationTaskParams implements PersistentTaskParams {
     public static final String TASK_NAME = "security-migration";
@@ -32,12 +33,12 @@ public class SecurityMigrationTaskParams implements PersistentTaskParams {
     public static final ConstructingObjectParser<SecurityMigrationTaskParams, Void> PARSER = new ConstructingObjectParser<>(
         TASK_NAME,
         true,
-        (arr) -> new SecurityMigrationTaskParams((int) arr[0], (boolean) arr[1])
+        (arr) -> new SecurityMigrationTaskParams((int) arr[0], arr[1] == null || (boolean) arr[1])
     );
 
     static {
         PARSER.declareInt(constructorArg(), new ParseField("migration_version"));
-        PARSER.declareBoolean(constructorArg(), new ParseField("migration_needed"));
+        PARSER.declareBoolean(optionalConstructorArg(), new ParseField("migration_needed"));
     }
 
     public SecurityMigrationTaskParams(int migrationVersion, boolean migrationNeeded) {
@@ -47,13 +48,19 @@ public class SecurityMigrationTaskParams implements PersistentTaskParams {
 
     public SecurityMigrationTaskParams(StreamInput in) throws IOException {
         this.migrationVersion = in.readInt();
-        this.migrationNeeded = in.readBoolean();
+        if (in.getTransportVersion().onOrAfter(TransportVersions.SECURITY_MIGRATIONS_MIGRATION_NEEDED_ADDED)) {
+            this.migrationNeeded = in.readBoolean();
+        } else {
+            this.migrationNeeded = true;
+        }
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeInt(migrationVersion);
-        out.writeBoolean(migrationNeeded);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.SECURITY_MIGRATIONS_MIGRATION_NEEDED_ADDED)) {
+            out.writeBoolean(migrationNeeded);
+        }
     }
 
     @Override

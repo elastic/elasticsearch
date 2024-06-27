@@ -200,6 +200,7 @@ public class TransportVersions {
     public static final TransportVersion INDEX_METADATA_MAPPINGS_UPDATED_VERSION = def(8_691_00_0);
     public static final TransportVersion ML_INFERENCE_ELAND_SETTINGS_ADDED = def(8_692_00_0);
     public static final TransportVersion ML_ANTHROPIC_INTEGRATION_ADDED = def(8_693_00_0);
+    public static final TransportVersion SECURITY_MIGRATIONS_MIGRATION_NEEDED_ADDED = def(8_694_00_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,

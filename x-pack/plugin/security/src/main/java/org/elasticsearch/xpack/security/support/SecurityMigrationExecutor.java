@@ -52,7 +52,14 @@ public class SecurityMigrationExecutor extends PersistentTasksExecutor<SecurityM
         });
 
         if (params.isMigrationNeeded() == false) {
-            updateMigrationVersion(params.getMigrationVersion(), securityIndexManager.getConcreteIndexName(), listener);
+            updateMigrationVersion(
+                params.getMigrationVersion(),
+                securityIndexManager.getConcreteIndexName(),
+                ActionListener.wrap(response -> {
+                    logger.info("Security migration not needed. Setting current version to: [" + params.getMigrationVersion() + "]");
+                    listener.onResponse(response);
+                }, listener::onFailure)
+            );
             return;
         }
 

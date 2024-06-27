@@ -160,7 +160,8 @@ public class ConnectorSyncJobTestUtils {
             randomNonNegativeLong(),
             randomNonNegativeLong(),
             randomNonNegativeLong(),
-            randomInstantBetween(lowerBoundInstant, upperBoundInstant)
+            randomInstantBetween(lowerBoundInstant, upperBoundInstant),
+            randomMap(2, 3, () -> new Tuple<>(randomAlphaOfLength(4), randomAlphaOfLength(4)))
         );
     }
 
@@ -176,7 +177,8 @@ public class ConnectorSyncJobTestUtils {
             randomNonNegativeLong(),
             randomNonNegativeLong(),
             randomNonNegativeLong(),
-            randomInstantBetween(lowerBoundInstant, upperBoundInstant)
+            randomInstantBetween(lowerBoundInstant, upperBoundInstant),
+            randomMap(2, 3, () -> new Tuple<>(randomAlphaOfLength(4), randomAlphaOfLength(4)))
         );
     }
 

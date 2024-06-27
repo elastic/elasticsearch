@@ -1,5 +1,5 @@
 pr: 110045
-summary: Parsing objects for unsigned long fields
+summary: fix ignore_malformed behaviour for unsigned long fields
 area: Logs
 type: bug
 issues:

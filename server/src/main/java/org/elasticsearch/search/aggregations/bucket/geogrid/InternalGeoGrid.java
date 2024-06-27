@@ -45,6 +45,7 @@ public abstract class InternalGeoGrid<B extends InternalGeoGridBucket> extends I
         super(name, metadata);
         this.requiredSize = requiredSize;
         this.buckets = buckets;
+        setBucketCount(countBuckets());
     }
 
     protected abstract Writeable.Reader<B> getBucketReader();
@@ -57,6 +58,7 @@ public abstract class InternalGeoGrid<B extends InternalGeoGridBucket> extends I
         super(in);
         requiredSize = readSize(in);
         buckets = (List<InternalGeoGridBucket>) in.readCollectionAsList(getBucketReader());
+        setBucketCount(countBuckets());
     }
 
     @Override

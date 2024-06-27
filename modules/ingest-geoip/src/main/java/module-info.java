@@ -16,5 +16,5 @@ module org.elasticsearch.ingest.geoip {
     requires com.maxmind.db;
 
     exports org.elasticsearch.ingest.geoip.stats to org.elasticsearch.server;
-    exports org.elasticsearch.ingest.geoip.enterprise;
+    exports org.elasticsearch.ingest.geoip.enterprise to org.elasticsearch.geoipenterprisedownloader;
 }

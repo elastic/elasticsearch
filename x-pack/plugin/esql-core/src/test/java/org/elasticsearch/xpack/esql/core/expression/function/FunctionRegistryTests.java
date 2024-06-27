@@ -10,9 +10,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.ParsingException;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.function.scalar.ConfigurationFunction;
 import org.elasticsearch.xpack.esql.core.expression.function.scalar.ScalarFunction;
-import org.elasticsearch.xpack.esql.core.session.Configuration;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.tree.SourceTests;
@@ -166,18 +164,6 @@ public class FunctionRegistryTests extends ESTestCase {
         assertThat(e.getMessage(), is("Cannot find function dummyfunction; this should have been caught during analysis"));
     }
 
-    public void testConfigurationOptionalFunction() {
-        UnresolvedFunction ur = uf(DEFAULT, mock(Expression.class));
-        FunctionRegistry r = new FunctionRegistry(
-            def(DummyConfigurationOptionalArgumentFunction.class, (Source l, Expression e, Configuration c) -> {
-                assertSame(e, ur.children().get(0));
-                return new DummyConfigurationOptionalArgumentFunction(l, List.of(ur), c);
-            }, "dummy")
-        );
-        FunctionDefinition def = r.resolveFunction(r.resolveAlias("DUMMY"));
-        assertEquals(ur.source(), ur.buildResolved(randomConfiguration(), def).source());
-    }
-
     public static UnresolvedFunction uf(FunctionResolutionStrategy resolutionStrategy, Expression... children) {
         return new UnresolvedFunction(SourceTests.randomSource(), "dummy_function", resolutionStrategy, Arrays.asList(children));
     }
@@ -206,28 +192,6 @@ public class FunctionRegistryTests extends ESTestCase {
     public static class DummyFunction2 extends DummyFunction {
         public DummyFunction2(Source source) {
             super(source);
-        }
-    }
-
-    public static class DummyConfigurationOptionalArgumentFunction extends ConfigurationFunction implements OptionalArgument {
-
-        public DummyConfigurationOptionalArgumentFunction(Source source, List<Expression> fields, Configuration configuration) {
-            super(source, fields, configuration);
-        }
-
-        @Override
-        public DataType dataType() {
-            return null;
-        }
-
-        @Override
-        public Expression replaceChildren(List<Expression> newChildren) {
-            return new DummyConfigurationOptionalArgumentFunction(source(), newChildren, configuration());
-        }
-
-        @Override
-        protected NodeInfo<? extends Expression> info() {
-            return NodeInfo.create(this, DummyConfigurationOptionalArgumentFunction::new, children(), configuration());
         }
     }
 }

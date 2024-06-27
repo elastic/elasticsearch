@@ -53,7 +53,7 @@ public final class CombineProjections extends OptimizerRules.OptimizerRule<Unary
                 // project can be fully removed
                 if (newAggs != null) {
                     var newGroups = replacePrunedAliasesUsedInGroupBy(a.groupings(), aggs, newAggs);
-                    plan = new Aggregate(a.source(), a.child(), newGroups, newAggs);
+                    plan = new Aggregate(a.source(), a.child(), a.aggregateType(), newGroups, newAggs);
                 }
             }
             return plan;
@@ -75,6 +75,7 @@ public final class CombineProjections extends OptimizerRules.OptimizerRule<Unary
                 plan = new Aggregate(
                     a.source(),
                     p.child(),
+                    a.aggregateType(),
                     combineUpperGroupingsAndLowerProjections(groupingAttrs, p.projections()),
                     combineProjections(a.aggregates(), p.projections())
                 );

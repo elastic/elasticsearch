@@ -328,7 +328,7 @@ Filter on field with ignored_malformed:
                 type: integer
                 ignore_malformed: true
             runtime:
-              secret:
+              rt_secret:
                 type: keyword
                 script:
                   source: "emit(params._source.secret)"
@@ -356,7 +356,7 @@ Filter on field with ignored_malformed:
                   privileges: [ "read" ]
                   query:
                     term:
-                      secret: mission
+                      rt_secret: mission
   - match: { name: "test-fls" }
   - is_true: id
   - set:

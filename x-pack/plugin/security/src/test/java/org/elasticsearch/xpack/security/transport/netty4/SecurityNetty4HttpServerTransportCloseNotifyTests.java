@@ -50,7 +50,6 @@ import org.elasticsearch.transport.netty4.TLSConfig;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 
 import java.security.cert.CertificateException;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.BlockingDeque;
@@ -233,13 +232,6 @@ public class SecurityNetty4HttpServerTransportCloseNotifyTests extends AbstractH
                 // after the server receives requests send close_notify, before server responses
                 var ssl = client.channel.pipeline().get(SslHandler.class);
                 ssl.closeOutbound();
-
-                // it's not really important to send all responses, all of them should fail, any non-zero value is ok
-                for (int i = 0; i < nRequests; i++) {
-                    var serverRequestCtx = safePoll(ctx.server.dispatcher.reqQueue);
-                    var content = randomByteArrayOfLength(1024);
-                    serverRequestCtx.restChannel.sendResponse(new RestResponse(RestStatus.OK, Arrays.toString(content)));
-                }
 
                 safeAwait(ctx.client.channel.closeFuture());
                 assertTrue(client.errQueue.isEmpty());

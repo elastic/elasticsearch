@@ -10,7 +10,6 @@ package org.elasticsearch.reservedstate.service;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateAckListener;
@@ -34,11 +33,11 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
+import org.junit.Assert;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -50,14 +49,15 @@ import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.reservedstate.service.ReservedStateUpdateTask.checkMetadataVersion;
-import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.startsWith;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doReturn;
@@ -106,9 +106,9 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
         AtomicReference<Exception> x = new AtomicReference<>();
 
         try (XContentParser parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, testJSON)) {
-            controller.process("operator", parser, (e) -> x.set(e));
+            controller.process("operator", parser, x::set);
 
-            assertTrue(x.get() instanceof IllegalStateException);
+            assertThat(x.get(), instanceOf(IllegalStateException.class));
             assertThat(x.get().getMessage(), containsString("Error processing state change request for operator"));
         }
 
@@ -136,16 +136,11 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
             """;
 
         try (XContentParser parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, testJSON)) {
-            controller.process("operator", parser, (e) -> {
-                if (e != null) {
-                    fail("Should not fail");
-                }
-            });
+            controller.process("operator", parser, Assert::assertNull);
         }
     }
 
     public void testUpdateStateTasks() throws Exception {
-        ClusterService clusterService = mock(ClusterService.class);
         RerouteService rerouteService = mock(RerouteService.class);
 
         ClusterState state = ClusterState.builder(new ClusterName("test")).build();
@@ -155,21 +150,7 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
         AtomicBoolean successCalled = new AtomicBoolean(false);
 
         ReservedStateUpdateTask task = spy(
-            new ReservedStateUpdateTask(
-                "test",
-                null,
-                List.of(),
-                Collections.emptyMap(),
-                Collections.emptySet(),
-                errorState -> {},
-                new ActionListener<>() {
-                    @Override
-                    public void onResponse(ActionResponse.Empty empty) {}
-
-                    @Override
-                    public void onFailure(Exception e) {}
-                }
-            )
+            new ReservedStateUpdateTask("test", null, List.of(), Map.of(), Set.of(), errorState -> {}, ActionListener.noop())
         );
 
         doReturn(state).when(task).execute(any());
@@ -223,15 +204,7 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
         ReservedStateErrorTask task = spy(
             new ReservedStateErrorTask(
                 new ErrorState("test", 1L, List.of("some parse error", "some io error"), ReservedStateErrorMetadata.ErrorKind.PARSING),
-                new ActionListener<>() {
-                    @Override
-                    public void onResponse(ActionResponse.Empty empty) {
-                        listenerCompleted.set(true);
-                    }
-
-                    @Override
-                    public void onFailure(Exception e) {}
-                }
+                ActionListener.running(() -> listenerCompleted.set(true))
             )
         );
 
@@ -276,8 +249,8 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
         ReservedStateMetadata operatorMetadata = newState.metadata().reservedStateMetadata().get("test");
         assertNotNull(operatorMetadata);
         assertNotNull(operatorMetadata.errorMetadata());
-        assertEquals(1L, (long) operatorMetadata.errorMetadata().version());
-        assertEquals(ReservedStateErrorMetadata.ErrorKind.PARSING, operatorMetadata.errorMetadata().errorKind());
+        assertThat(operatorMetadata.errorMetadata().version(), is(1L));
+        assertThat(operatorMetadata.errorMetadata().errorKind(), is(ReservedStateErrorMetadata.ErrorKind.PARSING));
         assertThat(operatorMetadata.errorMetadata().errors(), contains("some parse error", "some io error"));
         assertTrue(listenerCompleted.get());
     }
@@ -352,13 +325,7 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
             Map.of(exceptionThrower.name(), exceptionThrower, newStateMaker.name(), newStateMaker),
             orderedHandlers,
             errorState -> assertFalse(ReservedStateErrorTask.isNewError(operatorMetadata, errorState.version())),
-            new ActionListener<>() {
-                @Override
-                public void onResponse(ActionResponse.Empty empty) {}
-
-                @Override
-                public void onFailure(Exception e) {}
-            }
+            ActionListener.noop()
         );
 
         ClusterService clusterService = mock(ClusterService.class);
@@ -367,9 +334,8 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
         );
 
         var trialRunResult = controller.trialRun("namespace_one", state, chunk, new LinkedHashSet<>(orderedHandlers));
-        assertEquals(0, trialRunResult.nonStateTransforms().size());
-        assertEquals(1, trialRunResult.errors().size());
-        assertTrue(trialRunResult.errors().get(0).contains("Error processing one state change:"));
+        assertThat(trialRunResult.nonStateTransforms(), empty());
+        assertThat(trialRunResult.errors(), contains(containsString("Error processing one state change:")));
 
         // We exit on duplicate errors before we update the cluster state error metadata
         assertThat(
@@ -438,7 +404,7 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
 
     public void testHandlerOrdering() {
         ReservedClusterStateHandler<Map<String, Object>> oh1 = makeHandlerHelper("one", List.of("two", "three"));
-        ReservedClusterStateHandler<Map<String, Object>> oh2 = makeHandlerHelper("two", Collections.emptyList());
+        ReservedClusterStateHandler<Map<String, Object>> oh2 = makeHandlerHelper("two", List.of());
         ReservedClusterStateHandler<Map<String, Object>> oh3 = makeHandlerHelper("three", List.of("two"));
 
         ClusterService clusterService = mock(ClusterService.class);
@@ -447,16 +413,16 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
         assertThat(ordered, contains("two", "three", "one"));
 
         // assure that we bail on unknown handler
-        assertEquals(
-            "Unknown handler type: four",
+        assertThat(
             expectThrows(IllegalStateException.class, () -> controller.orderedStateHandlers(Set.of("one", "two", "three", "four")))
-                .getMessage()
+                .getMessage(),
+            is("Unknown handler type: four")
         );
 
         // assure that we bail on missing dependency link
-        assertEquals(
-            "Missing handler dependency definition: one -> three",
-            expectThrows(IllegalStateException.class, () -> controller.orderedStateHandlers(Set.of("one", "two"))).getMessage()
+        assertThat(
+            expectThrows(IllegalStateException.class, () -> controller.orderedStateHandlers(Set.of("one", "two"))).getMessage(),
+            is("Missing handler dependency definition: one -> three")
         );
 
         // Change the second handler so that we create cycle
@@ -481,7 +447,7 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
         ClusterState state = ClusterState.builder(clusterName).build();
         when(clusterService.state()).thenReturn(state);
 
-        assertTrue(
+        assertThat(
             expectThrows(
                 IllegalStateException.class,
                 () -> new ReservedClusterStateService(
@@ -489,7 +455,8 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
                     mock(RerouteService.class),
                     List.of(new ReservedClusterSettingsAction(clusterSettings), new TestHandler())
                 )
-            ).getMessage().startsWith("Duplicate key cluster_settings")
+            ).getMessage(),
+            startsWith("Duplicate key cluster_settings")
         );
     }
 
@@ -506,8 +473,8 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
 
         var version = new ReservedStateVersion(2L, Version.CURRENT);
         var error = controller.checkAndReportError("test", List.of("test error"), version);
-        assertThat(error, allOf(notNullValue(), instanceOf(IllegalStateException.class)));
-        assertEquals("Error processing state change request for test, errors: test error", error.getMessage());
+        assertThat(error, instanceOf(IllegalStateException.class));
+        assertThat(error.getMessage(), is("Error processing state change request for test, errors: test error"));
         verify(controller, times(1)).updateErrorState(any());
     }
 
@@ -538,7 +505,7 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
 
             @Override
             public TransformState transform(Object source, TransformState prevState) {
-                return new TransformState(prevState.state(), prevState.keys(), (l) -> internalKeys(l));
+                return new TransformState(prevState.state(), prevState.keys(), this::internalKeys);
             }
 
             private void internalKeys(ActionListener<NonStateTransformResult> listener) {
@@ -577,13 +544,13 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
 
         var trialRunResult = controller.trialRun("namespace_one", state, chunk, new LinkedHashSet<>(orderedHandlers));
 
-        assertEquals(1, trialRunResult.nonStateTransforms().size());
-        assertEquals(0, trialRunResult.errors().size());
+        assertThat(trialRunResult.nonStateTransforms(), hasSize(1));
+        assertThat(trialRunResult.errors(), empty());
         trialRunResult.nonStateTransforms().get(0).accept(new ActionListener<>() {
             @Override
             public void onResponse(NonStateTransformResult nonStateTransformResult) {
                 assertThat(nonStateTransformResult.updatedKeys(), containsInAnyOrder("key non-state"));
-                assertEquals("non-state", nonStateTransformResult.handlerName());
+                assertThat(nonStateTransformResult.handlerName(), is("non-state"));
             }
 
             @Override
@@ -610,7 +577,7 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
 
                 @Override
                 public TransformState transform(Object source, TransformState prevState) {
-                    return new TransformState(prevState.state(), prevState.keys(), (l) -> internalKeys(l));
+                    return new TransformState(prevState.state(), prevState.keys(), this::internalKeys);
                 }
 
                 private void internalKeys(ActionListener<NonStateTransformResult> listener) {
@@ -642,10 +609,10 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
             "namespace_one",
             state,
             chunk,
-            new LinkedHashSet<>(handlers.stream().map(h -> h.name()).toList())
+            handlers.stream().map(ReservedClusterStateHandler::name).collect(Collectors.toCollection(LinkedHashSet::new))
         );
 
-        assertEquals(count, trialRunResult.nonStateTransforms().size());
+        assertThat(trialRunResult.nonStateTransforms(), hasSize(count));
         ReservedClusterStateService.executeNonStateTransformationSteps(trialRunResult.nonStateTransforms(), new ActionListener<>() {
             @Override
             public void onResponse(Collection<NonStateTransformResult> nonStateTransformResults) {
@@ -657,12 +624,15 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
                     expectedValues.add("key non-state:" + i);
                 }
                 assertThat(
-                    nonStateTransformResults.stream().map(n -> n.handlerName()).collect(Collectors.toSet()),
-                    containsInAnyOrder(expectedHandlers.toArray(new String[0]))
+                    nonStateTransformResults.stream().map(NonStateTransformResult::handlerName).collect(Collectors.toSet()),
+                    containsInAnyOrder(expectedHandlers.toArray())
                 );
                 assertThat(
-                    nonStateTransformResults.stream().map(n -> n.updatedKeys()).flatMap(Set::stream).collect(Collectors.toSet()),
-                    containsInAnyOrder(expectedValues.toArray(new String[0]))
+                    nonStateTransformResults.stream()
+                        .map(NonStateTransformResult::updatedKeys)
+                        .flatMap(Set::stream)
+                        .collect(Collectors.toSet()),
+                    containsInAnyOrder(expectedValues.toArray())
                 );
             }
 
@@ -673,7 +643,7 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
         });
     }
 
-    class TestHandler implements ReservedClusterStateHandler<Map<String, Object>> {
+    static class TestHandler implements ReservedClusterStateHandler<Map<String, Object>> {
 
         @Override
         public String name() {

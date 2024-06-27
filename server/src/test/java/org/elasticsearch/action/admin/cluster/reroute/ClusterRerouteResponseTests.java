@@ -8,6 +8,7 @@
 
 package org.elasticsearch.action.admin.cluster.reroute;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
@@ -28,6 +29,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.index.shard.IndexLongFieldRange;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
@@ -186,9 +188,13 @@ public class ClusterRerouteResponseTests extends ESTestCase {
                                 "0": []
                               },
                               "rollover_info": {},
+                              "mappings_updated_version" : %s,
                               "system": false,
                               "timestamp_range": {
                                 "shards": []
+                              },
+                              "event_ingested_range": {
+                                "unknown":true
                               }
                             }
                           },
@@ -213,6 +219,7 @@ public class ClusterRerouteResponseTests extends ESTestCase {
                 Version.CURRENT,
                 IndexVersions.MINIMUM_COMPATIBLE,
                 IndexVersion.current(),
+                IndexVersion.current(),
                 IndexVersion.current()
             ),
             """
@@ -225,7 +232,7 @@ public class ClusterRerouteResponseTests extends ESTestCase {
         assertXContent(
             createClusterRerouteResponse(createClusterState()),
             new ToXContent.MapParams(Map.of("metric", "metadata", "settings_filter", "index.number*,index.version.created")),
-            """
+            Strings.format("""
                 {
                   "acknowledged" : true,
                   "state" : {
@@ -265,9 +272,13 @@ public class ClusterRerouteResponseTests extends ESTestCase {
                             "0" : [ ]
                           },
                           "rollover_info" : { },
+                          "mappings_updated_version" : %s,
                           "system" : false,
                           "timestamp_range" : {
                             "shards" : [ ]
+                          },
+                          "event_ingested_range" : {
+                            "unknown" : true
                           }
                         }
                       },
@@ -277,7 +288,7 @@ public class ClusterRerouteResponseTests extends ESTestCase {
                       "reserved_state":{}
                     }
                   }
-                }""",
+                }""", IndexVersion.current()),
             """
                 The [state] field in the response to the reroute API is deprecated and will be removed in a future version. \
                 Specify ?metric=none to adopt the future behaviour."""
@@ -351,6 +362,7 @@ public class ClusterRerouteResponseTests extends ESTestCase {
                                     .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
                                     .build()
                             )
+                            .eventIngestedRange(IndexLongFieldRange.UNKNOWN, TransportVersion.current())
                             .build(),
                         false
                     )

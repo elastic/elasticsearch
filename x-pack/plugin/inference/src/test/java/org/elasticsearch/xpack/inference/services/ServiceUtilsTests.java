@@ -36,6 +36,7 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOpt
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalPositiveLong;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalString;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalTimeValue;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredPositiveInteger;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredSecureString;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredString;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.getEmbeddingSize;
@@ -464,6 +465,41 @@ public class ServiceUtilsTests extends ESTestCase {
         Map<String, Object> map = modifiableMap(Map.of("abc", 4_000_000_000L));
         assertEquals(Long.valueOf(4_000_000_000L), extractOptionalPositiveLong(map, "abc", "scope", validation));
         assertThat(validation.validationErrors(), hasSize(1));
+    }
+
+    public void testExtractRequiredPositiveInteger_ReturnsValue() {
+        var validation = new ValidationException();
+        validation.addValidationError("previous error");
+        Map<String, Object> map = modifiableMap(Map.of("key", 1));
+        var parsedInt = extractRequiredPositiveInteger(map, "key", "scope", validation);
+
+        assertThat(validation.validationErrors(), hasSize(1));
+        assertNotNull(parsedInt);
+        assertThat(parsedInt, is(1));
+        assertTrue(map.isEmpty());
+    }
+
+    public void testExtractRequiredPositiveInteger_AddsErrorForNegativeValue() {
+        var validation = new ValidationException();
+        validation.addValidationError("previous error");
+        Map<String, Object> map = modifiableMap(Map.of("key", -1));
+        var parsedInt = extractRequiredPositiveInteger(map, "key", "scope", validation);
+
+        assertThat(validation.validationErrors(), hasSize(2));
+        assertNull(parsedInt);
+        assertTrue(map.isEmpty());
+        assertThat(validation.validationErrors().get(1), is("[scope] Invalid value [-1]. [key] must be a positive integer"));
+    }
+
+    public void testExtractRequiredPositiveInteger_AddsErrorWhenKeyIsMissing() {
+        var validation = new ValidationException();
+        validation.addValidationError("previous error");
+        Map<String, Object> map = modifiableMap(Map.of("key", -1));
+        var parsedInt = extractRequiredPositiveInteger(map, "not_key", "scope", validation);
+
+        assertThat(validation.validationErrors(), hasSize(2));
+        assertNull(parsedInt);
+        assertThat(validation.validationErrors().get(1), is("[scope] does not contain the required setting [not_key]"));
     }
 
     public void testExtractOptionalEnum_ReturnsNull_WhenFieldDoesNotExist() {

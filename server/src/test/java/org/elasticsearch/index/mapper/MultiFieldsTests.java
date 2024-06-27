@@ -16,6 +16,8 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.util.Map;
 
+import static org.elasticsearch.index.mapper.MapperService.MergeReason.MAPPING_UPDATE;
+
 public class MultiFieldsTests extends ESTestCase {
 
     public void testMultiFieldsBuilderHasSyntheticSourceCompatibleKeywordField() {
@@ -45,7 +47,11 @@ public class MultiFieldsTests extends ESTestCase {
             keywordFieldMapperBuilder
         ).build(MapperBuilderContext.root(false, false));
 
-        builder.merge(newField, new FieldMapper.Conflicts("TextFieldMapper"), MapperMergeContext.root(false, false, Long.MAX_VALUE));
+        builder.merge(
+            newField,
+            new FieldMapper.Conflicts("TextFieldMapper"),
+            MapperMergeContext.root(false, false, MAPPING_UPDATE, Long.MAX_VALUE)
+        );
 
         var expected = hasNormalizer == false;
         assertEquals(expected, builder.multiFieldsBuilder.hasSyntheticSourceCompatibleKeywordField());

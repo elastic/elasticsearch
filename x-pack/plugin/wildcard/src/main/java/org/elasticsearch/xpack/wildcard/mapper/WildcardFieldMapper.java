@@ -238,8 +238,14 @@ public class WildcardFieldMapper extends FieldMapper {
         @Override
         public WildcardFieldMapper build(MapperBuilderContext context) {
             return new WildcardFieldMapper(
-                name(),
-                new WildcardFieldType(context.buildFullName(name()), nullValue.get(), ignoreAbove.get(), indexVersionCreated, meta.get()),
+                leafName(),
+                new WildcardFieldType(
+                    context.buildFullName(leafName()),
+                    nullValue.get(),
+                    ignoreAbove.get(),
+                    indexVersionCreated,
+                    meta.get()
+                ),
                 ignoreAbove.get(),
                 context.isSourceSynthetic(),
                 multiFieldsBuilder.build(this, context),
@@ -943,7 +949,7 @@ public class WildcardFieldMapper extends FieldMapper {
             if (value.length() <= ignoreAbove) {
                 createFields(value, parseDoc, fields);
             } else {
-                context.addIgnoredField(name());
+                context.addIgnoredField(fullPath());
                 if (storeIgnored) {
                     parseDoc.add(new StoredField(originalName(), new BytesRef(value)));
                 }
@@ -953,7 +959,7 @@ public class WildcardFieldMapper extends FieldMapper {
     }
 
     private String originalName() {
-        return name() + "._original";
+        return fullPath() + "._original";
     }
 
     void createFields(String value, LuceneDocument parseDoc, List<IndexableField> fields) {
@@ -982,7 +988,7 @@ public class WildcardFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(simpleName(), indexVersionCreated).init(this);
+        return new Builder(leafName(), indexVersionCreated).init(this);
     }
 
     @Override
@@ -994,7 +1000,7 @@ public class WildcardFieldMapper extends FieldMapper {
     public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
         if (copyTo.copyToFields().isEmpty() != true) {
             throw new IllegalArgumentException(
-                "field [" + name() + "] of type [" + typeName() + "] doesn't support synthetic source because it declares copy_to"
+                "field [" + fullPath() + "] of type [" + typeName() + "] doesn't support synthetic source because it declares copy_to"
             );
         }
         return new WildcardSyntheticFieldLoader();
@@ -1017,7 +1023,7 @@ public class WildcardFieldMapper extends FieldMapper {
 
         @Override
         public DocValuesLoader docValuesLoader(LeafReader leafReader, int[] docIdsInLeaf) throws IOException {
-            BinaryDocValues values = leafReader.getBinaryDocValues(name());
+            BinaryDocValues values = leafReader.getBinaryDocValues(fullPath());
             if (values == null) {
                 docValueCount = 0;
                 return null;
@@ -1047,10 +1053,10 @@ public class WildcardFieldMapper extends FieldMapper {
                 case 0:
                     return;
                 case 1:
-                    b.field(simpleName());
+                    b.field(leafName());
                     break;
                 default:
-                    b.startArray(simpleName());
+                    b.startArray(leafName());
             }
             for (int i = 0; i < docValueCount; i++) {
                 int length = docValuesStream.readVInt();
@@ -1069,7 +1075,7 @@ public class WildcardFieldMapper extends FieldMapper {
 
         @Override
         public String fieldName() {
-            return name();
+            return fullPath();
         }
     }
 }

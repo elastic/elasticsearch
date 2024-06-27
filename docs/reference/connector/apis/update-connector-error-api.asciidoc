@@ -21,6 +21,11 @@ To get started with Connector APIs, check out the {enterprise-search-ref}/connec
 * To sync data using self-managed connectors, you need to deploy the {enterprise-search-ref}/build-connector.html[Elastic connector service] on your own infrastructure. This service runs automatically on Elastic Cloud for native connectors.
 * The `connector_id` parameter should reference an existing connector.
 
+[[update-connector-error-api-desc]]
+==== {api-description-title}
+
+Sets the `error` field for the specified connector. If the `error` provided in the request body is non-null, the connector's status is updated to `error`. Otherwise, if the `error` is reset to null, the connector status is updated to `connected`.
+
 [[update-connector-error-api-path-params]]
 ==== {api-path-parms-title}
 

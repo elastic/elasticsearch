@@ -27,7 +27,6 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.application.connector.action.ConnectorCreateActionResponse;
 import org.elasticsearch.xpack.application.connector.action.UpdateConnectorApiKeyIdAction;
 import org.elasticsearch.xpack.application.connector.action.UpdateConnectorConfigurationAction;
-import org.elasticsearch.xpack.application.connector.action.UpdateConnectorErrorAction;
 import org.elasticsearch.xpack.application.connector.action.UpdateConnectorIndexNameAction;
 import org.elasticsearch.xpack.application.connector.action.UpdateConnectorLastSeenAction;
 import org.elasticsearch.xpack.application.connector.action.UpdateConnectorLastSyncStatsAction;
@@ -712,17 +711,14 @@ public class ConnectorIndexServiceTests extends ESSingleNodeTestCase {
         String connectorId = randomUUID();
         ConnectorCreateActionResponse resp = awaitCreateConnector(connectorId, connector);
         assertThat(resp.status(), anyOf(equalTo(RestStatus.CREATED), equalTo(RestStatus.OK)));
+        String error = randomAlphaOfLengthBetween(5, 15);
 
-        UpdateConnectorErrorAction.Request updateErrorRequest = new UpdateConnectorErrorAction.Request(
-            connectorId,
-            randomAlphaOfLengthBetween(5, 15)
-        );
-
-        DocWriteResponse updateResponse = awaitUpdateConnectorError(updateErrorRequest);
+        DocWriteResponse updateResponse = awaitUpdateConnectorError(connectorId, error);
         assertThat(updateResponse.status(), equalTo(RestStatus.OK));
 
         Connector indexedConnector = awaitGetConnector(connectorId);
-        assertThat(updateErrorRequest.getError(), equalTo(indexedConnector.getError()));
+        assertThat(indexedConnector.getError(), equalTo(error));
+        assertThat(indexedConnector.getStatus(), equalTo(ConnectorStatus.ERROR));
     }
 
     public void testUpdateConnectorError_resetWithNull() throws Exception {
@@ -731,13 +727,12 @@ public class ConnectorIndexServiceTests extends ESSingleNodeTestCase {
         ConnectorCreateActionResponse resp = awaitCreateConnector(connectorId, connector);
         assertThat(resp.status(), anyOf(equalTo(RestStatus.CREATED), equalTo(RestStatus.OK)));
 
-        UpdateConnectorErrorAction.Request updateErrorRequest = new UpdateConnectorErrorAction.Request(connectorId, null);
-
-        DocWriteResponse updateResponse = awaitUpdateConnectorError(updateErrorRequest);
+        DocWriteResponse updateResponse = awaitUpdateConnectorError(connectorId, null);
         assertThat(updateResponse.status(), equalTo(RestStatus.OK));
 
         Connector indexedConnector = awaitGetConnector(connectorId);
-        assertThat(updateErrorRequest.getError(), equalTo(indexedConnector.getError()));
+        assertNull(indexedConnector.getError());
+        assertThat(indexedConnector.getStatus(), equalTo(ConnectorStatus.CONNECTED));
     }
 
     public void testUpdateConnectorNameOrDescription() throws Exception {
@@ -1347,11 +1342,11 @@ public class ConnectorIndexServiceTests extends ESSingleNodeTestCase {
         return resp.get();
     }
 
-    private UpdateResponse awaitUpdateConnectorError(UpdateConnectorErrorAction.Request updatedError) throws Exception {
+    private UpdateResponse awaitUpdateConnectorError(String connectorId, String error) throws Exception {
         CountDownLatch latch = new CountDownLatch(1);
         final AtomicReference<UpdateResponse> resp = new AtomicReference<>(null);
         final AtomicReference<Exception> exc = new AtomicReference<>(null);
-        connectorIndexService.updateConnectorError(updatedError.getConnectorId(), updatedError.getError(), new ActionListener<>() {
+        connectorIndexService.updateConnectorError(connectorId, error, new ActionListener<>() {
             @Override
             public void onResponse(UpdateResponse indexResponse) {
                 resp.set(indexResponse);

@@ -72,8 +72,8 @@ public class MemorySizeSettingsTests extends ESTestCase {
             ByteSizeValue.ofBytes((long) (JvmInfo.jvmInfo().getMem().getHeapMax().getBytes() * defaultTotalPercentage))
         );
         assertWarnings(
-            "[indices.breaker.total.limit] should be specified using a percentage of the heap. " +
-                "Absolute size settings will be forbidden in a future release"
+            "[indices.breaker.total.limit] should be specified using a percentage of the heap. "
+                + "Absolute size settings will be forbidden in a future release"
         );
         assertMemorySizeSetting(
             HierarchyCircuitBreakerService.FIELDDATA_CIRCUIT_BREAKER_LIMIT_SETTING,

@@ -982,8 +982,8 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
 
     void assertCircuitBreakerLimitWarning() {
         assertWarnings(
-            "[indices.breaker.total.limit] should be specified using a percentage of the heap. " +
-                "Absolute size settings will be forbidden in a future release"
+            "[indices.breaker.total.limit] should be specified using a percentage of the heap. "
+                + "Absolute size settings will be forbidden in a future release"
         );
 
     }

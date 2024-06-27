@@ -37,14 +37,14 @@ public class BulkAfterWriteFsyncFailureIT extends ESSingleNodeTestCase {
     private static FSyncFailureFileSystemProvider fsyncFailureFileSystemProvider;
 
     @BeforeClass
-    public static void installDisruptTranslogFS() {
+    public static void installDisruptFSyncFS() {
         FileSystem current = PathUtils.getDefaultFileSystem();
         fsyncFailureFileSystemProvider = new FSyncFailureFileSystemProvider(current);
         PathUtilsForTesting.installMock(fsyncFailureFileSystemProvider.getFileSystem(null));
     }
 
     @AfterClass
-    public static void removeDisruptTranslogFS() {
+    public static void removeDisruptFSyncFS() {
         PathUtilsForTesting.teardown();
     }
 
@@ -60,11 +60,12 @@ public class BulkAfterWriteFsyncFailureIT extends ESSingleNodeTestCase {
                     .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
                     .build()
             )
+            .setMapping("key", "type=keyword", "val", "type=long")
             .get();
         ensureGreen(indexName);
 
-        fsyncFailureFileSystemProvider.failFSyncs(true);
         var localCheckpointBeforeBulk = getLocalCheckpointForShard(indexName, 0);
+        fsyncFailureFileSystemProvider.failFSyncOnce(true);
         var bulkResponse = client().prepareBulk().add(prepareIndex(indexName).setId("1").setSource("key", "foo", "val", 10)).get();
         assertTrue(bulkResponse.hasFailures());
         var localCheckpointAfterFailedBulk = getLocalCheckpointForShard(indexName, 0);
@@ -88,16 +89,13 @@ public class BulkAfterWriteFsyncFailureIT extends ESSingleNodeTestCase {
     }
 
     public static class FSyncFailureFileSystemProvider extends FilterFileSystemProvider {
-
         private final AtomicBoolean failFSyncs = new AtomicBoolean();
-        private final FileSystem delegateInstance;
 
         public FSyncFailureFileSystemProvider(FileSystem delegate) {
             super("fsyncfailure://", delegate);
-            this.delegateInstance = delegate;
         }
 
-        public void failFSyncs(boolean shouldFail) {
+        public void failFSyncOnce(boolean shouldFail) {
             failFSyncs.set(shouldFail);
         }
 
@@ -107,16 +105,12 @@ public class BulkAfterWriteFsyncFailureIT extends ESSingleNodeTestCase {
 
                 @Override
                 public void force(boolean metaData) throws IOException {
-                    if (failFSyncs.get()) {
+                    if (failFSyncs.compareAndSet(true, false)) {
                         throw new IOException("simulated");
                     }
                     super.force(metaData);
                 }
             };
-        }
-
-        public void tearDown() {
-            PathUtilsForTesting.installMock(delegateInstance);
         }
     }
 }

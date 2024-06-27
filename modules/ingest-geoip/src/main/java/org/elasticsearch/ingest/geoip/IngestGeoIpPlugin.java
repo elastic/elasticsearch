@@ -94,6 +94,23 @@ public class IngestGeoIpPlugin extends Plugin implements IngestPlugin, SystemInd
     }
 
     @Override
+    public Map<String, Processor.Factory> getProcessors(Processor.Parameters parameters) {
+        ingestService.set(parameters.ingestService);
+
+        long cacheSize = CACHE_SIZE.get(parameters.env.settings());
+        GeoIpCache geoIpCache = new GeoIpCache(cacheSize);
+        DatabaseNodeService registry = new DatabaseNodeService(
+            parameters.env,
+            parameters.client,
+            geoIpCache,
+            parameters.genericExecutor,
+            parameters.ingestService.getClusterService()
+        );
+        databaseRegistry.set(registry);
+        return Map.of(GeoIpProcessor.TYPE, new GeoIpProcessor.Factory(registry));
+    }
+
+    @Override
     public Collection<?> createComponents(PluginServices services) {
         try {
             String nodeId = services.nodeEnvironment().nodeId();
@@ -118,23 +135,6 @@ public class IngestGeoIpPlugin extends Plugin implements IngestPlugin, SystemInd
         );
 
         return List.of(databaseRegistry.get(), geoIpDownloaderTaskExecutor, enterpriseGeoIpDownloaderTaskExecutor);
-    }
-
-    @Override
-    public Map<String, Processor.Factory> getProcessors(Processor.Parameters parameters) {
-        ingestService.set(parameters.ingestService);
-
-        long cacheSize = CACHE_SIZE.get(parameters.env.settings());
-        GeoIpCache geoIpCache = new GeoIpCache(cacheSize);
-        DatabaseNodeService registry = new DatabaseNodeService(
-            parameters.env,
-            parameters.client,
-            geoIpCache,
-            parameters.genericExecutor,
-            parameters.ingestService.getClusterService()
-        );
-        databaseRegistry.set(registry);
-        return Map.of(GeoIpProcessor.TYPE, new GeoIpProcessor.Factory(registry));
     }
 
     @Override

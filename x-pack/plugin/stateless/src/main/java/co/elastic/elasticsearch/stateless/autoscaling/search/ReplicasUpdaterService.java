@@ -345,6 +345,7 @@ public class ReplicasUpdaterService extends AbstractLifecycleComponent implement
                 if (checkDisabled()) {
                     return;
                 }
+
                 LOGGER.debug("running replicas update task. SP_min: " + this.searchPowerMinSetting);
                 if (searchPowerMinSetting < SEARCH_POWER_MIN_NO_REPLICATION) {
                     // we can scale everything down immediately
@@ -376,8 +377,8 @@ public class ReplicasUpdaterService extends AbstractLifecycleComponent implement
                             if (scaleDownRepetitions.incrementAndGet() >= scaledownRepetitionSetting) {
                                 scaleDownUpdatesToSend.add(index);
                             }
-                            publishUpdateReplicaSetting(1, scaleDownUpdatesToSend);
                         }
+                        publishUpdateReplicaSetting(1, scaleDownUpdatesToSend);
                     }
                     // We only need to keep counters for scaling down candidates that haven't been included in this round's
                     // updates, e.g. because they haven't reached the number of repetitions needed for stabilization yet.

@@ -23,6 +23,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.ingest.IngestService;
@@ -297,15 +298,9 @@ public final class IndexSettings {
 
         static final String STATELESS_ALLOW_INDEX_REFRESH_INTERVAL_OVERRIDE = "es.stateless.allow.index.refresh_interval.override";
 
-        private static class AllowOverrideLazyHolder {
-            private static final boolean ALLOW_OVERRIDE = Boolean.parseBoolean(
-                System.getProperty(STATELESS_ALLOW_INDEX_REFRESH_INTERVAL_OVERRIDE, "false")
-            );
-        }
-
-        private static boolean isOverrideAllowed() {
-            return AllowOverrideLazyHolder.ALLOW_OVERRIDE;
-        }
+        private LazyInitializable<Boolean, RuntimeException> isOverrideAllowed = new LazyInitializable<>(
+            () -> Boolean.parseBoolean(System.getProperty(STATELESS_ALLOW_INDEX_REFRESH_INTERVAL_OVERRIDE, "false"))
+        );
 
         @Override
         public void validate(TimeValue value) {}
@@ -322,7 +317,7 @@ public final class IndexSettings {
                 && value.compareTo(STATELESS_MIN_NON_FAST_REFRESH_INTERVAL) < 0
                 && indexVersion.after(IndexVersions.V_8_10_0)) {
 
-                if (isOverrideAllowed() == false) {
+                if (isOverrideAllowed.getOrCompute() == false) {
                     throw new IllegalArgumentException(
                         "index setting ["
                             + IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey()

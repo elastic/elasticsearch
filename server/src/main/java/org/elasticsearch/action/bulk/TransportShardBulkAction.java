@@ -419,7 +419,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             ).mappingSource();
             final DocumentMapper existingDocumentMapper = mapperService.documentMapper();
             if (existingDocumentMapper != null && mergedSource.equals(existingDocumentMapper.mappingSource())) {
-                context.resetForNoopMappingUpdateRetry(mapperService.mappingVersion());
+                context.resetForNoopMappingUpdateRetry(initialMappingVersion);
                 return true;
             }
         } catch (Exception e) {

@@ -103,7 +103,10 @@ public class TextSimilarityRankRetrieverBuilder extends RetrieverBuilder {
     public void extractToSearchSourceBuilder(SearchSourceBuilder searchSourceBuilder, boolean compoundUsed) {
         retrieverBuilder.extractToSearchSourceBuilder(searchSourceBuilder, compoundUsed);
 
-
+        // Combining with other rank builder (such as RRF) is not supported yet
+        if (searchSourceBuilder.rankBuilder() != null) {
+            throw new IllegalArgumentException("text similarity rank builder cannot be combined with other rank builders");
+        }
 
         searchSourceBuilder.rankBuilder(
             new TextSimilarityRankBuilder(this.field, this.inferenceId, this.inferenceText, this.rankWindowSize, this.minScore)

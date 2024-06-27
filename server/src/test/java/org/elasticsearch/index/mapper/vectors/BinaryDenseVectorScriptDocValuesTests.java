@@ -236,8 +236,8 @@ public class BinaryDenseVectorScriptDocValuesTests extends ESTestCase {
 
     public static BytesRef mockEncodeDenseVector(float[] values, ElementType elementType, IndexVersion indexVersion) {
         int numBytes = indexVersion.onOrAfter(DenseVectorFieldMapper.MAGNITUDE_STORED_INDEX_VERSION)
-            ? elementType.elementBytes * values.length + DenseVectorFieldMapper.MAGNITUDE_BYTES
-            : elementType.elementBytes * values.length;
+            ? elementType.getNumBytes(values.length) + DenseVectorFieldMapper.MAGNITUDE_BYTES
+            : elementType.getNumBytes(values.length);
         double dotProduct = 0f;
         ByteBuffer byteBuffer = elementType.createByteBuffer(indexVersion, numBytes);
         for (float value : values) {

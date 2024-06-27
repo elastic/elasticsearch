@@ -229,3 +229,11 @@ emp_no:integer | a:keyword                         | b:keyword                  
 10004          | [Head, Reporting, Support, Tech]  | [Human, Analyst, Engineer, Lead]   | Resources      | [Head Human Resources, Reporting Analyst, Support Engineer, Tech Lead]
 10005          | null                              | null                               | null           | null
 ;
+
+overwriteInputName
+required_capability: grok_dissect_masking
+row text = "123 abc", int = 5 | sort int asc | grok text "%{NUMBER:text:int} %{WORD:description}" | keep text, int, description;
+
+text:integer | int:integer | description:keyword
+123          | 5           | abc
+;

@@ -283,13 +283,13 @@ public class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
                         public void onResponse(ChunkedRestResponseBodyPart continuation) {
                             // always fork a fresh task to avoid stack overflow
                             assert Transports.assertDefaultThreadContext(threadContext);
-                            channel.eventLoop().execute(() -> {
-                                channel.writeAndFlush(
-                                    new Netty4ChunkedHttpContinuation(writeSequence, continuation, finishingWrite.combiner()),
-                                    finishingWrite.onDone() // pass the terminal listener/promise along the line
+                            channel.eventLoop()
+                                .execute(
+                                    () -> channel.writeAndFlush(
+                                        new Netty4ChunkedHttpContinuation(writeSequence, continuation, finishingWrite.combiner()),
+                                        finishingWrite.onDone() // pass the terminal listener/promise along the line
+                                    )
                                 );
-                                checkShutdown();
-                            });
                             checkShutdown();
                         }
 

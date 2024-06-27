@@ -280,6 +280,7 @@ public class Constants {
         "cluster:admin/xpack/security/role/get",
         "cluster:admin/xpack/security/role/put",
         "cluster:admin/xpack/security/role/bulk_put",
+        "cluster:admin/xpack/security/role/bulk_delete",
         "cluster:admin/xpack/security/role_mapping/delete",
         "cluster:admin/xpack/security/role_mapping/get",
         "cluster:admin/xpack/security/role_mapping/put",

@@ -48,6 +48,7 @@ Use the following APIs to add, remove, update, and retrieve roles in the native 
 * <<security-api-bulk-put-role, Bulk create or update roles>>
 * <<security-api-clear-role-cache,Clear roles cache>>
 * <<security-api-delete-role,Delete roles>>
+* <<security-api-bulk-delete-role, Bulk delete roles>>
 * <<security-api-get-role,Get roles>>
 
 [discrete]

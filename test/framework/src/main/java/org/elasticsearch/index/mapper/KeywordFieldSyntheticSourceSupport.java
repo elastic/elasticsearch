@@ -17,7 +17,9 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Objects;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -27,15 +29,20 @@ public class KeywordFieldSyntheticSourceSupport implements MapperTestCase.Synthe
     private final boolean store;
     private final boolean docValues;
     private final String nullValue;
-    private final boolean exampleSortsUsingIgnoreAbove;
 
-    KeywordFieldSyntheticSourceSupport(Integer ignoreAbove, boolean store, String nullValue, boolean exampleSortsUsingIgnoreAbove) {
+    KeywordFieldSyntheticSourceSupport(Integer ignoreAbove, boolean store, String nullValue, boolean useFallbackSyntheticSource) {
         this.ignoreAbove = ignoreAbove;
         this.allIgnored = ignoreAbove != null && LuceneTestCase.rarely();
         this.store = store;
         this.nullValue = nullValue;
-        this.exampleSortsUsingIgnoreAbove = exampleSortsUsingIgnoreAbove;
-        this.docValues = store ? ESTestCase.randomBoolean() : true;
+        this.docValues = useFallbackSyntheticSource == false || ESTestCase.randomBoolean();
+    }
+
+    @Override
+    public boolean preservesExactSource() {
+        // We opt in into fallback synthetic source implementation
+        // if there is nothing else to use, and it preserves exact source data.
+        return store == false && docValues == false;
     }
 
     @Override
@@ -46,36 +53,48 @@ public class KeywordFieldSyntheticSourceSupport implements MapperTestCase.Synthe
     public MapperTestCase.SyntheticSourceExample example(int maxValues, boolean loadBlockFromSource) {
         if (ESTestCase.randomBoolean()) {
             Tuple<String, String> v = generateValue();
+            Object sourceValue = preservesExactSource() ? v.v1() : v.v2();
             Object loadBlock = v.v2();
             if (loadBlockFromSource == false && ignoreAbove != null && v.v2().length() > ignoreAbove) {
                 loadBlock = null;
             }
-            return new MapperTestCase.SyntheticSourceExample(v.v1(), v.v2(), loadBlock, this::mapping);
+            return new MapperTestCase.SyntheticSourceExample(v.v1(), sourceValue, loadBlock, this::mapping);
         }
         List<Tuple<String, String>> values = ESTestCase.randomList(1, maxValues, this::generateValue);
         List<String> in = values.stream().map(Tuple::v1).toList();
-        List<String> outPrimary = new ArrayList<>();
-        List<String> outExtraValues = new ArrayList<>();
+
+        List<String> validValues = new ArrayList<>();
+        List<String> ignoredValues = new ArrayList<>();
         values.stream().map(Tuple::v2).forEach(v -> {
-            if (exampleSortsUsingIgnoreAbove && ignoreAbove != null && v.length() > ignoreAbove) {
-                outExtraValues.add(v);
+            if (ignoreAbove != null && v.length() > ignoreAbove) {
+                ignoredValues.add(v);
             } else {
-                outPrimary.add(v);
+                validValues.add(v);
             }
         });
-        List<String> outList = store ? outPrimary : new HashSet<>(outPrimary).stream().sorted().collect(Collectors.toList());
+        List<String> outputFromDocValues = new HashSet<>(validValues).stream().sorted().collect(Collectors.toList());
+
+        Object out;
+        if (preservesExactSource()) {
+            out = in;
+        } else {
+            var validValuesInCorrectOrder = store ? validValues : outputFromDocValues;
+            var syntheticSourceOutputList = Stream.concat(validValuesInCorrectOrder.stream(), ignoredValues.stream()).toList();
+            out = syntheticSourceOutputList.size() == 1 ? syntheticSourceOutputList.get(0) : syntheticSourceOutputList;
+        }
+
         List<String> loadBlock;
         if (loadBlockFromSource) {
             // The block loader infrastructure will never return nulls. Just zap them all.
-            loadBlock = in.stream().filter(m -> m != null).toList();
+            loadBlock = in.stream().filter(Objects::nonNull).toList();
         } else if (docValues) {
-            loadBlock = new HashSet<>(outPrimary).stream().sorted().collect(Collectors.toList());
+            loadBlock = List.copyOf(outputFromDocValues);
         } else {
-            loadBlock = List.copyOf(outList);
+            // Meaning loading from terms.
+            loadBlock = List.copyOf(validValues);
         }
+
         Object loadBlockResult = loadBlock.size() == 1 ? loadBlock.get(0) : loadBlock;
-        outList.addAll(outExtraValues);
-        Object out = outList.size() == 1 ? outList.get(0) : outList;
         return new MapperTestCase.SyntheticSourceExample(in, out, loadBlockResult, this::mapping);
     }
 
@@ -110,13 +129,6 @@ public class KeywordFieldSyntheticSourceSupport implements MapperTestCase.Synthe
     @Override
     public List<MapperTestCase.SyntheticSourceInvalidExample> invalidExample() throws IOException {
         return List.of(
-            new MapperTestCase.SyntheticSourceInvalidExample(
-                equalTo(
-                    "field [field] of type [keyword] doesn't support synthetic source because "
-                        + "it doesn't have doc values and isn't stored"
-                ),
-                b -> b.field("type", "keyword").field("doc_values", false)
-            ),
             new MapperTestCase.SyntheticSourceInvalidExample(
                 equalTo("field [field] of type [keyword] doesn't support synthetic source because it declares a normalizer"),
                 b -> b.field("type", "keyword").field("normalizer", "lowercase")

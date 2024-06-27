@@ -156,7 +156,7 @@ public final class PlanNamedTypes {
             of(PhysicalPlan.class, ShowExec.class, PlanNamedTypes::writeShowExec, PlanNamedTypes::readShowExec),
             of(PhysicalPlan.class, TopNExec.class, PlanNamedTypes::writeTopNExec, PlanNamedTypes::readTopNExec),
             // Logical Plan Nodes - a subset of plans that end up being actually serialized
-            of(LogicalPlan.class, Aggregate.class, PlanNamedTypes::writeAggregate, PlanNamedTypes::readAggregate),
+            of(LogicalPlan.class, Aggregate.class, Aggregate::writeAggregate, Aggregate::new),
             of(LogicalPlan.class, Dissect.class, PlanNamedTypes::writeDissect, PlanNamedTypes::readDissect),
             of(LogicalPlan.class, EsRelation.class, PlanNamedTypes::writeEsRelation, PlanNamedTypes::readEsRelation),
             of(LogicalPlan.class, Eval.class, PlanNamedTypes::writeEval, PlanNamedTypes::readEval),
@@ -557,23 +557,6 @@ public final class PlanNamedTypes {
         out.writeCollection(topNExec.order());
         out.writeExpression(topNExec.limit());
         out.writeOptionalVInt(topNExec.estimatedRowSize());
-    }
-
-    // -- Logical plan nodes
-    static Aggregate readAggregate(PlanStreamInput in) throws IOException {
-        return new Aggregate(
-            Source.readFrom(in),
-            in.readLogicalPlanNode(),
-            in.readCollectionAsList(readerFromPlanReader(PlanStreamInput::readExpression)),
-            in.readNamedWriteableCollectionAsList(NamedExpression.class)
-        );
-    }
-
-    static void writeAggregate(PlanStreamOutput out, Aggregate aggregate) throws IOException {
-        Source.EMPTY.writeTo(out);
-        out.writeLogicalPlanNode(aggregate.child());
-        out.writeCollection(aggregate.groupings(), writerFromPlanWriter(PlanStreamOutput::writeExpression));
-        out.writeNamedWriteableCollection(aggregate.aggregates());
     }
 
     static Dissect readDissect(PlanStreamInput in) throws IOException {

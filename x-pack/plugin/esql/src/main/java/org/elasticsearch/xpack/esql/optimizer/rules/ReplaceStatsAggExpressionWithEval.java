@@ -138,7 +138,7 @@ public final class ReplaceStatsAggExpressionWithEval extends OptimizerRules.Opti
         LogicalPlan plan = aggregate;
         if (changed.get()) {
             Source source = aggregate.source();
-            plan = new Aggregate(source, aggregate.child(), aggregate.groupings(), newAggs);
+            plan = new Aggregate(source, aggregate.child(), aggregate.aggregateType(), aggregate.groupings(), newAggs);
             if (newEvals.size() > 0) {
                 plan = new Eval(source, plan, newEvals);
             }

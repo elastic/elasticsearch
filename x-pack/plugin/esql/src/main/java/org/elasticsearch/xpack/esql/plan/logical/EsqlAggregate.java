@@ -34,8 +34,14 @@ public class EsqlAggregate extends Aggregate {
 
     private List<Attribute> lazyOutput;
 
-    public EsqlAggregate(Source source, LogicalPlan child, List<Expression> groupings, List<? extends NamedExpression> aggregates) {
-        super(source, child, groupings, aggregates);
+    public EsqlAggregate(
+        Source source,
+        LogicalPlan child,
+        AggregateType aggregateType,
+        List<Expression> groupings,
+        List<? extends NamedExpression> aggregates
+    ) {
+        super(source, child, aggregateType, groupings, aggregates);
     }
 
     @Override
@@ -49,11 +55,11 @@ public class EsqlAggregate extends Aggregate {
 
     @Override
     protected NodeInfo<Aggregate> info() {
-        return NodeInfo.create(this, EsqlAggregate::new, child(), groupings(), aggregates());
+        return NodeInfo.create(this, EsqlAggregate::new, child(), aggregateType(), groupings(), aggregates());
     }
 
     @Override
     public EsqlAggregate replaceChild(LogicalPlan newChild) {
-        return new EsqlAggregate(source(), newChild, groupings(), aggregates());
+        return new EsqlAggregate(source(), newChild, aggregateType(), groupings(), aggregates());
     }
 }

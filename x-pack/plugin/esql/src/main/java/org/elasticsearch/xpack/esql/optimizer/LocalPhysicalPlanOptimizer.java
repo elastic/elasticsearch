@@ -599,36 +599,48 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
         protected PhysicalPlan rule(FilterExec filterExec, LocalPhysicalOptimizerContext ctx) {
             PhysicalPlan plan = filterExec;
             if (filterExec.child() instanceof EsQueryExec) {
-                if (filterExec.condition() instanceof EsqlBinaryComparison comparison) {
-                    ComparisonType comparisonType = ComparisonType.from(comparison.getFunctionType());
-                    if (comparison.left() instanceof StDistance dist && comparison.right().foldable()) {
-                        plan = rewriteComparison(filterExec, dist, comparison.right(), comparisonType);
-                    } else if (comparison.right() instanceof StDistance dist && comparison.left().foldable()) {
-                        plan = rewriteComparison(filterExec, dist, comparison.left(), ComparisonType.invert(comparisonType));
+                List<Expression> rewritten = new ArrayList<>();
+                List<Expression> notRewritten = new ArrayList<>();
+                for (Expression exp : splitAnd(filterExec.condition())) {
+                    if (exp instanceof EsqlBinaryComparison comparison) {
+                        ComparisonType comparisonType = ComparisonType.from(comparison.getFunctionType());
+                        if (comparison.left() instanceof StDistance dist && comparison.right().foldable()) {
+                            rewritten.add(rewriteComparison(exp, dist, comparison.right(), comparisonType));
+                        } else if (comparison.right() instanceof StDistance dist && comparison.left().foldable()) {
+                            rewritten.add(rewriteComparison(exp, dist, comparison.left(), ComparisonType.invert(comparisonType)));
+                        } else {
+                            notRewritten.add(exp);
+                        }
+                    } else {
+                        notRewritten.add(exp);
                     }
+                }
+                if (rewritten.isEmpty() == false) {
+                    rewritten.addAll(notRewritten);
+                    plan = new FilterExec(filterExec.source(), filterExec.child(), Predicates.combineAnd(rewritten));
                 }
             }
 
             return plan;
         }
 
-        private FilterExec rewriteComparison(FilterExec filterExec, StDistance dist, Expression literal, ComparisonType comparisonType) {
+        private Expression rewriteComparison(Expression condition, StDistance dist, Expression literal, ComparisonType comparisonType) {
             // Currently we do not support Equals
             if (comparisonType.lt || comparisonType.gt) {
                 Object value = literal.fold();
                 if (value instanceof Number number) {
                     if (dist.right().foldable()) {
-                        return rewriteDistanceFilter(filterExec, dist.source(), dist.left(), dist.right(), number, comparisonType);
+                        return rewriteDistanceFilter(condition, dist.source(), dist.left(), dist.right(), number, comparisonType);
                     } else if (dist.left().foldable()) {
-                        return rewriteDistanceFilter(filterExec, dist.source(), dist.right(), dist.left(), number, comparisonType);
+                        return rewriteDistanceFilter(condition, dist.source(), dist.right(), dist.left(), number, comparisonType);
                     }
                 }
             }
-            return filterExec;
+            return condition;
         }
 
-        private FilterExec rewriteDistanceFilter(
-            FilterExec filterExec,
+        private Expression rewriteDistanceFilter(
+            Expression condition,
             Source source,
             Expression spatialExpression,
             Expression literalExpression,
@@ -644,12 +656,11 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
                 var circle = new Circle(point.getX(), point.getY(), distance);
                 var wkb = WellKnownBinary.toWKB(circle, ByteOrder.LITTLE_ENDIAN);
                 var cExp = new Literal(literalExpression.source(), new BytesRef(wkb), DataType.GEO_SHAPE);
-                var spatialRelation = comparisonType.lt
+                return comparisonType.lt
                     ? new SpatialIntersects(source, spatialExpression, cExp)
                     : new SpatialDisjoint(source, spatialExpression, cExp);
-                return new FilterExec(filterExec.source(), filterExec.child(), spatialRelation);
             }
-            return filterExec;
+            return condition;
         }
 
         /**

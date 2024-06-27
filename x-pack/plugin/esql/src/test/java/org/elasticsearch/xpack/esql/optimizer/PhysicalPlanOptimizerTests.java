@@ -34,6 +34,7 @@ import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -113,6 +114,7 @@ import org.elasticsearch.xpack.esql.stats.SearchStats;
 import org.junit.Before;
 
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -3524,6 +3526,51 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                     assertThat("Circle radius for predicate " + predicate, circle.getRadiusMeters(), equalTo(expected.value));
                 }
             }
+        }
+    }
+
+    public void testPushSpatialDistanceBandToSource() {
+        var query = """
+            FROM airports
+            | WHERE ST_DISTANCE(location, TO_GEOPOINT("POINT(12.565 55.673)")) <= 600000
+                AND ST_DISTANCE(location, TO_GEOPOINT("POINT(12.565 55.673)")) >= 400000
+            """;
+        var plan = this.physicalPlan(query, airports);
+        var limit = as(plan, LimitExec.class);
+        var exchange = as(limit.child(), ExchangeExec.class);
+        var fragment = as(exchange.child(), FragmentExec.class);
+        var limit2 = as(fragment.fragment(), Limit.class);
+        var filter = as(limit2.child(), Filter.class);
+        var and = as(filter.condition(), And.class);
+        for (Expression expression : and.arguments()) {
+            var comp = as(expression, EsqlBinaryComparison.class);
+            var expectedComp = comp.equals(and.left()) ? LessThanOrEqual.class : GreaterThanOrEqual.class;
+            assertThat("filter contains expected binary comparison", comp, instanceOf(expectedComp));
+            assertThat("filter contains ST_DISTANCE", comp.left(), instanceOf(StDistance.class));
+        }
+
+        var optimized = optimizedPlan(plan);
+        var topLimit = as(optimized, LimitExec.class);
+        exchange = as(topLimit.child(), ExchangeExec.class);
+        var project = as(exchange.child(), ProjectExec.class);
+        var fieldExtract = as(project.child(), FieldExtractExec.class);
+        var source = source(fieldExtract.child());
+        var bool = as(source.query(), BoolQueryBuilder.class);
+        var rangeQueryBuilders = bool.filter().stream().filter(p -> p instanceof SingleValueQuery.Builder).toList();
+        assertThat("Expected zero range query builder", rangeQueryBuilders.size(), equalTo(0));
+        var shapeQueryBuilders = bool.must().stream().filter(p -> p instanceof SpatialRelatesQuery.ShapeQueryBuilder).toList();
+        assertThat("Expected two shape query builders", shapeQueryBuilders.size(), equalTo(2));
+        var relationStats = new HashMap<ShapeRelation, Integer>();
+        for (var builder : shapeQueryBuilders) {
+            var condition = as(builder, SpatialRelatesQuery.ShapeQueryBuilder.class);
+            var expected = condition.relation() == ShapeRelation.INTERSECTS ? 600000.0 : 400000.0;
+            relationStats.compute(condition.relation(), (r, c) -> c == null ? 1 : c + 1);
+            assertThat("Geometry field name", condition.fieldName(), equalTo("location"));
+            assertThat("Geometry is Circle", condition.shape().type(), equalTo(ShapeType.CIRCLE));
+            var circle = as(condition.shape(), Circle.class);
+            assertThat("Circle center-x", circle.getX(), equalTo(12.565));
+            assertThat("Circle center-y", circle.getY(), equalTo(55.673));
+            assertThat("Circle radius for shape relation " + condition.relation(), circle.getRadiusMeters(), equalTo(expected));
         }
     }
 

@@ -96,7 +96,7 @@ import static org.elasticsearch.index.IndexVersions.DEFAULT_DENSE_VECTOR_TO_INT8
  */
 public class DenseVectorFieldMapper extends FieldMapper {
     public static final String COSINE_MAGNITUDE_FIELD_SUFFIX = "._magnitude";
-    private static final float EPS = 1e-4f;
+    private static final float EPS = 1e-3f;
 
     static boolean isNotUnitVector(float magnitude) {
         return Math.abs(magnitude - 1.0f) > EPS;

@@ -864,10 +864,10 @@ public class DateFormattersTests extends ESTestCase {
     public void testCustomLocales() {
         // also ensure that locale based dates are the same
         DateFormatter formatter = DateFormatter.forPattern("E, d MMM yyyy HH:mm:ss Z").withLocale(LocaleUtils.parse("de"));
-        assertParses("Di, 05 Dez 2000 02:55:00 -0800", formatter);
-        assertParses("Mi, 06 Dez 2000 02:55:00 -0800", formatter);
-        assertParses("Do, 07 Dez 2000 00:00:00 -0800", formatter);
-        assertParses("Fr, 08 Dez 2000 00:00:00 -0800", formatter);
+        assertParses("Di., 05 Dez. 2000 02:55:00 -0800", formatter);
+        assertParses("Mi., 06 Dez. 2000 02:55:00 -0800", formatter);
+        assertParses("Do., 07 Dez. 2000 00:00:00 -0800", formatter);
+        assertParses("Fr., 08 Dez. 2000 00:00:00 -0800", formatter);
     }
 
     public void testFormatsValidParsing() {

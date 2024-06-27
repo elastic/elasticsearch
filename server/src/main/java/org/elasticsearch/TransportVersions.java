@@ -199,6 +199,10 @@ public class TransportVersions {
     public static final TransportVersion SNAPSHOT_REQUEST_TIMEOUTS = def(8_690_00_0);
     public static final TransportVersion INDEX_METADATA_MAPPINGS_UPDATED_VERSION = def(8_691_00_0);
     public static final TransportVersion ML_INFERENCE_ELAND_SETTINGS_ADDED = def(8_692_00_0);
+    public static final TransportVersion ML_ANTHROPIC_INTEGRATION_ADDED = def(8_693_00_0);
+    public static final TransportVersion ML_INFERENCE_GOOGLE_VERTEX_AI_EMBEDDINGS_ADDED = def(8_694_00_0);
+    public static final TransportVersion EVENT_INGESTED_RANGE_IN_CLUSTER_STATE = def(8_695_00_0);
+    public static final TransportVersion ESQL_ADD_AGGREGATE_TYPE = def(8_696_00_0);
 
     public static final TransportVersion MULTI_PROJECT = def(8_999_00_0); // THIS IS A HACK FOR NOW (!)
     /*
@@ -264,7 +268,7 @@ public class TransportVersions {
      * Reference to the minimum transport version that can be used with CCS.
      * This should be the transport version used by the previous minor release.
      */
-    public static final TransportVersion MINIMUM_CCS_VERSION = V_8_13_0;
+    public static final TransportVersion MINIMUM_CCS_VERSION = SHUTDOWN_REQUEST_TIMEOUTS_FIX_8_14;
 
     static final NavigableMap<Integer, TransportVersion> VERSION_IDS = getAllVersionIds(TransportVersions.class);
 

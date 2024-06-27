@@ -145,18 +145,17 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
 
         assertShardFolders(indexName, false);
 
-        assertThat(
-            clusterAdmin().prepareState()
-                .clear()
-                .setMetadata(true)
-                .setIndices(indexName)
-                .get()
-                .getState()
-                .metadata()
-                .index(indexName)
-                .getTimestampRange(),
-            sameInstance(IndexLongFieldRange.UNKNOWN)
-        );
+        IndexMetadata indexMetadata = clusterAdmin().prepareState()
+            .clear()
+            .setMetadata(true)
+            .setIndices(indexName)
+            .get()
+            .getState()
+            .metadata()
+            .index(indexName);
+
+        assertThat(indexMetadata.getTimestampRange(), sameInstance(IndexLongFieldRange.UNKNOWN));
+        assertThat(indexMetadata.getEventIngestedRange(), sameInstance(IndexLongFieldRange.UNKNOWN));
 
         final boolean deletedBeforeMount = randomBoolean();
         if (deletedBeforeMount) {
@@ -252,18 +251,17 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
         ensureGreen(restoredIndexName);
         assertBusy(() -> assertShardFolders(restoredIndexName, true), 30, TimeUnit.SECONDS);
 
-        assertThat(
-            clusterAdmin().prepareState()
-                .clear()
-                .setMetadata(true)
-                .setIndices(restoredIndexName)
-                .get()
-                .getState()
-                .metadata()
-                .index(restoredIndexName)
-                .getTimestampRange(),
-            sameInstance(IndexLongFieldRange.UNKNOWN)
-        );
+        indexMetadata = clusterAdmin().prepareState()
+            .clear()
+            .setMetadata(true)
+            .setIndices(restoredIndexName)
+            .get()
+            .getState()
+            .metadata()
+            .index(restoredIndexName);
+
+        assertThat(indexMetadata.getTimestampRange(), sameInstance(IndexLongFieldRange.UNKNOWN));
+        assertThat(indexMetadata.getEventIngestedRange(), sameInstance(IndexLongFieldRange.UNKNOWN));
 
         if (deletedBeforeMount) {
             assertThat(indicesAdmin().prepareGetAliases(aliasName).get().getAliases().size(), equalTo(0));
@@ -684,21 +682,29 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
 
     public void testSnapshotMountedIndexWithTimestampsRecordsTimestampRangeInIndexMetadata() throws Exception {
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
-        final int numShards = between(1, 3);
+        int numShards = between(1, 3);
 
         boolean indexed = randomBoolean();
-        final String dateType = randomFrom("date", "date_nanos");
+        String dateType = randomFrom("date", "date_nanos");
         assertAcked(
             indicesAdmin().prepareCreate(indexName)
                 .setMapping(
                     XContentFactory.jsonBuilder()
                         .startObject()
                         .startObject("properties")
+
                         .startObject(DataStream.TIMESTAMP_FIELD_NAME)
                         .field("type", dateType)
                         .field("index", indexed)
                         .field("format", "strict_date_optional_time_nanos")
                         .endObject()
+
+                        .startObject(IndexMetadata.EVENT_INGESTED_FIELD_NAME)
+                        .field("type", dateType)
+                        .field("index", indexed)
+                        .field("format", "strict_date_optional_time_nanos")
+                        .endObject()
+
                         .endObject()
                         .endObject()
                 )
@@ -712,6 +718,15 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
             indexRequestBuilders.add(
                 prepareIndex(indexName).setSource(
                     DataStream.TIMESTAMP_FIELD_NAME,
+                    String.format(
+                        Locale.ROOT,
+                        "2020-11-26T%02d:%02d:%02d.%09dZ",
+                        between(0, 23),
+                        between(0, 59),
+                        between(0, 59),
+                        randomLongBetween(0, 999999999L)
+                    ),
+                    IndexMetadata.EVENT_INGESTED_FIELD_NAME,
                     String.format(
                         Locale.ROOT,
                         "2020-11-26T%02d:%02d:%02d.%09dZ",
@@ -740,32 +755,45 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
         mountSnapshot(repositoryName, snapshotOne.getName(), indexName, indexName, Settings.EMPTY);
         ensureGreen(indexName);
 
-        final IndexLongFieldRange timestampRange = clusterAdmin().prepareState()
+        final IndexMetadata indexMetadata = clusterAdmin().prepareState()
             .clear()
             .setMetadata(true)
             .setIndices(indexName)
             .get()
             .getState()
             .metadata()
-            .index(indexName)
-            .getTimestampRange();
+            .index(indexName);
 
+        final IndexLongFieldRange timestampRange = indexMetadata.getTimestampRange();
         assertTrue(timestampRange.isComplete());
+
+        final IndexLongFieldRange eventIngestedRange = indexMetadata.getEventIngestedRange();
+        assertTrue(eventIngestedRange.isComplete());
 
         if (indexed) {
             assertThat(timestampRange, not(sameInstance(IndexLongFieldRange.UNKNOWN)));
+            assertThat(eventIngestedRange, not(sameInstance(IndexLongFieldRange.UNKNOWN)));
             if (docCount == 0) {
                 assertThat(timestampRange, sameInstance(IndexLongFieldRange.EMPTY));
+                assertThat(eventIngestedRange, sameInstance(IndexLongFieldRange.EMPTY));
             } else {
                 assertThat(timestampRange, not(sameInstance(IndexLongFieldRange.EMPTY)));
+                assertThat(eventIngestedRange, not(sameInstance(IndexLongFieldRange.EMPTY)));
+
+                // both @timestamp and event.ingested have the same resolution in this test
                 DateFieldMapper.Resolution resolution = dateType.equals("date")
                     ? DateFieldMapper.Resolution.MILLISECONDS
                     : DateFieldMapper.Resolution.NANOSECONDS;
+
                 assertThat(timestampRange.getMin(), greaterThanOrEqualTo(resolution.convert(Instant.parse("2020-11-26T00:00:00Z"))));
                 assertThat(timestampRange.getMin(), lessThanOrEqualTo(resolution.convert(Instant.parse("2020-11-27T00:00:00Z"))));
+
+                assertThat(eventIngestedRange.getMin(), greaterThanOrEqualTo(resolution.convert(Instant.parse("2020-11-26T00:00:00Z"))));
+                assertThat(eventIngestedRange.getMin(), lessThanOrEqualTo(resolution.convert(Instant.parse("2020-11-27T00:00:00Z"))));
             }
         } else {
             assertThat(timestampRange, sameInstance(IndexLongFieldRange.UNKNOWN));
+            assertThat(eventIngestedRange, sameInstance(IndexLongFieldRange.UNKNOWN));
         }
     }
 

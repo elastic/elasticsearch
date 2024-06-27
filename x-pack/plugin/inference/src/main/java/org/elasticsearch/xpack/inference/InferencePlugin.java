@@ -66,12 +66,14 @@ import org.elasticsearch.xpack.inference.rest.RestGetInferenceModelAction;
 import org.elasticsearch.xpack.inference.rest.RestInferenceAction;
 import org.elasticsearch.xpack.inference.rest.RestPutInferenceModelAction;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
+import org.elasticsearch.xpack.inference.services.anthropic.AnthropicService;
 import org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioService;
 import org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiService;
 import org.elasticsearch.xpack.inference.services.cohere.CohereService;
 import org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalService;
 import org.elasticsearch.xpack.inference.services.elser.ElserInternalService;
 import org.elasticsearch.xpack.inference.services.googleaistudio.GoogleAiStudioService;
+import org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVertexAiService;
 import org.elasticsearch.xpack.inference.services.huggingface.HuggingFaceService;
 import org.elasticsearch.xpack.inference.services.huggingface.elser.HuggingFaceElserService;
 import org.elasticsearch.xpack.inference.services.mistral.MistralService;
@@ -199,7 +201,9 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
             context -> new AzureOpenAiService(httpFactory.get(), serviceComponents.get()),
             context -> new AzureAiStudioService(httpFactory.get(), serviceComponents.get()),
             context -> new GoogleAiStudioService(httpFactory.get(), serviceComponents.get()),
+            context -> new GoogleVertexAiService(httpFactory.get(), serviceComponents.get()),
             context -> new MistralService(httpFactory.get(), serviceComponents.get()),
+            context -> new AnthropicService(httpFactory.get(), serviceComponents.get()),
             ElasticsearchInternalService::new
         );
     }

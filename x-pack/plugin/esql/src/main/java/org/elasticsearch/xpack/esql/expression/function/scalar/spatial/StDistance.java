@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.spatial;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.SloppyMath;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.operator.EvalOperator;
@@ -40,6 +42,12 @@ import static org.elasticsearch.xpack.esql.expression.function.scalar.spatial.Sp
  * Alternatively it is described in PostGIS documentation at <a href="https://postgis.net/docs/ST_Distance.html">PostGIS:ST_Distance</a>.
  */
 public class StDistance extends BinarySpatialFunction implements EvaluatorMapper {
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
+        Expression.class,
+        "StDistance",
+        StDistance::new
+    );
+
     // public for test access with reflection
     public static final DistanceCalculator GEO = new GeoDistanceCalculator();
     // public for test access with reflection
@@ -130,6 +138,15 @@ public class StDistance extends BinarySpatialFunction implements EvaluatorMapper
 
     protected StDistance(Source source, Expression left, Expression right, boolean leftDocValues, boolean rightDocValues) {
         super(source, left, right, leftDocValues, rightDocValues, true);
+    }
+
+    private StDistance(StreamInput in) throws IOException {
+        super(in, false, false, true);
+    }
+
+    @Override
+    public String getWriteableName() {
+        return ENTRY.name;
     }
 
     @Override

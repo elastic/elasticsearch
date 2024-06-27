@@ -411,6 +411,7 @@ public class NativeRoleMappingStoreTests extends ESTestCase {
             true,
             true,
             true,
+            true,
             null,
             null,
             null,
@@ -418,8 +419,7 @@ public class NativeRoleMappingStoreTests extends ESTestCase {
             healthStatus,
             IndexMetadata.State.OPEN,
             "my_uuid",
-            Set.of(),
-            null
+            Set.of()
         );
     }
 

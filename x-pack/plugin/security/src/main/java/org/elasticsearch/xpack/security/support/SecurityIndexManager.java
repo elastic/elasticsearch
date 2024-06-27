@@ -246,6 +246,19 @@ public class SecurityIndexManager implements ClusterStateListener {
         return mappingsVersion == null ? new SystemIndexDescriptor.MappingsVersion(1, 0) : mappingsVersion;
     }
 
+    /**
+     * Check if the index was created on the latest index version available in the cluster
+     */
+    private static boolean isCreatedOnLatestVersion(IndexMetadata indexMetadata, ClusterState clusterState) {
+        final IndexVersion indexVersionCreated = indexMetadata != null
+            ? SETTING_INDEX_VERSION_CREATED.get(indexMetadata.getSettings())
+            : null;
+        return indexVersionCreated != null
+            && indexVersionCreated.onOrAfter(
+                IndexVersion.min(IndexVersion.current(), clusterState.nodes().getMaxDataNodeCompatibleIndexVersion())
+            );
+    }
+
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
         if (event.state().blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)) {
@@ -256,9 +269,7 @@ public class SecurityIndexManager implements ClusterStateListener {
         }
         final State previousState = state;
         final IndexMetadata indexMetadata = resolveConcreteIndex(systemIndexDescriptor.getAliasName(), event.state().metadata());
-        final IndexVersion indexVersionCreated = indexMetadata != null
-            ? SETTING_INDEX_VERSION_CREATED.get(indexMetadata.getSettings())
-            : null;
+        final boolean createdOnLatestVersion = isCreatedOnLatestVersion(indexMetadata, event.state());
         final Instant creationTime = indexMetadata != null ? Instant.ofEpochMilli(indexMetadata.getCreationDate()) : null;
         final boolean isIndexUpToDate = indexMetadata == null
             || INDEX_FORMAT_SETTING.get(indexMetadata.getSettings()) == systemIndexDescriptor.getIndexFormat();
@@ -294,6 +305,7 @@ public class SecurityIndexManager implements ClusterStateListener {
             indexAvailableForSearch,
             indexAvailableForWrite,
             mappingIsUpToDate,
+            createdOnLatestVersion,
             migrationsVersion,
             minClusterMappingVersion,
             indexMappingVersion,
@@ -303,8 +315,7 @@ public class SecurityIndexManager implements ClusterStateListener {
             indexUUID,
             allSecurityFeatures.stream()
                 .filter(feature -> featureService.clusterHasFeature(event.state(), feature))
-                .collect(Collectors.toSet()),
-            indexVersionCreated
+                .collect(Collectors.toSet())
         );
         this.state = newState;
 
@@ -602,6 +613,7 @@ public class SecurityIndexManager implements ClusterStateListener {
             false,
             false,
             false,
+            false,
             null,
             null,
             null,
@@ -609,14 +621,14 @@ public class SecurityIndexManager implements ClusterStateListener {
             null,
             null,
             null,
-            Set.of(),
-            null
+            Set.of()
         );
         public final Instant creationTime;
         public final boolean isIndexUpToDate;
         public final boolean indexAvailableForSearch;
         public final boolean indexAvailableForWrite;
         public final boolean mappingUpToDate;
+        public final boolean createdOnLatestVersion;
         public final Integer migrationsVersion;
         // Min mapping version supported by the descriptors in the cluster
         public final SystemIndexDescriptor.MappingsVersion minClusterMappingVersion;
@@ -627,7 +639,6 @@ public class SecurityIndexManager implements ClusterStateListener {
         public final IndexMetadata.State indexState;
         public final String indexUUID;
         public final Set<NodeFeature> securityFeatures;
-        public final IndexVersion indexVersionCreated;
 
         public State(
             Instant creationTime,
@@ -635,6 +646,7 @@ public class SecurityIndexManager implements ClusterStateListener {
             boolean indexAvailableForSearch,
             boolean indexAvailableForWrite,
             boolean mappingUpToDate,
+            boolean createdOnLatestVersion,
             Integer migrationsVersion,
             SystemIndexDescriptor.MappingsVersion minClusterMappingVersion,
             Integer indexMappingVersion,
@@ -642,8 +654,7 @@ public class SecurityIndexManager implements ClusterStateListener {
             ClusterHealthStatus indexHealth,
             IndexMetadata.State indexState,
             String indexUUID,
-            Set<NodeFeature> securityFeatures,
-            IndexVersion indexVersionCreated
+            Set<NodeFeature> securityFeatures
         ) {
             this.creationTime = creationTime;
             this.isIndexUpToDate = isIndexUpToDate;
@@ -651,6 +662,7 @@ public class SecurityIndexManager implements ClusterStateListener {
             this.indexAvailableForWrite = indexAvailableForWrite;
             this.mappingUpToDate = mappingUpToDate;
             this.migrationsVersion = migrationsVersion;
+            this.createdOnLatestVersion = createdOnLatestVersion;
             this.minClusterMappingVersion = minClusterMappingVersion;
             this.indexMappingVersion = indexMappingVersion;
             this.concreteIndexName = concreteIndexName;
@@ -658,7 +670,6 @@ public class SecurityIndexManager implements ClusterStateListener {
             this.indexState = indexState;
             this.indexUUID = indexUUID;
             this.securityFeatures = securityFeatures;
-            this.indexVersionCreated = indexVersionCreated;
         }
 
         @Override
@@ -671,6 +682,7 @@ public class SecurityIndexManager implements ClusterStateListener {
                 && indexAvailableForSearch == state.indexAvailableForSearch
                 && indexAvailableForWrite == state.indexAvailableForWrite
                 && mappingUpToDate == state.mappingUpToDate
+                && createdOnLatestVersion == state.createdOnLatestVersion
                 && Objects.equals(indexMappingVersion, state.indexMappingVersion)
                 && Objects.equals(migrationsVersion, state.migrationsVersion)
                 && Objects.equals(minClusterMappingVersion, state.minClusterMappingVersion)
@@ -692,6 +704,7 @@ public class SecurityIndexManager implements ClusterStateListener {
                 indexAvailableForSearch,
                 indexAvailableForWrite,
                 mappingUpToDate,
+                createdOnLatestVersion,
                 migrationsVersion,
                 minClusterMappingVersion,
                 indexMappingVersion,

@@ -61,6 +61,7 @@ public class CacheInvalidatorRegistryTests extends ESTestCase {
             true,
             true,
             true,
+            true,
             null,
             new SystemIndexDescriptor.MappingsVersion(SecurityMainIndexMappingVersion.latest().id(), 0),
             null,
@@ -68,8 +69,7 @@ public class CacheInvalidatorRegistryTests extends ESTestCase {
             ClusterHealthStatus.GREEN,
             IndexMetadata.State.OPEN,
             "my_uuid",
-            Set.of(),
-            null
+            Set.of()
         );
 
         cacheInvalidatorRegistry.onSecurityIndexStateChange(previousState, currentState);

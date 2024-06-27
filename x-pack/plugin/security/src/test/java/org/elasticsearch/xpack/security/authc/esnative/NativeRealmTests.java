@@ -39,6 +39,7 @@ public class NativeRealmTests extends ESTestCase {
             true,
             true,
             true,
+            true,
             null,
             null,
             null,
@@ -46,8 +47,7 @@ public class NativeRealmTests extends ESTestCase {
             indexStatus,
             IndexMetadata.State.OPEN,
             "my_uuid",
-            Set.of(),
-            null
+            Set.of()
         );
     }
 

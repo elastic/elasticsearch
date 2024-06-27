@@ -70,7 +70,6 @@ import org.elasticsearch.http.netty4.Netty4HttpServerTransport;
 import org.elasticsearch.http.netty4.internal.HttpHeadersAuthenticatorUtils;
 import org.elasticsearch.http.netty4.internal.HttpValidator;
 import org.elasticsearch.index.IndexModule;
-import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.ingest.Processor;
@@ -791,7 +790,7 @@ public class Security extends Plugin
         systemIndices.getMainIndexManager().addStateListener((oldState, newState) -> {
             // Only consider applying migrations if it's the master node and the security index exists
             if (clusterService.state().nodes().isLocalNodeElectedMaster() && newState.indexExists()) {
-                applyPendingSecurityMigrations(newState, clusterService.state().nodes().getMaxDataNodeCompatibleIndexVersion());
+                applyPendingSecurityMigrations(newState);
             }
         });
 
@@ -1204,18 +1203,9 @@ public class Security extends Plugin
         return components;
     }
 
-    private boolean isMigrationNeededForIndexVersion(
-        IndexVersion currentSecurityIndexVersion,
-        IndexVersion maxDataNodeCompatibleIndexVersion
-    ) {
-        // If the index was created on the current cluster max index version, it's considered a new index that doesn't need migrations
-        return currentSecurityIndexVersion.onOrAfter(IndexVersion.min(IndexVersion.current(), maxDataNodeCompatibleIndexVersion));
-    }
-
-    private void applyPendingSecurityMigrations(SecurityIndexManager.State newState, IndexVersion maxDataNodeCompatibleIndexVersion) {
-        // If no migrations have been applied yet and the security index is on the latest index version, all migrations can be skipped
-        if (newState.migrationsVersion == 0
-            && isMigrationNeededForIndexVersion(newState.indexVersionCreated, maxDataNodeCompatibleIndexVersion)) {
+    private void applyPendingSecurityMigrations(SecurityIndexManager.State newState) {
+        // If no migrations have been applied and the security index is on the latest version (new index), all migrations can be skipped
+        if (newState.migrationsVersion == 0 && newState.createdOnLatestVersion) {
             submitPersistentMigrationTask(SecurityMigrations.MIGRATIONS_BY_VERSION.lastKey(), false);
             return;
         }

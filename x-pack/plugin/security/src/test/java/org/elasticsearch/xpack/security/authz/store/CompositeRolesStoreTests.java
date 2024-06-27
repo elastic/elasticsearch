@@ -1617,6 +1617,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
             true,
             true,
             true,
+            true,
             null,
             null,
             null,
@@ -1624,8 +1625,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
             healthStatus,
             IndexMetadata.State.OPEN,
             "my_uuid",
-            Set.of(),
-            null
+            Set.of()
         );
     }
 

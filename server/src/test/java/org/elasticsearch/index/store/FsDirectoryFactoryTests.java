@@ -47,7 +47,7 @@ public class FsDirectoryFactoryTests extends ESTestCase {
             .put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), IndexModule.Type.HYBRIDFS.name().toLowerCase(Locale.ROOT))
             .putList(IndexModule.INDEX_STORE_PRE_LOAD_SETTING.getKey(), "dvd", "tmp")
             .build();
-        try (Directory directory = newDirectory(build)) {
+        try (Directory directory = unwrapDirectory(newDirectory(build))) {
             assertTrue(FsDirectoryFactory.isHybridFs(directory));
             FsDirectoryFactory.HybridDirectory hybridDirectory = (FsDirectoryFactory.HybridDirectory) directory;
             assertTrue(FsDirectoryFactory.HybridDirectory.useDelegate("foo.dvd", newIOContext(random())));
@@ -105,7 +105,7 @@ public class FsDirectoryFactoryTests extends ESTestCase {
             .put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), "mmapfs")
             .putList(IndexModule.INDEX_STORE_PRE_LOAD_SETTING.getKey(), preload)
             .build();
-        Directory directory = newDirectory(build);
+        Directory directory = unwrapDirectory(newDirectory(build));
         try (Directory dir = directory) {
             assertSame(dir, directory); // prevent warnings
             assertFalse(directory instanceof SleepingLockWrapper);
@@ -156,7 +156,7 @@ public class FsDirectoryFactoryTests extends ESTestCase {
         Settings settings = settingsBuilder.build();
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("foo", settings);
         FsDirectoryFactory service = new FsDirectoryFactory();
-        try (Directory directory = service.newFSDirectory(tempDir, NoLockFactory.INSTANCE, indexSettings)) {
+        try (Directory directory = unwrapDirectory(service.newFSDirectory(tempDir, NoLockFactory.INSTANCE, indexSettings))) {
             switch (type) {
                 case HYBRIDFS:
                     assertTrue(FsDirectoryFactory.isHybridFs(directory));
@@ -179,5 +179,17 @@ public class FsDirectoryFactoryTests extends ESTestCase {
                     fail();
             }
         }
+    }
+
+    private static Directory unwrapDirectory(Directory directory) {
+        var d = directory;
+        while (d != null) {
+            if (d instanceof FilterDirectory fd) {
+                d = fd.getDelegate();
+            } else {
+                break;
+            }
+        }
+        return d;
     }
 }

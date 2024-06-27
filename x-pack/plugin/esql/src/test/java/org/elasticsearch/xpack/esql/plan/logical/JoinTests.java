@@ -64,6 +64,37 @@ public class JoinTests extends ESTestCase {
         assertTrue(exprs.containsAll(rightAttributes));
     }
 
+    public void testTransformExprs() {
+        int numMatchFields = between(1, 10);
+
+        List<Attribute> matchFields = new ArrayList<>(numMatchFields);
+        List<Alias> leftFields = new ArrayList<>(numMatchFields);
+        List<Attribute> leftAttributes = new ArrayList<>(numMatchFields);
+        List<Alias> rightFields = new ArrayList<>(numMatchFields);
+        List<Attribute> rightAttributes = new ArrayList<>(numMatchFields);
+
+        for (int i = 0; i < numMatchFields; i++) {
+            Alias left = aliasForLiteral("left" + i);
+            Alias right = aliasForLiteral("right" + i);
+
+            leftFields.add(left);
+            leftAttributes.add(left.toAttribute());
+            rightFields.add(right);
+            rightAttributes.add(right.toAttribute());
+            matchFields.add(randomBoolean() ? left.toAttribute() : right.toAttribute());
+        }
+
+        Row left = new Row(Source.EMPTY, leftFields);
+        Row right = new Row(Source.EMPTY, rightFields);
+
+        JoinConfig joinConfig = new JoinConfig(JoinType.LEFT, matchFields, leftAttributes, rightAttributes);
+        Join join = new Join(Source.EMPTY, left, right, joinConfig);
+        assertTrue(join.config().matchFields().stream().allMatch(ref -> ref.dataType().equals(DataType.INTEGER)));
+
+        Join transformedJoin = (Join) join.transformExpressionsOnly(Attribute.class, attr -> attr.withDataType(DataType.BOOLEAN));
+        assertTrue(transformedJoin.config().matchFields().stream().allMatch(ref -> ref.dataType().equals(DataType.BOOLEAN)));
+    }
+
     private static Alias aliasForLiteral(String name) {
         return new Alias(Source.EMPTY, name, new Literal(Source.EMPTY, 1, DataType.INTEGER));
     }

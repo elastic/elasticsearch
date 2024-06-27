@@ -17,7 +17,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.UpdateForV9;
-import org.elasticsearch.ingest.geoip.enterprise.EnterpriseGeoIpTaskParams;
+import org.elasticsearch.ingest.EnterpriseGeoIpTask.EnterpriseGeoIpTaskParams;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicenseStateListener;
 import org.elasticsearch.license.LicensedFeature;
@@ -28,7 +28,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.xpack.core.XPackField;
 
-import static org.elasticsearch.ingest.geoip.enterprise.EnterpriseGeoIpTaskParams.ENTERPRISE_GEOIP_DOWNLOADER;
+import static org.elasticsearch.ingest.EnterpriseGeoIpTask.ENTERPRISE_GEOIP_DOWNLOADER;
 
 public class EnterpriseGeoIpDownloaderLicenseListener implements LicenseStateListener {
     private static final Logger logger = LogManager.getLogger(EnterpriseGeoIpDownloaderLicenseListener.class);

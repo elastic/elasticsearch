@@ -25,9 +25,9 @@ import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.indices.SystemIndexDescriptor;
+import org.elasticsearch.ingest.EnterpriseGeoIpTask.EnterpriseGeoIpTaskParams;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.ingest.Processor;
-import org.elasticsearch.ingest.geoip.enterprise.EnterpriseGeoIpTaskParams;
 import org.elasticsearch.ingest.geoip.stats.GeoIpDownloaderStats;
 import org.elasticsearch.ingest.geoip.stats.GeoIpStatsAction;
 import org.elasticsearch.ingest.geoip.stats.GeoIpStatsTransportAction;
@@ -58,11 +58,11 @@ import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
+import static org.elasticsearch.ingest.EnterpriseGeoIpTask.ENTERPRISE_GEOIP_DOWNLOADER;
 import static org.elasticsearch.ingest.IngestService.INGEST_ORIGIN;
 import static org.elasticsearch.ingest.geoip.GeoIpDownloader.DATABASES_INDEX;
 import static org.elasticsearch.ingest.geoip.GeoIpDownloader.DATABASES_INDEX_PATTERN;
 import static org.elasticsearch.ingest.geoip.GeoIpDownloader.GEOIP_DOWNLOADER;
-import static org.elasticsearch.ingest.geoip.enterprise.EnterpriseGeoIpTaskParams.ENTERPRISE_GEOIP_DOWNLOADER;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 
 public class IngestGeoIpPlugin extends Plugin implements IngestPlugin, SystemIndexPlugin, Closeable, PersistentTaskPlugin, ActionPlugin {

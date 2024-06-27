@@ -13,7 +13,6 @@ base {
 
 dependencies {
   compileOnly project(path: xpackModule('core'))
-  implementation project(':modules:ingest-geoip')
   testImplementation(testArtifact(project(xpackModule('core'))))
 }
 

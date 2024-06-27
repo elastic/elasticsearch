@@ -16,7 +16,7 @@ import org.elasticsearch.persistent.PersistentTaskState;
 import org.elasticsearch.persistent.PersistentTasksExecutor;
 import org.elasticsearch.threadpool.ThreadPool;
 
-import static org.elasticsearch.ingest.geoip.enterprise.EnterpriseGeoIpTaskParams.ENTERPRISE_GEOIP_DOWNLOADER;
+import static org.elasticsearch.ingest.EnterpriseGeoIpTask.ENTERPRISE_GEOIP_DOWNLOADER;
 
 public class EnterpriseGeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<PersistentTaskParams> {
     private static final Logger logger = LogManager.getLogger(GeoIpDownloader.class);

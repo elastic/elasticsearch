@@ -108,6 +108,38 @@ setup:
   - match: { hits.hits.1._id: "2" }
   - match: { hits.hits.2._id: "3" }
 
+---
+"Incorrect k param":
+  - do:
+      catch: bad_request
+      search:
+        index: my_index
+        body:
+          query:
+            knn:
+              field: my_vector
+              query_vector: [ 1, 1, 1, 1 ]
+              k: 5
+              num_candidates: 3
+  - match: { status: 400 }
+  - match: { error.type: "x_content_parse_exception" }
+  - match: { error.caused_by.type: "illegal_argument_exception" }
+  - match: { error.caused_by.reason: "[num_candidates] cannot be less than [k]" }
+
+  - do:
+      catch: bad_request
+      search:
+        index: my_index
+        body:
+          query:
+            knn:
+              field: my_vector
+              query_vector: [ 1, 1, 1, 1 ]
+              k: 0
+  - match: { status: 400 }
+  - match: { error.type: "x_content_parse_exception" }
+  - match: { error.caused_by.type: "illegal_argument_exception" }
+  - match: { error.caused_by.reason: "[k] must be greater than 0" }
 
 ---
 "Function score query with knn query with k param":

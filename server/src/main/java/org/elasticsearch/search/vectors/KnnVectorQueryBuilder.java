@@ -158,7 +158,7 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
         }
         if (k != null && numCands != null && numCands < k) {
             throw new IllegalArgumentException(
-                "[" + NUM_CANDS_FIELD.getPreferredName() + "] cannot be less than " + "[" + K_FIELD.getPreferredName() + "]"
+                "[" + NUM_CANDS_FIELD.getPreferredName() + "] cannot be less than [" + K_FIELD.getPreferredName() + "]"
             );
         }
         if (queryVector == null && queryVectorBuilder == null) {

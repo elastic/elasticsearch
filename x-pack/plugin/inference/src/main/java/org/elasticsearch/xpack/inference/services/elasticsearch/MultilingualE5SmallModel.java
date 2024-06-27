@@ -47,6 +47,7 @@ public class MultilingualE5SmallModel extends Model implements ElasticsearchMode
         );
         startRequest.setNumberOfAllocations(this.getServiceSettings().getNumAllocations());
         startRequest.setThreadsPerAllocation(this.getServiceSettings().getNumThreads());
+        startRequest.setAdaptiveAllocationsSettings(this.getServiceSettings().getAdaptiveAllocationsSettings());
         startRequest.setWaitForState(STARTED);
 
         return startRequest;

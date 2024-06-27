@@ -216,6 +216,7 @@ public class ElserInternalService implements InferenceService {
         );
         startRequest.setNumberOfAllocations(serviceSettings.getNumAllocations());
         startRequest.setThreadsPerAllocation(serviceSettings.getNumThreads());
+        startRequest.setAdaptiveAllocationsSettings(serviceSettings.getAdaptiveAllocationsSettings());
         startRequest.setWaitForState(STARTED);
         return startRequest;
     }

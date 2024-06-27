@@ -51,9 +51,6 @@ static inline int32_t dot7u_inner_avx512(int8_t* a, int8_t* b, size_t dims) {
     const int8_t* p1 = a;
     const int8_t* p2 = b;
 
-    const ptrdiff_t rem = (( dims - 1 ) % STRIDE_BYTES_LEN) + 1;
-    const int8_t* const p1End = p1 + dims - rem;
-
     // Init accumulator(s) with 0
     __m512i acc0 = _mm512_setzero_si512();
     __m512i acc1 = _mm512_setzero_si512();
@@ -64,6 +61,7 @@ static inline int32_t dot7u_inner_avx512(int8_t* a, int8_t* b, size_t dims) {
     __m512i acc6 = _mm512_setzero_si512();
     __m512i acc7 = _mm512_setzero_si512();
 
+    const int8_t* p1End = a + (dims & ~(stride8 - 1));
     while (p1 < p1End) {
         acc0 = fma8<0>(acc0, p1, p2);
         acc1 = fma8<1>(acc1, p1, p2);
@@ -77,6 +75,7 @@ static inline int32_t dot7u_inner_avx512(int8_t* a, int8_t* b, size_t dims) {
         p2 += stride8;
     }
 
+    p1End = a + (dims & ~(stride4 - 1));
     while (p1 < p1End) {
         acc0 = fma8<0>(acc0, p1, p2);
         acc1 = fma8<1>(acc1, p1, p2);
@@ -86,6 +85,7 @@ static inline int32_t dot7u_inner_avx512(int8_t* a, int8_t* b, size_t dims) {
         p2 += stride4;
     }
 
+    p1End = a + (dims & ~(STRIDE_BYTES_LEN - 1));
     while (p1 < p1End) {
         acc0 = fma8<0>(acc0, p1, p2);
         p1 += STRIDE_BYTES_LEN;
@@ -132,9 +132,6 @@ static inline int32_t sqr7u_inner_avx512(int8_t *a, int8_t *b, size_t dims) {
     const int8_t* p1 = a;
     const int8_t* p2 = b;
 
-    const ptrdiff_t rem = (( dims - 1 ) % STRIDE_BYTES_LEN) + 1;
-    const int8_t* const p1End = p1 + dims - rem;
-
     // Init accumulator(s) with 0
     __m512i acc0 = _mm512_setzero_si512();
     __m512i acc1 = _mm512_setzero_si512();
@@ -145,6 +142,7 @@ static inline int32_t sqr7u_inner_avx512(int8_t *a, int8_t *b, size_t dims) {
     __m512i acc6 = _mm512_setzero_si512();
     __m512i acc7 = _mm512_setzero_si512();
 
+    const int8_t* p1End = a + (dims & ~(stride8 - 1));
     while (p1 < p1End) {
         acc0 = sqr8<0>(acc0, p1, p2);
         acc1 = sqr8<1>(acc1, p1, p2);
@@ -158,6 +156,7 @@ static inline int32_t sqr7u_inner_avx512(int8_t *a, int8_t *b, size_t dims) {
         p2 += stride8;
     }
 
+    p1End = a + (dims & ~(stride4 - 1));
     while (p1 < p1End) {
         acc0 = sqr8<0>(acc0, p1, p2);
         acc1 = sqr8<1>(acc1, p1, p2);
@@ -167,6 +166,7 @@ static inline int32_t sqr7u_inner_avx512(int8_t *a, int8_t *b, size_t dims) {
         p2 += stride4;
     }
 
+    p1End = a + (dims & ~(STRIDE_BYTES_LEN - 1));
     while (p1 < p1End) {
         acc0 = sqr8<0>(acc0, p1, p2);
         p1 += STRIDE_BYTES_LEN;

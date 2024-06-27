@@ -223,7 +223,7 @@ public class TopListTests extends AbstractAggregationTestCase {
                         new TestCaseSupplier.TypedData(null, DataType.INTEGER, "limit").forceLiteral(),
                         new TestCaseSupplier.TypedData(new BytesRef("desc"), DataType.KEYWORD, "order").forceLiteral()
                     ),
-                    "second argument of [] can't be null, received [limit]"
+                    "second argument of [] cannot be null, received [limit]"
                 )
             ),
             new TestCaseSupplier(
@@ -234,7 +234,7 @@ public class TopListTests extends AbstractAggregationTestCase {
                         new TestCaseSupplier.TypedData(1, DataType.INTEGER, "limit").forceLiteral(),
                         new TestCaseSupplier.TypedData(null, DataType.KEYWORD, "order").forceLiteral()
                     ),
-                    "third argument of [] can't be null, received [order]"
+                    "third argument of [] cannot be null, received [order]"
                 )
             )
         );

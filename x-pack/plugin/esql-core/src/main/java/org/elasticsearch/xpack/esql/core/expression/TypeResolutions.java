@@ -132,18 +132,18 @@ public final class TypeResolutions {
         return TypeResolution.TYPE_RESOLVED;
     }
 
-    public static TypeResolution isNonNullFoldable(Expression e, String operationName, ParamOrdinal paramOrd) {
-        var foldableResolution = isFoldable(e, operationName, paramOrd);
+    public static TypeResolution isNotNullAndFoldable(Expression e, String operationName, ParamOrdinal paramOrd) {
+        TypeResolution resolution = isFoldable(e, operationName, paramOrd);
 
-        if (foldableResolution.unresolved()) {
-            return foldableResolution;
+        if (resolution.unresolved()) {
+            return resolution;
         }
 
-        if (e.fold() == null) {
-            return new TypeResolution(
+        if (e.dataType() == DataType.NULL || e.fold() == null) {
+            resolution = new TypeResolution(
                 format(
                     null,
-                    "{}argument of [{}] can't be null, received [{}]",
+                    "{}argument of [{}] cannot be null, received [{}]",
                     paramOrd == null || paramOrd == DEFAULT ? "" : paramOrd.name().toLowerCase(Locale.ROOT) + " ",
                     operationName,
                     Expressions.name(e)
@@ -151,7 +151,7 @@ public final class TypeResolutions {
             );
         }
 
-        return TypeResolution.TYPE_RESOLVED;
+        return resolution;
     }
 
     public static TypeResolution isNotFoldable(Expression e, String operationName, ParamOrdinal paramOrd) {

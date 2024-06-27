@@ -1212,6 +1212,14 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
         assertThat(fieldNames, equalTo(Set.of("emp_no", "emp_no.*", "language_name", "language_name.*")));
     }
 
+    public void testDissectOverwriteName() {
+        Set<String> fieldNames = EsqlSession.fieldNames(parser.createStatement("""
+            from employees
+            | dissect first_name "%{first_name} %{more}"
+            | keep emp_no, first_name, more"""), Set.of());
+        assertThat(fieldNames, equalTo(Set.of("emp_no", "emp_no.*", "first_name", "first_name.*")));
+    }
+
     public void testEnrichOnDefaultField() {
         Set<String> fieldNames = EsqlSession.fieldNames(parser.createStatement("""
             from employees

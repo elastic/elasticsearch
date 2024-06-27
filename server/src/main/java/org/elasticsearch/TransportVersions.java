@@ -200,7 +200,10 @@ public class TransportVersions {
     public static final TransportVersion INDEX_METADATA_MAPPINGS_UPDATED_VERSION = def(8_691_00_0);
     public static final TransportVersion ML_INFERENCE_ELAND_SETTINGS_ADDED = def(8_692_00_0);
     public static final TransportVersion ML_ANTHROPIC_INTEGRATION_ADDED = def(8_693_00_0);
-    public static final TransportVersion INFERENCE_ADAPTIVE_ALLOCATIONS = def(8_694_00_0);
+    public static final TransportVersion ML_INFERENCE_GOOGLE_VERTEX_AI_EMBEDDINGS_ADDED = def(8_694_00_0);
+    public static final TransportVersion EVENT_INGESTED_RANGE_IN_CLUSTER_STATE = def(8_695_00_0);
+    public static final TransportVersion ESQL_ADD_AGGREGATE_TYPE = def(8_696_00_0);
+    public static final TransportVersion INFERENCE_ADAPTIVE_ALLOCATIONS = def(8_697_00_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,

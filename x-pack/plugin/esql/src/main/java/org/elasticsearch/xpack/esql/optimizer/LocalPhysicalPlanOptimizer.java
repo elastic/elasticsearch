@@ -13,6 +13,7 @@ import org.elasticsearch.geometry.Circle;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.utils.WellKnownBinary;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.xpack.esql.VerificationException;
@@ -115,7 +116,7 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
 
     protected List<Batch<PhysicalPlan>> rules(boolean optimizeForEsSource) {
         List<Rule<?, PhysicalPlan>> esSourceRules = new ArrayList<>(4);
-        esSourceRules.add(new ReplaceAttributeSourceWithDocId());
+        esSourceRules.add(new ReplaceSourceAttributes());
 
         if (optimizeForEsSource) {
             esSourceRules.add(new PushTopNToSource());
@@ -139,15 +140,32 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
         return rules(true);
     }
 
-    private static class ReplaceAttributeSourceWithDocId extends OptimizerRule<EsSourceExec> {
+    private static class ReplaceSourceAttributes extends OptimizerRule<EsSourceExec> {
 
-        ReplaceAttributeSourceWithDocId() {
+        ReplaceSourceAttributes() {
             super(UP);
         }
 
         @Override
         protected PhysicalPlan rule(EsSourceExec plan) {
-            return new EsQueryExec(plan.source(), plan.index(), plan.indexMode(), plan.query());
+            var docId = new FieldAttribute(plan.source(), EsQueryExec.DOC_ID_FIELD.getName(), EsQueryExec.DOC_ID_FIELD);
+            if (plan.indexMode() == IndexMode.TIME_SERIES) {
+                Attribute tsid = null, timestamp = null;
+                for (Attribute attr : plan.output()) {
+                    String name = attr.name();
+                    if (name.equals(MetadataAttribute.TSID_FIELD)) {
+                        tsid = attr;
+                    } else if (name.equals(MetadataAttribute.TIMESTAMP_FIELD)) {
+                        timestamp = attr;
+                    }
+                }
+                if (tsid == null || timestamp == null) {
+                    throw new IllegalStateException("_tsid or @timestamp are missing from the time-series source");
+                }
+                return new EsQueryExec(plan.source(), plan.index(), plan.indexMode(), List.of(docId, tsid, timestamp), plan.query());
+            } else {
+                return new EsQueryExec(plan.source(), plan.index(), plan.indexMode(), List.of(docId), plan.query());
+            }
         }
     }
 

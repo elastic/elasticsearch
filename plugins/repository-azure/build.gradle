@@ -41,6 +41,7 @@ versions << [
   'reactiveStreams': '1.0.4',
 ]
 
+// Note: this also doesn't solve it
 configurations.all {
   resolutionStrategy {
     force "com.fasterxml.jackson.core:jackson-core:${versions.azureJackson}"

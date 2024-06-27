@@ -33,6 +33,8 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 import static org.elasticsearch.xpack.inference.rank.textsimilarity.TextSimilarityRankRetrieverBuilder.FIELD_FIELD;
 import static org.elasticsearch.xpack.inference.rank.textsimilarity.TextSimilarityRankRetrieverBuilder.INFERENCE_ID_FIELD;
 import static org.elasticsearch.xpack.inference.rank.textsimilarity.TextSimilarityRankRetrieverBuilder.INFERENCE_TEXT_FIELD;
@@ -55,16 +57,18 @@ public class TextSimilarityRankBuilder extends RankBuilder {
         String inferenceId = (String) args[0];
         String inferenceText = (String) args[1];
         String field = (String) args[2];
-        Float minScore = args[3] == null ? null : (Float) args[3];
+        Integer rankWindowSize = args[3] == null ? DEFAULT_RANK_WINDOW_SIZE : (Integer) args[3];
+        Float minScore = args[4] == null ? null : (Float) args[4];
 
-        return new TextSimilarityRankBuilder(field, inferenceId, inferenceText, DEFAULT_RANK_WINDOW_SIZE, minScore);
+        return new TextSimilarityRankBuilder(field, inferenceId, inferenceText, rankWindowSize, minScore);
     });
 
     static {
-        PARSER.declareString(ConstructingObjectParser.constructorArg(), INFERENCE_ID_FIELD);
-        PARSER.declareString(ConstructingObjectParser.constructorArg(), INFERENCE_TEXT_FIELD);
-        PARSER.declareString(ConstructingObjectParser.constructorArg(), FIELD_FIELD);
-        PARSER.declareFloat(ConstructingObjectParser.optionalConstructorArg(), MIN_SCORE_FIELD);
+        PARSER.declareString(constructorArg(), INFERENCE_ID_FIELD);
+        PARSER.declareString(constructorArg(), INFERENCE_TEXT_FIELD);
+        PARSER.declareString(constructorArg(), FIELD_FIELD);
+        PARSER.declareInt(optionalConstructorArg(), RANK_WINDOW_SIZE_FIELD);
+        PARSER.declareFloat(optionalConstructorArg(), MIN_SCORE_FIELD);
     }
 
     private final String inferenceId;
@@ -82,6 +86,7 @@ public class TextSimilarityRankBuilder extends RankBuilder {
 
     public TextSimilarityRankBuilder(StreamInput in) throws IOException {
         super(in);
+        // rankWindowSize deserialization is handled by the parent class RankBuilder
         this.inferenceId = in.readString();
         this.inferenceText = in.readString();
         this.field = in.readString();
@@ -100,6 +105,7 @@ public class TextSimilarityRankBuilder extends RankBuilder {
 
     @Override
     public void doWriteTo(StreamOutput out) throws IOException {
+        // rankWindowSize serialization is handled by the parent class RankBuilder
         out.writeString(inferenceId);
         out.writeString(inferenceText);
         out.writeString(field);
@@ -108,6 +114,7 @@ public class TextSimilarityRankBuilder extends RankBuilder {
 
     @Override
     public void doXContent(XContentBuilder builder, Params params) throws IOException {
+        // rankWindowSize serialization is handled by the parent class RankBuilder
         builder.field(INFERENCE_ID_FIELD.getPreferredName(), inferenceId);
         builder.field(INFERENCE_TEXT_FIELD.getPreferredName(), inferenceText);
         builder.field(FIELD_FIELD.getPreferredName(), field);
@@ -174,6 +181,22 @@ public class TextSimilarityRankBuilder extends RankBuilder {
             inferenceText,
             minScore
         );
+    }
+
+    public String field() {
+        return field;
+    }
+
+    public String inferenceId() {
+        return inferenceId;
+    }
+
+    public String inferenceText() {
+        return inferenceText;
+    }
+
+    public Float minScore() {
+        return minScore;
     }
 
     @Override

@@ -48,7 +48,6 @@ import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
 import org.elasticsearch.xpack.esql.TestBlockFactory;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
-import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.versionfield.Version;
 import org.junit.After;
 import org.junit.Before;
@@ -126,8 +125,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
         DataType type = randomValueOtherThanMany(
             t -> false == DataType.isPrimitive(t) || t == DataType.DATE_PERIOD || t == DataType.TIME_DURATION,
             () -> randomFrom(DataType.types())
-        );
-        type = EsqlDataTypes.widenSmallNumericTypes(type);
+        ).widenSmallNumeric();
         return new ColumnInfo(randomAlphaOfLength(10), type.esType());
     }
 
@@ -140,7 +138,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
 
     private Page randomPage(List<ColumnInfo> columns) {
         return new Page(columns.stream().map(c -> {
-            Block.Builder builder = PlannerUtils.toElementType(EsqlDataTypes.fromName(c.type())).newBlockBuilder(1, blockFactory);
+            Block.Builder builder = PlannerUtils.toElementType(DataType.fromEs(c.type())).newBlockBuilder(1, blockFactory);
             switch (c.type()) {
                 case "unsigned_long", "long", "counter_long" -> ((LongBlock.Builder) builder).appendLong(randomLong());
                 case "integer", "counter_integer" -> ((IntBlock.Builder) builder).appendInt(randomInt());

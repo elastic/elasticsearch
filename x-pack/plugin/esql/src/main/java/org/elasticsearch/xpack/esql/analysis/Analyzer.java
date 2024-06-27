@@ -226,8 +226,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             if (t != null) {
                 name = parentName == null ? name : parentName + "." + name;
                 var fieldProperties = t.getProperties();
-                // widen the data type
-                var type = EsqlDataTypes.widenSmallNumericTypes(t.getDataType());
+                var type = t.getDataType().widenSmallNumeric();
                 // due to a bug also copy the field since the Attribute hierarchy extracts the data type
                 // directly even if the data type is passed explicitly
                 if (type != t.getDataType()) {
@@ -452,7 +451,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 }
                 groupings = newGroupings;
                 if (changed.get()) {
-                    a = new EsqlAggregate(a.source(), a.child(), newGroupings, a.aggregates());
+                    a = new EsqlAggregate(a.source(), a.child(), a.aggregateType(), newGroupings, a.aggregates());
                     changed.set(false);
                 }
             }
@@ -481,7 +480,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     newAggregates.add(agg);
                 }
 
-                a = changed.get() ? new EsqlAggregate(a.source(), a.child(), groupings, newAggregates) : a;
+                a = changed.get() ? new EsqlAggregate(a.source(), a.child(), a.aggregateType(), groupings, newAggregates) : a;
             }
 
             return a;
@@ -520,13 +519,13 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             }
 
             // check the on field against both the child output and the inner relation
-            List<NamedExpression> matchFields = new ArrayList<>(l.matchFields().size());
+            List<Attribute> matchFields = new ArrayList<>(l.matchFields().size());
             List<Attribute> localOutput = l.localRelation().output();
             boolean modified = false;
 
-            for (NamedExpression ne : l.matchFields()) {
-                NamedExpression matchFieldChildReference = ne;
-                if (ne instanceof UnresolvedAttribute ua && ua.customMessage() == false) {
+            for (Attribute matchField : l.matchFields()) {
+                Attribute matchFieldChildReference = matchField;
+                if (matchField instanceof UnresolvedAttribute ua && ua.customMessage() == false) {
                     modified = true;
                     Attribute joinedAttribute = maybeResolveAttribute(ua, localOutput);
                     // can't find the field inside the local relation
@@ -867,9 +866,11 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
         @Override
         protected LogicalPlan rule(LogicalPlan plan, AnalyzerContext context) {
+            // Allow resolving snapshot-only functions, but do not include them in the documentation
+            final FunctionRegistry snapshotRegistry = context.functionRegistry().snapshotRegistry();
             return plan.transformExpressionsOnly(
                 UnresolvedFunction.class,
-                uf -> resolveFunction(uf, context.configuration(), context.functionRegistry())
+                uf -> resolveFunction(uf, context.configuration(), snapshotRegistry)
             );
         }
 

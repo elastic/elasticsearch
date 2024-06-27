@@ -35,7 +35,6 @@ import org.junit.Before;
 import org.mockito.stubbing.Answer;
 
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
@@ -142,7 +141,7 @@ public class FileSettingsServiceTests extends ESTestCase {
         doAnswer((Answer<Void>) invocation -> {
             ((Consumer<Exception>) invocation.getArgument(2)).accept(new IllegalStateException("Some exception"));
             return null;
-        }).when(stateService).process(any(), (XContentParser) any(), any());
+        }).when(stateService).process(any(), any(XContentParser.class), any());
 
         AtomicBoolean settingsChanged = new AtomicBoolean(false);
         CountDownLatch latch = new CountDownLatch(1);
@@ -186,7 +185,7 @@ public class FileSettingsServiceTests extends ESTestCase {
         doAnswer((Answer<Void>) invocation -> {
             ((Consumer<Exception>) invocation.getArgument(2)).accept(null);
             return null;
-        }).when(stateService).process(any(), (XContentParser) any(), any());
+        }).when(stateService).process(any(), any(XContentParser.class), any());
 
         CountDownLatch latch = new CountDownLatch(1);
 
@@ -263,8 +262,7 @@ public class FileSettingsServiceTests extends ESTestCase {
     // helpers
     private void writeTestFile(Path path, String contents) throws IOException {
         Path tempFilePath = createTempFile();
-
-        Files.write(tempFilePath, contents.getBytes(StandardCharsets.UTF_8));
+        Files.writeString(tempFilePath, contents);
         Files.move(tempFilePath, path, StandardCopyOption.ATOMIC_MOVE);
     }
 }

@@ -86,7 +86,6 @@ import org.elasticsearch.xpack.esql.plugin.EsqlFeatures;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
 import org.elasticsearch.xpack.esql.stats.DisabledSearchStats;
-import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.junit.After;
 import org.junit.Before;
 import org.mockito.Mockito;
@@ -229,7 +228,10 @@ public class CsvTests extends ESTestCase {
             assumeFalse("metadata fields aren't supported", testCase.requiredCapabilities.contains(cap(EsqlFeatures.METADATA_FIELDS)));
             assumeFalse("enrich can't load fields in csv tests", testCase.requiredCapabilities.contains(cap(EsqlFeatures.ENRICH_LOAD)));
             assumeFalse("can't load metrics in csv tests", testCase.requiredCapabilities.contains(cap(EsqlFeatures.METRICS_SYNTAX)));
-            assumeFalse("multiple indices aren't supported", testCase.requiredCapabilities.contains(EsqlCapabilities.UNION_TYPES));
+            assumeFalse(
+                "multiple indices aren't supported",
+                testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.UNION_TYPES.capabilityName())
+            );
 
             if (Build.current().isSnapshot()) {
                 assertThat(
@@ -414,7 +416,7 @@ public class CsvTests extends ESTestCase {
         List<String> dataTypes = new ArrayList<>(columnNames.size());
         List<Type> columnTypes = coordinatorPlan.output()
             .stream()
-            .peek(o -> dataTypes.add(EsqlDataTypes.outputType(o.dataType())))
+            .peek(o -> dataTypes.add(o.dataType().outputType()))
             .map(o -> Type.asType(o.dataType().nameUpper()))
             .toList();
 

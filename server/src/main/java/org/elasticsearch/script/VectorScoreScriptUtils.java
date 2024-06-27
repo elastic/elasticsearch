@@ -56,7 +56,7 @@ public class VectorScoreScriptUtils {
          */
         public ByteDenseVectorFunction(ScoreScript scoreScript, DenseVectorDocValuesField field, List<Number> queryVector) {
             super(scoreScript, field);
-            DenseVector.checkDimensions(field.get().getDims(), queryVector.size());
+            field.getElementType().checkDimensions(field.get().getDims(), queryVector.size());
             this.queryVector = new byte[queryVector.size()];
             float[] validateValues = new float[queryVector.size()];
             int queryMagnitude = 0;
@@ -168,7 +168,7 @@ public class VectorScoreScriptUtils {
         public L1Norm(ScoreScript scoreScript, Object queryVector, String fieldName) {
             DenseVectorDocValuesField field = (DenseVectorDocValuesField) scoreScript.field(fieldName);
             function = switch (field.getElementType()) {
-                case BYTE -> {
+                case BYTE, BIT -> {
                     if (queryVector instanceof List) {
                         yield new ByteL1Norm(scoreScript, field, (List<Number>) queryVector);
                     } else if (queryVector instanceof String s) {
@@ -219,8 +219,8 @@ public class VectorScoreScriptUtils {
         @SuppressWarnings("unchecked")
         public Hamming(ScoreScript scoreScript, Object queryVector, String fieldName) {
             DenseVectorDocValuesField field = (DenseVectorDocValuesField) scoreScript.field(fieldName);
-            if (field.getElementType() != DenseVectorFieldMapper.ElementType.BYTE) {
-                throw new IllegalArgumentException("hamming distance is only supported for byte vectors");
+            if (field.getElementType() == DenseVectorFieldMapper.ElementType.FLOAT) {
+                throw new IllegalArgumentException("hamming distance is only supported for byte or bit vectors");
             }
             if (queryVector instanceof List) {
                 function = new ByteHammingDistance(scoreScript, field, (List<Number>) queryVector);
@@ -278,7 +278,7 @@ public class VectorScoreScriptUtils {
         public L2Norm(ScoreScript scoreScript, Object queryVector, String fieldName) {
             DenseVectorDocValuesField field = (DenseVectorDocValuesField) scoreScript.field(fieldName);
             function = switch (field.getElementType()) {
-                case BYTE -> {
+                case BYTE, BIT -> {
                     if (queryVector instanceof List) {
                         yield new ByteL2Norm(scoreScript, field, (List<Number>) queryVector);
                     } else if (queryVector instanceof String s) {
@@ -342,7 +342,7 @@ public class VectorScoreScriptUtils {
         public DotProduct(ScoreScript scoreScript, Object queryVector, String fieldName) {
             DenseVectorDocValuesField field = (DenseVectorDocValuesField) scoreScript.field(fieldName);
             function = switch (field.getElementType()) {
-                case BYTE -> {
+                case BYTE, BIT -> {
                     if (queryVector instanceof List) {
                         yield new ByteDotProduct(scoreScript, field, (List<Number>) queryVector);
                     } else if (queryVector instanceof String s) {
@@ -406,7 +406,7 @@ public class VectorScoreScriptUtils {
         public CosineSimilarity(ScoreScript scoreScript, Object queryVector, String fieldName) {
             DenseVectorDocValuesField field = (DenseVectorDocValuesField) scoreScript.field(fieldName);
             function = switch (field.getElementType()) {
-                case BYTE -> {
+                case BYTE, BIT -> {
                     if (queryVector instanceof List) {
                         yield new ByteCosineSimilarity(scoreScript, field, (List<Number>) queryVector);
                     } else if (queryVector instanceof String s) {

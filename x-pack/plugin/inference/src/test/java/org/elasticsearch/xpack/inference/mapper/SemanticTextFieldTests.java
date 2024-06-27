@@ -133,6 +133,11 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
         assertThat(ex.getMessage(), containsString("[similarity] is not allowed"));
 
         ex = expectThrows(IllegalArgumentException.class, () -> {
+            new SemanticTextField.ModelSettings(TaskType.SPARSE_EMBEDDING, null, null, DenseVectorFieldMapper.ElementType.FLOAT);
+        });
+        assertThat(ex.getMessage(), containsString("[element_type] is not allowed"));
+
+        ex = expectThrows(IllegalArgumentException.class, () -> {
             new SemanticTextField.ModelSettings(
                 TaskType.TEXT_EMBEDDING,
                 null,
@@ -147,7 +152,10 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
         });
         assertThat(ex.getMessage(), containsString("required [similarity] field is missing"));
 
-        // TODO: Test missing element type here
+        ex = expectThrows(IllegalArgumentException.class, () -> {
+            new SemanticTextField.ModelSettings(TaskType.TEXT_EMBEDDING, 10, SimilarityMeasure.COSINE, null);
+        });
+        assertThat(ex.getMessage(), containsString("required [element_type] field is missing"));
     }
 
     public static InferenceChunkedTextEmbeddingFloatResults randomInferenceChunkedTextEmbeddingFloatResults(

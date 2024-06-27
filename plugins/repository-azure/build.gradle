@@ -28,7 +28,8 @@ versions << [
   'azureCore': '1.34.0',
   'azureCoreHttpNetty': '1.12.7',
   'azureJackson': '2.15.4',
-  'azureJacksonDatabind': '2.10.4',
+  // TODO
+  'azureJacksonDatabind': '2.14.2',
 
   'jakartaActivation': '1.2.1',
   'jakartaXMLBind': '2.3.2',
@@ -39,6 +40,16 @@ versions << [
   'reactorCore': '3.4.34',
   'reactiveStreams': '1.0.4',
 ]
+
+configurations.all {
+  resolutionStrategy {
+    force "com.fasterxml.jackson.core:jackson-core:${versions.azureJackson}"
+    force "com.fasterxml.jackson.core:jackson-annotations:${versions.azureJackson}"
+    force "com.fasterxml.jackson.dataformat:jackson-dataformat-xml:${versions.azureJackson}"
+    force "com.fasterxml.jackson.datatype:jackson-datatype-jsr310:${versions.azureJackson}"
+    force "com.fasterxml.jackson.module:jackson-module-jaxb-annotations:${versions.azureJackson}"
+  }
+}
 
 dependencies {
   api "com.azure:azure-storage-blob:${versions.azure}"

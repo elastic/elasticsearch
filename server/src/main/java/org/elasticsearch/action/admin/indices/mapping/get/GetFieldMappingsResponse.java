@@ -124,7 +124,7 @@ public class GetFieldMappingsResponse extends ActionResponse implements ToXConte
         private static final ParseField MAPPING = new ParseField("mapping");
 
         /**
-         * Returns the mappings as a map. Note that the returned map has a single key which is always the field's {@link Mapper#name}.
+         * Returns the mappings as a map. Note that the returned map has a single key which is always the field's {@link Mapper#fullPath}.
          */
         public Map<String, Object> sourceAsMap() {
             return XContentHelper.convertToMap(source, true, XContentType.JSON).v2();

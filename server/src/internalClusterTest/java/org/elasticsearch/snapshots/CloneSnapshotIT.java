@@ -133,7 +133,7 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
         final String targetSnapshot = "target-snapshot";
         assertAcked(startClone(repoName, sourceSnapshot, targetSnapshot, indexName).get());
 
-        final List<SnapshotStatus> status = clusterAdmin().prepareSnapshotStatus(repoName)
+        final List<SnapshotStatus> status = clusterAdmin().prepareSnapshotStatus(TEST_REQUEST_TIMEOUT, repoName)
             .setSnapshots(sourceSnapshot, targetSnapshot)
             .get()
             .getSnapshots();
@@ -171,7 +171,7 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
 
         unblockNode(repoName, masterName);
         assertAcked(cloneFuture.get());
-        final List<SnapshotStatus> status = clusterAdmin().prepareSnapshotStatus(repoName)
+        final List<SnapshotStatus> status = clusterAdmin().prepareSnapshotStatus(TEST_REQUEST_TIMEOUT, repoName)
             .setSnapshots(sourceSnapshot, targetSnapshot)
             .get()
             .getSnapshots();
@@ -226,7 +226,10 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
         createIndexWithRandomDocs(indexFast, randomIntBetween(20, 100));
 
         assertSuccessful(
-            clusterAdmin().prepareCreateSnapshot(repoName, "fast-snapshot").setIndices(indexFast).setWaitForCompletion(true).execute()
+            clusterAdmin().prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repoName, "fast-snapshot")
+                .setIndices(indexFast)
+                .setWaitForCompletion(true)
+                .execute()
         );
 
         assertThat(cloneFuture.isDone(), is(false));
@@ -250,10 +253,11 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
         createIndexWithRandomDocs(indexFast, randomIntBetween(20, 100));
 
         blockDataNode(repoName, dataNode);
-        final ActionFuture<CreateSnapshotResponse> snapshotFuture = clusterAdmin().prepareCreateSnapshot(repoName, "fast-snapshot")
-            .setIndices(indexFast)
-            .setWaitForCompletion(true)
-            .execute();
+        final ActionFuture<CreateSnapshotResponse> snapshotFuture = clusterAdmin().prepareCreateSnapshot(
+            TEST_REQUEST_TIMEOUT,
+            repoName,
+            "fast-snapshot"
+        ).setIndices(indexFast).setWaitForCompletion(true).execute();
         waitForBlock(dataNode, repoName);
 
         final String targetSnapshot = "target-snapshot";
@@ -467,7 +471,7 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
         final Client masterClient = internalCluster().masterClient();
         final ActionFuture<CreateSnapshotResponse> sourceSnapshotFuture = masterClient.admin()
             .cluster()
-            .prepareCreateSnapshot(repoName, sourceSnapshot)
+            .prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repoName, sourceSnapshot)
             .setWaitForCompletion(true)
             .execute();
         awaitNumberOfSnapshotsInProgress(1);
@@ -500,7 +504,7 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
         final Client masterClient = internalCluster().masterClient();
         final ActionFuture<CreateSnapshotResponse> sourceSnapshotFuture = masterClient.admin()
             .cluster()
-            .prepareCreateSnapshot(repoName, sourceSnapshot)
+            .prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repoName, sourceSnapshot)
             .setWaitForCompletion(true)
             .execute();
         awaitNumberOfSnapshotsInProgress(1);
@@ -802,13 +806,13 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
         blockDataNode(repoName, dataNode);
         final ActionFuture<CreateSnapshotResponse> snapshotFuture = client(masterNode).admin()
             .cluster()
-            .prepareCreateSnapshot(repoName, "full-snapshot")
+            .prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repoName, "full-snapshot")
             .execute();
         awaitNumberOfSnapshotsInProgress(1);
         waitForBlock(dataNode, repoName);
         final ActionFuture<AcknowledgedResponse> cloneFuture = client(masterNode).admin()
             .cluster()
-            .prepareCloneSnapshot(repoName, sourceSnapshot, "target-snapshot")
+            .prepareCloneSnapshot(TEST_REQUEST_TIMEOUT, repoName, sourceSnapshot, "target-snapshot")
             .setIndices(testIndex)
             .execute();
         awaitNumberOfSnapshotsInProgress(2);
@@ -842,7 +846,11 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
         String targetSnapshot,
         String... indices
     ) {
-        return client.admin().cluster().prepareCloneSnapshot(repoName, sourceSnapshot, targetSnapshot).setIndices(indices).execute();
+        return client.admin()
+            .cluster()
+            .prepareCloneSnapshot(TEST_REQUEST_TIMEOUT, repoName, sourceSnapshot, targetSnapshot)
+            .setIndices(indices)
+            .execute();
     }
 
     private void blockMasterOnReadIndexMeta(String repoName) {

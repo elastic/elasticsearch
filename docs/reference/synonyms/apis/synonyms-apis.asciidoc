@@ -19,7 +19,6 @@ Synonyms sets can be used to configure <<analysis-synonym-graph-tokenfilter,syno
 These filters are applied as part of the <<analysis,analysis>> process by the <<search-analyzer,search analyzer>>.
 
 NOTE: Synonyms sets are limited to a maximum of 10,000 synonym rules per set.
-Synonym sets with more than 10,000 synonym rules will provide inconsistent search results.
 If you need to manage more synonym rules, you can create multiple synonyms sets.
 
 [discrete]

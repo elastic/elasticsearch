@@ -50,14 +50,17 @@ public class DateFormattersTests extends ESTestCase {
     }
 
     private void assertParseException(String input, String format, int errorIndex) {
-        assertParseException(input, format, equalTo(errorIndex));
+        assertParseException(input, DateFormatter.forPattern(format), equalTo(errorIndex));
     }
 
-    private void assertParseException(String input, String format, Matcher<Integer> indexMatcher) {
-        DateFormatter javaTimeFormatter = DateFormatter.forPattern(format);
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> javaTimeFormatter.parse(input));
+    private void assertParseException(String input, DateFormatter formatter, int errorIndex) {
+        assertParseException(input, formatter, equalTo(errorIndex));
+    }
+
+    private void assertParseException(String input, DateFormatter formatter, Matcher<Integer> indexMatcher) {
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> formatter.parse(input));
         assertThat(e.getMessage(), containsString(input));
-        assertThat(e.getMessage(), containsString(format));
+        assertThat(e.getMessage(), containsString(formatter.pattern()));
         assertThat(e.getCause(), instanceOf(DateTimeParseException.class));
         assertThat(((DateTimeParseException) e.getCause()).getErrorIndex(), indexMatcher);
     }
@@ -811,6 +814,20 @@ public class DateFormattersTests extends ESTestCase {
         assertParseException("2001-01-01T00:00:00.123,456Z", "date_optional_time", 23);
         // This should fail, but java is ok with this because the field has the same value
         // assertJavaTimeParseException("2001-01-01T00:00:00.123,123Z", "strict_date_optional_time_nanos");
+
+        // for historical reasons,
+        // despite the use of a locale with , separator these formatters still expect only . decimals
+        DateFormatter formatter = DateFormatter.forPattern("strict_date_time").withLocale(Locale.FRANCE);
+        assertParses("2020-01-01T12:00:00.0Z", formatter);
+        assertParseException("2020-01-01T12:00:00,0Z", formatter, 19);
+
+        formatter = DateFormatter.forPattern("strict_date_hour_minute_second_fraction").withLocale(Locale.GERMANY);
+        assertParses("2020-01-01T12:00:00.0", formatter);
+        assertParseException("2020-01-01T12:00:00,0", formatter, 19);
+
+        formatter = DateFormatter.forPattern("strict_date_hour_minute_second_millis").withLocale(Locale.ITALY);
+        assertParses("2020-01-01T12:00:00.0", formatter);
+        assertParseException("2020-01-01T12:00:00,0", formatter, 19);
     }
 
     public void testTimeZoneFormatting() {

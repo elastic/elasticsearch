@@ -9,6 +9,9 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.string;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.UnicodeUtil;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
@@ -21,7 +24,10 @@ import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.function.Function;
@@ -35,6 +41,8 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
  * {code right(foo, len)} is an alias to {code substring(foo, foo.length-len, len)}
  */
 public class Right extends EsqlScalarFunction {
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Right", Right::new);
+
     private final Expression str;
     private final Expression length;
 
@@ -51,6 +59,22 @@ public class Right extends EsqlScalarFunction {
         super(source, Arrays.asList(str, length));
         this.str = str;
         this.length = length;
+    }
+
+    private Right(StreamInput in) throws IOException {
+        this(Source.readFrom((PlanStreamInput) in), ((PlanStreamInput) in).readExpression(), ((PlanStreamInput) in).readExpression());
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        source().writeTo(out);
+        ((PlanStreamOutput) out).writeExpression(str);
+        ((PlanStreamOutput) out).writeExpression(length);
+    }
+
+    @Override
+    public String getWriteableName() {
+        return ENTRY.name;
     }
 
     @Evaluator
@@ -124,5 +148,13 @@ public class Right extends EsqlScalarFunction {
     @Override
     public boolean foldable() {
         return str.foldable() && length.foldable();
+    }
+
+    Expression str() {
+        return str;
+    }
+
+    Expression length() {
+        return length;
     }
 }

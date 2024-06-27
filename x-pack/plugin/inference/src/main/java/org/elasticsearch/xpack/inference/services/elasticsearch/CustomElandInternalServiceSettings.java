@@ -38,7 +38,7 @@ public class CustomElandInternalServiceSettings extends ElasticsearchInternalSer
      * @param map Source map containing the config
      * @return The {@code CustomElandServiceSettings} builder
      */
-    public static Builder fromMap(Map<String, Object> map) {
+    public static CustomElandInternalServiceSettings fromMap(Map<String, Object> map) {
 
         ValidationException validationException = new ValidationException();
         Integer numAllocations = ServiceUtils.removeAsType(map, NUM_ALLOCATIONS, Integer.class);
@@ -61,7 +61,7 @@ public class CustomElandInternalServiceSettings extends ElasticsearchInternalSer
         builder.setNumAllocations(numAllocations);
         builder.setNumThreads(numThreads);
         builder.setModelId(modelId);
-        return builder;
+        return builder.build();
     }
 
     @Override

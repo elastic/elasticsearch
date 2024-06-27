@@ -25,10 +25,6 @@ public final class MapperMergeContext {
         this.newFieldsBudget = newFieldsBudget;
     }
 
-    static MapperMergeContext root(boolean isSourceSynthetic, boolean isDataStream, long newFieldsBudget) {
-        return root(isSourceSynthetic, isDataStream, MergeReason.MAPPING_UPDATE, newFieldsBudget);
-    }
-
     /**
      * The root context, to be used when merging a tree of mappers
      */

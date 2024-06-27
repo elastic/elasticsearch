@@ -216,11 +216,13 @@ public class SnapshotStressTestsIT extends AbstractSnapshotIntegTestCase {
 
         static final Logger logger = LogManager.getLogger(TrackedCluster.class);
         static final String CLIENT = "client";
+        static final String NODE_RESTARTER = "node_restarter";
 
         private final ThreadPool threadPool = new TestThreadPool(
             "TrackedCluster",
             // a single thread for "client" activities, to limit the number of activities all starting at once
-            new ScalingExecutorBuilder(CLIENT, 1, 1, TimeValue.ZERO, true, CLIENT)
+            new ScalingExecutorBuilder(CLIENT, 1, 1, TimeValue.ZERO, true, CLIENT),
+            new ScalingExecutorBuilder(NODE_RESTARTER, 1, 5, TimeValue.ZERO, true, NODE_RESTARTER)
         );
         private final Executor clientExecutor = threadPool.executor(CLIENT);
 
@@ -579,6 +581,7 @@ public class SnapshotStressTestsIT extends AbstractSnapshotIntegTestCase {
                 closeIndicesStep.addListener(mustSucceed(ignored1 -> deleteIndicesStep.addListener(mustSucceed(ignored2 -> {
 
                     final RestoreSnapshotRequestBuilder restoreSnapshotRequestBuilder = clusterAdmin().prepareRestoreSnapshot(
+                        TEST_REQUEST_TIMEOUT,
                         snapshotInfo.repository(),
                         snapshotInfo.snapshotId().getName()
                     );
@@ -711,7 +714,12 @@ public class SnapshotStressTestsIT extends AbstractSnapshotIntegTestCase {
 
                         client.admin()
                             .cluster()
-                            .prepareCloneSnapshot(trackedSnapshot.trackedRepository.repositoryName, trackedSnapshot.snapshotName, cloneName)
+                            .prepareCloneSnapshot(
+                                TEST_REQUEST_TIMEOUT,
+                                trackedSnapshot.trackedRepository.repositoryName,
+                                trackedSnapshot.snapshotName,
+                                cloneName
+                            )
                             .setIndices(indexNames.toArray(new String[0]))
                             .execute(mustSucceed(acknowledgedResponse -> {
                                 Releasables.close(releaseAll);
@@ -759,7 +767,7 @@ public class SnapshotStressTestsIT extends AbstractSnapshotIntegTestCase {
 
                     client.admin()
                         .cluster()
-                        .prepareDeleteSnapshot(targetRepository.repositoryName, snapshotNames.toArray(new String[0]))
+                        .prepareDeleteSnapshot(TEST_REQUEST_TIMEOUT, targetRepository.repositoryName, snapshotNames.toArray(new String[0]))
                         .execute(mustSucceed(acknowledgedResponse -> {
                             assertTrue(acknowledgedResponse.isAcknowledged());
                             for (String snapshotName : snapshotNames) {
@@ -828,7 +836,7 @@ public class SnapshotStressTestsIT extends AbstractSnapshotIntegTestCase {
                     logger.info("--> starting cleanup of [{}]", trackedRepository.repositoryName);
                     client.admin()
                         .cluster()
-                        .prepareCleanupRepository(trackedRepository.repositoryName)
+                        .prepareCleanupRepository(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, trackedRepository.repositoryName)
                         .execute(mustSucceed(cleanupRepositoryResponse -> {
                             final RepositoryCleanupResult result = cleanupRepositoryResponse.result();
                             if (result.bytes() > 0L || result.blobs() > 0L) {
@@ -838,7 +846,7 @@ public class SnapshotStressTestsIT extends AbstractSnapshotIntegTestCase {
                                 // concurrent operations on the repository.
                                 client.admin()
                                     .cluster()
-                                    .prepareCleanupRepository(trackedRepository.repositoryName)
+                                    .prepareCleanupRepository(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, trackedRepository.repositoryName)
                                     .execute(mustSucceed(secondCleanupRepositoryResponse -> {
                                         final RepositoryCleanupResult secondCleanupResult = secondCleanupRepositoryResponse.result();
                                         if (secondCleanupResult.blobs() == 1) {
@@ -933,6 +941,7 @@ public class SnapshotStressTestsIT extends AbstractSnapshotIntegTestCase {
                         );
 
                         final CreateSnapshotRequestBuilder createSnapshotRequestBuilder = clusterAdmin().prepareCreateSnapshot(
+                            TEST_REQUEST_TIMEOUT,
                             trackedRepository.repositoryName,
                             snapshotName
                         );
@@ -1026,6 +1035,7 @@ public class SnapshotStressTestsIT extends AbstractSnapshotIntegTestCase {
                     );
 
                     final CreateSnapshotRequestBuilder createSnapshotRequestBuilder = clusterAdmin().prepareCreateSnapshot(
+                        TEST_REQUEST_TIMEOUT,
                         trackedRepository.repositoryName,
                         snapshotName
                     ).setPartial(true);
@@ -1046,7 +1056,7 @@ public class SnapshotStressTestsIT extends AbstractSnapshotIntegTestCase {
 
                             final DeleteSnapshotRequestBuilder deleteSnapshotRequestBuilder = abortClient.admin()
                                 .cluster()
-                                .prepareDeleteSnapshot(trackedRepository.repositoryName, snapshotName);
+                                .prepareDeleteSnapshot(TEST_REQUEST_TIMEOUT, trackedRepository.repositoryName, snapshotName);
 
                             final Releasable abortReleasable = abortReleasables.transfer();
 
@@ -1119,7 +1129,7 @@ public class SnapshotStressTestsIT extends AbstractSnapshotIntegTestCase {
                 mustSucceed(
                     () -> client.admin()
                         .cluster()
-                        .prepareGetSnapshots(repositoryName)
+                        .prepareGetSnapshots(TEST_REQUEST_TIMEOUT, repositoryName)
                         .setCurrentSnapshot()
                         .execute(mustSucceed(getSnapshotsResponse -> {
                             if (getSnapshotsResponse.getSnapshots()
@@ -1155,7 +1165,7 @@ public class SnapshotStressTestsIT extends AbstractSnapshotIntegTestCase {
                             final String nodeName = trackedNode.nodeName;
                             final Releasable releaseAll = localReleasables.transfer();
 
-                            threadPool.generic().execute(mustSucceed(() -> {
+                            threadPool.executor(NODE_RESTARTER).execute(mustSucceed(() -> {
                                 logger.info("--> restarting [{}]", nodeName);
                                 cluster.restartNode(nodeName);
                                 logger.info("--> finished restarting [{}]", nodeName);
@@ -1365,7 +1375,7 @@ public class SnapshotStressTestsIT extends AbstractSnapshotIntegTestCase {
                 logger.info("--> put repo [{}]", repositoryName);
                 client.admin()
                     .cluster()
-                    .preparePutRepository(repositoryName)
+                    .preparePutRepository(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, repositoryName)
                     .setType(FsRepository.TYPE)
                     .setSettings(Settings.builder().put(FsRepository.LOCATION_SETTING.getKey(), location))
                     .setVerify(nodeMightRestart == false)
@@ -1402,11 +1412,12 @@ public class SnapshotStressTestsIT extends AbstractSnapshotIntegTestCase {
                         final Releasable releaseAll = localReleasables.transfer();
 
                         logger.info("--> delete repo [{}]", repositoryName);
-                        clusterAdmin().prepareDeleteRepository(repositoryName).execute(mustSucceed(acknowledgedResponse -> {
-                            assertTrue(acknowledgedResponse.isAcknowledged());
-                            logger.info("--> finished delete repo [{}]", repositoryName);
-                            putRepositoryAndContinue(client, nodeMightRestart, releaseAll);
-                        }));
+                        clusterAdmin().prepareDeleteRepository(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, repositoryName)
+                            .execute(mustSucceed(acknowledgedResponse -> {
+                                assertTrue(acknowledgedResponse.isAcknowledged());
+                                logger.info("--> finished delete repo [{}]", repositoryName);
+                                putRepositoryAndContinue(client, nodeMightRestart, releaseAll);
+                            }));
 
                         replacingRepo = true;
                     } finally {
@@ -1708,7 +1719,7 @@ public class SnapshotStressTestsIT extends AbstractSnapshotIntegTestCase {
             );
             client.admin()
                 .cluster()
-                .prepareGetSnapshots(trackedRepository.repositoryName)
+                .prepareGetSnapshots(TEST_REQUEST_TIMEOUT, trackedRepository.repositoryName)
                 .setSnapshots(snapshotName)
                 .execute(mustSucceed(getSnapshotsResponse -> {
                     assertThat(getSnapshotsResponse.getSnapshots(), hasSize(1));

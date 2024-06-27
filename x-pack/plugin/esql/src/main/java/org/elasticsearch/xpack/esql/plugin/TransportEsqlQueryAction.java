@@ -38,7 +38,6 @@ import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
 import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver;
 import org.elasticsearch.xpack.esql.execution.PlanExecutor;
 import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
-import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 
 import java.io.IOException;
 import java.time.ZoneOffset;
@@ -172,7 +171,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
                     delegate.map(result -> {
                         List<ColumnInfo> columns = physicalPlan.output()
                             .stream()
-                            .map(c -> new ColumnInfo(c.qualifiedName(), EsqlDataTypes.outputType(c.dataType())))
+                            .map(c -> new ColumnInfo(c.qualifiedName(), c.dataType().outputType()))
                             .toList();
                         EsqlQueryResponse.Profile profile = configuration.profile()
                             ? new EsqlQueryResponse.Profile(result.profiles())

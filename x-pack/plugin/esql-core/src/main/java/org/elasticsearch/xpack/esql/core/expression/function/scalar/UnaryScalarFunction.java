@@ -33,7 +33,7 @@ public abstract class UnaryScalarFunction extends ScalarFunction {
     }
 
     @Override
-    public final void writeTo(StreamOutput out) throws IOException {
+    public void writeTo(StreamOutput out) throws IOException {
         source().writeTo(out);
         ((PlanStreamOutput) out).writeExpression(field);
     }

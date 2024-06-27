@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.MedianAbsolute
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.NumericAggregate;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Percentile;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Rate;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialAggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialCentroid;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
@@ -63,7 +64,8 @@ final class AggregateMapper {
         SpatialCentroid.class,
         Sum.class,
         Values.class,
-        TopList.class
+        TopList.class,
+        Rate.class
     );
 
     /** Record of agg Class, type, and grouping (or non-grouping). */
@@ -147,6 +149,8 @@ final class AggregateMapper {
             types = List.of("Int", "Long", "Double", "Boolean", "BytesRef");
         } else if (TopList.class.isAssignableFrom(clazz)) {
             types = List.of("Int", "Long", "Double");
+        } else if (Rate.class.isAssignableFrom(clazz)) {
+            types = List.of("Int", "Long", "Double");
         } else {
             assert clazz == CountDistinct.class : "Expected CountDistinct, got: " + clazz;
             types = Stream.concat(NUMERIC.stream(), Stream.of("Boolean", "BytesRef")).toList();
@@ -159,10 +163,15 @@ final class AggregateMapper {
     }
 
     private static Stream<AggDef> groupingAndNonGrouping(Tuple<Class<?>, Tuple<String, String>> tuple) {
-        return Stream.of(
-            new AggDef(tuple.v1(), tuple.v2().v1(), tuple.v2().v2(), true),
-            new AggDef(tuple.v1(), tuple.v2().v1(), tuple.v2().v2(), false)
-        );
+        if (tuple.v1().isAssignableFrom(Rate.class)) {
+            // rate doesn't support non-grouping aggregations
+            return Stream.of(new AggDef(tuple.v1(), tuple.v2().v1(), tuple.v2().v2(), true));
+        } else {
+            return Stream.of(
+                new AggDef(tuple.v1(), tuple.v2().v1(), tuple.v2().v2(), true),
+                new AggDef(tuple.v1(), tuple.v2().v1(), tuple.v2().v2(), false)
+            );
+        }
     }
 
     private static AggDef aggDefOrNull(Expression aggregate, boolean grouping) {
@@ -247,11 +256,11 @@ final class AggregateMapper {
         }
         if (type.equals(DataType.BOOLEAN)) {
             return "Boolean";
-        } else if (type.equals(DataType.INTEGER)) {
+        } else if (type.equals(DataType.INTEGER) || type.equals(DataType.COUNTER_INTEGER)) {
             return "Int";
-        } else if (type.equals(DataType.LONG) || type.equals(DataType.DATETIME)) {
+        } else if (type.equals(DataType.LONG) || type.equals(DataType.DATETIME) || type.equals(DataType.COUNTER_LONG)) {
             return "Long";
-        } else if (type.equals(DataType.DOUBLE)) {
+        } else if (type.equals(DataType.DOUBLE) || type.equals(DataType.COUNTER_DOUBLE)) {
             return "Double";
         } else if (type.equals(DataType.KEYWORD)
             || type.equals(DataType.IP)

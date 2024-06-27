@@ -133,14 +133,8 @@ public class ArrowResponse implements ChunkedRestResponseBodyPart, Releasable {
                 output = null;
                 ReleasableBytesReference result = new ReleasableBytesReference(ref, () -> Releasables.closeExpectNoException(closeRef));
                 return result;
-            } catch (Exception e) {
-                logger.error("failed to write arrow chunk", e);
-                throw e;
             } finally {
-                if (output != null) {
-                    // assert false : "failed to write arrow chunk";
-                    Releasables.closeExpectNoException(output);
-                }
+                Releasables.closeExpectNoException(output);
             }
         }
 

@@ -64,7 +64,16 @@ public class ArrowResponse implements ChunkedRestResponseBodyPart, Releasable {
         currentSegment = new SchemaResponse(this);
         List<ResponseSegment> rest = new ArrayList<>(pages.size());
         for (int p = 0; p < pages.size(); p++) {
-            rest.add(new PageResponse(this, pages.get(p)));
+            var page = pages.get(p);
+            rest.add(new PageResponse(this, page));
+            // Multivalued fields are not supported yet.
+            for (int b = 0; b < page.getBlockCount(); b++) {
+                if (page.getBlock(b).mayHaveMultivaluedFields()) {
+                    throw new IllegalArgumentException(
+                        "ES|QL response field [" + columns.get(b).name + "] is multi-valued. This isn't supported yet by the Arrow format"
+                    );
+                }
+            }
         }
         rest.add(new EndResponse(this));
         segments = rest.iterator();

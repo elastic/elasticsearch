@@ -261,6 +261,41 @@ public class ArrowResponseTests extends ESTestCase {
     }
 
     /**
+     * Test that multivalued arrays are rejected
+     */
+    public void testMultivaluedField() throws IOException {
+        IntBlock.Builder builder = BLOCK_FACTORY.newIntBlockBuilder(0);
+        builder.appendInt(42);
+        builder.appendInt(43);
+        builder.beginPositionEntry();
+        builder.appendInt(44);
+        builder.appendInt(45);
+        builder.endPositionEntry();
+        builder.appendInt(46);
+        IntBlock block = builder.build();
+
+        // Consistency check
+        assertTrue(block.mayHaveMultivaluedFields());
+        assertEquals(0, block.getFirstValueIndex(0));
+        assertEquals(1, block.getValueCount(0));
+        assertEquals(1, block.getValueCount(1));
+
+        assertEquals(2, block.getValueCount(2));
+        assertEquals(2, block.getFirstValueIndex(2));
+        assertEquals(45, block.getInt(block.getFirstValueIndex(2) + 1));
+
+        assertEquals(4, block.getFirstValueIndex(3));
+
+        var column = TestColumn.create("some-field", "integer");
+        TestCase testCase = new TestCase(List.of(column), List.of(new TestPage(List.of(new TestBlock(column, block, Density.Dense)))));
+
+        IllegalArgumentException exc = assertThrows(IllegalArgumentException.class, () -> compareEsqlAndArrow(testCase));
+
+        assertEquals("ES|QL response field [some-field] is multi-valued. This isn't supported yet by the Arrow format", exc.getMessage());
+
+    }
+
+    /**
      * Test a random set of types/columns/pages/densities
      */
     public void testRandomTypesAndSize() throws IOException {

@@ -34,21 +34,6 @@ public final class EsqlDataTypes {
         return DataType.fromTypeName(name.toLowerCase(Locale.ROOT));
     }
 
-    public static DataType fromName(String name) {
-        return DataType.fromEs(name);
-    }
-
-    public static boolean isUnsupported(DataType type) {
-        return DataType.isUnsupported(type);
-    }
-
-    public static String outputType(DataType type) {
-        if (type != null && type.esType() != null) {
-            return type.esType();
-        }
-        return "unsupported";
-    }
-
     public static boolean isString(DataType t) {
         return t == KEYWORD || t == TEXT;
     }

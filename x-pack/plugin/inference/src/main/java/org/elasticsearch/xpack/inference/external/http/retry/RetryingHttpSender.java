@@ -17,6 +17,7 @@ import org.elasticsearch.action.support.RetryableAction;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.inference.common.SizeLimitInputStream;
 import org.elasticsearch.xpack.inference.external.http.HttpClient;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.request.Request;
@@ -26,12 +27,16 @@ import java.io.IOException;
 import java.net.UnknownHostException;
 import java.util.Objects;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.inference.InferencePlugin.UTILITY_THREAD_POOL_NAME;
 
 public class RetryingHttpSender implements RequestSender {
+
+    static final int MAX_RETIES = 3;
+
     private final HttpClient httpClient;
     private final ThrottlerManager throttlerManager;
     private final RetrySettings retrySettings;
@@ -68,6 +73,7 @@ public class RetryingHttpSender implements RequestSender {
         private final Logger logger;
         private final HttpClientContext context;
         private final Supplier<Boolean> hasRequestCompletedFunction;
+        private final AtomicInteger retryCount;
 
         InternalRetrier(
             Logger logger,
@@ -91,10 +97,12 @@ public class RetryingHttpSender implements RequestSender {
             this.context = Objects.requireNonNull(context);
             this.responseHandler = Objects.requireNonNull(responseHandler);
             this.hasRequestCompletedFunction = Objects.requireNonNull(hasRequestCompletedFunction);
+            this.retryCount = new AtomicInteger(0);
         }
 
         @Override
         public void tryAction(ActionListener<InferenceServiceResults> listener) {
+            retryCount.incrementAndGet();
             // A timeout likely occurred so let's stop attempting to execute the request
             if (hasRequestCompletedFunction.get()) {
                 return;
@@ -140,10 +148,10 @@ public class RetryingHttpSender implements RequestSender {
                     RestStatus.BAD_REQUEST,
                     e
                 );
-            }
-
-            if (e instanceof IOException) {
-                exceptionToReturn = new RetryException(true, e);
+            } else if (e instanceof SizeLimitInputStream.InputStreamTooLargeException) {
+                return e;
+            } else if (e instanceof IOException) {
+                return new RetryException(true, e);
             }
 
             return exceptionToReturn;
@@ -164,6 +172,10 @@ public class RetryingHttpSender implements RequestSender {
 
         @Override
         public boolean shouldRetry(Exception e) {
+            if (retryCount.get() >= MAX_RETIES) {
+                return false;
+            }
+
             if (e instanceof Retryable retry) {
                 request = retry.rebuildRequest(request);
                 return retry.shouldRetry();

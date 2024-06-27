@@ -34,7 +34,6 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
-import static java.util.Collections.unmodifiableList;
 import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.parseTypedKeysObject;
 
@@ -71,7 +70,7 @@ public final class InternalAggregations implements Iterable<InternalAggregation>
      * The list of {@link InternalAggregation}s.
      */
     public List<InternalAggregation> asList() {
-        return unmodifiableList(aggregations);
+        return aggregations;
     }
 
     /**
@@ -263,7 +262,7 @@ public final class InternalAggregations implements Iterable<InternalAggregation>
         }
         // handle special case when there is just one aggregation
         if (aggregationsList.size() == 1) {
-            final List<InternalAggregation> internalAggregations = aggregationsList.iterator().next().asList();
+            final List<InternalAggregation> internalAggregations = aggregationsList.get(0).asList();
             final List<InternalAggregation> reduced = new ArrayList<>(internalAggregations.size());
             for (InternalAggregation aggregation : internalAggregations) {
                 if (aggregation.mustReduceOnSingleInternalAgg()) {

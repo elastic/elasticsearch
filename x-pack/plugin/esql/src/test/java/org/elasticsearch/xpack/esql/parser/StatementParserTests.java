@@ -34,6 +34,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Gre
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
+import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsqlAggregate;
@@ -235,6 +236,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
             new EsqlAggregate(
                 EMPTY,
                 PROCESSING_CMD_INPUT,
+                Aggregate.AggregateType.STANDARD,
                 List.of(attribute("c"), attribute("d.e")),
                 List.of(
                     new Alias(EMPTY, "b", new UnresolvedFunction(EMPTY, "min", DEFAULT, List.of(attribute("a")))),
@@ -251,6 +253,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
             new EsqlAggregate(
                 EMPTY,
                 PROCESSING_CMD_INPUT,
+                Aggregate.AggregateType.STANDARD,
                 List.of(),
                 List.of(
                     new Alias(EMPTY, "min(a)", new UnresolvedFunction(EMPTY, "min", DEFAULT, List.of(attribute("a")))),
@@ -263,7 +266,13 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
     public void testStatsWithoutAggs() throws Exception {
         assertEquals(
-            new EsqlAggregate(EMPTY, PROCESSING_CMD_INPUT, List.of(attribute("a")), List.of(attribute("a"))),
+            new EsqlAggregate(
+                EMPTY,
+                PROCESSING_CMD_INPUT,
+                Aggregate.AggregateType.STANDARD,
+                List.of(attribute("a")),
+                List.of(attribute("a"))
+            ),
             processingCommand("stats by a")
         );
     }
@@ -1396,6 +1405,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
             new EsqlAggregate(
                 EMPTY,
                 new EsqlUnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, "foo"), List.of(), IndexMode.TIME_SERIES),
+                Aggregate.AggregateType.METRICS,
                 List.of(attribute("ts")),
                 List.of(new Alias(EMPTY, "load", new UnresolvedFunction(EMPTY, "avg", DEFAULT, List.of(attribute("cpu")))), attribute("ts"))
             )
@@ -1405,6 +1415,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
             new EsqlAggregate(
                 EMPTY,
                 new EsqlUnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, "foo,bar"), List.of(), IndexMode.TIME_SERIES),
+                Aggregate.AggregateType.METRICS,
                 List.of(attribute("ts")),
                 List.of(new Alias(EMPTY, "load", new UnresolvedFunction(EMPTY, "avg", DEFAULT, List.of(attribute("cpu")))), attribute("ts"))
             )
@@ -1414,6 +1425,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
             new EsqlAggregate(
                 EMPTY,
                 new EsqlUnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, "foo,bar"), List.of(), IndexMode.TIME_SERIES),
+                Aggregate.AggregateType.METRICS,
                 List.of(attribute("ts")),
                 List.of(
                     new Alias(EMPTY, "load", new UnresolvedFunction(EMPTY, "avg", DEFAULT, List.of(attribute("cpu")))),
@@ -1436,6 +1448,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
             new EsqlAggregate(
                 EMPTY,
                 new EsqlUnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, "foo*"), List.of(), IndexMode.TIME_SERIES),
+                Aggregate.AggregateType.METRICS,
                 List.of(),
                 List.of(new Alias(EMPTY, "count(errors)", new UnresolvedFunction(EMPTY, "count", DEFAULT, List.of(attribute("errors")))))
             )
@@ -1445,6 +1458,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
             new EsqlAggregate(
                 EMPTY,
                 new EsqlUnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, "foo*"), List.of(), IndexMode.TIME_SERIES),
+                Aggregate.AggregateType.METRICS,
                 List.of(),
                 List.of(new Alias(EMPTY, "a(b)", new UnresolvedFunction(EMPTY, "a", DEFAULT, List.of(attribute("b")))))
             )
@@ -1454,6 +1468,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
             new EsqlAggregate(
                 EMPTY,
                 new EsqlUnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, "foo*"), List.of(), IndexMode.TIME_SERIES),
+                Aggregate.AggregateType.METRICS,
                 List.of(),
                 List.of(new Alias(EMPTY, "a(b)", new UnresolvedFunction(EMPTY, "a", DEFAULT, List.of(attribute("b")))))
             )
@@ -1463,6 +1478,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
             new EsqlAggregate(
                 EMPTY,
                 new EsqlUnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, "foo*"), List.of(), IndexMode.TIME_SERIES),
+                Aggregate.AggregateType.METRICS,
                 List.of(),
                 List.of(new Alias(EMPTY, "a1(b2)", new UnresolvedFunction(EMPTY, "a1", DEFAULT, List.of(attribute("b2")))))
             )
@@ -1472,6 +1488,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
             new EsqlAggregate(
                 EMPTY,
                 new EsqlUnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, "foo*,bar*"), List.of(), IndexMode.TIME_SERIES),
+                Aggregate.AggregateType.METRICS,
                 List.of(attribute("c"), attribute("d.e")),
                 List.of(
                     new Alias(EMPTY, "b", new UnresolvedFunction(EMPTY, "min", DEFAULT, List.of(attribute("a")))),

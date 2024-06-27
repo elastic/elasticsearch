@@ -23,12 +23,15 @@ import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
+import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
@@ -57,15 +60,14 @@ public class RestControllerIT extends ESIntegTestCase {
         request.addParameter("status_code", "200");
         final var response = client.performRequest(request);
 
-        var telemetryPlugin = getTelemetryPlugin();
-        final var metrics = telemetryPlugin.getLongCounterMeasurement(RestController.METRIC_REQUESTS_TOTAL);
         assertEquals(200, response.getStatusLine().getStatusCode());
 
-        assertThat(metrics, hasSize(1));
-        assertThat(metrics.get(0).getLong(), is(1L));
-        assertThat(metrics.get(0).attributes(), hasEntry(RestController.HANDLER_NAME_KEY, TestEchoStatusCodePlugin.NAME));
-        assertThat(metrics.get(0).attributes(), hasEntry(RestController.REQUEST_METHOD_KEY, "GET"));
-        assertThat(metrics.get(0).attributes(), hasEntry(RestController.STATUS_CODE_KEY, 200));
+        assertMeasurement(metric -> {
+            assertThat(metric.getLong(), is(1L));
+            assertThat(metric.attributes(), hasEntry(RestController.HANDLER_NAME_KEY, TestEchoStatusCodePlugin.NAME));
+            assertThat(metric.attributes(), hasEntry(RestController.REQUEST_METHOD_KEY, "GET"));
+            assertThat(metric.attributes(), hasEntry(RestController.STATUS_CODE_KEY, 200));
+        });
     }
 
     public void testMetricsEmittedOnRestError() throws IOException {
@@ -74,15 +76,13 @@ public class RestControllerIT extends ESIntegTestCase {
         request.addParameter("status_code", "503");
         final var response = expectThrows(ResponseException.class, () -> client.performRequest(request));
 
-        var telemetryPlugin = getTelemetryPlugin();
-        final var metrics = telemetryPlugin.getLongCounterMeasurement(RestController.METRIC_REQUESTS_TOTAL);
         assertEquals(503, response.getResponse().getStatusLine().getStatusCode());
-
-        assertThat(metrics, hasSize(1));
-        assertThat(metrics.get(0).getLong(), is(1L));
-        assertThat(metrics.get(0).attributes(), hasEntry(RestController.HANDLER_NAME_KEY, TestEchoStatusCodePlugin.NAME));
-        assertThat(metrics.get(0).attributes(), hasEntry(RestController.REQUEST_METHOD_KEY, "GET"));
-        assertThat(metrics.get(0).attributes(), hasEntry(RestController.STATUS_CODE_KEY, 503));
+        assertMeasurement(metric -> {
+            assertThat(metric.getLong(), is(1L));
+            assertThat(metric.attributes(), hasEntry(RestController.HANDLER_NAME_KEY, TestEchoStatusCodePlugin.NAME));
+            assertThat(metric.attributes(), hasEntry(RestController.REQUEST_METHOD_KEY, "GET"));
+            assertThat(metric.attributes(), hasEntry(RestController.STATUS_CODE_KEY, 503));
+        });
     }
 
     public void testMetricsEmittedOnWrongMethod() throws IOException {
@@ -90,17 +90,24 @@ public class RestControllerIT extends ESIntegTestCase {
         final var request = new Request("DELETE", TestEchoStatusCodePlugin.ROUTE);
         final var response = expectThrows(ResponseException.class, () -> client.performRequest(request));
 
-        var telemetryPlugin = getTelemetryPlugin();
-        final var metrics = telemetryPlugin.getLongCounterMeasurement(RestController.METRIC_REQUESTS_TOTAL);
         assertEquals(405, response.getResponse().getStatusLine().getStatusCode());
-
-        assertThat(metrics, hasSize(1));
-        assertThat(metrics.get(0).getLong(), is(1L));
-        assertThat(metrics.get(0).attributes(), hasEntry(RestController.STATUS_CODE_KEY, RestStatus.METHOD_NOT_ALLOWED.getStatus()));
+        assertMeasurement(metric -> {
+            assertThat(metric.getLong(), is(1L));
+            assertThat(metric.attributes(), hasEntry(RestController.STATUS_CODE_KEY, RestStatus.METHOD_NOT_ALLOWED.getStatus()));
+        });
     }
 
-    private static TestTelemetryPlugin getTelemetryPlugin() {
-        return internalCluster().getInstance(PluginsService.class).filterPlugins(TestTelemetryPlugin.class).findFirst().orElseThrow();
+    private static void assertMeasurement(Consumer<Measurement> measurementConsumer) {
+        var measurements = new ArrayList<Measurement>();
+        for (PluginsService pluginsService : internalCluster().getInstances(PluginsService.class)) {
+            final TestTelemetryPlugin telemetryPlugin = pluginsService.filterPlugins(TestTelemetryPlugin.class).findFirst().orElseThrow();
+            telemetryPlugin.collect();
+
+            final var metrics = telemetryPlugin.getLongCounterMeasurement(RestController.METRIC_REQUESTS_TOTAL);
+            measurements.addAll(metrics);
+        }
+        assertThat(measurements, hasSize(1));
+        measurementConsumer.accept(measurements.get(0));
     }
 
     @Override

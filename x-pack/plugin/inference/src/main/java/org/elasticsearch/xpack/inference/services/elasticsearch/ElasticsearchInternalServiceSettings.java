@@ -18,8 +18,8 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.*;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredPositiveInteger;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredString;
 
 public class ElasticsearchInternalServiceSettings extends InternalServiceSettings {
 

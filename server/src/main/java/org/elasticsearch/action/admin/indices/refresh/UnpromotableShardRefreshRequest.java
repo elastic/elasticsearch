@@ -19,28 +19,40 @@ import org.elasticsearch.index.engine.Engine;
 
 import java.io.IOException;
 
+import static org.elasticsearch.TransportVersions.UNPROMOTABLE_REFRESH_WITH_CLUSTER_STATE_VERSION;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 public class UnpromotableShardRefreshRequest extends BroadcastUnpromotableRequest {
 
     private final long primaryTerm;
     private final long segmentGeneration;
+    /**
+     * The cluster state version on the node at the time the refresh is requested
+     */
+    private final long clusterStateVersion;
 
     public UnpromotableShardRefreshRequest(
         IndexShardRoutingTable indexShardRoutingTable,
         long primaryTerm,
         long segmentGeneration,
-        boolean failShardOnError
+        boolean failShardOnError,
+        long clusterStateVersion
     ) {
         super(indexShardRoutingTable, failShardOnError);
         this.primaryTerm = primaryTerm;
         this.segmentGeneration = segmentGeneration;
+        this.clusterStateVersion = clusterStateVersion;
     }
 
     public UnpromotableShardRefreshRequest(StreamInput in) throws IOException {
         super(in);
         segmentGeneration = in.readVLong();
         primaryTerm = in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0) ? in.readVLong() : Engine.UNKNOWN_PRIMARY_TERM;
+        if (in.getTransportVersion().onOrAfter(UNPROMOTABLE_REFRESH_WITH_CLUSTER_STATE_VERSION)) {
+            clusterStateVersion = in.readZLong();
+        } else {
+            clusterStateVersion = -1;
+        }
     }
 
     @Override
@@ -59,6 +71,9 @@ public class UnpromotableShardRefreshRequest extends BroadcastUnpromotableReques
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
             out.writeVLong(primaryTerm);
         }
+        if (out.getTransportVersion().onOrAfter(UNPROMOTABLE_REFRESH_WITH_CLUSTER_STATE_VERSION)) {
+            out.writeZLong(clusterStateVersion);
+        }
     }
 
     public long getSegmentGeneration() {
@@ -69,13 +84,18 @@ public class UnpromotableShardRefreshRequest extends BroadcastUnpromotableReques
         return primaryTerm;
     }
 
+    public long getClusterStateVersion() {
+        return clusterStateVersion;
+    }
+
     @Override
     public String toString() {
         return Strings.format(
-            "UnpromotableShardRefreshRequest{shardId=%s, primaryTerm=%d, segmentGeneration=%d}",
+            "UnpromotableShardRefreshRequest{shardId=%s, primaryTerm=%d, segmentGeneration=%d, clusterStateVersion=%d}",
             shardId(),
             primaryTerm,
-            segmentGeneration
+            segmentGeneration,
+            clusterStateVersion
         );
     }
 }

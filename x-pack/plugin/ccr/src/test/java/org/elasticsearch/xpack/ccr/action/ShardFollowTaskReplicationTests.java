@@ -20,12 +20,14 @@ import org.elasticsearch.action.support.replication.PostWriteRefresh;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.action.support.replication.TransportWriteAction;
 import org.elasticsearch.action.support.replication.TransportWriteActionTestHelper;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingHelper;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -302,6 +304,9 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
         final var threadpool = mock(ThreadPool.class);
         final var transportService = mock(TransportService.class);
         when(transportService.getThreadPool()).thenReturn(threadpool);
+        final var clusterService = mock(ClusterService.class);
+        final ClusterState clusterState = mock(ClusterState.class);
+        when(clusterState.version()).thenReturn(-1L);
 
         try (ReplicationGroup leaderGroup = createLeaderGroup(between(0, 1))) {
             leaderGroup.startAll();
@@ -352,7 +357,7 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                             leadingPrimary.getMaxSeqNoOfUpdatesOrDeletes(),
                             followingPrimary,
                             logger,
-                            new PostWriteRefresh(transportService)
+                            new PostWriteRefresh(transportService, clusterService)
                         );
                     for (IndexShard replica : randomSubsetOf(followerGroup.getReplicas())) {
                         final PlainActionFuture<Releasable> permitFuture = new PlainActionFuture<>();
@@ -809,6 +814,9 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
             final var threadpool = mock(ThreadPool.class);
             final var transportService = mock(TransportService.class);
             when(transportService.getThreadPool()).thenReturn(threadpool);
+            final var clusterService = mock(ClusterService.class);
+            final ClusterState clusterState = mock(ClusterState.class);
+            when(clusterState.version()).thenReturn(-1L);
             try (Releasable ignored = permitFuture.get()) {
                 ccrResult = TransportBulkShardOperationsAction.shardOperationOnPrimary(
                     primary.shardId(),
@@ -817,7 +825,7 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                     request.getMaxSeqNoOfUpdatesOrDeletes(),
                     primary,
                     logger,
-                    new PostWriteRefresh(transportService)
+                    new PostWriteRefresh(transportService, clusterService)
                 );
                 TransportWriteActionTestHelper.performPostWriteActions(primary, request, ccrResult.location, logger);
             } catch (InterruptedException | ExecutionException | IOException e) {

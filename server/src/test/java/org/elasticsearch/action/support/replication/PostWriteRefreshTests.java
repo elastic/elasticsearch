@@ -20,6 +20,7 @@ import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Releasable;
@@ -31,6 +32,7 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardTestCase;
 import org.elasticsearch.index.shard.ReplicationGroup;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.TransportService;
 
@@ -53,6 +55,7 @@ public class PostWriteRefreshTests extends IndexShardTestCase {
     private final TimeValue postWriteRefreshTimeout = TimeValue.timeValueSeconds(30);
     private final AtomicBoolean unpromotableRefreshRequestReceived = new AtomicBoolean(false);
     private TransportService transportService;
+    private ClusterService clusterService;
 
     @Override
     public void setUp() throws Exception {
@@ -74,7 +77,7 @@ public class PostWriteRefreshTests extends IndexShardTestCase {
                 channel.sendResponse(ActionResponse.Empty.INSTANCE);
             }
         );
-
+        clusterService = ClusterServiceUtils.createClusterService(threadPool);
     }
 
     @Override
@@ -90,7 +93,7 @@ public class PostWriteRefreshTests extends IndexShardTestCase {
             String id = "0";
             Engine.IndexResult result = indexDoc(primary, "_doc", id);
             PlainActionFuture<Boolean> f = new PlainActionFuture<>();
-            PostWriteRefresh postWriteRefresh = new PostWriteRefresh(transportService);
+            PostWriteRefresh postWriteRefresh = new PostWriteRefresh(transportService, clusterService);
             postWriteRefresh.refreshShard(
                 WriteRequest.RefreshPolicy.WAIT_UNTIL,
                 primary,
@@ -115,7 +118,7 @@ public class PostWriteRefreshTests extends IndexShardTestCase {
             String id = "0";
             Engine.IndexResult result = indexDoc(primary, "_doc", id);
             PlainActionFuture<Boolean> f = new PlainActionFuture<>();
-            PostWriteRefresh postWriteRefresh = new PostWriteRefresh(transportService);
+            PostWriteRefresh postWriteRefresh = new PostWriteRefresh(transportService, clusterService);
             postWriteRefresh.refreshShard(
                 WriteRequest.RefreshPolicy.IMMEDIATE,
                 primary,
@@ -139,7 +142,7 @@ public class PostWriteRefreshTests extends IndexShardTestCase {
             String id = "0";
             Engine.IndexResult result = indexDoc(primary, "_doc", id);
             PlainActionFuture<Boolean> f = new PlainActionFuture<>();
-            PostWriteRefresh postWriteRefresh = new PostWriteRefresh(transportService);
+            PostWriteRefresh postWriteRefresh = new PostWriteRefresh(transportService, clusterService);
 
             ReplicationGroup replicationGroup = mock(ReplicationGroup.class);
             IndexShardRoutingTable routingTable = mock(IndexShardRoutingTable.class);
@@ -222,7 +225,7 @@ public class PostWriteRefreshTests extends IndexShardTestCase {
         ReplicationGroup realReplicationGroup = primary.getReplicationGroup();
         try {
             PlainActionFuture<Boolean> f = new PlainActionFuture<>();
-            PostWriteRefresh postWriteRefresh = new PostWriteRefresh(transportService);
+            PostWriteRefresh postWriteRefresh = new PostWriteRefresh(transportService, clusterService);
 
             ReplicationGroup replicationGroup = mock(ReplicationGroup.class);
             IndexShardRoutingTable routingTable = mock(IndexShardRoutingTable.class);

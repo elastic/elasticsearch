@@ -15,6 +15,7 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.admin.indices.refresh.TransportUnpromotableShardRefreshAction;
 import org.elasticsearch.action.admin.indices.refresh.UnpromotableShardRefreshRequest;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
@@ -34,10 +35,12 @@ public class PostWriteRefresh {
     public static final String FORCED_REFRESH_AFTER_INDEX = "refresh_flag_index";
     private final TransportService transportService;
     private final Executor refreshExecutor;
+    private final ClusterService clusterService;
 
-    public PostWriteRefresh(final TransportService transportService) {
+    public PostWriteRefresh(final TransportService transportService, final ClusterService clusterService) {
         this.transportService = transportService;
         this.refreshExecutor = transportService.getThreadPool().executor(ThreadPool.Names.REFRESH);
+        this.clusterService = clusterService;
     }
 
     public void refreshShard(
@@ -140,7 +143,8 @@ public class PostWriteRefresh {
             indexShard.getReplicationGroup().getRoutingTable(),
             indexShard.getOperationPrimaryTerm(),
             generation,
-            true
+            true,
+            clusterService.state().version()
         );
         transportService.sendRequest(
             transportService.getLocalNode(),

@@ -89,7 +89,13 @@ public class EsqlCapabilities {
         /**
          * Support for function {@code ST_DISTANCE}. Done in #108764.
          */
-        ST_DISTANCE;
+        ST_DISTANCE,
+
+        /**
+         * Fix to GROK and DISSECT that allows extracting attributes with the same name as the input
+         * https://github.com/elastic/elasticsearch/issues/110184
+         */
+        GROK_DISSECT_MASKING;
 
         Cap() {
             snapshotOnly = false;

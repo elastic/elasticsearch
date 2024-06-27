@@ -325,7 +325,7 @@ public abstract class DocumentParserContext {
         return clonedSource;
     }
 
-    final boolean canAddIgnoredField() {
+    public final boolean canAddIgnoredField() {
         return mappingLookup.isSourceSynthetic() && clonedSource == false;
     }
 

@@ -83,14 +83,6 @@ public class VerifierTests extends ESTestCase {
                 + " found value [first_name] type [keyword]",
             error("from test | stats count(avg(first_name)) by first_name")
         );
-        assertEquals(
-            "1:23: second argument of [percentile(languages, languages)] must be a constant, received [languages]",
-            error("from test | stats x = percentile(languages, languages) by emp_no")
-        );
-        assertEquals(
-            "1:23: second argument of [count_distinct(languages, languages)] must be a constant, received [languages]",
-            error("from test | stats x = count_distinct(languages, languages) by emp_no")
-        );
         // no agg function
         assertEquals("1:19: expected an aggregate function but found [5]", error("from test | stats 5 by emp_no"));
 

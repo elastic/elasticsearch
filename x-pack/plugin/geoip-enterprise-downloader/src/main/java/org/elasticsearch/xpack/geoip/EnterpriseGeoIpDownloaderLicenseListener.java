@@ -14,13 +14,12 @@ import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.cluster.ClusterChangedEvent;
-import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.ingest.geoip.enterprise.EnterpriseGeoIpTaskParams;
 import org.elasticsearch.license.License;
+import org.elasticsearch.license.LicenseStateListener;
 import org.elasticsearch.license.LicensedFeature;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
@@ -31,7 +30,7 @@ import org.elasticsearch.xpack.core.XPackField;
 
 import static org.elasticsearch.ingest.geoip.enterprise.EnterpriseGeoIpTaskParams.ENTERPRISE_GEOIP_DOWNLOADER;
 
-public class EnterpriseGeoIpDownloaderLicenseListener implements ClusterStateListener {
+public class EnterpriseGeoIpDownloaderLicenseListener implements LicenseStateListener {
     private static final Logger logger = LogManager.getLogger(EnterpriseGeoIpDownloaderLicenseListener.class);
 
     private final PersistentTasksService persistentTasksService;
@@ -54,10 +53,36 @@ public class EnterpriseGeoIpDownloaderLicenseListener implements ClusterStateLis
 
     @UpdateForV9 // use MINUS_ONE once that means no timeout
     private static final TimeValue MASTER_TIMEOUT = TimeValue.MAX_VALUE;
+    private volatile boolean licenseStateListenerRegistered;
 
     public void init() {
         // TODO alternatively we could have the equivalent of this code in EnterpriseDownloaderPlugin itself... :shrug:
-        clusterService.addListener(this);
+        listenForLicenseStateChanges();
+    }
+
+    void listenForLicenseStateChanges() {
+        assert licenseStateListenerRegistered == false;
+        licenseState.addListener(this);
+        licenseStateListenerRegistered = true;
+    }
+
+    @Override
+    public void licenseStateChanged() {
+        if (clusterService.state().nodes().isLocalNodeElectedMaster() == false) {
+            // we should only start/stop task from single node, master is the best as it will go through it anyway
+            return;
+        }
+        assert licenseStateListenerRegistered;
+        // TODO remove dev-time only logging
+        // TODO we send a start even if it was already started...
+        // TODO we send a stop even if there was never a start...
+        if (feature.checkWithoutTracking(licenseState)) {
+            logger.debug("License is valid, ensuring enterprise geoip downloader is started");
+            startTask();
+        } else {
+            logger.debug("License is not valid, ensuring enterprise geoip downloader is stopped");
+            stopTask();
+        }
     }
 
     private void startTask() {
@@ -87,16 +112,4 @@ public class EnterpriseGeoIpDownloaderLicenseListener implements ClusterStateLis
         );
         persistentTasksService.sendRemoveRequest(ENTERPRISE_GEOIP_DOWNLOADER, MASTER_TIMEOUT, listener);
     }
-
-    @Override
-    public void clusterChanged(ClusterChangedEvent event) {
-        if (feature.check(licenseState)) {
-            logger.info("License is now valid, starting enterprise geoip downloader");
-            startTask();
-        } else {
-            logger.info("License is no longer valid, stopping enterprise geoip downloader");
-            stopTask();
-        }
-    }
-
 }

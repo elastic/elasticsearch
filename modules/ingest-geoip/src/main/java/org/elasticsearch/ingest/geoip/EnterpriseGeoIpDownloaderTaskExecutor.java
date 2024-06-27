@@ -27,6 +27,8 @@ public class EnterpriseGeoIpDownloaderTaskExecutor extends PersistentTasksExecut
 
     @Override
     protected void nodeOperation(AllocatedPersistentTask task, PersistentTaskParams params, PersistentTaskState state) {
-        logger.info("Running enterprise downloader");
+        // TODO so we'd want to override createTask and have our own AllocatedPersistentTask and its associated state,
+        // but this is enough to prove the principle in the meantime.
+        logger.info("Running enterprise downloader, state was [{}]", state);
     }
 }

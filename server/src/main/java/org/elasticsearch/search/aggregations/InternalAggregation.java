@@ -44,7 +44,6 @@ public abstract class InternalAggregation implements Aggregation, NamedWriteable
     protected InternalAggregation(String name, Map<String, Object> metadata) {
         this.name = name;
         this.metadata = metadata;
-//        setBucketCount(countBuckets());
     }
 
     /**
@@ -53,7 +52,6 @@ public abstract class InternalAggregation implements Aggregation, NamedWriteable
     protected InternalAggregation(StreamInput in) throws IOException {
         name = in.readString();
         metadata = in.readGenericMap();
-//        setBucketCount(countBuckets());
     }
 
     @Override

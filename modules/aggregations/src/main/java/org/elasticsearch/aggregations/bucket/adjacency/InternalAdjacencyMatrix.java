@@ -125,6 +125,7 @@ public class InternalAdjacencyMatrix extends InternalMultiBucketAggregation<Inte
     public InternalAdjacencyMatrix(String name, List<InternalBucket> buckets, Map<String, Object> metadata) {
         super(name, metadata);
         this.buckets = buckets;
+        setBucketCount(countBuckets());
     }
 
     /**
@@ -139,6 +140,7 @@ public class InternalAdjacencyMatrix extends InternalMultiBucketAggregation<Inte
         }
         this.buckets = buckets;
         this.bucketMap = null;
+        setBucketCount(countBuckets());
     }
 
     @Override

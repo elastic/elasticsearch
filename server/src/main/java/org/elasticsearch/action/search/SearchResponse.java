@@ -28,6 +28,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestActions;
 import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.profile.SearchProfileResults;
 import org.elasticsearch.search.profile.SearchProfileShardResult;
@@ -86,6 +87,14 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
     private final long tookInMillis;
 
     private final RefCounted refCounted = LeakTracker.wrap(new SimpleRefCounted());
+
+    private int countBuckets(){
+        int count = 0;
+        for(InternalAggregation aggregation : aggregations){
+            count += aggregation.getBucketCount();
+        }
+        return count;
+    }
 
     public SearchResponse(StreamInput in) throws IOException {
         super(in);
@@ -443,6 +452,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             getFailedShards(),
             getShardFailures()
         );
+        builder.field("bucket_count", countBuckets());
         return builder;
     }
 

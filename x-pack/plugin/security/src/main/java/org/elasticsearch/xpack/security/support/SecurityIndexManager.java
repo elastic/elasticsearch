@@ -249,14 +249,11 @@ public class SecurityIndexManager implements ClusterStateListener {
     /**
      * Check if the index was created on the latest index version available in the cluster
      */
-    private static boolean isCreatedOnLatestVersion(IndexMetadata indexMetadata, ClusterState clusterState) {
+    private static boolean isCreatedOnLatestVersion(IndexMetadata indexMetadata) {
         final IndexVersion indexVersionCreated = indexMetadata != null
             ? SETTING_INDEX_VERSION_CREATED.get(indexMetadata.getSettings())
             : null;
-        return indexVersionCreated != null
-            && indexVersionCreated.onOrAfter(
-                IndexVersion.min(IndexVersion.current(), clusterState.nodes().getMaxDataNodeCompatibleIndexVersion())
-            );
+        return indexVersionCreated != null && indexVersionCreated.onOrAfter(IndexVersion.current());
     }
 
     @Override
@@ -269,7 +266,7 @@ public class SecurityIndexManager implements ClusterStateListener {
         }
         final State previousState = state;
         final IndexMetadata indexMetadata = resolveConcreteIndex(systemIndexDescriptor.getAliasName(), event.state().metadata());
-        final boolean createdOnLatestVersion = isCreatedOnLatestVersion(indexMetadata, event.state());
+        final boolean createdOnLatestVersion = isCreatedOnLatestVersion(indexMetadata);
         final Instant creationTime = indexMetadata != null ? Instant.ofEpochMilli(indexMetadata.getCreationDate()) : null;
         final boolean isIndexUpToDate = indexMetadata == null
             || INDEX_FORMAT_SETTING.get(indexMetadata.getSettings()) == systemIndexDescriptor.getIndexFormat();

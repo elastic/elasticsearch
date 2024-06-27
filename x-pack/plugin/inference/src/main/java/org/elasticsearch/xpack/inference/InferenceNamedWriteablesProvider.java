@@ -26,6 +26,10 @@ import org.elasticsearch.xpack.core.inference.results.RankedDocsResults;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
 import org.elasticsearch.xpack.inference.services.anthropic.completion.AnthropicChatCompletionServiceSettings;
 import org.elasticsearch.xpack.inference.services.anthropic.completion.AnthropicChatCompletionTaskSettings;
+import org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockSecretSettings;
+import org.elasticsearch.xpack.inference.services.amazonbedrock.completion.AmazonBedrockChatCompletionServiceSettings;
+import org.elasticsearch.xpack.inference.services.amazonbedrock.completion.AmazonBedrockChatCompletionTaskSettings;
+import org.elasticsearch.xpack.inference.services.amazonbedrock.embeddings.AmazonBedrockEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.azureaistudio.completion.AzureAiStudioChatCompletionServiceSettings;
 import org.elasticsearch.xpack.inference.services.azureaistudio.completion.AzureAiStudioChatCompletionTaskSettings;
 import org.elasticsearch.xpack.inference.services.azureaistudio.embeddings.AzureAiStudioEmbeddingsServiceSettings;
@@ -122,8 +126,44 @@ public class InferenceNamedWriteablesProvider {
         addMistralNamedWriteables(namedWriteables);
         addCustomElandWriteables(namedWriteables);
         addAnthropicNamedWritables(namedWriteables);
+        addAmazonBedrockNamedWriteables(namedWriteables);
 
         return namedWriteables;
+    }
+
+    private static void addAmazonBedrockNamedWriteables(List<NamedWriteableRegistry.Entry> namedWriteables) {
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(
+                AmazonBedrockSecretSettings.class,
+                AmazonBedrockSecretSettings.NAME,
+                AmazonBedrockSecretSettings::new
+            )
+        );
+
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(
+                ServiceSettings.class,
+                AmazonBedrockEmbeddingsServiceSettings.NAME,
+                AmazonBedrockEmbeddingsServiceSettings::new
+            )
+        );
+
+        // no task settings for Amazon Bedrock Embeddings
+
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(
+                ServiceSettings.class,
+                AmazonBedrockChatCompletionServiceSettings.NAME,
+                AmazonBedrockChatCompletionServiceSettings::new
+            )
+        );
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(
+                TaskSettings.class,
+                AmazonBedrockChatCompletionTaskSettings.NAME,
+                AmazonBedrockChatCompletionTaskSettings::new
+            )
+        );
     }
 
     private static void addMistralNamedWriteables(List<NamedWriteableRegistry.Entry> namedWriteables) {

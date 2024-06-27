@@ -1,0 +1,150 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+package org.elasticsearch.xpack.inference.services.amazonbedrock.completion;
+
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.ValidationException;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.inference.ModelConfigurations;
+import org.elasticsearch.inference.TaskSettings;
+import org.elasticsearch.xcontent.XContentBuilder;
+
+import java.io.IOException;
+import java.util.Map;
+
+import static org.elasticsearch.TransportVersions.ML_INFERENCE_AMAZON_BEDROCK_ADDED;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalDoubleInRange;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalPositiveInteger;
+import static org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockConstants.MAX_NEW_TOKENS_FIELD;
+import static org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockConstants.TEMPERATURE_FIELD;
+import static org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockConstants.TOP_K_FIELD;
+import static org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockConstants.TOP_P_FIELD;
+
+public class AmazonBedrockChatCompletionTaskSettings implements TaskSettings {
+    public static final String NAME = "amazon_bedrock_chat_completion_task_settings";
+
+    public static AmazonBedrockChatCompletionTaskSettings fromMap(Map<String, Object> settings) {
+        ValidationException validationException = new ValidationException();
+
+        Double temperature = extractOptionalDoubleInRange(
+            settings,
+            TEMPERATURE_FIELD,
+            0.0,
+            1.0,
+            ModelConfigurations.TASK_SETTINGS,
+            validationException
+        );
+        Double topP = extractOptionalDoubleInRange(settings, TOP_P_FIELD, 0.0, 1.0, ModelConfigurations.TASK_SETTINGS, validationException);
+        Double topK = extractOptionalDoubleInRange(settings, TOP_K_FIELD, 0.0, 1.0, ModelConfigurations.TASK_SETTINGS, validationException);
+        Integer maxNewTokens = extractOptionalPositiveInteger(
+            settings,
+            MAX_NEW_TOKENS_FIELD,
+            ModelConfigurations.TASK_SETTINGS,
+            validationException
+        );
+
+        if (validationException.validationErrors().isEmpty() == false) {
+            throw validationException;
+        }
+
+        return new AmazonBedrockChatCompletionTaskSettings(temperature, topP, topK, maxNewTokens);
+    }
+
+    public static AmazonBedrockChatCompletionTaskSettings of(
+        AmazonBedrockChatCompletionTaskSettings originalSettings,
+        AmazonBedrockChatCompletionRequestTaskSettings requestSettings
+    ) {
+        var temperature = requestSettings.temperature() == null ? originalSettings.temperature() : requestSettings.temperature();
+        var topP = requestSettings.topP() == null ? originalSettings.topP() : requestSettings.topP();
+        var topK = requestSettings.topK() == null ? originalSettings.topK() : requestSettings.topK();
+        var maxNewTokens = requestSettings.maxNewTokens() == null ? originalSettings.maxNewTokens() : requestSettings.maxNewTokens();
+
+        return new AmazonBedrockChatCompletionTaskSettings(temperature, topP, topK, maxNewTokens);
+    }
+
+    private final Double temperature;
+    private final Double topP;
+    private final Double topK;
+    private final Integer maxNewTokens;
+
+    public AmazonBedrockChatCompletionTaskSettings(
+        @Nullable Double temperature,
+        @Nullable Double topP,
+        @Nullable Double topK,
+        @Nullable Integer maxNewTokens
+    ) {
+        this.temperature = temperature;
+        this.topP = topP;
+        this.topK = topK;
+        this.maxNewTokens = maxNewTokens;
+    }
+
+    public AmazonBedrockChatCompletionTaskSettings(StreamInput in) throws IOException {
+        this.temperature = in.readOptionalDouble();
+        this.topP = in.readOptionalDouble();
+        this.topK = in.readOptionalDouble();
+        this.maxNewTokens = in.readOptionalVInt();
+    }
+
+    public Double temperature() {
+        return temperature;
+    }
+
+    public Double topP() {
+        return topP;
+    }
+
+    public Double topK() {
+        return topK;
+    }
+
+    public Integer maxNewTokens() {
+        return maxNewTokens;
+    }
+
+    @Override
+    public String getWriteableName() {
+        return NAME;
+    }
+
+    @Override
+    public TransportVersion getMinimalSupportedVersion() {
+        return ML_INFERENCE_AMAZON_BEDROCK_ADDED;
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeOptionalDouble(temperature);
+        out.writeOptionalDouble(topP);
+        out.writeOptionalDouble(topK);
+        out.writeOptionalVInt(maxNewTokens);
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
+        {
+            if (temperature != null) {
+                builder.field("temperature", temperature);
+            }
+            if (topP != null) {
+                builder.field("topP", topP);
+            }
+            if (topK != null) {
+                builder.field("topK", topK);
+            }
+            if (maxNewTokens != null) {
+                builder.field("maxNewTokens", maxNewTokens);
+            }
+        }
+        builder.endObject();
+        return builder;
+    }
+}

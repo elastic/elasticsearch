@@ -25,7 +25,8 @@ public class IndexSettingsOverrideTests extends ESTestCase {
     }
 
     public void testStatelessMinRefreshIntervalOverride() {
-        assumeTrue("This test depends on system property",
+        assumeTrue(
+            "This test depends on system property",
             Boolean.parseBoolean(
                 System.getProperty(IndexSettings.RefreshIntervalValidator.STATELESS_ALLOW_INDEX_REFRESH_INTERVAL_OVERRIDE, "false")
             )

@@ -158,6 +158,10 @@ TaskProvider<Test> indexSettingsOverrideTest = tasks.register("indexSettingsOver
   testClassesDirs = sourceSets.test.output.classesDirs
 }
 
+tasks.named("check").configure {
+  dependsOn(indexSettingsOverrideTest)
+}
+
 tasks.named("thirdPartyAudit").configure {
     ignoreMissingClasses(
             // from com.fasterxml.jackson.dataformat.yaml.YAMLMapper (jackson-dataformat-yaml)

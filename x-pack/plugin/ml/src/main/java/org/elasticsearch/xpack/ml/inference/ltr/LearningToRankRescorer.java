@@ -56,6 +56,12 @@ public class LearningToRankRescorer implements Rescorer {
             throw new IllegalStateException("local model reference is null, missing rewriteAndFetch before rescore phase?");
         }
 
+        // Check for duplicate QueryFeatureExtractor and FieldValueFeatureExtractor
+        // This is a temporary fix to prevent duplicate feature extractors from being created
+        if (ltrRescoreContext.hasDuplicateFeatureExtractors()) {
+            throw new IllegalArgumentException("Duplicate feature extractors found in the LTR model");
+        }
+
         LocalModel definition = ltrRescoreContext.regressionModelDefinition;
 
         // Because scores of the first-pass query and the LTR model are not comparable, there is no way to combine the results.

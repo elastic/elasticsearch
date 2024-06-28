@@ -49,6 +49,7 @@ import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
 import org.hamcrest.Matchers;
@@ -93,7 +94,12 @@ public class SearchMetricsServiceTests extends ESTestCase {
         currentRelativeTimeInNanos = new AtomicLong(1L);
         memoryMetricsService = mock(MemoryMetricsService.class);
         when(memoryMetricsService.getMemoryMetrics()).thenReturn(FIXED_MEMORY_METRICS);
-        service = new SearchMetricsService(createClusterSettings(), currentRelativeTimeInNanos::get, memoryMetricsService);
+        service = new SearchMetricsService(
+            createClusterSettings(),
+            currentRelativeTimeInNanos::get,
+            memoryMetricsService,
+            TelemetryProvider.NOOP.getMeterRegistry()
+        );
     }
 
     public void testExposesCompleteMetrics() {
@@ -534,7 +540,6 @@ public class SearchMetricsServiceTests extends ESTestCase {
     }
 
     public void testWithAutoExpandIndex() {
-
         var indexMetadata = IndexMetadata.builder(randomIdentifier())
             .settings(indexSettings(1, 5).put("index.auto_expand_replicas", "1-all").put("index.version.created", Version.CURRENT))
             .build();
@@ -910,7 +915,8 @@ public class SearchMetricsServiceTests extends ESTestCase {
                     .build()
             ),
             fakeClock::get,
-            memoryMetricsService
+            memoryMetricsService,
+            TelemetryProvider.NOOP.getMeterRegistry()
         );
 
         service.clusterChanged(new ClusterChangedEvent("master node elected", clusterState(nodesWithElectedMaster), clusterState(nodes)));
@@ -981,7 +987,12 @@ public class SearchMetricsServiceTests extends ESTestCase {
 
         final var nodesWithElectedMaster = DiscoveryNodes.builder(nodes).masterNodeId(masterNode.getId()).build();
 
-        var service = new SearchMetricsService(createClusterSettings(), () -> 0, memoryMetricsService);
+        var service = new SearchMetricsService(
+            createClusterSettings(),
+            () -> 0,
+            memoryMetricsService,
+            TelemetryProvider.NOOP.getMeterRegistry()
+        );
 
         service.clusterChanged(new ClusterChangedEvent("master node elected", clusterState(nodesWithElectedMaster), clusterState(nodes)));
 
@@ -1019,7 +1030,12 @@ public class SearchMetricsServiceTests extends ESTestCase {
             .localNodeId(localNode.getId())
             .build();
 
-        var service = new SearchMetricsService(createClusterSettings(), () -> 0, memoryMetricsService);
+        var service = new SearchMetricsService(
+            createClusterSettings(),
+            () -> 0,
+            memoryMetricsService,
+            TelemetryProvider.NOOP.getMeterRegistry()
+        );
 
         service.clusterChanged(
             new ClusterChangedEvent(

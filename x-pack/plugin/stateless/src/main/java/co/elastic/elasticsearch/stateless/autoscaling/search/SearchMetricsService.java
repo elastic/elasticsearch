@@ -42,6 +42,9 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.telemetry.metric.DoubleWithAttributes;
+import org.elasticsearch.telemetry.metric.LongWithAttributes;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
@@ -53,6 +56,8 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
+
+import static co.elastic.elasticsearch.serverless.constants.ServerlessSharedSettings.SEARCH_POWER_MIN_SETTING;
 
 /**
  * This service is responsible for receiving raw shard sizes notification from the search nodes
@@ -95,13 +100,26 @@ public class SearchMetricsService implements ClusterStateListener {
     private volatile long accurateMetricWindowNs;
     private volatile long staleMetricsCheckIntervalNs;
 
+    // replication ranking metrics
+    private volatile double replicationRatio = -1.0;
+    private volatile double replicationRatioInteractive = -1.0;
+    private volatile double replicationInteractiveSizeUsage = -1.0;
+
+    private volatile int searchPowerMinSetting;
+
     public static SearchMetricsService create(
         ClusterSettings clusterSettings,
         ThreadPool threadPool,
         ClusterService clusterService,
-        MemoryMetricsService memoryMetricsService
+        MemoryMetricsService memoryMetricsService,
+        MeterRegistry meterRegistry
     ) {
-        SearchMetricsService service = new SearchMetricsService(clusterSettings, threadPool::relativeTimeInNanos, memoryMetricsService);
+        SearchMetricsService service = new SearchMetricsService(
+            clusterSettings,
+            threadPool::relativeTimeInNanos,
+            memoryMetricsService,
+            meterRegistry
+        );
         clusterService.addListener(service);
         return service;
     }
@@ -109,7 +127,8 @@ public class SearchMetricsService implements ClusterStateListener {
     SearchMetricsService(
         ClusterSettings clusterSettings,
         LongSupplier relativeTimeInNanosSupplier,
-        MemoryMetricsService memoryMetricsService
+        MemoryMetricsService memoryMetricsService,
+        MeterRegistry meterRegistry
     ) {
         this.relativeTimeInNanosSupplier = relativeTimeInNanosSupplier;
         this.memoryMetricsService = memoryMetricsService;
@@ -117,6 +136,31 @@ public class SearchMetricsService implements ClusterStateListener {
         clusterSettings.initializeAndWatch(
             STALE_METRICS_CHECK_INTERVAL_SETTING,
             value -> this.staleMetricsCheckIntervalNs = value.getNanos()
+        );
+        clusterSettings.initializeAndWatch(SEARCH_POWER_MIN_SETTING, sp -> { this.searchPowerMinSetting = sp; });
+        meterRegistry.registerDoubleGauge(
+            "es.autoscaling.search.replica_factor_interactive.current",
+            "Average replica setting across indices managed by ReplicasUpdaterService",
+            "1",
+            () -> new DoubleWithAttributes(replicationRatioInteractive)
+        );
+        meterRegistry.registerDoubleGauge(
+            "es.autoscaling.search.replica_factor.current",
+            "Average replica setting across indices managed by ReplicasUpdaterService",
+            "1",
+            () -> new DoubleWithAttributes(replicationRatio)
+        );
+        meterRegistry.registerDoubleGauge(
+            "es.autoscaling.search.replica_interactive_size_usage.current",
+            "Average usage of the available cumulative interactive size for indices with two replicas.",
+            "1",
+            () -> new DoubleWithAttributes(replicationInteractiveSizeUsage)
+        );
+        meterRegistry.registerLongGauge(
+            "es.autoscaling.search.search_power_min.current",
+            "SPmin used in the search tier",
+            "1",
+            () -> new LongWithAttributes(this.searchPowerMinSetting)
         );
     }
 
@@ -144,7 +188,10 @@ public class SearchMetricsService implements ClusterStateListener {
             nodeTimingForShardMetrics.clear();
             shardMetrics.clear();
             nodeSearchLoads.clear();
-
+            // reset collected metrics when we move off master
+            replicationRatio = -1.0;
+            replicationRatioInteractive = -1.0;
+            replicationInteractiveSizeUsage = -1.0;
         } else {
             if (event.metadataChanged() || shardMetricsInitialized == false) {
                 var state = event.state();
@@ -312,6 +359,18 @@ public class SearchMetricsService implements ClusterStateListener {
             ),
             Collections.unmodifiableList(searchLoads)
         );
+    }
+
+    public ReplicaRankingContext createRankingContext() {
+        ReplicaRankingContext rankingContext = new ReplicaRankingContext(getIndices(), getShardMetrics(), searchPowerMinSetting);
+        this.replicationRatio = rankingContext.calculateReplicationFactor(false);
+        this.replicationRatioInteractive = rankingContext.calculateReplicationFactor(true);
+        this.replicationInteractiveSizeUsage = rankingContext.calculateReplicationSizeOveruse();
+        return rankingContext;
+    }
+
+    void updateSearchPowerMin(Integer spMin) {
+        this.searchPowerMinSetting = spMin;
     }
 
     /**

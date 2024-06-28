@@ -54,7 +54,7 @@ public class LearningToRankServiceTests extends ESTestCase {
     public static final String BAD_MODEL = "badModel";
     public static final TrainedModelConfig GOOD_MODEL_CONFIG = TrainedModelConfig.builder()
         .setModelId(GOOD_MODEL)
-        .setInput(new TrainedModelInput(List.of("field1", "field2")))
+        .setInput(new TrainedModelInput(List.of("field1", "field2", "feature_1", "feature_2")))
         .setEstimatedOperations(1)
         .setModelSize(2)
         .setModelType(TrainedModelType.TREE_ENSEMBLE)

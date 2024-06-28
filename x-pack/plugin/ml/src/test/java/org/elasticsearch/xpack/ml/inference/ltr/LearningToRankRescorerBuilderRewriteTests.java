@@ -193,8 +193,7 @@ public class LearningToRankRescorerBuilderRewriteTests extends AbstractBuilderTe
 
     public void testBuildContext() throws Exception {
         LocalModel localModel = mock(LocalModel.class);
-        List<String> inputFields = List.of(DOUBLE_FIELD_NAME, INT_FIELD_NAME);
-        when(localModel.inputFields()).thenReturn(inputFields);
+        when(localModel.inputFields()).thenReturn(GOOD_MODEL_CONFIG.getInput().getFieldNames());
 
         IndexSearcher searcher = mock(IndexSearcher.class);
         doAnswer(invocation -> invocation.getArgument(0)).when(searcher).rewrite(any(Query.class));
@@ -212,10 +211,17 @@ public class LearningToRankRescorerBuilderRewriteTests extends AbstractBuilderTe
         assertThat(rescoreContext.getWindowSize(), equalTo(20));
         List<FeatureExtractor> featureExtractors = rescoreContext.buildFeatureExtractors(context.searcher());
         assertThat(featureExtractors, hasSize(2));
-        assertThat(
-            featureExtractors.stream().flatMap(featureExtractor -> featureExtractor.featureNames().stream()).toList(),
-            containsInAnyOrder("feature_1", "feature_2", DOUBLE_FIELD_NAME, INT_FIELD_NAME)
-        );
+
+        FeatureExtractor queryExtractor = featureExtractors.stream().filter(fe -> fe instanceof QueryFeatureExtractor).findFirst().get();
+        assertThat(queryExtractor.featureNames(), hasSize(2));
+        assertThat(queryExtractor.featureNames(), containsInAnyOrder("feature_1", "feature_2"));
+
+        FeatureExtractor fieldValueExtractor = featureExtractors.stream()
+            .filter(fe -> fe instanceof FieldValueFeatureExtractor)
+            .findFirst()
+            .get();
+        assertThat(fieldValueExtractor.featureNames(), hasSize(2));
+        assertThat(fieldValueExtractor.featureNames(), containsInAnyOrder("field1", "field2"));
     }
 
     private LearningToRankRescorerBuilder rewriteAndFetch(

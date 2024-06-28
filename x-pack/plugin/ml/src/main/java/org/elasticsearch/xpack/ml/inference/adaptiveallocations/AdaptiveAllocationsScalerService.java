@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ClientHelper;
@@ -92,6 +93,7 @@ public class AdaptiveAllocationsScalerService implements ClusterStateListener {
     private final ClusterService clusterService;
     private final Client client;
     private final InferenceAuditor inferenceAuditor;
+    private final MeterRegistry meterRegistry;
     private final boolean isNlpEnabled;
     private final Map<String, Map<String, Stats>> lastInferenceStatsByDeploymentAndNode;
     private Long lastInferenceStatsTimestampMillis;
@@ -106,9 +108,10 @@ public class AdaptiveAllocationsScalerService implements ClusterStateListener {
         ClusterService clusterService,
         Client client,
         InferenceAuditor inferenceAuditor,
+        MeterRegistry meterRegistry,
         boolean isNlpEnabled
     ) {
-        this(threadPool, clusterService, client, inferenceAuditor, isNlpEnabled, DEFAULT_TIME_INTERVAL_SECONDS);
+        this(threadPool, clusterService, client, inferenceAuditor, meterRegistry, isNlpEnabled, DEFAULT_TIME_INTERVAL_SECONDS);
     }
 
     // visible for testing
@@ -117,6 +120,7 @@ public class AdaptiveAllocationsScalerService implements ClusterStateListener {
         ClusterService clusterService,
         Client client,
         InferenceAuditor inferenceAuditor,
+        MeterRegistry meterRegistry,
         boolean isNlpEnabled,
         int timeIntervalSeconds
     ) {
@@ -124,6 +128,7 @@ public class AdaptiveAllocationsScalerService implements ClusterStateListener {
         this.clusterService = clusterService;
         this.client = client;
         this.inferenceAuditor = inferenceAuditor;
+        this.meterRegistry = meterRegistry;
         this.isNlpEnabled = isNlpEnabled;
         this.timeIntervalSeconds = timeIntervalSeconds;
 

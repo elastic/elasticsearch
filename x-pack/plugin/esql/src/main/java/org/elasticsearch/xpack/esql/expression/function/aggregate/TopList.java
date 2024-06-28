@@ -102,8 +102,8 @@ public class TopList extends AggregateFunction implements ToAggregator, Surrogat
         return parameters().get(1);
     }
 
-    private int limitValue() {
-        return (int) limitField().fold();
+    private Integer limitValue() {
+        return (Integer) limitField().fold();
     }
 
     private String orderRawValue() {
@@ -191,7 +191,7 @@ public class TopList extends AggregateFunction implements ToAggregator, Surrogat
     public Expression surrogate() {
         var s = source();
 
-        if (limitValue() == 1) {
+        if (limitField().foldable() && orderField().foldable() && Integer.valueOf(1).equals(limitValue())) {
             if (orderValue()) {
                 return new Min(s, field());
             } else {

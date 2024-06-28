@@ -531,7 +531,8 @@ public class Stateless extends Plugin
             clusterService.getClusterSettings(),
             threadPool,
             clusterService,
-            memoryMetricsService
+            memoryMetricsService,
+            services.telemetryProvider().getMeterRegistry()
         );
         components.add(searchMetricsService);
         var replicationUpdaterService = new ReplicasUpdaterService(threadPool, clusterService, (NodeClient) client, searchMetricsService);

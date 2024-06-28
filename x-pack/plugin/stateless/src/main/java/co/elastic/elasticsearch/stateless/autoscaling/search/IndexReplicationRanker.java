@@ -69,7 +69,7 @@ public class IndexReplicationRanker {
      * IndexReplicationRanker#rankedIndexComparator}.
      */
     static Set<String> getRankedIndicesBelowThreshold(Collection<IndexRankingProperties> indices, long threshold) {
-        var rankedIndices = indices.stream().filter(index -> index.interactiveSize() > 0).sorted(rankedIndexComparator.reversed()).toList();
+        var rankedIndices = indices.stream().filter(index -> index.isInteractive()).sorted(rankedIndexComparator.reversed()).toList();
         long cumulativeSize = 0;
         var twoReplicaEligableIndices = new HashSet<String>();
         for (IndexRankingProperties index : rankedIndices) {
@@ -82,5 +82,9 @@ public class IndexReplicationRanker {
         return twoReplicaEligableIndices;
     }
 
-    record IndexRankingProperties(SearchMetricsService.IndexProperties indexProperties, long interactiveSize) {}
+    record IndexRankingProperties(SearchMetricsService.IndexProperties indexProperties, long interactiveSize) {
+        boolean isInteractive() {
+            return interactiveSize > 0;
+        }
+    }
 }

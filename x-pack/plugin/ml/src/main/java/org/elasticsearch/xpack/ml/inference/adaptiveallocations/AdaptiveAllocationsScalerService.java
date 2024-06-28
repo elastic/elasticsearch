@@ -34,6 +34,12 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+/**
+ * Periodically schedules adaptive allocations scaling. This process consists
+ * of calling the trained model stats API, processing the results, determining
+ * whether scaling should be applied, and potentially calling the trained
+ * model update API.
+ */
 public class AdaptiveAllocationsScalerService implements ClusterStateListener {
 
     record Stats(long successCount, long pendingCount, long failedCount, double inferenceTime) {

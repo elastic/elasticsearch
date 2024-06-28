@@ -11,6 +11,10 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.Strings;
 
+/**
+ * Processes measured requests counts and inference times and decides whether
+ * the number of allocations should be scaled up or down.
+ */
 public class AdaptiveAllocationsScaler {
 
     // visible for testing

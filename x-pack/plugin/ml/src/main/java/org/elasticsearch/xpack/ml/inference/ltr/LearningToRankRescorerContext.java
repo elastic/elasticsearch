@@ -50,16 +50,21 @@ public class LearningToRankRescorerContext extends RescoreContext {
         this.executionContext = executionContext;
         this.regressionModelDefinition = regressionModelDefinition;
         this.learningToRankConfig = learningToRankConfig;
+
+        validateUniqueFeatureExtractors();
     }
 
-    boolean hasDuplicateFeatureExtractors() {
+    // TODO Temporary workaround to the issue of duplicate feature extractors - disallow them for now until we can find a better solution
+    private void validateUniqueFeatureExtractors() {
         Set<String> queryFeatureNames = learningToRankConfig.getFeatureExtractorBuilders()
             .stream()
             .filter(b -> b instanceof QueryExtractorBuilder)
             .map(LearningToRankFeatureExtractorBuilder::featureName)
             .collect(Collectors.toSet());
 
-        return regressionModelDefinition.inputFields().stream().anyMatch(queryFeatureNames::contains);
+        if (regressionModelDefinition.inputFields().stream().anyMatch(queryFeatureNames::contains)) {
+            throw new IllegalArgumentException("Duplicate feature extractors found in the query and the model definition");
+        }
     }
 
     List<FeatureExtractor> buildFeatureExtractors(IndexSearcher searcher) throws IOException {

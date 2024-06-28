@@ -193,7 +193,8 @@ public class LearningToRankRescorerBuilderRewriteTests extends AbstractBuilderTe
 
     public void testBuildContext() throws Exception {
         LocalModel localModel = mock(LocalModel.class);
-        when(localModel.inputFields()).thenReturn(GOOD_MODEL_CONFIG.getInput().getFieldNames());
+        List<String> inputFields = List.of(DOUBLE_FIELD_NAME, INT_FIELD_NAME);
+        when(localModel.inputFields()).thenReturn(inputFields);
 
         IndexSearcher searcher = mock(IndexSearcher.class);
         doAnswer(invocation -> invocation.getArgument(0)).when(searcher).rewrite(any(Query.class));
@@ -211,17 +212,30 @@ public class LearningToRankRescorerBuilderRewriteTests extends AbstractBuilderTe
         assertThat(rescoreContext.getWindowSize(), equalTo(20));
         List<FeatureExtractor> featureExtractors = rescoreContext.buildFeatureExtractors(context.searcher());
         assertThat(featureExtractors, hasSize(2));
+        assertThat(
+            featureExtractors.stream().flatMap(featureExtractor -> featureExtractor.featureNames().stream()).toList(),
+            containsInAnyOrder("feature_1", "feature_2", DOUBLE_FIELD_NAME, INT_FIELD_NAME)
+        );
+    }
 
-        FeatureExtractor queryExtractor = featureExtractors.stream().filter(fe -> fe instanceof QueryFeatureExtractor).findFirst().get();
-        assertThat(queryExtractor.featureNames(), hasSize(2));
-        assertThat(queryExtractor.featureNames(), containsInAnyOrder("feature_1", "feature_2"));
+    public void testThatDuplicateFeaturesAreDisallowed() throws Exception {
+        LocalModel localModel = mock(LocalModel.class);
+        when(localModel.inputFields()).thenReturn(GOOD_MODEL_CONFIG.getInput().getFieldNames());
 
-        FeatureExtractor fieldValueExtractor = featureExtractors.stream()
-            .filter(fe -> fe instanceof FieldValueFeatureExtractor)
-            .findFirst()
-            .get();
-        assertThat(fieldValueExtractor.featureNames(), hasSize(2));
-        assertThat(fieldValueExtractor.featureNames(), containsInAnyOrder("field1", "field2"));
+        IndexSearcher searcher = mock(IndexSearcher.class);
+        doAnswer(invocation -> invocation.getArgument(0)).when(searcher).rewrite(any(Query.class));
+        SearchExecutionContext context = createSearchExecutionContext(searcher);
+
+        LearningToRankRescorerBuilder rescorerBuilder = new LearningToRankRescorerBuilder(
+            localModel,
+            (LearningToRankConfig) GOOD_MODEL_CONFIG.getInferenceConfig(),
+            null,
+            mock(LearningToRankService.class)
+        );
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> rescorerBuilder.innerBuildContext(20, context));
+        assertEquals("Duplicate feature extractors found in the query and the model definition", e.getMessage());
+
     }
 
     private LearningToRankRescorerBuilder rewriteAndFetch(

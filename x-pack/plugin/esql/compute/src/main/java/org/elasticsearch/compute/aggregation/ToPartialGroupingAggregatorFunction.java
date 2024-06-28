@@ -84,7 +84,7 @@ public class ToPartialGroupingAggregatorFunction implements GroupingAggregatorFu
             success = true;
         } finally {
             if (success == false) {
-                Releasables.close(blocks);
+                Releasables.close(partialBlocks);
             }
         }
     }

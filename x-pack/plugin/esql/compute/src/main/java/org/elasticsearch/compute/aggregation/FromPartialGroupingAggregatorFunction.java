@@ -78,7 +78,7 @@ public class FromPartialGroupingAggregatorFunction implements GroupingAggregator
             success = true;
         } finally {
             if (success == false) {
-                Releasables.close(blocks);
+                Releasables.close(partialBlocks);
             }
         }
     }

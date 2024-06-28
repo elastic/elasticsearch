@@ -70,7 +70,7 @@ public class FromPartialAggregatorFunction implements AggregatorFunction {
             success = true;
         } finally {
             if (success == false) {
-                Releasables.close(blocks);
+                Releasables.close(partialBlocks);
             }
         }
     }

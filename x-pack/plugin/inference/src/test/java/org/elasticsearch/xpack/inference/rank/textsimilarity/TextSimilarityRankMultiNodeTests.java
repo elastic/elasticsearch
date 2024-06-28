@@ -117,12 +117,12 @@ public class TextSimilarityRankMultiNodeTests extends AbstractRerankerIT {
 
             assert request instanceof InferenceAction.Request;
             boolean shouldThrow = (boolean) ((InferenceAction.Request) request).getTaskSettings().getOrDefault("throwing", false);
-            if(shouldThrow) {
+            if (shouldThrow) {
                 listener.onFailure(new UnsupportedOperationException("simulated failure"));
-            }else{
+            } else {
                 List<RankedDocsResults.RankedDoc> rankedDocsResults = new ArrayList<>();
                 List<String> inputs = ((InferenceAction.Request) request).getInput();
-                for(int i=0;i<inputs.size();i++) {
+                for (int i = 0; i < inputs.size(); i++) {
                     rankedDocsResults.add(new RankedDocsResults.RankedDoc(i, Float.parseFloat(inputs.get(i)), inputs.get(i)));
                 }
                 ActionResponse response = new InferenceAction.Response(new RankedDocsResults(rankedDocsResults));

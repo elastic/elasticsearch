@@ -291,7 +291,6 @@ public class InternalHistogram extends InternalMultiBucketAggregation<InternalHi
     }
 
     private List<Bucket> reduceBuckets(PriorityQueue<IteratorAndCurrent<Bucket>> pq, AggregationReduceContext reduceContext) {
-        int consumeBucketCount = 0;
         List<Bucket> reducedBuckets = new ArrayList<>();
         if (pq.size() > 0) {
             // list of buckets coming from different shards that have the same key
@@ -305,13 +304,7 @@ public class InternalHistogram extends InternalMultiBucketAggregation<InternalHi
                     // The key changes, reduce what we already buffered and reset the buffer for current buckets.
                     // Using Double.compare instead of != to handle NaN correctly.
                     final Bucket reduced = reduceBucket(currentBuckets, reduceContext);
-                    if (reduced.getDocCount() >= minDocCount || reduceContext.isFinalReduce() == false) {
-                        reducedBuckets.add(reduced);
-                        if (consumeBucketCount++ >= REPORT_EMPTY_EVERY) {
-                            reduceContext.consumeBucketsAndMaybeBreak(consumeBucketCount);
-                            consumeBucketCount = 0;
-                        }
-                    }
+                    maybeAddBucket(reduceContext, reducedBuckets, reduced);
                     currentBuckets.clear();
                     key = top.current().key;
                 }
@@ -329,18 +322,19 @@ public class InternalHistogram extends InternalMultiBucketAggregation<InternalHi
 
             if (currentBuckets.isEmpty() == false) {
                 final Bucket reduced = reduceBucket(currentBuckets, reduceContext);
-                if (reduced.getDocCount() >= minDocCount || reduceContext.isFinalReduce() == false) {
-                    reducedBuckets.add(reduced);
-                    if (consumeBucketCount++ >= REPORT_EMPTY_EVERY) {
-                        reduceContext.consumeBucketsAndMaybeBreak(consumeBucketCount);
-                        consumeBucketCount = 0;
-                    }
-                }
+                maybeAddBucket(reduceContext, reducedBuckets, reduced);
             }
         }
-
-        reduceContext.consumeBucketsAndMaybeBreak(consumeBucketCount);
         return reducedBuckets;
+    }
+
+    private void maybeAddBucket(AggregationReduceContext reduceContext, List<Bucket> reducedBuckets, Bucket reduced) {
+        if (reduced.getDocCount() >= minDocCount || reduceContext.isFinalReduce() == false) {
+            reduceContext.consumeBucketsAndMaybeBreak(1);
+            reducedBuckets.add(reduced);
+        } else {
+            reduceContext.consumeBucketsAndMaybeBreak(-countInnerBucket(reduced));
+        }
     }
 
     private Bucket reduceBucket(List<Bucket> buckets, AggregationReduceContext context) {

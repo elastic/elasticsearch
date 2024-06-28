@@ -15,7 +15,7 @@ import org.elasticsearch.geo.ShapeTestUtils;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
+import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.FunctionName;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 
@@ -27,7 +27,7 @@ import java.util.function.Supplier;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.CARTESIAN;
 
 @FunctionName("to_cartesianpoint")
-public class ToCartesianPointTests extends AbstractFunctionTestCase {
+public class ToCartesianPointTests extends AbstractScalarFunctionTestCase {
     public ToCartesianPointTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }

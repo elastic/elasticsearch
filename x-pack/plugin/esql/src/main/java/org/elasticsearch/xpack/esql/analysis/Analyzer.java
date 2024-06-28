@@ -451,7 +451,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 }
                 groupings = newGroupings;
                 if (changed.get()) {
-                    a = new EsqlAggregate(a.source(), a.child(), newGroupings, a.aggregates());
+                    a = new EsqlAggregate(a.source(), a.child(), a.aggregateType(), newGroupings, a.aggregates());
                     changed.set(false);
                 }
             }
@@ -480,7 +480,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     newAggregates.add(agg);
                 }
 
-                a = changed.get() ? new EsqlAggregate(a.source(), a.child(), groupings, newAggregates) : a;
+                a = changed.get() ? new EsqlAggregate(a.source(), a.child(), a.aggregateType(), groupings, newAggregates) : a;
             }
 
             return a;

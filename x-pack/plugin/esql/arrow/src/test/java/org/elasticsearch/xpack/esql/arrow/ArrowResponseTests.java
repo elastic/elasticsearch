@@ -266,7 +266,7 @@ public class ArrowResponseTests extends ESTestCase {
     public void testMultivaluedField() throws IOException {
         IntBlock.Builder builder = BLOCK_FACTORY.newIntBlockBuilder(0);
         builder.appendInt(42);
-        builder.appendInt(43);
+        builder.appendNull();
         builder.beginPositionEntry();
         builder.appendInt(44);
         builder.appendInt(45);
@@ -278,8 +278,14 @@ public class ArrowResponseTests extends ESTestCase {
         assertTrue(block.mayHaveMultivaluedFields());
         assertEquals(0, block.getFirstValueIndex(0));
         assertEquals(1, block.getValueCount(0));
-        assertEquals(1, block.getValueCount(1));
 
+        // null values still use one position in the array
+        assertEquals(0, block.getValueCount(1));
+        assertEquals(1, block.getFirstValueIndex(1));
+        assertTrue(block.isNull(1));
+        assertEquals(0, block.getInt(1));
+
+        assertEquals(2, block.getFirstValueIndex(2));
         assertEquals(2, block.getValueCount(2));
         assertEquals(2, block.getFirstValueIndex(2));
         assertEquals(45, block.getInt(block.getFirstValueIndex(2) + 1));

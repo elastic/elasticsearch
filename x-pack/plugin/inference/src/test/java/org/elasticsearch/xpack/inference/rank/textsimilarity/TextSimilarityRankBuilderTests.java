@@ -79,11 +79,11 @@ public class TextSimilarityRankBuilderTests extends AbstractXContentSerializingT
 
     public void testParserDefaults() throws IOException {
         String json = """
-        {
-          "field": "my-field",
-          "inference_id": "my-inference-id",
-          "inference_text": "my-inference-text"
-        }""";
+            {
+              "field": "my-field",
+              "inference_id": "my-inference-id",
+              "inference_text": "my-inference-text"
+            }""";
 
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {
             TextSimilarityRankBuilder parsed = TextSimilarityRankBuilder.PARSER.parse(parser, null);

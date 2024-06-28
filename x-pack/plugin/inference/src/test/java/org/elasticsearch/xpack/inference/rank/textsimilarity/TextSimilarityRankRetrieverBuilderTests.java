@@ -87,16 +87,16 @@ public class TextSimilarityRankRetrieverBuilderTests extends AbstractXContentTes
 
     public void testParserDefaults() throws IOException {
         String json = """
-        {
-          "retriever": {
-            "test": {
-              "value": "my-test-retriever"
-            }
-          },
-          "field": "my-field",
-          "inference_id": "my-inference-id",
-          "inference_text": "my-inference-text"
-        }""";
+            {
+              "retriever": {
+                "test": {
+                  "value": "my-test-retriever"
+                }
+              },
+              "field": "my-field",
+              "inference_id": "my-inference-id",
+              "inference_text": "my-inference-text"
+            }""";
 
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {
             TextSimilarityRankRetrieverBuilder parsed = TextSimilarityRankRetrieverBuilder.PARSER.parse(parser, null);

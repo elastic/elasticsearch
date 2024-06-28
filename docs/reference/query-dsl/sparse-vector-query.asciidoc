@@ -69,6 +69,12 @@ If `inference_id` is specified, `query` must also be specified.
 `query`::::
 (Optional, string) The query text you want to use for search.
 If `inference_id` is specified, `query` must also be specified.
+If `query_vector` is specified, `query` must not be specified.
+
+`query_vector`::::
+(Optional, dictionary) A dictionary of token-weight pairs representing the precomputed query vector to search.
+Searching using this query vector will bypass additional inference.
+Only one of `inference_id` and `query_vector` is allowed.
 
 `prune` ::::
 (Optional, boolean)
@@ -133,6 +139,24 @@ GET my-index/_search
 }
 ----
 // TEST[skip: Requires inference]
+
+[[sparse-vector-query-with-query-vectors-example]]
+=== Example sparse_vector query using query vectors
+
+An alternate way to search is with precomputed query vectors to search without performing inference at search time, for example:
+
+[source,console]
+----
+GET my-index/_search
+{
+   "query":{
+      "sparse_vector": {
+         "field": "ml.tokens",
+         "query_vector": { "token1": 0.5, "token2": 0.3, "token3": 0.2 }
+      }
+   }
+}
+----
 
 Multiple `sparse_vector` queries can be combined with each other or other query types.
 This can be achieved by wrapping them in <<query-dsl-bool-query, boolean query clauses>> and using linear boosting:
@@ -285,3 +309,5 @@ GET my-index/_search
 //TEST[skip: Requires inference]
 
 NOTE: When performing <<modules-cross-cluster-search, cross-cluster search>>, inference is performed on the local cluster.
+
+

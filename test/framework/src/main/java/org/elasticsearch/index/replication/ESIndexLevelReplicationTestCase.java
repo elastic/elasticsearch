@@ -37,7 +37,6 @@ import org.elasticsearch.action.support.replication.TransportReplicationAction;
 import org.elasticsearch.action.support.replication.TransportReplicationAction.ReplicaResponse;
 import org.elasticsearch.action.support.replication.TransportWriteAction;
 import org.elasticsearch.action.support.replication.TransportWriteActionTestHelper;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
@@ -48,7 +47,6 @@ import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingHelper;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -1050,9 +1048,6 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
     ) {
         final var threadpool = mock(ThreadPool.class);
         final var transportService = mock(TransportService.class);
-        final var clusterService = mock(ClusterService.class);
-        final ClusterState clusterState = mock(ClusterState.class);
-        when(clusterState.version()).thenReturn(-1L);
         when(transportService.getThreadPool()).thenReturn(threadpool);
         final TransportWriteAction.WritePrimaryResult<ResyncReplicationRequest, ResyncReplicationResponse> result =
             new TransportWriteAction.WritePrimaryResult<>(
@@ -1062,7 +1057,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
                 primary,
                 logger,
                 // TODO: Fix
-                new PostWriteRefresh(transportService, clusterService)
+                new PostWriteRefresh(transportService)
 
             );
         TransportWriteActionTestHelper.performPostWriteActions(primary, request, result.location, logger);

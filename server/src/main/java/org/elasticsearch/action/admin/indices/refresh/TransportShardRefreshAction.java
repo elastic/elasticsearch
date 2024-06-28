@@ -128,8 +128,7 @@ public class TransportShardRefreshAction extends TransportReplicationAction<
                     indexShardRoutingTable,
                     replicaRequest.primaryRefreshResult.primaryTerm(),
                     replicaRequest.primaryRefreshResult.generation(),
-                    false,
-                    clusterService.state().version()
+                    false
                 );
                 transportService.sendRequest(
                     transportService.getLocalNode(),

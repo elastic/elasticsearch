@@ -8,9 +8,6 @@
 package org.elasticsearch.action.support.replication;
 
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.coordination.AbstractCoordinatorTestCase;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.translog.Translog;
@@ -47,17 +44,13 @@ public abstract class TransportWriteActionTestHelper {
         final var threadpool = mock(ThreadPool.class);
         final var transportService = mock(TransportService.class);
         when(transportService.getThreadPool()).thenReturn(threadpool);
-        final var clusterService = mock(ClusterService.class);
-        final ClusterState clusterState = mock(ClusterState.class);
-        when(clusterState.version()).thenReturn(-1L);
-        when(clusterService.state()).thenReturn(clusterState);
         new TransportWriteAction.AsyncAfterWriteAction(
             indexShard,
             request,
             location,
             writerResult,
             logger,
-            new PostWriteRefresh(transportService, clusterService),
+            new PostWriteRefresh(transportService),
             null
         ).run();
         ESTestCase.safeAwait(latch);

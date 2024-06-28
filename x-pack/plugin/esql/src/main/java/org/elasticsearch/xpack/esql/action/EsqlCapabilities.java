@@ -63,8 +63,9 @@ public class EsqlCapabilities {
          * LOOKUP command with
          * - tables using syntax {@code "tables": {"type": [<values>]}}
          * - fixed variable shadowing
+         * - fixed Join.references(), requiring breaking change to Join serialization
          */
-        LOOKUP_V3(true),
+        LOOKUP_V4(true),
 
         /**
          * Support for requesting the "REPEAT" command.

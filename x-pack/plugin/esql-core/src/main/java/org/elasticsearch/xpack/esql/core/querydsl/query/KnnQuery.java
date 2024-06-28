@@ -31,7 +31,7 @@ public class KnnQuery extends Query {
     public QueryBuilder asBuilder() {
         String numCandidates = options.getOrDefault("num_candidates", 10).toString();
         Integer numCands = Integer.valueOf(numCandidates);
-        String vectorSimilarityString = options.getOrDefault("vector_similarity", 1f).toString();
+        String vectorSimilarityString = options.getOrDefault("vector_similarity", 0f).toString();
         Float vectorSimilarity = Float.valueOf(vectorSimilarityString);
         return new KnnVectorQueryBuilder(field.sourceText(), vectorData, numCands, vectorSimilarity);
     }

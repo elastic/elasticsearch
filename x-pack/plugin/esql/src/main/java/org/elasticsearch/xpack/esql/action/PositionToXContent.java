@@ -13,9 +13,9 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.DoubleBigArrayBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
-import org.elasticsearch.compute.data.DoubleVector;
-import org.elasticsearch.compute.data.DoubleVectorBlock;
+import org.elasticsearch.compute.data.DoubleVectorVectorBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.lucene.UnsupportedValueSource;
@@ -180,7 +180,7 @@ abstract class PositionToXContent {
                 @Override
                 protected XContentBuilder valueToXContent(XContentBuilder builder, ToXContent.Params params, int valueIndex)
                     throws IOException {
-                    return builder.value(((DoubleVectorBlock) block).getDouble(valueIndex));
+                    return builder.value(((DoubleVectorVectorBlock) block).getDoubleVector(valueIndex));
                 }
             };
             default -> throw new IllegalArgumentException("can't convert values of type [" + columnInfo.type() + "]");

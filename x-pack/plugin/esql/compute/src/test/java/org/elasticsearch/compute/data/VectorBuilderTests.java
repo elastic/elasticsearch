@@ -120,6 +120,7 @@ public class VectorBuilderTests extends ESTestCase {
             case DOUBLE -> blockFactory.newDoubleVectorBuilder(estimatedSize);
             case INT -> blockFactory.newIntVectorBuilder(estimatedSize);
             case LONG -> blockFactory.newLongVectorBuilder(estimatedSize);
+            case DENSE_VECTOR -> blockFactory.newDoubleVectorVectorBuilder(estimatedSize);
         };
     }
 

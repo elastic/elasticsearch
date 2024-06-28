@@ -30,7 +30,7 @@ public enum ElementType {
      */
     DOC(DocBlock::newBlockBuilder),
 
-    DENSE_VECTOR(BlockFactory::newDoubleBlockBuilder),
+    DENSE_VECTOR(BlockFactory::newDoubleVectorVectorBlockBuilder),
 
     /**
      * Composite blocks which contain array of sub-blocks.

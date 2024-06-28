@@ -281,7 +281,8 @@ public interface Block extends Accountable, BlockLoader.Block, NamedWriteable, R
             BytesRefBlock.ENTRY,
             BooleanBlock.ENTRY,
             ConstantNullBlock.ENTRY,
-            CompositeBlock.ENTRY
+            CompositeBlock.ENTRY,
+            DoubleVectorVectorBlock.ENTRY
         );
     }
 

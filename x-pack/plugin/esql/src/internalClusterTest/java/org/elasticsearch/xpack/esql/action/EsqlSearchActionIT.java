@@ -17,8 +17,10 @@ import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
 import org.junit.Before;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -239,16 +241,59 @@ public class EsqlSearchActionIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    public void testRankMatchWithKnn() {
+        var query = """
+            SEARCH test [
+              | RANK KNN(embedding, [0.1, 1, 1])
+              ]
+            | KEEP id, _score, content
+            """;
+
+        try (var resp = run(query)) {
+            logger.info("response=" + prettyResponse(resp));
+            assertThat(resp.columns().stream().map(ColumnInfo::name).toList(), contains("id", "_score", "content"));
+            assertThat(resp.columns().stream().map(ColumnInfo::type).toList(), contains("integer", "float", "text"));
+            // values
+            List<List<Object>> values = getValuesList(resp);
+            assertThat(values.get(0), contains(1, 0.99999785F, "This is a brown fox"));
+            assertThat(values.get(1), contains(2, 0.99999785F, "This is a brown dog"));
+            assertThat(values.get(2), contains(3, 0.89533967F, "This dog is really brown"));
+        };
+    }
+
+    public void testRowMultiValue() {  // DELETE me
+        var query = """
+            row a = [0.1, 0.2, 0.3, 0.4 ]
+            """;
+
+        try (var resp = run(query)) {
+            logger.info("response=" + prettyResponse(resp));
+        }
+    }
+
     private void createAndPopulateIndex(String indexName) {
         var client = client().admin().indices();
         var CreateRequest = client.prepareCreate(indexName)
             .setSettings(Settings.builder().put("index.number_of_shards", 1))
             .setMapping("id", "type=integer", "cost", "type=double", "color", "type=keyword", "content", "type=text");
         assertAcked(CreateRequest);
+        HashMap<String, Object> objectObjectHashMap = new HashMap<>();
+        objectObjectHashMap.put("type", "dense_vector");
+        objectObjectHashMap.put("dims", 3);
+        Map<String, Object> embeddingMapping = new HashMap<>();
+        embeddingMapping.put("embedding", objectObjectHashMap);
+        Map<String, Object> properties = new HashMap<>();
+        properties.put("properties", embeddingMapping);
+        var PutRequest = client.preparePutMapping(indexName)
+                .setSource(properties);
+        assertAcked(PutRequest);
         client().prepareBulk()
-            .add(new IndexRequest(indexName).id("1").source("id", 1, "content", "This is a brown fox"))
-            .add(new IndexRequest(indexName).id("2").source("id", 2, "content", "This is a brown dog"))
-            .add(new IndexRequest(indexName).id("3").source("id", 3, "content", "This dog is really brown"))
+            .add(new IndexRequest(indexName).id("1").source("id", 1, "content", "This is a brown fox",
+                "embedding", new float[]{0.1f, 1f, 1f}))
+            .add(new IndexRequest(indexName).id("2").source("id", 2, "content", "This is a brown dog",
+                "embedding", new float[]{0.1f, 1.001f, 1f}))
+            .add(new IndexRequest(indexName).id("3").source("id", 3, "content", "This dog is really brown",
+                "embedding", new float[]{0.2f, 0.1f, 0.3f}))
             .add(new IndexRequest(indexName).id("4").source("id", 4, "content", "The dog is brown but this document is very very long"))
             .add(new IndexRequest(indexName).id("5").source("id", 5, "content", "There is also a white cat"))
             .add(new IndexRequest(indexName).id("6").source("id", 6, "content", "The quick brown fox jumps over the lazy dog"))

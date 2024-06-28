@@ -63,8 +63,17 @@ public class TransportUnpromotableShardRefreshAction extends TransportBroadcastU
         UnpromotableShardRefreshRequest request,
         ActionListener<ActionResponse.Empty> responseListener
     ) {
+        // In edge cases, the search shard may still in the process of being created when a refresh request arrives.
+        // We simply respond OK to the request because when the search shard recovers later it will use the latest
+        // commit from the proper indexing shard.
+        final var indexService = indicesService.indexService(request.shardId().getIndex());
+        if (indexService == null || indexService.hasShard(request.shardId().id()) == false) {
+            responseListener.onResponse(ActionResponse.Empty.INSTANCE);
+            return;
+        }
+
         ActionListener.run(responseListener, listener -> {
-            IndexShard shard = indicesService.indexServiceSafe(request.shardId().getIndex()).getShard(request.shardId().id());
+            IndexShard shard = indexService.getShard(request.shardId().id());
             shard.waitForPrimaryTermAndGeneration(
                 request.getPrimaryTerm(),
                 request.getSegmentGeneration(),

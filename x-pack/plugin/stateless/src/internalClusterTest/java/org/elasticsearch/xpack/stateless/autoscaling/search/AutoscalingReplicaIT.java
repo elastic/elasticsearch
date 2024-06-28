@@ -78,7 +78,7 @@ public class AutoscalingReplicaIT extends AbstractStatelessIntegTestCase {
 
     public void testSearchPowerAffectsReplica() throws Exception {
         Settings settings = Settings.builder()
-            .put(SearchShardSizeCollector.PUSH_INTERVAL_SETTING.getKey(), TimeValue.timeValueSeconds(1))
+            .put(SearchShardSizeCollector.PUSH_INTERVAL_SETTING.getKey(), TimeValue.timeValueMillis(250))
             .put(ReplicasUpdaterService.REPLICA_UPDATER_INTERVAL.getKey(), TimeValue.timeValueMillis(100))
             .put(ServerlessSharedSettings.ENABLE_REPLICAS_FOR_INSTANT_FAILOVER.getKey(), true)
             .build();
@@ -246,7 +246,7 @@ public class AutoscalingReplicaIT extends AbstractStatelessIntegTestCase {
     public void testDisablingReplicasScalesDown() throws Exception {
         // start in a state with an index scaled to two replicas
         Settings settings = Settings.builder()
-            .put(SearchShardSizeCollector.PUSH_INTERVAL_SETTING.getKey(), TimeValue.timeValueSeconds(1))
+            .put(SearchShardSizeCollector.PUSH_INTERVAL_SETTING.getKey(), TimeValue.timeValueMillis(250))
             .put(ReplicasUpdaterService.REPLICA_UPDATER_INTERVAL.getKey(), TimeValue.timeValueMillis(100))
             .put(ServerlessSharedSettings.ENABLE_REPLICAS_FOR_INSTANT_FAILOVER.getKey(), true)
             .build();
@@ -289,10 +289,10 @@ public class AutoscalingReplicaIT extends AbstractStatelessIntegTestCase {
         assertEquals(1, clusterService.state().metadata().index(indexName).getNumberOfReplicas());
     }
 
-    public void testMulitpleDatastreamsRanking() throws Exception {
+    public void testMultipleDatastreamsRanking() throws Exception {
         // setup with auto replica selection disabled
         Settings settings = Settings.builder()
-            .put(SearchShardSizeCollector.PUSH_INTERVAL_SETTING.getKey(), TimeValue.timeValueSeconds(1))
+            .put(SearchShardSizeCollector.PUSH_INTERVAL_SETTING.getKey(), TimeValue.timeValueMillis(250))
             .put(ReplicasUpdaterService.REPLICA_UPDATER_INTERVAL.getKey(), TimeValue.timeValueMillis(100))
             .put(ServerlessSharedSettings.SEARCH_POWER_MIN_SETTING.getKey(), 205)
             .put(ServerlessSharedSettings.ENABLE_REPLICAS_FOR_INSTANT_FAILOVER.getKey(), false)

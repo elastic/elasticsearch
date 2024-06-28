@@ -62,7 +62,7 @@ public class LearningToRankRescorerContext extends RescoreContext {
             .map(LearningToRankFeatureExtractorBuilder::featureName)
             .collect(Collectors.toSet());
 
-        if (regressionModelDefinition.inputFields().stream().anyMatch(queryFeatureNames::contains)) {
+        if (regressionModelDefinition != null && regressionModelDefinition.inputFields().stream().anyMatch(queryFeatureNames::contains)) {
             throw new IllegalArgumentException("Duplicate feature extractors found in the query and the model definition");
         }
     }

@@ -52,9 +52,11 @@ import static org.mockito.Mockito.verify;
 public class LearningToRankServiceTests extends ESTestCase {
     public static final String GOOD_MODEL = "inferenceEntityId";
     public static final String BAD_MODEL = "badModel";
+    public static final String MODEL_WITH_DUPS = "modelConfigWithDups";
+
     public static final TrainedModelConfig GOOD_MODEL_CONFIG = TrainedModelConfig.builder()
         .setModelId(GOOD_MODEL)
-        .setInput(new TrainedModelInput(List.of("field1", "field2", "feature_1", "feature_2")))
+        .setInput(new TrainedModelInput(List.of("field1", "field2")))
         .setEstimatedOperations(1)
         .setModelSize(2)
         .setModelType(TrainedModelType.TREE_ENSEMBLE)
@@ -76,6 +78,23 @@ public class LearningToRankServiceTests extends ESTestCase {
         .setModelSize(2)
         .setModelType(TrainedModelType.TREE_ENSEMBLE)
         .setInferenceConfig(new RegressionConfig(null, null))
+        .build();
+    public static final TrainedModelConfig MODEL_WITH_DUPS_CONFIG = TrainedModelConfig.builder()
+        .setModelId(MODEL_WITH_DUPS)
+        .setInput(new TrainedModelInput(List.of("field1", "field2", "feature_1", "feature_2")))
+        .setEstimatedOperations(1)
+        .setModelSize(2)
+        .setModelType(TrainedModelType.TREE_ENSEMBLE)
+        .setInferenceConfig(
+            new LearningToRankConfig(
+                2,
+                List.of(
+                    new QueryExtractorBuilder("feature_1", QueryProviderTests.createTestQueryProvider("field_1", "foo")),
+                    new QueryExtractorBuilder("feature_2", QueryProviderTests.createTestQueryProvider("field_2", "bar"))
+                ),
+                Map.of()
+            )
+        )
         .build();
 
     @SuppressWarnings("unchecked")

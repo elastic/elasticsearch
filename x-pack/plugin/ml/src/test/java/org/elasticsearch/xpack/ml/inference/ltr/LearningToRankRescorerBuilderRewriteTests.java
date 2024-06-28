@@ -37,6 +37,7 @@ import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.LearningToR
 import static org.elasticsearch.xpack.ml.inference.ltr.LearningToRankServiceTests.BAD_MODEL;
 import static org.elasticsearch.xpack.ml.inference.ltr.LearningToRankServiceTests.GOOD_MODEL;
 import static org.elasticsearch.xpack.ml.inference.ltr.LearningToRankServiceTests.GOOD_MODEL_CONFIG;
+import static org.elasticsearch.xpack.ml.inference.ltr.LearningToRankServiceTests.MODEL_WITH_DUPS_CONFIG;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -220,7 +221,7 @@ public class LearningToRankRescorerBuilderRewriteTests extends AbstractBuilderTe
 
     public void testThatDuplicateFeaturesAreDisallowed() throws Exception {
         LocalModel localModel = mock(LocalModel.class);
-        when(localModel.inputFields()).thenReturn(GOOD_MODEL_CONFIG.getInput().getFieldNames());
+        when(localModel.inputFields()).thenReturn(MODEL_WITH_DUPS_CONFIG.getInput().getFieldNames());
 
         IndexSearcher searcher = mock(IndexSearcher.class);
         doAnswer(invocation -> invocation.getArgument(0)).when(searcher).rewrite(any(Query.class));
@@ -228,7 +229,7 @@ public class LearningToRankRescorerBuilderRewriteTests extends AbstractBuilderTe
 
         LearningToRankRescorerBuilder rescorerBuilder = new LearningToRankRescorerBuilder(
             localModel,
-            (LearningToRankConfig) GOOD_MODEL_CONFIG.getInferenceConfig(),
+            (LearningToRankConfig) MODEL_WITH_DUPS_CONFIG.getInferenceConfig(),
             null,
             mock(LearningToRankService.class)
         );

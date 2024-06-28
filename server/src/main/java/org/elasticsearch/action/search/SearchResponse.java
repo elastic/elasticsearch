@@ -89,6 +89,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
     private final RefCounted refCounted = LeakTracker.wrap(new SimpleRefCounted());
 
     private int countBuckets(){
+        if(aggregations == null) return 0;
         int count = 0;
         for(InternalAggregation aggregation : aggregations){
             count += aggregation.getBucketCount();

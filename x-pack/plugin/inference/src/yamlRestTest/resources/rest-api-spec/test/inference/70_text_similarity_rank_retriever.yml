@@ -35,8 +35,8 @@ setup:
         index: test-index
         id: doc_1
         body:
-          text: "Tomorrow will take us away far from home. No one will ever know our names. But the bards' songs will remain"
-          topic: ["music"]
+          text: "As seen from Earth, a solar eclipse happens when the Moon is directly between the Earth and the Sun."
+          topic: ["science"]
         refresh: true
 
   - do:
@@ -44,10 +44,18 @@ setup:
         index: test-index
         id: doc_2
         body:
-          text: "Tomorrow all will be known and you're not alone. So don't be afraid in the dark and cold. 'Cause the bards' songs will remain they all will remain"
-          topic: ["music", "epic"]
+          text: "The phases of the Moon come from the position of the Moon relative to the Earth and Sun."
+          topic: ["science"]
         refresh: true
 
+  - do:
+      index:
+        index: test-index
+        id: doc_3
+        body:
+          text: "Sun Moon Lake is a lake in Nantou County, Taiwan. It is the largest lake in Taiwan."
+          topic: ["geography"]
+        refresh: true
 ---
 "Simple text similarity rank retriever":
 
@@ -63,10 +71,10 @@ setup:
                 standard:
                   query:
                     term:
-                      topic: "music"
+                      topic: "science"
               rank_window_size: 10
               inference_id: my-rerank-model
-              inference_text: "are these lyrics of a Blind Guardian song?"
+              inference_text: "How often does the moon hide the sun?"
               field: text
           size: 10
 

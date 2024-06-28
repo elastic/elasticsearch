@@ -336,14 +336,7 @@ public abstract class BlockConverter {
          * Creates a new BytesRefBlock by applying the value converter to each non null and non empty value
          */
         private BytesRefBlock transformValues(BytesRefBlock block) {
-            BlockFactory blockFactory = BlockFactory.getInstance(
-                // FIXME: are these parameters ok here?
-                // FIXME: should the resulting block be closed after use?
-                new NoopCircuitBreaker("esql-arrow"),
-                BigArrays.NON_RECYCLING_INSTANCE
-            );
-
-            try (BytesRefBlock.Builder builder = blockFactory.newBytesRefBlockBuilder(block.getPositionCount())) {
+            try (BytesRefBlock.Builder builder = block.blockFactory().newBytesRefBlockBuilder(block.getPositionCount())) {
                 BytesRef scratch = new BytesRef();
                 for (int i = 0; i < block.getPositionCount(); i++) {
                     if (block.isNull(i)) {

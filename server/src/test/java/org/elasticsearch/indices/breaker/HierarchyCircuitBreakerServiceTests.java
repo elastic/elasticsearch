@@ -911,7 +911,8 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
         ByteSizeValue sizeValue = MemorySizeValue.parseHeapRatioOrDeprecatedByteSizeValue(
             "19%",
             HierarchyCircuitBreakerService.TOTAL_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(),
-            20);
+            20
+        );
         assertWarnings("[indices.breaker.total.limit] setting of [19%] is below the recommended minimum of 20.0% of the heap");
     }
 

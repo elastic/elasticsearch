@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.ApplicationRes
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -79,56 +80,68 @@ public class QueryRoleIT extends SecurityInBasicRestTestCase {
 
     public void testSearchMultipleMetadataFields() throws IOException {
         RoleDescriptor noMetadata = createRole(
-                "noMetadataRole",
-                randomBoolean() ? null : randomAlphaOfLength(8),
-                randomBoolean() ? null : Map.of(),
-                randomApplicationPrivileges()
+            "noMetadataRole",
+            randomBoolean() ? null : randomAlphaOfLength(8),
+            randomBoolean() ? null : Map.of(),
+            randomApplicationPrivileges()
         );
         RoleDescriptor role1 = createRole(
-                "1" + randomAlphaOfLength(4),
-                randomBoolean() ? null : randomAlphaOfLength(8),
-                Map.of("simpleField1", "matchThis", "simpleField2", "butNotThis"),
-                randomApplicationPrivileges()
+            "1" + randomAlphaOfLength(4),
+            randomBoolean() ? null : randomAlphaOfLength(8),
+            Map.of("simpleField1", "matchThis", "simpleField2", "butNotThis"),
+            randomApplicationPrivileges()
         );
         RoleDescriptor role2 = createRole(
-                "2" + randomAlphaOfLength(4),
-                randomBoolean() ? null : randomAlphaOfLength(8),
-                Map.of("simpleField2", "butNotThis"),
-                randomApplicationPrivileges()
+            "2" + randomAlphaOfLength(4),
+            randomBoolean() ? null : randomAlphaOfLength(8),
+            Map.of("simpleField2", "butNotThis"),
+            randomApplicationPrivileges()
         );
         RoleDescriptor role3 = createRole(
-                "3" + randomAlphaOfLength(4),
-                randomBoolean() ? null : randomAlphaOfLength(8),
-                Map.of("listField1", List.of("matchThis", "butNotThis"), "listField2", List.of("butNotThisToo")),
-                randomApplicationPrivileges()
+            "3" + randomAlphaOfLength(4),
+            randomBoolean() ? null : randomAlphaOfLength(8),
+            Map.of("listField1", List.of("matchThis", "butNotThis"), "listField2", List.of("butNotThisToo")),
+            randomApplicationPrivileges()
         );
         RoleDescriptor role4 = createRole(
-                "4" + randomAlphaOfLength(4),
-                randomBoolean() ? null : randomAlphaOfLength(8),
-                Map.of("listField2", List.of("butNotThisToo", "andAlsoNotThis")),
-                randomApplicationPrivileges()
+            "4" + randomAlphaOfLength(4),
+            randomBoolean() ? null : randomAlphaOfLength(8),
+            Map.of("listField2", List.of("butNotThisToo", "andAlsoNotThis")),
+            randomApplicationPrivileges()
         );
         RoleDescriptor role5 = createRole(
-                "5" + randomAlphaOfLength(4),
-                randomBoolean() ? null : randomAlphaOfLength(8),
-                Map.of("listField1", List.of("maybeThis", List.of("matchThis")), "listField2", List.of("butNotThis")),
-                randomApplicationPrivileges()
+            "5" + randomAlphaOfLength(4),
+            randomBoolean() ? null : randomAlphaOfLength(8),
+            Map.of("listField1", List.of("maybeThis", List.of("matchThis")), "listField2", List.of("butNotThis")),
+            randomApplicationPrivileges()
         );
         RoleDescriptor role6 = createRole(
-                "6" + randomAlphaOfLength(4),
-                randomBoolean() ? null : randomAlphaOfLength(8),
-                Map.of("mapField1", Map.of("innerField", "matchThis")),
-                randomApplicationPrivileges()
+            "6" + randomAlphaOfLength(4),
+            randomBoolean() ? null : randomAlphaOfLength(8),
+            Map.of("mapField1", Map.of("innerField", "matchThis")),
+            randomApplicationPrivileges()
         );
         RoleDescriptor role7 = createRole(
-                "7" + randomAlphaOfLength(4),
-                randomBoolean() ? null : randomAlphaOfLength(8),
-                Map.of("mapField1", Map.of("innerField", "butNotThis")),
-                randomApplicationPrivileges()
+            "7" + randomAlphaOfLength(4),
+            randomBoolean() ? null : randomAlphaOfLength(8),
+            Map.of("mapField1", Map.of("innerField", "butNotThis")),
+            randomApplicationPrivileges()
+        );
+        RoleDescriptor role8 = createRole(
+            "8" + randomAlphaOfLength(4),
+            randomBoolean() ? null : randomAlphaOfLength(8),
+            Map.of("mapField1", Map.of("innerField", "butNotThis", "innerField2", Map.of("deeperInnerField", "matchThis"))),
+            randomApplicationPrivileges()
         );
         assertQuery("""
-            {"query":{"prefix":{"meta*":"match"}}}""", 4, roles -> {
-            assertThat(roles, iterableWithSize(4));
+            {"query":{"prefix":{"metadata":"match"}}}""", 5, roles -> {
+            assertThat(roles, iterableWithSize(5));
+            roles.sort(Comparator.comparing(o -> ((String) o.get("name"))));
+            assertRoleMap(roles.get(0), role1);
+            assertRoleMap(roles.get(1), role3);
+            assertRoleMap(roles.get(2), role5);
+            assertRoleMap(roles.get(3), role6);
+            assertRoleMap(roles.get(4), role8);
         });
     }
 
@@ -252,7 +265,7 @@ public class QueryRoleIT extends SecurityInBasicRestTestCase {
         Map<String, Object> responseMap = responseAsMap(response);
         assertThat(responseMap.get("total"), is(total));
         @SuppressWarnings("unchecked")
-        List<Map<String, Object>> roles = (List<Map<String, Object>>) responseMap.get("roles");
+        List<Map<String, Object>> roles = new ArrayList<>((List<Map<String, Object>>) responseMap.get("roles"));
         assertThat(roles.size(), is(responseMap.get("count")));
         roleVerifier.accept(roles);
     }

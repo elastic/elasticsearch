@@ -21,30 +21,6 @@ For example, a stored vector `{"feature_0": 0.12, "feature_1": 1.2, "feature_2":
 [[sparse-vector-query-ex-request]]
 === Example request using an {nlp} model
 
-////
-[source, console]
---------------------------------------------------
-PUT index1
-{
-  "mappings": {
-    "properties": {
-      "image-vector": {
-        "type": "dense_vector",
-        "dims": 3
-      }
-    }
-  }
-}
---------------------------------------------------
-// TESTSETUP
-
-[source,console]
---------------------------------------------------
-DELETE index1
---------------------------------------------------
-// TEARDOWN
-////
-
 [source,console]
 ----
 GET _search

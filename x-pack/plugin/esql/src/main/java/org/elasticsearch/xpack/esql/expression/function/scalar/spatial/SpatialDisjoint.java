@@ -11,6 +11,8 @@ import org.apache.lucene.document.ShapeField;
 import org.apache.lucene.geo.Component2D;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.geo.Orientation;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.geometry.Geometry;
@@ -48,6 +50,12 @@ import static org.elasticsearch.xpack.esql.expression.function.scalar.spatial.Sp
  * Here we simply wire the rules together specific to ST_DISJOINT and QueryRelation.DISJOINT.
  */
 public class SpatialDisjoint extends SpatialRelatesFunction {
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
+        Expression.class,
+        "SpatialDisjoint",
+        SpatialDisjoint::new
+    );
+
     // public for test access with reflection
     public static final SpatialRelations GEO = new SpatialRelations(
         ShapeField.QueryRelation.DISJOINT,
@@ -87,6 +95,15 @@ public class SpatialDisjoint extends SpatialRelatesFunction {
 
     private SpatialDisjoint(Source source, Expression left, Expression right, boolean leftDocValues, boolean rightDocValues) {
         super(source, left, right, leftDocValues, rightDocValues);
+    }
+
+    private SpatialDisjoint(StreamInput in) throws IOException {
+        super(in, false, false);
+    }
+
+    @Override
+    public String getWriteableName() {
+        return ENTRY.name;
     }
 
     @Override

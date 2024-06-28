@@ -21,7 +21,6 @@ import org.elasticsearch.xpack.esql.SerializationTestUtils;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
-import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.arithmetic.ArithmeticOperation;
@@ -36,10 +35,6 @@ import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.KeywordEsField;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
-import org.elasticsearch.xpack.esql.expression.function.scalar.math.Pow;
-import org.elasticsearch.xpack.esql.expression.function.scalar.math.Round;
-import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
-import org.elasticsearch.xpack.esql.expression.function.scalar.string.Substring;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mod;
@@ -239,42 +234,6 @@ public class PlanNamedTypesTests extends ESTestCase {
 
     public void testArithmeticOperation() {
         Stream.generate(PlanNamedTypesTests::randomArithmeticOperation).limit(100).forEach(obj -> assertNamedType(Expression.class, obj));
-    }
-
-    public void testSubStringSimple() throws IOException {
-        var orig = new Substring(Source.EMPTY, field("foo", DataType.KEYWORD), new Literal(Source.EMPTY, 1, DataType.INTEGER), null);
-        BytesStreamOutput bso = new BytesStreamOutput();
-        PlanStreamOutput out = new PlanStreamOutput(bso, planNameRegistry, null);
-        PlanNamedTypes.writeSubstring(out, orig);
-        var deser = PlanNamedTypes.readSubstring(planStreamInput(bso));
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(orig, unused -> deser);
-    }
-
-    public void testStartsWithSimple() throws IOException {
-        var orig = new StartsWith(Source.EMPTY, field("foo", DataType.KEYWORD), new Literal(Source.EMPTY, "fo", DataType.KEYWORD));
-        BytesStreamOutput bso = new BytesStreamOutput();
-        PlanStreamOutput out = new PlanStreamOutput(bso, planNameRegistry, null);
-        PlanNamedTypes.writeStartsWith(out, orig);
-        var deser = PlanNamedTypes.readStartsWith(planStreamInput(bso));
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(orig, unused -> deser);
-    }
-
-    public void testRoundSimple() throws IOException {
-        var orig = new Round(Source.EMPTY, field("value", DataType.DOUBLE), new Literal(Source.EMPTY, 1, DataType.INTEGER));
-        BytesStreamOutput bso = new BytesStreamOutput();
-        PlanStreamOutput out = new PlanStreamOutput(bso, planNameRegistry, null);
-        PlanNamedTypes.writeRound(out, orig);
-        var deser = PlanNamedTypes.readRound(planStreamInput(bso));
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(orig, unused -> deser);
-    }
-
-    public void testPowSimple() throws IOException {
-        var orig = new Pow(Source.EMPTY, field("value", DataType.DOUBLE), new Literal(Source.EMPTY, 1, DataType.INTEGER));
-        BytesStreamOutput bso = new BytesStreamOutput();
-        PlanStreamOutput out = new PlanStreamOutput(bso, planNameRegistry, null);
-        PlanNamedTypes.writePow(out, orig);
-        var deser = PlanNamedTypes.readPow(planStreamInput(bso));
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(orig, unused -> deser);
     }
 
     public void testFieldSortSimple() throws IOException {

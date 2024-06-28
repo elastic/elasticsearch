@@ -37,7 +37,7 @@ public class TestModel extends Model {
     }
 
     public static TestModel createRandomInstance(TaskType taskType) {
-        var dimensions = taskType == TaskType.TEXT_EMBEDDING ? randomInt(1024) : null;
+        var dimensions = taskType == TaskType.TEXT_EMBEDDING ? randomInt(64) : null;
         var similarity = taskType == TaskType.TEXT_EMBEDDING ? randomFrom(SimilarityMeasure.values()) : null;
         return new TestModel(
             randomAlphaOfLength(4),

@@ -59,7 +59,6 @@ import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.DriverParallelism;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.LocalExecutionPlannerContext;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.PhysicalOperation;
-import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.esql.type.MultiTypeEsField;
 
 import java.io.IOException;
@@ -118,7 +117,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             MappedFieldType.FieldExtractPreference fieldExtractPreference = PlannerUtils.extractPreference(docValuesAttrs.contains(attr));
             ElementType elementType = PlannerUtils.toElementType(dataType, fieldExtractPreference);
             String fieldName = attr.name();
-            boolean isUnsupported = EsqlDataTypes.isUnsupported(dataType);
+            boolean isUnsupported = dataType == DataType.UNSUPPORTED;
             IntFunction<BlockLoader> loader = s -> getBlockLoaderFor(s, fieldName, isUnsupported, fieldExtractPreference, unionTypes);
             fields.add(new ValuesSourceReaderOperator.FieldInfo(fieldName, elementType, loader));
         }
@@ -233,7 +232,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             .toList();
         // The grouping-by values are ready, let's group on them directly.
         // Costin: why are they ready and not already exposed in the layout?
-        boolean isUnsupported = EsqlDataTypes.isUnsupported(attrSource.dataType());
+        boolean isUnsupported = attrSource.dataType() == DataType.UNSUPPORTED;
         return new OrdinalsGroupingOperator.OrdinalsGroupingOperatorFactory(
             shardIdx -> shardContexts.get(shardIdx).blockLoader(attrSource.name(), isUnsupported, NONE),
             vsShardContexts,

@@ -1185,7 +1185,6 @@ public class IngestServiceTests extends ESTestCase {
 
                     @Override
                     public long normalisedBytesParsed() {
-                        // parsedValueWasUsed.incrementAndGet();
                         return 0;
                     }
 

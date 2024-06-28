@@ -1321,7 +1321,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
                     .stream()
                     .filter(agg -> agg.getType().equals("top_hits"))
                     .toList();
-                assertEquals(topHitsDownsampleAggregations.size(), topHitsDownsampleAggregations.size());
+                assertEquals(topHitsOriginalAggregations.size(), topHitsDownsampleAggregations.size());
 
                 for (int j = 0; j < topHitsDownsampleAggregations.size(); ++j) {
                     InternalTopHits originalTopHits = (InternalTopHits) topHitsOriginalAggregations.get(j);

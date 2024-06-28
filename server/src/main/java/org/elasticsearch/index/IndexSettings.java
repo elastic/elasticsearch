@@ -1157,6 +1157,14 @@ public final class IndexSettings {
             // nothing to update, same settings
             return false;
         }
+
+        // The index.mode setting also validates other index settings,
+        // so we need to read the new settings to ensure index.mode validation doesn't fail.
+        // Also in the case the index.mode hasn't been specified in newSettings (and default applies)
+        // (Note when creating a new index this happens when we read the 'mode' field in the constructor of this class
+        // regardless of whether the index.mode setting has been specified)
+        IndexSettings.MODE.get(newSettings);
+
         scopedSettings.applySettings(newSettings);
         this.settings = newIndexSettings;
         return true;

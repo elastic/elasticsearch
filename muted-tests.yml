@@ -1,7 +1,4 @@
 tests:
-- class: "org.elasticsearch.cluster.coordination.CoordinatorVotingConfigurationTests"
-  issue: "https://github.com/elastic/elasticsearch/issues/108729"
-  method: "testClusterUUIDLogging"
 - class: "org.elasticsearch.xpack.textstructure.structurefinder.TimestampFormatFinderTests"
   issue: "https://github.com/elastic/elasticsearch/issues/108855"
   method: "testGuessIsDayFirstFromLocale"

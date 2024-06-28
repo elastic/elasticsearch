@@ -7,125 +7,90 @@
 
 package org.elasticsearch.xpack.inference.rank.textsimilarity;
 
-import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.action.support.ActionFilter;
-import org.elasticsearch.action.support.ActionFilterChain;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.plugins.ActionPlugin;
+import org.elasticsearch.inference.InputType;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.tasks.Task;
+import org.elasticsearch.search.rank.context.RankFeaturePhaseRankCoordinatorContext;
+import org.elasticsearch.search.rank.rerank.AbstractRerankerIT;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
-import org.elasticsearch.xpack.core.inference.results.RankedDocsResults;
 import org.elasticsearch.xpack.inference.InferencePlugin;
 import org.junit.Before;
 
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
-import static java.util.Collections.singletonList;
 import static org.hamcrest.Matchers.containsString;
 
 public class TextSimilarityRankTests extends ESSingleNodeTestCase {
 
-    public static class TestPlugin extends Plugin implements ActionPlugin {
-
-        private final SetOnce<TestFilter> testFilter = new SetOnce<>();
-
-        @Override
-        public Collection<?> createComponents(PluginServices services) {
-            testFilter.set(new TestFilter());
-            return Collections.emptyList();
-        }
-
-        @Override
-        public List<ActionFilter> getActionFilters() {
-            return singletonList(testFilter.get());
-        }
-    }
-
     /**
-     * Action filter that captures the inference action and injects a mock response.
+     * {@code TextSimilarityRankBuilder} that simulates an inference call that returns a different number of results as the input.
      */
-    static class TestFilter implements ActionFilter {
+    public static class InvalidInferenceResultCountProvidingTextSimilarityRankBuilder extends TextSimilarityRankBuilder {
 
-        enum TestFilterRunMode {
-            NORMAL, // No error
-            INFERENCE_FAILURE, // Simulate failure at inference call
-            INFERENCE_RESULT_MISMATCH // Simulate inference call that returns a different number of items than its input
-        }
-
-        static TestFilterRunMode runMode = TestFilterRunMode.NORMAL;
-
-        /**
-         * Mock response of rerank inference call.
-         */
-        private static final List<RankedDocsResults.RankedDoc> RANKED_DOCS = List.of(
-            new RankedDocsResults.RankedDoc(3, 0.9f, ""),
-            new RankedDocsResults.RankedDoc(0, 0.8f, ""),
-            new RankedDocsResults.RankedDoc(2, 0.7f, ""),
-            new RankedDocsResults.RankedDoc(1, 0.6f, ""),
-            new RankedDocsResults.RankedDoc(4, 0.5f, "")
-        );
-
-        @Override
-        public int order() {
-            return Integer.MIN_VALUE;
-        }
-
-        @Override
-        @SuppressWarnings("unchecked")
-        public <Request extends ActionRequest, Response extends ActionResponse> void apply(
-            Task task,
-            String action,
-            Request request,
-            ActionListener<Response> listener,
-            ActionFilterChain<Request, Response> chain
+        public InvalidInferenceResultCountProvidingTextSimilarityRankBuilder(
+            String field,
+            String inferenceId,
+            String inferenceText,
+            int rankWindowSize,
+            Float minScore
         ) {
-            // For any other action than inference, execute normally
-            if (action.equals(InferenceAction.INSTANCE.name()) == false) {
-                chain.proceed(task, action, request, listener);
-                return;
-            }
+            super(field, inferenceId, inferenceText, rankWindowSize, minScore);
+        }
 
-            // For inference action respond with rerank results or failure, depending on run mode
-            if (runMode == TestFilterRunMode.INFERENCE_FAILURE) {
-                listener.onFailure(new ElasticsearchException("rerank inference call failed"));
-            } else {
-                List<RankedDocsResults.RankedDoc> rankedDocsResults = runMode == TestFilterRunMode.INFERENCE_RESULT_MISMATCH
-                    ? RANKED_DOCS.subList(0, RANKED_DOCS.size() - 1)
-                    : RANKED_DOCS;
-                ActionResponse response = new InferenceAction.Response(new RankedDocsResults(rankedDocsResults));
-                listener.onResponse((Response) response);
-            }
+        @Override
+        public RankFeaturePhaseRankCoordinatorContext buildRankFeaturePhaseCoordinatorContext(int size, int from, Client client) {
+            return new TextSimilarityRankFeaturePhaseRankCoordinatorContext(
+                size,
+                from,
+                rankWindowSize(),
+                client,
+                inferenceId,
+                inferenceText,
+                minScore
+            ) {
+                @Override
+                protected InferenceAction.Request generateRequest(List<String> docFeatures) {
+                    return new InferenceAction.Request(
+                        TaskType.RERANK,
+                        inferenceId,
+                        inferenceText,
+                        docFeatures,
+                        Map.of("invalidInferenceResultCount", true),
+                        InputType.SEARCH,
+                        InferenceAction.Request.DEFAULT_TIMEOUT
+                    );
+                }
+            };
         }
     }
+
+    private static final String inferenceId = "inference-id";
+    private static final String inferenceText = "inference-text";
+    private static final float minScore = 0.0f;
 
     private Client client;
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return List.of(InferencePlugin.class, TestPlugin.class);
+        return List.of(InferencePlugin.class, TextSimilarityTestPlugin.class);
     }
 
     @Before
     public void setup() {
-        TestFilter.runMode = TestFilter.TestFilterRunMode.NORMAL;
-
         // Initialize index with a few documents
         client = client();
         for (int i = 0; i < 5; i++) {
-            client.prepareIndex("my-index").setSource(Collections.singletonMap("text", "text " + i)).get();
+            client.prepareIndex("my-index").setId(String.valueOf(i)).setSource(Collections.singletonMap("text", String.valueOf(i))).get();
         }
         client.admin().indices().prepareRefresh("my-index").get();
     }
@@ -140,11 +105,11 @@ public class TextSimilarityRankTests extends ESSingleNodeTestCase {
                 // Verify order, rank and score of results
                 SearchHit[] hits = response.getHits().getHits();
                 assertEquals(5, hits.length);
-                assertHitHasRankScoreAndText(hits[0], 1, 0.9f, "text 3");
-                assertHitHasRankScoreAndText(hits[1], 2, 0.8f, "text 0");
-                assertHitHasRankScoreAndText(hits[2], 3, 0.7f, "text 2");
-                assertHitHasRankScoreAndText(hits[3], 4, 0.6f, "text 1");
-                assertHitHasRankScoreAndText(hits[4], 5, 0.5f, "text 4");
+                assertHitHasRankScoreAndText(hits[0], 1, 4.0f, "4");
+                assertHitHasRankScoreAndText(hits[1], 2, 3.0f, "3");
+                assertHitHasRankScoreAndText(hits[2], 3, 2.0f, "2");
+                assertHitHasRankScoreAndText(hits[3], 4, 1.0f, "1");
+                assertHitHasRankScoreAndText(hits[4], 5, 0.0f, "0");
             }
         );
     }
@@ -153,44 +118,56 @@ public class TextSimilarityRankTests extends ESSingleNodeTestCase {
         ElasticsearchAssertions.assertNoFailuresAndResponse(
             // Execute search with text similarity reranking
             client.prepareSearch()
-                .setRankBuilder(new TextSimilarityRankBuilder("text", "my-rerank-model", "my query", 100, 0.7f))
+                .setRankBuilder(new TextSimilarityRankBuilder("text", "my-rerank-model", "my query", 100, 1.5f))
                 .setQuery(QueryBuilders.matchAllQuery()),
             response -> {
                 // Verify order, rank and score of results
                 SearchHit[] hits = response.getHits().getHits();
                 assertEquals(3, hits.length);
-                assertHitHasRankScoreAndText(hits[0], 1, 0.9f, "text 3");
-                assertHitHasRankScoreAndText(hits[1], 2, 0.8f, "text 0");
-                assertHitHasRankScoreAndText(hits[2], 3, 0.7f, "text 2");
+                assertHitHasRankScoreAndText(hits[0], 1, 4.0f, "4");
+                assertHitHasRankScoreAndText(hits[1], 2, 3.0f, "3");
+                assertHitHasRankScoreAndText(hits[2], 3, 2.0f, "2");
             }
         );
     }
 
     public void testRerankInferenceFailure() {
-        testAndExpectRankFeaturePhaseFailure(TestFilter.TestFilterRunMode.INFERENCE_FAILURE);
+        ElasticsearchAssertions.assertFailures(
+            // Execute search with text similarity reranking
+            client.prepareSearch()
+                .setRankBuilder(
+                    new TextSimilarityTestPlugin.ThrowingMockRequestActionBasedRankBuilder(
+                        100,
+                        "text",
+                        "my-rerank-model",
+                        "my query",
+                        0.7f,
+                        AbstractRerankerIT.ThrowingRankBuilderType.THROWING_RANK_FEATURE_PHASE_COORDINATOR_CONTEXT.name()
+                    )
+                )
+                .setQuery(QueryBuilders.matchAllQuery()),
+            RestStatus.INTERNAL_SERVER_ERROR,
+            containsString("Failed to execute phase [rank-feature], Computing updated ranks for results failed")
+        );
     }
 
     public void testRerankInferenceResultMismatch() {
-        testAndExpectRankFeaturePhaseFailure(TestFilter.TestFilterRunMode.INFERENCE_RESULT_MISMATCH);
+        ElasticsearchAssertions.assertFailures(
+            // Execute search with text similarity reranking
+            client.prepareSearch()
+                .setRankBuilder(
+                    new InvalidInferenceResultCountProvidingTextSimilarityRankBuilder("text", "my-rerank-model", "my query", 100, 1.5f)
+                )
+                .setQuery(QueryBuilders.matchAllQuery()),
+            RestStatus.INTERNAL_SERVER_ERROR,
+            containsString("Failed to execute phase [rank-feature], Computing updated ranks for results failed")
+        );
     }
 
     private static void assertHitHasRankScoreAndText(SearchHit hit, int expectedRank, float expectedScore, String expectedText) {
         assertEquals(expectedRank, hit.getRank());
         assertEquals(expectedScore, hit.getScore(), 0.0f);
         assertEquals(expectedText, Objects.requireNonNull(hit.getSourceAsMap()).get("text"));
-    }
-
-    private void testAndExpectRankFeaturePhaseFailure(TestFilter.TestFilterRunMode runMode) {
-        TestFilter.runMode = runMode;
-
-        ElasticsearchAssertions.assertFailures(
-            // Execute search with text similarity reranking
-            client.prepareSearch()
-                .setRankBuilder(new TextSimilarityRankBuilder("text", "my-rerank-model", "my query", 100, 0.7f))
-                .setQuery(QueryBuilders.matchAllQuery()),
-            RestStatus.INTERNAL_SERVER_ERROR,
-            containsString("Failed to execute phase [rank-feature], Computing updated ranks for results failed")
-        );
     }
 
 }

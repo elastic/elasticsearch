@@ -272,8 +272,16 @@ public class DenseVectorFieldMapper extends FieldMapper {
             return this;
         }
 
+        public Builder elementType(ElementType elementType) {
+            this.elementType.setValue(elementType);
+            return this;
+        }
+
         @Override
         public DenseVectorFieldMapper build(MapperBuilderContext context) {
+            // Validate again here because the dimensions or element type could have been set programmatically,
+            // which affects index option validity
+            validate();
             return new DenseVectorFieldMapper(
                 leafName(),
                 new DenseVectorFieldType(

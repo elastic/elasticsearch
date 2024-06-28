@@ -9,6 +9,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexSortConfig;
 import org.elasticsearch.index.IndexVersion;
@@ -22,6 +23,8 @@ public class DocumentMapper {
     private final MappingLookup mappingLookup;
     private final DocumentParser documentParser;
     private final MapperMetrics mapperMetrics;
+
+    static final NodeFeature INDEX_SORTING_ON_NESTED = new NodeFeature("mapper.index_sorting_on_nested");
 
     /**
      * Create a new {@link DocumentMapper} that holds empty mappings.

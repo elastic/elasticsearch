@@ -88,9 +88,9 @@ ROW left = "left", client_ip = "172.21.0.5", env = "env", right = "right"
 left:keyword | env:keyword | right:keyword | client_ip:keyword
 ;
 
-shadowingMulti
+shadowingMulti#[skip:-8.13.99, reason:ENRICH extended in 8.14.0]
 required_capability: enrich_load
-ROW left = "left", airport = "Zurich Airport ZRH", city = "Zürich", middle = "middle", region = "North-East Switzerland", right = "right" 
+ROW left = "left", airport = "Zurich Airport ZRH", city = "Zürich", middle = "middle", region = "North-East Switzerland", right = "right"
 | ENRICH city_names ON city WITH airport, region, city_boundary
 ;
 
@@ -98,8 +98,8 @@ left:keyword | city:keyword | middle:keyword | right:keyword | airport:text | re
 left         | Zürich       | middle         | right         | Zurich Int'l | Bezirk Zürich | "POLYGON((8.448 47.3802,8.4977 47.3452,8.5032 47.3202,8.6254 47.3547,8.5832 47.3883,8.5973 47.4063,8.5431 47.4329,8.4858 47.431,8.4691 47.4169,8.473 47.3951,8.448 47.3802))"
 ;
 
-shadowingMultiLimit0
-ROW left = "left", airport = "Zurich Airport ZRH", city = "Zurich", middle = "middle", region = "North-East Switzerland", right = "right" 
+shadowingMultiLimit0#[skip:-8.13.99, reason:ENRICH extended in 8.14.0]
+ROW left = "left", airport = "Zurich Airport ZRH", city = "Zürich", middle = "middle", region = "North-East Switzerland", right = "right"
 | ENRICH city_names ON city WITH airport, region, city_boundary
 | LIMIT 0
 ;

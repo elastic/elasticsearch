@@ -455,10 +455,10 @@ teardown:
           query:
             rule:
               organic:
-                text_expansion:
-                  ml.tokens:
-                    model_id: text_expansion_model
-                    model_text: "octopus comforter smells"
+                sparse_vector:
+                  field: ml.tokens
+                  inference_id: text_expansion_model
+                  query: "octopus comforter smells"
               match_criteria:
                 foo: bar
               ruleset_ids:
@@ -473,10 +473,10 @@ teardown:
           query:
             rule:
               organic:
-                text_expansion:
-                  ml.tokens:
-                    model_id: text_expansion_model
-                    model_text: "octopus comforter smells"
+                sparse_vector:
+                  field: ml.tokens
+                  inference_id: text_expansion_model
+                  query: "octopus comforter smells"
               match_criteria:
                 foo: baz
               ruleset_ids:
@@ -491,10 +491,10 @@ teardown:
           query:
             rule:
               organic:
-                text_expansion:
-                  ml.tokens:
-                    model_id: text_expansion_model
-                    model_text: "octopus comforter smells"
+                sparse_vector:
+                  field: ml.tokens
+                  inference_id: text_expansion_model
+                  query: "octopus comforter smells"
               match_criteria:
                 foo: puggle
               ruleset_ids:

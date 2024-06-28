@@ -5029,12 +5029,14 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
         assertThat(join.config().type(), equalTo(JoinType.LEFT));
         assertThat(join.config().matchFields().stream().map(Object::toString).toList(), matchesList().item(startsWith("int{r}")));
-        assertThat(join.config().conditions().size(), equalTo(1));
-        Equals eq = as(join.config().conditions().get(0), Equals.class);
-        assertThat(eq.left().toString(), startsWith("int{r}"));
-        assertThat(eq.right().toString(), startsWith("int{r}"));
-        assertTrue(join.children().get(0).outputSet() + " contains " + eq.left(), join.children().get(0).outputSet().contains(eq.left()));
-        assertTrue(join.children().get(1).outputSet() + " contains " + eq.right(), join.children().get(1).outputSet().contains(eq.right()));
+        assertThat(join.config().leftFields().size(), equalTo(1));
+        assertThat(join.config().rightFields().size(), equalTo(1));
+        Attribute lhs = join.config().leftFields().get(0);
+        Attribute rhs = join.config().rightFields().get(0);
+        assertThat(lhs.toString(), startsWith("int{r}"));
+        assertThat(rhs.toString(), startsWith("int{r}"));
+        assertTrue(join.children().get(0).outputSet() + " contains " + lhs, join.children().get(0).outputSet().contains(lhs));
+        assertTrue(join.children().get(1).outputSet() + " contains " + rhs, join.children().get(1).outputSet().contains(rhs));
 
         // Join's output looks sensible too
         assertMap(
@@ -5109,10 +5111,12 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
         assertThat(join.config().type(), equalTo(JoinType.LEFT));
         assertThat(join.config().matchFields().stream().map(Object::toString).toList(), matchesList().item(startsWith("int{r}")));
-        assertThat(join.config().conditions().size(), equalTo(1));
-        Equals eq = as(join.config().conditions().get(0), Equals.class);
-        assertThat(eq.left().toString(), startsWith("int{r}"));
-        assertThat(eq.right().toString(), startsWith("int{r}"));
+        assertThat(join.config().leftFields().size(), equalTo(1));
+        assertThat(join.config().rightFields().size(), equalTo(1));
+        Attribute lhs = join.config().leftFields().get(0);
+        Attribute rhs = join.config().rightFields().get(0);
+        assertThat(lhs.toString(), startsWith("int{r}"));
+        assertThat(rhs.toString(), startsWith("int{r}"));
 
         // Join's output looks sensible too
         assertMap(

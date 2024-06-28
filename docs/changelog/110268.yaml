@@ -1,0 +1,7 @@
+pr: 110268
+summary: Trigger `index.mode` validation when updating index settings and the setting
+  hasn't been defined
+area: Metrics
+type: bug
+issues:
+ - 110265

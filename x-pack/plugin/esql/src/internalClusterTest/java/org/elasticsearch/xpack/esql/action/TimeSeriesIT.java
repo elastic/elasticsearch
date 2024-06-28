@@ -204,7 +204,12 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
         try (var resp = run("METRICS hosts max(rate(request_count)), min(rate(request_count))")) {
             assertThat(
                 resp.columns(),
-                equalTo(List.of(new ColumnInfoImpl("max(rate(request_count))", "double"), new ColumnInfoImpl("min(rate(request_count))", "double")))
+                equalTo(
+                    List.of(
+                        new ColumnInfoImpl("max(rate(request_count))", "double"),
+                        new ColumnInfoImpl("min(rate(request_count))", "double")
+                    )
+                )
             );
             List<List<Object>> values = EsqlTestUtils.getValuesList(resp);
             assertThat(values, hasSize(1));
@@ -625,7 +630,9 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
             assertThat(
                 resp.columns(),
                 equalTo(
-                    List.of(new ColumnInfoImpl("sum(20 * rate(request_count, 1second) + 10 * floor(rate(request_count, 1second)))", "double"))
+                    List.of(
+                        new ColumnInfoImpl("sum(20 * rate(request_count, 1second) + 10 * floor(rate(request_count, 1second)))", "double")
+                    )
                 )
             );
             List<List<Object>> values = EsqlTestUtils.getValuesList(resp);

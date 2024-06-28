@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.core.esql.action;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
-// import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 

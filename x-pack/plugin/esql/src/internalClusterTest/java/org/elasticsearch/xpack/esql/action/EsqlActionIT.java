@@ -691,7 +691,10 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         try (var results = run("from test | eval y = count | rename count as x | keep x, y | eval z = x + y | keep x, y, z")) {
             logger.info(results);
             assertEquals(40, getValuesList(results).size());
-            assertThat(results.columns(), contains(new ColumnInfoImpl("x", "long"), new ColumnInfoImpl("y", "long"), new ColumnInfoImpl("z", "long")));
+            assertThat(
+                results.columns(),
+                contains(new ColumnInfoImpl("x", "long"), new ColumnInfoImpl("y", "long"), new ColumnInfoImpl("z", "long"))
+            );
             for (List<Object> values : getValuesList(results)) {
                 assertThat((Long) values.get(0), greaterThanOrEqualTo(40L));
                 assertThat(values.get(1), is(values.get(0)));
@@ -1019,7 +1022,13 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         try (EsqlQueryResponse results = run("show info")) {
             assertThat(
                 results.columns(),
-                equalTo(List.of(new ColumnInfoImpl("version", "keyword"), new ColumnInfoImpl("date", "keyword"), new ColumnInfoImpl("hash", "keyword")))
+                equalTo(
+                    List.of(
+                        new ColumnInfoImpl("version", "keyword"),
+                        new ColumnInfoImpl("date", "keyword"),
+                        new ColumnInfoImpl("hash", "keyword")
+                    )
+                )
             );
             assertThat(getValuesList(results).size(), equalTo(1));
             assertThat(getValuesList(results).get(0).get(0), equalTo(Build.current().version()));
@@ -1450,7 +1459,13 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
             assertFalse(resp.values().hasNext());
             assertThat(
                 resp.columns(),
-                equalTo(List.of(new ColumnInfoImpl("name", "text"), new ColumnInfoImpl("_source", "_source"), new ColumnInfoImpl("x", "integer")))
+                equalTo(
+                    List.of(
+                        new ColumnInfoImpl("name", "text"),
+                        new ColumnInfoImpl("_source", "_source"),
+                        new ColumnInfoImpl("x", "integer")
+                    )
+                )
             );
         }
 

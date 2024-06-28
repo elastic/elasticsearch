@@ -28,7 +28,9 @@ base {
 }
 
 versions << [
-  'awsbedrockruntime': '1.12.740'
+  'awsbedrockruntime': '1.12.740',
+  'aws'              : '1.12.270',
+  'jackson'          : '2.15.0'
 ]
 
 dependencies {
@@ -68,6 +70,7 @@ dependencies {
   implementation 'com.google.http-client:google-http-client-appengine:1.42.3'
   implementation 'com.google.http-client:google-http-client-jackson2:1.42.3'
   implementation "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
+  implementation "com.fasterxml.jackson.core:jackson-databind:${versions.jackson}"
   implementation 'com.google.api:gax-httpjson:0.105.1'
   implementation 'io.grpc:grpc-context:1.49.2'
   implementation 'io.opencensus:opencensus-api:0.31.1'
@@ -81,6 +84,9 @@ tasks.named("dependencyLicenses").configure {
   mapping from: /protobuf.*/, to: 'protobuf'
   mapping from: /proto-google.*/, to: 'proto-google'
   mapping from: /jackson.*/, to: 'jackson'
+  mapping from: /aws-java-sdk-.*/, to: 'aws-java-sdk'
+  mapping from: /jmespath-java.*/, to: 'aws-java-sdk'
+  mapping from: /jaxb-.*/, to: 'jaxb'
 }
 
 tasks.named("thirdPartyAudit").configure {
@@ -214,24 +220,7 @@ tasks.named("thirdPartyAudit").configure {
     'com.google.appengine.api.urlfetch.HTTPRequest',
     'com.google.appengine.api.urlfetch.HTTPResponse',
     'com.google.appengine.api.urlfetch.URLFetchService',
-    'com.google.appengine.api.urlfetch.URLFetchServiceFactory'
-  )
-}
-
-tasks.named('yamlRestTest') {
-  usesDefaultDistribution()
-}
-
-tasks.named("dependencyLicenses").configure {
-  mapping from: /aws-java-sdk-.*/, to: 'aws-java-sdk'
-  mapping from: /jmespath-java.*/, to: 'aws-java-sdk'
-  mapping from: /jackson-.*/, to: 'jackson'
-  mapping from: /jaxb-.*/, to: 'jaxb'
-}
-
-tasks.named("thirdPartyAudit").configure {
-  ignoreMissingClasses(
-    // classes are missing
+    'com.google.appengine.api.urlfetch.URLFetchServiceFactory',
     'software.amazon.ion.IonReader',
     'software.amazon.ion.IonSystem',
     'software.amazon.ion.IonType',
@@ -244,3 +233,8 @@ tasks.named("thirdPartyAudit").configure {
     'javax.activation.DataHandler'
   )
 }
+
+tasks.named('yamlRestTest') {
+  usesDefaultDistribution()
+}
+

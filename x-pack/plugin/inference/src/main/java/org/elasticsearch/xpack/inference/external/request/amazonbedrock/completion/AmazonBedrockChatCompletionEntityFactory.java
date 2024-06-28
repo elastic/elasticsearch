@@ -18,7 +18,7 @@ public final class AmazonBedrockChatCompletionEntityFactory {
         var serviceSettings = (AmazonBedrockChatCompletionServiceSettings) model.getServiceSettings();
         var taskSettings = (AmazonBedrockChatCompletionTaskSettings) model.getTaskSettings();
         switch (serviceSettings.provider()) {
-            case AI21Labs -> {
+            case AI21LABS -> {
                 return new AmazonBedrockAI21LabsCompletionRequestEntity(
                     messages,
                     taskSettings.temperature(),
@@ -26,7 +26,7 @@ public final class AmazonBedrockChatCompletionEntityFactory {
                     taskSettings.maxNewTokens()
                 );
             }
-            case AmazonTitan -> {
+            case AMAZONTITAN -> {
                 return new AmazonBedrockTitanCompletionRequestEntity(
                     messages,
                     taskSettings.temperature(),
@@ -34,7 +34,7 @@ public final class AmazonBedrockChatCompletionEntityFactory {
                     taskSettings.maxNewTokens()
                 );
             }
-            case Anthropic -> {
+            case ANTHROPIC -> {
                 return new AmazonBedrockAnthropicCompletionRequestEntity(
                     messages,
                     taskSettings.temperature(),
@@ -43,7 +43,7 @@ public final class AmazonBedrockChatCompletionEntityFactory {
                     taskSettings.maxNewTokens()
                 );
             }
-            case Cohere -> {
+            case COHERE -> {
                 return new AmazonBedrockCohereCompletionRequestEntity(
                     messages,
                     taskSettings.temperature(),
@@ -52,7 +52,7 @@ public final class AmazonBedrockChatCompletionEntityFactory {
                     taskSettings.maxNewTokens()
                 );
             }
-            case Meta -> {
+            case META -> {
                 return new AmazonBedrockMetaCompletionRequestEntity(
                     messages,
                     taskSettings.temperature(),
@@ -60,7 +60,7 @@ public final class AmazonBedrockChatCompletionEntityFactory {
                     taskSettings.maxNewTokens()
                 );
             }
-            case Mistral -> {
+            case MISTRAL -> {
                 return new AmazonBedrockMistralCompletionRequestEntity(
                     messages,
                     taskSettings.temperature(),

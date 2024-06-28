@@ -63,7 +63,7 @@ public class AmazonBedrockChatCompletionServiceSettings extends AmazonBedrockSer
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        addXContentFragmentOfExposedFields(builder, params);
+        super.addBaseXContent(builder, params);
         builder.endObject();
         return builder;
     }

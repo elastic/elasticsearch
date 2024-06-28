@@ -138,7 +138,6 @@ public class AmazonBedrockEmbeddingsServiceSettings extends AmazonBedrockService
         builder.startObject();
 
         super.addBaseXContent(builder, params);
-        addXContentFragmentOfExposedFields(builder, params);
         builder.field(DIMENSIONS_SET_BY_USER, dimensionsSetByUser);
 
         builder.endObject();

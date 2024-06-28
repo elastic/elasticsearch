@@ -50,6 +50,9 @@ public class AmazonBedrockEmbeddingsResponse extends AmazonBedrockResponse {
         var parserConfig = XContentParserConfiguration.EMPTY.withDeprecationHandler(LoggingDeprecationHandler.INSTANCE);
 
         try (XContentParser jsonParser = XContentFactory.xContent(XContentType.JSON).createParser(parserConfig, bodyText)) {
+            // move to the first token
+            jsonParser.nextToken();
+
             XContentParser.Token token = jsonParser.currentToken();
             ensureExpectedToken(XContentParser.Token.START_OBJECT, token, jsonParser);
 
@@ -66,10 +69,10 @@ public class AmazonBedrockEmbeddingsResponse extends AmazonBedrockResponse {
         AmazonBedrockProvider provider
     ) throws IOException {
         switch (provider) {
-            case AmazonTitan -> {
+            case AMAZONTITAN -> {
                 return parseTitanEmbeddings(jsonParser);
             }
-            case Cohere -> {
+            case COHERE -> {
                 return parseCohereEmbeddings(jsonParser);
             }
             default -> throw new IOException("Unsupported provider [" + provider + "]");

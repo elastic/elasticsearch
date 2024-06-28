@@ -28,11 +28,11 @@ public final class AmazonBedrockEmbeddingsEntityFactory {
         var truncatedInput = truncate(inputs, serviceSettings.maxInputTokens());
 
         switch (serviceSettings.provider()) {
-            case AmazonTitan -> {
+            case AMAZONTITAN -> {
                 // TODO -- can we just use the first one here? Or do we need to warn?
                 return new AmazonBedrockTitanEmbeddingsRequestEntity(truncatedInput.input().get(0));
             }
-            case Cohere -> {
+            case COHERE -> {
                 return new AmazonBedrockCohereEmbeddingsRequestEntity(truncatedInput.input());
             }
             default -> {

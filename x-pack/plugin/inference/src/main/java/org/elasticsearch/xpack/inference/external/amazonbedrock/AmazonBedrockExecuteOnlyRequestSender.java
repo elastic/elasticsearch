@@ -17,7 +17,7 @@ import org.elasticsearch.xpack.inference.external.http.retry.RequestSender;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
 import org.elasticsearch.xpack.inference.external.request.Request;
 import org.elasticsearch.xpack.inference.external.request.amazonbedrock.AmazonBedrockRequest;
-import org.elasticsearch.xpack.inference.external.response.amazonbedrock.AmazonBedrockResponse;
+import org.elasticsearch.xpack.inference.external.response.amazonbedrock.AmazonBedrockResponseHandler;
 
 import java.util.function.Supplier;
 
@@ -39,7 +39,7 @@ public class AmazonBedrockExecuteOnlyRequestSender implements RequestSender {
         ResponseHandler responseHandler,
         ActionListener<InferenceServiceResults> listener
     ) {
-        if (request instanceof AmazonBedrockRequest awsRequest && responseHandler instanceof AmazonBedrockResponse awsResponse) {
+        if (request instanceof AmazonBedrockRequest awsRequest && responseHandler instanceof AmazonBedrockResponseHandler awsResponse) {
             try {
                 var executor = new AmazonBedrockExecutor(
                     awsRequest.model(),
@@ -59,6 +59,7 @@ public class AmazonBedrockExecuteOnlyRequestSender implements RequestSender {
             }
         }
 
+        listener.onFailure(new ElasticsearchException("Amazon Bedrock request was not the correct type"));
     }
 
     private void logException(Logger logger, Request request, String requestType, Exception exception) {

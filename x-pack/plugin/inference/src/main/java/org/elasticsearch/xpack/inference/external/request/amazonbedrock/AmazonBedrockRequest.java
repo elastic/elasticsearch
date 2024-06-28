@@ -17,9 +17,11 @@ import java.net.URI;
 public abstract class AmazonBedrockRequest implements Request {
 
     protected final AmazonBedrockModel amazonBedrockModel;
+    protected final String inferenceId;
 
     protected AmazonBedrockRequest(AmazonBedrockModel model) {
         this.amazonBedrockModel = model;
+        this.inferenceId = model.getInferenceEntityId();
     }
 
     public abstract void executeRequest(AmazonBedrockInferenceClient client);
@@ -30,11 +32,12 @@ public abstract class AmazonBedrockRequest implements Request {
 
     /**
      * Amazon Bedrock uses the AWS SDK, and will not create its own Http Request
+     * But, this is needed for the ExecutableInferenceRequest to get the inferenceEntityId
      * @return null
      */
     @Override
     public final HttpRequest createHttpRequest() {
-        return null;
+        return new HttpRequest(new NoOpHttpRequest(), inferenceId);
     }
 
     /**

@@ -43,7 +43,7 @@ public class AmazonBedrockChatCompletionRequest extends AmazonBedrockRequest {
     }
 
     private ConverseRequest getConverseRequest() {
-        var converseRequest = new ConverseRequest();
+        var converseRequest = new ConverseRequest().withModelId(amazonBedrockModel.model());
         converseRequest = requestEntity.addMessages(converseRequest);
         converseRequest = requestEntity.addInferenceConfig(converseRequest);
         converseRequest = requestEntity.addAdditionalModelFields(converseRequest);

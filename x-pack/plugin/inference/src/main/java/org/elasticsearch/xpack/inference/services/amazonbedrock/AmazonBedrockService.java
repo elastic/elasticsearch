@@ -52,7 +52,7 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFrom
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwIfNotEmptyMap;
 
 public class AmazonBedrockService extends SenderService {
-    public static final String NAME = "amazon_bedrock_service";
+    public static final String NAME = "amazonbedrock";
 
     private final AmazonBedrockRequestSender.Factory amazonBedrockSenderFactory;
 
@@ -188,7 +188,18 @@ public class AmazonBedrockService extends SenderService {
 
     @Override
     public Model parsePersistedConfig(String modelId, TaskType taskType, Map<String, Object> config) {
-        return null;
+        Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
+        Map<String, Object> taskSettingsMap = removeFromMapOrDefaultEmpty(config, ModelConfigurations.TASK_SETTINGS);
+
+        return createModel(
+            modelId,
+            taskType,
+            serviceSettingsMap,
+            taskSettingsMap,
+            null,
+            parsePersistedConfigErrorMsg(modelId, NAME),
+            ConfigurationParseContext.PERSISTENT
+        );
     }
 
     private static AmazonBedrockModel createModel(

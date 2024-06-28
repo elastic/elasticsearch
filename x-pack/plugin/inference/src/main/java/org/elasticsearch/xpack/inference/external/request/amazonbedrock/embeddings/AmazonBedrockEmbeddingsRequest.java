@@ -62,7 +62,10 @@ public class AmazonBedrockEmbeddingsRequest extends AmazonBedrockRequest {
             }
 
             var charset = StandardCharsets.UTF_8;
-            var bodyBuffer = charset.encode(bodyBytes.toString());
+            // TODO - Amazon doesn't like no space between the "inputText": "value" in the request
+            // Need to find a way to ensure a space is there... :/
+            var bodyAsString = bodyBytes.toString();
+            var bodyBuffer = charset.encode(bodyAsString);
 
             var invokeModelRequest = new InvokeModelRequest().withModelId(embeddingsModel.model()).withBody(bodyBuffer);
 

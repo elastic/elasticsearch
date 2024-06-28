@@ -13,17 +13,17 @@ import java.util.List;
 
 public final class AmazonBedrockProviderCapabilities {
     public static final List<AmazonBedrockProvider> embeddingProviders = List.of(
-        AmazonBedrockProvider.AmazonTitan,
-        AmazonBedrockProvider.Cohere
+        AmazonBedrockProvider.AMAZONTITAN,
+        AmazonBedrockProvider.COHERE
     );
 
     public static final List<AmazonBedrockProvider> chatCompletionProviders = List.of(
-        AmazonBedrockProvider.AmazonTitan,
-        AmazonBedrockProvider.Anthropic,
-        AmazonBedrockProvider.AI21Labs,
-        AmazonBedrockProvider.Cohere,
-        AmazonBedrockProvider.Meta,
-        AmazonBedrockProvider.Mistral
+        AmazonBedrockProvider.AMAZONTITAN,
+        AmazonBedrockProvider.ANTHROPIC,
+        AmazonBedrockProvider.AI21LABS,
+        AmazonBedrockProvider.COHERE,
+        AmazonBedrockProvider.META,
+        AmazonBedrockProvider.MISTRAL
     );
 
     public static boolean providerAllowsTaskType(AmazonBedrockProvider provider, TaskType taskType) {

@@ -7,10 +7,8 @@
 
 package org.elasticsearch.xpack.inference.external.amazonbedrock;
 
-import com.amazonaws.ClientConfiguration;
 import com.amazonaws.auth.AWSStaticCredentialsProvider;
 import com.amazonaws.auth.BasicAWSCredentials;
-import com.amazonaws.regions.Regions;
 import com.amazonaws.services.bedrockruntime.AmazonBedrockRuntime;
 import com.amazonaws.services.bedrockruntime.AmazonBedrockRuntimeClientBuilder;
 import com.amazonaws.services.bedrockruntime.model.ConverseRequest;
@@ -18,6 +16,8 @@ import com.amazonaws.services.bedrockruntime.model.ConverseResult;
 import com.amazonaws.services.bedrockruntime.model.InvokeModelRequest;
 import com.amazonaws.services.bedrockruntime.model.InvokeModelResult;
 
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.xpack.core.common.socket.SocketAccess;
@@ -26,6 +26,8 @@ import org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockSec
 import org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockServiceSettings;
 
 import java.io.IOException;
+import java.security.AccessController;
+import java.security.PrivilegedExceptionAction;
 import java.util.Objects;
 
 public final class AmazonBedrockInferenceClient extends AbstractRefCounted implements AmazonBedrockClient, Releasable {
@@ -65,21 +67,29 @@ public final class AmazonBedrockInferenceClient extends AbstractRefCounted imple
         return Objects.hash(secretSettings.accessKey, secretSettings.secretKey, serviceSettings.region());
     }
 
-    private AmazonBedrockRuntime createAmazonBedrockClient(AmazonBedrockModel model) throws IOException {
+    private AmazonBedrockRuntime createAmazonBedrockClient(AmazonBedrockModel model) {
         var secretSettings = (AmazonBedrockSecretSettings) model.getSecretSettings();
         var credentials = new BasicAWSCredentials(secretSettings.accessKey.toString(), secretSettings.secretKey.toString());
         var credentialsProvider = new AWSStaticCredentialsProvider(credentials);
 
         // TODO - allow modification to this
-        var clientConfig = new ClientConfiguration().withConnectionTimeout(DEFAULT_CLIENT_TIMEOUT_MS);
+        // var clientConfig = new ClientConfiguration().withConnectionTimeout(DEFAULT_CLIENT_TIMEOUT_MS);
+        // .withClientConfiguration(clientConfig)
 
         var serviceSettings = (AmazonBedrockServiceSettings) model.getServiceSettings();
-        var builder = AmazonBedrockRuntimeClientBuilder.standard()
-            .withClientConfiguration(clientConfig)
-            .withCredentials(credentialsProvider)
-            .withRegion(Regions.fromName(serviceSettings.region()));
 
-        return SocketAccess.doPrivileged(builder::build);
+        try {
+            SpecialPermission.check();
+            AmazonBedrockRuntimeClientBuilder builder = AccessController.doPrivileged(
+                (PrivilegedExceptionAction<AmazonBedrockRuntimeClientBuilder>) () -> AmazonBedrockRuntimeClientBuilder.standard()
+                    .withCredentials(credentialsProvider)
+                    .withRegion(serviceSettings.region())
+            );
+
+            return SocketAccess.doPrivileged(builder::build);
+        } catch (Exception e) {
+            throw new ElasticsearchException("failed to create AmazonBedrockRuntime client", e);
+        }
     }
 
     private void setExpiryTimestamp() {

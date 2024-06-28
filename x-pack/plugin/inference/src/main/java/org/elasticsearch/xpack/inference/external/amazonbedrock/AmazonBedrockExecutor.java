@@ -13,7 +13,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.xpack.inference.external.request.amazonbedrock.AmazonBedrockRequest;
-import org.elasticsearch.xpack.inference.external.response.amazonbedrock.AmazonBedrockResponse;
+import org.elasticsearch.xpack.inference.external.response.amazonbedrock.AmazonBedrockResponseHandler;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockModel;
 
 import java.util.function.Supplier;
@@ -21,7 +21,7 @@ import java.util.function.Supplier;
 public class AmazonBedrockExecutor implements Runnable {
     protected static final AmazonBedrockInferenceClientCache clientCache = new AmazonBedrockInferenceClientCache();
     protected final AmazonBedrockModel baseModel;
-    protected final AmazonBedrockResponse responseHandler;
+    protected final AmazonBedrockResponseHandler responseHandler;
     protected final Logger logger;
     protected final AmazonBedrockRequest request;
     protected final Supplier<Boolean> hasRequestCompletedFunction;
@@ -30,7 +30,7 @@ public class AmazonBedrockExecutor implements Runnable {
     public AmazonBedrockExecutor(
         AmazonBedrockModel model,
         AmazonBedrockRequest request,
-        AmazonBedrockResponse responseHandler,
+        AmazonBedrockResponseHandler responseHandler,
         Logger logger,
         Supplier<Boolean> hasRequestCompletedFunction,
         ActionListener<InferenceServiceResults> listener
@@ -54,7 +54,7 @@ public class AmazonBedrockExecutor implements Runnable {
         try {
             var awsBedrockClient = clientCache.getOrCreateClient(baseModel);
             request.executeRequest(awsBedrockClient);
-            listener.onResponse(responseHandler.accept(request));
+            listener.onResponse(responseHandler.parseResult(request, null));
         } catch (Exception e) {
             var errorMessage = Strings.format("Failed to send request from inference entity id [%s]", inferenceEntityId);
             logger.warn(errorMessage, e);

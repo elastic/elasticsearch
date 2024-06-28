@@ -24,6 +24,7 @@ module org.elasticsearch.inference {
     requires com.google.gson;
     requires aws.java.sdk.bedrockruntime;
     requires aws.java.sdk.core;
+    requires com.fasterxml.jackson.databind;
 
     exports org.elasticsearch.xpack.inference.action;
     exports org.elasticsearch.xpack.inference.registry;

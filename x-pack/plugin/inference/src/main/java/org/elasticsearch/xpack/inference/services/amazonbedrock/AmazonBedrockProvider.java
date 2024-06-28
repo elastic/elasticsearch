@@ -10,12 +10,12 @@ package org.elasticsearch.xpack.inference.services.amazonbedrock;
 import java.util.Locale;
 
 public enum AmazonBedrockProvider {
-    AmazonTitan,
-    Anthropic,
-    AI21Labs,
-    Cohere,
-    Meta,
-    Mistral;
+    AMAZONTITAN,
+    ANTHROPIC,
+    AI21LABS,
+    COHERE,
+    META,
+    MISTRAL;
 
     public static String NAME = "amazon_bedrock_provider";
 

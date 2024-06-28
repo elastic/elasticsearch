@@ -2,18 +2,15 @@
 
 set -euo pipefail
 
-GRADLEW="./gradlew --parallel --scan --build-cache --no-watch-fs"
-export GRADLEW
-
-.ci/scripts/run-gradle.sh precommit --configuration-cache
-
-echo "2nd run"
+./gradlew --max-workers=8 --parallel --scan --build-cache --no-watch-fs --configuration-cache precommit
 
 # Create a temporary file
 tmpOutputFile=$(mktemp)
 trap "rm $tmpOutputFile" EXIT
 
-.ci/scripts/run-gradle.sh precommit --configuration-cache | tee $tmpOutputFile
+echo "2nd run"
+# TODO run-gradle.sh script causes issues because of init script handling
+./gradlew --max-workers=8 --parallel --scan --build-cache --no-watch-fs --configuration-cache precommit | tee $tmpOutputFile
 
 # Check if the command was successful
 if grep -q "Configuration cache entry reused." $tmpOutputFile; then

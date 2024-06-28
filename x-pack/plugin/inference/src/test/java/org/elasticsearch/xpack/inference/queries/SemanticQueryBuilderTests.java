@@ -74,12 +74,12 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQueryBuilder> {
+
     private static final String SEMANTIC_TEXT_FIELD = "semantic";
     private static final float TOKEN_WEIGHT = 0.5f;
     private static final int QUERY_TOKEN_LENGTH = 4;
     private static final int TEXT_EMBEDDING_DIMENSION_COUNT = 10;
     private static final String INFERENCE_ID = "test_service";
-
     private static InferenceResultType inferenceResultType;
     private static DenseVectorFieldMapper.ElementType denseVectorElementType;
 
@@ -202,6 +202,7 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
         Class<? extends Query> expectedKnnQueryClass = switch (denseVectorElementType) {
             case FLOAT -> KnnFloatVectorQuery.class;
             case BYTE -> KnnByteVectorQuery.class;
+            default -> throw new UnsupportedOperationException("Encountered unsupported element type " + denseVectorElementType);
         };
         assertThat(innerQuery, instanceOf(expectedKnnQueryClass));
     }
@@ -352,6 +353,7 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
     }
 
     public static class FakeMlPlugin extends Plugin {
+
         @Override
         public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
             return new MlInferenceNamedXContentProvider().getNamedWriteables();

@@ -24,7 +24,6 @@ import java.util.Objects;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.inference.common.Truncator.truncate;
-import static org.elasticsearch.xpack.inference.external.http.sender.DocumentsOnlyInput.toDocsOnlyInput;
 
 public class OpenAiEmbeddingsRequestManager extends OpenAiRequestManager {
 
@@ -60,7 +59,7 @@ public class OpenAiEmbeddingsRequestManager extends OpenAiRequestManager {
         Supplier<Boolean> hasRequestCompletedFunction,
         ActionListener<InferenceServiceResults> listener
     ) {
-        var docsInput = toDocsOnlyInput(inferenceInputs);
+        var docsInput = DocumentsOnlyInput.of(inferenceInputs);
         var truncatedInput = truncate(docsInput.getInputs(), model.getServiceSettings().maxInputTokens());
         OpenAiEmbeddingsRequest request = new OpenAiEmbeddingsRequest(truncator, truncatedInput, model);
 

@@ -14,7 +14,7 @@ import java.util.Objects;
 
 public class QueryAndDocsInputs extends InferenceInputs {
 
-    public static QueryAndDocsInputs toQueryAndDocsInput(InferenceInputs inferenceInputs) {
+    public static QueryAndDocsInputs of(InferenceInputs inferenceInputs) {
         if (inferenceInputs instanceof QueryAndDocsInputs == false) {
             throw new IllegalArgumentException(Strings.format("Unsupported inference inputs type: [%s]", inferenceInputs.getClass()));
         }

@@ -22,8 +22,6 @@ import org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbedd
 import java.util.Objects;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.xpack.inference.external.http.sender.DocumentsOnlyInput.toDocsOnlyInput;
-
 public class CohereEmbeddingsRequestManager extends CohereRequestManager {
     private static final Logger logger = LogManager.getLogger(CohereEmbeddingsRequestManager.class);
     private static final ResponseHandler HANDLER = createEmbeddingsHandler();
@@ -50,7 +48,7 @@ public class CohereEmbeddingsRequestManager extends CohereRequestManager {
         Supplier<Boolean> hasRequestCompletedFunction,
         ActionListener<InferenceServiceResults> listener
     ) {
-        var docsInput = toDocsOnlyInput(inferenceInputs);
+        var docsInput = DocumentsOnlyInput.of(inferenceInputs);
         CohereEmbeddingsRequest request = new CohereEmbeddingsRequest(docsInput.getInputs(), model);
 
         execute(new ExecutableInferenceRequest(requestSender, logger, request, HANDLER, hasRequestCompletedFunction, listener));

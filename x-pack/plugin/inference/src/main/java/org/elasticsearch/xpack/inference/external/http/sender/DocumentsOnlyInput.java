@@ -14,7 +14,7 @@ import java.util.Objects;
 
 public class DocumentsOnlyInput extends InferenceInputs {
 
-    public static DocumentsOnlyInput toDocsOnlyInput(InferenceInputs inferenceInputs) {
+    public static DocumentsOnlyInput of(InferenceInputs inferenceInputs) {
         if (inferenceInputs instanceof DocumentsOnlyInput == false) {
             throw new IllegalArgumentException(Strings.format("Unsupported inference inputs type: [%s]", inferenceInputs.getClass()));
         }

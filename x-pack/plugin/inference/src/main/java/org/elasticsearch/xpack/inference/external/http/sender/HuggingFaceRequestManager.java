@@ -23,7 +23,6 @@ import java.util.Objects;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.inference.common.Truncator.truncate;
-import static org.elasticsearch.xpack.inference.external.http.sender.DocumentsOnlyInput.toDocsOnlyInput;
 
 public class HuggingFaceRequestManager extends BaseRequestManager {
     private static final Logger logger = LogManager.getLogger(HuggingFaceRequestManager.class);
@@ -60,7 +59,7 @@ public class HuggingFaceRequestManager extends BaseRequestManager {
         Supplier<Boolean> hasRequestCompletedFunction,
         ActionListener<InferenceServiceResults> listener
     ) {
-        var docsInput = toDocsOnlyInput(inferenceInputs);
+        var docsInput = DocumentsOnlyInput.of(inferenceInputs);
         var truncatedInput = truncate(docsInput.getInputs(), model.getTokenLimit());
         var request = new HuggingFaceInferenceRequest(truncator, truncatedInput, model);
 

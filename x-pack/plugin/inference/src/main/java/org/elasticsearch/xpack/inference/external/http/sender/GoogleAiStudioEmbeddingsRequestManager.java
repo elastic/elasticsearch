@@ -20,7 +20,6 @@ import org.elasticsearch.xpack.inference.external.request.googleaistudio.GoogleA
 import org.elasticsearch.xpack.inference.external.response.googleaistudio.GoogleAiStudioEmbeddingsResponseEntity;
 import org.elasticsearch.xpack.inference.services.googleaistudio.embeddings.GoogleAiStudioEmbeddingsModel;
 
-import java.util.List;
 import java.util.Objects;
 import java.util.function.Supplier;
 
@@ -48,13 +47,13 @@ public class GoogleAiStudioEmbeddingsRequestManager extends GoogleAiStudioReques
 
     @Override
     public void execute(
-        String query,
-        List<String> input,
+        InferenceInputs inferenceInputs,
         RequestSender requestSender,
         Supplier<Boolean> hasRequestCompletedFunction,
         ActionListener<InferenceServiceResults> listener
     ) {
-        var truncatedInput = truncate(input, model.getServiceSettings().maxInputTokens());
+        var docsInput = DocumentsOnlyInput.of(inferenceInputs);
+        var truncatedInput = truncate(docsInput.getInputs(), model.getServiceSettings().maxInputTokens());
         GoogleAiStudioEmbeddingsRequest request = new GoogleAiStudioEmbeddingsRequest(truncator, truncatedInput, model);
 
         execute(new ExecutableInferenceRequest(requestSender, logger, request, HANDLER, hasRequestCompletedFunction, listener));

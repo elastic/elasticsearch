@@ -20,7 +20,6 @@ import org.elasticsearch.xpack.inference.external.response.ErrorMessageResponseE
 import org.elasticsearch.xpack.inference.external.response.azureaistudio.AzureAiStudioChatCompletionResponseEntity;
 import org.elasticsearch.xpack.inference.services.azureaistudio.completion.AzureAiStudioChatCompletionModel;
 
-import java.util.List;
 import java.util.function.Supplier;
 
 public class AzureAiStudioChatCompletionRequestManager extends AzureAiStudioRequestManager {
@@ -37,13 +36,13 @@ public class AzureAiStudioChatCompletionRequestManager extends AzureAiStudioRequ
 
     @Override
     public void execute(
-        String query,
-        List<String> input,
+        InferenceInputs inferenceInputs,
         RequestSender requestSender,
         Supplier<Boolean> hasRequestCompletedFunction,
         ActionListener<InferenceServiceResults> listener
     ) {
-        AzureAiStudioChatCompletionRequest request = new AzureAiStudioChatCompletionRequest(model, input);
+        var docsInput = DocumentsOnlyInput.of(inferenceInputs);
+        AzureAiStudioChatCompletionRequest request = new AzureAiStudioChatCompletionRequest(model, docsInput.getInputs());
 
         execute(new ExecutableInferenceRequest(requestSender, logger, request, HANDLER, hasRequestCompletedFunction, listener));
     }

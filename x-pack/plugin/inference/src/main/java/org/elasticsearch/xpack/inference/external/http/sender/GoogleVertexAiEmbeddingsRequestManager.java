@@ -20,7 +20,6 @@ import org.elasticsearch.xpack.inference.external.request.googlevertexai.GoogleV
 import org.elasticsearch.xpack.inference.external.response.googlevertexai.GoogleVertexAiEmbeddingsResponseEntity;
 import org.elasticsearch.xpack.inference.services.googlevertexai.embeddings.GoogleVertexAiEmbeddingsModel;
 
-import java.util.List;
 import java.util.Objects;
 import java.util.function.Supplier;
 
@@ -48,13 +47,13 @@ public class GoogleVertexAiEmbeddingsRequestManager extends GoogleVertexAiReques
 
     @Override
     public void execute(
-        String query,
-        List<String> input,
+        InferenceInputs inferenceInputs,
         RequestSender requestSender,
         Supplier<Boolean> hasRequestCompletedFunction,
         ActionListener<InferenceServiceResults> listener
     ) {
-        var truncatedInput = truncate(input, model.getServiceSettings().maxInputTokens());
+        var docsInput = DocumentsOnlyInput.of(inferenceInputs);
+        var truncatedInput = truncate(docsInput.getInputs(), model.getServiceSettings().maxInputTokens());
         var request = new GoogleVertexAiEmbeddingsRequest(truncator, truncatedInput, model);
 
         execute(new ExecutableInferenceRequest(requestSender, logger, request, HANDLER, hasRequestCompletedFunction, listener));

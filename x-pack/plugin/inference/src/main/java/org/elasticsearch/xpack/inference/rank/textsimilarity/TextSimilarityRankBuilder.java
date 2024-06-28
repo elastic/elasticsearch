@@ -58,7 +58,7 @@ public class TextSimilarityRankBuilder extends RankBuilder {
         String inferenceText = (String) args[1];
         String field = (String) args[2];
         Integer rankWindowSize = args[3] == null ? DEFAULT_RANK_WINDOW_SIZE : (Integer) args[3];
-        Float minScore = args[4] == null ? null : (Float) args[4];
+        Float minScore = (Float) args[4];
 
         return new TextSimilarityRankBuilder(field, inferenceId, inferenceText, rankWindowSize, minScore);
     });

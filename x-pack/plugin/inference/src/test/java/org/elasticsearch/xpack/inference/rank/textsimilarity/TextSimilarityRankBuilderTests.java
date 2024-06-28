@@ -10,14 +10,23 @@ package org.elasticsearch.xpack.inference.rank.textsimilarity;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
+
+import static org.elasticsearch.search.rank.RankBuilder.DEFAULT_RANK_WINDOW_SIZE;
 
 public class TextSimilarityRankBuilderTests extends AbstractXContentSerializingTestCase<TextSimilarityRankBuilder> {
 
     @Override
     protected TextSimilarityRankBuilder createTestInstance() {
-        return new TextSimilarityRankBuilder("my-field", "my-inference-id", "my-inference-text", randomIntBetween(1, 1000), randomFloat());
+        return new TextSimilarityRankBuilder(
+            "my-field",
+            "my-inference-id",
+            "my-inference-text",
+            randomIntBetween(1, 1000),
+            randomBoolean() ? null : randomFloat()
+        );
     }
 
     @Override
@@ -66,6 +75,20 @@ public class TextSimilarityRankBuilderTests extends AbstractXContentSerializingT
 
     private float randomMinScore() {
         return randomFloatBetween(-1.0f, 1.0f, true);
+    }
+
+    public void testParserDefaults() throws IOException {
+        String json = """
+        {
+          "field": "my-field",
+          "inference_id": "my-inference-id",
+          "inference_text": "my-inference-text"
+        }""";
+
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {
+            TextSimilarityRankBuilder parsed = TextSimilarityRankBuilder.PARSER.parse(parser, null);
+            assertEquals(DEFAULT_RANK_WINDOW_SIZE, parsed.rankWindowSize());
+        }
     }
 
 }

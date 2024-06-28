@@ -16,9 +16,13 @@ import org.elasticsearch.usage.SearchUsage;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+
+import static org.elasticsearch.search.rank.RankBuilder.DEFAULT_RANK_WINDOW_SIZE;
 
 public class TextSimilarityRankRetrieverBuilderTests extends AbstractXContentTestCase<TextSimilarityRankRetrieverBuilder> {
 
@@ -34,7 +38,7 @@ public class TextSimilarityRankRetrieverBuilderTests extends AbstractXContentTes
             randomAlphaOfLength(20),
             randomAlphaOfLength(50),
             randomIntBetween(1, 10000),
-            randomFloatBetween(-1.0f, 1.0f, true)
+            randomBoolean() ? null : randomFloatBetween(-1.0f, 1.0f, true)
         );
     }
 
@@ -80,4 +84,24 @@ public class TextSimilarityRankRetrieverBuilderTests extends AbstractXContentTes
         );
         return new NamedXContentRegistry(entries);
     }
+
+    public void testParserDefaults() throws IOException {
+        String json = """
+        {
+          "retriever": {
+            "test": {
+              "value": "my-test-retriever"
+            }
+          },
+          "field": "my-field",
+          "inference_id": "my-inference-id",
+          "inference_text": "my-inference-text"
+        }""";
+
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {
+            TextSimilarityRankRetrieverBuilder parsed = TextSimilarityRankRetrieverBuilder.PARSER.parse(parser, null);
+            assertEquals(DEFAULT_RANK_WINDOW_SIZE, parsed.rankWindowSize());
+        }
+    }
+
 }

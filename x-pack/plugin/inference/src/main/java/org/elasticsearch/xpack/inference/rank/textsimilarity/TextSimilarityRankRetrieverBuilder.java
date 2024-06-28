@@ -49,7 +49,7 @@ public class TextSimilarityRankRetrieverBuilder extends RetrieverBuilder {
             String inferenceText = (String) args[2];
             String field = (String) args[3];
             int rankWindowSize = args[4] == null ? DEFAULT_RANK_WINDOW_SIZE : (int) args[4];
-            Float minScore = args[5] == null ? null : (float) args[5];
+            Float minScore = (Float) args[5];
 
             return new TextSimilarityRankRetrieverBuilder(retrieverBuilder, inferenceId, inferenceText, field, rankWindowSize, minScore);
         });
@@ -116,6 +116,10 @@ public class TextSimilarityRankRetrieverBuilder extends RetrieverBuilder {
     @Override
     public String getName() {
         return TextSimilarityRankBuilder.NAME;
+    }
+
+    public int rankWindowSize() {
+        return rankWindowSize;
     }
 
     @Override

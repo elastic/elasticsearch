@@ -5,7 +5,7 @@ type: deprecation
 issues: []
 deprecation:
   title: 'Deprecate absolute size values for `indices.breaker.total.limit` setting'
-  area: Infra/Settings
+  area: Cluster and node setting
   details: Previously, the value of `indices.breaker.total.limit` could be specified as
     an absolute size in bytes. This setting controls the overal amount of
     memory the server is allowed to use before taking remedial actions. Setting

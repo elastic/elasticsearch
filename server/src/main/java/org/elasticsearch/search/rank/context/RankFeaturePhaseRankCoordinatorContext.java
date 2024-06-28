@@ -46,10 +46,10 @@ public abstract class RankFeaturePhaseRankCoordinatorContext {
     protected abstract void computeScores(RankFeatureDoc[] featureDocs, ActionListener<float[]> scoreListener);
 
     /**
-     * Filters and sorts the provided documents.
+     * Preprocesses the provided documents: sorts them by score descending.
      * @param originalDocs documents to process
      */
-    protected RankFeatureDoc[] filterAndSort(RankFeatureDoc[] originalDocs) {
+    protected RankFeatureDoc[] preprocess(RankFeatureDoc[] originalDocs) {
         return Arrays.stream(originalDocs)
             .sorted(Comparator.comparing((RankFeatureDoc doc) -> doc.score).reversed())
             .toArray(RankFeatureDoc[]::new);
@@ -92,7 +92,7 @@ public abstract class RankFeaturePhaseRankCoordinatorContext {
      * @param rankFeatureDocs documents to process
      */
     public RankFeatureDoc[] rankAndPaginate(RankFeatureDoc[] rankFeatureDocs) {
-        RankFeatureDoc[] sortedDocs = filterAndSort(rankFeatureDocs);
+        RankFeatureDoc[] sortedDocs = preprocess(rankFeatureDocs);
         RankFeatureDoc[] topResults = new RankFeatureDoc[Math.max(0, Math.min(size, sortedDocs.length - from))];
         for (int rank = 0; rank < topResults.length; ++rank) {
             topResults[rank] = sortedDocs[from + rank];

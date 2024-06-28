@@ -98,8 +98,12 @@ public class TextSimilarityRankFeaturePhaseRankCoordinatorContext extends RankFe
         return scores;
     }
 
+    /**
+     * Sorts documents by score descending and discards those with a score less than minScore.
+     * @param originalDocs documents to process
+     */
     @Override
-    protected RankFeatureDoc[] filterAndSort(RankFeatureDoc[] originalDocs) {
+    protected RankFeatureDoc[] preprocess(RankFeatureDoc[] originalDocs) {
         return Arrays.stream(originalDocs)
             .filter(doc -> minScore == null || doc.score >= minScore)
             .sorted(Comparator.comparing((RankFeatureDoc doc) -> doc.score).reversed())

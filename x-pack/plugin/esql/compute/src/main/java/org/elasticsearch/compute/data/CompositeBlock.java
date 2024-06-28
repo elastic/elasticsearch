@@ -133,6 +133,14 @@ public final class CompositeBlock extends AbstractNonThreadSafeRefCounted implem
     }
 
     @Override
+    public boolean doesHaveMultivaluedFields() {
+        if (false == Arrays.stream(blocks).anyMatch(Block::mayHaveMultivaluedFields)) {
+            return false;
+        }
+        return Arrays.stream(blocks).anyMatch(Block::doesHaveMultivaluedFields);
+    }
+
+    @Override
     public CompositeBlock filter(int... positions) {
         CompositeBlock result = null;
         final Block[] filteredBlocks = new Block[blocks.length];

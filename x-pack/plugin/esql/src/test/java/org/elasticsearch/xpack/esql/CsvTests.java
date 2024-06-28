@@ -86,7 +86,6 @@ import org.elasticsearch.xpack.esql.plugin.EsqlFeatures;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
 import org.elasticsearch.xpack.esql.stats.DisabledSearchStats;
-import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.junit.After;
 import org.junit.Before;
 import org.mockito.Mockito;
@@ -417,7 +416,7 @@ public class CsvTests extends ESTestCase {
         List<String> dataTypes = new ArrayList<>(columnNames.size());
         List<Type> columnTypes = coordinatorPlan.output()
             .stream()
-            .peek(o -> dataTypes.add(EsqlDataTypes.outputType(o.dataType())))
+            .peek(o -> dataTypes.add(o.dataType().outputType()))
             .map(o -> Type.asType(o.dataType().nameUpper()))
             .toList();
 

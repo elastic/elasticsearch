@@ -50,6 +50,7 @@ import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
 import org.elasticsearch.xpack.esql.optimizer.FoldNull;
 import org.elasticsearch.xpack.esql.parser.ExpressionBuilder;
 import org.elasticsearch.xpack.esql.planner.Layout;
+import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.versionfield.Version;
 import org.junit.After;
 import org.junit.AfterClass;
@@ -215,21 +216,45 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     }
 
     /**
-     * Creates a page based on a list of lists, where each list represents a column.
+     * Creates a page based on a list of multi-row fields.
      */
-    protected final Page rows(List<List<Object>> values) {
-        if (values.isEmpty()) {
+    protected final Page rows(List<TestCaseSupplier.TypedData> multirowFields) {
+        if (multirowFields.isEmpty()) {
             return new Page(0, BlockUtils.NO_BLOCKS);
         }
 
-        var rowsCount = values.get(0).size();
+        var rowsCount = multirowFields.get(0).multiRowData().size();
 
-        values.stream().skip(1).forEach(l -> assertThat("All multi-row fields must have the same number of rows", l, hasSize(rowsCount)));
+        multirowFields.stream()
+            .skip(1)
+            .forEach(
+                field -> assertThat("All multi-row fields must have the same number of rows", field.multiRowData(), hasSize(rowsCount))
+            );
+
+        if (rowsCount == 0) {
+            var blocks = new Block[multirowFields.size()];
+            for (int i = 0; i < multirowFields.size(); i++) {
+                var field = multirowFields.get(i);
+                var wrapper = BlockUtils.wrapperFor(
+                    TestBlockFactory.getNonBreakingInstance(),
+                    PlannerUtils.toElementType(field.type()),
+                    rowsCount
+                );
+
+                var data = field.multiRowData();
+                if (data.size() > 0) {
+                    wrapper.accept(field.multiRowData());
+                }
+
+                blocks[i] = wrapper.builder().build();
+            }
+            return new Page(0, blocks);
+        }
 
         var rows = new ArrayList<List<Object>>();
         for (int i = 0; i < rowsCount; i++) {
             final int index = i;
-            rows.add(values.stream().map(l -> l.get(index)).toList());
+            rows.add(multirowFields.stream().map(l -> l.multiRowData().get(index)).toList());
         }
 
         var blocks = BlockUtils.fromList(TestBlockFactory.getNonBreakingInstance(), rows);

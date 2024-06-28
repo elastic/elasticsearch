@@ -1270,12 +1270,15 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
         Map<String, String> labelFields
     ) {
         final AggregationBuilder aggregations = buildAggregations(config, metricFields, labelFields, config.getTimestampField());
-        InternalAggregations origResp = aggregate(sourceIndex, aggregations);
-        InternalAggregations downsampleResp = aggregate(downsampleIndex, aggregations);
-        assertEquals(origResp.asMap().keySet(), downsampleResp.asMap().keySet());
+        List<InternalAggregation> origList = aggregate(sourceIndex, aggregations).asList();
+        List<InternalAggregation> downsampleList = aggregate(downsampleIndex, aggregations).asList();
+        assertEquals(origList.size(), downsampleList.size());
+        for (int i = 0; i < origList.size(); i++) {
+            assertEquals(origList.get(i).getName(), downsampleList.get(i).getName());
+        }
 
-        StringTerms originalTsIdTermsAggregation = (StringTerms) origResp.getAsMap().values().stream().toList().get(0);
-        StringTerms downsampleTsIdTermsAggregation = (StringTerms) downsampleResp.getAsMap().values().stream().toList().get(0);
+        StringTerms originalTsIdTermsAggregation = (StringTerms) origList.get(0);
+        StringTerms downsampleTsIdTermsAggregation = (StringTerms) downsampleList.get(0);
         originalTsIdTermsAggregation.getBuckets().forEach(originalBucket -> {
 
             StringTerms.Bucket downsampleBucket = downsampleTsIdTermsAggregation.getBucketByKey(originalBucket.getKeyAsString());

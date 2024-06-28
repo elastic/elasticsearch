@@ -34,18 +34,14 @@ space. Additional latency can be avoided by not loading `_source` field in queri
 ===== Supported fields
 Synthetic `_source` is supported by all field types. Depending on implementation details, field types have different properties when used with synthetic `_source`.
 
-<<synthetic-source-fields-native-list, Most field types>> construct synthetic `_source` using existing data, most commonly <<doc-values,`doc_values`>> and <<stored-fields, stored fields>>, meaning no additional space is used to store contents of `_source` field. Generated `_source` field in this case undergoes <<synthetic-source-modifications, modifications>> compared to original document caused by the storage layout of <<doc-values,`doc_values`>>.
+<<synthetic-source-fields-native-list, Most field types>> construct synthetic `_source` using existing data, most commonly <<doc-values,`doc_values`>> and <<stored-fields, stored fields>>. As such no additional space is used to store contents of `_source` field. Due to the storage layout of <<doc-values,`doc_values`>>, generated `_source` field undergoes <<synthetic-source-modifications, modifications>> compared to original document.
 
-For all other fields, original value of the field is stored as is in the same way as the `_source` field in non-synthetic mode. In this case there are no modifications and field data in `_source` is the same as in original document. Similarly, malformed values of fields that use <<ignore-malformed,`ignore_malformed`>> or <<ignore-above,`ignore_above`>> need to be stored as is. This approach is less storage efficient since data needed for `_source` reconstruction is stored in addition to other data required to index the field (like `doc_values`).
+For all other fields, the original value of the field is stored as is, in the same way as the `_source` field in non-synthetic mode. In this case there are no modifications and field data in `_source` is the same as in the original document. Similarly, malformed values of fields that use <<ignore-malformed,`ignore_malformed`>> or <<ignore-above,`ignore_above`>> need to be stored as is. This approach is less storage efficient since data needed for `_source` reconstruction is stored in addition to other data required to index the field (like `doc_values`).
 
 [[synthetic-source-restrictions]]
 ===== Synthetic `_source` restrictions
 
-There are some restrictions with usage of synthetic `_source`:
-
-- Synthetic `_source` can not be used together with field mappings that use <<copy-to,`copy_to`>>.
-
-There are additional restrictions specific to field types. They are documented in synthetic `_source` section of respective field type documentation page.
+There are some restrictions with usage of synthetic `_source`. Synthetic `_source` can not be used together with field mappings that use <<copy-to,`copy_to`>>. There are additional restrictions specific to field types. They are documented in synthetic `_source` section of the respective field type documentation page.
 
 [[synthetic-source-modifications]]
 ===== Synthetic `_source` modifications
@@ -166,7 +162,7 @@ Values of `geo_point` fields are represented in synthetic `_source` with reduced
 
 [[synthetic-source-fields-native-list]]
 ===== Field types that support synthetic source with no storage overhead
-Following field types support synthetic source using data from <<doc-values,`doc_values`>> and <<stored-fields, stored fields>> and require no additional storage space to construct `_source` field. Additional storage is required to store ignored field values produced as a result of using <<ignore-malformed,`ignore_malformed`>> or <<ignore-above,`ignore_above`>> parameters.
+The following field types support synthetic source using data from <<doc-values,`doc_values`>> or <<stored-fields, stored fields>>, and require no additional storage space to construct the `_source` field. Additional storage is required to store ignored field values produced as a result of using <<ignore-malformed,`ignore_malformed`>> or <<ignore-above,`ignore_above`>> parameters.
 
 ** <<aggregate-metric-double-synthetic-source, `aggregate_metric_double`>>
 ** {plugins}/mapper-annotated-text-usage.html#annotated-text-synthetic-source[`annotated-text`]

@@ -109,7 +109,10 @@ public class TransportUnpromotableShardRefreshAction extends TransportBroadcastU
     }
 
     // package private for testing
-    void doUnpromotableShardOperation(UnpromotableShardRefreshRequest request, ActionListener<ActionResponse.Empty> responseListener) {
+    void doUnpromotableShardOperation(
+        UnpromotableShardRefreshRequest request,
+        ActionListener<ActionResponse.Empty> responseListener
+    ) {
         ActionListener.run(responseListener, listener -> {
             IndexShard shard = indicesService.indexServiceSafe(request.shardId().getIndex()).getShard(request.shardId().id());
             shard.waitForPrimaryTermAndGeneration(

@@ -33,6 +33,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
 import org.elasticsearch.xpack.esql.VerificationException;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
@@ -139,12 +140,12 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
             assertEquals(2, results.columns().size());
 
             // assert column metadata
-            ColumnInfo valuesColumn = results.columns().get(0);
+            ColumnInfoImpl valuesColumn = results.columns().get(0);
             assertEquals(expectedFieldName, valuesColumn.name());
-            assertEquals("double", valuesColumn.type());
-            ColumnInfo groupColumn = results.columns().get(1);
+            assertEquals(DataType.DOUBLE, valuesColumn.type());
+            ColumnInfoImpl groupColumn = results.columns().get(1);
             assertEquals(expectedGroupName, groupColumn.name());
-            assertEquals("long", groupColumn.type());
+            assertEquals(DataType.LONG, groupColumn.type());
 
             // assert column values
             List<List<Object>> valueValues = getValuesList(results);
@@ -178,12 +179,12 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
             assertEquals(2, results.columns().size());
 
             // assert column metadata
-            ColumnInfo groupColumn = results.columns().get(0);
+            ColumnInfoImpl groupColumn = results.columns().get(0);
             assertEquals(expectedGroupName, groupColumn.name());
-            assertEquals("long", groupColumn.type());
-            ColumnInfo valuesColumn = results.columns().get(1);
+            assertEquals(DataType.LONG, groupColumn.type());
+            ColumnInfoImpl valuesColumn = results.columns().get(1);
             assertEquals(expectedFieldName, valuesColumn.name());
-            assertEquals("long", valuesColumn.type());
+            assertEquals(DataType.LONG, valuesColumn.type());
 
             // assert column values
             List<List<Object>> valueValues = getValuesList(results);
@@ -380,7 +381,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         try (EsqlQueryResponse results = run("from test | stats avg_count = avg(count) by data | keep data")) {
             logger.info(results);
             assertThat(results.columns().stream().map(ColumnInfo::name).toList(), contains("data"));
-            assertThat(results.columns().stream().map(ColumnInfo::type).toList(), contains("long"));
+            assertThat(results.columns().stream().map(ColumnInfoImpl::type).toList(), contains(DataType.LONG));
             assertThat(getValuesList(results), containsInAnyOrder(List.of(1L), List.of(2L)));
         }
     }
@@ -389,7 +390,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         try (EsqlQueryResponse results = run("row a = 1, b = 2 | stats count(b) by a | keep a")) {
             logger.info(results);
             assertThat(results.columns().stream().map(ColumnInfo::name).toList(), contains("a"));
-            assertThat(results.columns().stream().map(ColumnInfo::type).toList(), contains("integer"));
+            assertThat(results.columns().stream().map(ColumnInfoImpl::type).toList(), contains(DataType.INTEGER));
             assertThat(getValuesList(results), contains(List.of(1)));
         }
     }
@@ -398,7 +399,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         try (EsqlQueryResponse results = run("row a = 1000000000000, b = 2 | stats count(b) by a | keep a")) {
             logger.info(results);
             assertThat(results.columns().stream().map(ColumnInfo::name).toList(), contains("a"));
-            assertThat(results.columns().stream().map(ColumnInfo::type).toList(), contains("long"));
+            assertThat(results.columns().stream().map(ColumnInfoImpl::type).toList(), contains(DataType.LONG));
             assertThat(getValuesList(results), contains(List.of(1000000000000L)));
         }
     }
@@ -407,7 +408,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         try (EsqlQueryResponse results = run("row a = 1.0, b = 2 | stats count(b) by a | keep a")) {
             logger.info(results);
             assertThat(results.columns().stream().map(ColumnInfo::name).toList(), contains("a"));
-            assertThat(results.columns().stream().map(ColumnInfo::type).toList(), contains("double"));
+            assertThat(results.columns().stream().map(ColumnInfoImpl::type).toList(), contains(DataType.DOUBLE));
             assertThat(getValuesList(results), contains(List.of(1.0)));
         }
     }
@@ -416,7 +417,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         try (EsqlQueryResponse results = run("row a = \"hello\", b = 2 | stats count(b) by a | keep a")) {
             logger.info(results);
             assertThat(results.columns().stream().map(ColumnInfo::name).toList(), contains("a"));
-            assertThat(results.columns().stream().map(ColumnInfo::type).toList(), contains("keyword"));
+            assertThat(results.columns().stream().map(ColumnInfoImpl::type).toList(), contains(DataType.KEYWORD));
             assertThat(getValuesList(results), contains(List.of("hello")));
         }
     }
@@ -425,7 +426,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         try (EsqlQueryResponse results = run("from test | stats count(count) by data_d | keep data_d")) {
             logger.info(results);
             assertThat(results.columns().stream().map(ColumnInfo::name).toList(), contains("data_d"));
-            assertThat(results.columns().stream().map(ColumnInfo::type).toList(), contains("double"));
+            assertThat(results.columns().stream().map(ColumnInfoImpl::type).toList(), contains(DataType.DOUBLE));
             assertThat(getValuesList(results), containsInAnyOrder(List.of(1.0), List.of(2.0)));
         }
     }
@@ -435,7 +436,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         try (EsqlQueryResponse results = run(query)) {
             logger.info(results);
             assertThat(results.columns().stream().map(ColumnInfo::name).toList(), contains("d", "d2"));
-            assertThat(results.columns().stream().map(ColumnInfo::type).toList(), contains("long", "long"));
+            assertThat(results.columns().stream().map(ColumnInfoImpl::type).toList(), contains(DataType.LONG, DataType.LONG));
             assertThat(getValuesList(results), containsInAnyOrder(List.of(1L, 1L), List.of(2L, 2L)));
         }
     }
@@ -444,7 +445,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         try (EsqlQueryResponse results = run("from test | stats a = avg(count) by data | keep a")) {
             logger.info(results);
             assertThat(results.columns().stream().map(ColumnInfo::name).toList(), contains("a"));
-            assertThat(results.columns().stream().map(ColumnInfo::type).toList(), contains("double"));
+            assertThat(results.columns().stream().map(ColumnInfoImpl::type).toList(), contains(DataType.DOUBLE));
             assertThat(getValuesList(results), containsInAnyOrder(List.of(42d), List.of(44d)));
         }
     }
@@ -453,7 +454,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         try (EsqlQueryResponse results = run("from test | stats a = avg(count) by data | rename a as b | keep b")) {
             logger.info(results);
             assertThat(results.columns().stream().map(ColumnInfo::name).toList(), contains("b"));
-            assertThat(results.columns().stream().map(ColumnInfo::type).toList(), contains("double"));
+            assertThat(results.columns().stream().map(ColumnInfoImpl::type).toList(), contains(DataType.DOUBLE));
             assertThat(getValuesList(results), containsInAnyOrder(List.of(42d), List.of(44d)));
         }
     }
@@ -462,7 +463,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         try (EsqlQueryResponse results = run("from test | rename data as d | keep d, count | stats avg(count) by d")) {
             logger.info(results);
             assertThat(results.columns().stream().map(ColumnInfo::name).toList(), contains("avg(count)", "d"));
-            assertThat(results.columns().stream().map(ColumnInfo::type).toList(), contains("double", "long"));
+            assertThat(results.columns().stream().map(ColumnInfoImpl::type).toList(), contains(DataType.DOUBLE, DataType.LONG));
             assertThat(getValuesList(results), containsInAnyOrder(List.of(42d, 1L), List.of(44d, 2L)));
         }
     }
@@ -471,7 +472,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         try (EsqlQueryResponse results = run("from test | rename count as c | keep c, data | stats avg(c) by data")) {
             logger.info(results);
             assertThat(results.columns().stream().map(ColumnInfo::name).toList(), contains("avg(c)", "data"));
-            assertThat(results.columns().stream().map(ColumnInfo::type).toList(), contains("double", "long"));
+            assertThat(results.columns().stream().map(ColumnInfoImpl::type).toList(), contains(DataType.DOUBLE, DataType.LONG));
             assertThat(getValuesList(results), containsInAnyOrder(List.of(42d, 1L), List.of(44d, 2L)));
         }
     }

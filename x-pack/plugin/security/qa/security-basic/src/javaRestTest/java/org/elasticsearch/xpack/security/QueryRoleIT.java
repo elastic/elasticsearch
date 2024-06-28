@@ -77,6 +77,61 @@ public class QueryRoleIT extends SecurityInBasicRestTestCase {
         });
     }
 
+    public void testSearchMultipleMetadataFields() throws IOException {
+        RoleDescriptor noMetadata = createRole(
+                "noMetadataRole",
+                randomBoolean() ? null : randomAlphaOfLength(8),
+                randomBoolean() ? null : Map.of(),
+                randomApplicationPrivileges()
+        );
+        RoleDescriptor role1 = createRole(
+                "1" + randomAlphaOfLength(4),
+                randomBoolean() ? null : randomAlphaOfLength(8),
+                Map.of("simpleField1", "matchThis", "simpleField2", "butNotThis"),
+                randomApplicationPrivileges()
+        );
+        RoleDescriptor role2 = createRole(
+                "2" + randomAlphaOfLength(4),
+                randomBoolean() ? null : randomAlphaOfLength(8),
+                Map.of("simpleField2", "butNotThis"),
+                randomApplicationPrivileges()
+        );
+        RoleDescriptor role3 = createRole(
+                "3" + randomAlphaOfLength(4),
+                randomBoolean() ? null : randomAlphaOfLength(8),
+                Map.of("listField1", List.of("matchThis", "butNotThis"), "listField2", List.of("butNotThisToo")),
+                randomApplicationPrivileges()
+        );
+        RoleDescriptor role4 = createRole(
+                "4" + randomAlphaOfLength(4),
+                randomBoolean() ? null : randomAlphaOfLength(8),
+                Map.of("listField2", List.of("butNotThisToo", "andAlsoNotThis")),
+                randomApplicationPrivileges()
+        );
+        RoleDescriptor role5 = createRole(
+                "5" + randomAlphaOfLength(4),
+                randomBoolean() ? null : randomAlphaOfLength(8),
+                Map.of("listField1", List.of("maybeThis", List.of("matchThis")), "listField2", List.of("butNotThis")),
+                randomApplicationPrivileges()
+        );
+        RoleDescriptor role6 = createRole(
+                "6" + randomAlphaOfLength(4),
+                randomBoolean() ? null : randomAlphaOfLength(8),
+                Map.of("mapField1", Map.of("innerField", "matchThis")),
+                randomApplicationPrivileges()
+        );
+        RoleDescriptor role7 = createRole(
+                "7" + randomAlphaOfLength(4),
+                randomBoolean() ? null : randomAlphaOfLength(8),
+                Map.of("mapField1", Map.of("innerField", "butNotThis")),
+                randomApplicationPrivileges()
+        );
+        assertQuery("""
+            {"query":{"prefix":{"meta*":"match"}}}""", 4, roles -> {
+            assertThat(roles, iterableWithSize(4));
+        });
+    }
+
     @SuppressWarnings("unchecked")
     public void testSimpleSort() throws IOException {
         // some other non-matching roles

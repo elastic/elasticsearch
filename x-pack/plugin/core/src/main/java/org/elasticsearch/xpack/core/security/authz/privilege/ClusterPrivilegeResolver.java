@@ -176,6 +176,12 @@ public class ClusterPrivilegeResolver {
 
     private static final Set<String> MANAGE_SEARCH_APPLICATION_PATTERN = Set.of("cluster:admin/xpack/application/search_application/*");
     private static final Set<String> MANAGE_CONNECTOR_PATTERN = Set.of("cluster:admin/xpack/connector/*");
+    private static final Set<String> MONITOR_CONNECTOR_PATTERN = Set.of(
+        "cluster:admin/xpack/connector/get",
+        "cluster:admin/xpack/connector/list",
+        "cluster:admin/xpack/connector/sync_job/get",
+        "cluster:admin/xpack/connector/sync_job/list"
+    );
     private static final Set<String> READ_CONNECTOR_SECRETS_PATTERN = Set.of("cluster:admin/xpack/connector/secret/get");
     private static final Set<String> WRITE_CONNECTOR_SECRETS_PATTERN = Set.of(
         "cluster:admin/xpack/connector/secret/delete",
@@ -349,6 +355,10 @@ public class ClusterPrivilegeResolver {
         MANAGE_CONNECTOR_PATTERN,
         CONNECTOR_SECRETS_PATTERN
     );
+    public static final NamedClusterPrivilege MONITOR_CONNECTOR = new ActionClusterPrivilege(
+        "monitor_connector",
+        MONITOR_CONNECTOR_PATTERN
+    );
     public static final NamedClusterPrivilege MANAGE_SEARCH_SYNONYMS = new ActionClusterPrivilege(
         "manage_search_synonyms",
         MANAGE_SEARCH_SYNONYMS_PATTERN
@@ -404,6 +414,7 @@ public class ClusterPrivilegeResolver {
             NONE,
             ALL,
             MONITOR,
+            MONITOR_CONNECTOR,
             MONITOR_INFERENCE,
             MONITOR_ML,
             MONITOR_TEXT_STRUCTURE,

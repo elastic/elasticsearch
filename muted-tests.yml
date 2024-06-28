@@ -1,10 +1,4 @@
 tests:
-- class: "org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilterTests"
-  issue: "https://github.com/elastic/elasticsearch/issues/108649"
-  method: "testManyRandomDocs"
-- class: "org.elasticsearch.cluster.coordination.CoordinatorVotingConfigurationTests"
-  issue: "https://github.com/elastic/elasticsearch/issues/108729"
-  method: "testClusterUUIDLogging"
 - class: "org.elasticsearch.xpack.textstructure.structurefinder.TimestampFormatFinderTests"
   issue: "https://github.com/elastic/elasticsearch/issues/108855"
   method: "testGuessIsDayFirstFromLocale"
@@ -65,17 +59,32 @@ tests:
 - class: "org.elasticsearch.xpack.esql.action.AsyncEsqlQueryActionIT"
   issue: "https://github.com/elastic/elasticsearch/issues/109944"
   method: "testBasicAsyncExecution"
-- class: "org.elasticsearch.xpack.security.authz.store.NativePrivilegeStoreCacheTests"
-  issue: "https://github.com/elastic/elasticsearch/issues/110015"
 - class: "org.elasticsearch.action.admin.indices.rollover.RolloverIT"
   issue: "https://github.com/elastic/elasticsearch/issues/110034"
   method: "testRolloverWithClosedWriteIndex"
 - class: org.elasticsearch.xpack.transform.transforms.TransformIndexerTests
   method: testMaxPageSearchSizeIsResetToConfiguredValue
   issue: https://github.com/elastic/elasticsearch/issues/109844
-- class: "org.elasticsearch.test.jvm_crash.JvmCrashIT"
-  issue: "https://github.com/elastic/elasticsearch/issues/110052"
-  method: "testJvmCrash"
+- class: org.elasticsearch.index.store.FsDirectoryFactoryTests
+  method: testStoreDirectory
+  issue: https://github.com/elastic/elasticsearch/issues/110210
+- class: org.elasticsearch.index.store.FsDirectoryFactoryTests
+  method: testPreload
+  issue: https://github.com/elastic/elasticsearch/issues/110211
+- class: org.elasticsearch.synonyms.SynonymsManagementAPIServiceIT
+  method: testUpdateRuleWithMaxSynonyms
+  issue: https://github.com/elastic/elasticsearch/issues/110212
+- class: "org.elasticsearch.rest.RestControllerIT"
+  issue: "https://github.com/elastic/elasticsearch/issues/110225"
+- class: "org.elasticsearch.xpack.security.authz.store.NativePrivilegeStoreCacheTests"
+  issue: "https://github.com/elastic/elasticsearch/issues/110227"
+  method: "testGetPrivilegesUsesCache"
+- class: org.elasticsearch.upgrades.SecurityIndexRolesMetadataMigrationIT
+  method: testMetadataMigratedAfterUpgrade
+  issue: https://github.com/elastic/elasticsearch/issues/110232
+- class: org.elasticsearch.compute.lucene.ValueSourceReaderTypeConversionTests
+  method: testLoadAll
+  issue: https://github.com/elastic/elasticsearch/issues/110244
 
 # Examples:
 #

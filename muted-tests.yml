@@ -85,6 +85,9 @@ tests:
 - class: org.elasticsearch.compute.lucene.ValueSourceReaderTypeConversionTests
   method: testLoadAll
   issue: https://github.com/elastic/elasticsearch/issues/110244
+- class: org.elasticsearch.xpack.esql.tree.EsqlNodeSubclassTests
+  method: testReplaceChildren {class org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec}
+  issue: https://github.com/elastic/elasticsearch/issues/110272
 
 # Examples:
 #

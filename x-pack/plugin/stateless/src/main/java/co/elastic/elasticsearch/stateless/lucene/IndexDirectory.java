@@ -29,7 +29,6 @@ import org.elasticsearch.blobcache.common.BlobCacheBufferedIndexInput;
 import org.elasticsearch.common.lucene.store.FilterIndexOutput;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.core.AbstractRefCounted;
-import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.RefCounted;
@@ -62,13 +61,6 @@ import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.index.store.Store.CORRUPTED_MARKER_NAME_PREFIX;
 
 public class IndexDirectory extends ByteSizeDirectory {
-
-    private static final String PRUNE_LUCENE_PROPERTY = "es.stateless.prune_lucene_files_on_upload";
-    private static final boolean PRUNE_LUCENE_FILES_ON_UPLOAD;
-
-    static {
-        PRUNE_LUCENE_FILES_ON_UPLOAD = Booleans.parseBoolean(System.getProperty(PRUNE_LUCENE_PROPERTY), true);
-    }
 
     private static final Logger logger = LogManager.getLogger(IndexDirectory.class);
 
@@ -182,8 +174,7 @@ public class IndexDirectory extends ByteSizeDirectory {
 
     @Override
     public IndexInput openInput(String name, IOContext context) throws IOException {
-        // Prefer the local file if PRUNE_LUCENE_FILES_ON_UPLOAD is set to False
-        if (PRUNE_LUCENE_FILES_ON_UPLOAD == false || cacheDirectory.containsFile(name) == false) {
+        if (cacheDirectory.containsFile(name) == false) {
             LocalFileRef localFile;
             try (var ignored = readLock.acquire()) {
                 localFile = localFiles.get(name);
@@ -288,7 +279,7 @@ public class IndexDirectory extends ByteSizeDirectory {
 
                 // Mark all the files added as uploaded since they came from the object store
                 commit.commitFiles().keySet().forEach(file -> localFiles.get(file).markAsUploaded());
-            } else if (PRUNE_LUCENE_FILES_ON_UPLOAD) {
+            } else {
                 commit.commitFiles().keySet().forEach(file -> {
                     var localFile = localFiles.get(file);
                     if (localFile != null) {

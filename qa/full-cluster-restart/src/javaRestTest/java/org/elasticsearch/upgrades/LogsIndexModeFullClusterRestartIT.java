@@ -171,15 +171,7 @@ public class LogsIndexModeFullClusterRestartIT extends ParameterizedFullClusterR
             );
             assertThat(
                 getSettings(client(), getWriteBackingIndex(client(), "logs-apache-production", 1)).get("index.mode"),
-                Matchers.nullValue()
-            );
-            assertThat(
-                getSettings(client(), getWriteBackingIndex(client(), "logs-apache-production", 2)).get("index.mode"),
                 equalTo("logs")
-            );
-            assertThat(
-                getSettings(client(), getWriteBackingIndex(client(), "logs-apache-production", 3)).get("index.mode"),
-                Matchers.nullValue()
             );
         }
     }

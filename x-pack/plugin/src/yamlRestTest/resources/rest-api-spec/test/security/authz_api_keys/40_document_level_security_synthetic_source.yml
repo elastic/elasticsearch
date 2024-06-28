@@ -25,9 +25,9 @@ Filter on single field:
         index: index_dls
         refresh: true
         body:
-          - '{"create": { }}'
+          - '{"create": { "_id": "1a" }}'
           - '{"name": "A", "type": "foo"}'
-          - '{"create": { }}'
+          - '{"create": { "_id": "2a" }}'
           - '{"name": "B", "type": "bar"}'
   - match: { errors: false }
 
@@ -56,10 +56,19 @@ Filter on single field:
         index: index_dls
         sort: name
   - match: { hits.total.value: 2 }
+  - match: { hits.hits.0._id: 1a }
   - match: { hits.hits.0._source.name: A }
   - match: { hits.hits.0._source.type: foo }
+  - match: { hits.hits.1._id: 2a }
   - match: { hits.hits.1._source.name: B }
   - match: { hits.hits.1._source.type: bar }
+
+  - do:
+      get:
+        index: index_dls
+        id: 2a
+  - match: { _source.name: B }
+  - match: { _source.type: bar }
 
   # With FLS API Key
   - do:
@@ -68,9 +77,17 @@ Filter on single field:
       search:
         index: index_dls
   - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: 1a }
   - match: { hits.hits.0._source.name: A }
   - match: { hits.hits.0._source.type: foo }
 
+  - do:
+      catch: missing
+      headers:
+        Authorization: "ApiKey ${credentials}"
+      get:
+        index: index_dls
+        id: 2a
 
 ---
 Filter on nested field:

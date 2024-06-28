@@ -48,22 +48,6 @@ public abstract class BlockConverter {
         return this.fieldType;
     }
 
-    protected final <T extends Block> T castBlock(Block block, Class<T> clazz) {
-        if (clazz.isAssignableFrom(block.getClass())) {
-            return clazz.cast(block);
-        } else {
-            throw new IllegalArgumentException(
-                "Field type ["
-                    + esqlType
-                    + "] expects a ["
-                    + clazz.getSimpleName()
-                    + "] but we got a ["
-                    + block.getClass().getSimpleName()
-                    + "]"
-            );
-        }
-    }
-
     // Block.nullValuesCount was more efficient but was removed in https://github.com/elastic/elasticsearch/pull/108916
     protected int nullValuesCount(Block block) {
         if (block.mayHaveNulls() == false) {
@@ -106,7 +90,7 @@ public abstract class BlockConverter {
 
         @Override
         public void convert(Block b, List<ArrowBuf> bufs, List<BufWriter> bufWriters) {
-            DoubleBlock block = castBlock(b, DoubleBlock.class);
+            DoubleBlock block = (DoubleBlock) b;
 
             accumulateVectorValidity(bufs, bufWriters, block);
 
@@ -141,7 +125,7 @@ public abstract class BlockConverter {
 
         @Override
         public void convert(Block b, List<ArrowBuf> bufs, List<BufWriter> bufWriters) {
-            IntBlock block = castBlock(b, IntBlock.class);
+            IntBlock block = (IntBlock) b;
 
             accumulateVectorValidity(bufs, bufWriters, block);
 
@@ -179,7 +163,7 @@ public abstract class BlockConverter {
 
         @Override
         public void convert(Block b, List<ArrowBuf> bufs, List<BufWriter> bufWriters) {
-            LongBlock block = castBlock(b, LongBlock.class);
+            LongBlock block = (LongBlock) b;
             accumulateVectorValidity(bufs, bufWriters, block);
 
             bufs.add(dummyArrowBuf(vectorLength(block)));
@@ -212,7 +196,7 @@ public abstract class BlockConverter {
 
         @Override
         public void convert(Block b, List<ArrowBuf> bufs, List<BufWriter> bufWriters) {
-            BooleanBlock block = castBlock(b, BooleanBlock.class);
+            BooleanBlock block = (BooleanBlock) b;
             accumulateVectorValidity(bufs, bufWriters, block);
 
             bufs.add(dummyArrowBuf(vectorLength(block)));
@@ -250,7 +234,7 @@ public abstract class BlockConverter {
 
         @Override
         public void convert(Block b, List<ArrowBuf> bufs, List<BufWriter> bufWriters) {
-            BytesRefBlock block = castBlock(b, BytesRefBlock.class);
+            BytesRefBlock block = (BytesRefBlock) b;
 
             BlockConverter.accumulateVectorValidity(bufs, bufWriters, block);
 
@@ -343,7 +327,7 @@ public abstract class BlockConverter {
 
         @Override
         public void convert(Block b, List<ArrowBuf> bufs, List<BufWriter> bufWriters) {
-            BytesRefBlock block = castBlock(b, BytesRefBlock.class);
+            BytesRefBlock block = (BytesRefBlock) b;
             BytesRefBlock transformed = transformValues(block);
             super.convert(transformed, bufs, bufWriters);
         }

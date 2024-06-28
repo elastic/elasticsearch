@@ -10,6 +10,7 @@ package org.elasticsearch.search.aggregations;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.search.aggregations.bucket.InternalSingleBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregation;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
@@ -40,6 +41,15 @@ public abstract class InternalMultiBucketAggregation<
 
     private int bucketCount;
 
+    private boolean isLeaf(Bucket B){
+        InternalAggregations subAggregations = B.getAggregations();
+        for(Aggregation aggregation : subAggregations){
+            if(aggregation instanceof InternalSingleBucketAggregation ||
+            aggregation instanceof InternalMultiBucketAggregation<?,?>) return false;
+        }
+        return true;
+    }
+
     @Override
     public int countBuckets() {
         int count = 0;
@@ -47,7 +57,7 @@ public abstract class InternalMultiBucketAggregation<
         if(buckets == null) return 0;
         for(Bucket B : buckets){
             InternalAggregations subAggregations = B.getAggregations();
-            if (subAggregations == null || subAggregations.asList().isEmpty()) {
+            if (subAggregations == null || subAggregations.asList().isEmpty() || isLeaf(B)) {
                 count++;
                 continue;
             }

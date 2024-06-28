@@ -16,6 +16,7 @@ import org.elasticsearch.search.aggregations.AggregatorReducer;
 import org.elasticsearch.search.aggregations.AggregatorsReducer;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
+import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
 import org.elasticsearch.search.aggregations.support.AggregationPath;
 import org.elasticsearch.search.sort.SortValue;
@@ -64,10 +65,19 @@ public abstract class InternalSingleBucketAggregation extends InternalAggregatio
         setBucketCount(countBuckets());
     }
 
+    private boolean isLeaf(){
+        InternalAggregations subAggregations = getAggregations();
+        for(Aggregation aggregation : subAggregations){
+            if(aggregation instanceof InternalSingleBucketAggregation ||
+                aggregation instanceof InternalMultiBucketAggregation<?,?>) return false;
+        }
+        return true;
+    }
+
     @Override
     public int countBuckets() {
         InternalAggregations subAggregations = getAggregations();
-        if(subAggregations == null || subAggregations.asList().isEmpty()) return 1;
+        if(subAggregations == null || subAggregations.asList().isEmpty() || isLeaf()) return 1;
         int count = 0;
         for (Aggregation aggregation : subAggregations) {
             count += aggregation.getBucketCount();

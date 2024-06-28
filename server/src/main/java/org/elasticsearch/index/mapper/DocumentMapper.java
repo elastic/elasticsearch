@@ -23,6 +23,7 @@ public class DocumentMapper {
     private final MappingLookup mappingLookup;
     private final DocumentParser documentParser;
     private final MapperMetrics mapperMetrics;
+    private final IndexVersion indexVersion;
 
     static final NodeFeature INDEX_SORTING_ON_NESTED = new NodeFeature("mapper.index_sorting_on_nested");
 
@@ -58,6 +59,7 @@ public class DocumentMapper {
         this.mappingLookup = MappingLookup.fromMapping(mapping);
         this.mappingSource = source;
         this.mapperMetrics = mapperMetrics;
+        this.indexVersion = version;
 
         assert mapping.toCompressedXContent().equals(source) || isSyntheticSourceMalformed(source, version)
             : "provided source [" + source + "] differs from mapping [" + mapping.toCompressedXContent() + "]";
@@ -138,6 +140,9 @@ public class DocumentMapper {
         }
 
         if (settings.getIndexSortConfig().hasIndexSort() && mappers().nestedLookup() != NestedLookup.EMPTY) {
+            if (indexVersion.before(IndexVersions.INDEX_SORTING_ON_NESTED)) {
+                throw new IllegalArgumentException("cannot have nested fields when index sort is activated");
+            }
             for (String field : settings.getValue(IndexSortConfig.INDEX_SORT_FIELD_SETTING)) {
                 for (NestedObjectMapper nestedObjectMapper : mappers().nestedLookup().getNestedMappers().values()) {
                     if (field.startsWith(nestedObjectMapper.fullPath())) {

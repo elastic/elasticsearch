@@ -125,7 +125,16 @@ public class MapperServiceTests extends MapperServiceTestCase {
     }
 
     public void testIndexSortWithNestedFields() throws IOException {
-        Settings settings = Settings.builder().put("index.sort.field", "foo").build();
+        IndexVersion oldVersion = IndexVersionUtils.getPreviousVersion(IndexVersions.INDEX_SORTING_ON_NESTED);
+        IllegalArgumentException invalidNestedException = expectThrows(
+            IllegalArgumentException.class,
+            () -> createMapperService(oldVersion, settings(oldVersion).put("index.sort.field", "foo").build(), () -> true, mapping(b -> {
+                b.startObject("nested_field").field("type", "nested").endObject();
+                b.startObject("foo").field("type", "keyword").endObject();
+            }))
+        );
+
+        Settings settings = settings(IndexVersions.INDEX_SORTING_ON_NESTED).put("index.sort.field", "foo").build();
         DocumentMapper mapper = createMapperService(settings, mapping(b -> {
             b.startObject("nested_field").field("type", "nested").endObject();
             b.startObject("foo").field("type", "keyword").endObject();
@@ -149,21 +158,18 @@ public class MapperServiceTests extends MapperServiceTestCase {
         }));
 
         Settings settings2 = Settings.builder().put("index.sort.field", "foo.bar").build();
-        IllegalArgumentException invalidNestedException = expectThrows(
-            IllegalArgumentException.class,
-            () -> createMapperService(settings2, mapping(b -> {
-                b.startObject("foo");
+        invalidNestedException = expectThrows(IllegalArgumentException.class, () -> createMapperService(settings2, mapping(b -> {
+            b.startObject("foo");
+            {
+                b.field("type", "nested");
+                b.startObject("properties");
                 {
-                    b.field("type", "nested");
-                    b.startObject("properties");
-                    {
-                        b.startObject("bar").field("type", "keyword").endObject();
-                    }
-                    b.endObject();
+                    b.startObject("bar").field("type", "keyword").endObject();
                 }
                 b.endObject();
-            }))
-        );
+            }
+            b.endObject();
+        })));
         assertEquals("cannot apply index sort to field [foo.bar] under nested object [foo]", invalidNestedException.getMessage());
     }
 

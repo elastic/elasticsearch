@@ -56,6 +56,12 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
         resolveExpression(expression, this::aggregateSingleMode, this::evaluate);
     }
 
+    public void testAggregateIntermediate() {
+        Expression expression = randomBoolean() ? buildDeepCopyOfFieldExpression(testCase) : buildFieldExpression(testCase);
+
+        resolveExpression(expression, this::aggregateWithIntermediates, this::evaluate);
+    }
+
     public void testFold() {
         Expression expression = buildLiteralExpression(testCase);
 
@@ -80,9 +86,9 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
         });
     }
 
-    private void aggregateSingleMode(AggregatorFunctionSupplier aggregatorFunctionSupplier) {
+    private void aggregateSingleMode(Expression expression) {
         Object result;
-        try (var aggregator = new Aggregator(aggregatorFunctionSupplier.aggregator(driverContext()), AggregatorMode.SINGLE)) {
+        try (var aggregator = aggregator(expression, initialInputChannels(), AggregatorMode.SINGLE)) {
             Page inputPage = rows(testCase.getMultiRowDataValues());
             try {
                 aggregator.processPage(inputPage);
@@ -90,7 +96,62 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
                 inputPage.releaseBlocks();
             }
 
-            // ElementType from DataType
+            result = extractResultFromAggregator(aggregator, PlannerUtils.toElementType(testCase.expectedType()));
+        }
+
+        assertThat(result, not(equalTo(Double.NaN)));
+        assert testCase.getMatcher().matches(Double.POSITIVE_INFINITY) == false;
+        assertThat(result, not(equalTo(Double.POSITIVE_INFINITY)));
+        assert testCase.getMatcher().matches(Double.NEGATIVE_INFINITY) == false;
+        assertThat(result, not(equalTo(Double.NEGATIVE_INFINITY)));
+        assertThat(result, testCase.getMatcher());
+        if (testCase.getExpectedWarnings() != null) {
+            assertWarnings(testCase.getExpectedWarnings());
+        }
+    }
+
+    private void aggregateWithIntermediates(Expression expression) {
+        int intermediateBlockOffset = randomIntBetween(0, 10);
+        Block[] intermediateBlocks;
+        int intermediateStates;
+
+        // Input rows to intermediate states
+        try (var aggregator = aggregator(expression, initialInputChannels(), AggregatorMode.INITIAL)) {
+            intermediateStates = aggregator.evaluateBlockCount();
+
+            int intermediateBlockExtraSize = randomIntBetween(0, 10);
+            intermediateBlocks = new Block[intermediateBlockOffset + intermediateStates + intermediateBlockExtraSize];
+
+            Page inputPage = rows(testCase.getMultiRowDataValues());
+            try {
+                aggregator.processPage(inputPage);
+            } finally {
+                inputPage.releaseBlocks();
+            }
+
+            aggregator.evaluate(intermediateBlocks, intermediateBlockOffset, driverContext());
+
+            int positionCount = intermediateBlocks[intermediateBlockOffset].getPositionCount();
+
+            // Fill offset and extra blocks with nulls
+            for (int i = 0; i < intermediateBlockOffset; i++) {
+                intermediateBlocks[i] = driverContext().blockFactory().newConstantNullBlock(positionCount);
+            }
+            for (int i = intermediateBlockOffset + intermediateStates; i < intermediateBlocks.length; i++) {
+                intermediateBlocks[i] = driverContext().blockFactory().newConstantNullBlock(positionCount);
+            }
+        }
+
+        Object result;
+        // Intermediate states to final result
+        try (var aggregator = aggregator(expression, intermediaryInputChannels(intermediateStates, intermediateBlockOffset), AggregatorMode.FINAL)) {
+            Page inputPage = new Page(intermediateBlocks);
+            try {
+                aggregator.processPage(inputPage);
+            } finally {
+                inputPage.releaseBlocks();
+            }
+
             result = extractResultFromAggregator(aggregator, PlannerUtils.toElementType(testCase.expectedType()));
         }
 
@@ -126,7 +187,7 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
 
     private void resolveExpression(
         Expression expression,
-        Consumer<AggregatorFunctionSupplier> onAggregator,
+        Consumer<Expression> onAggregator,
         Consumer<Expression> onEvaluableExpression
     ) {
         logger.info(
@@ -154,8 +215,7 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
         assertThat(expression, instanceOf(ToAggregator.class));
         logger.info("Result type: " + expression.dataType());
 
-        var inputChannels = inputChannels();
-        onAggregator.accept(((ToAggregator) expression).supplier(inputChannels));
+        onAggregator.accept(expression);
     }
 
     private Object extractResultFromAggregator(Aggregator aggregator, ElementType expectedElementType) {
@@ -175,10 +235,14 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
         }
     }
 
-    private List<Integer> inputChannels() {
+    private List<Integer> initialInputChannels() {
         // TODO: Randomize channels
         // TODO: If surrogated, channels may change
         return IntStream.range(0, testCase.getMultiRowDataValues().size()).boxed().toList();
+    }
+
+    private List<Integer> intermediaryInputChannels(int intermediaryStates, int offset) {
+        return IntStream.range(offset, offset + intermediaryStates).boxed().toList();
     }
 
     /**
@@ -209,5 +273,11 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
         }
 
         return expression;
+    }
+
+    private Aggregator aggregator(Expression expression, List<Integer> inputChannels, AggregatorMode mode) {
+        AggregatorFunctionSupplier aggregatorFunctionSupplier = ((ToAggregator) expression).supplier(inputChannels);
+
+        return new Aggregator(aggregatorFunctionSupplier.aggregator(driverContext()), mode);
     }
 }

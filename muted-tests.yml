@@ -103,6 +103,9 @@ tests:
 - class: org.elasticsearch.backwards.SearchWithMinCompatibleSearchNodeIT
   method: testCcsMinimizeRoundtripsIsFalse
   issue: https://github.com/elastic/elasticsearch/issues/101974
+- class: org.elasticsearch.backwards.SearchWithMinCompatibleSearchNodeIT
+  method: testMinVersionAsOldVersion
+  issue: https://github.com/elastic/elasticsearch/issues/109454
 
 # Examples:
 #

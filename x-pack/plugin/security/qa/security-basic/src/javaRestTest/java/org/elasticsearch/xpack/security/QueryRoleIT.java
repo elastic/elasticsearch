@@ -51,6 +51,8 @@ public class QueryRoleIT extends SecurityInBasicRestTestCase {
             assertThat(roles, iterableWithSize(1));
             assertRoleMap(roles.get(0), createdRole);
         });
+        assertQuery("""
+            {"query":{"match_all":{}},"from":1}""", 1, roles -> assertThat(roles, emptyIterable()));
     }
 
     public void testSimpleMetadataSearch() throws Exception {
@@ -64,7 +66,7 @@ public class QueryRoleIT extends SecurityInBasicRestTestCase {
             Map.of("matchSimpleKey", "matchSimpleValue"),
             randomApplicationPrivileges()
         );
-        createRole(
+        RoleDescriptor other = createRole(
             "other",
             randomBoolean() ? null : randomAlphaOfLength(8),
             Map.of("matchSimpleKey", "other"),
@@ -81,6 +83,13 @@ public class QueryRoleIT extends SecurityInBasicRestTestCase {
             {"query":{"term":{"metadata.matchSimpleKey":"matchSimpleValue"}}}""", 1, roles -> {
             assertThat(roles, iterableWithSize(1));
             assertRoleMap(roles.get(0), matchThisRole);
+        });
+        assertQuery("""
+            {"query":{"exists":{"field":"metadata.matchSimpleKey"}}}""", 2, roles -> {
+            assertThat(roles, iterableWithSize(2));
+            roles.sort(Comparator.comparing(o -> ((String) o.get("name"))));
+            assertRoleMap(roles.get(0), matchThisRole);
+            assertRoleMap(roles.get(1), other);
         });
     }
 
@@ -140,8 +149,7 @@ public class QueryRoleIT extends SecurityInBasicRestTestCase {
             randomApplicationPrivileges()
         );
         waitForMigrationCompletion(adminClient(), null);
-        assertQuery("""
-            {"query":{"prefix":{"metadata":"match"}}}""", 5, roles -> {
+        Consumer<List<Map<String, Object>>> matcher = roles -> {
             assertThat(roles, iterableWithSize(5));
             roles.sort(Comparator.comparing(o -> ((String) o.get("name"))));
             assertRoleMap(roles.get(0), role1);
@@ -149,7 +157,11 @@ public class QueryRoleIT extends SecurityInBasicRestTestCase {
             assertRoleMap(roles.get(2), role5);
             assertRoleMap(roles.get(3), role6);
             assertRoleMap(roles.get(4), role8);
-        });
+        };
+        assertQuery("""
+            {"query":{"prefix":{"metadata":"match"}}}""", 5, matcher);
+        assertQuery("""
+            {"query":{"simple_query_string":{"fields":["meta*"],"query":"matchThis"}}}""", 5, matcher);
     }
 
     @SuppressWarnings("unchecked")
@@ -168,13 +180,28 @@ public class QueryRoleIT extends SecurityInBasicRestTestCase {
                 ApplicationResourcePrivileges[]::new,
                 this::randomApplicationResourcePrivileges
             );
-            int matchingApplicationIndex = randomIntBetween(0, applicationResourcePrivileges.length - 1);
-            // make sure the application matches the filter query below ("a*z")
-            applicationResourcePrivileges[matchingApplicationIndex] = RoleDescriptor.ApplicationResourcePrivileges.builder()
-                .application("a" + randomAlphaOfLength(4) + "z")
-                .resources(applicationResourcePrivileges[matchingApplicationIndex].getResources())
-                .privileges(applicationResourcePrivileges[matchingApplicationIndex].getPrivileges())
-                .build();
+            {
+                int matchingApplicationIndex = randomIntBetween(0, applicationResourcePrivileges.length - 1);
+                // make sure the "application" matches the filter query below ("a*9")
+                applicationResourcePrivileges[matchingApplicationIndex] = RoleDescriptor.ApplicationResourcePrivileges.builder()
+                    .application("a" + randomAlphaOfLength(4) + "9")
+                    .resources(applicationResourcePrivileges[matchingApplicationIndex].getResources())
+                    .privileges(applicationResourcePrivileges[matchingApplicationIndex].getPrivileges())
+                    .build();
+            }
+            {
+                int matchingApplicationIndex = randomIntBetween(0, applicationResourcePrivileges.length - 1);
+                int matchingResourcesIndex = randomIntBetween(
+                    0,
+                    applicationResourcePrivileges[matchingApplicationIndex].getResources().length - 1
+                );
+                // make sure the "resources" matches the terms query below ("99")
+                applicationResourcePrivileges[matchingApplicationIndex] = RoleDescriptor.ApplicationResourcePrivileges.builder()
+                    .application(applicationResourcePrivileges[matchingApplicationIndex].getApplication())
+                    .resources(applicationResourcePrivileges[matchingApplicationIndex].getResources()[matchingResourcesIndex] = "99")
+                    .privileges(applicationResourcePrivileges[matchingApplicationIndex].getPrivileges())
+                    .build();
+            }
             createRole(
                 randomAlphaOfLength(4) + i,
                 randomBoolean() ? null : randomAlphaOfLength(8),
@@ -183,7 +210,7 @@ public class QueryRoleIT extends SecurityInBasicRestTestCase {
             );
         }
         assertQuery("""
-            {"query":{"bool":{"filter":[{"wildcard":{"applications.application":"a*z"}}]}},"sort":["name"]}""", nMatchingRoles, roles -> {
+            {"query":{"bool":{"filter":[{"wildcard":{"applications.application":"a*9"}}]}},"sort":["name"]}""", nMatchingRoles, roles -> {
             assertThat(roles, iterableWithSize(nMatchingRoles));
             // assert sorting on name
             for (int i = 0; i < nMatchingRoles; i++) {
@@ -197,6 +224,52 @@ public class QueryRoleIT extends SecurityInBasicRestTestCase {
                 assertThat(compareNames < 0, is(true));
             }
         });
+        assertQuery(
+            """
+                {"query":{"bool":{"must":[{"terms":{"applications.resources":["99"]}}]}},"sort":["applications.privileges"]}""",
+            nMatchingRoles,
+            roles -> {
+                assertThat(roles, iterableWithSize(nMatchingRoles));
+                // assert sorting on best "applications.privileges"
+                for (int i = 0; i < nMatchingRoles; i++) {
+                    assertThat(roles.get(i).get("_sort"), instanceOf(List.class));
+                    assertThat(((List<String>) roles.get(i).get("_sort")), iterableWithSize(1));
+                    assertThat(
+                        ((List<String>) roles.get(i).get("_sort")).get(0),
+                        equalTo(bestPrivilegeName(roles.get(i), String::compareTo))
+                    );
+                }
+                // assert the ascending sort order
+                for (int i = 1; i < nMatchingRoles; i++) {
+                    int comparePrivileges = bestPrivilegeName(roles.get(i - 1), String::compareTo).compareTo(
+                        bestPrivilegeName(roles.get(i), String::compareTo)
+                    );
+                    assertThat(comparePrivileges < 0, is(true));
+                }
+            }
+        );
+    }
+
+    @SuppressWarnings("unchecked")
+    private String bestPrivilegeName(Map<String, Object> roleMap, Comparator<String> comparator) {
+        String bestPrivilege = null;
+        List<Map<String, Object>> applications = (List<Map<String, Object>>) roleMap.get("applications");
+        if (applications == null) {
+            return bestPrivilege;
+        }
+        for (Map<String, Object> application : applications) {
+            List<String> privileges = (List<String>) application.get("privileges");
+            if (privileges != null) {
+                for (String privilege : privileges) {
+                    if (bestPrivilege == null) {
+                        bestPrivilege = privilege;
+                    } else if (comparator.compare(privilege, bestPrivilege) < 0) {
+                        bestPrivilege = privilege;
+                    }
+                }
+            }
+        }
+        return bestPrivilege;
     }
 
     private RoleDescriptor createRandomRole() throws IOException {

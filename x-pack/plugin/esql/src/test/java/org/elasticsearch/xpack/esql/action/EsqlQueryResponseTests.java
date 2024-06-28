@@ -273,7 +273,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                 IS_RUNNING,
                 ObjectParser.ValueType.BOOLEAN_OR_NULL
             );
-            parser.declareObjectArray(constructorArg(), (p, c) -> ColumnInfo.fromXContent(p), new ParseField("columns"));
+            parser.declareObjectArray(constructorArg(), (p, c) -> ColumnInfoImpl.fromXContent(p), new ParseField("columns"));
             parser.declareField(constructorArg(), (p, c) -> p.list(), new ParseField("values"), ObjectParser.ValueType.OBJECT_ARRAY);
             PARSER = parser.build();
         }

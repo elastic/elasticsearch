@@ -3474,7 +3474,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             }
         };
         final boolean isTimeBasedIndex = mapperService != null && mapperService.mappingLookup().hasTimestampField();
-        final boolean hasNested = mapperService != null && mapperService.hasNested();
         return new EngineConfig(
             shardId,
             threadPool,
@@ -3493,7 +3492,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             List.of(refreshListeners, refreshPendingLocationListener, refreshFieldHasValueListener),
             Collections.singletonList(new RefreshMetricUpdater(refreshMetric)),
             indexSort,
-            hasNested,
             circuitBreakerService,
             globalCheckpointSupplier,
             replicationTracker::getRetentionLeases,

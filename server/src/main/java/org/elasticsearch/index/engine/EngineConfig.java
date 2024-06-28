@@ -136,8 +136,6 @@ public final class EngineConfig {
 
     private final boolean promotableToPrimary;
 
-    private final boolean hasNested;
-
     /**
      * Creates a new {@link org.elasticsearch.index.engine.EngineConfig}
      */
@@ -159,7 +157,6 @@ public final class EngineConfig {
         List<ReferenceManager.RefreshListener> externalRefreshListener,
         List<ReferenceManager.RefreshListener> internalRefreshListener,
         Sort indexSort,
-        final boolean hasNested,
         CircuitBreakerService circuitBreakerService,
         LongSupplier globalCheckpointSupplier,
         Supplier<RetentionLeases> retentionLeasesSupplier,
@@ -204,7 +201,6 @@ public final class EngineConfig {
         this.externalRefreshListener = externalRefreshListener;
         this.internalRefreshListener = internalRefreshListener;
         this.indexSort = indexSort;
-        this.hasNested = hasNested;
         this.circuitBreakerService = circuitBreakerService;
         this.globalCheckpointSupplier = globalCheckpointSupplier;
         this.retentionLeasesSupplier = Objects.requireNonNull(retentionLeasesSupplier);
@@ -393,10 +389,6 @@ public final class EngineConfig {
      */
     public Sort getIndexSort() {
         return indexSort;
-    }
-
-    public boolean hasNested() {
-        return hasNested;
     }
 
     /**

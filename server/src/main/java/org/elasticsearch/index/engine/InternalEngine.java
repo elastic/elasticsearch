@@ -2729,9 +2729,7 @@ public class InternalEngine extends Engine {
         }
         if (config().getIndexSort() != null) {
             iwc.setIndexSort(config().getIndexSort());
-            if (engineConfig.hasNested()) {
-                iwc.setParentField(ROOT_DOC_FIELD_NAME);
-            }
+            iwc.setParentField(ROOT_DOC_FIELD_NAME);  // Needed to support index sorting in the presence of nested objects.
         }
         // Provide a custom leaf sorter, so that index readers opened from this writer
         // will have its leaves sorted according the given leaf sorter.

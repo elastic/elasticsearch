@@ -73,7 +73,6 @@ public class IndexingMemoryControllerIT extends ESSingleNodeTestCase {
                 config.getExternalRefreshListener(),
                 config.getInternalRefreshListener(),
                 config.getIndexSort(),
-                config.hasNested(),
                 config.getCircuitBreakerService(),
                 config.getGlobalCheckpointSupplier(),
                 config.retentionLeasesSupplier(),

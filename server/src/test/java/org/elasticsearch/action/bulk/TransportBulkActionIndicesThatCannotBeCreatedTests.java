@@ -9,6 +9,7 @@
 package org.elasticsearch.action.bulk;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
@@ -25,7 +26,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexingPressure;
@@ -39,6 +39,7 @@ import org.elasticsearch.transport.TransportService;
 
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.Executor;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
@@ -137,7 +138,7 @@ public class TransportBulkActionIndicesThatCannotBeCreatedTests extends ESTestCa
                 BulkRequest bulkRequest,
                 long startTimeNanos,
                 ActionListener<BulkResponse> listener,
-                String executorName,
+                Executor executor,
                 AtomicArray<BulkItemResponse> responses,
                 Map<String, IndexNotFoundException> indicesThatCannotBeCreated
             ) {
@@ -145,7 +146,8 @@ public class TransportBulkActionIndicesThatCannotBeCreatedTests extends ESTestCa
             }
 
             @Override
-            void createIndex(String index, boolean requireDataStream, TimeValue timeout, ActionListener<CreateIndexResponse> listener) {
+            void createIndex(CreateIndexRequest createIndexRequest, ActionListener<CreateIndexResponse> listener) {
+                String index = createIndexRequest.index();
                 try {
                     simulateAutoCreate.accept(index);
                     // If we try to create an index just immediately assume it worked

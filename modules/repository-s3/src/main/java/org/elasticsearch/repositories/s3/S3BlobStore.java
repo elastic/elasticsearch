@@ -52,6 +52,7 @@ import java.util.concurrent.atomic.LongAdder;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.rest.RestStatus.REQUESTED_RANGE_NOT_SATISFIED;
 
 class S3BlobStore implements BlobStore {
 
@@ -61,7 +62,7 @@ class S3BlobStore implements BlobStore {
      * Maximum number of deletes in a {@link DeleteObjectsRequest}.
      * @see <a href="https://docs.aws.amazon.com/AmazonS3/latest/API/multiobjectdeleteapi.html">S3 Documentation</a>.
      */
-    private static final int MAX_BULK_DELETES = 1000;
+    static final int MAX_BULK_DELETES = 1000;
 
     private static final Logger logger = LogManager.getLogger(S3BlobStore.class);
 
@@ -87,6 +88,8 @@ class S3BlobStore implements BlobStore {
 
     private final StatsCollectors statsCollectors = new StatsCollectors();
 
+    private final int bulkDeletionBatchSize;
+
     S3BlobStore(
         S3Service service,
         String bucket,
@@ -110,6 +113,8 @@ class S3BlobStore implements BlobStore {
         this.threadPool = threadPool;
         this.snapshotExecutor = threadPool.executor(ThreadPool.Names.SNAPSHOT);
         this.s3RepositoriesMetrics = s3RepositoriesMetrics;
+        this.bulkDeletionBatchSize = S3Repository.DELETION_BATCH_SIZE_SETTING.get(repositoryMetadata.settings());
+
     }
 
     RequestMetricCollector getMetricCollector(Operation operation, OperationPurpose purpose) {
@@ -172,6 +177,23 @@ class S3BlobStore implements BlobStore {
             final int numberOfAwsErrors = Optional.ofNullable(awsRequestMetrics.getProperty(AWSRequestMetrics.Field.AWSErrorCode))
                 .map(List::size)
                 .orElse(0);
+
+            if (exceptionCount > 0) {
+                final List<Object> statusCodes = Objects.requireNonNullElse(
+                    awsRequestMetrics.getProperty(AWSRequestMetrics.Field.StatusCode),
+                    List.of()
+                );
+                // REQUESTED_RANGE_NOT_SATISFIED errors are expected errors due to RCO
+                // TODO Add more expected client error codes?
+                final long amountOfRequestRangeNotSatisfiedErrors = statusCodes.stream()
+                    .filter(e -> (Integer) e == REQUESTED_RANGE_NOT_SATISFIED.getStatus())
+                    .count();
+                if (amountOfRequestRangeNotSatisfiedErrors > 0) {
+                    s3RepositoriesMetrics.common()
+                        .requestRangeNotSatisfiedExceptionCounter()
+                        .incrementBy(amountOfRequestRangeNotSatisfiedErrors, attributes);
+                }
+            }
 
             s3RepositoriesMetrics.common().operationCounter().incrementBy(1, attributes);
             if (numberOfAwsErrors == requestCount) {
@@ -315,18 +337,16 @@ class S3BlobStore implements BlobStore {
         try (AmazonS3Reference clientReference = clientReference()) {
             // S3 API only allows 1k blobs per delete so we split up the given blobs into requests of max. 1k deletes
             final AtomicReference<Exception> aex = new AtomicReference<>();
-            SocketAccess.doPrivilegedVoid(() -> {
-                blobNames.forEachRemaining(key -> {
-                    partition.add(key);
-                    if (partition.size() == MAX_BULK_DELETES) {
-                        deletePartition(purpose, clientReference, partition, aex);
-                        partition.clear();
-                    }
-                });
-                if (partition.isEmpty() == false) {
+            blobNames.forEachRemaining(key -> {
+                partition.add(key);
+                if (partition.size() == bulkDeletionBatchSize) {
                     deletePartition(purpose, clientReference, partition, aex);
+                    partition.clear();
                 }
             });
+            if (partition.isEmpty() == false) {
+                deletePartition(purpose, clientReference, partition, aex);
+            }
             if (aex.get() != null) {
                 throw aex.get();
             }
@@ -342,7 +362,7 @@ class S3BlobStore implements BlobStore {
         AtomicReference<Exception> aex
     ) {
         try {
-            clientReference.client().deleteObjects(bulkDelete(purpose, this, partition));
+            SocketAccess.doPrivilegedVoid(() -> clientReference.client().deleteObjects(bulkDelete(purpose, this, partition)));
         } catch (MultiObjectDeleteException e) {
             // We are sending quiet mode requests so we can't use the deleted keys entry on the exception and instead
             // first remove all keys that were sent in the request and then add back those that ran into an exception.

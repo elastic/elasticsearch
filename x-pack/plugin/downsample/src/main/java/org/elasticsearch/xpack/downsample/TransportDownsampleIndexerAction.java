@@ -49,7 +49,6 @@ public class TransportDownsampleIndexerAction extends TransportBroadcastAction<
     DownsampleIndexerAction.ShardDownsampleResponse> {
 
     private final Client client;
-    private final ClusterService clusterService;
     private final IndicesService indicesService;
 
     private final DownsampleMetrics downsampleMetrics;
@@ -75,7 +74,6 @@ public class TransportDownsampleIndexerAction extends TransportBroadcastAction<
             transportService.getThreadPool().executor(Downsample.DOWNSAMPLE_TASK_THREAD_POOL_NAME)
         );
         this.client = new OriginSettingClient(client, ClientHelper.ROLLUP_ORIGIN);
-        this.clusterService = clusterService;
         this.indicesService = indicesService;
         this.downsampleMetrics = downsampleMetrics;
     }

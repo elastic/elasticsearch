@@ -92,7 +92,7 @@ public final class InnerHitsPhase implements FetchSubPhase {
             innerHitsContext.setRootId(hit.getId());
             innerHitsContext.setRootLookup(rootSource);
 
-            fetchPhase.execute(innerHitsContext, docIdsToLoad);
+            fetchPhase.execute(innerHitsContext, docIdsToLoad, null);
             FetchSearchResult fetchResult = innerHitsContext.fetchResult();
             SearchHit[] internalHits = fetchResult.fetchResult().hits().getHits();
             for (int j = 0; j < internalHits.length; j++) {
@@ -104,6 +104,7 @@ public final class InnerHitsPhase implements FetchSubPhase {
                 }
             }
             var h = fetchResult.hits();
+            assert hit.isPooled() || h.isPooled() == false;
             results.put(entry.getKey(), h);
             h.mustIncRef();
         }

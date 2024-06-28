@@ -37,7 +37,7 @@ public class DataStreamFeatures implements FeatureSpecification {
             DataStreamLifecycleHealthInfoPublisher.DSL_HEALTH_INFO_FEATURE,  // Added in 8.12
             LazyRolloverAction.DATA_STREAM_LAZY_ROLLOVER,                    // Added in 8.13
             DataStreamAutoShardingService.DATA_STREAM_AUTO_SHARDING_FEATURE,
-            DataStreamGlobalRetention.GLOBAL_RETENTION                      // Added in 8.14
+            DataStreamGlobalRetention.GLOBAL_RETENTION                       // Added in 8.14
         );
     }
 }

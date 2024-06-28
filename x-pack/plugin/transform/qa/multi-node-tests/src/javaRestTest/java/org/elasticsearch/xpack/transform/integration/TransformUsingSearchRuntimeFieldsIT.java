@@ -138,7 +138,7 @@ public class TransformUsingSearchRuntimeFieldsIT extends TransformRestTestCase {
         stopTransform(config.getId());
         assertBusy(() -> { assertEquals("stopped", getTransformState(config.getId())); });
 
-        refreshIndex(destIndexName, RequestOptions.DEFAULT);
+        refreshIndex(destIndexName);
         // Verify destination index mappings
         var mappings = (Map<String, Object>) XContentMapValues.extractValue(
             destIndexName + ".mappings",
@@ -235,7 +235,7 @@ public class TransformUsingSearchRuntimeFieldsIT extends TransformRestTestCase {
         stopTransform(configWithRuntimeFields.getId());
         assertBusy(() -> { assertEquals("stopped", getTransformState(configWithRuntimeFields.getId())); });
 
-        refreshIndex(destIndexName, RequestOptions.DEFAULT);
+        refreshIndex(destIndexName);
         // Verify destination index mappings
         var destIndexMapping = getIndexMapping(destIndexName, RequestOptions.DEFAULT);
 

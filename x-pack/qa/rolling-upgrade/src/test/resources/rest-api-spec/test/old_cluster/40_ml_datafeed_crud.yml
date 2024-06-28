@@ -48,7 +48,7 @@
 ---
 "Put job and datafeed with aggs in old cluster - pre-deprecated interval":
   - skip:
-      version: "7.1.99 - "
+      cluster_features: ["gte_v7.1.99"]
       reason:  "calendar_interval introduced in 7.2.0"
 
   - do:
@@ -118,9 +118,10 @@
 ---
 "Put job and datafeed with aggs in old cluster - deprecated interval with warning before 8.0.0":
   - skip:
-      version: "8.0.0 - "
+      cluster_features: ["gte_v8.0.0"]
       reason:  at version 8.0.0, deprecation warnings don't occur on get_stats
-      features: warnings
+  - requires:
+      test_runner_features: warnings
 
   - do:
       ml.put_job:
@@ -192,8 +193,8 @@
 
 ---
 "Put job and datafeed with aggs in old cluster - deprecated interval with warning after 8.0.0":
-  - skip:
-      version: " - 7.99.99"
+  - requires:
+      cluster_features: ["gte_v8.0.0"]
       reason:  at version 8.0.0, deprecation warnings don't occur on get_stats
 
   - do:

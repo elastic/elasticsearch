@@ -16,14 +16,17 @@ coming::[8.13.0]
 [[breaking-changes-8.13]]
 === Breaking changes
 
-The following changes in {es} 8.13 might affect your applications
-and prevent them from operating normally.
-Before upgrading to 8.13, review these changes and take the described steps
-to mitigate the impact.
+There are no breaking changes in 8.13.
 
+[discrete]
+[[migrate-notable-changes-8.13]]
+=== Notable changes
+The following are notable, non-breaking updates to be aware of:
 
-There are no notable breaking changes in {es} 8.13.
-But there are some less critical breaking changes.
+* Changes to features that are in Technical Preview.
+* Changes to log formats.
+* Changes to non-public APIs.
+* Behaviour changes that repair critical bugs.
 
 [discrete]
 [[breaking_813_index_setting_changes]]

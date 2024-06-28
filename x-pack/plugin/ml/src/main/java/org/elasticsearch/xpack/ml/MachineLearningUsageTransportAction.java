@@ -63,6 +63,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.TreeMap;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -503,7 +504,8 @@ public class MachineLearningUsageTransportAction extends XPackUsageFeatureTransp
         );
     }
 
-    private static void addTrainedModelStats(
+    // Default for testing
+    static void addTrainedModelStats(
         GetTrainedModelsAction.Response modelsResponse,
         GetTrainedModelsStatsAction.Response statsResponse,
         Map<String, Object> inferenceUsage
@@ -512,7 +514,17 @@ public class MachineLearningUsageTransportAction extends XPackUsageFeatureTransp
         Map<String, GetTrainedModelsStatsAction.Response.TrainedModelStats> statsToModelId = statsResponse.getResources()
             .results()
             .stream()
-            .collect(Collectors.toMap(GetTrainedModelsStatsAction.Response.TrainedModelStats::getModelId, Function.identity()));
+            .filter(Objects::nonNull)
+            .collect(
+                Collectors.toMap(
+                    GetTrainedModelsStatsAction.Response.TrainedModelStats::getModelId,
+                    Function.identity(),
+                    // Addresses issue: https://github.com/elastic/elasticsearch/issues/108423
+                    // There could be multiple deployments of the same model which would result in a collision, since all we need is the
+                    // memory used by the model we can use either one
+                    (stats1, stats2) -> stats1
+                )
+            );
         Map<String, Object> trainedModelsUsage = new HashMap<>();
         trainedModelsUsage.put(MachineLearningFeatureSetUsage.ALL, createCountUsageEntry(trainedModelConfigs.size()));
 

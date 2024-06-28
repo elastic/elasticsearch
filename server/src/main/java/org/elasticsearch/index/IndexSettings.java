@@ -23,6 +23,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.ingest.IngestService;
@@ -284,7 +285,7 @@ public final class IndexSettings {
         TimeValue.MINUS_ONE,
         Property.NodeScope
     ); // TODO: remove setting
-    public static TimeValue STATELESS_DEFAULT_REFRESH_INTERVAL = TimeValue.timeValueSeconds(15); // TODO: this value is still not final
+    public static TimeValue STATELESS_DEFAULT_REFRESH_INTERVAL = TimeValue.timeValueSeconds(5); // TODO: this value is still not final
     public static TimeValue STATELESS_MIN_NON_FAST_REFRESH_INTERVAL = TimeValue.timeValueSeconds(5);
     public static final Setting<TimeValue> INDEX_REFRESH_INTERVAL_SETTING = Setting.timeSetting("index.refresh_interval", (settings) -> {
         if (EXISTING_SHARDS_ALLOCATOR_SETTING.get(settings).equals("stateless") && INDEX_FAST_REFRESH_SETTING.get(settings) == false) {
@@ -294,6 +295,13 @@ public final class IndexSettings {
     }, new RefreshIntervalValidator(), Property.Dynamic, Property.IndexScope, Property.ServerlessPublic);
 
     static class RefreshIntervalValidator implements Setting.Validator<TimeValue> {
+
+        static final String STATELESS_ALLOW_INDEX_REFRESH_INTERVAL_OVERRIDE = "es.stateless.allow.index.refresh_interval.override";
+
+        private LazyInitializable<Boolean, RuntimeException> isOverrideAllowed = new LazyInitializable<>(
+            () -> Boolean.parseBoolean(System.getProperty(STATELESS_ALLOW_INDEX_REFRESH_INTERVAL_OVERRIDE, "false"))
+        );
+
         @Override
         public void validate(TimeValue value) {}
 
@@ -308,16 +316,19 @@ public final class IndexSettings {
                 && value.compareTo(TimeValue.ZERO) > 0
                 && value.compareTo(STATELESS_MIN_NON_FAST_REFRESH_INTERVAL) < 0
                 && indexVersion.after(IndexVersions.V_8_10_0)) {
-                throw new IllegalArgumentException(
-                    "index setting ["
-                        + IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey()
-                        + "="
-                        + value
-                        + "] should be either "
-                        + TimeValue.MINUS_ONE
-                        + " or equal to or greater than "
-                        + STATELESS_MIN_NON_FAST_REFRESH_INTERVAL
-                );
+
+                if (isOverrideAllowed.getOrCompute() == false) {
+                    throw new IllegalArgumentException(
+                        "index setting ["
+                            + IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey()
+                            + "="
+                            + value
+                            + "] should be either "
+                            + TimeValue.MINUS_ONE
+                            + " or equal to or greater than "
+                            + STATELESS_MIN_NON_FAST_REFRESH_INTERVAL
+                    );
+                }
             }
         }
 
@@ -1114,16 +1125,21 @@ public final class IndexSettings {
         final Settings newSettings = indexMetadata.getSettings();
         IndexVersion newIndexVersion = SETTING_INDEX_VERSION_CREATED.get(newSettings);
         if (version.equals(newIndexVersion) == false) {
-            throw new IllegalArgumentException("version mismatch on settings update expected: " + version + " but was: " + newIndexVersion);
+            throw new IllegalArgumentException(
+                "version mismatch on settings update expected: "
+                    + version.toReleaseVersion()
+                    + " but was: "
+                    + newIndexVersion.toReleaseVersion()
+            );
         }
         IndexVersion newCompatibilityVersion = IndexMetadata.SETTING_INDEX_VERSION_COMPATIBILITY.get(newSettings);
         IndexVersion compatibilityVersion = IndexMetadata.SETTING_INDEX_VERSION_COMPATIBILITY.get(settings);
         if (compatibilityVersion.equals(newCompatibilityVersion) == false) {
             throw new IllegalArgumentException(
                 "compatibility version mismatch on settings update expected: "
-                    + compatibilityVersion
+                    + compatibilityVersion.toReleaseVersion()
                     + " but was: "
-                    + newCompatibilityVersion
+                    + newCompatibilityVersion.toReleaseVersion()
             );
         }
         final String newUUID = newSettings.get(IndexMetadata.SETTING_INDEX_UUID, IndexMetadata.INDEX_UUID_NA_VALUE);

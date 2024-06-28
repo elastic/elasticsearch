@@ -18,6 +18,7 @@ import java.util.function.Consumer;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.only;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -235,5 +236,68 @@ public class TransformRetryableStartUpListenerTests extends ESTestCase {
         assertNotNull("Retry Listener should be called.", retryResult.get());
         assertFalse("Retries should not be scheduled.", retryResult.get());
         verify(context, only()).resetStartUpFailureCount();
+    }
+
+    /**
+     * Given triggered has been called
+     * When we call trigger a second time
+     * And the first call has not finished
+     * Then we should not take any action
+     *
+     * Given the first call has finished
+     * When we call trigger a third time
+     * Then we should successfully call the action
+     */
+    public void testRunOneAtATime() {
+        var retryResult = new AtomicReference<Boolean>();
+        var responseResult = new AtomicInteger(0);
+        var context = mock(TransformContext.class);
+
+        var savedListener = new AtomicReference<ActionListener<Void>>();
+        Consumer<ActionListener<Void>> action = l -> {
+            if (savedListener.compareAndSet(null, l) == false) {
+                fail("Action should only be called once.");
+            }
+        };
+
+        var listener = new TransformRetryableStartUpListener<>(
+            "transformId",
+            action,
+            responseListener(responseResult),
+            retryListener(retryResult),
+            () -> true,
+            context
+        );
+
+        callThreeTimes("transformId", listener);
+
+        // verify the action has been called
+        assertNotNull(savedListener.get());
+
+        // assert the listener has not been called yet
+        assertEquals("Response Listener should never be called once.", 0, responseResult.get());
+        assertNull("Retry Listener should not be called.", retryResult.get());
+        verifyNoInteractions(context);
+
+        savedListener.get().onFailure(new IllegalStateException("first call fails"));
+
+        // assert only 1 retry and 0 success
+        assertEquals("Response Listener should only be called once.", 0, responseResult.get());
+        assertNotNull("Retry Listener should be called.", retryResult.get());
+        assertTrue("Retries should be scheduled.", retryResult.get());
+        verify(context, times(1)).incrementAndGetStartUpFailureCount(any(IllegalStateException.class));
+        verify(context, never()).resetStartUpFailureCount();
+
+        // rerun and succeed
+        savedListener.set(null);
+        callThreeTimes("transformId", listener);
+        savedListener.get().onResponse(null);
+
+        // assert only 1 retry and 1 failure
+        assertEquals("Response Listener should only be called once.", 1, responseResult.get());
+        assertNotNull("Retry Listener should be called.", retryResult.get());
+        assertTrue("Retries should be scheduled.", retryResult.get());
+        verify(context, times(1)).incrementAndGetStartUpFailureCount(any(IllegalStateException.class));
+        verify(context, times(1)).resetStartUpFailureCount();
     }
 }

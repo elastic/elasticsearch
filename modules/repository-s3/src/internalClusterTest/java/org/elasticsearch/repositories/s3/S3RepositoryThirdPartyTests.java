@@ -33,6 +33,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.repositories.AbstractThirdPartyRepositoryTestCase;
 import org.elasticsearch.repositories.RepositoriesService;
+import org.elasticsearch.repositories.blobstore.RequestedRangeNotSatisfiedException;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.fixtures.minio.MinioTestContainer;
@@ -126,10 +127,11 @@ public class S3RepositoryThirdPartyTests extends AbstractThirdPartyRepositoryTes
                 settings.put("storage_class", storageClass);
             }
         }
-        AcknowledgedResponse putRepositoryResponse = clusterAdmin().preparePutRepository(repoName)
-            .setType("s3")
-            .setSettings(settings)
-            .get();
+        AcknowledgedResponse putRepositoryResponse = clusterAdmin().preparePutRepository(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
+            repoName
+        ).setType("s3").setSettings(settings).get();
         assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
     }
 
@@ -243,15 +245,15 @@ public class S3RepositoryThirdPartyTests extends AbstractThirdPartyRepositoryTes
 
         var exception = expectThrows(UncategorizedExecutionException.class, () -> readBlob(repository, blobName, position, length));
         assertThat(exception.getCause(), instanceOf(ExecutionException.class));
-        assertThat(exception.getCause().getCause(), instanceOf(IOException.class));
+        assertThat(exception.getCause().getCause(), instanceOf(RequestedRangeNotSatisfiedException.class));
         assertThat(
             exception.getCause().getCause().getMessage(),
             containsString(
-                "Requested range [start="
+                "Requested range [position="
                     + position
-                    + ", end="
-                    + (position + length - 1L)
-                    + ", currentOffset=0] cannot be satisfied for blob object ["
+                    + ", length="
+                    + length
+                    + "] cannot be satisfied for ["
                     + repository.basePath().buildAsString()
                     + blobName
                     + ']'

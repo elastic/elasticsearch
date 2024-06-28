@@ -21,6 +21,7 @@ import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
+import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 
 /**
  * Creates a new snapshot
@@ -42,9 +43,8 @@ public class RestCreateSnapshotAction extends BaseRestHandler {
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         String repository = request.param("repository");
         String snapshot = request.param("snapshot");
-        CreateSnapshotRequest createSnapshotRequest = new CreateSnapshotRequest(repository, snapshot);
+        final var createSnapshotRequest = new CreateSnapshotRequest(getMasterNodeTimeout(request), repository, snapshot);
         request.applyContentParser(p -> createSnapshotRequest.source(p.mapOrdered()));
-        createSnapshotRequest.masterNodeTimeout(request.paramAsTime("master_timeout", createSnapshotRequest.masterNodeTimeout()));
         createSnapshotRequest.waitForCompletion(request.paramAsBoolean("wait_for_completion", false));
         return channel -> client.admin().cluster().createSnapshot(createSnapshotRequest, new RestToXContentListener<>(channel));
     }

@@ -34,11 +34,10 @@ public class UpdateIndexShardSnapshotStatusRequest extends MasterNodeRequest<Upd
     }
 
     public UpdateIndexShardSnapshotStatusRequest(Snapshot snapshot, ShardId shardId, SnapshotsInProgress.ShardSnapshotStatus status) {
+        super(TimeValue.MAX_VALUE); // By default, keep trying to post snapshot status messages to avoid snapshot processes getting stuck.
         this.snapshot = snapshot;
         this.shardId = shardId;
         this.status = status;
-        // By default, we keep trying to post snapshot status messages to avoid snapshot processes getting stuck.
-        this.masterNodeTimeout = TimeValue.timeValueNanos(Long.MAX_VALUE);
     }
 
     @Override

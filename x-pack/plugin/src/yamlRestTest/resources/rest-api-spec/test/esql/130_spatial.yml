@@ -1,9 +1,9 @@
 ---
 setup:
-  - skip:
-      version: " - 8.13.99"
+  - requires:
+      cluster_features: ["gte_v8.14.0"]
       reason: "Mixed cluster tests don't work with the changed error message from sort"
-      features: allowed_warnings_regex
+      test_runner_features: allowed_warnings_regex
 
   - do:
       indices.create:

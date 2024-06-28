@@ -47,12 +47,12 @@ public class TransportGetSecuritySettingsAction extends TransportMasterNodeActio
         IndexNameExpressionResolver indexNameExpressionResolver
     ) {
         super(
-            GetSecuritySettingsAction.NAME,
+            GetSecuritySettingsAction.INSTANCE.name(),
             transportService,
             clusterService,
             threadPool,
             actionFilters,
-            GetSecuritySettingsAction.Request::new,
+            GetSecuritySettingsAction.Request::readFrom,
             indexNameExpressionResolver,
             GetSecuritySettingsAction.Response::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE

@@ -89,6 +89,22 @@ public abstract class SearchProgressListener {
     protected void onFinalReduce(List<SearchShard> shards, TotalHits totalHits, InternalAggregations aggs, int reducePhase) {}
 
     /**
+     * Executed when a shard returns a rank feature result.
+     *
+     * @param shardIndex The index of the shard in the list provided by {@link SearchProgressListener#onListShards})}.
+     */
+    protected void onRankFeatureResult(int shardIndex) {}
+
+    /**
+     * Executed when a shard reports a rank feature failure.
+     *
+     * @param shardIndex The index of the shard in the list provided by {@link SearchProgressListener#onListShards})}.
+     * @param shardTarget The last shard target that thrown an exception.
+     * @param exc The cause of the failure.
+     */
+    protected void onRankFeatureFailure(int shardIndex, SearchShardTarget shardTarget, Exception exc) {}
+
+    /**
      * Executed when a shard returns a fetch result.
      *
      * @param shardIndex The index of the shard in the list provided by {@link SearchProgressListener#onListShards})}.
@@ -157,6 +173,22 @@ public abstract class SearchProgressListener {
             onFinalReduce(shards, totalHits, aggs, reducePhase);
         } catch (Exception e) {
             logger.warn("Failed to execute progress listener on reduce", e);
+        }
+    }
+
+    final void notifyRankFeatureResult(int shardIndex) {
+        try {
+            onRankFeatureResult(shardIndex);
+        } catch (Exception e) {
+            logger.warn(() -> "[" + shards.get(shardIndex) + "] Failed to execute progress listener on rank-feature result", e);
+        }
+    }
+
+    final void notifyRankFeatureFailure(int shardIndex, SearchShardTarget shardTarget, Exception exc) {
+        try {
+            onRankFeatureFailure(shardIndex, shardTarget, exc);
+        } catch (Exception e) {
+            logger.warn(() -> "[" + shards.get(shardIndex) + "] Failed to execute progress listener on rank-feature failure", e);
         }
     }
 

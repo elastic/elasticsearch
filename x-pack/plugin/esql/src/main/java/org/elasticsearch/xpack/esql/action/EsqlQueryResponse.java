@@ -92,7 +92,7 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
         boolean isRunning = false;
         boolean isAsync = false;
         Profile profile = null;
-        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_ASYNC_QUERY)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
             asyncExecutionId = in.readOptionalString();
             isRunning = in.readBoolean();
             isAsync = in.readBoolean();
@@ -108,7 +108,7 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_ASYNC_QUERY)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
             out.writeOptionalString(asyncExecutionId);
             out.writeBoolean(isRunning);
             out.writeBoolean(isAsync);

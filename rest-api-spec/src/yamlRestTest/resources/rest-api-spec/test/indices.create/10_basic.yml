@@ -122,8 +122,8 @@
 
 ---
 "Create index without soft deletes":
-  - skip:
-      version:  " - 7.99.99"
+  - requires:
+      cluster_features:  ["gte_v8.0.0"]
       reason:   "indices without soft-deletes is no longer supported "
   - do:
       catch: /illegal_argument_exception/
@@ -135,8 +135,8 @@
 
 ---
 "Create with alias containing date math":
-  - skip:
-      version: " - 7.12.99"
+  - requires:
+      cluster_features: ["gte_v7.13.0"]
       reason: "date math support for aliases was added in 7.13"
   - do:
       indices.create:

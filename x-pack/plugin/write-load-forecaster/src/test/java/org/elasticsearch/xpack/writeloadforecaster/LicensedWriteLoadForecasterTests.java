@@ -25,8 +25,8 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.OptionalDouble;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -321,16 +321,10 @@ public class LicensedWriteLoadForecasterTests extends ESTestCase {
     }
 
     private DataStream createDataStream(String name, List<Index> backingIndices) {
-        return new DataStream(
-            name,
-            backingIndices,
-            backingIndices.size(),
-            Collections.emptyMap(),
-            false,
-            false,
-            false,
-            false,
-            IndexMode.STANDARD
-        );
+        return DataStream.builder(name, backingIndices)
+            .setGeneration(backingIndices.size())
+            .setMetadata(Map.of())
+            .setIndexMode(IndexMode.STANDARD)
+            .build();
     }
 }

@@ -37,7 +37,6 @@ public class TransportFindDanglingIndexAction extends TransportNodesAction<
 
     public static final ActionType<FindDanglingIndexResponse> TYPE = new ActionType<>("cluster:admin/indices/dangling/find");
 
-    private final TransportService transportService;
     private final DanglingIndicesState danglingIndicesState;
 
     @Inject
@@ -56,7 +55,6 @@ public class TransportFindDanglingIndexAction extends TransportNodesAction<
             NodeFindDanglingIndexRequest::new,
             threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );
-        this.transportService = transportService;
         this.danglingIndicesState = danglingIndicesState;
     }
 

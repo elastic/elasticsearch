@@ -11,6 +11,8 @@ import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.index.mapper.BlockLoader;
 
 import java.io.IOException;
@@ -39,6 +41,9 @@ public sealed interface LongBlock extends Block permits LongArrayBlock, LongVect
     LongBlock filter(int... positions);
 
     @Override
+    ReleasableIterator<? extends LongBlock> lookup(IntBlock positions, ByteSizeValue targetBlockSize);
+
+    @Override
     LongBlock expand();
 
     @Override
@@ -52,7 +57,7 @@ public sealed interface LongBlock extends Block permits LongArrayBlock, LongVect
         return readFrom((BlockStreamInput) in);
     }
 
-    private static LongBlock readFrom(BlockStreamInput in) throws IOException {
+    static LongBlock readFrom(BlockStreamInput in) throws IOException {
         final byte serializationType = in.readByte();
         return switch (serializationType) {
             case SERIALIZE_BLOCK_VALUES -> LongBlock.readValues(in);
@@ -223,19 +228,6 @@ public sealed interface LongBlock extends Block permits LongArrayBlock, LongVect
 
         @Override
         Builder mvOrdering(Block.MvOrdering mvOrdering);
-
-        /**
-         * Appends the all values of the given block into a the current position
-         * in this builder.
-         */
-        @Override
-        Builder appendAllValuesToCurrentPosition(Block block);
-
-        /**
-         * Appends the all values of the given block into a the current position
-         * in this builder.
-         */
-        Builder appendAllValuesToCurrentPosition(LongBlock block);
 
         @Override
         LongBlock build();

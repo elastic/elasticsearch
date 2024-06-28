@@ -35,6 +35,9 @@ public class ScriptDocValuesLongsTests extends ESTestCase {
                 assertEquals(values[d][0], (long) longs.get(0));
                 assertEquals(values[d][0], longField.get(Long.MIN_VALUE));
                 assertEquals(values[d][0], longField.get(0, Long.MIN_VALUE));
+
+                Exception e = expectThrows(IndexOutOfBoundsException.class, () -> { long l = longs.get(longs.size()); });
+                assertEquals("A document doesn't have a value for a field at position [" + longs.size() + "]!", e.getMessage());
             } else {
                 Exception e = expectThrows(IllegalStateException.class, longs::getValue);
                 assertEquals(

@@ -50,19 +50,6 @@ public class PersistentTasksService {
     }
 
     /**
-     * Notifies the master node to create new persistent task and to assign it to a node.
-     */
-    @Deprecated(forRemoval = true)
-    public <Params extends PersistentTaskParams> void sendStartRequest(
-        final String taskId,
-        final String taskName,
-        final Params taskParams,
-        final ActionListener<PersistentTask<Params>> listener
-    ) {
-        sendStartRequest(taskId, taskName, taskParams, null, listener);
-    }
-
-    /**
      * Notifies the master node to create new persistent task and to assign it to a node. Accepts operation timeout as optional parameter
      */
     public <Params extends PersistentTaskParams> void sendStartRequest(
@@ -154,11 +141,6 @@ public class PersistentTasksService {
             request.masterNodeTimeout(timeout);
         }
         execute(request, UpdatePersistentTaskStatusAction.INSTANCE, listener);
-    }
-
-    @Deprecated(forRemoval = true)
-    public void sendRemoveRequest(final String taskId, final ActionListener<PersistentTask<?>> listener) {
-        sendRemoveRequest(taskId, null, listener);
     }
 
     /**

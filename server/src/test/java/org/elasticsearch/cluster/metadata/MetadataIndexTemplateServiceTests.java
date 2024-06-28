@@ -2483,11 +2483,12 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             new IndexScopedSettings(Settings.EMPTY, IndexScopedSettings.BUILT_IN_INDEX_SETTINGS),
             xContentRegistry,
             EmptySystemIndices.INSTANCE,
-            new IndexSettingProviders(Set.of())
+            new IndexSettingProviders(Set.of()),
+            new DataStreamGlobalRetentionResolver(DataStreamFactoryRetention.emptyFactoryRetention())
         );
 
         final List<Throwable> throwables = new ArrayList<>();
-        service.putTemplate(request, new ActionListener<>() {
+        service.putTemplate(request, TEST_REQUEST_TIMEOUT, new ActionListener<>() {
             @Override
             public void onResponse(AcknowledgedResponse response) {
 
@@ -2506,7 +2507,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
 
         final List<Throwable> throwables = new ArrayList<>();
         final CountDownLatch latch = new CountDownLatch(1);
-        service.putTemplate(request, new ActionListener<>() {
+        service.putTemplate(request, TEST_REQUEST_TIMEOUT, new ActionListener<>() {
             @Override
             public void onResponse(AcknowledgedResponse response) {
                 latch.countDown();
@@ -2525,6 +2526,9 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
     private MetadataIndexTemplateService getMetadataIndexTemplateService() {
         IndicesService indicesService = getInstanceFromNode(IndicesService.class);
         ClusterService clusterService = getInstanceFromNode(ClusterService.class);
+        DataStreamGlobalRetentionResolver dataStreamGlobalRetentionResolver = new DataStreamGlobalRetentionResolver(
+            DataStreamFactoryRetention.emptyFactoryRetention()
+        );
         MetadataCreateIndexService createIndexService = new MetadataCreateIndexService(
             Settings.EMPTY,
             clusterService,
@@ -2546,7 +2550,8 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             new IndexScopedSettings(Settings.EMPTY, IndexScopedSettings.BUILT_IN_INDEX_SETTINGS),
             xContentRegistry(),
             EmptySystemIndices.INSTANCE,
-            new IndexSettingProviders(Set.of())
+            new IndexSettingProviders(Set.of()),
+            dataStreamGlobalRetentionResolver
         );
     }
 

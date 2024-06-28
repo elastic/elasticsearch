@@ -60,7 +60,6 @@ public class TransportListTasksAction extends TransportTasksAction<Task, ListTas
             transportService,
             actionFilters,
             ListTasksRequest::new,
-            ListTasksResponse::new,
             TaskInfo::from,
             transportService.getThreadPool().executor(ThreadPool.Names.MANAGEMENT)
         );

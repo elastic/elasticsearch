@@ -431,6 +431,7 @@ public class StackTemplateRegistryTests extends ESTestCase {
         versions.put(StackTemplateRegistry.METRICS_OTEL_MAPPINGS_COMPONENT_TEMPLATE_NAME, StackTemplateRegistry.REGISTRY_VERSION);
         versions.put(StackTemplateRegistry.SYNTHETICS_SETTINGS_COMPONENT_TEMPLATE_NAME, StackTemplateRegistry.REGISTRY_VERSION);
         versions.put(StackTemplateRegistry.SYNTHETICS_MAPPINGS_COMPONENT_TEMPLATE_NAME, StackTemplateRegistry.REGISTRY_VERSION);
+        versions.put(StackTemplateRegistry.KIBANA_REPORTING_COMPONENT_TEMPLATE_NAME, StackTemplateRegistry.REGISTRY_VERSION);
         versions.put(StackTemplateRegistry.OTEL_MAPPINGS_COMPONENT_TEMPLATE_NAME, StackTemplateRegistry.REGISTRY_VERSION);
         versions.put(StackTemplateRegistry.LOGS_OTEL_MAPPINGS_COMPONENT_TEMPLATE_NAME, StackTemplateRegistry.REGISTRY_VERSION);
         versions.put(StackTemplateRegistry.TRACES_MAPPINGS_COMPONENT_TEMPLATE_NAME, StackTemplateRegistry.REGISTRY_VERSION);
@@ -493,6 +494,10 @@ public class StackTemplateRegistryTests extends ESTestCase {
         );
         versions.put(
             StackTemplateRegistry.SYNTHETICS_MAPPINGS_COMPONENT_TEMPLATE_NAME,
+            StackTemplateRegistry.REGISTRY_VERSION + randomIntBetween(1, 1000)
+        );
+        versions.put(
+            StackTemplateRegistry.KIBANA_REPORTING_COMPONENT_TEMPLATE_NAME,
             StackTemplateRegistry.REGISTRY_VERSION + randomIntBetween(1, 1000)
         );
         versions.put(

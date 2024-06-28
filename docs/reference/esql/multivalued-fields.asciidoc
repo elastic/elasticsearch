@@ -171,7 +171,7 @@ POST /_query
 ==== Functions
 
 Unless otherwise documented functions will return `null` when applied to a multivalued
-field. This behavior may change in a later version.
+field.
 
 [source,console,id=esql-multivalued-fields-mv-into-null]
 ----

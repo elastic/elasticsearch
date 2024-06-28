@@ -12,7 +12,6 @@ import org.apache.http.client.methods.HttpPost;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.inference.external.openai.OpenAiAccount;
 import org.elasticsearch.xpack.inference.services.openai.completion.OpenAiChatCompletionModelTests;
 
 import java.io.IOException;
@@ -120,13 +119,7 @@ public class OpenAiChatCompletionRequestTests extends ESTestCase {
         @Nullable String user
     ) {
         var chatCompletionModel = OpenAiChatCompletionModelTests.createChatCompletionModel(url, org, apiKey, model, user);
-
-        var account = new OpenAiAccount(
-            chatCompletionModel.getServiceSettings().uri(),
-            org,
-            chatCompletionModel.getSecretSettings().apiKey()
-        );
-        return new OpenAiChatCompletionRequest(account, List.of(input), chatCompletionModel);
+        return new OpenAiChatCompletionRequest(List.of(input), chatCompletionModel);
     }
 
 }

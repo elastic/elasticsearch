@@ -40,13 +40,17 @@ public abstract class InternalServiceSettings implements ServiceSettings {
                 ServiceUtils.missingSettingErrorMsg(NUM_ALLOCATIONS, ModelConfigurations.SERVICE_SETTINGS)
             );
         } else if (numAllocations < 1) {
-            validationException.addValidationError(ServiceUtils.mustBeAPositiveNumberErrorMessage(NUM_ALLOCATIONS, numAllocations));
+            validationException.addValidationError(
+                ServiceUtils.mustBeAPositiveIntegerErrorMessage(NUM_ALLOCATIONS, ModelConfigurations.SERVICE_SETTINGS, numAllocations)
+            );
         }
 
         if (numThreads == null) {
             validationException.addValidationError(ServiceUtils.missingSettingErrorMsg(NUM_THREADS, ModelConfigurations.SERVICE_SETTINGS));
         } else if (numThreads < 1) {
-            validationException.addValidationError(ServiceUtils.mustBeAPositiveNumberErrorMessage(NUM_THREADS, numThreads));
+            validationException.addValidationError(
+                ServiceUtils.mustBeAPositiveIntegerErrorMessage(NUM_THREADS, ModelConfigurations.SERVICE_SETTINGS, numThreads)
+            );
         }
     }
 
@@ -77,11 +81,15 @@ public abstract class InternalServiceSettings implements ServiceSettings {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
+        addXContentFragment(builder, params);
+        builder.endObject();
+        return builder;
+    }
+
+    public void addXContentFragment(XContentBuilder builder, Params params) throws IOException {
         builder.field(NUM_ALLOCATIONS, getNumAllocations());
         builder.field(NUM_THREADS, getNumThreads());
         builder.field(MODEL_ID, getModelId());
-        builder.endObject();
-        return builder;
     }
 
     @Override

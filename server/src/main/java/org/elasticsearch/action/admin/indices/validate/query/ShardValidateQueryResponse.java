@@ -22,11 +22,11 @@ import java.io.IOException;
  */
 class ShardValidateQueryResponse extends BroadcastShardResponse {
 
-    private boolean valid;
+    private final boolean valid;
 
-    private String explanation;
+    private final String explanation;
 
-    private String error;
+    private final String error;
 
     ShardValidateQueryResponse(StreamInput in) throws IOException {
         super(in);

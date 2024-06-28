@@ -246,9 +246,9 @@ public class InboundDecoder implements Releasable {
         if (TransportVersion.isCompatible(remoteVersion) == false) {
             throw new IllegalStateException(
                 "Received message from unsupported version: ["
-                    + remoteVersion
+                    + remoteVersion.toReleaseVersion()
                     + "] minimal compatible version is: ["
-                    + TransportVersions.MINIMUM_COMPATIBLE
+                    + TransportVersions.MINIMUM_COMPATIBLE.toReleaseVersion()
                     + "]"
             );
         }

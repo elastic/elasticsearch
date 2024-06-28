@@ -29,6 +29,8 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.breaker.TestCircuitBreaker;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -370,7 +372,7 @@ public class CircuitBreakerTests extends ESTestCase {
         protected final CircuitBreaker circuitBreaker;
         // private final String pitId;
         private int searchRequestsRemainingCount;
-        private final String pitId = "test_pit_id";
+        private final BytesReference pitId = new BytesArray("test_pit_id");
 
         ESMockClient(ThreadPool threadPool, CircuitBreaker circuitBreaker, int searchRequestsRemainingCount) {
             super(threadPool);

@@ -274,7 +274,7 @@ in the index.
 
 NOTE: The default index type for `dense_vector` is `int8_hnsw`.
 
-To use quantization, you can use the index type `int8_hnsw` object in the `dense_vector` mapping.
+To use quantization, you can use the index type `int8_hnsw` or `int4_hnsw` object in the `dense_vector` mapping.
 
 [source,console]
 ----
@@ -409,6 +409,24 @@ that `k` matching documents are returned. This contrasts with a
 post-filtering approach, where the filter is applied **after** the approximate
 kNN search completes. Post-filtering has the downside that it sometimes
 returns fewer than k results, even when there are enough matching documents.
+
+[discrete]
+[[approximate-knn-search-and-filtering]]
+==== Approximate kNN search and filtering
+
+Unlike conventional query filtering, where more restrictive filters typically lead to faster queries,
+applying filters in an approximate kNN search with an HNSW index can decrease performance.
+This is because searching the HNSW graph requires additional exploration to obtain the `num_candidates`
+that meet the filter criteria.
+
+To avoid significant performance drawbacks, Lucene implements the following strategies per segment:
+
+* If the filtered document count is less than or equal to num_candidates, the search bypasses the HNSW graph and
+uses a brute force search on the filtered documents.
+
+* While exploring the HNSW graph, if the number of nodes explored exceeds the number of documents that satisfy the filter,
+the search will stop exploring the graph and switch to a brute force search over the filtered documents.
+
 
 [discrete]
 ==== Combine approximate kNN with other features
@@ -1041,7 +1059,7 @@ PUT image-index
 option is not supported.
 
 * {blank}
-include::{es-repo-dir}/search/knn-search.asciidoc[tag=hnsw-algorithm]
+include::{es-ref-dir}/search/knn-search.asciidoc[tag=hnsw-algorithm]
 
 NOTE: Approximate kNN search always uses the
 <<dfs-query-then-fetch,`dfs_query_then_fetch`>> search type in order to gather

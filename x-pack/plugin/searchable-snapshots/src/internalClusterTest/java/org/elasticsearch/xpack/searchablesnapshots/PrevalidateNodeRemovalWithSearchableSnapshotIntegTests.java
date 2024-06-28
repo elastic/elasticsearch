@@ -63,7 +63,7 @@ public class PrevalidateNodeRemovalWithSearchableSnapshotIntegTests extends Base
         PrevalidateNodeRemovalRequest.Builder req = PrevalidateNodeRemovalRequest.builder();
         switch (randomIntBetween(0, 2)) {
             case 0 -> req.setNames(node2);
-            case 1 -> req.setIds(internalCluster().clusterService(node2).localNode().getId());
+            case 1 -> req.setIds(getNodeId(node2));
             case 2 -> req.setExternalIds(internalCluster().clusterService(node2).localNode().getExternalId());
             default -> throw new IllegalStateException("Unexpected value");
         }

@@ -12,6 +12,7 @@ import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.bulk.TransportBulkActionTookTests.Resolver;
 import org.elasticsearch.action.delete.DeleteRequest;
@@ -34,7 +35,6 @@ import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexVersion;
@@ -59,12 +59,14 @@ import java.util.List;
 import java.util.Map;
 import java.util.SortedMap;
 import java.util.TreeMap;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.action.bulk.TransportBulkAction.prohibitCustomRoutingOnDataStream;
 import static org.elasticsearch.cluster.metadata.MetadataCreateDataStreamServiceTests.createDataStream;
 import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 import static org.junit.Assume.assumeThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -91,7 +93,7 @@ public class TransportBulkActionTests extends ESTestCase {
             super(
                 TransportBulkActionTests.this.threadPool,
                 transportService,
-                clusterService,
+                TransportBulkActionTests.this.clusterService,
                 null,
                 mockFeatureService,
                 new NodeClient(Settings.EMPTY, TransportBulkActionTests.this.threadPool),
@@ -103,7 +105,7 @@ public class TransportBulkActionTests extends ESTestCase {
         }
 
         @Override
-        void createIndex(String index, boolean requireDataStream, TimeValue timeout, ActionListener<CreateIndexResponse> listener) {
+        void createIndex(CreateIndexRequest createIndexRequest, ActionListener<CreateIndexResponse> listener) {
             indexCreated = true;
             if (beforeIndexCreation != null) {
                 beforeIndexCreation.run();
@@ -185,24 +187,6 @@ public class TransportBulkActionTests extends ESTestCase {
         ActionTestUtils.execute(bulkAction, null, bulkRequest, future);
         future.actionGet();
         assertTrue(bulkAction.indexCreated);
-    }
-
-    public void testGetIndexWriteRequest() throws Exception {
-        IndexRequest indexRequest = new IndexRequest("index").id("id1").source(Collections.emptyMap());
-        UpdateRequest upsertRequest = new UpdateRequest("index", "id1").upsert(indexRequest).script(mockScript("1"));
-        UpdateRequest docAsUpsertRequest = new UpdateRequest("index", "id2").doc(indexRequest).docAsUpsert(true);
-        UpdateRequest scriptedUpsert = new UpdateRequest("index", "id2").upsert(indexRequest).script(mockScript("1")).scriptedUpsert(true);
-
-        assertEquals(TransportBulkAction.getIndexWriteRequest(indexRequest), indexRequest);
-        assertEquals(TransportBulkAction.getIndexWriteRequest(upsertRequest), indexRequest);
-        assertEquals(TransportBulkAction.getIndexWriteRequest(docAsUpsertRequest), indexRequest);
-        assertEquals(TransportBulkAction.getIndexWriteRequest(scriptedUpsert), indexRequest);
-
-        DeleteRequest deleteRequest = new DeleteRequest("index", "id");
-        assertNull(TransportBulkAction.getIndexWriteRequest(deleteRequest));
-
-        UpdateRequest badUpsertRequest = new UpdateRequest("index", "id1");
-        assertNull(TransportBulkAction.getIndexWriteRequest(badUpsertRequest));
     }
 
     public void testProhibitAppendWritesInBackingIndices() throws Exception {
@@ -321,36 +305,50 @@ public class TransportBulkActionTests extends ESTestCase {
         assertFalse(TransportBulkAction.isOnlySystem(buildBulkRequest(mixed), indicesLookup, systemIndices));
     }
 
-    public void testRejectCoordination() throws Exception {
+    private void blockWriteThreadPool(CountDownLatch blockingLatch) {
+        assertThat(blockingLatch.getCount(), greaterThan(0L));
+        final var executor = threadPool.executor(ThreadPool.Names.WRITE);
+        // Add tasks repeatedly until we get an EsRejectedExecutionException which indicates that the threadpool and its queue are full.
+        expectThrows(EsRejectedExecutionException.class, () -> {
+            // noinspection InfiniteLoopStatement
+            while (true) {
+                executor.execute(() -> safeAwait(blockingLatch));
+            }
+        });
+    }
+
+    public void testRejectCoordination() {
         BulkRequest bulkRequest = new BulkRequest().add(new IndexRequest("index").id("id").source(Collections.emptyMap()));
 
+        final var blockingLatch = new CountDownLatch(1);
         try {
-            threadPool.startForcingRejections();
+            blockWriteThreadPool(blockingLatch);
             PlainActionFuture<BulkResponse> future = new PlainActionFuture<>();
             ActionTestUtils.execute(bulkAction, null, bulkRequest, future);
             expectThrows(EsRejectedExecutionException.class, future);
         } finally {
-            threadPool.stopForcingRejections();
+            blockingLatch.countDown();
         }
     }
 
-    public void testRejectionAfterCreateIndexIsPropagated() throws Exception {
+    public void testRejectionAfterCreateIndexIsPropagated() {
         BulkRequest bulkRequest = new BulkRequest().add(new IndexRequest("index").id("id").source(Collections.emptyMap()));
 
         bulkAction.failIndexCreation = randomBoolean();
+        final var blockingLatch = new CountDownLatch(1);
         try {
-            bulkAction.beforeIndexCreation = threadPool::startForcingRejections;
+            bulkAction.beforeIndexCreation = () -> blockWriteThreadPool(blockingLatch);
             PlainActionFuture<BulkResponse> future = new PlainActionFuture<>();
             ActionTestUtils.execute(bulkAction, null, bulkRequest, future);
             expectThrows(EsRejectedExecutionException.class, future);
             assertTrue(bulkAction.indexCreated);
         } finally {
-            threadPool.stopForcingRejections();
+            blockingLatch.countDown();
         }
     }
 
     public void testResolveFailureStoreFromMetadata() throws Exception {
-        assumeThat(DataStream.isFailureStoreEnabled(), is(true));
+        assumeThat(DataStream.isFailureStoreFeatureFlagEnabled(), is(true));
 
         String dataStreamWithFailureStore = "test-data-stream-failure-enabled";
         String dataStreamWithoutFailureStore = "test-data-stream-failure-disabled";
@@ -399,17 +397,17 @@ public class TransportBulkActionTests extends ESTestCase {
             .build();
 
         // Data stream with failure store should store failures
-        assertThat(TransportBulkAction.shouldStoreFailure(dataStreamWithFailureStore, metadata, testTime), is(true));
+        assertThat(TransportBulkAction.shouldStoreFailureInternal(dataStreamWithFailureStore, metadata, testTime), is(true));
         // Data stream without failure store should not
-        assertThat(TransportBulkAction.shouldStoreFailure(dataStreamWithoutFailureStore, metadata, testTime), is(false));
+        assertThat(TransportBulkAction.shouldStoreFailureInternal(dataStreamWithoutFailureStore, metadata, testTime), is(false));
         // An index should not be considered for failure storage
-        assertThat(TransportBulkAction.shouldStoreFailure(backingIndex1.getIndex().getName(), metadata, testTime), is(false));
+        assertThat(TransportBulkAction.shouldStoreFailureInternal(backingIndex1.getIndex().getName(), metadata, testTime), is(false));
         // even if that index is itself a failure store
-        assertThat(TransportBulkAction.shouldStoreFailure(failureStoreIndex1.getIndex().getName(), metadata, testTime), is(false));
+        assertThat(TransportBulkAction.shouldStoreFailureInternal(failureStoreIndex1.getIndex().getName(), metadata, testTime), is(false));
     }
 
     public void testResolveFailureStoreFromTemplate() throws Exception {
-        assumeThat(DataStream.isFailureStoreEnabled(), is(true));
+        assumeThat(DataStream.isFailureStoreFeatureFlagEnabled(), is(true));
 
         String dsTemplateWithFailureStore = "test-data-stream-failure-enabled";
         String dsTemplateWithoutFailureStore = "test-data-stream-failure-disabled";
@@ -436,11 +434,11 @@ public class TransportBulkActionTests extends ESTestCase {
             .build();
 
         // Data stream with failure store should store failures
-        assertThat(TransportBulkAction.shouldStoreFailure(dsTemplateWithFailureStore + "-1", metadata, testTime), is(true));
+        assertThat(TransportBulkAction.shouldStoreFailureInternal(dsTemplateWithFailureStore + "-1", metadata, testTime), is(true));
         // Data stream without failure store should not
-        assertThat(TransportBulkAction.shouldStoreFailure(dsTemplateWithoutFailureStore + "-1", metadata, testTime), is(false));
+        assertThat(TransportBulkAction.shouldStoreFailureInternal(dsTemplateWithoutFailureStore + "-1", metadata, testTime), is(false));
         // An index template should not be considered for failure storage
-        assertThat(TransportBulkAction.shouldStoreFailure(indexTemplate + "-1", metadata, testTime), is(false));
+        assertThat(TransportBulkAction.shouldStoreFailureInternal(indexTemplate + "-1", metadata, testTime), is(false));
     }
 
     private BulkRequest buildBulkRequest(List<String> indices) {

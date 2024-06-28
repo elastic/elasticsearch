@@ -10,7 +10,6 @@ package org.elasticsearch.action.admin.indices.diskusage;
 
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -30,11 +29,6 @@ public final class AnalyzeIndexDiskUsageResponse extends BroadcastResponse {
     ) {
         super(totalShards, successfulShards, failedShards, shardFailures);
         this.stats = stats;
-    }
-
-    AnalyzeIndexDiskUsageResponse(StreamInput in) throws IOException {
-        super(in);
-        stats = in.readMap(IndexDiskUsageStats::new);
     }
 
     @Override

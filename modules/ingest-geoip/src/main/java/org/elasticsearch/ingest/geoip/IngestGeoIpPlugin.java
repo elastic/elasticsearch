@@ -28,9 +28,9 @@ import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.ingest.geoip.stats.GeoIpDownloaderStats;
-import org.elasticsearch.ingest.geoip.stats.GeoIpDownloaderStatsAction;
-import org.elasticsearch.ingest.geoip.stats.GeoIpDownloaderStatsTransportAction;
-import org.elasticsearch.ingest.geoip.stats.RestGeoIpDownloaderStatsAction;
+import org.elasticsearch.ingest.geoip.stats.GeoIpStatsAction;
+import org.elasticsearch.ingest.geoip.stats.GeoIpStatsTransportAction;
+import org.elasticsearch.ingest.geoip.stats.RestGeoIpStatsAction;
 import org.elasticsearch.persistent.PersistentTaskParams;
 import org.elasticsearch.persistent.PersistentTaskState;
 import org.elasticsearch.persistent.PersistentTasksExecutor;
@@ -144,7 +144,7 @@ public class IngestGeoIpPlugin extends Plugin implements IngestPlugin, SystemInd
 
     @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
-        return List.of(new ActionHandler<>(GeoIpDownloaderStatsAction.INSTANCE, GeoIpDownloaderStatsTransportAction.class));
+        return List.of(new ActionHandler<>(GeoIpStatsAction.INSTANCE, GeoIpStatsTransportAction.class));
     }
 
     @Override
@@ -159,7 +159,7 @@ public class IngestGeoIpPlugin extends Plugin implements IngestPlugin, SystemInd
         Supplier<DiscoveryNodes> nodesInCluster,
         Predicate<NodeFeature> clusterSupportsFeature
     ) {
-        return List.of(new RestGeoIpDownloaderStatsAction());
+        return List.of(new RestGeoIpStatsAction());
     }
 
     @Override
@@ -188,7 +188,6 @@ public class IngestGeoIpPlugin extends Plugin implements IngestPlugin, SystemInd
             .setSettings(
                 Settings.builder()
                     .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
                     .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
                     .build()
             )

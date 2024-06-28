@@ -9,12 +9,16 @@ package org.elasticsearch.xpack.esql.optimizer;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.apache.lucene.search.IndexSearcher;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.MapperServiceTestCase;
+import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.EsqlTestUtils.TestSearchStats;
@@ -22,9 +26,17 @@ import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
 import org.elasticsearch.xpack.esql.analysis.Verifier;
+import org.elasticsearch.xpack.esql.core.expression.Alias;
+import org.elasticsearch.xpack.esql.core.expression.Expressions;
+import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.esql.core.index.EsIndex;
+import org.elasticsearch.xpack.esql.core.index.IndexResolution;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.enrich.ResolvedEnrichPolicy;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
-import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
@@ -38,23 +50,14 @@ import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.planner.FilterTests;
-import org.elasticsearch.xpack.esql.planner.Mapper;
-import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
 import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
 import org.elasticsearch.xpack.esql.stats.Metrics;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
-import org.elasticsearch.xpack.ql.expression.Alias;
-import org.elasticsearch.xpack.ql.expression.Expressions;
-import org.elasticsearch.xpack.ql.expression.ReferenceAttribute;
-import org.elasticsearch.xpack.ql.index.EsIndex;
-import org.elasticsearch.xpack.ql.index.IndexResolution;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataTypes;
-import org.elasticsearch.xpack.ql.type.EsField;
 import org.junit.Before;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -78,22 +81,16 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
 //@TestLogging(value = "org.elasticsearch.xpack.esql:TRACE,org.elasticsearch.compute:TRACE", reason = "debug")
-public class LocalPhysicalPlanOptimizerTests extends ESTestCase {
+public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
 
     private static final String PARAM_FORMATTING = "%1$s";
 
     /**
      * Estimated size of a keyword field in bytes.
      */
-    private static final int KEYWORD_EST = EstimatesRowSize.estimateSize(DataTypes.KEYWORD);
+    private static final int KEYWORD_EST = EstimatesRowSize.estimateSize(DataType.KEYWORD);
 
-    private EsqlParser parser;
-    private Analyzer analyzer;
-    private LogicalPlanOptimizer logicalOptimizer;
-    private PhysicalPlanOptimizer physicalPlanOptimizer;
-    private EsqlFunctionRegistry functionRegistry;
-    private Mapper mapper;
-
+    private TestPlannerOptimizer plannerOptimizer;
     private final EsqlConfiguration config;
     private final SearchStats IS_SV_STATS = new TestSearchStats() {
         @Override
@@ -120,11 +117,6 @@ public class LocalPhysicalPlanOptimizerTests extends ESTestCase {
 
     @Before
     public void init() {
-        parser = new EsqlParser();
-        logicalOptimizer = new LogicalPlanOptimizer(new LogicalOptimizerContext(EsqlTestUtils.TEST_CFG));
-        physicalPlanOptimizer = new PhysicalPlanOptimizer(new PhysicalOptimizerContext(config));
-        functionRegistry = new EsqlFunctionRegistry();
-        mapper = new Mapper(functionRegistry);
         EnrichResolution enrichResolution = new EnrichResolution();
         enrichResolution.addResolvedPolicy(
             "foo",
@@ -135,12 +127,12 @@ public class LocalPhysicalPlanOptimizerTests extends ESTestCase {
                 List.of("a", "b"),
                 Map.of("", "idx"),
                 Map.ofEntries(
-                    Map.entry("a", new EsField("a", DataTypes.INTEGER, Map.of(), true)),
-                    Map.entry("b", new EsField("b", DataTypes.LONG, Map.of(), true))
+                    Map.entry("a", new EsField("a", DataType.INTEGER, Map.of(), true)),
+                    Map.entry("b", new EsField("b", DataType.LONG, Map.of(), true))
                 )
             )
         );
-        analyzer = makeAnalyzer("mapping-basic.json", enrichResolution);
+        plannerOptimizer = new TestPlannerOptimizer(config, makeAnalyzer("mapping-basic.json", enrichResolution));
     }
 
     private Analyzer makeAnalyzer(String mappingFileName, EnrichResolution enrichResolution) {
@@ -148,7 +140,10 @@ public class LocalPhysicalPlanOptimizerTests extends ESTestCase {
         EsIndex test = new EsIndex("test", mapping, Set.of("test"));
         IndexResolution getIndexResult = IndexResolution.valid(test);
 
-        return new Analyzer(new AnalyzerContext(config, functionRegistry, getIndexResult, enrichResolution), new Verifier(new Metrics()));
+        return new Analyzer(
+            new AnalyzerContext(config, new EsqlFunctionRegistry(), getIndexResult, enrichResolution),
+            new Verifier(new Metrics())
+        );
     }
 
     /**
@@ -161,7 +156,7 @@ public class LocalPhysicalPlanOptimizerTests extends ESTestCase {
      */
     // TODO: this is suboptimal due to eval not being removed/folded
     public void testCountAllWithEval() {
-        var plan = plan("""
+        var plan = plannerOptimizer.plan("""
               from test | eval s = salary | rename s as sr | eval hidden_s = sr | rename emp_no as e | where e < 10050
             | stats c = count(*)
             """);
@@ -180,7 +175,7 @@ public class LocalPhysicalPlanOptimizerTests extends ESTestCase {
      *       limit[],
      */
     public void testCountAllWithFilter() {
-        var plan = plan("from test | where emp_no > 10040 | stats c = count(*)");
+        var plan = plannerOptimizer.plan("from test | where emp_no > 10040 | stats c = count(*)");
         var stat = queryStatsFor(plan);
         assertThat(stat.type(), is(StatsType.COUNT));
         assertThat(stat.query(), is(nullValue()));
@@ -200,7 +195,7 @@ public class LocalPhysicalPlanOptimizerTests extends ESTestCase {
      *   limit[],
      */
     public void testCountFieldWithFilter() {
-        var plan = plan("from test | where emp_no > 10040 | stats c = count(emp_no)", IS_SV_STATS);
+        var plan = plannerOptimizer.plan("from test | where emp_no > 10040 | stats c = count(emp_no)", IS_SV_STATS);
         var stat = queryStatsFor(plan);
         assertThat(stat.type(), is(StatsType.COUNT));
         assertThat(stat.query(), is(QueryBuilders.existsQuery("emp_no")));
@@ -218,7 +213,7 @@ public class LocalPhysicalPlanOptimizerTests extends ESTestCase {
      *   }
      */
     public void testCountFieldWithEval() {
-        var plan = plan("""
+        var plan = plannerOptimizer.plan("""
               from test | eval s = salary | rename s as sr | eval hidden_s = sr | rename emp_no as e | where e < 10050
             | stats c = count(hidden_s)
             """, IS_SV_STATS);
@@ -236,7 +231,7 @@ public class LocalPhysicalPlanOptimizerTests extends ESTestCase {
 
     // optimized doesn't know yet how to push down count over field
     public void testCountOneFieldWithFilter() {
-        var plan = plan("""
+        var plan = plannerOptimizer.plan("""
             from test
             | where salary > 1000
             | stats c = count(salary)
@@ -261,7 +256,7 @@ public class LocalPhysicalPlanOptimizerTests extends ESTestCase {
 
     // optimized doesn't know yet how to push down count over field
     public void testCountOneFieldWithFilterAndLimit() {
-        var plan = plan("""
+        var plan = plannerOptimizer.plan("""
             from test
             | where salary > 1000
             | limit 10
@@ -270,9 +265,73 @@ public class LocalPhysicalPlanOptimizerTests extends ESTestCase {
         assertThat(plan.anyMatch(EsQueryExec.class::isInstance), is(true));
     }
 
-    // optimized doesn't know yet how to break down different multi count
+    public void testCountPushdownForSvAndMvFields() throws IOException {
+        String properties = EsqlTestUtils.loadUtf8TextFile("/mapping-basic.json");
+        String mapping = "{\"mappings\": " + properties + "}";
+
+        String query = """
+            from test
+            | stats c = count(salary)
+            """;
+
+        PhysicalPlan plan;
+
+        List<List<String>> docsCasesWithoutPushdown = List.of(
+            // No pushdown yet in case of MVs
+            List.of("{ \"salary\" : [1,2] }"),
+            List.of("{ \"salary\" : [1,2] }", "{ \"salary\" : null}")
+        );
+        for (List<String> docs : docsCasesWithoutPushdown) {
+            plan = planWithMappingAndDocs(query, mapping, docs);
+            // No EsSatsQueryExec as leaf of the plan.
+            assertThat(plan.anyMatch(EsQueryExec.class::isInstance), is(true));
+        }
+
+        // Cases where we can push this down as a COUNT(*) since there are only SVs
+        List<List<String>> docsCasesWithPushdown = List.of(List.of(), List.of("{ \"salary\" : 1 }"), List.of("{ \"salary\": null }"));
+        for (List<String> docs : docsCasesWithPushdown) {
+            plan = planWithMappingAndDocs(query, mapping, docs);
+
+            Holder<EsStatsQueryExec> leaf = new Holder<>();
+            plan.forEachDown(p -> {
+                if (p instanceof EsStatsQueryExec s) {
+                    leaf.set(s);
+                }
+            });
+
+            String expectedStats = """
+                [Stat[name=salary, type=COUNT, query={
+                  "exists" : {
+                    "field" : "salary",
+                    "boost" : 1.0
+                  }
+                }]]""";
+            assertNotNull(leaf.get());
+            assertThat(leaf.get().stats().toString(), equalTo(expectedStats));
+        }
+    }
+
+    private PhysicalPlan planWithMappingAndDocs(String query, String mapping, List<String> docs) throws IOException {
+        MapperService mapperService = createMapperService(mapping);
+        List<ParsedDocument> parsedDocs = docs.stream().map(d -> mapperService.documentMapper().parse(source(d))).toList();
+
+        Holder<PhysicalPlan> plan = new Holder<>(null);
+        withLuceneIndex(mapperService, indexWriter -> {
+            for (ParsedDocument parsedDoc : parsedDocs) {
+                indexWriter.addDocument(parsedDoc.rootDoc());
+            }
+        }, directoryReader -> {
+            IndexSearcher searcher = newSearcher(directoryReader);
+            SearchExecutionContext ctx = createSearchExecutionContext(mapperService, searcher);
+            plan.set(plannerOptimizer.plan(query, new SearchStats(List.of(ctx))));
+        });
+
+        return plan.get();
+    }
+
+    // optimizer doesn't know yet how to break down different multi count
     public void testCountMultipleFieldsWithFilter() {
-        var plan = plan("""
+        var plan = plannerOptimizer.plan("""
             from test
             | where salary > 1000 and emp_no > 10010
             | stats cs = count(salary), ce = count(emp_no)
@@ -281,7 +340,7 @@ public class LocalPhysicalPlanOptimizerTests extends ESTestCase {
     }
 
     public void testAnotherCountAllWithFilter() {
-        var plan = plan("""
+        var plan = plannerOptimizer.plan("""
             from test
             | where emp_no > 10010
             | stats c = count()
@@ -300,44 +359,19 @@ public class LocalPhysicalPlanOptimizerTests extends ESTestCase {
         assertThat(expected.toString(), is(esStatsQuery.query().toString()));
     }
 
-    /**
-     * Expected
-     * ProjectExec[[c{r}#3, c{r}#3 AS call, c_literal{r}#7]]
-     * \_LimitExec[1000[INTEGER]]
-     *   \_AggregateExec[[],[COUNT([2a][KEYWORD]) AS c, COUNT(1[INTEGER]) AS c_literal],FINAL,null]
-     *     \_ExchangeExec[[count{r}#18, seen{r}#19, count{r}#20, seen{r}#21],true]
-     *       \_EsStatsQueryExec[test], stats[Stat[name=*, type=COUNT, query=null], Stat[name=*, type=COUNT, query=null]]],
-     *         query[{"esql_single_value":{"field":"emp_no","next":{"range":{"emp_no":{"gt":10010,"boost":1.0}}},
-     *         "source":"emp_no > 10010@2:9"}}][count{r}#23, seen{r}#24, count{r}#25, seen{r}#26], limit[],
-     */
+    // optimizer doesn't know yet how to normalize and deduplicate cout(*), count(), count(1) etc.
     public void testMultiCountAllWithFilter() {
-        var plan = plan("""
+        var plan = plannerOptimizer.plan("""
             from test
             | where emp_no > 10010
             | stats c = count(), call = count(*), c_literal = count(1)
             """, IS_SV_STATS);
-
-        var project = as(plan, ProjectExec.class);
-        var projections = project.projections();
-        assertThat(Expressions.names(projections), contains("c", "call", "c_literal"));
-        var alias = as(projections.get(1), Alias.class);
-        assertThat(Expressions.name(alias.child()), is("c"));
-        var limit = as(project.child(), LimitExec.class);
-        var agg = as(limit.child(), AggregateExec.class);
-        assertThat(agg.getMode(), is(FINAL));
-        assertThat(Expressions.names(agg.aggregates()), contains("c", "c_literal"));
-        var exchange = as(agg.child(), ExchangeExec.class);
-        var esStatsQuery = as(exchange.child(), EsStatsQueryExec.class);
-        assertThat(esStatsQuery.limit(), is(nullValue()));
-        assertThat(Expressions.names(esStatsQuery.output()), contains("count", "seen", "count", "seen"));
-        var source = ((SingleValueQuery.Builder) esStatsQuery.query()).source();
-        var expected = wrapWithSingleQuery(QueryBuilders.rangeQuery("emp_no").gt(10010), "emp_no", source);
-        assertThat(expected.toString(), is(esStatsQuery.query().toString()));
+        assertThat(plan.anyMatch(EsQueryExec.class::isInstance), is(true));
     }
 
-    // optimized doesn't know yet how to break down different multi count
+    // optimizer doesn't know yet how to break down different multi count
     public void testCountFieldsAndAllWithFilter() {
-        var plan = plan("""
+        var plan = plannerOptimizer.plan("""
             from test
             | where emp_no > 10010
             | stats c = count(), cs = count(salary), ce = count(emp_no)
@@ -360,7 +394,7 @@ public class LocalPhysicalPlanOptimizerTests extends ESTestCase {
             }
         };
 
-        var plan = plan("""
+        var plan = plannerOptimizer.plan("""
             from test
             | where emp_no > 10010
             | stats c = count()
@@ -386,7 +420,7 @@ public class LocalPhysicalPlanOptimizerTests extends ESTestCase {
      *       \_EsQueryExec[test], query[{"exists":{"field":"emp_no","boost":1.0}}][_doc{f}#13], limit[1000], sort[] estimatedRowSize[324]
      */
     public void testIsNotNullPushdownFilter() {
-        var plan = plan("from test | where emp_no is not null");
+        var plan = plannerOptimizer.plan("from test | where emp_no is not null");
 
         var limit = as(plan, LimitExec.class);
         var exchange = as(limit.child(), ExchangeExec.class);
@@ -410,7 +444,7 @@ public class LocalPhysicalPlanOptimizerTests extends ESTestCase {
      *         limit[1000], sort[] estimatedRowSize[324]
      */
     public void testIsNullPushdownFilter() {
-        var plan = plan("from test | where emp_no is null");
+        var plan = plannerOptimizer.plan("from test | where emp_no is null");
 
         var limit = as(plan, LimitExec.class);
         var exchange = as(limit.child(), ExchangeExec.class);
@@ -434,7 +468,9 @@ public class LocalPhysicalPlanOptimizerTests extends ESTestCase {
      */
     public void testIsNotNull_TextField_Pushdown() {
         String textField = randomFrom("gender", "job");
-        var plan = plan(String.format(Locale.ROOT, "from test | where %s is not null | stats count(%s)", textField, textField));
+        var plan = plannerOptimizer.plan(
+            String.format(Locale.ROOT, "from test | where %s is not null | stats count(%s)", textField, textField)
+        );
 
         var limit = as(plan, LimitExec.class);
         var finalAgg = as(limit.child(), AggregateExec.class);
@@ -458,7 +494,7 @@ public class LocalPhysicalPlanOptimizerTests extends ESTestCase {
      */
     public void testIsNull_TextField_Pushdown() {
         String textField = randomFrom("gender", "job");
-        var plan = plan(String.format(Locale.ROOT, "from test | where %s is null", textField, textField));
+        var plan = plannerOptimizer.plan(String.format(Locale.ROOT, "from test | where %s is null", textField, textField));
 
         var limit = as(plan, LimitExec.class);
         var exchange = as(limit.child(), ExchangeExec.class);
@@ -483,7 +519,7 @@ public class LocalPhysicalPlanOptimizerTests extends ESTestCase {
      * [vector=ConstantBooleanVector[positions=1, value=true]]]]
      */
     public void testIsNull_TextField_Pushdown_WithCount() {
-        var plan = plan("""
+        var plan = plannerOptimizer.plan("""
               from test
               | eval filtered_job = job, count_job = job
               | where filtered_job IS NULL
@@ -514,7 +550,7 @@ public class LocalPhysicalPlanOptimizerTests extends ESTestCase {
      * }]]], query[{"exists":{"field":"job","boost":1.0}}][count{r}#25, seen{r}#26], limit[],
      */
     public void testIsNotNull_TextField_Pushdown_WithCount() {
-        var plan = plan("""
+        var plan = plannerOptimizer.plan("""
               from test
               | eval filtered_job = job, count_job = job
               | where filtered_job IS NOT NULL
@@ -555,7 +591,7 @@ public class LocalPhysicalPlanOptimizerTests extends ESTestCase {
         String cidrMatch = format(null, "cidr_match({}, {})", fieldName, cidrBlocksString);
 
         var query = "from test | where " + cidrMatch;
-        var plan = plan(query, EsqlTestUtils.TEST_SEARCH_STATS, allTypeMappingAnalyzer);
+        var plan = plannerOptimizer.plan(query, EsqlTestUtils.TEST_SEARCH_STATS, allTypeMappingAnalyzer);
 
         var limit = as(plan, LimitExec.class);
         var exchange = as(limit.child(), ExchangeExec.class);
@@ -587,11 +623,9 @@ public class LocalPhysicalPlanOptimizerTests extends ESTestCase {
             new OutOfRangeTestCase("byte", smallerThanInteger, largerThanInteger),
             new OutOfRangeTestCase("short", smallerThanInteger, largerThanInteger),
             new OutOfRangeTestCase("integer", smallerThanInteger, largerThanInteger),
-            new OutOfRangeTestCase("long", smallerThanLong, largerThanLong),
+            new OutOfRangeTestCase("long", smallerThanLong, largerThanLong)
             // TODO: add unsigned_long https://github.com/elastic/elasticsearch/issues/102935
             // TODO: add half_float, float https://github.com/elastic/elasticsearch/issues/100130
-            new OutOfRangeTestCase("double", "-1.0/0.0", "1.0/0.0"),
-            new OutOfRangeTestCase("scaled_float", "-1.0/0.0", "1.0/0.0")
         );
 
         final String LT = "<";
@@ -608,8 +642,7 @@ public class LocalPhysicalPlanOptimizerTests extends ESTestCase {
                 GT + testCase.tooLow,
                 GTE + testCase.tooLow,
                 NEQ + testCase.tooHigh,
-                NEQ + testCase.tooLow,
-                NEQ + "0.0/0.0"
+                NEQ + testCase.tooLow
             );
             List<String> alwaysFalsePredicates = List.of(
                 LT + testCase.tooLow,
@@ -617,12 +650,7 @@ public class LocalPhysicalPlanOptimizerTests extends ESTestCase {
                 GT + testCase.tooHigh,
                 GTE + testCase.tooHigh,
                 EQ + testCase.tooHigh,
-                EQ + testCase.tooLow,
-                LT + "0.0/0.0",
-                LTE + "0.0/0.0",
-                GT + "0.0/0.0",
-                GTE + "0.0/0.0",
-                EQ + "0.0/0.0"
+                EQ + testCase.tooLow
             );
 
             for (String truePredicate : trueForSingleValuesPredicates) {
@@ -630,6 +658,7 @@ public class LocalPhysicalPlanOptimizerTests extends ESTestCase {
                 var query = "from test | where " + comparison;
                 Source expectedSource = new Source(1, 18, comparison);
 
+                logger.info("Query: " + query);
                 EsQueryExec actualQueryExec = doTestOutOfRangeFilterPushdown(query, allTypeMappingAnalyzer);
 
                 assertThat(actualQueryExec.query(), is(instanceOf(SingleValueQuery.Builder.class)));
@@ -667,7 +696,7 @@ public class LocalPhysicalPlanOptimizerTests extends ESTestCase {
      *       \_EsQueryExec[test], query[{"esql_single_value":{"field":"byte","next":{"match_all":{"boost":1.0}},...}}]
      */
     private EsQueryExec doTestOutOfRangeFilterPushdown(String query, Analyzer analyzer) {
-        var plan = plan(query, EsqlTestUtils.TEST_SEARCH_STATS, analyzer);
+        var plan = plannerOptimizer.plan(query, EsqlTestUtils.TEST_SEARCH_STATS, analyzer);
 
         var limit = as(plan, LimitExec.class);
         var exchange = as(limit.child(), ExchangeExec.class);
@@ -691,7 +720,7 @@ public class LocalPhysicalPlanOptimizerTests extends ESTestCase {
     public void testMissingFieldsDoNotGetExtracted() {
         var stats = EsqlTestUtils.statsForMissingField("first_name", "last_name", "emp_no", "salary");
 
-        var plan = plan("from test", stats);
+        var plan = plannerOptimizer.plan("from test", stats);
         var limit = as(plan, LimitExec.class);
         var exchange = as(limit.child(), ExchangeExec.class);
         var project = as(exchange.child(), ProjectExec.class);
@@ -730,45 +759,6 @@ public class LocalPhysicalPlanOptimizerTests extends ESTestCase {
         assertThat(stats, hasSize(1));
         var stat = stats.get(0);
         return stat;
-    }
-
-    private PhysicalPlan plan(String query) {
-        return plan(query, EsqlTestUtils.TEST_SEARCH_STATS);
-    }
-
-    private PhysicalPlan plan(String query, SearchStats stats) {
-        return plan(query, stats, analyzer);
-    }
-
-    private PhysicalPlan plan(String query, SearchStats stats, Analyzer analyzer) {
-        var physical = optimizedPlan(physicalPlan(query, analyzer), stats);
-        return physical;
-    }
-
-    private PhysicalPlan optimizedPlan(PhysicalPlan plan, SearchStats searchStats) {
-        // System.out.println("* Physical Before\n" + plan);
-        var physicalPlan = EstimatesRowSize.estimateRowSize(0, physicalPlanOptimizer.optimize(plan));
-        // System.out.println("* Physical After\n" + physicalPlan);
-        // the real execution breaks the plan at the exchange and then decouples the plan
-        // this is of no use in the unit tests, which checks the plan as a whole instead of each
-        // individually hence why here the plan is kept as is
-
-        var logicalTestOptimizer = new LocalLogicalPlanOptimizer(new LocalLogicalOptimizerContext(config, searchStats));
-        var physicalTestOptimizer = new TestLocalPhysicalPlanOptimizer(new LocalPhysicalOptimizerContext(config, searchStats), true);
-        var l = PlannerUtils.localPlan(physicalPlan, logicalTestOptimizer, physicalTestOptimizer);
-
-        // handle local reduction alignment
-        l = PhysicalPlanOptimizerTests.localRelationshipAlignment(l);
-
-        // System.out.println("* Localized DataNode Plan\n" + l);
-        return l;
-    }
-
-    private PhysicalPlan physicalPlan(String query, Analyzer analyzer) {
-        var logical = logicalOptimizer.optimize(analyzer.analyze(parser.createStatement(query)));
-        // System.out.println("Logical\n" + logical);
-        var physical = mapper.map(logical);
-        return physical;
     }
 
     @Override

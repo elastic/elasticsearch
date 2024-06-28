@@ -522,7 +522,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
     /**
      * Creates a copy of this instance updated with the given {@link IndexMetadata} that must only contain changes to primary terms
      * and in-sync allocation ids relative to the existing entries. This method is only used by
-     * {@link org.elasticsearch.cluster.routing.allocation.IndexMetadataUpdater#applyChanges(Metadata, RoutingTable)}.
+     * {@link org.elasticsearch.cluster.routing.allocation.IndexMetadataUpdater#applyChanges(Metadata, RoutingTable, TransportVersion)}.
      * @param updates map of index name to {@link IndexMetadata}.
      * @return updated metadata instance
      */
@@ -2598,9 +2598,12 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
         private static boolean assertContainsIndexIfDataStream(DataStream parent, IndexMetadata indexMetadata) {
             assert parent == null
                 || parent.getIndices().stream().anyMatch(index -> indexMetadata.getIndex().getName().equals(index.getName()))
-                || (DataStream.isFailureStoreEnabled()
-                    && parent.isFailureStore()
-                    && parent.getFailureIndices().stream().anyMatch(index -> indexMetadata.getIndex().getName().equals(index.getName())))
+                || (DataStream.isFailureStoreFeatureFlagEnabled()
+                    && parent.isFailureStoreEnabled()
+                    && parent.getFailureIndices()
+                        .getIndices()
+                        .stream()
+                        .anyMatch(index -> indexMetadata.getIndex().getName().equals(index.getName())))
                 : "Expected data stream [" + parent.getName() + "] to contain index " + indexMetadata.getIndex();
             return true;
         }
@@ -2622,8 +2625,8 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
                 for (Index i : dataStream.getIndices()) {
                     indexToDataStreamLookup.put(i.getName(), dataStream);
                 }
-                if (DataStream.isFailureStoreEnabled() && dataStream.isFailureStore()) {
-                    for (Index i : dataStream.getFailureIndices()) {
+                if (DataStream.isFailureStoreFeatureFlagEnabled() && dataStream.isFailureStoreEnabled()) {
+                    for (Index i : dataStream.getFailureIndices().getIndices()) {
                         indexToDataStreamLookup.put(i.getName(), dataStream);
                     }
                 }

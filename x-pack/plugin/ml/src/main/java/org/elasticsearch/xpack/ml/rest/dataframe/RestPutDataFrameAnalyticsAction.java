@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
+import static org.elasticsearch.rest.RestUtils.getAckTimeout;
 import static org.elasticsearch.xpack.ml.MachineLearning.BASE_PATH;
 
 @ServerlessScope(Scope.PUBLIC)
@@ -61,7 +62,7 @@ public class RestPutDataFrameAnalyticsAction extends BaseRestHandler {
         try (XContentParser parser = restRequest.contentParser()) {
             putRequest = PutDataFrameAnalyticsAction.Request.parseRequest(id, parser);
         }
-        putRequest.timeout(restRequest.paramAsTime("timeout", putRequest.timeout()));
+        putRequest.ackTimeout(getAckTimeout(restRequest));
 
         return channel -> client.execute(PutDataFrameAnalyticsAction.INSTANCE, putRequest, new RestToXContentListener<>(channel));
     }

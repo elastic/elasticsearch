@@ -38,7 +38,7 @@ public final class RRFRetrieverBuilder extends RetrieverBuilder {
     public static final NodeFeature RRF_RETRIEVER_SUPPORTED = new NodeFeature("rrf_retriever_supported");
 
     public static final ParseField RETRIEVERS_FIELD = new ParseField("retrievers");
-    public static final ParseField WINDOW_SIZE_FIELD = new ParseField("window_size");
+    public static final ParseField RANK_WINDOW_SIZE_FIELD = new ParseField("rank_window_size");
     public static final ParseField RANK_CONSTANT_FIELD = new ParseField("rank_constant");
 
     public static final ObjectParser<RRFRetrieverBuilder, RetrieverParserContext> PARSER = new ObjectParser<>(
@@ -54,7 +54,7 @@ public final class RRFRetrieverBuilder extends RetrieverBuilder {
             p.nextToken();
             return retrieverBuilder;
         }, RETRIEVERS_FIELD);
-        PARSER.declareInt((r, v) -> r.windowSize = v, WINDOW_SIZE_FIELD);
+        PARSER.declareInt((r, v) -> r.rankWindowSize = v, RANK_WINDOW_SIZE_FIELD);
         PARSER.declareInt((r, v) -> r.rankConstant = v, RANK_CONSTANT_FIELD);
 
         RetrieverBuilder.declareBaseParserFields(NAME, PARSER);
@@ -71,7 +71,7 @@ public final class RRFRetrieverBuilder extends RetrieverBuilder {
     }
 
     List<RetrieverBuilder> retrieverBuilders = Collections.emptyList();
-    int windowSize = RRFRankBuilder.DEFAULT_WINDOW_SIZE;
+    int rankWindowSize = RRFRankBuilder.DEFAULT_RANK_WINDOW_SIZE;
     int rankConstant = RRFRankBuilder.DEFAULT_RANK_CONSTANT;
 
     @Override
@@ -88,7 +88,7 @@ public final class RRFRetrieverBuilder extends RetrieverBuilder {
             retrieverBuilder.extractToSearchSourceBuilder(searchSourceBuilder, true);
         }
 
-        searchSourceBuilder.rankBuilder(new RRFRankBuilder(windowSize, rankConstant));
+        searchSourceBuilder.rankBuilder(new RRFRankBuilder(rankWindowSize, rankConstant));
     }
 
     // ---- FOR TESTING XCONTENT PARSING ----
@@ -113,21 +113,21 @@ public final class RRFRetrieverBuilder extends RetrieverBuilder {
             builder.endArray();
         }
 
-        builder.field(WINDOW_SIZE_FIELD.getPreferredName(), windowSize);
+        builder.field(RANK_WINDOW_SIZE_FIELD.getPreferredName(), rankWindowSize);
         builder.field(RANK_CONSTANT_FIELD.getPreferredName(), rankConstant);
     }
 
     @Override
     public boolean doEquals(Object o) {
         RRFRetrieverBuilder that = (RRFRetrieverBuilder) o;
-        return windowSize == that.windowSize
+        return rankWindowSize == that.rankWindowSize
             && rankConstant == that.rankConstant
             && Objects.equals(retrieverBuilders, that.retrieverBuilders);
     }
 
     @Override
     public int doHashCode() {
-        return Objects.hash(retrieverBuilders, windowSize, rankConstant);
+        return Objects.hash(retrieverBuilders, rankWindowSize, rankConstant);
     }
 
     // ---- END FOR TESTING ----

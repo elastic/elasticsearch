@@ -318,7 +318,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
         throw ExceptionsHelper.badRequestException(
             Messages.getMessage(
                 REMOTE_CLUSTERS_TRANSPORT_TOO_OLD,
-                minVersion.toString(),
+                minVersion.toReleaseVersion(),
                 reason,
                 Strings.collectionToCommaDelimitedString(clustersTooOld)
             )

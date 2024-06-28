@@ -30,6 +30,7 @@ import org.gradle.api.tasks.SourceSetContainer;
 import org.gradle.api.tasks.testing.Test;
 
 import java.io.File;
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.gradle.util.FileUtils.mkdirs;
@@ -100,6 +101,7 @@ public class ElasticsearchTestBasePlugin implements Plugin<Project> {
                 "-Xmx" + System.getProperty("tests.heap.size", "512m"),
                 "-Xms" + System.getProperty("tests.heap.size", "512m"),
                 "-Djava.security.manager=allow",
+                "--add-opens=java.base/java.util=ALL-UNNAMED",
                 // TODO: only open these for mockito when it is modularized
                 "--add-opens=java.base/java.security.cert=ALL-UNNAMED",
                 "--add-opens=java.base/java.nio.channels=ALL-UNNAMED",
@@ -198,6 +200,30 @@ public class ElasticsearchTestBasePlugin implements Plugin<Project> {
                     test.setClasspath(testRuntime.minus(mainRuntime).plus(shadowConfig).plus(shadowJar));
                 }
             });
+        });
+        configureImmutableCollectionsPatch(project);
+    }
+
+    private void configureImmutableCollectionsPatch(Project project) {
+        String patchProject = ":test:immutable-collections-patch";
+        if (project.findProject(patchProject) == null) {
+            return; // build tests may not have this project, just skip
+        }
+        String configurationName = "immutableCollectionsPatch";
+        FileCollection patchedFileCollection = project.getConfigurations()
+            .create(configurationName, config -> config.setCanBeConsumed(false));
+        var deps = project.getDependencies();
+        deps.add(configurationName, deps.project(Map.of("path", patchProject, "configuration", "patch")));
+        project.getTasks().withType(Test.class).matching(task -> task.getName().equals("test")).configureEach(test -> {
+            test.getInputs().files(patchedFileCollection);
+            test.systemProperty("tests.hackImmutableCollections", "true");
+            test.getJvmArgumentProviders()
+                .add(
+                    () -> List.of(
+                        "--patch-module=java.base=" + patchedFileCollection.getSingleFile() + "/java.base",
+                        "--add-opens=java.base/java.util=ALL-UNNAMED"
+                    )
+                );
         });
     }
 }

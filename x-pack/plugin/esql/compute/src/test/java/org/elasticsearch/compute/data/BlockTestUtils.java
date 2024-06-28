@@ -17,6 +17,7 @@ import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
 import static org.elasticsearch.test.ESTestCase.between;
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
 import static org.elasticsearch.test.ESTestCase.randomDouble;
+import static org.elasticsearch.test.ESTestCase.randomFloat;
 import static org.elasticsearch.test.ESTestCase.randomInt;
 import static org.elasticsearch.test.ESTestCase.randomLong;
 import static org.elasticsearch.test.ESTestCase.randomRealisticUnicodeOfCodepointLengthBetween;
@@ -31,11 +32,13 @@ public class BlockTestUtils {
         return switch (e) {
             case INT -> randomInt();
             case LONG -> randomLong();
+            case FLOAT -> randomFloat();
             case DOUBLE -> randomDouble();
             case BYTES_REF -> new BytesRef(randomRealisticUnicodeOfCodepointLengthBetween(0, 5));   // TODO: also test spatial WKB
             case BOOLEAN -> randomBoolean();
             case DOC -> new BlockUtils.Doc(randomInt(), randomInt(), between(0, Integer.MAX_VALUE));
             case NULL -> null;
+            case COMPOSITE -> throw new IllegalArgumentException("can't make random values for composite");
             case UNKNOWN -> throw new IllegalArgumentException("can't make random values for [" + e + "]");
         };
     }
@@ -47,21 +50,137 @@ public class BlockTestUtils {
     public static void append(Block.Builder builder, Object value) {
         if (value == null) {
             builder.appendNull();
-        } else if (builder instanceof IntBlock.Builder b && value instanceof Integer v) {
-            b.appendInt(v);
-        } else if (builder instanceof LongBlock.Builder b && value instanceof Long v) {
-            b.appendLong(v);
-        } else if (builder instanceof DoubleBlock.Builder b && value instanceof Double v) {
-            b.appendDouble(v);
-        } else if (builder instanceof BytesRefBlock.Builder b && value instanceof BytesRef v) {
-            b.appendBytesRef(v);
-        } else if (builder instanceof BooleanBlock.Builder b && value instanceof Boolean v) {
-            b.appendBoolean(v);
-        } else if (builder instanceof DocBlock.Builder b && value instanceof BlockUtils.Doc v) {
-            b.appendShard(v.shard()).appendSegment(v.segment()).appendDoc(v.doc());
-        } else {
-            throw new IllegalArgumentException("Can't append [" + value + "/" + value.getClass() + "] to [" + builder + "]");
+            return;
         }
+        if (builder instanceof IntBlock.Builder b) {
+            if (value instanceof Integer v) {
+                b.appendInt(v);
+                return;
+            }
+            if (value instanceof List<?> l) {
+                switch (l.size()) {
+                    case 0 -> b.appendNull();
+                    case 1 -> b.appendInt((Integer) l.get(0));
+                    default -> {
+                        b.beginPositionEntry();
+                        for (Object o : l) {
+                            b.appendInt((Integer) o);
+                        }
+                        b.endPositionEntry();
+                    }
+                }
+                return;
+            }
+        }
+        if (builder instanceof LongBlock.Builder b) {
+            if (value instanceof Long v) {
+                b.appendLong(v);
+                return;
+            }
+            if (value instanceof List<?> l) {
+                switch (l.size()) {
+                    case 0 -> b.appendNull();
+                    case 1 -> b.appendLong((Long) l.get(0));
+                    default -> {
+                        b.beginPositionEntry();
+                        for (Object o : l) {
+                            b.appendLong((Long) o);
+                        }
+                        b.endPositionEntry();
+                    }
+                }
+                return;
+            }
+        }
+        if (builder instanceof FloatBlock.Builder b) {
+            if (value instanceof Float v) {
+                b.appendFloat(v);
+                return;
+            }
+            if (value instanceof List<?> l) {
+                switch (l.size()) {
+                    case 0 -> b.appendNull();
+                    case 1 -> b.appendFloat((Float) l.get(0));
+                    default -> {
+                        b.beginPositionEntry();
+                        for (Object o : l) {
+                            b.appendFloat((Float) o);
+                        }
+                        b.endPositionEntry();
+                    }
+                }
+                return;
+            }
+        }
+        if (builder instanceof DoubleBlock.Builder b) {
+            if (value instanceof Double v) {
+                b.appendDouble(v);
+                return;
+            }
+            if (value instanceof List<?> l) {
+                switch (l.size()) {
+                    case 0 -> b.appendNull();
+                    case 1 -> b.appendDouble((Double) l.get(0));
+                    default -> {
+                        b.beginPositionEntry();
+                        for (Object o : l) {
+                            b.appendDouble((Double) o);
+                        }
+                        b.endPositionEntry();
+                    }
+                }
+                return;
+            }
+        }
+        if (builder instanceof BytesRefBlock.Builder b) {
+            if (value instanceof BytesRef v) {
+                b.appendBytesRef(v);
+                return;
+            }
+            if (value instanceof List<?> l) {
+                switch (l.size()) {
+                    case 0 -> b.appendNull();
+                    case 1 -> b.appendBytesRef((BytesRef) l.get(0));
+                    default -> {
+                        b.beginPositionEntry();
+                        for (Object o : l) {
+                            b.appendBytesRef((BytesRef) o);
+                        }
+                        b.endPositionEntry();
+                    }
+                }
+                return;
+            }
+        }
+        if (builder instanceof BooleanBlock.Builder b) {
+            if (value instanceof Boolean v) {
+                b.appendBoolean(v);
+                return;
+            }
+            if (value instanceof List<?> l) {
+                switch (l.size()) {
+                    case 0 -> b.appendNull();
+                    case 1 -> b.appendBoolean((Boolean) l.get(0));
+                    default -> {
+                        b.beginPositionEntry();
+                        for (Object o : l) {
+                            b.appendBoolean((Boolean) o);
+                        }
+                        b.endPositionEntry();
+                    }
+                }
+                return;
+            }
+        }
+        if (builder instanceof DocBlock.Builder b && value instanceof BlockUtils.Doc v) {
+            b.appendShard(v.shard()).appendSegment(v.segment()).appendDoc(v.doc());
+            return;
+        }
+        if (value instanceof List<?> l && l.isEmpty()) {
+            builder.appendNull();
+            return;
+        }
+        throw new IllegalArgumentException("Can't append [" + value + "/" + value.getClass() + "] to [" + builder + "]");
     }
 
     public static void readInto(List<List<Object>> values, Page page) {

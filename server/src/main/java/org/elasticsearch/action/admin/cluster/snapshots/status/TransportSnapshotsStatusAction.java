@@ -11,6 +11,7 @@ package org.elasticsearch.action.admin.cluster.snapshots.status;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.RefCountAwareThreadedActionListener;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
@@ -65,6 +66,7 @@ import static org.elasticsearch.cluster.SnapshotsInProgress.ShardState.SUCCESS;
 
 public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<SnapshotsStatusRequest, SnapshotsStatusResponse> {
 
+    public static final ActionType<SnapshotsStatusResponse> TYPE = new ActionType<>("cluster:admin/snapshot/status");
     private static final Logger logger = LogManager.getLogger(TransportSnapshotsStatusAction.class);
 
     private final RepositoriesService repositoriesService;
@@ -82,7 +84,7 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
         IndexNameExpressionResolver indexNameExpressionResolver
     ) {
         super(
-            SnapshotsStatusAction.NAME,
+            TYPE.name(),
             transportService,
             clusterService,
             threadPool,
@@ -141,7 +143,7 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
             client.executeLocally(
                 TransportNodesSnapshotsStatus.TYPE,
                 new TransportNodesSnapshotsStatus.Request(nodesIds.toArray(Strings.EMPTY_ARRAY)).snapshots(snapshots)
-                    .timeout(request.masterNodeTimeout()),
+                    .timeout(request.masterNodeTimeout().millis() < 0 ? null : request.masterNodeTimeout()),
                 // fork to snapshot meta since building the response is expensive for large snapshots
                 new RefCountAwareThreadedActionListener<>(
                     threadPool.executor(ThreadPool.Names.SNAPSHOT_META),

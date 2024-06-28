@@ -8,12 +8,9 @@
 package org.elasticsearch.common.settings;
 
 import org.apache.logging.log4j.Level;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.LogEvent;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.AbstractScopedSettings.SettingUpdater;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -23,7 +20,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 
 import java.util.Arrays;
@@ -1167,7 +1164,7 @@ public class SettingTests extends ESTestCase {
     }
 
     public void testTimeValue() {
-        final TimeValue random = TimeValue.parseTimeValue(randomTimeValue(), "test");
+        final TimeValue random = randomTimeValue();
 
         Setting<TimeValue> setting = Setting.timeSetting("foo", random);
         assertThat(setting.get(Settings.EMPTY), equalTo(random));
@@ -1426,7 +1423,7 @@ public class SettingTests extends ESTestCase {
     }
 
     @TestLogging(
-        value = "org.elasticsearch.common.settings.IndexScopedSettings:INFO",
+        value = "org.elasticsearch.common.settings.IndexScopedSettings:DEBUG",
         reason = "to ensure we log INFO-level messages from IndexScopedSettings"
     )
     public void testLogSettingUpdate() throws Exception {
@@ -1436,32 +1433,25 @@ public class SettingTests extends ESTestCase {
         );
         final IndexSettings settings = new IndexSettings(metadata, Settings.EMPTY);
 
-        final MockLogAppender mockLogAppender = new MockLogAppender();
-        mockLogAppender.addExpectation(
-            new MockLogAppender.SeenEventExpectation(
-                "message",
-                "org.elasticsearch.common.settings.IndexScopedSettings",
-                Level.INFO,
-                "updating [index.refresh_interval] from [20s] to [10s]"
-            ) {
-                @Override
-                public boolean innerMatch(LogEvent event) {
-                    return event.getMarker().getName().equals(" [index1]");
+        try (var mockLog = MockLog.capture(IndexScopedSettings.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "message",
+                    "org.elasticsearch.common.settings.IndexScopedSettings",
+                    Level.DEBUG,
+                    "updating [index.refresh_interval] from [20s] to [10s]"
+                ) {
+                    @Override
+                    public boolean innerMatch(LogEvent event) {
+                        return event.getMarker().getName().equals(" [index1]");
+                    }
                 }
-            }
-        );
-        mockLogAppender.start();
-        final Logger logger = LogManager.getLogger(IndexScopedSettings.class);
-        try {
-            Loggers.addAppender(logger, mockLogAppender);
+            );
             settings.updateIndexMetadata(
                 newIndexMeta("index1", Settings.builder().put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), "10s").build())
             );
 
-            mockLogAppender.assertAllExpectationsMatched();
-        } finally {
-            Loggers.removeAppender(logger, mockLogAppender);
-            mockLogAppender.stop();
+            mockLog.assertAllExpectationsMatched();
         }
     }
 

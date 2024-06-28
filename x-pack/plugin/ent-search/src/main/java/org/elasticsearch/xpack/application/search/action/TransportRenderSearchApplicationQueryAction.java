@@ -19,8 +19,6 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.features.NodeFeature;
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.tasks.Task;
@@ -35,8 +33,6 @@ import java.util.function.Predicate;
 public class TransportRenderSearchApplicationQueryAction extends HandledTransportAction<
     SearchApplicationSearchRequest,
     RenderSearchApplicationQueryAction.Response> {
-
-    private static final Logger logger = LogManager.getLogger(TransportRenderSearchApplicationQueryAction.class);
 
     protected final SearchApplicationIndexService systemIndexService;
 

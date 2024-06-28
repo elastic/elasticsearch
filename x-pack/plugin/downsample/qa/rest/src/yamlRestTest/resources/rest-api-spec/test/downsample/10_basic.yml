@@ -1,6 +1,6 @@
 setup:
-  - skip:
-      version: " - 8.4.99"
+  - requires:
+      cluster_features: ["gte_v8.5.0"]
       reason: "rollup renamed to downsample in 8.5.0"
 
   - do:
@@ -296,8 +296,8 @@ setup:
 
 ---
 "Downsample index":
-  - skip:
-      version: " - 8.12.99"
+  - requires:
+      cluster_features: ["gte_v8.13.0"]
       reason: _tsid hashing introduced in 8.13
 
   - do:
@@ -394,8 +394,8 @@ setup:
 
 ---
 "Downsample non-existing index":
-  - skip:
-      version: " - 8.4.99"
+  - requires:
+      cluster_features: ["gte_v8.5.0"]
       reason: "rollup renamed to downsample in 8.5.0"
 
   - do:
@@ -410,10 +410,10 @@ setup:
 
 ---
 "Downsample failure":
-  - skip:
-      version: " - 8.12.99"
+  - requires:
+      cluster_features: ["gte_v8.13.0"]
       reason: "#103615 merged to 8.13.0 and later"
-      features: allowed_warnings
+      test_runner_features: allowed_warnings
 
   - do:
       allowed_warnings:
@@ -442,8 +442,8 @@ setup:
 
 ---
 "Downsample to existing index":
-  - skip:
-      version: " - 8.4.99"
+  - requires:
+      cluster_features: ["gte_v8.5.0"]
       reason: "rollup renamed to downsample in 8.5.0"
 
   - do:
@@ -461,8 +461,8 @@ setup:
           }
 ---
 "Downsample using multiple indices":
-  - skip:
-      version: " - 8.4.99"
+  - requires:
+      cluster_features: ["gte_v8.5.0"]
       reason: "rollup renamed to downsample in 8.5.0"
 
   - do:
@@ -531,8 +531,8 @@ setup:
 
 ---
 "Downsample not time_series index":
-  - skip:
-      version: " - 8.4.99"
+  - requires:
+      cluster_features: ["gte_v8.5.0"]
       reason: "rollup renamed to downsample in 8.5.0"
 
   - do:
@@ -552,8 +552,8 @@ setup:
 
 ---
 "Downsample no metric index":
-  - skip:
-      version: " - 8.7.99"
+  - requires:
+      cluster_features: ["gte_v8.8.0"]
       reason: "Downsample of time series index without metric allowed from version 8.8.0"
 
   - do:
@@ -645,8 +645,8 @@ setup:
 
 ---
 "Downsample no metric no label index":
-  - skip:
-      version: " - 8.7.99"
+  - requires:
+      cluster_features: ["gte_v8.8.0"]
       reason: "Downsample of time series index without metric allowed from version 8.8.0"
 
   - do:
@@ -730,8 +730,8 @@ setup:
 
 ---
 "Downsample a downsampled index":
-  - skip:
-      version: " - 8.12.99"
+  - requires:
+      cluster_features: ["gte_v8.13.0"]
       reason: _tsid hashing introduced in 8.13
 
   - do:
@@ -823,8 +823,8 @@ setup:
 
 ---
 "Downsample a downsampled index with wrong intervals":
-  - skip:
-      version: " - 8.4.99"
+  - requires:
+      cluster_features: ["gte_v8.5.0"]
       reason: "Rollup of rollups introduced in 8.5.0"
 
   - do:
@@ -869,8 +869,8 @@ setup:
 
 ---
 "Downsample histogram as label":
-  - skip:
-      version: " - 8.12.99"
+  - requires:
+      cluster_features: ["gte_v8.13.0"]
       reason: _tsid hashing introduced in 8.13
 
   - do:
@@ -971,8 +971,8 @@ setup:
 
 ---
 "Downsample date_nanos timestamp field using custom format":
-  - skip:
-      version: " - 8.7.99"
+  - requires:
+      cluster_features: ["gte_v8.8.0"]
       reason: "Bug fixed in 8.8.0"
 
   - do:
@@ -1073,8 +1073,8 @@ setup:
 
 ---
 "Downsample date timestamp field using strict_date_optional_time_nanos format":
-  - skip:
-      version: " - 8.7.99"
+  - requires:
+      cluster_features: ["gte_v8.8.0"]
       reason: "Bug fixed in 8.8.0"
 
   - do:
@@ -1175,8 +1175,8 @@ setup:
 
 ---
 "Downsample using coarse grained timestamp":
-  - skip:
-      version: " - 8.6.99"
+  - requires:
+      cluster_features: ["gte_v8.7.0"]
       reason: "Downsample GA version 8.7.0"
 
   - do:
@@ -1281,8 +1281,8 @@ setup:
 
 ---
 "Downsample object field":
-  - skip:
-      version: " - 8.12.99"
+  - requires:
+      cluster_features: ["gte_v8.13.0"]
       reason: _tsid hashing introduced in 8.13
 
   - do:
@@ -1349,8 +1349,8 @@ setup:
 
 ---
 "Downsample empty and missing labels":
-  - skip:
-      version: " - 8.12.99"
+  - requires:
+      cluster_features: ["gte_v8.13.0"]
       reason: _tsid hashing introduced in 8.13
 
   - do:
@@ -1410,8 +1410,8 @@ setup:
 
 ---
 "Downsample label with ignore_above":
-  - skip:
-      version: " - 8.12.99"
+  - requires:
+      cluster_features: ["gte_v8.13.0"]
       reason: _tsid hashing introduced in 8.13
 
   - do:
@@ -1537,8 +1537,8 @@ setup:
 
 ---
 "Downsample index with empty dimension":
-  - skip:
-      version: " - 8.12.99"
+  - requires:
+      cluster_features: ["gte_v8.13.0"]
       reason: _tsid hashing introduced in 8.13
 
   - do:
@@ -1620,8 +1620,8 @@ setup:
 
 ---
 "Downsample index with empty dimension on routing path":
-  - skip:
-      version: " - 8.12.99"
+  - requires:
+      cluster_features: ["gte_v8.13.0"]
       reason: _tsid hashing introduced in 8.13
 
   - do:

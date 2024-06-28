@@ -41,7 +41,7 @@ that either exists already or one that has not been created yet.
 
 `<data_frame_analytics_id>`::
 (Optional, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=job-id-data-frame-analytics]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=job-id-data-frame-analytics]
 
 [[ml-preview-dfanalytics-request-body]]
 == {api-request-body-title}

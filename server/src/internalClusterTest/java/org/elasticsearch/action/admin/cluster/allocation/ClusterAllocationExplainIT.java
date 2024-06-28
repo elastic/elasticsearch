@@ -100,10 +100,10 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
 
         // verify unassigned info
         assertNotNull(unassignedInfo);
-        assertEquals(Reason.NODE_LEFT, unassignedInfo.getReason());
+        assertEquals(Reason.NODE_LEFT, unassignedInfo.reason());
         assertTrue(
-            unassignedInfo.getLastAllocationStatus() == AllocationStatus.FETCHING_SHARD_DATA
-                || unassignedInfo.getLastAllocationStatus() == AllocationStatus.NO_VALID_SHARD_COPY
+            unassignedInfo.lastAllocationStatus() == AllocationStatus.FETCHING_SHARD_DATA
+                || unassignedInfo.lastAllocationStatus() == AllocationStatus.NO_VALID_SHARD_COPY
         );
 
         // verify cluster info
@@ -158,12 +158,7 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
         // wait till we have passed any pending shard data fetching
         assertEquals(
             AllocationDecision.ALLOCATION_DELAYED,
-            clusterAdmin().prepareAllocationExplain()
-                .setIndex("idx")
-                .setShard(0)
-                .setPrimary(false)
-                .get()
-                .getExplanation()
+            ClusterAllocationExplanationUtils.getClusterAllocationExplanation(client(), "idx", 0, false)
                 .getShardAllocationDecision()
                 .getAllocateDecision()
                 .getAllocationDecision()
@@ -195,8 +190,8 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
 
         // verify unassigned info
         assertNotNull(unassignedInfo);
-        assertEquals(Reason.NODE_LEFT, unassignedInfo.getReason());
-        assertEquals(AllocationStatus.NO_ATTEMPT, unassignedInfo.getLastAllocationStatus());
+        assertEquals(Reason.NODE_LEFT, unassignedInfo.reason());
+        assertEquals(AllocationStatus.NO_ATTEMPT, unassignedInfo.lastAllocationStatus());
 
         // verify cluster info
         verifyClusterInfo(clusterInfo, includeDiskInfo, 2);
@@ -325,8 +320,8 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
 
         // verify unassigned info
         assertNotNull(unassignedInfo);
-        assertEquals(Reason.NODE_LEFT, unassignedInfo.getReason());
-        assertEquals(AllocationStatus.NO_ATTEMPT, unassignedInfo.getLastAllocationStatus());
+        assertEquals(Reason.NODE_LEFT, unassignedInfo.reason());
+        assertEquals(AllocationStatus.NO_ATTEMPT, unassignedInfo.lastAllocationStatus());
 
         // verify cluster info
         verifyClusterInfo(clusterInfo, includeDiskInfo, 3);
@@ -437,8 +432,8 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
 
         // verify unassigned info
         assertNotNull(unassignedInfo);
-        assertEquals(Reason.INDEX_CREATED, unassignedInfo.getReason());
-        assertEquals(AllocationStatus.DECIDERS_NO, unassignedInfo.getLastAllocationStatus());
+        assertEquals(Reason.INDEX_CREATED, unassignedInfo.reason());
+        assertEquals(AllocationStatus.DECIDERS_NO, unassignedInfo.lastAllocationStatus());
 
         // verify cluster info
         verifyClusterInfo(clusterInfo, includeDiskInfo, 2);
@@ -1076,12 +1071,12 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
 
         // wait until the system has fetched shard data and we know there is no valid shard copy
         assertBusy(() -> {
-            ClusterAllocationExplanation explanation = clusterAdmin().prepareAllocationExplain()
-                .setIndex("idx")
-                .setShard(0)
-                .setPrimary(true)
-                .get()
-                .getExplanation();
+            ClusterAllocationExplanation explanation = ClusterAllocationExplanationUtils.getClusterAllocationExplanation(
+                client(),
+                "idx",
+                0,
+                true
+            );
             assertTrue(explanation.getShardAllocationDecision().getAllocateDecision().isDecisionTaken());
             assertEquals(
                 AllocationDecision.NO_VALID_SHARD_COPY,
@@ -1223,19 +1218,11 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
         return runExplain(primary, null, includeYesDecisions, includeDiskInfo);
     }
 
-    private ClusterAllocationExplanation runExplain(boolean primary, String nodeId, boolean includeYesDecisions, boolean includeDiskInfo)
-        throws Exception {
-
-        ClusterAllocationExplanation explanation = admin().cluster()
-            .prepareAllocationExplain()
-            .setIndex("idx")
-            .setShard(0)
-            .setPrimary(primary)
-            .setIncludeYesDecisions(includeYesDecisions)
-            .setIncludeDiskInfo(includeDiskInfo)
-            .setCurrentNode(nodeId)
-            .get()
-            .getExplanation();
+    private ClusterAllocationExplanation runExplain(boolean primary, String nodeId, boolean includeYesDecisions, boolean includeDiskInfo) {
+        final var request = new ClusterAllocationExplainRequest(TEST_REQUEST_TIMEOUT, "idx", 0, primary, nodeId);
+        request.includeYesDecisions(includeYesDecisions);
+        request.includeDiskInfo(includeDiskInfo);
+        final var explanation = safeGet(client().execute(TransportClusterAllocationExplainAction.TYPE, request)).getExplanation();
         if (logger.isDebugEnabled()) {
             logger.debug("--> explain json output: \n{}", Strings.toString(explanation, true, true));
         }

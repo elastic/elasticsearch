@@ -1,7 +1,7 @@
 ---
 "Downsample index with pipeline":
-  - skip:
-      version: " - 8.4.99"
+  - requires:
+      cluster_features: ["gte_v8.5.0"]
       reason: "rollup renamed to downsample in 8.5.0"
 
   - do:
@@ -92,10 +92,10 @@
 
 ---
 "Downsample datastream with tier preference":
-  - skip:
-      version: " - 8.12.99"
+  - requires:
+      cluster_features: ["gte_v8.13.0"]
       reason: _tsid hashing introduced in 8.13
-      features: allowed_warnings
+      test_runner_features: allowed_warnings
 
   - do:
       allowed_warnings:

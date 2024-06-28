@@ -12,7 +12,6 @@ import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.admin.indices.rollover.RolloverConfiguration;
 import org.elasticsearch.cluster.metadata.DataStreamGlobalRetention;
-import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -70,6 +69,10 @@ public class SimulateIndexTemplateResponse extends ActionResponse implements ToX
         this.globalRetention = globalRetention;
     }
 
+    public RolloverConfiguration getRolloverConfiguration() {
+        return rolloverConfiguration;
+    }
+
     public SimulateIndexTemplateResponse(StreamInput in) throws IOException {
         super(in);
         resolvedTemplate = in.readOptionalWriteable(Template::new);
@@ -114,11 +117,10 @@ public class SimulateIndexTemplateResponse extends ActionResponse implements ToX
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        Params withEffectiveRetentionParams = new DelegatingMapParams(DataStreamLifecycle.INCLUDE_EFFECTIVE_RETENTION_PARAMS, params);
         builder.startObject();
         if (this.resolvedTemplate != null) {
             builder.field(TEMPLATE.getPreferredName());
-            this.resolvedTemplate.toXContent(builder, withEffectiveRetentionParams, rolloverConfiguration, globalRetention);
+            this.resolvedTemplate.toXContent(builder, params, rolloverConfiguration);
         }
         if (this.overlappingTemplates != null) {
             builder.startArray(OVERLAPPING.getPreferredName());

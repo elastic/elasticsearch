@@ -29,7 +29,7 @@ calendar.
 
 `<calendar_id>`::
 (Required, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=calendar-id]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=calendar-id]
 
 [[ml-delete-calendar-example]]
 == {api-examples-title}

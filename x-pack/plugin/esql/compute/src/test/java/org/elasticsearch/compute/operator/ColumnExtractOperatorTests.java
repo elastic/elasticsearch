@@ -14,6 +14,7 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
+import org.hamcrest.Matcher;
 
 import java.util.List;
 import java.util.function.Supplier;
@@ -71,12 +72,12 @@ public class ColumnExtractOperatorTests extends OperatorTestCase {
     }
 
     @Override
-    protected String expectedDescriptionOfSimple() {
-        return "ColumnExtractOperator[evaluator=FirstWord]";
+    protected Matcher<String> expectedDescriptionOfSimple() {
+        return equalTo("ColumnExtractOperator[evaluator=FirstWord]");
     }
 
     @Override
-    protected String expectedToStringOfSimple() {
+    protected Matcher<String> expectedToStringOfSimple() {
         return expectedDescriptionOfSimple();
     }
 

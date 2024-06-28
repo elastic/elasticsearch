@@ -29,6 +29,7 @@ import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.ingest.IngestService;
+import org.elasticsearch.ingest.geoip.stats.CacheStats;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.watcher.ResourceWatcherService;
@@ -505,5 +506,9 @@ public final class DatabaseNodeService implements GeoIpDatabaseProvider, Closeab
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
+    }
+
+    public CacheStats getCacheStats() {
+        return cache.getCacheStats();
     }
 }

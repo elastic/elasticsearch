@@ -85,16 +85,13 @@ class MaxAggregator extends NumericMetricsAggregator.SingleValue {
 
             @Override
             public void collect(int doc, long bucket) throws IOException {
-                if (bucket >= maxes.size()) {
-                    long from = maxes.size();
-                    maxes = bigArrays().grow(maxes, bucket + 1);
-                    maxes.fill(from, maxes.size(), Double.NEGATIVE_INFINITY);
-                }
                 if (values.advanceExact(doc)) {
-                    final double value = values.doubleValue();
-                    double max = maxes.get(bucket);
-                    max = Math.max(max, value);
-                    maxes.set(bucket, max);
+                    if (bucket >= maxes.size()) {
+                        long from = maxes.size();
+                        maxes = bigArrays().grow(maxes, bucket + 1);
+                        maxes.fill(from, maxes.size(), Double.NEGATIVE_INFINITY);
+                    }
+                    maxes.set(bucket, Math.max(maxes.get(bucket), values.doubleValue()));
                 }
             }
 

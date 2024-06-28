@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.inference.services.cohere.embeddings;
 
-import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -16,6 +15,9 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
 import org.elasticsearch.xpack.inference.InferenceNamedWriteablesProvider;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
@@ -23,10 +25,10 @@ import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.cohere.CohereServiceSettings;
 import org.elasticsearch.xpack.inference.services.cohere.CohereServiceSettingsTests;
+import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 import org.hamcrest.MatcherAssert;
 
 import java.io.IOException;
-import java.net.URI;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -73,7 +75,14 @@ public class CohereEmbeddingsServiceSettingsTests extends AbstractWireSerializin
             serviceSettings,
             is(
                 new CohereEmbeddingsServiceSettings(
-                    new CohereServiceSettings(ServiceUtils.createUri(url), SimilarityMeasure.DOT_PRODUCT, dims, maxInputTokens, model),
+                    new CohereServiceSettings(
+                        ServiceUtils.createUri(url),
+                        SimilarityMeasure.DOT_PRODUCT,
+                        dims,
+                        maxInputTokens,
+                        model,
+                        null
+                    ),
                     CohereEmbeddingType.BYTE
                 )
             )
@@ -110,7 +119,14 @@ public class CohereEmbeddingsServiceSettingsTests extends AbstractWireSerializin
             serviceSettings,
             is(
                 new CohereEmbeddingsServiceSettings(
-                    new CohereServiceSettings(ServiceUtils.createUri(url), SimilarityMeasure.DOT_PRODUCT, dims, maxInputTokens, model),
+                    new CohereServiceSettings(
+                        ServiceUtils.createUri(url),
+                        SimilarityMeasure.DOT_PRODUCT,
+                        dims,
+                        maxInputTokens,
+                        model,
+                        null
+                    ),
                     CohereEmbeddingType.INT8
                 )
             )
@@ -149,7 +165,14 @@ public class CohereEmbeddingsServiceSettingsTests extends AbstractWireSerializin
             serviceSettings,
             is(
                 new CohereEmbeddingsServiceSettings(
-                    new CohereServiceSettings(ServiceUtils.createUri(url), SimilarityMeasure.DOT_PRODUCT, dims, maxInputTokens, model),
+                    new CohereServiceSettings(
+                        ServiceUtils.createUri(url),
+                        SimilarityMeasure.DOT_PRODUCT,
+                        dims,
+                        maxInputTokens,
+                        model,
+                        null
+                    ),
                     CohereEmbeddingType.BYTE
                 )
             )
@@ -223,7 +246,7 @@ public class CohereEmbeddingsServiceSettingsTests extends AbstractWireSerializin
 
     public void testFromMap_ReturnsFailure_WhenEmbeddingTypesAreNotValid() {
         var exception = expectThrows(
-            ElasticsearchStatusException.class,
+            ValidationException.class,
             () -> CohereEmbeddingsServiceSettings.fromMap(
                 new HashMap<>(Map.of(CohereEmbeddingsServiceSettings.EMBEDDING_TYPE, List.of("abc"))),
                 ConfigurationParseContext.PERSISTENT
@@ -232,7 +255,7 @@ public class CohereEmbeddingsServiceSettingsTests extends AbstractWireSerializin
 
         MatcherAssert.assertThat(
             exception.getMessage(),
-            is("field [embedding_type] is not of the expected type. The value [[abc]] cannot be converted to a [String]")
+            containsString("field [embedding_type] is not of the expected type. The value [[abc]] cannot be converted to a [String]")
         );
     }
 
@@ -242,7 +265,7 @@ public class CohereEmbeddingsServiceSettingsTests extends AbstractWireSerializin
                 new HashMap<>(Map.of(CohereEmbeddingsServiceSettings.EMBEDDING_TYPE, DenseVectorFieldMapper.ElementType.BYTE.toString())),
                 ConfigurationParseContext.PERSISTENT
             ),
-            is(new CohereEmbeddingsServiceSettings(new CohereServiceSettings((URI) null, null, null, null, null), CohereEmbeddingType.BYTE))
+            is(new CohereEmbeddingsServiceSettings(new CohereServiceSettings(), CohereEmbeddingType.BYTE))
         );
     }
 
@@ -252,12 +275,7 @@ public class CohereEmbeddingsServiceSettingsTests extends AbstractWireSerializin
                 new HashMap<>(Map.of(CohereEmbeddingsServiceSettings.EMBEDDING_TYPE, DenseVectorFieldMapper.ElementType.FLOAT.toString())),
                 ConfigurationParseContext.PERSISTENT
             ),
-            is(
-                new CohereEmbeddingsServiceSettings(
-                    new CohereServiceSettings((URI) null, null, null, null, null),
-                    CohereEmbeddingType.FLOAT
-                )
-            )
+            is(new CohereEmbeddingsServiceSettings(new CohereServiceSettings(), CohereEmbeddingType.FLOAT))
         );
     }
 
@@ -267,7 +285,7 @@ public class CohereEmbeddingsServiceSettingsTests extends AbstractWireSerializin
                 new HashMap<>(Map.of(CohereEmbeddingsServiceSettings.EMBEDDING_TYPE, CohereEmbeddingType.INT8.toString())),
                 ConfigurationParseContext.REQUEST
             ),
-            is(new CohereEmbeddingsServiceSettings(new CohereServiceSettings((URI) null, null, null, null, null), CohereEmbeddingType.INT8))
+            is(new CohereEmbeddingsServiceSettings(new CohereServiceSettings(), CohereEmbeddingType.INT8))
         );
     }
 
@@ -277,13 +295,40 @@ public class CohereEmbeddingsServiceSettingsTests extends AbstractWireSerializin
                 new HashMap<>(Map.of(CohereEmbeddingsServiceSettings.EMBEDDING_TYPE, CohereEmbeddingType.FLOAT.toString())),
                 ConfigurationParseContext.REQUEST
             ),
-            is(
-                new CohereEmbeddingsServiceSettings(
-                    new CohereServiceSettings((URI) null, null, null, null, null),
-                    CohereEmbeddingType.FLOAT
-                )
-            )
+            is(new CohereEmbeddingsServiceSettings(new CohereServiceSettings(), CohereEmbeddingType.FLOAT))
         );
+    }
+
+    public void testFromMap_PersistentReadsInt8() {
+        assertThat(
+            CohereEmbeddingsServiceSettings.fromMap(
+                new HashMap<>(Map.of(CohereEmbeddingsServiceSettings.EMBEDDING_TYPE, "int8")),
+                ConfigurationParseContext.PERSISTENT
+            ),
+            is(new CohereEmbeddingsServiceSettings(new CohereServiceSettings(), CohereEmbeddingType.INT8))
+        );
+    }
+
+    public void testFromCohereOrDenseVectorEnumValues() {
+        var validation = new ValidationException();
+        assertEquals(CohereEmbeddingType.BYTE, CohereEmbeddingsServiceSettings.fromCohereOrDenseVectorEnumValues("byte", validation));
+        assertEquals(CohereEmbeddingType.INT8, CohereEmbeddingsServiceSettings.fromCohereOrDenseVectorEnumValues("int8", validation));
+        assertEquals(CohereEmbeddingType.FLOAT, CohereEmbeddingsServiceSettings.fromCohereOrDenseVectorEnumValues("float", validation));
+        assertTrue(validation.validationErrors().isEmpty());
+    }
+
+    public void testToXContent_WritesAllValues() throws IOException {
+        var serviceSettings = new CohereEmbeddingsServiceSettings(
+            new CohereServiceSettings("url", SimilarityMeasure.COSINE, 5, 10, "model_id", new RateLimitSettings(3)),
+            CohereEmbeddingType.INT8
+        );
+
+        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+        serviceSettings.toXContent(builder, null);
+        String xContentResult = Strings.toString(builder);
+        assertThat(xContentResult, is("""
+            {"url":"url","similarity":"cosine","dimensions":5,"max_input_tokens":10,"model_id":"model_id",""" + """
+            "rate_limit":{"requests_per_minute":3},"embedding_type":"byte"}"""));
     }
 
     @Override
@@ -298,7 +343,7 @@ public class CohereEmbeddingsServiceSettingsTests extends AbstractWireSerializin
 
     @Override
     protected CohereEmbeddingsServiceSettings mutateInstance(CohereEmbeddingsServiceSettings instance) throws IOException {
-        return null;
+        return randomValueOtherThan(instance, CohereEmbeddingsServiceSettingsTests::createRandom);
     }
 
     @Override

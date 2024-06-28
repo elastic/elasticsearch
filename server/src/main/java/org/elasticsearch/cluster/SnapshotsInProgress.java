@@ -53,8 +53,6 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.TransportVersions.SNAPSHOTS_IN_PROGRESS_TRACKING_REMOVING_NODES_ADDED;
-
 /**
  * Meta data about snapshots that are currently executing
  */
@@ -93,7 +91,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
     }
 
     private static Set<String> readNodeIdsForRemoval(StreamInput in) throws IOException {
-        return in.getTransportVersion().onOrAfter(SNAPSHOTS_IN_PROGRESS_TRACKING_REMOVING_NODES_ADDED)
+        return in.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)
             ? in.readCollectionAsImmutableSet(StreamInput::readString)
             : Set.of();
     }
@@ -246,7 +244,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         while (iterator.hasNext()) {
             iterator.next().writeTo(out);
         }
-        if (out.getTransportVersion().onOrAfter(SNAPSHOTS_IN_PROGRESS_TRACKING_REMOVING_NODES_ADDED)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
             out.writeStringCollection(nodesIdsForRemoval);
         } else {
             assert nodesIdsForRemoval.isEmpty() : nodesIdsForRemoval;
@@ -433,7 +431,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
      * running shard snapshots.
      */
     public SnapshotsInProgress withUpdatedNodeIdsForRemoval(ClusterState clusterState) {
-        assert clusterState.getMinTransportVersion().onOrAfter(TransportVersions.SNAPSHOTS_IN_PROGRESS_TRACKING_REMOVING_NODES_ADDED);
+        assert clusterState.getMinTransportVersion().onOrAfter(TransportVersions.V_8_13_0);
 
         final var updatedNodeIdsForRemoval = new HashSet<>(nodesIdsForRemoval);
 
@@ -1709,7 +1707,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             } else {
                 new SimpleDiffable.CompleteDiff<>(after).writeTo(out);
             }
-            if (out.getTransportVersion().onOrAfter(SNAPSHOTS_IN_PROGRESS_TRACKING_REMOVING_NODES_ADDED)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
                 out.writeStringCollection(nodeIdsForRemoval);
             } else {
                 assert nodeIdsForRemoval.isEmpty() : nodeIdsForRemoval;

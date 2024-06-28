@@ -18,16 +18,24 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
+import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.AggregationTestScriptsPlugin;
+import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
 import org.elasticsearch.search.aggregations.BucketOrder;
+import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.AbstractTermsTestCase;
+import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 import org.elasticsearch.search.aggregations.bucket.filter.Filter;
+import org.elasticsearch.search.aggregations.bucket.global.GlobalAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.global.InternalGlobal;
 import org.elasticsearch.search.aggregations.metrics.Avg;
 import org.elasticsearch.search.aggregations.metrics.ExtendedStats;
+import org.elasticsearch.search.aggregations.metrics.InternalTopHits;
 import org.elasticsearch.search.aggregations.metrics.Stats;
 import org.elasticsearch.search.aggregations.metrics.Sum;
+import org.elasticsearch.search.aggregations.metrics.TopHitsAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -63,6 +71,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFa
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.startsWith;
 import static org.hamcrest.core.IsNull.notNullValue;
@@ -1375,5 +1384,47 @@ public class StringTermsIT extends AbstractTermsTestCase {
                 }
             }
         );
+    }
+
+    public void testGlobalAggregationWithScore() throws Exception {
+        assertAcked(prepareCreate("global").setMapping("keyword", "type=keyword"));
+        indexRandom(
+            true,
+            prepareIndex("global").setSource("keyword", "a"),
+            prepareIndex("global").setSource("keyword", "c"),
+            prepareIndex("global").setSource("keyword", "e")
+        );
+        String executionHint = randomFrom(TermsAggregatorFactory.ExecutionMode.values()).toString();
+        Aggregator.SubAggCollectionMode collectionMode = randomFrom(Aggregator.SubAggCollectionMode.values());
+        GlobalAggregationBuilder globalBuilder = new GlobalAggregationBuilder("global").subAggregation(
+            new TermsAggregationBuilder("terms").userValueTypeHint(ValueType.STRING)
+                .executionHint(executionHint)
+                .collectMode(collectionMode)
+                .field("keyword")
+                .order(BucketOrder.key(true))
+                .subAggregation(
+                    new TermsAggregationBuilder("sub_terms").userValueTypeHint(ValueType.STRING)
+                        .executionHint(executionHint)
+                        .collectMode(collectionMode)
+                        .field("keyword")
+                        .order(BucketOrder.key(true))
+                        .subAggregation(new TopHitsAggregationBuilder("top_hits").storedField("_none_"))
+                )
+        );
+        assertNoFailuresAndResponse(prepareSearch("global").addAggregation(globalBuilder), response -> {
+            InternalGlobal result = response.getAggregations().get("global");
+            InternalMultiBucketAggregation<?, ?> terms = result.getAggregations().get("terms");
+            assertThat(terms.getBuckets().size(), equalTo(3));
+            for (MultiBucketsAggregation.Bucket bucket : terms.getBuckets()) {
+                InternalMultiBucketAggregation<?, ?> subTerms = bucket.getAggregations().get("sub_terms");
+                assertThat(subTerms.getBuckets().size(), equalTo(1));
+                MultiBucketsAggregation.Bucket subBucket = subTerms.getBuckets().get(0);
+                InternalTopHits topHits = subBucket.getAggregations().get("top_hits");
+                assertThat(topHits.getHits().getHits().length, equalTo(1));
+                for (SearchHit hit : topHits.getHits()) {
+                    assertThat(hit.getScore(), greaterThan(0f));
+                }
+            }
+        });
     }
 }

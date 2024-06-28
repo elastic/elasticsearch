@@ -8,6 +8,7 @@
 
 package org.elasticsearch.cluster;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlocks;
@@ -44,6 +45,7 @@ import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.shard.IndexLongFieldRange;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
@@ -61,6 +63,7 @@ import java.util.Set;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptySet;
 import static org.elasticsearch.cluster.metadata.AliasMetadata.newAliasMetadataBuilder;
+import static org.elasticsearch.cluster.metadata.IndexMetadataTests.randomInferenceFields;
 import static org.elasticsearch.cluster.routing.RandomShardRoutingMutator.randomChange;
 import static org.elasticsearch.cluster.routing.TestShardRouting.shardRoutingBuilder;
 import static org.elasticsearch.cluster.routing.UnassignedInfoTests.randomUnassignedInfo;
@@ -561,6 +564,7 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
                 settingsBuilder.put(randomSettings(Settings.EMPTY)).put(IndexMetadata.SETTING_VERSION_CREATED, randomVersion(random()));
                 builder.settings(settingsBuilder);
                 builder.numberOfShards(randomIntBetween(1, 10)).numberOfReplicas(randomInt(10));
+                builder.eventIngestedRange(IndexLongFieldRange.UNKNOWN, TransportVersion.current());
                 int aliasCount = randomInt(10);
                 for (int i = 0; i < aliasCount; i++) {
                     builder.putAlias(randomAlias());
@@ -571,7 +575,7 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
             @Override
             public IndexMetadata randomChange(IndexMetadata part) {
                 IndexMetadata.Builder builder = IndexMetadata.builder(part);
-                switch (randomIntBetween(0, 2)) {
+                switch (randomIntBetween(0, 3)) {
                     case 0:
                         builder.settings(Settings.builder().put(part.getSettings()).put(randomSettings(Settings.EMPTY)));
                         break;
@@ -584,6 +588,9 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
                         break;
                     case 2:
                         builder.settings(Settings.builder().put(part.getSettings()).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0));
+                        break;
+                    case 3:
+                        builder.putInferenceFields(randomInferenceFields());
                         break;
                     default:
                         throw new IllegalArgumentException("Shouldn't be here");

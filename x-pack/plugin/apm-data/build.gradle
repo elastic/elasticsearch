@@ -20,6 +20,7 @@ dependencies {
   compileOnly project(path: xpackModule('core'))
   testImplementation project(path: ':x-pack:plugin:stack')
   testImplementation(testArtifact(project(xpackModule('core'))))
+  testImplementation project(':modules:data-streams')
   clusterModules project(':modules:data-streams')
   clusterModules project(':modules:ingest-common')
   clusterModules project(':modules:ingest-geoip')

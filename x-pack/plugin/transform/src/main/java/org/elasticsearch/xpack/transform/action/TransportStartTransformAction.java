@@ -117,10 +117,10 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
             StartTransformAction.Response::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
-        this.transformConfigManager = transformServices.getConfigManager();
+        this.transformConfigManager = transformServices.configManager();
         this.persistentTasksService = persistentTasksService;
         this.client = client;
-        this.auditor = transformServices.getAuditor();
+        this.auditor = transformServices.auditor();
         this.destIndexSettings = transformExtensionHolder.getTransformExtension().getTransformDestinationIndexSettings();
     }
 
@@ -144,7 +144,7 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
                 waitForTransformTaskStarted(
                     task.getId(),
                     transformTask,
-                    request.timeout(),
+                    request.ackTimeout(),
                     ActionListener.wrap(taskStarted -> listener.onResponse(new StartTransformAction.Response(true)), listener::onFailure)
                 );
             }, listener::onFailure);
@@ -260,7 +260,7 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
                 client,
                 ClientHelper.TRANSFORM_ORIGIN,
                 ValidateTransformAction.INSTANCE,
-                new ValidateTransformAction.Request(config, false, request.timeout()),
+                new ValidateTransformAction.Request(config, false, request.ackTimeout()),
                 validationListener
             );
         }, listener::onFailure);

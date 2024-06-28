@@ -35,7 +35,6 @@ public class APMYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
         .module("x-pack-ilm")
         .module("x-pack-stack")
         .setting("ingest.geoip.downloader.enabled", "false")
-        .setting("xpack.apm_data.enabled", "true")
         .build();
 
     public APMYamlTestSuiteIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {

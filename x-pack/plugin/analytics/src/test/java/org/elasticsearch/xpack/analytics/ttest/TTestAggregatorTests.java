@@ -636,6 +636,77 @@ public class TTestAggregatorTests extends AggregatorTestCase {
         }
     }
 
+    public void testFilteredAsSubAgg() throws IOException {
+        TTestType tTestType = randomFrom(TTestType.values());
+        MappedFieldType fieldType1 = new NumberFieldMapper.NumberFieldType("h", NumberFieldMapper.NumberType.INTEGER);
+        MappedFieldType fieldType2 = new NumberFieldMapper.NumberFieldType("a", NumberFieldMapper.NumberType.INTEGER);
+        MappedFieldType fieldType3 = new NumberFieldMapper.NumberFieldType("b", NumberFieldMapper.NumberType.INTEGER);
+        TTestAggregationBuilder ttestAggregationBuilder = new TTestAggregationBuilder("t_test").a(
+            new MultiValuesSourceFieldConfig.Builder().setFieldName("a").setFilter(QueryBuilders.termQuery("b", 1)).build()
+        )
+            .b(new MultiValuesSourceFieldConfig.Builder().setFieldName("a").setFilter(QueryBuilders.termQuery("b", 2)).build())
+            .testType(tTestType);
+        int tails = randomIntBetween(1, 2);
+        if (tails == 1 || randomBoolean()) {
+            ttestAggregationBuilder.tails(tails);
+        }
+        HistogramAggregationBuilder aggregationBuilder = new HistogramAggregationBuilder("h").field("h")
+            .interval(1)
+            .subAggregation(ttestAggregationBuilder);
+        int buckets = randomInt(100);
+        CheckedConsumer<RandomIndexWriter, IOException> buildIndex = iw -> {
+            for (int i = 0; i < buckets; i++) {
+                iw.addDocument(asList(new NumericDocValuesField("h", i), new NumericDocValuesField("a", 102), new IntPoint("b", 1)));
+                iw.addDocument(asList(new NumericDocValuesField("h", i), new NumericDocValuesField("a", 99), new IntPoint("b", 1)));
+                iw.addDocument(asList(new NumericDocValuesField("h", i), new NumericDocValuesField("a", 111), new IntPoint("b", 1)));
+                iw.addDocument(asList(new NumericDocValuesField("h", i), new NumericDocValuesField("a", 97), new IntPoint("b", 1)));
+                iw.addDocument(asList(new NumericDocValuesField("h", i), new NumericDocValuesField("a", 101), new IntPoint("b", 1)));
+                iw.addDocument(asList(new NumericDocValuesField("h", i), new NumericDocValuesField("a", 99), new IntPoint("b", 1)));
+
+                iw.addDocument(asList(new NumericDocValuesField("h", i), new NumericDocValuesField("a", 89), new IntPoint("b", 2)));
+                iw.addDocument(asList(new NumericDocValuesField("h", i), new NumericDocValuesField("a", 93), new IntPoint("b", 2)));
+                iw.addDocument(asList(new NumericDocValuesField("h", i), new NumericDocValuesField("a", 72), new IntPoint("b", 2)));
+                iw.addDocument(asList(new NumericDocValuesField("h", i), new NumericDocValuesField("a", 98), new IntPoint("b", 2)));
+                iw.addDocument(asList(new NumericDocValuesField("h", i), new NumericDocValuesField("a", 102), new IntPoint("b", 2)));
+                iw.addDocument(asList(new NumericDocValuesField("h", i), new NumericDocValuesField("a", 98), new IntPoint("b", 2)));
+
+                iw.addDocument(asList(new NumericDocValuesField("h", i), new NumericDocValuesField("a", 189), new IntPoint("b", 3)));
+                iw.addDocument(asList(new NumericDocValuesField("h", i), new NumericDocValuesField("a", 193), new IntPoint("b", 3)));
+                iw.addDocument(asList(new NumericDocValuesField("h", i), new NumericDocValuesField("a", 172), new IntPoint("b", 3)));
+                iw.addDocument(asList(new NumericDocValuesField("h", i), new NumericDocValuesField("a", 198), new IntPoint("b", 3)));
+                iw.addDocument(asList(new NumericDocValuesField("h", i), new NumericDocValuesField("a", 1102), new IntPoint("b", 3)));
+                iw.addDocument(asList(new NumericDocValuesField("h", i), new NumericDocValuesField("a", 198), new IntPoint("b", 3)));
+            }
+        };
+        if (tTestType == TTestType.PAIRED) {
+            IllegalArgumentException ex = expectThrows(
+                IllegalArgumentException.class,
+                () -> testCase(
+                    buildIndex,
+                    tTest -> fail("Should have thrown exception"),
+                    new AggTestConfig(aggregationBuilder, fieldType1, fieldType2, fieldType3)
+                )
+            );
+            assertEquals("Paired t-test doesn't support filters", ex.getMessage());
+        } else {
+            testCase(buildIndex, (Consumer<InternalHistogram>) histogram -> {
+                if (tTestType == TTestType.HOMOSCEDASTIC) {
+                    assertEquals(buckets, histogram.getBuckets().size());
+                    for (int i = 0; i < buckets; i++) {
+                        InternalTTest ttest = histogram.getBuckets().get(i).getAggregations().get("t_test");
+                        assertEquals(0.03928288693 * tails, ttest.getValue(), 0.00001);
+                    }
+                } else {
+                    assertEquals(buckets, histogram.getBuckets().size());
+                    for (int i = 0; i < buckets; i++) {
+                        InternalTTest ttest = histogram.getBuckets().get(i).getAggregations().get("t_test");
+                        assertEquals(0.04538666214 * tails, ttest.getValue(), 0.00001);
+                    }
+                }
+            }, new AggTestConfig(aggregationBuilder, fieldType1, fieldType2, fieldType3));
+        }
+    }
+
     public void testFilterByFilterOrScript() throws IOException {
         boolean fieldInA = randomBoolean();
         TTestType tTestType = randomFrom(TTestType.HOMOSCEDASTIC, TTestType.HETEROSCEDASTIC);

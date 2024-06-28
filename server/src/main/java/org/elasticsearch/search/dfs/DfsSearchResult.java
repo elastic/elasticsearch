@@ -141,8 +141,10 @@ public final class DfsSearchResult extends SearchPhaseResult {
                 if (knnResults != null && knnResults.size() > 1) {
                     throw new IllegalArgumentException(
                         "Cannot serialize multiple KNN results to nodes using previous transport version ["
-                            + out.getTransportVersion()
-                            + "], minimum required transport version is [8070099]"
+                            + out.getTransportVersion().toReleaseVersion()
+                            + "], minimum required transport version is ["
+                            + TransportVersions.V_8_7_0.toReleaseVersion()
+                            + "]"
                     );
                 }
                 out.writeOptionalWriteable(knnResults == null || knnResults.isEmpty() ? null : knnResults.get(0));

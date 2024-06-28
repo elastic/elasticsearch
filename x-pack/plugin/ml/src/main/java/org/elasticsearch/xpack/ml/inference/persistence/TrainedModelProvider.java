@@ -30,6 +30,7 @@ import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.Numbers;
@@ -127,9 +128,15 @@ public class TrainedModelProvider {
     private static final Logger logger = LogManager.getLogger(TrainedModelProvider.class);
     private final Client client;
     private final NamedXContentRegistry xContentRegistry;
+    private final TrainedModelCacheMetadataService modelCacheMetadataService;
 
-    public TrainedModelProvider(Client client, NamedXContentRegistry xContentRegistry) {
+    public TrainedModelProvider(
+        Client client,
+        TrainedModelCacheMetadataService modelCacheMetadataService,
+        NamedXContentRegistry xContentRegistry
+    ) {
         this.client = client;
+        this.modelCacheMetadataService = modelCacheMetadataService;
         this.xContentRegistry = xContentRegistry;
     }
 
@@ -208,7 +215,7 @@ public class TrainedModelProvider {
             ML_ORIGIN,
             TransportIndexAction.TYPE,
             request,
-            ActionListener.wrap(indexResponse -> listener.onResponse(true), e -> {
+            ActionListener.wrap(indexResponse -> refreshCacheVersion(listener), e -> {
                 if (ExceptionsHelper.unwrapCause(e) instanceof VersionConflictEngineException) {
                     listener.onFailure(
                         new ResourceAlreadyExistsException(
@@ -521,7 +528,8 @@ public class TrainedModelProvider {
                 wrappedListener.onFailure(firstFailure);
                 return;
             }
-            wrappedListener.onResponse(true);
+
+            refreshCacheVersion(wrappedListener);
         }, wrappedListener::onFailure);
 
         executeAsyncWithOrigin(client, ML_ORIGIN, TransportBulkAction.TYPE, bulkRequest.request(), bulkResponseActionListener);
@@ -894,7 +902,8 @@ public class TrainedModelProvider {
                 listener.onFailure(new ResourceNotFoundException(Messages.getMessage(Messages.INFERENCE_NOT_FOUND, modelId)));
                 return;
             }
-            listener.onResponse(true);
+
+            refreshCacheVersion(listener);
         }, e -> {
             if (e.getClass() == IndexNotFoundException.class) {
                 listener.onFailure(new ResourceNotFoundException(Messages.getMessage(Messages.INFERENCE_NOT_FOUND, modelId)));
@@ -1375,5 +1384,14 @@ public class TrainedModelProvider {
             // that is not the users fault. We did something wrong and should throw.
             throw ExceptionsHelper.serverError("Unexpected serialization exception for [" + docId + "]", ex);
         }
+    }
+
+    private void refreshCacheVersion(ActionListener<Boolean> listener) {
+        modelCacheMetadataService.updateCacheVersion(ActionListener.wrap(resp -> {
+            // Checking the response is always AcknowledgedResponse.TRUE because AcknowledgedResponse.FALSE does not make sense.
+            // Errors should be reported through the onFailure method of the listener.
+            assert resp.equals(AcknowledgedResponse.TRUE);
+            listener.onResponse(true);
+        }, listener::onFailure));
     }
 }

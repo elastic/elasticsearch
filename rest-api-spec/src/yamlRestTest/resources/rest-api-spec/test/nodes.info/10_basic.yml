@@ -13,10 +13,10 @@ setup:
 
 ---
 "node_info role test":
-  - skip:
-      version: " - 7.7.99"
+  - requires:
+      cluster_features: ["gte_v7.8.0"]
       reason: "node roles were not sorted before 7.8.0"
-      features: [no_xpack]
+      test_runner_features: [no_xpack]
 
   - do:
       nodes.info: {}

@@ -8,7 +8,6 @@
 
 package org.elasticsearch.server.cli;
 
-import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.tests.util.LuceneTestCase.SuppressFileSystems;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.settings.Settings;
@@ -18,11 +17,13 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.ESTestCase.WithoutSecurityManager;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
@@ -41,7 +42,6 @@ import static org.junit.Assert.fail;
 
 @WithoutSecurityManager
 @SuppressFileSystems("*")
-@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/106554")
 public class JvmErgonomicsTests extends ESTestCase {
 
     public void testExtractValidHeapSizeUsingXmx() throws Exception {
@@ -193,7 +193,10 @@ public class JvmErgonomicsTests extends ESTestCase {
         Settings.Builder nodeSettingsBuilder = Settings.builder()
             .put(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), DiscoveryNodeRole.SEARCH_ROLE.roleName());
         if (randomBoolean()) {
-            nodeSettingsBuilder.put(EsExecutors.NODE_PROCESSORS_SETTING.getKey(), randomBoolean() ? between(1, 3) : between(6, 100));
+            int maxProcessors = Runtime.getRuntime().availableProcessors();
+            List<Integer> possibleProcessors = new ArrayList<>();
+            IntStream.range(1, maxProcessors + 1).filter(i -> i < 4 || i > 5).forEach(possibleProcessors::add);
+            nodeSettingsBuilder.put(EsExecutors.NODE_PROCESSORS_SETTING.getKey(), randomFrom(possibleProcessors));
         }
         assertThat(JvmErgonomics.choose(List.of(), nodeSettingsBuilder.build()), everyItem(not(startsWith("-XX:ConcGCThreads="))));
     }
@@ -201,10 +204,10 @@ public class JvmErgonomicsTests extends ESTestCase {
     public void testConcGCThreadsNotSetBasedOnRoles() throws Exception {
         Settings.Builder nodeSettingsBuilder = Settings.builder().put(EsExecutors.NODE_PROCESSORS_SETTING.getKey(), between(4, 5));
         if (randomBoolean()) {
-            nodeSettingsBuilder.put(
-                NodeRoleSettings.NODE_ROLES_SETTING.getKey(),
-                randomValueOtherThan(DiscoveryNodeRole.SEARCH_ROLE, () -> randomFrom(DiscoveryNodeRole.roles())).roleName()
-            );
+            List<DiscoveryNodeRole> possibleRoles = new ArrayList<>(DiscoveryNodeRole.roles());
+            possibleRoles.remove(DiscoveryNodeRole.SEARCH_ROLE);
+            possibleRoles.remove(DiscoveryNodeRole.VOTING_ONLY_NODE_ROLE);
+            nodeSettingsBuilder.put(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), randomFrom(possibleRoles).roleName());
         }
         assertThat(JvmErgonomics.choose(List.of(), nodeSettingsBuilder.build()), everyItem(not(startsWith("-XX:ConcGCThreads="))));
 
@@ -228,14 +231,17 @@ public class JvmErgonomicsTests extends ESTestCase {
     }
 
     public void testMinimumNewSizeNotSetBasedOnRoles() throws Exception {
-        Settings nodeSettings = randomBoolean()
-            ? Settings.EMPTY
-            : Settings.builder()
-                .put(
-                    NodeRoleSettings.NODE_ROLES_SETTING.getKey(),
-                    randomValueOtherThan(DiscoveryNodeRole.SEARCH_ROLE, () -> randomFrom(DiscoveryNodeRole.roles())).roleName()
-                )
+        Settings nodeSettings;
+        if (randomBoolean()) {
+            nodeSettings = Settings.EMPTY;
+        } else {
+            List<DiscoveryNodeRole> possibleRoles = new ArrayList<>(DiscoveryNodeRole.roles());
+            possibleRoles.remove(DiscoveryNodeRole.SEARCH_ROLE);
+            possibleRoles.remove(DiscoveryNodeRole.VOTING_ONLY_NODE_ROLE);
+            nodeSettings = Settings.builder()
+                .put(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), randomFrom(possibleRoles).roleName())
                 .build();
+        }
         List<String> chosen = JvmErgonomics.choose(List.of("-Xmx" + between(1, 4) + "g"), nodeSettings);
         assertThat(chosen, everyItem(not(is("-XX:+UnlockExperimentalVMOptions"))));
         assertThat(chosen, everyItem(not(startsWith("-XX:G1NewSizePercent="))));

@@ -42,7 +42,6 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.RemoteTransportException;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -185,10 +184,10 @@ public class IndicesMappingSizeCollector implements ClusterStateListener, IndexE
 
             @Override
             public boolean shouldRetry(Exception e) {
-                logger.trace("Retrying " + heapMemoryUsage, e);
-                if (e instanceof RemoteTransportException) {
-                    var cause = ExceptionsHelper.unwrapCause(e);
-                    return cause instanceof AutoscalingMissedIndicesUpdateException;
+                final var cause = ExceptionsHelper.unwrapCause(e);
+                if (cause instanceof AutoscalingMissedIndicesUpdateException) {
+                    logger.trace("Retry publishing mapping sizes: " + heapMemoryUsage, e);
+                    return true;
                 }
                 return false;
             }

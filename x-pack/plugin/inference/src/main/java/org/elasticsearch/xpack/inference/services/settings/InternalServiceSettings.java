@@ -7,13 +7,10 @@
 
 package org.elasticsearch.xpack.inference.services.settings;
 
-import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.inference.services.ServiceUtils;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -32,26 +29,6 @@ public abstract class InternalServiceSettings implements ServiceSettings {
         this.numAllocations = numAllocations;
         this.numThreads = numThreads;
         this.modelId = modelId;
-    }
-
-    protected static void validateParameters(Integer numAllocations, ValidationException validationException, Integer numThreads) {
-        if (numAllocations == null) {
-            validationException.addValidationError(
-                ServiceUtils.missingSettingErrorMsg(NUM_ALLOCATIONS, ModelConfigurations.SERVICE_SETTINGS)
-            );
-        } else if (numAllocations < 1) {
-            validationException.addValidationError(
-                ServiceUtils.mustBeAPositiveIntegerErrorMessage(NUM_ALLOCATIONS, ModelConfigurations.SERVICE_SETTINGS, numAllocations)
-            );
-        }
-
-        if (numThreads == null) {
-            validationException.addValidationError(ServiceUtils.missingSettingErrorMsg(NUM_THREADS, ModelConfigurations.SERVICE_SETTINGS));
-        } else if (numThreads < 1) {
-            validationException.addValidationError(
-                ServiceUtils.mustBeAPositiveIntegerErrorMessage(NUM_THREADS, ModelConfigurations.SERVICE_SETTINGS, numThreads)
-            );
-        }
     }
 
     public int getNumAllocations() {

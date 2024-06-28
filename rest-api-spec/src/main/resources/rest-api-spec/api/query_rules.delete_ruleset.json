@@ -1,8 +1,8 @@
 {
-  "query_ruleset.get": {
+  "query_rules.delete_ruleset": {
     "documentation": {
-      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/master/get-query-ruleset.html",
-      "description": "Returns the details about a query ruleset."
+      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/master/delete-query-ruleset.html",
+      "description": "Deletes a query ruleset."
     },
     "stability": "stable",
     "visibility": "public",
@@ -16,12 +16,12 @@
         {
           "path": "/_query_rules/{ruleset_id}",
           "methods": [
-            "GET"
+            "DELETE"
           ],
           "parts": {
             "ruleset_id": {
               "type": "string",
-              "description": "The unique identifier of the query ruleset"
+              "description": "The unique identifier of the query ruleset to delete"
             }
           }
         }

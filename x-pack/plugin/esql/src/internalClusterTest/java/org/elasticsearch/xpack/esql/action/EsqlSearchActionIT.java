@@ -258,7 +258,8 @@ public class EsqlSearchActionIT extends AbstractEsqlIntegTestCase {
             assertThat(values.get(0), contains(1, 0.99999785F, "This is a brown fox"));
             assertThat(values.get(1), contains(2, 0.99999785F, "This is a brown dog"));
             assertThat(values.get(2), contains(3, 0.89533967F, "This dog is really brown"));
-        };
+        }
+        ;
     }
 
     public void testRowMultiValue() {  // DELETE me
@@ -284,16 +285,21 @@ public class EsqlSearchActionIT extends AbstractEsqlIntegTestCase {
         embeddingMapping.put("embedding", objectObjectHashMap);
         Map<String, Object> properties = new HashMap<>();
         properties.put("properties", embeddingMapping);
-        var PutRequest = client.preparePutMapping(indexName)
-                .setSource(properties);
+        var PutRequest = client.preparePutMapping(indexName).setSource(properties);
         assertAcked(PutRequest);
         client().prepareBulk()
-            .add(new IndexRequest(indexName).id("1").source("id", 1, "content", "This is a brown fox",
-                "embedding", new float[]{0.1f, 1f, 1f}))
-            .add(new IndexRequest(indexName).id("2").source("id", 2, "content", "This is a brown dog",
-                "embedding", new float[]{0.1f, 1.001f, 1f}))
-            .add(new IndexRequest(indexName).id("3").source("id", 3, "content", "This dog is really brown",
-                "embedding", new float[]{0.2f, 0.1f, 0.3f}))
+            .add(
+                new IndexRequest(indexName).id("1")
+                    .source("id", 1, "content", "This is a brown fox", "embedding", new float[] { 0.1f, 1f, 1f })
+            )
+            .add(
+                new IndexRequest(indexName).id("2")
+                    .source("id", 2, "content", "This is a brown dog", "embedding", new float[] { 0.1f, 1.001f, 1f })
+            )
+            .add(
+                new IndexRequest(indexName).id("3")
+                    .source("id", 3, "content", "This dog is really brown", "embedding", new float[] { 0.2f, 0.1f, 0.3f })
+            )
             .add(new IndexRequest(indexName).id("4").source("id", 4, "content", "The dog is brown but this document is very very long"))
             .add(new IndexRequest(indexName).id("5").source("id", 5, "content", "There is also a white cat"))
             .add(new IndexRequest(indexName).id("6").source("id", 6, "content", "The quick brown fox jumps over the lazy dog"))

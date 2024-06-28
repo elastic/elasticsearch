@@ -126,26 +126,45 @@ public class MapperServiceTests extends MapperServiceTestCase {
 
     public void testIndexSortWithNestedFields() throws IOException {
         Settings settings = Settings.builder().put("index.sort.field", "foo").build();
-        IllegalArgumentException invalidNestedException = expectThrows(
-            IllegalArgumentException.class,
-            () -> createMapperService(settings, mapping(b -> {
-                b.startObject("nested_field").field("type", "nested").endObject();
-                b.startObject("foo").field("type", "keyword").endObject();
-            }))
-        );
+        DocumentMapper mapper = createMapperService(settings, mapping(b -> {
+            b.startObject("nested_field").field("type", "nested").endObject();
+            b.startObject("foo").field("type", "keyword").endObject();
+        })).documentMapper();
 
-        assertThat(invalidNestedException.getMessage(), containsString("cannot have nested fields when index sort is activated"));
+        List<LuceneDocument> docs = mapper.parse(source(b -> {
+            b.field("name", "foo");
+            b.startObject("nested_field").field("foo", "bar").endObject();
+        })).docs();
+        assertEquals(2, docs.size());
+        assertEquals(docs.get(1), docs.get(0).getParent());
 
         MapperService mapperService = createMapperService(
             settings,
             mapping(b -> b.startObject("foo").field("type", "keyword").endObject())
         );
-        invalidNestedException = expectThrows(IllegalArgumentException.class, () -> merge(mapperService, mapping(b -> {
+        merge(mapperService, mapping(b -> {
             b.startObject("nested_field");
             b.field("type", "nested");
             b.endObject();
-        })));
-        assertThat(invalidNestedException.getMessage(), containsString("cannot have nested fields when index sort is activated"));
+        }));
+
+        Settings settings2 = Settings.builder().put("index.sort.field", "foo.bar").build();
+        IllegalArgumentException invalidNestedException = expectThrows(
+            IllegalArgumentException.class,
+            () -> createMapperService(settings2, mapping(b -> {
+                b.startObject("foo");
+                {
+                    b.field("type", "nested");
+                    b.startObject("properties");
+                    {
+                        b.startObject("bar").field("type", "keyword").endObject();
+                    }
+                    b.endObject();
+                }
+                b.endObject();
+            }))
+        );
+        assertEquals("cannot apply index sort to field [foo.bar] under nested object [foo]", invalidNestedException.getMessage());
     }
 
     public void testFieldAliasWithMismatchedNestedScope() throws Throwable {

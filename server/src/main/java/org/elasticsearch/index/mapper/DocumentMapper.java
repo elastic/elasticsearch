@@ -10,6 +10,7 @@ package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexSortConfig;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 
@@ -134,7 +135,15 @@ public class DocumentMapper {
         }
 
         if (settings.getIndexSortConfig().hasIndexSort() && mappers().nestedLookup() != NestedLookup.EMPTY) {
-            throw new IllegalArgumentException("cannot have nested fields when index sort is activated");
+            for (String field : settings.getValue(IndexSortConfig.INDEX_SORT_FIELD_SETTING)) {
+                for (NestedObjectMapper nestedObjectMapper : mappers().nestedLookup().getNestedMappers().values()) {
+                    if (field.startsWith(nestedObjectMapper.fullPath())) {
+                        throw new IllegalArgumentException(
+                            "cannot apply index sort to field [" + field + "] under nested object [" + nestedObjectMapper.fullPath() + "]"
+                        );
+                    }
+                }
+            }
         }
         List<String> routingPaths = settings.getIndexMetadata().getRoutingPaths();
         for (String path : routingPaths) {

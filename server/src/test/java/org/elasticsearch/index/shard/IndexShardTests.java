@@ -4812,6 +4812,7 @@ public class IndexShardTests extends IndexShardTestCase {
                 config.getExternalRefreshListener(),
                 config.getInternalRefreshListener(),
                 config.getIndexSort(),
+                config.hasNested(),
                 config.getCircuitBreakerService(),
                 config.getGlobalCheckpointSupplier(),
                 config.retentionLeasesSupplier(),

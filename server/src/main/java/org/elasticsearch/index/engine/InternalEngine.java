@@ -223,6 +223,7 @@ public class InternalEngine extends Engine {
 
     protected static final String REAL_TIME_GET_REFRESH_SOURCE = "realtime_get";
     protected static final String UNSAFE_VERSION_MAP_REFRESH_SOURCE = "unsafe_version_map";
+    private static final String ROOT_DOC_FIELD_NAME = "__root_doc_for_nested";
 
     @SuppressWarnings("this-escape")
     public InternalEngine(EngineConfig engineConfig) {
@@ -2728,6 +2729,9 @@ public class InternalEngine extends Engine {
         }
         if (config().getIndexSort() != null) {
             iwc.setIndexSort(config().getIndexSort());
+            if (engineConfig.hasNested()) {
+                iwc.setParentField(ROOT_DOC_FIELD_NAME);
+            }
         }
         // Provide a custom leaf sorter, so that index readers opened from this writer
         // will have its leaves sorted according the given leaf sorter.

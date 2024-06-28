@@ -212,7 +212,3 @@ if (BuildParams.isSnapshotBuild() == false) {
 tasks.named('yamlRestTest') {
   usesDefaultDistribution()
 }
-
-testClusters.configureEach {
-  setting 'xpack.license.self_generated.type', 'trial'
-}

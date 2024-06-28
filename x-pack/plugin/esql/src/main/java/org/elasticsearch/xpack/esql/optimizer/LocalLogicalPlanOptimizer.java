@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
 import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer.PropagateEmptyRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
+import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.planner.AbstractPhysicalOperationProviders;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
@@ -158,6 +159,12 @@ public class LocalLogicalPlanOptimizer extends ParameterizedRuleExecutor<Logical
                     plan = new Eval(project.source(), project.child(), new ArrayList<>(nullLiteral.values()));
                     plan = new Project(project.source(), plan, newProjections);
                 }
+            } else if (plan instanceof MvExpand) {
+                // We cannot replace the target (NamedExpression) with a Literal
+                // https://github.com/elastic/elasticsearch/issues/109974
+                // Unfortunately we cannot remove the MvExpand right away, or we'll lose the output field (layout problems)
+                // TODO but this could be a follow-up optimization
+                return plan;
             }
             // otherwise transform fields in place
             else {

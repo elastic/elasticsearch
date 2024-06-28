@@ -96,9 +96,9 @@ public class ClusterStateLicenseServiceTests extends ESTestCase {
         );
         final String message = service.buildExpirationMessage(time, expired).toString();
         if (expired) {
-            assertThat(message, startsWith("LICENSE [EXPIRED] ON [THU, NOV 15, 2018].\n"));
+            assertThat(message, startsWith("LICENSE [EXPIRED] ON [THURSDAY, NOVEMBER 15, 2018].\n"));
         } else {
-            assertThat(message, startsWith("License [will expire] on [Thu, Nov 15, 2018].\n"));
+            assertThat(message, startsWith("License [will expire] on [Thursday, November 15, 2018].\n"));
         }
     }
 

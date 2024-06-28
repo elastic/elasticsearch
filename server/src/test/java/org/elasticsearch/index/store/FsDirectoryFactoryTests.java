@@ -49,7 +49,7 @@ public class FsDirectoryFactoryTests extends ESTestCase {
             .build();
         try (Directory directory = newDirectory(build)) {
             assertTrue(FsDirectoryFactory.isHybridFs(directory));
-            FsDirectoryFactory.HybridDirectory hybridDirectory = (FsDirectoryFactory.HybridDirectory) unwrapDirectory(directory);
+            FsDirectoryFactory.HybridDirectory hybridDirectory = (FsDirectoryFactory.HybridDirectory) FilterDirectory.unwrap(directory);
             assertTrue(FsDirectoryFactory.HybridDirectory.useDelegate("foo.dvd", newIOContext(random())));
             assertTrue(FsDirectoryFactory.HybridDirectory.useDelegate("foo.nvd", newIOContext(random())));
             assertTrue(FsDirectoryFactory.HybridDirectory.useDelegate("foo.tim", newIOContext(random())));
@@ -109,7 +109,7 @@ public class FsDirectoryFactoryTests extends ESTestCase {
         try (Directory dir = directory) {
             assertSame(dir, directory); // prevent warnings
             assertFalse(directory instanceof SleepingLockWrapper);
-            var mmapDirectory = unwrapDirectory(directory);
+            var mmapDirectory = FilterDirectory.unwrap(directory);
             if (preload.length == 0) {
                 assertTrue(directory.toString(), mmapDirectory instanceof MMapDirectory);
                 assertFalse(((MMapDirectory) mmapDirectory).getPreload());
@@ -169,7 +169,7 @@ public class FsDirectoryFactoryTests extends ESTestCase {
                 case MMAPFS:
                     assertTrue(
                         type + " " + directory.getClass().getName() + " " + directory,
-                        unwrapDirectory(directory) instanceof MMapDirectory
+                        FilterDirectory.unwrap(directory) instanceof MMapDirectory
                     );
                     break;
                 case FS:
@@ -183,17 +183,5 @@ public class FsDirectoryFactoryTests extends ESTestCase {
                     fail();
             }
         }
-    }
-
-    private static Directory unwrapDirectory(Directory directory) {
-        var d = directory;
-        while (d != null) {
-            if (d instanceof FilterDirectory fd) {
-                d = fd.getDelegate();
-            } else {
-                break;
-            }
-        }
-        return d;
     }
 }

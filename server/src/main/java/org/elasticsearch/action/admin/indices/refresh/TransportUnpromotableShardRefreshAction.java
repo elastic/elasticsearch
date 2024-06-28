@@ -16,7 +16,6 @@ import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -67,13 +66,13 @@ public class TransportUnpromotableShardRefreshAction extends TransportBroadcastU
         // We simply respond OK to the request because when the search shard recovers later it will use the latest
         // commit from the proper indexing shard.
         final var indexService = indicesService.indexService(request.shardId().getIndex());
-        if (indexService == null || indexService.hasShard(request.shardId().id()) == false) {
+        final var shard = indexService == null ? null : indexService.getShardOrNull(request.shardId().id());
+        if (shard == null) {
             responseListener.onResponse(ActionResponse.Empty.INSTANCE);
             return;
         }
 
         ActionListener.run(responseListener, listener -> {
-            IndexShard shard = indexService.getShard(request.shardId().id());
             shard.waitForPrimaryTermAndGeneration(
                 request.getPrimaryTerm(),
                 request.getSegmentGeneration(),

@@ -109,6 +109,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.tree.EsqlNodeSubclassTests
   method: testInfoParameters {class org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec}
   issue: https://github.com/elastic/elasticsearch/issues/110292
+- class: org.elasticsearch.xpack.esql.tree.EsqlNodeSubclassTests
+  method: testInfoParameters {class org.elasticsearch.xpack.esql.plan.physical.ExchangeExec}
+  issue: https://github.com/elastic/elasticsearch/issues/110293
 
 # Examples:
 #

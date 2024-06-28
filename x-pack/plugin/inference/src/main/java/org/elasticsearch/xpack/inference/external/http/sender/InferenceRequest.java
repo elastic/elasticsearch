@@ -22,16 +22,6 @@ public interface InferenceRequest {
      */
     RequestManager getRequestManager();
 
-    // /**
-    // * Returns the query associated with this request. Used for Rerank tasks.
-    // */
-    // String getQuery();
-    //
-    // /**
-    // * Returns the text input associated with this request.
-    // */
-    // List<String> getInput();
-
     /**
      * Returns the inputs associated with the request.
      */

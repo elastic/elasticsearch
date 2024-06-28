@@ -215,6 +215,12 @@ public class TestDenseInferenceServiceExtension implements InferenceServiceExten
 
         static final String NAME = "test_text_embedding_service_settings";
 
+        public TestServiceSettings {
+            if (elementType == DenseVectorFieldMapper.ElementType.BIT) {
+                throw new IllegalArgumentException("Test dense inference service does not yet support element type BIT");
+            }
+        }
+
         public static TestServiceSettings fromMap(Map<String, Object> map) {
             ValidationException validationException = new ValidationException();
 

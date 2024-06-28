@@ -898,13 +898,21 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
                 service.getParentLimit()
             );
 
-            // total.limit defaults to 70% of the JVM heap if use_real_memory set to true
+            // total.limit defaults to 95% of the JVM heap if use_real_memory set to true
             clusterSettings.applySettings(Settings.builder().put(useRealMemoryUsageSetting, true).build());
             assertEquals(
                 MemorySizeValue.parseBytesSizeValueOrHeapRatio("95%", totalCircuitBreakerLimitSetting).getBytes(),
                 service.getParentLimit()
             );
         }
+    }
+
+    public void testSizeBelowMinimumWarning() {
+        ByteSizeValue sizeValue = MemorySizeValue.parseHeapRatioOrDeprecatedByteSizeValue(
+            "19%",
+            HierarchyCircuitBreakerService.TOTAL_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(),
+            20);
+        assertWarnings("[indices.breaker.total.limit] setting of [19%] is below the recommended minimum of 20.0% of the heap");
     }
 
     public void testBuildParentTripMessage() {

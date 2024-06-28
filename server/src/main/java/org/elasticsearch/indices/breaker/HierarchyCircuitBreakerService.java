@@ -75,7 +75,7 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
                 return "70%";
             }
         },
-        (s) -> MemorySizeValue.parseHeapRatioOrDeprecatedByteSizeValue(s, "indices.breaker.total.limit"),
+        (s) -> MemorySizeValue.parseHeapRatioOrDeprecatedByteSizeValue(s, "indices.breaker.total.limit", 50),
         Property.Dynamic,
         Property.NodeScope
     );

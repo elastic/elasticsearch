@@ -28,16 +28,16 @@ public enum MemorySizeValue {
     public static ByteSizeValue parseBytesSizeValueOrHeapRatio(String sValue, String settingName) {
         settingName = Objects.requireNonNull(settingName);
         if (sValue != null && sValue.endsWith("%")) {
-            return parseHeapRatio(sValue);
+            return parseHeapRatio(sValue, settingName, 0);
         } else {
             return parseBytesSizeValue(sValue, settingName);
         }
     }
 
-    public static ByteSizeValue parseHeapRatioOrDeprecatedByteSizeValue(String sValue, String settingName) {
+    public static ByteSizeValue parseHeapRatioOrDeprecatedByteSizeValue(String sValue, String settingName, double minHeapPercent) {
         settingName = Objects.requireNonNull(settingName);
         if (sValue != null && sValue.endsWith("%")) {
-            return parseHeapRatio(sValue);
+            return parseHeapRatio(sValue, settingName, minHeapPercent);
         } else {
             DeprecationLogger.getLogger(BalancedShardsAllocator.class)
                 .critical(
@@ -50,12 +50,22 @@ public enum MemorySizeValue {
         }
     }
 
-    private static ByteSizeValue parseHeapRatio(String sValue) {
+    private static ByteSizeValue parseHeapRatio(String sValue, String settingName, double minHeapPercent) {
         final String percentAsString = sValue.substring(0, sValue.length() - 1);
         try {
             final double percent = Double.parseDouble(percentAsString);
             if (percent < 0 || percent > 100) {
                 throw new ElasticsearchParseException("percentage should be in [0-100], got [{}]", percentAsString);
+            } else if (percent < minHeapPercent) {
+                DeprecationLogger.getLogger(MemorySizeValue.class)
+                    .warn(
+                        DeprecationCategory.SETTINGS,
+                        "memory_size_below_minimum",
+                        "[{}] setting of [{}] is below the recommended minimum of {}% of the heap",
+                        settingName,
+                        sValue,
+                        minHeapPercent
+                    );
             }
             return ByteSizeValue.ofBytes((long) ((percent / 100) * JvmInfo.jvmInfo().getMem().getHeapMax().getBytes()));
         } catch (NumberFormatException e) {

@@ -93,6 +93,8 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
                 randomList(0, 10, () -> (Attribute) makeArg(Attribute.class)),
                 randomList(0, 10, () -> (Attribute) makeArg(Attribute.class))
             );
+        } else if (argClass == JoinType.class) {
+            return JoinType.LEFT;
         }
 
         return null;

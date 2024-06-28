@@ -17,7 +17,7 @@
 
 package co.elastic.elasticsearch.stateless.autoscaling.search;
 
-import co.elastic.elasticsearch.serverless.constants.ServerlessSharedSettings;
+import co.elastic.elasticsearch.stateless.autoscaling.search.IndexReplicationRanker.IndexRankingProperties;
 import co.elastic.elasticsearch.stateless.autoscaling.search.SearchMetricsService.IndexProperties;
 
 import org.apache.logging.log4j.LogManager;
@@ -32,15 +32,12 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.threadpool.Scheduler.Cancellable;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -48,9 +45,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static co.elastic.elasticsearch.serverless.constants.ServerlessSharedSettings.ENABLE_REPLICAS_FOR_INSTANT_FAILOVER;
-import static co.elastic.elasticsearch.serverless.constants.ServerlessSharedSettings.SEARCH_POWER_MAX_SETTING;
 import static co.elastic.elasticsearch.serverless.constants.ServerlessSharedSettings.SEARCH_POWER_MIN_SETTING;
-import static co.elastic.elasticsearch.serverless.constants.ServerlessSharedSettings.SEARCH_POWER_SETTING;
 import static co.elastic.elasticsearch.stateless.autoscaling.search.IndexReplicationRanker.getRankedIndicesBelowThreshold;
 
 public class ReplicasUpdaterService extends AbstractLifecycleComponent implements LocalNodeMasterListener {
@@ -98,10 +93,9 @@ public class ReplicasUpdaterService extends AbstractLifecycleComponent implement
     // guard flag to prevent running the scheduled job in parallel when e.g. canceling
     // the old job hasn't completed yet
     private final AtomicBoolean running = new AtomicBoolean(false);
+
     private volatile boolean pendingScaleDownAfterDisabling = false;
     private volatile boolean enableReplicasForInstantFailover;
-    private volatile int searchPowerMinSetting;
-    private volatile int searchPowerMaxSetting;
     private volatile Cancellable job;
     private volatile TimeValue updateInterval;
     private volatile Integer scaledownRepetitionSetting;
@@ -120,9 +114,7 @@ public class ReplicasUpdaterService extends AbstractLifecycleComponent implement
         clusterSettings.initializeAndWatch(ENABLE_REPLICAS_FOR_INSTANT_FAILOVER, this::updateEnableReplicasForInstantFailover);
         clusterSettings.initializeAndWatch(REPLICA_UPDATER_INTERVAL, this::setInterval);
         clusterSettings.initializeAndWatch(REPLICA_UPDATER_SCALEDOWN_REPETITIONS, this::setScaledownRepetitionSetting);
-        clusterSettings.initializeAndWatch(SEARCH_POWER_SETTING, this::updateSearchPower);
         clusterSettings.initializeAndWatch(SEARCH_POWER_MIN_SETTING, this::updateSearchPowerMin);
-        clusterSettings.initializeAndWatch(SEARCH_POWER_MAX_SETTING, this::updateSearchPowerMax);
     }
 
     void setScaledownRepetitionSetting(Integer scaledownRepetitionSetting) {
@@ -158,39 +150,10 @@ public class ReplicasUpdaterService extends AbstractLifecycleComponent implement
         }
     }
 
-    void updateSearchPower(Integer sp) {
-        LOGGER.info("Updating search power to " + sp);
-        if (this.searchPowerMinSetting == this.searchPowerMaxSetting) {
-            updateSearchPowerMin(sp);
-            updateSearchPowerMax(sp);
-        } else {
-            throw new IllegalArgumentException(
-                "Updating "
-                    + ServerlessSharedSettings.SEARCH_POWER_SETTING.getKey()
-                    + " ["
-                    + sp
-                    + "] while "
-                    + ServerlessSharedSettings.SEARCH_POWER_MIN_SETTING.getKey()
-                    + " ["
-                    + this.searchPowerMinSetting
-                    + "] and "
-                    + ServerlessSharedSettings.SEARCH_POWER_MAX_SETTING.getKey()
-                    + " ["
-                    + this.searchPowerMaxSetting
-                    + "] are not equal."
-            );
-        }
-    }
-
     void updateSearchPowerMin(Integer spMin) {
-        this.searchPowerMinSetting = spMin;
         if (enableReplicasForInstantFailover && job != null) {
             performReplicaUpdates();
         }
-    }
-
-    void updateSearchPowerMax(Integer spMax) {
-        this.searchPowerMaxSetting = spMax;
     }
 
     // pkg private for testing
@@ -205,69 +168,34 @@ public class ReplicasUpdaterService extends AbstractLifecycleComponent implement
      * For SP >= {@link #SEARCH_POWER_MIN_FULL_REPLICATION} all indices get two replicas.
      * For settings between those values, we rank indices and give part of them two replicas.
      */
-    Map<Integer, Set<String>> getRecommendedReplicaChanges() {
-        assert this.searchPowerMinSetting >= 100 : "we should not have to call this method for SP < 100";
+    Map<Integer, Set<String>> getRecommendedReplicaChanges(ReplicaRankingContext rankingContext) {
+        assert rankingContext.getSearchPowerMin() >= 100 : "we should not have to call this method for SP < 100";
         Map<Integer, Set<String>> numReplicaChanges = new HashMap<>(2);
-        Map<Index, IndexProperties> indicesMap = this.searchMetricsService.getIndices();
-        Map<ShardId, SearchMetricsService.ShardMetrics> shardMetricsMap = this.searchMetricsService.getShardMetrics();
-        LOGGER.trace("Calculating index replica recommendations for " + indicesMap.keySet());
-        if (searchPowerMinSetting >= SEARCH_POWER_MIN_FULL_REPLICATION) {
-            for (Map.Entry<Index, IndexProperties> entry : indicesMap.entrySet()) {
-                Index index = entry.getKey();
-                IndexProperties indexProperties = entry.getValue();
-                boolean indexInteractive = false;
-                for (int i = 0; i < indexProperties.shards(); i++) {
-                    SearchMetricsService.ShardMetrics shardMetrics = shardMetricsMap.get(new ShardId(index, i));
-                    if (shardMetrics == null) {
-                        // continue with the next shard, this one might be removed or have 0 replicas but it
-                        // can also be from a tiny index with skewed document distribution and some shards
-                        // not having any documents in them
-                        continue;
-                    }
-                    if (shardMetrics.shardSize.interactiveSizeInBytes() > 0) {
-                        indexInteractive = true;
-                        break;
-                    }
-                }
-                if (indexInteractive) {
-                    if (indexProperties.replicas() != 2) {
-                        setNumReplicasForIndex(index.getName(), 2, numReplicaChanges);
+        LOGGER.trace("Calculating index replica recommendations for " + rankingContext.indices());
+        if (rankingContext.getSearchPowerMin() >= SEARCH_POWER_MIN_FULL_REPLICATION) {
+            for (IndexRankingProperties properties : rankingContext.properties()) {
+                int replicas = properties.indexProperties().replicas();
+                if (properties.isInteractive()) {
+                    if (replicas != 2) {
+                        setNumReplicasForIndex(properties.indexProperties().name(), 2, numReplicaChanges);
                     }
                 } else {
-                    if (indexProperties.replicas() != 1) {
-                        setNumReplicasForIndex(index.getName(), 1, numReplicaChanges);
+                    if (replicas != 1) {
+                        setNumReplicasForIndex(properties.indexProperties().name(), 1, numReplicaChanges);
                     }
                 }
             }
         } else {
             // search power should be between 100 and 250 here
-            long allIndicesInteractiveSize = 0;
-            List<IndexReplicationRanker.IndexRankingProperties> rankingProperties = new ArrayList<>();
-            for (Map.Entry<Index, IndexProperties> entry : indicesMap.entrySet()) {
-                Index index = entry.getKey();
-                IndexProperties indexProperties = entry.getValue();
-                long totalIndexInteractiveSize = 0;
-                for (int i = 0; i < indexProperties.shards(); i++) {
-                    SearchMetricsService.ShardMetrics shardMetrics = shardMetricsMap.get(new ShardId(index, i));
-                    if (shardMetrics == null) {
-                        // continue with the next shard, this one might be removed or have 0 replicas but it
-                        // can also be from a tiny index with skewed document distribution and some shards
-                        // not having any documents in them
-                        continue;
-                    }
-                    totalIndexInteractiveSize += shardMetrics.shardSize.interactiveSizeInBytes();
-                }
-                rankingProperties.add(new IndexReplicationRanker.IndexRankingProperties(indexProperties, totalIndexInteractiveSize));
-                allIndicesInteractiveSize += totalIndexInteractiveSize;
-            }
-            final long threshold = allIndicesInteractiveSize * (searchPowerMinSetting - SEARCH_POWER_MIN_NO_REPLICATION)
-                / (SEARCH_POWER_MIN_FULL_REPLICATION - SEARCH_POWER_MIN_NO_REPLICATION);
-            Set<String> twoReplicaEligibleIndices = getRankedIndicesBelowThreshold(rankingProperties, threshold);
-            for (var rankedIndex : rankingProperties) {
+            Set<String> twoReplicaEligibleIndices = getRankedIndicesBelowThreshold(
+                rankingContext.properties(),
+                rankingContext.getThreshold()
+            );
+            for (var rankedIndex : rankingContext.properties()) {
                 String indexName = rankedIndex.indexProperties().name();
                 int replicas = rankedIndex.indexProperties().replicas();
                 if (twoReplicaEligibleIndices.contains(indexName)) {
-                    assert rankedIndex.interactiveSize() > 0 : "only interactive indices should get additional copies";
+                    assert rankedIndex.isInteractive() : "only interactive indices should get additional copies";
                     if (replicas != 2) {
                         setNumReplicasForIndex(indexName, 2, numReplicaChanges);
                     }
@@ -341,22 +269,26 @@ public class ReplicasUpdaterService extends AbstractLifecycleComponent implement
     void performReplicaUpdates() {
         if (running.compareAndSet(false, true)) {
             try {
-                // if the feature is currently disabled, we only need to check if we need to clean something up and return
-                if (checkDisabled()) {
+                if (checkDisabledAndNeedsScaledown()) {
                     return;
                 }
 
-                LOGGER.debug("running replicas update task. SP_min: " + this.searchPowerMinSetting);
-                if (searchPowerMinSetting < SEARCH_POWER_MIN_NO_REPLICATION) {
+                int indicesScaledDown = 0;
+                int indicesScaledUp = 0;
+                ReplicaRankingContext rankingContext = searchMetricsService.createRankingContext();
+                LOGGER.debug("Ranking context: " + rankingContext);
+                if (rankingContext.getSearchPowerMin() < SEARCH_POWER_MIN_NO_REPLICATION) {
                     // we can scale everything down immediately
-                    publishUpdateReplicaSetting(1, resetReplicasForAllIndices());
+                    Set<String> indicesToScaleDown = resetReplicasForAllIndices();
+                    publishUpdateReplicaSetting(1, indicesToScaleDown);
+                    indicesScaledDown = indicesToScaleDown.size();
                 } else {
-                    Map<Integer, Set<String>> numberOfReplicaChanges = getRecommendedReplicaChanges();
-
+                    Map<Integer, Set<String>> numberOfReplicaChanges = getRecommendedReplicaChanges(rankingContext);
                     // apply scaling up to two replica suggestions immediately
                     Set<String> indicesToScaleUp = numberOfReplicaChanges.remove(2);
                     if (indicesToScaleUp != null) {
                         publishUpdateReplicaSetting(2, indicesToScaleUp);
+                        indicesScaledUp = indicesToScaleUp.size();
                     }
 
                     // Scale down decisions requires a certain number of repetitions to be considered stable.
@@ -364,7 +296,6 @@ public class ReplicasUpdaterService extends AbstractLifecycleComponent implement
                     // the performance cost of this outweighs the cost of keeping two replicas around longer.
                     // This is also necessary for SPmin >= {@link #SEARCH_POWER_MIN_FULL_REPLICATION} because
                     // even in that case indices might enter and fall out of the interactive boosting window.
-
                     Set<String> indicesToScaleDown = numberOfReplicaChanges.remove(1);
                     if (indicesToScaleDown != null) {
                         if (ensureRunning() == false) {
@@ -378,6 +309,7 @@ public class ReplicasUpdaterService extends AbstractLifecycleComponent implement
                                 scaleDownUpdatesToSend.add(index);
                             }
                         }
+                        indicesScaledDown = scaleDownUpdatesToSend.size();
                         publishUpdateReplicaSetting(1, scaleDownUpdatesToSend);
                     }
                     // We only need to keep counters for scaling down candidates that haven't been included in this round's
@@ -390,8 +322,14 @@ public class ReplicasUpdaterService extends AbstractLifecycleComponent implement
                     }
                     assert numberOfReplicaChanges.isEmpty() : "we should have processed all requested replica demand changes";
                 }
-
-                LOGGER.debug("completed replicas update task");
+                LOGGER.info(
+                    "Finished replicas update task. Indices scaled up: "
+                        + indicesScaledUp
+                        + ", scaled down: "
+                        + indicesScaledDown
+                        + ", at SPmin: "
+                        + rankingContext.getSearchPowerMin()
+                );
             } finally {
                 boolean running = this.running.compareAndSet(true, false);
                 assert running : "Job should still have been running at this moment";
@@ -401,7 +339,7 @@ public class ReplicasUpdaterService extends AbstractLifecycleComponent implement
         }
     }
 
-    private boolean checkDisabled() {
+    private boolean checkDisabledAndNeedsScaledown() {
         boolean featureDisabled = this.enableReplicasForInstantFailover == false;
         if (featureDisabled) {
             // we might need to scale down indices if the replica feature was disabled
@@ -476,4 +414,5 @@ public class ReplicasUpdaterService extends AbstractLifecycleComponent implement
     public void offMaster() {
         unschedule(true);
     }
+
 }

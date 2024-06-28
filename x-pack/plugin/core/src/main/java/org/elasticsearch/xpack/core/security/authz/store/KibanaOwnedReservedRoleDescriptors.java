@@ -74,7 +74,7 @@ class KibanaOwnedReservedRoleDescriptors {
                 "manage_pipeline",
                 "manage_ilm",
                 // For connectors telemetry
-                "manage_connector",
+                "monitor_connector",
                 // For the endpoint package that ships a transform
                 "manage_transform",
                 InvalidateApiKeyAction.NAME,

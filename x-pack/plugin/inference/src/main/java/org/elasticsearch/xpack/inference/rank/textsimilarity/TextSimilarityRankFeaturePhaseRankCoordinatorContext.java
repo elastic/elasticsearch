@@ -73,7 +73,7 @@ public class TextSimilarityRankFeaturePhaseRankCoordinatorContext extends RankFe
         }
     }
 
-    private InferenceAction.Request generateRequest(List<String> docFeatures) {
+    protected InferenceAction.Request generateRequest(List<String> docFeatures) {
         return new InferenceAction.Request(
             TaskType.RERANK,
             inferenceId,

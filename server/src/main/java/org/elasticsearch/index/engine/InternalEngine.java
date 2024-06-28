@@ -223,7 +223,6 @@ public class InternalEngine extends Engine {
 
     protected static final String REAL_TIME_GET_REFRESH_SOURCE = "realtime_get";
     protected static final String UNSAFE_VERSION_MAP_REFRESH_SOURCE = "unsafe_version_map";
-    private static final String ROOT_DOC_FIELD_NAME = "__root_doc_for_nested";
 
     @SuppressWarnings("this-escape")
     public InternalEngine(EngineConfig engineConfig) {

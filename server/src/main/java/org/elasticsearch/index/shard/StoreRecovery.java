@@ -197,6 +197,7 @@ public final class StoreRecovery {
             .setIndexCreatedVersionMajor(luceneIndexCreatedVersionMajor);
         if (indexSort != null) {
             iwc.setIndexSort(indexSort);
+            iwc.setParentField(Engine.ROOT_DOC_FIELD_NAME);  // Needed to support index sorting in the presence of nested objects.
         }
 
         try (IndexWriter writer = new IndexWriter(new StatsDirectoryWrapper(hardLinkOrCopyTarget, indexRecoveryStats), iwc)) {

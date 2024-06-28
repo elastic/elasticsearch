@@ -15,6 +15,7 @@ import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -56,11 +57,11 @@ public class ColumnInfoImpl implements ColumnInfo {
     }
 
     private String name;
-    private String type;
+    private DataType type;
 
     public ColumnInfoImpl(String name, String type) {
         this.name = name;
-        this.type = type;
+        this.type = DataType.fromEs(type);
     }
 
     public ColumnInfoImpl(StreamInput in) throws IOException {
@@ -70,14 +71,14 @@ public class ColumnInfoImpl implements ColumnInfo {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(name);
-        out.writeString(type);
+        out.writeString(type.esType());
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
         builder.startObject();
         builder.field("name", name);
-        builder.field("type", type);
+        builder.field("type", type.esType());
         builder.endObject();
         return builder;
     }
@@ -89,6 +90,6 @@ public class ColumnInfoImpl implements ColumnInfo {
 
     @Override
     public String type() {
-        return type;
+        return type.esType();
     }
 }

@@ -30,9 +30,9 @@ import org.elasticsearch.cluster.coordination.stateless.StoreHeartbeatService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.indices.AutoscalingMissedIndicesUpdateException;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.test.ESTestCase;
@@ -45,7 +45,6 @@ import org.elasticsearch.xcontent.XContentFactory;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
@@ -59,6 +58,7 @@ import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import static co.elastic.elasticsearch.stateless.autoscaling.memory.IndicesMappingSizeCollector.PUBLISHING_FREQUENCY_SETTING;
+import static co.elastic.elasticsearch.stateless.autoscaling.memory.IndicesMappingSizeCollector.RETRY_INITIAL_DELAY_SETTING;
 import static co.elastic.elasticsearch.stateless.autoscaling.memory.MemoryMetricsService.SHARD_MEMORY_OVERHEAD_DEFAULT;
 import static co.elastic.elasticsearch.stateless.autoscaling.memory.MemoryMetricsService.SHARD_MEMORY_OVERHEAD_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -690,46 +690,34 @@ public class AutoscalingMemoryMetricsIT extends AbstractStatelessIntegTestCase {
         disruption.stopDisrupting();
     }
 
-    public void testNoRetriesOnOutOfOrderSeqNos() throws Exception {
+    public void testPublishHeapMemoryMetricsRetriesOnAutoscalingMissedIndicesUpdateException() throws Exception {
         startMasterNode();
-        startIndexNode();
+        startIndexNode(Settings.builder().put(RETRY_INITIAL_DELAY_SETTING.getKey(), TimeValue.timeValueMillis(100)).build());
         ensureStableCluster(2);
 
-        AtomicInteger numberOfFields = new AtomicInteger(randomIntBetween(10, 20));
-        var indexName = randomIdentifier();
-        assertAcked(prepareCreate(indexName).setMapping(createIndexMapping(numberOfFields.get())).get());
-
-        int attempts = randomIntBetween(5, 10);
+        int failCount = randomIntBetween(2, 5);
+        var attempt = new AtomicInteger();
         var transportService = (MockTransportService) internalCluster().getCurrentMasterNodeInstance(TransportService.class);
-        CountDownLatch requestsAreSubmitted = new CountDownLatch(attempts);
-        CountDownLatch requestsAreHandled = new CountDownLatch(attempts);
-        List<CheckedRunnable<Exception>> pendingRequests = new ArrayList<>();
         transportService.addRequestHandlingBehavior(TransportPublishHeapMemoryMetrics.NAME, (handler, request, channel, task) -> {
-            assertTrue("No retry requests should be submitted", requestsAreSubmitted.getCount() > 0);
-            synchronized (pendingRequests) {
-                pendingRequests.add(() -> {
-                    handler.messageReceived(request, channel, task);
-                    requestsAreHandled.countDown();
-                });
+            if (attempt.incrementAndGet() <= failCount) {
+                channel.sendResponse(new AutoscalingMissedIndicesUpdateException("could not update mapping sizes"));
+            } else {
+                handler.messageReceived(request, channel, task);
             }
-            requestsAreSubmitted.countDown();
         });
 
-        for (int i = 0; i < attempts; i++) {
-            assertAcked(
-                indicesAdmin().putMapping(new PutMappingRequest(indexName).source(createIndexMapping(numberOfFields.addAndGet(10)))).get()
-            );
-        }
+        var indexName = randomIdentifier();
+        assertAcked(prepareCreate(indexName).setMapping(createIndexMapping(randomIntBetween(10, 20))).get());
 
-        safeAwait(requestsAreSubmitted);
-        // Send requests out of order and verify that all of them get processed without retries
-        synchronized (pendingRequests) {
-            Collections.shuffle(pendingRequests, random());
-            for (var pendingRequest : pendingRequests) {
-                pendingRequest.run();
-            }
-        }
-        safeAwait(requestsAreHandled);
+        var masterMemoryMetricService = internalCluster().getCurrentMasterNodeInstance(MemoryMetricsService.class);
+        final var index = resolveIndex(indexName);
+        assertBusy(() -> {
+            assertThat(attempt.get(), greaterThan(failCount));
+            var indexMemoryMetrics = masterMemoryMetricService.getIndicesMemoryMetrics().get(index);
+            assertNotNull(indexMemoryMetrics);
+            assertThat(indexMemoryMetrics.getSizeInBytes(), greaterThan(0L));
+            assertThat(indexMemoryMetrics.getMetricQuality(), equalTo(MetricQuality.EXACT));
+        });
     }
 
     public void testShardMovesToNewNodeWithSlowClusterUpdate() throws Exception {

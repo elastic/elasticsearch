@@ -17,6 +17,27 @@ import org.elasticsearch.core.Releasables;
 
 import java.util.List;
 
+/**
+ * An internal aggregate function that always emits intermediate (or partial) output regardless of the aggregate mode.
+ * The intermediate output should be consumed by {@link FromPartialGroupingAggregatorFunction}, which always receives
+ * the intermediate input. Since an intermediate aggregate output can consist of multiple blocks, we wrap these output
+ * blocks in a single composite block. The {@link FromPartialGroupingAggregatorFunction} then unwraps this input block
+ * into multiple primitive blocks and passes them to the delegating GroupingAggregatorFunction.
+ * Both of these commands yield the same result, except the second plan executes aggregates twice:
+ * <pre>
+ * ```
+ * | ... before
+ * | af(x) BY g
+ * | ... after
+ * ```
+ * ```
+ * | ... before
+ * | $x = to_partial(af(x)) BY g
+ * | from_partial($x, af(_)) BY g
+ * | ...  after
+ * </pre>
+ * ```
+ */
 public class ToPartialGroupingAggregatorFunction implements GroupingAggregatorFunction {
     private static final List<IntermediateStateDesc> INTERMEDIATE_STATE_DESC = List.of(
         new IntermediateStateDesc("partial", ElementType.COMPOSITE, "partial_agg")
@@ -81,5 +102,10 @@ public class ToPartialGroupingAggregatorFunction implements GroupingAggregatorFu
     @Override
     public void close() {
         Releasables.close(delegate);
+    }
+
+    @Override
+    public String toString() {
+        return getClass().getSimpleName() + "[" + "channels=" + channels + ",delegate=" + delegate + "]";
     }
 }

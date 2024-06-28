@@ -14,6 +14,7 @@ import org.elasticsearch.compute.aggregation.Aggregator;
 import org.elasticsearch.compute.aggregation.AggregatorFunction;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
+import org.elasticsearch.compute.aggregation.FromPartialGroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.GroupingAggregator;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.ToPartialAggregatorFunction;
@@ -32,11 +33,29 @@ import java.util.List;
 import java.util.stream.IntStream;
 
 /**
- * An internal aggregate function that always emits intermediate output.
- * The intermediate output should be consumed by {@link ToPartial}.
- * `STATS af(x)` is equivalent to `STATS y=to_partial(af(x)) | STATS af(x)=from_partial(y)`
- *
- * @see org.elasticsearch.xpack.esql.optimizer.rules.TranslateMetricsAggregate
+ * An internal aggregate function that always emits intermediate (or partial) output regardless
+ * of the aggregate mode. The intermediate output should be consumed by {@link FromPartial},
+ * which always receives the intermediate input. Since an intermediate aggregate output can
+ * consist of multiple blocks, we wrap these output blocks in a single composite block.
+ * The {@link FromPartial} then unwraps this input block into multiple primitive blocks and
+ * passes them to the delegating GroupingAggregatorFunction.
+ * <p>
+ * Both of these commands yield the same result, except the second plan executes aggregates twice:
+ * <pre>
+ * ```
+ * | ... before
+ * | af(x) BY g
+ * | ... after
+ * ```
+ * ```
+ * | ... before
+ * | $x = to_partial(af(x)) BY g
+ * | from_partial($x, af(_)) BY g
+ * | ...  after
+ * </pre>
+ * ```
+ * @see ToPartialGroupingAggregatorFunction
+ * @see FromPartialGroupingAggregatorFunction
  */
 public class ToPartial extends AggregateFunction implements ToAggregator {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(

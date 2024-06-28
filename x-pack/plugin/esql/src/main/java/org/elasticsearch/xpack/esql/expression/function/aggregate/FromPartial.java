@@ -33,7 +33,7 @@ import java.util.List;
 import java.util.stream.IntStream;
 
 /**
- * Internal aggregate function that accepts partial input from {@link ToPartial} aggregation.
+ * @see ToPartial
  */
 public class FromPartial extends AggregateFunction implements ToAggregator {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(

@@ -17,6 +17,9 @@ import org.elasticsearch.core.Releasables;
 
 import java.util.List;
 
+/**
+ * @see ToPartialGroupingAggregatorFunction
+ */
 public class FromPartialAggregatorFunction implements AggregatorFunction {
     private static final List<IntermediateStateDesc> INTERMEDIATE_STATE_DESC = List.of(
         new IntermediateStateDesc("partial", ElementType.COMPOSITE, "partial_agg")
@@ -87,5 +90,10 @@ public class FromPartialAggregatorFunction implements AggregatorFunction {
     @Override
     public void close() {
         Releasables.close(groupingAggregator);
+    }
+
+    @Override
+    public String toString() {
+        return getClass().getSimpleName() + "[" + "channel=" + inputChannel + ",delegate=" + groupingAggregator + "]";
     }
 }

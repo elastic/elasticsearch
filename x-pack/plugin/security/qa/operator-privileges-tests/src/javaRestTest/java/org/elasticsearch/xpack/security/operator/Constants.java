@@ -57,6 +57,7 @@ public class Constants {
         "cluster:admin/persistent/update_status",
         "cluster:admin/reindex/rethrottle",
         "cluster:admin/repository/_cleanup",
+        "cluster:admin/repository/analyze",
         "cluster:admin/repository/delete",
         "cluster:admin/repository/get",
         "cluster:admin/repository/put",

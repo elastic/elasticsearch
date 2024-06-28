@@ -2,6 +2,9 @@
 
 set -euo pipefail
 
+GRADLEW="./gradlew --parallel --scan --build-cache --no-watch-fs"
+export GRADLEW
+
 .ci/scripts/run-gradle.sh precommit --configuration-cache
 
 echo "2nd run"

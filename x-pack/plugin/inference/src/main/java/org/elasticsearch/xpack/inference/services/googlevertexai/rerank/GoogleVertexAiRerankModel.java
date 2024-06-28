@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.inference.services.googlevertexai.embeddings;
+package org.elasticsearch.xpack.inference.services.googlevertexai.rerank;
 
 import org.apache.http.client.utils.URIBuilder;
 import org.elasticsearch.core.Nullable;
@@ -25,11 +25,11 @@ import java.util.Map;
 
 import static org.elasticsearch.core.Strings.format;
 
-public class GoogleVertexAiEmbeddingsModel extends GoogleVertexAiModel {
+public class GoogleVertexAiRerankModel extends GoogleVertexAiModel {
 
     private URI uri;
 
-    public GoogleVertexAiEmbeddingsModel(
+    public GoogleVertexAiRerankModel(
         String inferenceEntityId,
         TaskType taskType,
         String service,
@@ -42,23 +42,23 @@ public class GoogleVertexAiEmbeddingsModel extends GoogleVertexAiModel {
             inferenceEntityId,
             taskType,
             service,
-            GoogleVertexAiEmbeddingsServiceSettings.fromMap(serviceSettings, context),
-            GoogleVertexAiEmbeddingsTaskSettings.fromMap(taskSettings),
+            GoogleVertexAiRerankServiceSettings.fromMap(serviceSettings, context),
+            GoogleVertexAiRerankTaskSettings.fromMap(taskSettings),
             GoogleVertexAiSecretSettings.fromMap(secrets)
         );
     }
 
-    public GoogleVertexAiEmbeddingsModel(GoogleVertexAiEmbeddingsModel model, GoogleVertexAiEmbeddingsServiceSettings serviceSettings) {
+    public GoogleVertexAiRerankModel(GoogleVertexAiRerankModel model, GoogleVertexAiRerankServiceSettings serviceSettings) {
         super(model, serviceSettings);
     }
 
     // Should only be used directly for testing
-    GoogleVertexAiEmbeddingsModel(
+    GoogleVertexAiRerankModel(
         String inferenceEntityId,
         TaskType taskType,
         String service,
-        GoogleVertexAiEmbeddingsServiceSettings serviceSettings,
-        GoogleVertexAiEmbeddingsTaskSettings taskSettings,
+        GoogleVertexAiRerankServiceSettings serviceSettings,
+        GoogleVertexAiRerankTaskSettings taskSettings,
         @Nullable GoogleVertexAiSecretSettings secrets
     ) {
         super(
@@ -67,20 +67,20 @@ public class GoogleVertexAiEmbeddingsModel extends GoogleVertexAiModel {
             serviceSettings
         );
         try {
-            this.uri = buildUri(serviceSettings.location(), serviceSettings.projectId(), serviceSettings.modelId());
+            this.uri = buildUri(serviceSettings.projectId());
         } catch (URISyntaxException e) {
             throw new RuntimeException(e);
         }
     }
 
     // Should only be used directly for testing
-    protected GoogleVertexAiEmbeddingsModel(
+    protected GoogleVertexAiRerankModel(
         String inferenceEntityId,
         TaskType taskType,
         String service,
         String uri,
-        GoogleVertexAiEmbeddingsServiceSettings serviceSettings,
-        GoogleVertexAiEmbeddingsTaskSettings taskSettings,
+        GoogleVertexAiRerankServiceSettings serviceSettings,
+        GoogleVertexAiRerankTaskSettings taskSettings,
         @Nullable GoogleVertexAiSecretSettings secrets
     ) {
         super(
@@ -96,13 +96,13 @@ public class GoogleVertexAiEmbeddingsModel extends GoogleVertexAiModel {
     }
 
     @Override
-    public GoogleVertexAiEmbeddingsServiceSettings getServiceSettings() {
-        return (GoogleVertexAiEmbeddingsServiceSettings) super.getServiceSettings();
+    public GoogleVertexAiRerankServiceSettings getServiceSettings() {
+        return (GoogleVertexAiRerankServiceSettings) super.getServiceSettings();
     }
 
     @Override
-    public GoogleVertexAiEmbeddingsTaskSettings getTaskSettings() {
-        return (GoogleVertexAiEmbeddingsTaskSettings) super.getTaskSettings();
+    public GoogleVertexAiRerankTaskSettings getTaskSettings() {
+        return (GoogleVertexAiRerankTaskSettings) super.getTaskSettings();
     }
 
     @Override
@@ -111,8 +111,8 @@ public class GoogleVertexAiEmbeddingsModel extends GoogleVertexAiModel {
     }
 
     @Override
-    public GoogleVertexAiEmbeddingsRateLimitServiceSettings rateLimitServiceSettings() {
-        return (GoogleVertexAiEmbeddingsRateLimitServiceSettings) super.rateLimitServiceSettings();
+    public GoogleDiscoveryEngineRateLimitServiceSettings rateLimitServiceSettings() {
+        return (GoogleDiscoveryEngineRateLimitServiceSettings) super.rateLimitServiceSettings();
     }
 
     public URI uri() {
@@ -124,19 +124,17 @@ public class GoogleVertexAiEmbeddingsModel extends GoogleVertexAiModel {
         return visitor.create(this, taskSettings);
     }
 
-    public static URI buildUri(String location, String projectId, String modelId) throws URISyntaxException {
+    public static URI buildUri(String projectId) throws URISyntaxException {
         return new URIBuilder().setScheme("https")
-            .setHost(format("%s%s", location, GoogleVertexAiUtils.GOOGLE_VERTEX_AI_HOST_SUFFIX))
+            .setHost(GoogleVertexAiUtils.GOOGLE_DISCOVERY_ENGINE_HOST)
             .setPathSegments(
                 GoogleVertexAiUtils.V1,
                 GoogleVertexAiUtils.PROJECTS,
                 projectId,
                 GoogleVertexAiUtils.LOCATIONS,
-                location,
-                GoogleVertexAiUtils.PUBLISHERS,
-                GoogleVertexAiUtils.PUBLISHER_GOOGLE,
-                GoogleVertexAiUtils.MODELS,
-                format("%s:%s", modelId, GoogleVertexAiUtils.PREDICT)
+                GoogleVertexAiUtils.GLOBAL,
+                GoogleVertexAiUtils.RANKING_CONFIGS,
+                format("%s:%s", GoogleVertexAiUtils.DEFAULT_RANKING_CONFIG, GoogleVertexAiUtils.RANK)
             )
             .build();
     }

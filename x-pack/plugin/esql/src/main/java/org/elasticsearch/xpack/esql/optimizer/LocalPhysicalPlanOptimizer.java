@@ -602,16 +602,16 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
                 List<Expression> rewritten = new ArrayList<>();
                 List<Expression> notRewritten = new ArrayList<>();
                 for (Expression exp : splitAnd(filterExec.condition())) {
+                    boolean didRewrite = false;
                     if (exp instanceof EsqlBinaryComparison comparison) {
                         ComparisonType comparisonType = ComparisonType.from(comparison.getFunctionType());
                         if (comparison.left() instanceof StDistance dist && comparison.right().foldable()) {
-                            rewritten.add(rewriteComparison(exp, dist, comparison.right(), comparisonType));
+                            didRewrite = rewriteComparison(rewritten, dist, comparison.right(), comparisonType);
                         } else if (comparison.right() instanceof StDistance dist && comparison.left().foldable()) {
-                            rewritten.add(rewriteComparison(exp, dist, comparison.left(), ComparisonType.invert(comparisonType)));
-                        } else {
-                            notRewritten.add(exp);
+                            didRewrite = rewriteComparison(rewritten, dist, comparison.left(), ComparisonType.invert(comparisonType));
                         }
-                    } else {
+                    }
+                    if (didRewrite == false) {
                         notRewritten.add(exp);
                     }
                 }
@@ -624,23 +624,23 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
             return plan;
         }
 
-        private Expression rewriteComparison(Expression condition, StDistance dist, Expression literal, ComparisonType comparisonType) {
+        private boolean rewriteComparison(List<Expression> rewritten, StDistance dist, Expression literal, ComparisonType comparisonType) {
             // Currently we do not support Equals
             if (comparisonType.lt || comparisonType.gt) {
                 Object value = literal.fold();
                 if (value instanceof Number number) {
                     if (dist.right().foldable()) {
-                        return rewriteDistanceFilter(condition, dist.source(), dist.left(), dist.right(), number, comparisonType);
+                        return rewriteDistanceFilter(rewritten, dist.source(), dist.left(), dist.right(), number, comparisonType);
                     } else if (dist.left().foldable()) {
-                        return rewriteDistanceFilter(condition, dist.source(), dist.right(), dist.left(), number, comparisonType);
+                        return rewriteDistanceFilter(rewritten, dist.source(), dist.right(), dist.left(), number, comparisonType);
                     }
                 }
             }
-            return condition;
+            return false;
         }
 
-        private Expression rewriteDistanceFilter(
-            Expression condition,
+        private boolean rewriteDistanceFilter(
+            List<Expression> rewritten,
             Source source,
             Expression spatialExpression,
             Expression literalExpression,
@@ -656,11 +656,14 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
                 var circle = new Circle(point.getX(), point.getY(), distance);
                 var wkb = WellKnownBinary.toWKB(circle, ByteOrder.LITTLE_ENDIAN);
                 var cExp = new Literal(literalExpression.source(), new BytesRef(wkb), DataType.GEO_SHAPE);
-                return comparisonType.lt
-                    ? new SpatialIntersects(source, spatialExpression, cExp)
-                    : new SpatialDisjoint(source, spatialExpression, cExp);
+                rewritten.add(
+                    comparisonType.lt
+                        ? new SpatialIntersects(source, spatialExpression, cExp)
+                        : new SpatialDisjoint(source, spatialExpression, cExp)
+                );
+                return true;
             }
-            return condition;
+            return false;
         }
 
         /**

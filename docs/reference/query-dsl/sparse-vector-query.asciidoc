@@ -21,6 +21,30 @@ For example, a stored vector `{"feature_0": 0.12, "feature_1": 1.2, "feature_2":
 [[sparse-vector-query-ex-request]]
 === Example request using an {nlp} model
 
+////
+[source, console]
+--------------------------------------------------
+PUT index1
+{
+  "mappings": {
+    "properties": {
+      "image-vector": {
+        "type": "dense_vector",
+        "dims": 3
+      }
+    }
+  }
+}
+--------------------------------------------------
+// TESTSETUP
+
+[source,console]
+--------------------------------------------------
+DELETE index1
+--------------------------------------------------
+// TEARDOWN
+////
+
 [source,console]
 ----
 GET _search
@@ -57,33 +81,33 @@ GET _search
 [[sparse-vector-field-params]]
 === Top level parameters for `sparse_vector`
 
-`<field>`:::
-(Required, object) The name of the field that contains the token-weight pairs to be searched against.
+`field`::
+(Required, string) The name of the field that contains the token-weight pairs to be searched against.
 
-`inference_id`::::
+`inference_id`::
 (Optional, string) The <<inference-apis,inference ID>> to use to convert the query text into token-weight pairs.
 It must be the same inference ID that was used to create the tokens from the input text.
 Only one of `inference_id` and `query_vector` is allowed.
 If `inference_id` is specified, `query` must also be specified.
 
-`query`::::
+`query`::
 (Optional, string) The query text you want to use for search.
 If `inference_id` is specified, `query` must also be specified.
 If `query_vector` is specified, `query` must not be specified.
 
-`query_vector`::::
+`query_vector`::
 (Optional, dictionary) A dictionary of token-weight pairs representing the precomputed query vector to search.
 Searching using this query vector will bypass additional inference.
 Only one of `inference_id` and `query_vector` is allowed.
 
-`prune` ::::
+`prune` ::
 (Optional, boolean)
 preview:[]
 Whether to perform pruning, omitting the non-significant tokens from the query to improve query performance.
 If `prune` is true but the `pruning_config` is not specified, pruning will occur but default values will be used.
 Default: false.
 
-`pruning_config` ::::
+`pruning_config` ::
 (Optional, object)
 preview:[]
 Optional pruning configuration.
@@ -92,7 +116,7 @@ This is only used if `prune` is set to `true`.
 If `prune` is set to `true` but `pruning_config` is not specified, default values will be used.
 +
 --
-Parameters for `<pruning_config>` are:
+Parameters for `pruning_config` are:
 
 `tokens_freq_ratio_threshold`::
 (Optional, integer)
@@ -139,24 +163,6 @@ GET my-index/_search
 }
 ----
 // TEST[skip: Requires inference]
-
-[[sparse-vector-query-with-query-vectors-example]]
-=== Example sparse_vector query using query vectors
-
-An alternate way to search is with precomputed query vectors to search without performing inference at search time, for example:
-
-[source,console]
-----
-GET my-index/_search
-{
-   "query":{
-      "sparse_vector": {
-         "field": "ml.tokens",
-         "query_vector": { "token1": 0.5, "token2": 0.3, "token3": 0.2 }
-      }
-   }
-}
-----
 
 Multiple `sparse_vector` queries can be combined with each other or other query types.
 This can be achieved by wrapping them in <<query-dsl-bool-query, boolean query clauses>> and using linear boosting:

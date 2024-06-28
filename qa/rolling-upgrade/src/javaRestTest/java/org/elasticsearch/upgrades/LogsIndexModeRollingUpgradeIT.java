@@ -144,8 +144,7 @@ public class LogsIndexModeRollingUpgradeIT extends AbstractRollingUpgradeTestCas
             assertOK(bulkIndexResponse);
             assertThat(entityAsMap(bulkIndexResponse).get("errors"), Matchers.is(false));
         } else if (isMixedCluster()) {
-            final Response rolloverDataStreamResponse = client().performRequest(rolloverDataStream(client(), "logs-apache-production"));
-            assertOK(rolloverDataStreamResponse);
+            assertOK(client().performRequest(rolloverDataStream(client(), "logs-apache-production")));
             final Response bulkIndexResponse = client().performRequest(bulkIndex("logs-apache-production", () -> {
                 final StringBuilder sb = new StringBuilder();
                 for (int i = 0; i < randomIntBetween(10, 20); i++) {

@@ -357,7 +357,7 @@ public class MlLearningToRankRescorerIT extends ESRestTestCase {
                   "feature_extractors": [
                     {
                       "query_extractor": {
-                        "feature_name": "cost",
+                        "feature_name": "cost_feature",
                         "query": {
                           "script_score": {
                             "query": { "match_all": {} },
@@ -372,12 +372,12 @@ public class MlLearningToRankRescorerIT extends ESRestTestCase {
               "definition": {
                 "trained_model": {
                   "ensemble": {
-                    "feature_names": ["cost"],
+                    "feature_names": ["cost_feature"],
                     "target_type": "regression",
                     "trained_models": [
                       {
                         "tree": {
-                          "feature_names": ["cost"],
+                          "feature_names": ["cost_feature"],
                           "tree_structure": [
                             {
                               "node_index": 0,

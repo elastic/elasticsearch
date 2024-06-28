@@ -618,16 +618,25 @@ public final class IndexSettings {
 
             @Override
             public void validate(Instant value, Map<Setting<?>, Object> settings) {
-                @SuppressWarnings("unchecked")
                 Instant startTime = (Instant) settings.get(TIME_SERIES_START_TIME);
                 if (startTime.toEpochMilli() > value.toEpochMilli()) {
                     throw new IllegalArgumentException("index.time_series.end_time must be larger than index.time_series.start_time");
+                }
+
+                // The index.time_series.end_time setting can only be specified if the index.mode setting has been set to time_series
+                // This check here is specifically needed because in case of updating index settings the validation the gets executed
+                // in IndexSettings constructor when reading the index.mode setting doesn't get executed.
+                IndexMode indexMode = (IndexMode) settings.get(MODE);
+                if (indexMode != IndexMode.TIME_SERIES) {
+                    throw new IllegalArgumentException(
+                        "[" + TIME_SERIES_END_TIME.getKey() + "] requires [index.mode=" + IndexMode.TIME_SERIES + "]"
+                    );
                 }
             }
 
             @Override
             public Iterator<Setting<?>> settings() {
-                List<Setting<?>> settings = List.of(TIME_SERIES_START_TIME);
+                List<Setting<?>> settings = List.of(TIME_SERIES_START_TIME, MODE);
                 return settings.iterator();
             }
         },
@@ -1157,13 +1166,6 @@ public final class IndexSettings {
             // nothing to update, same settings
             return false;
         }
-
-        // The index.mode setting also validates other index settings,
-        // so we need to read the new settings to ensure index.mode validation doesn't fail.
-        // Also in the case the index.mode hasn't been specified in newSettings (and default applies)
-        // (Note when creating a new index this happens when we read the 'mode' field in the constructor of this class
-        // regardless of whether the index.mode setting has been specified)
-        IndexSettings.MODE.get(newSettings);
 
         scopedSettings.applySettings(newSettings);
         this.settings = newIndexSettings;

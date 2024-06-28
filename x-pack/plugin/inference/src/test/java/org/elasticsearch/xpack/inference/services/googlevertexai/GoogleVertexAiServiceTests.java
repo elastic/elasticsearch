@@ -12,7 +12,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
-import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.http.MockWebServer;
@@ -34,6 +33,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 
+import static org.elasticsearch.xpack.inference.Utils.*;
 import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityPool;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
@@ -512,28 +512,6 @@ public class GoogleVertexAiServiceTests extends ESTestCase {
             Map.of(ModelConfigurations.SERVICE_SETTINGS, builtServiceSettings, ModelConfigurations.TASK_SETTINGS, taskSettings)
         );
     }
-
-    // TODO: deduplicate
-    private PersistedConfig getPersistedConfigMap(
-        Map<String, Object> serviceSettings,
-        Map<String, Object> taskSettings,
-        Map<String, Object> secretSettings
-    ) {
-
-        return new PersistedConfig(
-            new HashMap<>(Map.of(ModelConfigurations.SERVICE_SETTINGS, serviceSettings, ModelConfigurations.TASK_SETTINGS, taskSettings)),
-            new HashMap<>(Map.of(ModelSecrets.SECRET_SETTINGS, secretSettings))
-        );
-    }
-
-    private PersistedConfig getPersistedConfigMap(Map<String, Object> serviceSettings, Map<String, Object> taskSettings) {
-        return new PersistedConfig(
-            new HashMap<>(Map.of(ModelConfigurations.SERVICE_SETTINGS, serviceSettings, ModelConfigurations.TASK_SETTINGS, taskSettings)),
-            null
-        );
-    }
-
-    private record PersistedConfig(Map<String, Object> config, Map<String, Object> secrets) {}
 
     private static Map<String, Object> getSecretSettingsMap(String serviceAccountJson) {
         return new HashMap<>(Map.of(GoogleVertexAiSecretSettings.SERVICE_ACCOUNT_JSON, serviceAccountJson));

@@ -1,7 +1,4 @@
 tests:
-- class: "org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilterTests"
-  issue: "https://github.com/elastic/elasticsearch/issues/108649"
-  method: "testManyRandomDocs"
 - class: "org.elasticsearch.cluster.coordination.CoordinatorVotingConfigurationTests"
   issue: "https://github.com/elastic/elasticsearch/issues/108729"
   method: "testClusterUUIDLogging"
@@ -88,6 +85,9 @@ tests:
 - class: org.elasticsearch.upgrades.SecurityIndexRolesMetadataMigrationIT
   method: testMetadataMigratedAfterUpgrade
   issue: https://github.com/elastic/elasticsearch/issues/110232
+- class: org.elasticsearch.compute.lucene.ValueSourceReaderTypeConversionTests
+  method: testLoadAll
+  issue: https://github.com/elastic/elasticsearch/issues/110244
 
 # Examples:
 #

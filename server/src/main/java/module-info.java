@@ -405,6 +405,7 @@ module org.elasticsearch.server {
     exports org.elasticsearch.telemetry.metric;
 
     provides java.util.spi.CalendarDataProvider with org.elasticsearch.common.time.IsoCalendarDataProvider;
+    provides java.util.spi.CalendarNameProvider with org.elasticsearch.common.time.CompatCalendarNameProvider;
     provides org.elasticsearch.xcontent.ErrorOnUnknown with org.elasticsearch.common.xcontent.SuggestingErrorOnUnknown;
     provides org.elasticsearch.xcontent.XContentBuilderExtension with org.elasticsearch.common.xcontent.XContentElasticsearchExtension;
     provides org.elasticsearch.cli.CliToolProvider

@@ -11,6 +11,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.InstantiatingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ParserConstructor;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -59,9 +60,14 @@ public class ColumnInfoImpl implements ColumnInfo {
     private String name;
     private DataType type;
 
+    @ParserConstructor
     public ColumnInfoImpl(String name, String type) {
+        this(name, DataType.fromEs(type));
+    }
+
+    public ColumnInfoImpl(String name, DataType type) {
         this.name = name;
-        this.type = DataType.fromEs(type);
+        this.type = type;
     }
 
     public ColumnInfoImpl(StreamInput in) throws IOException {
@@ -89,7 +95,11 @@ public class ColumnInfoImpl implements ColumnInfo {
     }
 
     @Override
-    public String type() {
+    public String esType() {
         return type.esType();
+    }
+
+    public DataType type() {
+        return type;
     }
 }

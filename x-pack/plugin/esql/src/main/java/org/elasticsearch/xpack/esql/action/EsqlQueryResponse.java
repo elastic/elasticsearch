@@ -27,7 +27,9 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
 import org.elasticsearch.xpack.core.esql.action.EsqlResponse;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 
+import javax.xml.crypto.Data;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.Iterator;
@@ -130,12 +132,12 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
     }
 
     public Iterator<Iterator<Object>> values() {
-        List<String> dataTypes = columns.stream().map(ColumnInfo::type).toList();
+        List<DataType> dataTypes = columns.stream().map(ColumnInfoImpl::type).toList();
         return ResponseValueUtils.pagesToValues(dataTypes, pages);
     }
 
     public Iterable<Iterable<Object>> rows() {
-        List<String> dataTypes = columns.stream().map(ColumnInfo::type).toList();
+        List<DataType> dataTypes = columns.stream().map(ColumnInfoImpl::type).toList();
         return ResponseValueUtils.valuesForRowsInPages(dataTypes, pages);
     }
 

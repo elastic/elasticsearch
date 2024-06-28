@@ -416,7 +416,7 @@ teardown:
 "Rolling over a failure store on a data stream without the failure store enabled should work":
   - do:
       allowed_warnings:
-        - "index template [my-other-template] has index patterns [data-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-template] will take precedence during new index creation"
+        - "index template [my-other-template] has index patterns [other-data-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-other-template] will take precedence during new index creation"
       indices.put_index_template:
         name: my-other-template
         body:

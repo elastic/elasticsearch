@@ -82,6 +82,41 @@ public class CO2CalculatorTests extends ESTestCase {
         checkCO2Calculation(co2Calculator.getAnnualCO2Tons(HOST_ID_D, samples), annualCoreHours, 1.7d, 0.000379069d, 2.8d);
     }
 
+    // Make sure that malformed data doesn't cause the CO2 calculation to fail.
+    public void testCreateFromMalformedSource() {
+        // tag::noformat
+        Map<String, HostMetadata> hostsTable = Map.ofEntries(
+            Map.entry(HOST_ID_A,
+                // known datacenter and instance type
+                new HostMetadata(HOST_ID_A,
+                    new InstanceType(
+                        "aws",
+                        "eu-west-1",
+                        "c5n.xlarge"
+                    ),
+                    null,
+                    null
+                )
+            ),
+            Map.entry(HOST_ID_B,
+                new HostMetadata(HOST_ID_B,
+                    null,
+                    null,
+                    null
+                )
+            )
+        );
+        // end::noformat
+
+        double samplingDurationInSeconds = 1_800.0d; // 30 minutes
+        long samples = 100_000L; // 100k samples
+        double annualCoreHours = CostCalculator.annualCoreHours(samplingDurationInSeconds, samples, 20.0d);
+        CO2Calculator co2Calculator = new CO2Calculator(hostsTable, samplingDurationInSeconds, null, null, null, null);
+
+        checkCO2Calculation(co2Calculator.getAnnualCO2Tons(HOST_ID_A, samples), annualCoreHours, 1.135d, 0.0002786d, 7.0d);
+        checkCO2Calculation(co2Calculator.getAnnualCO2Tons(HOST_ID_B, samples), annualCoreHours, 1.7d, 0.000379069d, 7.0d);
+    }
+
     private void checkCO2Calculation(
         double calculatedAnnualCO2Tons,
         double annualCoreHours,

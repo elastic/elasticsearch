@@ -8,6 +8,9 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.ip;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
@@ -40,6 +43,8 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
  * Truncates an IP value to a given prefix length.
  */
 public class IpPrefix extends EsqlScalarFunction implements OptionalArgument {
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "IpPrefix", IpPrefix::new);
+
     // Borrowed from Lucene, rfc4291 prefix
     private static final byte[] IPV4_PREFIX = new byte[] { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -1, -1 };
 
@@ -76,17 +81,28 @@ public class IpPrefix extends EsqlScalarFunction implements OptionalArgument {
         this.prefixLengthV6Field = prefixLengthV6Field;
     }
 
-    public static IpPrefix readFrom(PlanStreamInput in) throws IOException {
-        return new IpPrefix(Source.readFrom(in), in.readExpression(), in.readExpression(), in.readExpression());
+    private IpPrefix(StreamInput in) throws IOException {
+        this(
+            Source.readFrom((PlanStreamInput) in),
+            ((PlanStreamInput) in).readExpression(),
+            ((PlanStreamInput) in).readExpression(),
+            ((PlanStreamInput) in).readExpression()
+        );
     }
 
-    public void writeTo(PlanStreamOutput out) throws IOException {
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
         source().writeTo(out);
         List<Expression> fields = children();
         assert fields.size() == 3;
-        out.writeExpression(fields.get(0));
-        out.writeExpression(fields.get(1));
-        out.writeExpression(fields.get(2));
+        ((PlanStreamOutput) out).writeExpression(fields.get(0));
+        ((PlanStreamOutput) out).writeExpression(fields.get(1));
+        ((PlanStreamOutput) out).writeExpression(fields.get(2));
+    }
+
+    @Override
+    public String getWriteableName() {
+        return ENTRY.name;
     }
 
     public Expression ipField() {

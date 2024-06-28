@@ -436,7 +436,8 @@ public class SingleValueQuery extends Query {
 
         @Override
         public boolean isCacheable(LeafReaderContext ctx) {
-            return next.isCacheable(ctx);
+            // we cannot cache this query because we loose the ability of emitting warnings
+            return false;
         }
     }
 

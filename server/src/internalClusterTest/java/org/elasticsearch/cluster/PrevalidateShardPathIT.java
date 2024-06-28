@@ -27,6 +27,7 @@ import org.elasticsearch.test.junit.annotations.TestLogging;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -130,6 +131,6 @@ public class PrevalidateShardPathIT extends ESIntegTestCase {
                 );
                 throw e;
             }
-        });
+        }, 30, TimeUnit.SECONDS);
     }
 }

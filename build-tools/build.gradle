@@ -160,6 +160,8 @@ dependencies {
   implementation 'io.grpc:grpc-stub:1.50.2'
   compileOnly 'org.apache.tomcat:annotations-api:6.0.53'
   implementation 'com.google.protobuf:protobuf-java:3.21.12'
+  implementation("io.opentelemetry.proto:opentelemetry-proto:1.3.1-alpha")
+
 }
 
 tasks.withType(JavaCompile).configureEach {

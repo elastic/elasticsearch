@@ -26,6 +26,14 @@ import io.grpc.stub.StreamObserver;
 import com.google.protobuf.Any;
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protobuf.StringValue;
+
+import io.opentelemetry.proto.collector.metrics.v1.ExportMetricsServiceRequest;
+import io.opentelemetry.proto.collector.metrics.v1.ExportMetricsServiceResponse;
+import io.opentelemetry.proto.collector.metrics.v1.MetricsServiceGrpc;
+import io.opentelemetry.proto.collector.trace.v1.ExportTraceServiceRequest;
+import io.opentelemetry.proto.collector.trace.v1.ExportTraceServiceResponse;
+import io.opentelemetry.proto.collector.trace.v1.TraceServiceGrpc;
+
 import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
 
@@ -113,72 +121,18 @@ public class MockGrpcApmServer {
         server = null;
     }
 
-    static class TraceServiceImpl implements BindableService {
-        private static final String SERVICE_NAME = "opentelemetry.proto.collector.trace.v1.TraceService";
-        private static final String METHOD_NAME = "Export";
-
-        public void export(Any request, StreamObserver<Any> responseObserver) {
-
-                System.out.println("Received trace message: " +request.toString());
-
-                StringValue responseMessage = StringValue.newBuilder().setValue("Acknowledged: " +request.toString()).build();
-                Any response = Any.pack(responseMessage);
-                responseObserver.onNext(response);
-                responseObserver.onCompleted();
-        }
-
+    static class TraceServiceImpl extends TraceServiceGrpc.TraceServiceImplBase {
         @Override
-        public ServerServiceDefinition bindService() {
-            return ServerServiceDefinition.builder(SERVICE_NAME)
-                .addMethod(
-                    MethodDescriptor.<Any, Any>newBuilder()
-                        .setType(MethodDescriptor.MethodType.UNARY)
-                        .setFullMethodName(MethodDescriptor.generateFullMethodName(SERVICE_NAME, METHOD_NAME))
-                        .setRequestMarshaller(ProtoUtils.marshaller(Any.getDefaultInstance()))
-                        .setResponseMarshaller(ProtoUtils.marshaller(Any.getDefaultInstance()))
-                        .build(),
-                    ServerCalls.asyncUnaryCall(
-                        new ServerCalls.UnaryMethod<Any, Any>() {
-                            @Override
-                            public void invoke(Any request, StreamObserver<Any> responseObserver) {
-                                export(request, responseObserver);
-                            }
-                        }))
-                .build();
+        public void export(ExportTraceServiceRequest request, StreamObserver<ExportTraceServiceResponse> responseObserver) {
+            super.export(request, responseObserver);
+            System.out.println("TRACE SERVICE RECEIVED "+request.toString());
         }
     }
 
-    static class MetricsServiceImpl implements BindableService {
-        private static final String SERVICE_NAME = "opentelemetry.proto.collector.metrics.v1.MetricsService";
-        private static final String METHOD_NAME = "Export";
-
-        public void export(Any request, StreamObserver<Any> responseObserver) {
-                System.out.println("Received metrics message: " + request.toString());
-
-                StringValue responseMessage = StringValue.newBuilder().setValue("Acknowledged: " + request.toString()).build();
-                Any response = Any.pack(responseMessage);
-                responseObserver.onNext(response);
-                responseObserver.onCompleted();
-        }
-
+    static class MetricsServiceImpl extends MetricsServiceGrpc.MetricsServiceImplBase {
         @Override
-        public ServerServiceDefinition bindService() {
-            return ServerServiceDefinition.builder(SERVICE_NAME)
-                .addMethod(
-                    MethodDescriptor.<Any, Any>newBuilder()
-                        .setType(MethodDescriptor.MethodType.UNARY)
-                        .setFullMethodName(MethodDescriptor.generateFullMethodName(SERVICE_NAME, METHOD_NAME))
-                        .setRequestMarshaller(ProtoUtils.marshaller(Any.getDefaultInstance()))
-                        .setResponseMarshaller(ProtoUtils.marshaller(Any.getDefaultInstance()))
-                        .build(),
-                    ServerCalls.asyncUnaryCall(
-                        new ServerCalls.UnaryMethod<Any, Any>() {
-                            @Override
-                            public void invoke(Any request, StreamObserver<Any> responseObserver) {
-                                export(request, responseObserver);
-                            }
-                        }))
-                .build();
+        public void export(ExportMetricsServiceRequest request, StreamObserver<ExportMetricsServiceResponse> responseObserver) {
+            System.out.println("METRICS SERVICE RECEIVED "+request.toString());
         }
     }
 }

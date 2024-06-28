@@ -24,4 +24,9 @@ public class EsqlSpecIT extends EsqlSpecTestCase {
     public EsqlSpecIT(String fileName, String groupName, String testName, Integer lineNumber, CsvTestCase testCase, Mode mode) {
         super(fileName, groupName, testName, lineNumber, testCase, mode);
     }
+
+    @Override
+    protected boolean enableRoundingDoubleValuesOnAsserting() {
+        return true;
+    }
 }

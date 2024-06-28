@@ -10,8 +10,10 @@ package org.elasticsearch.xpack.security;
 import org.apache.http.HttpHeaders;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.ApplicationResourcePrivileges;
 
@@ -28,6 +30,9 @@ import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xpack.core.security.action.UpdateIndexMigrationVersionAction.MIGRATION_VERSION_CUSTOM_DATA_KEY;
+import static org.elasticsearch.xpack.core.security.action.UpdateIndexMigrationVersionAction.MIGRATION_VERSION_CUSTOM_KEY;
+import static org.elasticsearch.xpack.core.security.test.TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.CoreMatchers.nullValue;
@@ -48,7 +53,7 @@ public class QueryRoleIT extends SecurityInBasicRestTestCase {
         });
     }
 
-    public void testSimpleMetadataSearch() throws IOException {
+    public void testSimpleMetadataSearch() throws Exception {
         int nroles = randomIntBetween(1, 3);
         for (int i = 0; i < nroles; i++) {
             createRandomRole();
@@ -71,6 +76,7 @@ public class QueryRoleIT extends SecurityInBasicRestTestCase {
             Map.of("other", "matchSimpleValue"),
             randomApplicationPrivileges()
         );
+        waitForMigrationCompletion(adminClient(), null);
         assertQuery("""
             {"query":{"term":{"metadata.matchSimpleKey":"matchSimpleValue"}}}""", 1, roles -> {
             assertThat(roles, iterableWithSize(1));
@@ -78,7 +84,7 @@ public class QueryRoleIT extends SecurityInBasicRestTestCase {
         });
     }
 
-    public void testSearchMultipleMetadataFields() throws IOException {
+    public void testSearchMultipleMetadataFields() throws Exception {
         RoleDescriptor noMetadata = createRole(
             "noMetadataRole",
             randomBoolean() ? null : randomAlphaOfLength(8),
@@ -133,6 +139,7 @@ public class QueryRoleIT extends SecurityInBasicRestTestCase {
             Map.of("mapField1", Map.of("innerField", "butNotThis", "innerField2", Map.of("deeperInnerField", "matchThis"))),
             randomApplicationPrivileges()
         );
+        waitForMigrationCompletion(adminClient(), null);
         assertQuery("""
             {"query":{"prefix":{"metadata":"match"}}}""", 5, roles -> {
             assertThat(roles, iterableWithSize(5));
@@ -356,5 +363,35 @@ public class QueryRoleIT extends SecurityInBasicRestTestCase {
             .resources(resources)
             .privileges(randomList(1, 3, privilegeNameSupplier))
             .build();
+    }
+
+    @SuppressWarnings("unchecked")
+    public static void waitForMigrationCompletion(RestClient adminClient, @Nullable Integer migrationVersion) throws Exception {
+        final Request request = new Request("GET", "_cluster/state/metadata/" + INTERNAL_SECURITY_MAIN_INDEX_7);
+        assertBusy(() -> {
+            Response response = adminClient.performRequest(request);
+            assertOK(response);
+            Map<String, Object> responseMap = responseAsMap(response);
+            Map<String, Object> indicesMetadataMap = (Map<String, Object>) ((Map<String, Object>) responseMap.get("metadata")).get(
+                "indices"
+            );
+            assertTrue(indicesMetadataMap.containsKey(INTERNAL_SECURITY_MAIN_INDEX_7));
+            assertTrue(
+                ((Map<String, Object>) indicesMetadataMap.get(INTERNAL_SECURITY_MAIN_INDEX_7)).containsKey(MIGRATION_VERSION_CUSTOM_KEY)
+            );
+            if (migrationVersion != null) {
+                assertTrue(
+                    ((Map<String, Object>) ((Map<String, Object>) indicesMetadataMap.get(INTERNAL_SECURITY_MAIN_INDEX_7)).get(
+                        MIGRATION_VERSION_CUSTOM_KEY
+                    )).containsKey(MIGRATION_VERSION_CUSTOM_DATA_KEY)
+                );
+                assertThat(
+                    (Integer) ((Map<String, Object>) ((Map<String, Object>) indicesMetadataMap.get(INTERNAL_SECURITY_MAIN_INDEX_7)).get(
+                        MIGRATION_VERSION_CUSTOM_KEY
+                    )).get(MIGRATION_VERSION_CUSTOM_DATA_KEY),
+                    equalTo(migrationVersion)
+                );
+            }
+        });
     }
 }

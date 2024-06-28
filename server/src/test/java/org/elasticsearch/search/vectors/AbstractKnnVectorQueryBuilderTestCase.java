@@ -174,7 +174,7 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
         assertThat(e.getMessage(), containsString("[knn] queries are only supported on [dense_vector] fields"));
     }
 
-    public void testKLessThanNumCands() {
+    public void testNumCandsLessThanK() {
         int k = 5;
         int numCands = 3;
         IllegalArgumentException e = expectThrows(

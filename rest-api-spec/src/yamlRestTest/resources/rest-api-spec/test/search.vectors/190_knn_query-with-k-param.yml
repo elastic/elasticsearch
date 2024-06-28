@@ -109,6 +109,32 @@ setup:
   - match: { hits.hits.2._id: "3" }
 
 ---
+"Knn query within the standard retriever":
+  - do:
+      search:
+        index: my_index
+        body:
+          retriever:
+            standard:
+              filter:
+                bool:
+                  must:
+                    term:
+                      my_name: "v1"
+              query:
+                knn:
+                  field: my_vector
+                  query_vector: [ 1, 1, 1, 1 ]
+                  k: 10
+  - match: { hits.total.value: 5 } # docs that pass post-filter
+  - length: { hits.hits: 5 }
+  - match: { hits.hits.0._id: "1" }
+  - match: { hits.hits.1._id: "3" }
+  - match: { hits.hits.2._id: "5" }
+  - match: { hits.hits.3._id: "7" }
+  - match: { hits.hits.4._id: "9" }
+
+---
 "Incorrect k param":
   - do:
       catch: bad_request

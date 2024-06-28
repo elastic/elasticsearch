@@ -32,7 +32,6 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.ExpectedResults;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.Type;
-import static org.elasticsearch.xpack.esql.CsvTestUtils.Type.DOUBLE;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.Type.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.logMetaData;
 import static org.elasticsearch.xpack.esql.core.util.DateUtils.UTC_DATE_TIME_FORMATTER;
@@ -235,7 +234,7 @@ public final class CsvAssert {
                     }
                     var transformedExpected = valueTransformer.apply(expectedType, expectedValue);
                     var transformedActual = valueTransformer.apply(expectedType, actualValue);
-                    if (compareData(expectedType, transformedActual, transformedExpected) == false) {
+                    if (Objects.equals(transformedExpected, transformedActual) == false) {
                         dataFailures.add(new DataFailure(row, column, transformedExpected, transformedActual));
                     }
                     if (dataFailures.size() > 10) {
@@ -262,17 +261,6 @@ public final class CsvAssert {
             fail(
                 "Elasticsearch still has data after [" + expectedValues.size() + "] entries:\n" + row(actualValues, expectedValues.size())
             );
-        }
-    }
-
-    private static boolean compareData(Type type, Object actualValue, Object expectedValue) {
-        if (type == DOUBLE) {
-            // care up to 10 digits in decimal
-            double actualDouble = (Double) actualValue;
-            double expectedDouble = (Double) expectedValue;
-            return Math.abs(actualDouble - expectedDouble) < 1e-10;
-        } else {
-            return Objects.equals(actualValue, expectedValue);
         }
     }
 

@@ -5374,7 +5374,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             e.getMessage().substring(header.length())
         );
     }
-    
+
     private Literal nullOf(DataType dataType) {
         return new Literal(Source.EMPTY, null, dataType);
     }

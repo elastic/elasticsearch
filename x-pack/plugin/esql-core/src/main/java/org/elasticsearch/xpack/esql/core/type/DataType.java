@@ -27,9 +27,9 @@ import static java.util.stream.Collectors.toMap;
 import static java.util.stream.Collectors.toUnmodifiableMap;
 
 public enum DataType {
-    UNSUPPORTED(builder(null).typeName("UNSUPPORTED")),
-    NULL(builder("null")),
-    BOOLEAN(builder("boolean").size(1)),
+    UNSUPPORTED(builder().typeName("UNSUPPORTED")),
+    NULL(builder().esType("null")),
+    BOOLEAN(builder().esType("boolean").size(1)),
 
     /**
      * These are numeric fields labeled as metric counters in time-series indices. Although stored
@@ -38,37 +38,38 @@ public enum DataType {
      * These fields are strictly for use in retrieval from indices, rate aggregation, and casting to their
      * parent numeric type.
      */
-    COUNTER_LONG(builder("counter_long").size(Long.BYTES).docValues().counter()),
-    COUNTER_INTEGER(builder("counter_integer").size(Integer.BYTES).docValues().counter()),
-    COUNTER_DOUBLE(builder("counter_double").size(Double.BYTES).docValues().counter()),
+    COUNTER_LONG(builder().esType("counter_long").size(Long.BYTES).docValues().counter()),
+    COUNTER_INTEGER(builder().esType("counter_integer").size(Integer.BYTES).docValues().counter()),
+    COUNTER_DOUBLE(builder().esType("counter_double").size(Double.BYTES).docValues().counter()),
 
-    LONG(builder("long").size(Long.BYTES).integer().docValues().counter(COUNTER_LONG)),
-    INTEGER(builder("integer").size(Integer.BYTES).integer().docValues().counter(COUNTER_INTEGER)),
-    SHORT(builder("short").size(Short.BYTES).integer().docValues().widenSmallNumeric(INTEGER)),
-    BYTE(builder("byte").size(Byte.BYTES).integer().docValues().widenSmallNumeric(INTEGER)),
-    UNSIGNED_LONG(builder("unsigned_long").size(Long.BYTES).integer().docValues()),
-    DOUBLE(builder("double").size(Double.BYTES).rational().docValues().counter(COUNTER_DOUBLE)),
-    FLOAT(builder("float").size(Float.BYTES).rational().docValues().widenSmallNumeric(DOUBLE)),
-    HALF_FLOAT(builder("half_float").size(Float.BYTES).rational().docValues().widenSmallNumeric(DOUBLE)),
-    SCALED_FLOAT(builder("scaled_float").size(Long.BYTES).rational().docValues().widenSmallNumeric(DOUBLE)),
+    LONG(builder().esType("long").size(Long.BYTES).integer().docValues().counter(COUNTER_LONG)),
+    INTEGER(builder().esType("integer").size(Integer.BYTES).integer().docValues().counter(COUNTER_INTEGER)),
+    SHORT(builder().esType("short").size(Short.BYTES).integer().docValues().widenSmallNumeric(INTEGER)),
+    BYTE(builder().esType("byte").size(Byte.BYTES).integer().docValues().widenSmallNumeric(INTEGER)),
+    UNSIGNED_LONG(builder().esType("unsigned_long").size(Long.BYTES).integer().docValues()),
+    DOUBLE(builder().esType("double").size(Double.BYTES).rational().docValues().counter(COUNTER_DOUBLE)),
+    FLOAT(builder().esType("float").size(Float.BYTES).rational().docValues().widenSmallNumeric(DOUBLE)),
+    HALF_FLOAT(builder().esType("half_float").size(Float.BYTES).rational().docValues().widenSmallNumeric(DOUBLE)),
+    SCALED_FLOAT(builder().esType("scaled_float").size(Long.BYTES).rational().docValues().widenSmallNumeric(DOUBLE)),
 
-    KEYWORD(builder("keyword").unknownSize().docValues()),
-    TEXT(builder("text").unknownSize()),
-    DATETIME(builder("date").typeName("DATETIME").size(Long.BYTES).docValues()),
-    IP(builder("ip").size(45).docValues()),
-    VERSION(builder("version").unknownSize().docValues()),
-    OBJECT(builder("object")),
-    NESTED(builder("nested")),
-    SOURCE(builder(SourceFieldMapper.NAME).unknownSize()),
-    DATE_PERIOD(builder(null).typeName("DATE_PERIOD").size(3 * Integer.BYTES)),
-    TIME_DURATION(builder(null).typeName("TIME_DURATION").size(Integer.BYTES + Long.BYTES)),
-    GEO_POINT(builder("geo_point").size(Double.BYTES * 2).docValues()),
-    CARTESIAN_POINT(builder("cartesian_point").size(Double.BYTES * 2).docValues()),
-    CARTESIAN_SHAPE(builder("cartesian_shape").unknownSize().docValues()),
-    GEO_SHAPE(builder("geo_shape").unknownSize().docValues()),
+    KEYWORD(builder().esType("keyword").unknownSize().docValues()),
+    TEXT(builder().esType("text").unknownSize()),
+    DATETIME(builder().esType("date").typeName("DATETIME").size(Long.BYTES).docValues()),
+    IP(builder().esType("ip").size(45).docValues()),
+    VERSION(builder().esType("version").unknownSize().docValues()),
+    OBJECT(builder().esType("object")),
+    NESTED(builder().esType("nested")),
+    SOURCE(builder().esType(SourceFieldMapper.NAME).unknownSize()),
+    DATE_PERIOD(builder().typeName("DATE_PERIOD").size(3 * Integer.BYTES)),
+    TIME_DURATION(builder().typeName("TIME_DURATION").size(Integer.BYTES + Long.BYTES)),
+    GEO_POINT(builder().esType("geo_point").size(Double.BYTES * 2).docValues()),
+    CARTESIAN_POINT(builder().esType("cartesian_point").size(Double.BYTES * 2).docValues()),
+    CARTESIAN_SHAPE(builder().esType("cartesian_shape").unknownSize().docValues()),
+    GEO_SHAPE(builder().esType("geo_shape").unknownSize().docValues()),
 
-    DOC_DATA_TYPE(builder("_doc").size(Integer.BYTES * 3)),
-    TSID_DATA_TYPE(builder("_tsid").unknownSize().docValues());
+    DOC_DATA_TYPE(builder().esType("_doc").size(Integer.BYTES * 3)),
+    TSID_DATA_TYPE(builder().esType("_tsid").unknownSize().docValues()),
+    PARTIAL_AGG(builder().esType("partial_agg").unknownSize());
 
     private final String typeName;
 
@@ -253,6 +254,10 @@ public enum DataType {
         return esType;
     }
 
+    public String outputType() {
+        return esType == null ? "unsupported" : esType;
+    }
+
     public boolean isInteger() {
         return isInteger;
     }
@@ -322,8 +327,8 @@ public enum DataType {
         return type != null ? type : UNSUPPORTED;
     }
 
-    static Builder builder(String esType) {
-        return new Builder(esType);
+    static Builder builder() {
+        return new Builder();
     }
 
     /**
@@ -331,7 +336,7 @@ public enum DataType {
      * a builder in java....
      */
     private static class Builder {
-        private final String esType;
+        private String esType;
 
         private String typeName;
 
@@ -369,8 +374,11 @@ public enum DataType {
          */
         private DataType counter;
 
-        Builder(String esType) {
+        Builder() {}
+
+        Builder esType(String esType) {
             this.esType = esType;
+            return this;
         }
 
         Builder typeName(String typeName) {

@@ -10,29 +10,23 @@ package org.elasticsearch.xpack.inference.external.request.amazonbedrock.embeddi
 import com.amazonaws.services.bedrockruntime.model.InvokeModelRequest;
 import com.amazonaws.services.bedrockruntime.model.InvokeModelResult;
 
-import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.stream.BytesStream;
-import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.common.socket.SocketAccess;
 import org.elasticsearch.xpack.inference.external.amazonbedrock.AmazonBedrockInferenceClient;
+import org.elasticsearch.xpack.inference.external.request.amazonbedrock.AmazonBedrockJsonWriter;
 import org.elasticsearch.xpack.inference.external.request.amazonbedrock.AmazonBedrockRequest;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockProvider;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.embeddings.AmazonBedrockEmbeddingsModel;
 
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 
 public class AmazonBedrockEmbeddingsRequest extends AmazonBedrockRequest {
     private final AmazonBedrockEmbeddingsModel embeddingsModel;
-    private final ToXContent requestEntity;
+    private final AmazonBedrockJsonWriter requestEntity;
     private InvokeModelResult result;
     private AmazonBedrockProvider provider;
 
-    public AmazonBedrockEmbeddingsRequest(AmazonBedrockEmbeddingsModel model, ToXContent requestEntity) {
+    public AmazonBedrockEmbeddingsRequest(AmazonBedrockEmbeddingsModel model, AmazonBedrockJsonWriter requestEntity) {
         super(model);
         this.embeddingsModel = model;
         this.provider = model.provider();
@@ -50,21 +44,10 @@ public class AmazonBedrockEmbeddingsRequest extends AmazonBedrockRequest {
     @Override
     public void executeRequest(AmazonBedrockInferenceClient client) {
         try {
-            var builder = requestEntity.toXContent(JsonXContent.contentBuilder(), ToXContent.EMPTY_PARAMS);
-            builder.close();
-
-            BytesReference bodyBytes;
-            OutputStream stream = builder.getOutputStream();
-            if (stream instanceof ByteArrayOutputStream) {
-                bodyBytes = new BytesArray(((ByteArrayOutputStream) stream).toByteArray());
-            } else {
-                bodyBytes = ((BytesStream) stream).bytes();
-            }
+            var jsonBuilder = new AmazonBedrockJsonBuilder(requestEntity);
+            var bodyAsString = jsonBuilder.getStringContent();
 
             var charset = StandardCharsets.UTF_8;
-            // TODO - Amazon doesn't like no space between the "inputText": "value" in the request
-            // Need to find a way to ensure a space is there... :/
-            var bodyAsString = bodyBytes.toString();
             var bodyBuffer = charset.encode(bodyAsString);
 
             var invokeModelRequest = new InvokeModelRequest().withModelId(embeddingsModel.model()).withBody(bodyBuffer);

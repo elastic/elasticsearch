@@ -8,8 +8,8 @@
 package org.elasticsearch.xpack.inference.external.request.amazonbedrock.embeddings;
 
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xpack.inference.common.Truncator;
+import org.elasticsearch.xpack.inference.external.request.amazonbedrock.AmazonBedrockJsonWriter;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.embeddings.AmazonBedrockEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.embeddings.AmazonBedrockEmbeddingsServiceSettings;
 
@@ -18,7 +18,7 @@ import java.util.List;
 import static org.elasticsearch.xpack.inference.common.Truncator.truncate;
 
 public final class AmazonBedrockEmbeddingsEntityFactory {
-    public static ToXContentObject createEntity(
+    public static AmazonBedrockJsonWriter createEntity(
         AmazonBedrockEmbeddingsModel model,
         List<String> inputs,
         Truncator truncator,

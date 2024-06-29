@@ -1566,6 +1566,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         // so we don't want any merges to happen
         var iwc = indexWriterConfigWithNoMerging(null).setSoftDeletesField(Lucene.SOFT_DELETES_FIELD).setCommitOnClose(false);
         if (hasIndexSort && indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.INDEX_SORTING_ON_NESTED)) {
+            // Needed to support index sorting in the presence of nested objects.
             iwc.setParentField(Engine.ROOT_DOC_FIELD_NAME);
         }
         return iwc;

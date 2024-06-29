@@ -198,8 +198,9 @@ public final class StoreRecovery {
             .setIndexCreatedVersionMajor(luceneIndexCreatedVersionMajor);
         if (indexSort != null) {
             iwc.setIndexSort(indexSort);
-            if (indexMetadata.getCreationVersion().onOrAfter(IndexVersions.INDEX_SORTING_ON_NESTED)) {
-                iwc.setParentField(Engine.ROOT_DOC_FIELD_NAME);  // Needed to support index sorting in the presence of nested objects.
+            if (indexMetadata != null && indexMetadata.getCreationVersion().onOrAfter(IndexVersions.INDEX_SORTING_ON_NESTED)) {
+                // Needed to support index sorting in the presence of nested objects.
+                iwc.setParentField(Engine.ROOT_DOC_FIELD_NAME);
             }
         }
 

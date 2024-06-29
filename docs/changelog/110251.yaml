@@ -1,0 +1,6 @@
+pr: 110251
+summary: Support index sorting with nested fields
+area: Logs
+type: enhancement
+issues:
+ - 107349

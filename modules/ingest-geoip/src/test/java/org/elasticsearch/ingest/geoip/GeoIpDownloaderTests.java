@@ -290,13 +290,13 @@ public class GeoIpDownloaderTests extends ESTestCase {
 
             @Override
             void updateTaskState() {
-                assertEquals(0, state.get("test").firstChunk());
-                assertEquals(10, state.get("test").lastChunk());
+                assertEquals(0, state.get("test.mmdb").firstChunk());
+                assertEquals(10, state.get("test.mmdb").lastChunk());
             }
 
             @Override
             void deleteOldChunks(String name, int firstChunk) {
-                assertEquals("test", name);
+                assertEquals("test.mmdb", name);
                 assertEquals(0, firstChunk);
             }
         };

@@ -1565,7 +1565,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         // this config is only used for temporary IndexWriter instances, used to initialize the index or update the commit data,
         // so we don't want any merges to happen
         var iwc = indexWriterConfigWithNoMerging(null).setSoftDeletesField(Lucene.SOFT_DELETES_FIELD).setCommitOnClose(false);
-        if (hasIndexSort) {
+        if (hasIndexSort && indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.INDEX_SORTING_ON_NESTED)) {
             iwc.setParentField(Engine.ROOT_DOC_FIELD_NAME);
         }
         return iwc;

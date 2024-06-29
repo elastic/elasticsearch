@@ -36,6 +36,7 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.seqno.SequenceNumbers;
@@ -197,7 +198,9 @@ public final class StoreRecovery {
             .setIndexCreatedVersionMajor(luceneIndexCreatedVersionMajor);
         if (indexSort != null) {
             iwc.setIndexSort(indexSort);
-            iwc.setParentField(Engine.ROOT_DOC_FIELD_NAME);  // Needed to support index sorting in the presence of nested objects.
+            if (indexMetadata.getCreationVersion().onOrAfter(IndexVersions.INDEX_SORTING_ON_NESTED)) {
+                iwc.setParentField(Engine.ROOT_DOC_FIELD_NAME);  // Needed to support index sorting in the presence of nested objects.
+            }
         }
 
         try (IndexWriter writer = new IndexWriter(new StatsDirectoryWrapper(hardLinkOrCopyTarget, indexRecoveryStats), iwc)) {

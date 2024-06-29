@@ -43,6 +43,7 @@ public abstract class InternalMultiBucketAggregation<
 
     private boolean isLeaf(Bucket B){
         InternalAggregations subAggregations = B.getAggregations();
+        if(subAggregations == null) return true;
         for(Aggregation aggregation : subAggregations){
             if(aggregation instanceof InternalSingleBucketAggregation ||
             aggregation instanceof InternalMultiBucketAggregation<?,?>) return false;
@@ -57,7 +58,7 @@ public abstract class InternalMultiBucketAggregation<
         if(buckets == null) return 0;
         for(Bucket B : buckets){
             InternalAggregations subAggregations = B.getAggregations();
-            if (subAggregations == null || subAggregations.asList().isEmpty() || isLeaf(B)) {
+            if (isLeaf(B)) {
                 count++;
                 continue;
             }

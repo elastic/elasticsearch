@@ -67,6 +67,7 @@ public abstract class InternalSingleBucketAggregation extends InternalAggregatio
 
     private boolean isLeaf(){
         InternalAggregations subAggregations = getAggregations();
+        if(subAggregations == null) return true;
         for(Aggregation aggregation : subAggregations){
             if(aggregation instanceof InternalSingleBucketAggregation ||
                 aggregation instanceof InternalMultiBucketAggregation<?,?>) return false;
@@ -77,7 +78,7 @@ public abstract class InternalSingleBucketAggregation extends InternalAggregatio
     @Override
     public int countBuckets() {
         InternalAggregations subAggregations = getAggregations();
-        if(subAggregations == null || subAggregations.asList().isEmpty() || isLeaf()) return 1;
+        if(isLeaf()) return 1;
         int count = 0;
         for (Aggregation aggregation : subAggregations) {
             count += aggregation.getBucketCount();

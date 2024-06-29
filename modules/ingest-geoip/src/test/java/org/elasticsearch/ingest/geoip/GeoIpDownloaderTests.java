@@ -277,9 +277,8 @@ public class GeoIpDownloaderTests extends ESTestCase {
             () -> true
         ) {
             @Override
-            void updateTaskState() {
-                assertEquals(0, state.get("test").firstChunk());
-                assertEquals(10, state.get("test").lastChunk());
+            protected void updateTimestamp(String name, GeoIpTaskState.Metadata metadata) {
+                fail();
             }
 
             @Override
@@ -290,8 +289,9 @@ public class GeoIpDownloaderTests extends ESTestCase {
             }
 
             @Override
-            protected void updateTimestamp(String name, GeoIpTaskState.Metadata metadata) {
-                fail();
+            void updateTaskState() {
+                assertEquals(0, state.get("test").firstChunk());
+                assertEquals(10, state.get("test").lastChunk());
             }
 
             @Override
@@ -328,9 +328,8 @@ public class GeoIpDownloaderTests extends ESTestCase {
             () -> true
         ) {
             @Override
-            void updateTaskState() {
-                assertEquals(9, state.get("test.mmdb").firstChunk());
-                assertEquals(10, state.get("test.mmdb").lastChunk());
+            protected void updateTimestamp(String name, GeoIpTaskState.Metadata metadata) {
+                fail();
             }
 
             @Override
@@ -341,8 +340,9 @@ public class GeoIpDownloaderTests extends ESTestCase {
             }
 
             @Override
-            protected void updateTimestamp(String name, GeoIpTaskState.Metadata metadata) {
-                fail();
+            void updateTaskState() {
+                assertEquals(9, state.get("test.mmdb").firstChunk());
+                assertEquals(10, state.get("test.mmdb").lastChunk());
             }
 
             @Override
@@ -381,8 +381,9 @@ public class GeoIpDownloaderTests extends ESTestCase {
             () -> true
         ) {
             @Override
-            void updateTaskState() {
-                fail();
+            protected void updateTimestamp(String name, GeoIpTaskState.Metadata newMetadata) {
+                assertEquals(metadata, newMetadata);
+                assertEquals("test.mmdb", name);
             }
 
             @Override
@@ -392,9 +393,8 @@ public class GeoIpDownloaderTests extends ESTestCase {
             }
 
             @Override
-            protected void updateTimestamp(String name, GeoIpTaskState.Metadata newMetadata) {
-                assertEquals(metadata, newMetadata);
-                assertEquals("test.mmdb", name);
+            void updateTaskState() {
+                fail();
             }
 
             @Override

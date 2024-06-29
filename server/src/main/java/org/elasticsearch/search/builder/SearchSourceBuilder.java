@@ -212,7 +212,6 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
      * Read from a stream.
      */
     public SearchSourceBuilder(StreamInput in) throws IOException {
-        aggregations = in.readOptionalWriteable(AggregatorFactories.Builder::new);
         explain = in.readOptionalBoolean();
         fetchSourceContext = in.readOptionalWriteable(FetchSourceContext::readFrom);
         if (in.readBoolean()) {
@@ -279,6 +278,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
             rankBuilder = in.readOptionalNamedWriteable(RankBuilder.class);
         }
+        aggregations = in.readOptionalWriteable(AggregatorFactories.Builder::new);
     }
 
     @Override

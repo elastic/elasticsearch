@@ -12,6 +12,7 @@ import com.amazonaws.services.bedrockruntime.model.InvokeModelResult;
 
 import org.elasticsearch.xpack.core.common.socket.SocketAccess;
 import org.elasticsearch.xpack.inference.external.amazonbedrock.AmazonBedrockInferenceClient;
+import org.elasticsearch.xpack.inference.external.request.amazonbedrock.AmazonBedrockJsonBuilder;
 import org.elasticsearch.xpack.inference.external.request.amazonbedrock.AmazonBedrockJsonWriter;
 import org.elasticsearch.xpack.inference.external.request.amazonbedrock.AmazonBedrockRequest;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockProvider;

@@ -5,14 +5,13 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.inference.external.request.amazonbedrock.embeddings;
+package org.elasticsearch.xpack.inference.external.request.amazonbedrock;
 
 import com.fasterxml.jackson.core.JsonFactory;
 
-import org.elasticsearch.xpack.inference.external.request.amazonbedrock.AmazonBedrockJsonWriter;
-
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 
 public class AmazonBedrockJsonBuilder {
 
@@ -25,9 +24,13 @@ public class AmazonBedrockJsonBuilder {
     public String getStringContent() throws IOException {
         var factory = new JsonFactory();
         var outputStream = new ByteArrayOutputStream();
-        var generator = jsonWriter.writeJson(factory.createGenerator(outputStream));
-        generator.flush();
-        generator.close();
-        return outputStream.toString();
+        var generator = factory.createGenerator(outputStream);
+        try {
+            jsonWriter.writeJson(generator);
+            generator.flush();
+            return outputStream.toString(StandardCharsets.UTF_8);
+        } finally {
+            generator.close();
+        }
     }
 }

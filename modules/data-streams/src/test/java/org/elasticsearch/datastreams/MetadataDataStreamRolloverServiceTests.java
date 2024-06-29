@@ -398,11 +398,9 @@ public class MetadataDataStreamRolloverServiceTests extends ESTestCase {
 
             for (int i = 0; i < numberOfBackingIndices; i++) {
                 var im = rolloverMetadata.index(rolloverMetadata.dataStreams().get(dataStreamName).getIndices().get(i));
-                var startTime1 = IndexSettings.TIME_SERIES_START_TIME.get(im.getSettings());
-                var endTime1 = IndexSettings.TIME_SERIES_END_TIME.get(im.getSettings());
-                assertThat(startTime1.toEpochMilli(), equalTo(DateUtils.MAX_MILLIS_BEFORE_MINUS_9999));
-                assertThat(endTime1.toEpochMilli(), equalTo(DateUtils.MAX_MILLIS_BEFORE_9999));
-                assertThat(im.getIndexMode(), equalTo(null));
+                assertThat(im.getTimeSeriesStart(), nullValue());
+                assertThat(im.getTimeSeriesEnd(), nullValue());
+                assertThat(im.getIndexMode(), nullValue());
             }
             {
                 var im = rolloverMetadata.index(

@@ -117,31 +117,6 @@
               "ignore_malformed": true
             }
           }
-        },
-        {
-          "ip": {
-            "mapping": {
-              "type": "ip",
-              "ignore_malformed": true
-            },
-            "path_match": [
-              "*attributes.*.ip",
-              "*attributes.*_ip"
-            ],
-            "match_mapping_type": "string"
-          }
-        },
-        {
-          "attribute_strings_to_keywords": {
-            "mapping": {
-              "ignore_above": 1024,
-              "type": "keyword"
-            },
-            "path_match": [
-              "*attributes.*"
-            ],
-            "match_mapping_type": "string"
-          }
         }
       ]
     }

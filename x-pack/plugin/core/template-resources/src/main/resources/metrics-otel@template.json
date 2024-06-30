@@ -7,7 +7,8 @@
     "otel@mappings",
     "metrics-otel@mappings",
     "metrics@custom",
-    "metrics-otel@custom"
+    "metrics-otel@custom",
+    "ecs-tsdb@mappings"
   ],
   "ignore_missing_component_templates": ["metrics@custom", "metrics-otel@custom"],
   "allow_auto_create": true,

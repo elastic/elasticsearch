@@ -78,6 +78,7 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
 
     // ECS dynamic mappings
     public static final String ECS_DYNAMIC_MAPPINGS_COMPONENT_TEMPLATE_NAME = "ecs@mappings";
+    public static final String ECS_TSDB_DYNAMIC_MAPPINGS_COMPONENT_TEMPLATE_NAME = "ecs-tsdb@mappings";
 
     //////////////////////////////////////////////////////////
     // Built in ILM policies for users to use
@@ -194,6 +195,13 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
             new IndexTemplateConfig(
                 ECS_DYNAMIC_MAPPINGS_COMPONENT_TEMPLATE_NAME,
                 "/ecs@mappings.json",
+                REGISTRY_VERSION,
+                TEMPLATE_VERSION_VARIABLE,
+                ADDITIONAL_TEMPLATE_VARIABLES
+            ),
+            new IndexTemplateConfig(
+                ECS_TSDB_DYNAMIC_MAPPINGS_COMPONENT_TEMPLATE_NAME,
+                "/ecs-tsdb@mappings.json",
                 REGISTRY_VERSION,
                 TEMPLATE_VERSION_VARIABLE,
                 ADDITIONAL_TEMPLATE_VARIABLES

@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.security;
 import org.apache.http.HttpHeaders;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -35,6 +36,7 @@ import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.core.security.action.UpdateIndexMigrationVersionAction.MIGRATION_VERSION_CUSTOM_DATA_KEY;
 import static org.elasticsearch.xpack.core.security.action.UpdateIndexMigrationVersionAction.MIGRATION_VERSION_CUSTOM_KEY;
 import static org.elasticsearch.xpack.core.security.test.TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7;
+import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.CoreMatchers.nullValue;
@@ -55,6 +57,68 @@ public final class QueryRoleIT extends SecurityInBasicRestTestCase {
         });
         assertQuery("""
             {"query":{"match_all":{}},"from":1}""", 1, roles -> assertThat(roles, emptyIterable()));
+    }
+
+    public void testDisallowedFields() throws Exception {
+        if (randomBoolean()) {
+            createRandomRole();
+        }
+        // query on some disallowed field
+        {
+            Request request = new Request(randomFrom("POST", "GET"), "/_security/_query/role");
+            request.setOptions(request.getOptions().toBuilder().addHeader(HttpHeaders.AUTHORIZATION, READ_SECURITY_USER_AUTH_HEADER));
+            request.setJsonEntity("""
+                {"query":{"prefix":{"password":"whatever"}}}""");
+            ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(request));
+            assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(400));
+            assertThat(e.getMessage(), containsString("Field [password] is not allowed for querying or aggregation"));
+        }
+        // query on the _id field
+        {
+            Request request = new Request(randomFrom("POST", "GET"), "/_security/_query/role");
+            request.setOptions(request.getOptions().toBuilder().addHeader(HttpHeaders.AUTHORIZATION, READ_SECURITY_USER_AUTH_HEADER));
+            request.setJsonEntity("""
+                {"query":{"term":{"_id":"role-test"}}}""");
+            ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(request));
+            assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(400));
+            assertThat(e.getMessage(), containsString("Field [_id] is not allowed for querying or aggregation"));
+        }
+        // sort on disallowed field
+        {
+            Request request = new Request(randomFrom("POST", "GET"), "/_security/_query/role");
+            request.setOptions(request.getOptions().toBuilder().addHeader(HttpHeaders.AUTHORIZATION, READ_SECURITY_USER_AUTH_HEADER));
+            request.setJsonEntity("""
+                {"query":{"bool":{"must_not":[{"wildcard":{"applications.application":"a*9"}}]}},"sort":["api_key_hash"]}""");
+            ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(request));
+            assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(400));
+            assertThat(e.getMessage(), containsString("Field [api_key_hash] is not allowed for querying or aggregation"));
+        }
+    }
+
+    public void testDisallowedQueryType() throws Exception {
+        if (randomBoolean()) {
+            createRandomRole();
+        }
+        // query using some disallowed query type
+        {
+            Request request = new Request(randomFrom("POST", "GET"), "/_security/_query/role");
+            request.setOptions(request.getOptions().toBuilder().addHeader(HttpHeaders.AUTHORIZATION, READ_SECURITY_USER_AUTH_HEADER));
+            request.setJsonEntity("""
+                {"query":{"match_phrase":{"description":{"query":"whatever"}}}}""");
+            ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(request));
+            assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(400));
+            assertThat(e.getMessage(), containsString("Query type [match_phrase] is not currently supported in this context"));
+        }
+        // query using some disallowed query type inside the (allowed) boolean query type
+        {
+            Request request = new Request(randomFrom("POST", "GET"), "/_security/_query/role");
+            request.setOptions(request.getOptions().toBuilder().addHeader(HttpHeaders.AUTHORIZATION, READ_SECURITY_USER_AUTH_HEADER));
+            request.setJsonEntity("""
+                {"query":{"bool":{"must_not":[{"more_like_this":{"fields":["description"],"like":"hollywood"}}]}}}""");
+            ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(request));
+            assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(400));
+            assertThat(e.getMessage(), containsString("Query type [more_like_this] is not currently supported in this context"));
+        }
     }
 
     public void testSimpleMetadataSearch() throws Exception {

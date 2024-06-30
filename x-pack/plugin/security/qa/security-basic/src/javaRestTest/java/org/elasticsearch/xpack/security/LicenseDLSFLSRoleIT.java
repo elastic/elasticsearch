@@ -35,9 +35,9 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.iterableWithSize;
 
 /**
- * This class tests that roles with DLS and FLS show up as disabled when queried when the license doesn't allow such features.
+ * This class tests that roles with DLS and FLS are disabled when queried when the license doesn't allow such features.
  */
-public final class QueryDLSFLSRoleIT extends ESRestTestCase {
+public final class LicenseDLSFLSRoleIT extends ESRestTestCase {
 
     protected static final String REST_USER = "security_test_user";
     private static final SecureString REST_PASSWORD = new SecureString("security-test-password".toCharArray());
@@ -53,11 +53,8 @@ public final class QueryDLSFLSRoleIT extends ESRestTestCase {
         // start as "trial"
         .setting("xpack.license.self_generated.type", "trial")
         .setting("xpack.security.enabled", "true")
-        .setting("xpack.security.ssl.diagnose.trust", "true")
         .setting("xpack.security.http.ssl.enabled", "false")
         .setting("xpack.security.transport.ssl.enabled", "false")
-        .setting("xpack.security.authc.token.enabled", "true")
-        .setting("xpack.security.authc.api_key.enabled", "true")
         .rolesFile(Resource.fromClasspath("roles.yml"))
         .user(ADMIN_USER, ADMIN_PASSWORD.toString(), User.ROOT_USER_ROLE, true)
         .user(REST_USER, REST_PASSWORD.toString(), "security_test_role", false)
@@ -82,7 +79,7 @@ public final class QueryDLSFLSRoleIT extends ESRestTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    public void testDLSFLSRolesShowAsDisabled() throws Exception {
+    public void testQueryDLSFLSRolesShowAsDisabled() throws Exception {
         // auto-generated "trial"
         waitForLicense(adminClient(), "trial");
         // neither DLS nor FLS role

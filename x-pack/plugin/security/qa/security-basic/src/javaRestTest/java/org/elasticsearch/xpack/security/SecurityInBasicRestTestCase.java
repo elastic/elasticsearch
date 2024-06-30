@@ -72,5 +72,4 @@ public abstract class SecurityInBasicRestTestCase extends ESRestTestCase {
         String token = basicAuthHeaderValue(REST_USER, REST_PASSWORD);
         return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
     }
-
 }

@@ -258,7 +258,7 @@ public class QueryRoleIT extends SecurityInBasicRestTestCase {
         int nOtherRoles = randomIntBetween(0, 5);
         for (int i = 0; i < nOtherRoles; i++) {
             createRole(
-                "role" + roleIdx++,
+                Strings.format("role_%03d", roleIdx++),
                 randomBoolean() ? null : randomDescription(),
                 randomBoolean() ? null : randomMetadata(),
                 randomApplicationPrivileges()
@@ -266,7 +266,7 @@ public class QueryRoleIT extends SecurityInBasicRestTestCase {
         }
         // first matching role
         RoleDescriptor firstMatchingRole = createRole(
-            "role" + roleIdx++,
+            Strings.format("role_%03d", roleIdx++),
             "some ZZZZmatchZZZZ descr",
             randomBoolean() ? null : randomMetadata(),
             randomApplicationPrivileges()
@@ -274,7 +274,7 @@ public class QueryRoleIT extends SecurityInBasicRestTestCase {
         nOtherRoles = randomIntBetween(0, 5);
         for (int i = 0; i < nOtherRoles; i++) {
             createRole(
-                "role" + roleIdx++,
+                Strings.format("role_%03d", roleIdx++),
                 randomBoolean() ? null : randomDescription(),
                 randomBoolean() ? null : randomMetadata(),
                 randomApplicationPrivileges()
@@ -282,7 +282,7 @@ public class QueryRoleIT extends SecurityInBasicRestTestCase {
         }
         // second matching role
         RoleDescriptor secondMatchingRole = createRole(
-            "role" + roleIdx++,
+            Strings.format("role_%03d", roleIdx++),
             "other ZZZZmatchZZZZ meh",
             randomBoolean() ? null : randomMetadata(),
             randomApplicationPrivileges()
@@ -290,7 +290,7 @@ public class QueryRoleIT extends SecurityInBasicRestTestCase {
         nOtherRoles = randomIntBetween(0, 5);
         for (int i = 0; i < nOtherRoles; i++) {
             createRole(
-                "role" + roleIdx++,
+                Strings.format("role_%03d", roleIdx++),
                 randomBoolean() ? null : randomDescription(),
                 randomBoolean() ? null : randomMetadata(),
                 randomApplicationPrivileges()
@@ -298,7 +298,7 @@ public class QueryRoleIT extends SecurityInBasicRestTestCase {
         }
         // third matching role
         RoleDescriptor thirdMatchingRole = createRole(
-            "role" + roleIdx++,
+            Strings.format("role_%03d", roleIdx++),
             "me ZZZZmatchZZZZ go",
             randomBoolean() ? null : randomMetadata(),
             randomApplicationPrivileges()
@@ -306,19 +306,19 @@ public class QueryRoleIT extends SecurityInBasicRestTestCase {
         nOtherRoles = randomIntBetween(0, 5);
         for (int i = 0; i < nOtherRoles; i++) {
             createRole(
-                "role" + roleIdx++,
+                Strings.format("role_%03d", roleIdx++),
                 randomBoolean() ? null : randomDescription(),
                 randomBoolean() ? null : randomMetadata(),
                 randomApplicationPrivileges()
             );
         }
-        String query = """
+        String queryTemplate = """
             {"query":{"match":{"description":{"query":"ZZZZmatchZZZZ"}}},
              "size":1,
              "sort":[{"name":{"order":"desc"}},{"applications.resources":{"order":"asc"}}]
              %s
             }""";
-        AtomicReference<String> searchAfter = new AtomicReference<>();
+        AtomicReference<String> searchAfter = new AtomicReference<>("");
         Consumer<Map<String, Object>> searchAfterChain = roleMap -> {
             assertThat(roleMap.get("_sort"), instanceOf(List.class));
             assertThat(((List<String>) roleMap.get("_sort")), iterableWithSize(2));
@@ -333,22 +333,23 @@ public class QueryRoleIT extends SecurityInBasicRestTestCase {
                     + "]"
             );
         };
-        assertQuery(Strings.format(query, ""), 3, roles -> {
+        assertQuery(Strings.format(queryTemplate, searchAfter.get()), 3, roles -> {
             assertThat(roles, iterableWithSize(1));
             assertRoleMap(roles.get(0), thirdMatchingRole);
             searchAfterChain.accept(roles.get(0));
         });
-        assertQuery(Strings.format(query, searchAfter.get()), 3, roles -> {
+        assertQuery(Strings.format(queryTemplate, searchAfter.get()), 3, roles -> {
             assertThat(roles, iterableWithSize(1));
             assertRoleMap(roles.get(0), secondMatchingRole);
             searchAfterChain.accept(roles.get(0));
         });
-        assertQuery(Strings.format(query, searchAfter.get()), 3, roles -> {
+        assertQuery(Strings.format(queryTemplate, searchAfter.get()), 3, roles -> {
             assertThat(roles, iterableWithSize(1));
             assertRoleMap(roles.get(0), firstMatchingRole);
             searchAfterChain.accept(roles.get(0));
         });
-        assertQuery(Strings.format(query, searchAfter.get()), 3, roles -> assertThat(roles, emptyIterable()));
+        // no more results
+        assertQuery(Strings.format(queryTemplate, searchAfter.get()), 3, roles -> assertThat(roles, emptyIterable()));
     }
 
     @SuppressWarnings("unchecked")

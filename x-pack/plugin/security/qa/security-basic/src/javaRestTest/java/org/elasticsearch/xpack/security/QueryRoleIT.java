@@ -16,6 +16,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.ApplicationResourcePrivileges;
+import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -41,7 +42,7 @@ import static org.hamcrest.Matchers.emptyIterable;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.iterableWithSize;
 
-public class QueryRoleIT extends SecurityInBasicRestTestCase {
+public final class QueryRoleIT extends SecurityInBasicRestTestCase {
 
     private static final String READ_SECURITY_USER_AUTH_HEADER = "Basic cmVhZF9zZWN1cml0eV91c2VyOnJlYWQtc2VjdXJpdHktcGFzc3dvcmQ=";
 
@@ -95,7 +96,7 @@ public class QueryRoleIT extends SecurityInBasicRestTestCase {
     }
 
     public void testSearchMultipleMetadataFields() throws Exception {
-        RoleDescriptor noMetadata = createRole(
+        createRole(
             "noMetadataRole",
             randomBoolean() ? null : randomAlphaOfLength(8),
             randomBoolean() ? null : Map.of(),
@@ -107,7 +108,7 @@ public class QueryRoleIT extends SecurityInBasicRestTestCase {
             Map.of("simpleField1", "matchThis", "simpleField2", "butNotThis"),
             randomApplicationPrivileges()
         );
-        RoleDescriptor role2 = createRole(
+        createRole(
             "2" + randomAlphaOfLength(4),
             randomBoolean() ? null : randomAlphaOfLength(8),
             Map.of("simpleField2", "butNotThis"),
@@ -119,7 +120,7 @@ public class QueryRoleIT extends SecurityInBasicRestTestCase {
             Map.of("listField1", List.of("matchThis", "butNotThis"), "listField2", List.of("butNotThisToo")),
             randomApplicationPrivileges()
         );
-        RoleDescriptor role4 = createRole(
+        createRole(
             "4" + randomAlphaOfLength(4),
             randomBoolean() ? null : randomAlphaOfLength(8),
             Map.of("listField2", List.of("butNotThisToo", "andAlsoNotThis")),
@@ -137,7 +138,7 @@ public class QueryRoleIT extends SecurityInBasicRestTestCase {
             Map.of("mapField1", Map.of("innerField", "matchThis")),
             randomApplicationPrivileges()
         );
-        RoleDescriptor role7 = createRole(
+        createRole(
             "7" + randomAlphaOfLength(4),
             randomBoolean() ? null : randomAlphaOfLength(8),
             Map.of("mapField1", Map.of("innerField", "butNotThis")),
@@ -433,16 +434,21 @@ public class QueryRoleIT extends SecurityInBasicRestTestCase {
         );
     }
 
-    private Request queryRoleRequestWithAuth() {
+    private void assertQuery(String body, int total, Consumer<List<Map<String, Object>>> roleVerifier) throws IOException {
+        assertQuery(client(), body, total, roleVerifier);
+    }
+
+    private static Request queryRoleRequestWithAuth() {
         Request request = new Request(randomFrom("POST", "GET"), "/_security/_query/role");
         request.setOptions(request.getOptions().toBuilder().addHeader(HttpHeaders.AUTHORIZATION, READ_SECURITY_USER_AUTH_HEADER));
         return request;
     }
 
-    private void assertQuery(String body, int total, Consumer<List<Map<String, Object>>> roleVerifier) throws IOException {
+    public static void assertQuery(RestClient client, String body, int total, Consumer<List<Map<String, Object>>> roleVerifier)
+        throws IOException {
         Request request = queryRoleRequestWithAuth();
         request.setJsonEntity(body);
-        Response response = client().performRequest(request);
+        Response response = client.performRequest(request);
         assertOK(response);
         Map<String, Object> responseMap = responseAsMap(response);
         assertThat(responseMap.get("total"), is(total));
@@ -482,6 +488,10 @@ public class QueryRoleIT extends SecurityInBasicRestTestCase {
             }
             assertFalse(descriptorIterator.hasNext());
         }
+        // in this test suite all roles are always enabled
+        assertTrue(roleMap.containsKey("transient_metadata"));
+        assertThat(roleMap.get("transient_metadata"), Matchers.instanceOf(Map.class));
+        assertThat(((Map<String, Object>) roleMap.get("transient_metadata")).get("enabled"), equalTo(true));
     }
 
     private Map<String, Object> randomMetadata() {

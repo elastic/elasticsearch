@@ -37,8 +37,8 @@ WS
 // in 8.14 ` were not allowed
 // this has been relaxed in 8.15 since " is used for quoting
 fragment UNQUOTED_SOURCE_PART
-    : ~["=|,[\]/ \t\r\n]
-    | '/' ~[*/] // allow single / but not followed by another / or * which would start a comment
+    : ~[:"=|,[\]/ \t\r\n]
+    | '/' ~[*/] // allow single / but not followed by another / or * which would start a comment -- used in index pattern date spec
     ;
 
 UNQUOTED_SOURCE
@@ -204,6 +204,7 @@ mode FROM_MODE;
 FROM_PIPE : PIPE -> type(PIPE), popMode;
 FROM_OPENING_BRACKET : OPENING_BRACKET -> type(OPENING_BRACKET);
 FROM_CLOSING_BRACKET : CLOSING_BRACKET -> type(CLOSING_BRACKET);
+FROM_COLON : COLON -> type(COLON);
 FROM_COMMA : COMMA -> type(COMMA);
 FROM_ASSIGN : ASSIGN -> type(ASSIGN);
 METADATA : 'metadata';
@@ -348,6 +349,7 @@ ENRICH_FIELD_WS
 // LOOKUP ON key
 mode LOOKUP_MODE;
 LOOKUP_PIPE : PIPE -> type(PIPE), popMode;
+LOOKUP_COLON : COLON -> type(COLON);
 LOOKUP_COMMA : COMMA -> type(COMMA);
 LOOKUP_DOT: DOT -> type(DOT);
 LOOKUP_ON : ON -> type(ON), pushMode(LOOKUP_FIELD_MODE);
@@ -497,6 +499,10 @@ METRICS_WS
 
 // TODO: remove this workaround mode - see https://github.com/elastic/elasticsearch/issues/108528
 mode CLOSING_METRICS_MODE;
+
+CLOSING_METRICS_COLON
+    : COLON -> type(COLON), popMode, pushMode(METRICS_MODE)
+    ;
 
 CLOSING_METRICS_COMMA
     : COMMA -> type(COMMA), popMode, pushMode(METRICS_MODE)

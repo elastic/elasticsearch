@@ -365,11 +365,14 @@ public class StatementParserTests extends AbstractStatementParserTests {
             assertStringAsIndexPattern(".dot", command + " .dot");
 
             assertStringAsIndexPattern("cluster:index", command + " cluster:index");
+            assertStringAsIndexPattern("cluster:index|pattern", command + " cluster:\"index|pattern\"");
             assertStringAsIndexPattern("cluster:.index", command + " cluster:.index");
             assertStringAsIndexPattern("cluster*:index*", command + " cluster*:index*");
             assertStringAsIndexPattern("cluster*:*", command + " cluster*:*");
             assertStringAsIndexPattern("*:index*", command + " *:index*");
+            assertStringAsIndexPattern("*:index|pattern", command + " *:\"index|pattern\"");
             assertStringAsIndexPattern("*:*", command + " *:*");
+            assertStringAsIndexPattern("*:*,cluster*:index|pattern,i|p", command + " *:*, cluster*:\"index|pattern\", \"i|p\"");
         }
     }
 

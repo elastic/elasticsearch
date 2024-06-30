@@ -106,7 +106,16 @@ field
     ;
 
 fromCommand
-    : FROM indexString (COMMA indexString)* metadata?
+    : FROM indexPattern (COMMA indexPattern)* metadata?
+    ;
+
+indexPattern
+    : clusterString COLON indexString
+    | indexString
+    ;
+
+clusterString
+    : UNQUOTED_SOURCE
     ;
 
 indexString
@@ -128,7 +137,7 @@ deprecated_metadata
     ;
 
 metricsCommand
-    : METRICS indexString (COMMA indexString)* aggregates=fields? (BY grouping=fields)?
+    : METRICS indexPattern (COMMA indexPattern)* aggregates=fields? (BY grouping=fields)?
     ;
 
 evalCommand
@@ -281,5 +290,5 @@ enrichWithClause
     ;
 
 lookupCommand
-    : LOOKUP tableName=indexString ON matchFields=qualifiedNamePatterns
+    : LOOKUP tableName=indexPattern ON matchFields=qualifiedNamePatterns
     ;

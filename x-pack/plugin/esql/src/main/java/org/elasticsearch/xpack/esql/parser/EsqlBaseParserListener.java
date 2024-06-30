@@ -336,6 +336,26 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    */
   void exitFromCommand(EsqlBaseParser.FromCommandContext ctx);
   /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#indexPattern}.
+   * @param ctx the parse tree
+   */
+  void enterIndexPattern(EsqlBaseParser.IndexPatternContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#indexPattern}.
+   * @param ctx the parse tree
+   */
+  void exitIndexPattern(EsqlBaseParser.IndexPatternContext ctx);
+  /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#clusterString}.
+   * @param ctx the parse tree
+   */
+  void enterClusterString(EsqlBaseParser.ClusterStringContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#clusterString}.
+   * @param ctx the parse tree
+   */
+  void exitClusterString(EsqlBaseParser.ClusterStringContext ctx);
+  /**
    * Enter a parse tree produced by {@link EsqlBaseParser#indexString}.
    * @param ctx the parse tree
    */

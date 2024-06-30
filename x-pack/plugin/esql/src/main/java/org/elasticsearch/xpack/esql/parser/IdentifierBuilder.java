@@ -12,9 +12,10 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.xpack.esql.parser.EsqlBaseParser.IdentifierContext;
 import org.elasticsearch.xpack.esql.parser.EsqlBaseParser.IndexStringContext;
 
+import java.util.ArrayList;
 import java.util.List;
 
-import static org.elasticsearch.xpack.esql.core.parser.ParserUtils.visitList;
+import static org.elasticsearch.transport.RemoteClusterAware.REMOTE_CLUSTER_INDEX_SEPARATOR;
 
 abstract class IdentifierBuilder extends AbstractBuilder {
 
@@ -43,7 +44,14 @@ abstract class IdentifierBuilder extends AbstractBuilder {
         return n != null ? n.getText() : unquote(ctx.QUOTED_STRING().getText());
     }
 
-    public String visitIndexString(List<IndexStringContext> ctx) {
-        return Strings.collectionToDelimitedString(visitList(this, ctx, String.class), ",");
+    public String visitIndexPattern(List<EsqlBaseParser.IndexPatternContext> ctx) {
+        List<String> patterns = new ArrayList<>(ctx.size());
+        ctx.forEach(c -> {
+            String indexPattern = visitIndexString(c.indexString());
+            patterns.add(
+                c.clusterString() != null ? c.clusterString().getText() + REMOTE_CLUSTER_INDEX_SEPARATOR + indexPattern : indexPattern
+            );
+        });
+        return Strings.collectionToDelimitedString(patterns, ",");
     }
 }

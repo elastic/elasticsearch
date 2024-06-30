@@ -1,13 +1,13 @@
 [[rrf]]
 === Reciprocal rank fusion
 
-preview::["This functionality is in technical preview and may be changed or removed in a future release. The syntax will likely change before GA. Elastic will work to fix any issues, but features in technical preview are not subject to the support SLA of official GA features."]
+preview::["This functionality is in technical preview and may be changed or removed in a future release.
+The syntax will likely change before GA.
+Elastic will work to fix any issues, but features in technical preview are not subject to the support SLA of official GA features."]
 
 https://plg.uwaterloo.ca/~gvcormac/cormacksigir09-rrf.pdf[Reciprocal rank fusion (RRF)]
-is a method for combining multiple result sets with different relevance
-indicators into a single result set. RRF requires no tuning, and the different
-relevance indicators do not have to be related to each other to achieve high-quality
-results.
+is a method for combining multiple result sets with different relevance indicators into a single result set.
+RRF requires no tuning, and the different relevance indicators do not have to be related to each other to achieve high-quality results.
 
 RRF uses the following formula to determine the score for ranking each document:
 
@@ -31,15 +31,13 @@ return score
 [[rrf-api]]
 ==== Reciprocal rank fusion API
 
-You can use RRF as part of a <<search-search, search>> to combine and rank
-documents using separate sets of top documents (result sets) from a
-combination of <<retriever, child retrievers>> using an
-<<rrf-retriever, RRF retriever>>. A minimum of *two* child retrievers is
-required for ranking.
+You can use RRF as part of a <<search-search, search>> to combine and rank documents using separate sets of top documents (result sets) from a combination of <<retriever, child retrievers>> using an
+<<rrf-retriever, RRF retriever>>.
+A minimum of *two* child retrievers is required for ranking.
 
 An RRF retriever is an optional object defined as part of a search request's
-<<request-body-retriever, retriever parameter>>. The RRF retriever object contains
-the following parameters:
+<<request-body-retriever, retriever parameter>>.
+The RRF retriever object contains the following parameters:
 
 include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=rrf-retrievers]
 
@@ -82,21 +80,15 @@ GET example-index/_search
 ----
 // TEST[skip:example fragment]
 
-In the above example, we execute the `knn` and `standard` retrievers
-independently of each other. Then we use the `rrf` retriever to combine
-the results.
+In the above example, we execute the `knn` and `standard` retrievers independently of each other.
+Then we use the `rrf` retriever to combine the results.
 
-<1> First, we execute the kNN search specified by the `knn` retriever to
-get its global top 50 results.
-<2> Second, we execute the query specified by the `standard` retriever to get
-its global top 50 results.
-<3> Then, on a coordinating node, we combine the kNN search top documents with
-the query top documents and rank them based on the RRF formula using parameters from
-the `rrf` retriever to get the combined top documents using the default `size` of `10`.
+<1> First, we execute the kNN search specified by the `knn` retriever to get its global top 50 results.
+<2> Second, we execute the query specified by the `standard` retriever to get its global top 50 results.
+<3> Then, on a coordinating node, we combine the kNN search top documents with the query top documents and rank them based on the RRF formula using parameters from the `rrf` retriever to get the combined top documents using the default `size` of `10`.
 
-Note that if `k` from a knn search is larger than `rank_window_size`, the results are
-truncated to `rank_window_size`. If `k` is smaller than `rank_window_size`, the results are
-`k` size.
+Note that if `k` from a knn search is larger than `rank_window_size`, the results are truncated to `rank_window_size`.
+If `k` is smaller than `rank_window_size`, the results are `k` size.
 
 [[rrf-supported-features]]
 ==== Reciprocal rank fusion supported features
@@ -117,16 +109,13 @@ The `rrf` retriever does not currently support:
 * <<collapse-search-results, collapse>>
 * <<profiling-queries, profiling>>
 
-Using unsupported features as part of a search with an `rrf` retriever results
-in an exception.
+Using unsupported features as part of a search with an `rrf` retriever results in an exception.
 
 [[rrf-using-multiple-standard-retrievers]]
 ==== Reciprocal rank fusion using multiple standard retrievers
 
-The `rrf` retriever provides a way to combine and rank multiple
-`standard` retrievers. A primary use case is combining top documents
-from a traditional BM25 query and an <<semantic-search-elser, ELSER>>
-query to achieve improved relevance.
+The `rrf` retriever provides a way to combine and rank multiple `standard` retrievers.
+A primary use case is combining top documents from a traditional BM25 query and an <<semantic-search-elser, ELSER>> query to achieve improved relevance.
 
 An example request using RRF with multiple standard retrievers:
 
@@ -149,11 +138,10 @@ GET example-index/_search
                 {
                     "standard": { <2>
                         "query": {
-                            "text_expansion":{
-                                "ml.tokens":{
-                                    "model_id":"my_elser_model",
-                                    "model_text":"What blue shoes are on sale?"
-                                }
+                            "sparse_vector":{
+                                "field": "ml.tokens",
+                                "inference_id": "my_elser_model",
+                                "query": "What blue shoes are on sale?"
                             }
                         }
                     }
@@ -167,38 +155,28 @@ GET example-index/_search
 ----
 // TEST[skip:example fragment]
 
-In the above example, we execute each of the two `standard` retrievers
-independently of each other. Then we use the `rrf` retriever to combine
-the results.
+In the above example, we execute each of the two `standard` retrievers independently of each other.
+Then we use the `rrf` retriever to combine the results.
 
-<1> First we run the `standard` retriever
-specifying a term query for `blue shoes sales` using the standard BM25
-scoring algorithm.
-<2> Next we run the `standard` retriever specifying a
-text expansion query for `What blue shoes are on sale?`
+<1> First we run the `standard` retriever specifying a term query for `blue shoes sales` using the standard BM25 scoring algorithm.
+<2> Next we run the `standard` retriever specifying a sparse_vector query for `What blue shoes are on sale?`
 using our <<semantic-search-elser, ELSER>> scoring algorithm.
-<3> The `rrf` retriever allows us to combine the two top documents sets
-generated by completely independent scoring algorithms with equal weighting.
+<3> The `rrf` retriever allows us to combine the two top documents sets generated by completely independent scoring algorithms with equal weighting.
 
-Not only does this remove the need to figure out what the appropriate
-weighting is using linear combination, but RRF is also shown to give improved
-relevance over either query individually.
+Not only does this remove the need to figure out what the appropriate weighting is using linear combination, but RRF is also shown to give improved relevance over either query individually.
 
 [[rrf-using-sub-searches]]
 ==== Reciprocal rank fusion using sub searches
 
-RRF using sub searches is no longer supported. Use the
-<<retriever, retriever API>> instead. See
-<<rrf-using-multiple-standard-retrievers, using multiple standard retrievers>>
-for an example.
+RRF using sub searches is no longer supported.
+Use the <<retriever, retriever API>> instead.
+See <<rrf-using-multiple-standard-retrievers, using multiple standard retrievers>> for an example.
 
 [[rrf-full-example]]
 ==== Reciprocal rank fusion full example
 
-We begin by creating a mapping for an index with a text field, a vector field,
-and an integer field along with indexing several documents. For this example we
-are going to use a vector with only a single dimension to make the ranking easier
-to explain.
+We begin by creating a mapping for an index with a text field, a vector field, and an integer field along with indexing several documents.
+For this example we are going to use a vector with only a single dimension to make the ranking easier to explain.
 
 [source,console]
 ----
@@ -262,9 +240,7 @@ POST example-index/_refresh
 ----
 // TEST
 
-We now execute a search using an `rrf` retriever with a `standard` retriever
-specifying a BM25 query, a `knn` retriever specifying a kNN search, and
-a terms aggregation.
+We now execute a search using an `rrf` retriever with a `standard` retriever specifying a BM25 query, a `knn` retriever specifying a kNN search, and a terms aggregation.
 
 [source,console]
 ----
@@ -307,9 +283,8 @@ GET example-index/_search
 ----
 // TEST[continued]
 
-And we receive the response with ranked `hits` and the terms
-aggregation result. We have both the ranker's `score`
-and the `_rank` option to show our top-ranked documents.
+And we receive the response with ranked `hits` and the terms aggregation result.
+We have both the ranker's `score` and the `_rank` option to show our top-ranked documents.
 
 [source,console-response]
 ----
@@ -387,10 +362,8 @@ and the `_rank` option to show our top-ranked documents.
 ----
 // TESTRESPONSE[s/: \.\.\./: $body.$_path/]
 
-Let's break down how these hits were ranked. We
-start by running the `standard` retriever specifying a query
-and the `knn` retriever specifying a kNN search separately to
-collect what their individual hits are.
+Let's break down how these hits were ranked.
+We start by running the `standard` retriever specifying a query and the `knn` retriever specifying a kNN search separately to collect what their individual hits are.
 
 First, we look at the hits for the query from the `standard` retriever.
 
@@ -444,8 +417,8 @@ First, we look at the hits for the query from the `standard` retriever.
 <3> rank 3, `_id` 2
 <4> rank 4, `_id` 1
 
-Note that our first hit doesn't have a value for the `vector` field. Now,
-we look at the results for the kNN search from the `knn` retriever.
+Note that our first hit doesn't have a value for the `vector` field.
+Now, we look at the results for the kNN search from the `knn` retriever.
 
 [source,console-result]
 ----
@@ -497,9 +470,7 @@ we look at the results for the kNN search from the `knn` retriever.
 <3> rank 3, `_id` 1
 <4> rank 4, `_id` 5
 
-We can now take the two individually ranked result sets and apply the
-RRF formula to them using parameters from the `rrf` retriever to get
-our final ranking.
+We can now take the two individually ranked result sets and apply the RRF formula to them using parameters from the `rrf` retriever to get our final ranking.
 
 [source,python]
 ----
@@ -512,17 +483,14 @@ _id: 5 =             1.0/(1+4) = 0.2000
 ----
 // NOTCONSOLE
 
-We rank the documents based on the RRF formula with a `rank_window_size` of `5`
-truncating the bottom `2` docs in our RRF result set with a `size` of `3`.
-We end with `_id: 3` as `_rank: 1`, `_id: 2` as `_rank: 2`, and
-`_id: 4` as `_rank: 3`. This ranking matches the result set from the
-original RRF search as expected.
+We rank the documents based on the RRF formula with a `rank_window_size` of `5` truncating the bottom `2` docs in our RRF result set with a `size` of `3`.
+We end with `_id: 3` as `_rank: 1`, `_id: 2` as `_rank: 2`, and `_id: 4` as `_rank: 3`.
+This ranking matches the result set from the original RRF search as expected.
 
 ==== Explain in RRF
 
-In addition to individual query scoring details, we can make use of the `explain=true` parameter to get information on how
-the RRF scores for each document were computed. Working with the example above, and by adding
-`explain=true` to the search request, we'd now have a response that looks like the following:
+In addition to individual query scoring details, we can make use of the `explain=true` parameter to get information on how the RRF scores for each document were computed.
+Working with the example above, and by adding `explain=true` to the search request, we'd now have a response that looks like the following:
 
 [source,js]
 ----
@@ -585,8 +553,8 @@ the RRF scores for each document were computed. Working with the example above, 
 <6> the `value` heres specifies the `rank` of this document for the second (`knn`) query
 
 In addition to the above, explain in RRF also supports <<named-queries,named queries>> using the `_name` parameter.
-Using named queries allows for easier and more intuitive understanding of the RRF score computation,
-especially when dealing with multiple queries. So, we would now have:
+Using named queries allows for easier and more intuitive understanding of the RRF score computation, especially when dealing with multiple queries.
+So, we would now have:
 
 [source,js]
 ----
@@ -632,6 +600,7 @@ GET example-index/_search
 <1> Here we specify a `_name` for the `knn` retriever
 
 The response would now include the named query in the explanation:
+
 [source,js]
 ----
 {
@@ -677,25 +646,19 @@ The response would now include the named query in the explanation:
 ==== Pagination in RRF
 
 When using `rrf` you can paginate through the results using the `from` parameter.
-As the final ranking is solely dependent on the original query ranks, to ensure
-consistency when paginating, we have to make sure that while `from` changes, the order
-of what we have already seen remains intact. To that end, we're using a fixed `rank_window_size`
-as the whole available result set upon which we can paginate.
+As the final ranking is solely dependent on the original query ranks, to ensure consistency when paginating, we have to make sure that while `from` changes, the order of what we have already seen remains intact.
+To that end, we're using a fixed `rank_window_size` as the whole available result set upon which we can paginate.
 This essentially means that if:
 
-* `from + size` &le; `rank_window_size` : we could get  `results[from: from+size]` documents back from
-the final `rrf` ranked result set
+* `from + size` &le; `rank_window_size` : we could get  `results[from: from+size]` documents back from the final `rrf` ranked result set
 
-* `from + size` &gt; `rank_window_size` : we would get 0 results back, as the request would fall outside the
-available `rank_window_size`-sized result set.
+* `from + size` &gt; `rank_window_size` : we would get 0 results back, as the request would fall outside the available `rank_window_size`-sized result set.
 
-An important thing to note here is that since `rank_window_size` is all the results that we'll get to see
-from the individual query components, pagination guarantees consistency,  i.e. no documents are skipped
-or duplicated in multiple pages, iff `rank_window_size` remains the same. If `rank_window_size` changes, then the order
-of the results might change as well, even for the same ranks.
+An important thing to note here is that since `rank_window_size` is all the results that we'll get to see from the individual query components, pagination guarantees consistency, i.e. no documents are skipped or duplicated in multiple pages, iff `rank_window_size` remains the same.
+If `rank_window_size` changes, then the order of the results might change as well, even for the same ranks.
 
-To illustrate all of the above, let's consider the following simplified example where we have
-two queries, `queryA` and `queryB` and their ranked documents:
+To illustrate all of the above, let's consider the following simplified example where we have two queries, `queryA` and `queryB` and their ranked documents:
+
 [source,python]
 ----
      |  queryA   |  queryB    |
@@ -709,6 +672,7 @@ _id: |           |  2         |
 
 For `rank_window_size=5` we would get to see all documents from both `queryA` and `queryB`.
 Assuming a `rank_constant=1`, the `rrf` scores would be:
+
 [source,python]
 ----
 # doc   | queryA     | queryB       | score
@@ -720,17 +684,17 @@ _id: 5 =    0        + 1.0/(1+1)      = 0.5
 ----
 // NOTCONSOLE
 
-So the final ranked result set would be [`1`, `4`, `2`, `3`, `5`] and we would paginate over that, since
-`rank_window_size == len(results)`. In this scenario, we would have:
+So the final ranked result set would be [`1`, `4`, `2`, `3`, `5`] and we would paginate over that, since `rank_window_size == len(results)`.
+In this scenario, we would have:
 
 * `from=0, size=2` would return documents [`1`, `4`] with ranks `[1, 2]`
 * `from=2, size=2` would return documents [`2`, `3`] with ranks `[3, 4]`
 * `from=4, size=2` would return document [`5`] with rank `[5]`
 * `from=6, size=2` would return an empty result set as it there are no more results to iterate over
 
-Now, if we had a `rank_window_size=2`, we would only get to see `[1, 2]` and `[5, 4]` documents
-for queries `queryA` and `queryB` respectively. Working out the math, we would see that the results would now
-be slightly different, because we would have no knowledge of the documents in positions `[3: end]` for either query.
+Now, if we had a `rank_window_size=2`, we would only get to see `[1, 2]` and `[5, 4]` documents for queries `queryA` and `queryB` respectively.
+Working out the math, we would see that the results would now be slightly different, because we would have no knowledge of the documents in positions `[3: end]` for either query.
+
 [source,python]
 ----
 # doc   | queryA     | queryB         | score
@@ -741,8 +705,8 @@ _id: 5 =    0        + 1.0/(1+1)      = 0.5
 ----
 // NOTCONSOLE
 
-The final ranked result set would be [`1`, `5`, `2`, `4`], and we would be able to paginate
-on the top `rank_window_size` results, i.e. [`1`, `5`]. So for the same params as above, we would now have:
+The final ranked result set would be [`1`, `5`, `2`, `4`], and we would be able to paginate on the top `rank_window_size` results, i.e. [`1`, `5`].
+So for the same params as above, we would now have:
 
 * `from=0, size=2` would return [`1`, `5`] with ranks `[1, 2]`
 * `from=2, size=2` would return an empty result set as it would fall outside the available `rank_window_size` results.

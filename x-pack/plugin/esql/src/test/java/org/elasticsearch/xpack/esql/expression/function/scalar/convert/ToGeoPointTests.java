@@ -15,7 +15,7 @@ import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
+import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.FunctionName;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 
@@ -27,7 +27,7 @@ import java.util.function.Supplier;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
 
 @FunctionName("to_geopoint")
-public class ToGeoPointTests extends AbstractFunctionTestCase {
+public class ToGeoPointTests extends AbstractScalarFunctionTestCase {
     public ToGeoPointTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }

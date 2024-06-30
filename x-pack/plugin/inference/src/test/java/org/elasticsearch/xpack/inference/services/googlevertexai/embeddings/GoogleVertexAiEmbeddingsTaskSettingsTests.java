@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.inference.external.response.googlevertexai;
+package org.elasticsearch.xpack.inference.services.googlevertexai.embeddings;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
@@ -16,8 +16,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
-import org.elasticsearch.xpack.inference.services.googlevertexai.embeddings.GoogleVertexAiEmbeddingsRequestTaskSettings;
-import org.elasticsearch.xpack.inference.services.googlevertexai.embeddings.GoogleVertexAiEmbeddingsTaskSettings;
 
 import java.io.IOException;
 import java.util.HashMap;

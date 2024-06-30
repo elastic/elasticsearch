@@ -15,40 +15,49 @@
         "@timestamp": {
           "type": "date_nanos"
         },
+        "start_time": {
+          "type": "date_nanos"
+        },
+        "metrics": {
+          "type": "passthrough",
+          "dynamic": true,
+          "priority": 1
+        },
         "attributes": {
           "type": "passthrough",
           "time_series_dimension": true,
-          "dynamic": true
+          "dynamic": true,
+          "priority": 2
         },
-        "resource": {
-          "properties": {
-            "attributes": {
-              "type": "passthrough",
-              "time_series_dimension": true,
-              "dynamic": true
-            }
-          }
+        "unit": {
+          "type": "keyword",
+          "time_series_dimension": true,
+          "ignore_above": 1024
         },
         "scope": {
           "properties": {
             "attributes": {
               "type": "passthrough",
               "time_series_dimension": true,
-              "dynamic": true
+              "dynamic": true,
+              "priority": 3
             }
           }
         },
-        "start_time": {
-          "type": "date_nanos"
-        },
-        "metrics": {
-          "type": "passthrough",
-          "dynamic": true
+        "resource": {
+          "properties": {
+            "attributes": {
+              "type": "passthrough",
+              "time_series_dimension": true,
+              "dynamic": true,
+              "priority": 4
+            }
+          }
         }
       },
       "dynamic_templates": [
         {
-          "histograms": {
+          "histogram": {
             "mapping": {
               "type": "histogram",
               "ignore_malformed": true
@@ -56,21 +65,82 @@
           }
         },
         {
-          "counter": {
+          "counter_long": {
             "mapping": {
-              "type": "{dynamic_type}",
+              "type": "long",
               "time_series_metric": "counter",
               "ignore_malformed": true
             }
           }
         },
         {
-          "gauge": {
+          "gauge_long": {
             "mapping": {
-              "type": "{dynamic_type}",
+              "type": "long",
               "time_series_metric": "gauge",
               "ignore_malformed": true
             }
+          }
+        },
+        {
+          "counter_double": {
+            "mapping": {
+              "type": "double",
+              "time_series_metric": "counter",
+              "ignore_malformed": true
+            }
+          }
+        },
+        {
+          "gauge_double": {
+            "mapping": {
+              "type": "double",
+              "time_series_metric": "gauge",
+              "ignore_malformed": true
+            }
+          }
+        },
+        {
+          "summary_gauge": {
+            "mapping": {
+              "type": "aggregate_metric_double",
+              "time_series_metric": "gauge",
+              "ignore_malformed": true
+            }
+          }
+        },
+        {
+          "summary_counter": {
+            "mapping": {
+              "type": "aggregate_metric_double",
+              "time_series_metric": "counter",
+              "ignore_malformed": true
+            }
+          }
+        },
+        {
+          "ip": {
+            "mapping": {
+              "type": "ip",
+              "ignore_malformed": true
+            },
+            "path_match": [
+              "*attributes.*.ip",
+              "*attributes.*_ip"
+            ],
+            "match_mapping_type": "string"
+          }
+        },
+        {
+          "attribute_strings_to_keywords": {
+            "mapping": {
+              "ignore_above": 1024,
+              "type": "keyword"
+            },
+            "path_match": [
+              "*attributes.*"
+            ],
+            "match_mapping_type": "string"
           }
         }
       ]

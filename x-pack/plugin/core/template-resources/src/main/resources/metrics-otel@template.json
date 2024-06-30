@@ -4,11 +4,10 @@
   "data_stream": {},
   "composed_of": [
     "metrics@tsdb-settings",
-    "metrics@custom",
-    "metrics-otel@custom",
     "otel@mappings",
     "metrics-otel@mappings",
-    "ecs@mappings"
+    "metrics@custom",
+    "metrics-otel@custom"
   ],
   "ignore_missing_component_templates": ["metrics@custom", "metrics-otel@custom"],
   "allow_auto_create": true,

@@ -5,10 +5,10 @@
   "composed_of": [
     "logs@mappings",
     "logs@settings",
-    "logs@custom",
-    "logs-otel@custom",
     "otel@mappings",
     "logs-otel@mappings",
+    "logs@custom",
+    "logs-otel@custom",
     "ecs@mappings"
   ],
   "ignore_missing_component_templates": ["logs@custom", "logs-otel@custom"],

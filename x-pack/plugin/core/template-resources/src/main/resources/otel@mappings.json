@@ -9,42 +9,48 @@
         },
         "attributes": {
           "type": "passthrough",
-          "dynamic": true
+          "dynamic": true,
+          "priority": 1
         },
         "dropped_attributes_count": {
           "type": "long"
         },
-        "resource": {
-          "properties": {
-            "schema_url": {
-              "type": "keyword"
-            },
-            "dropped_attributes_count": {
-              "type": "long"
-            },
-            "attributes": {
-              "type": "passthrough",
-              "dynamic": true
-            }
-          }
-        },
         "scope": {
           "properties": {
             "name": {
-              "type": "keyword"
+              "type": "keyword",
+              "ignore_above": 1024
             },
             "version": {
               "type": "version"
             },
             "schema_url": {
-              "type": "keyword"
+              "type": "keyword",
+              "ignore_above": 1024
             },
             "dropped_attributes_count": {
               "type": "long"
             },
             "attributes": {
               "type": "passthrough",
-              "dynamic": true
+              "dynamic": true,
+              "priority": 2
+            }
+          }
+        },
+        "resource": {
+          "properties": {
+            "schema_url": {
+              "type": "keyword",
+              "ignore_above": 1024
+            },
+            "dropped_attributes_count": {
+              "type": "long"
+            },
+            "attributes": {
+              "type": "passthrough",
+              "dynamic": true,
+              "priority": 3
             }
           }
         }

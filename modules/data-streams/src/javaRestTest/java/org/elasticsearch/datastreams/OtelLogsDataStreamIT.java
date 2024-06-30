@@ -8,37 +8,16 @@
 
 package org.elasticsearch.datastreams;
 
-import org.elasticsearch.client.Request;
-import org.elasticsearch.client.RestClient;
-import org.junit.After;
-import org.junit.Before;
-
-import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.datastreams.LogsDataStreamIT.createDataStream;
-import static org.elasticsearch.datastreams.LogsDataStreamIT.getMappingProperties;
-import static org.elasticsearch.datastreams.LogsDataStreamIT.getValueFromPath;
-import static org.elasticsearch.datastreams.LogsDataStreamIT.getWriteBackingIndex;
-import static org.elasticsearch.datastreams.LogsDataStreamIT.indexDoc;
-import static org.elasticsearch.datastreams.LogsDataStreamIT.searchDocs;
-import static org.elasticsearch.datastreams.LogsDataStreamIT.waitForIndexTemplate;
 import static org.hamcrest.Matchers.is;
 
-public class OtelLogsDataStreamIT extends DisabledSecurityDataStreamTestCase {
+public class OtelLogsDataStreamIT extends AbstractDataStreamIT {
 
-    private RestClient client;
-
-    @Before
-    public void setup() throws Exception {
-        client = client();
-        waitForIndexTemplate(client, "logs-otel@template");
-    }
-
-    @After
-    public void cleanUp() throws IOException {
-        adminClient().performRequest(new Request("DELETE", "_data_stream/*"));
+    @Override
+    protected String indexTemplateName() {
+        return "logs-otel@template";
     }
 
     @SuppressWarnings("unchecked")

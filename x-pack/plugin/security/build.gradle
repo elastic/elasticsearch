@@ -153,9 +153,9 @@ dependencies {
   testImplementation('org.apache.directory.mavibot:mavibot:1.0.0-M8')
 
   // netty self signed certificate dependency
-  testImplementation('org.bouncycastle:bcprov-jdk18on:1.78.1')
-  testImplementation ('org.bouncycastle:bcutil-jdk18on:1.78.1')
-  testImplementation('org.bouncycastle:bcpkix-jdk18on:1.78.1')
+  testImplementation("org.bouncycastle:bcprov-jdk18on:${versions.bouncycastle}")
+  testImplementation("org.bouncycastle:bcutil-jdk18on:${versions.bouncycastle}")
+  testImplementation("org.bouncycastle:bcpkix-jdk18on:${versions.bouncycastle}")
 }
 
 tasks.named("test").configure {

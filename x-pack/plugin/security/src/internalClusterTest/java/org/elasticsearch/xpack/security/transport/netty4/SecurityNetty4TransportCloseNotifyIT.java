@@ -34,23 +34,17 @@ import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
-import org.elasticsearch.test.ESIntegTestCase.Scope;
-import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.SecurityIntegTestCase;
 
+import java.security.cert.CertificateException;
 import java.util.Collection;
-import java.util.concurrent.ArrayBlockingQueue;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.test.TaskAssertions.assertAllTasksHaveFinished;
 import static org.elasticsearch.test.rest.ESRestTestCase.basicAuthHeaderValue;
 
-@ClusterScope(numDataNodes = 0, scope = Scope.TEST)
-@ESTestCase.WithoutSecurityManager
-@SuppressForbidden(reason = "requires java.io.File for netty self-signed certificate")
 public class SecurityNetty4TransportCloseNotifyIT extends SecurityIntegTestCase {
 
     @Override
@@ -58,19 +52,26 @@ public class SecurityNetty4TransportCloseNotifyIT extends SecurityIntegTestCase 
         return false;
     }
 
-    @Override
-    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+    @SuppressForbidden(reason = "BouncyCastle SelfSignedCertificate uses forbidden java.io.File API")
+    private static Settings selfSignedCertificateSettings() {
         try {
             var ssc = new SelfSignedCertificate();
             return Settings.builder()
-                .put(super.nodeSettings(nodeOrdinal, otherSettings))
-                .put("xpack.security.http.ssl.enabled", true)
                 .put("xpack.security.http.ssl.key", ssc.privateKey().getPath())
                 .put("xpack.security.http.ssl.certificate", ssc.certificate().getPath())
                 .build();
-        } catch (Exception e) {
-            throw new RuntimeException(e);
+        } catch (CertificateException e) {
+            throw new AssertionError(e);
         }
+    }
+
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+        return Settings.builder()
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
+            .put("xpack.security.http.ssl.enabled", true)
+            .put(selfSignedCertificateSettings())
+            .build();
     }
 
     @Override
@@ -78,7 +79,7 @@ public class SecurityNetty4TransportCloseNotifyIT extends SecurityIntegTestCase 
         return CollectionUtils.appendToCopy(super.nodePlugins(), CancellableActionTestPlugin.class);
     }
 
-    Bootstrap setupNettyClient(String node, Consumer<FullHttpResponse> responseHandler) throws Exception {
+    private static Bootstrap setupNettyClient(String node, Consumer<FullHttpResponse> responseHandler) throws Exception {
         var sslCtx = SslContextBuilder.forClient().trustManager(InsecureTrustManagerFactory.INSTANCE).build();
         var httpServer = internalCluster().getInstance(HttpServerTransport.class, node);
         var remoteAddr = randomFrom(httpServer.boundAddress().boundAddresses());
@@ -109,26 +110,30 @@ public class SecurityNetty4TransportCloseNotifyIT extends SecurityIntegTestCase 
      * After an exchange client sends close_notify and expects the server to close connection.
      */
     public void testSendCloseNotifyAfterHttpGetRequests() throws Exception {
-        var node = internalCluster().startNode();
-        var serverRespQueue = new ArrayBlockingQueue<FullHttpResponse>(10);
-        var client = setupNettyClient(node, serverRespQueue::add);
+        final var nReq = randomIntBetween(0, 10); // nothing particular about number 10
+        final var responsesReceivedLatch = new CountDownLatch(nReq);
+        final var client = setupNettyClient(internalCluster().getRandomNodeName(), response -> {
+            assertEquals(200, response.status().code());
+            responsesReceivedLatch.countDown();
+        });
         try {
             var channel = client.connect().sync().channel();
 
             // send some HTTP GET requests before closing a channel
-            var nReq = randomIntBetween(1, 10); // nothing particular about number 10
             for (int i = 0; i < nReq; i++) {
-                var req = newHttpGetReq("/");
-                channel.writeAndFlush(req).get(5, TimeUnit.SECONDS);
+                channel.write(newHttpGetReq("/"));
+                if (randomBoolean()) {
+                    channel.flush();
+                }
             }
-            assertBusy(() -> assertEquals(nReq, serverRespQueue.size()));
-            assertTrue(serverRespQueue.stream().allMatch(resp -> resp.status().code() == 200));
+            channel.flush();
+            safeAwait(responsesReceivedLatch);
 
             // send close_notify alert and wait for channel closure
             var sslHandler = channel.pipeline().get(SslHandler.class);
             sslHandler.closeOutbound();
             try {
-                assertTrue("server must close connection", channel.closeFuture().await(5000));
+                assertTrue("server must close connection", channel.closeFuture().await(SAFE_AWAIT_TIMEOUT.millis()));
             } finally {
                 channel.close().sync();
             }
@@ -141,7 +146,7 @@ public class SecurityNetty4TransportCloseNotifyIT extends SecurityIntegTestCase 
      * Ensures that receiving close_notify will close connection and cancel running action.
      */
     public void testSendCloseNotifyCancelAction() throws Exception {
-        var node = internalCluster().startNode();
+        var node = internalCluster().getRandomNodeName();
         var indexName = "close-notify-cancel";
         createIndex(indexName);
         ensureGreen(indexName);
@@ -155,7 +160,7 @@ public class SecurityNetty4TransportCloseNotifyIT extends SecurityIntegTestCase 
             var ssl = channel.pipeline().get(SslHandler.class);
             capturingAction.captureAndCancel(ssl::closeOutbound);
             try {
-                assertTrue("server must close connection", channel.closeFuture().await(5000));
+                assertTrue("server must close connection", channel.closeFuture().await(SAFE_AWAIT_TIMEOUT.millis()));
                 assertAllTasksHaveFinished(actionName);
                 assertFalse("must cancel action before http response", gotResponse.get());
             } finally {

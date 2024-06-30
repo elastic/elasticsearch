@@ -123,12 +123,6 @@ grant codeBase "${codebase.netty-transport}" {
    permission java.net.SocketPermission "*", "accept,connect";
 };
 
-grant codeBase "${codebase.bcprov-jdk18on}" {
-    permission java.lang.RuntimePermission "accessClassInPackage.sun.security.x509";
-    permission java.security.SecurityPermission "getProperty.org.bouncycastle.*";
-    permission java.security.SecurityPermission "removeProviderProperty.BC";
-};
-
 grant {
   permission java.net.SocketPermission "127.0.0.1", "accept, connect, resolve";
   permission java.nio.file.LinkPermission "symbolic";

@@ -34,6 +34,7 @@ import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.SecurityIntegTestCase;
 
 import java.security.cert.CertificateException;
@@ -45,6 +46,7 @@ import java.util.function.Consumer;
 import static org.elasticsearch.test.TaskAssertions.assertAllTasksHaveFinished;
 import static org.elasticsearch.test.rest.ESRestTestCase.basicAuthHeaderValue;
 
+@ESTestCase.WithoutSecurityManager
 public class SecurityNetty4TransportCloseNotifyIT extends SecurityIntegTestCase {
 
     @Override

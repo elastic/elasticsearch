@@ -49,6 +49,7 @@ setup:
                 task_type: text_embedding
                 dimensions: 4
                 similarity: cosine
+                element_type: float
               chunks:
                 - text: "these are not the droids you're looking for"
                   embeddings: [0.04673296958208084, -0.03237321600317955, -0.02543032355606556, 0.056035321205854416]
@@ -73,6 +74,7 @@ setup:
                 task_type: text_embedding
                 dimensions: 5
                 similarity: cosine
+                element_type: float
               chunks:
                 - text: "other text"
                   embeddings: [0.04673296958208084, -0.03237321600317955, -0.02543032355606556, 0.056035321205854416, 0.053438711911439896]
@@ -94,6 +96,7 @@ setup:
                 task_type: text_embedding
                 dimensions: 4
                 similarity: cosine
+                element_type: float
               chunks:
                 - text: "other text"
                   embeddings: [0.04673296958208084, -0.03237321600317955, -0.02543032355606556, 0.056035321205854416]
@@ -115,6 +118,29 @@ setup:
                 task_type: text_embedding
                 dimensions: 4
                 similarity: dot_product
+                element_type: float
+              chunks:
+                - text: "other text"
+                  embeddings: [0.04673296958208084, -0.03237321600317955, -0.02543032355606556, 0.056035321205854416]
+
+---
+"Fails for non-compatible element type":
+
+  - do:
+      catch: /Incompatible model settings for field \[dense_field\].+/
+      index:
+        index: test-index
+        id: doc_2
+        body:
+          dense_field:
+            text: "other text"
+            inference:
+              inference_id: dense-inference-id
+              model_settings:
+                task_type: text_embedding
+                dimensions: 4
+                similarity: cosine
+                element_type: byte
               chunks:
                 - text: "other text"
                   embeddings: [0.04673296958208084, -0.03237321600317955, -0.02543032355606556, 0.056035321205854416]
@@ -159,6 +185,7 @@ setup:
                 task_type: text_embedding
                 dimensions: 4
                 similarity: cosine
+                element_type: float
               chunks:
                 - text: "these are not the droids you're looking for"
                   embeddings: [0.04673296958208084, -0.03237321600317955, -0.02543032355606556, 0.056035321205854416]
@@ -180,6 +207,7 @@ setup:
                 task_type: text_embedding
                 dimensions: 4
                 similarity: cosine
+                element_type: float
               chunks:
                 - text: "these are not the droids you're looking for"
 
@@ -218,6 +246,7 @@ setup:
                 task_type: text_embedding
                 dimensions: 4
                 similarity: cosine
+                element_type: float
               chunks:
                 - embeddings: [ 0.04673296958208084, -0.03237321600317955, -0.02543032355606556, 0.056035321205854416 ]
 

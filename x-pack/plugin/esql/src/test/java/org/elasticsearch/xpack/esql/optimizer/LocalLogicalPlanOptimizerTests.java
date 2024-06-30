@@ -34,7 +34,9 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
+import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
+import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
@@ -179,6 +181,37 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
 
         var limit = as(project.child(), Limit.class);
         var source = as(limit.child(), EsRelation.class);
+    }
+
+    /**
+     * Expects
+     * EsqlProject[[first_name{f}#6]]
+     * \_Limit[1000[INTEGER]]
+     *   \_MvExpand[last_name{f}#9,last_name{r}#15]
+     *     \_Limit[1000[INTEGER]]
+     *       \_EsRelation[test][_meta_field{f}#11, emp_no{f}#5, first_name{f}#6, ge..]
+     */
+    public void testMissingFieldInMvExpand() {
+        var plan = plan("""
+              from test
+            | mv_expand last_name
+            | keep first_name, last_name
+            """);
+
+        var testStats = statsForMissingField("last_name");
+        var localPlan = localPlan(plan, testStats);
+
+        var project = as(localPlan, EsqlProject.class);
+        var projections = project.projections();
+        assertThat(Expressions.names(projections), contains("first_name", "last_name"));
+
+        var limit = as(project.child(), Limit.class);
+        // MvExpand cannot be optimized (yet) because the target NamedExpression cannot be replaced with a NULL literal
+        // https://github.com/elastic/elasticsearch/issues/109974
+        // See LocalLogicalPlanOptimizer.ReplaceMissingFieldWithNull
+        var mvExpand = as(limit.child(), MvExpand.class);
+        var limit2 = as(mvExpand.child(), Limit.class);
+        as(limit2.child(), EsRelation.class);
     }
 
     /**

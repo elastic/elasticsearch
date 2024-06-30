@@ -87,6 +87,7 @@ public class OtelLogsDataStreamIT extends AbstractDataStreamIT {
         assertThat(fields.get("@timestamp"), is(List.of("2023-07-03T14:34:24.123456789Z")));
 
         Map<String, Object> properties = getMappingProperties(client, getWriteBackingIndex(client, dataStream));
+        assertThat(getValueFromPath(properties, List.of("@timestamp", "type")), is("date_nanos"));
         assertThat(
             getValueFromPath(properties, List.of("resource", "properties", "attributes", "properties", "service.name", "type")),
             is("keyword")

@@ -4,17 +4,33 @@
       "date_detection": false,
       "dynamic": "strict",
       "properties": {
+        "data_stream.namespace": {
+          "type": "constant_keyword",
+          "value": "traces"
+        },
         "trace_id": {
           "type": "keyword"
         },
+        "trace.id": {
+          "type": "alias",
+          "path": "trace_id"
+        },
         "span_id": {
           "type": "keyword"
+        },
+        "span.id": {
+          "type": "alias",
+          "path": "span_id"
         },
         "trace_state": {
           "type": "keyword"
         },
         "parent_span_id": {
           "type": "keyword"
+        },
+        "parent.id": {
+          "type": "alias",
+          "path": "parent_span_id"
         },
         "trace_flags": {
           "type": "byte"
@@ -24,6 +40,10 @@
         },
         "name": {
           "type": "keyword"
+        },
+        "span.name": {
+          "type": "alias",
+          "path": "name"
         },
         "kind": {
           "type": "keyword"

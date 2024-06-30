@@ -6,6 +6,7 @@
     "metrics@tsdb-settings",
     "otel@mappings",
     "metrics-otel@mappings",
+    "semconv-resource-to-ecs@mappings",
     "metrics@custom",
     "metrics-otel@custom",
     "ecs-tsdb@mappings"

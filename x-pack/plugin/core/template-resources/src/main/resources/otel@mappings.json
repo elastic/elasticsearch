@@ -7,10 +7,20 @@
         "@timestamp": {
           "type": "date_nanos"
         },
+        "data_stream.type": {
+          "type": "constant_keyword"
+        },
+        "data_stream.dataset": {
+          "type": "constant_keyword"
+        },
+        "data_stream.namespace": {
+          "type": "constant_keyword"
+        },
         "attributes": {
           "type": "passthrough",
           "dynamic": true,
-          "priority": 1
+          "priority": 10,
+          "time_series_dimension": true
         },
         "dropped_attributes_count": {
           "type": "long"
@@ -34,7 +44,8 @@
             "attributes": {
               "type": "passthrough",
               "dynamic": true,
-              "priority": 2
+              "priority": 20,
+              "time_series_dimension": true
             }
           }
         },
@@ -50,7 +61,8 @@
             "attributes": {
               "type": "passthrough",
               "dynamic": true,
-              "priority": 3
+              "priority": 30,
+              "time_series_dimension": true
             }
           }
         }

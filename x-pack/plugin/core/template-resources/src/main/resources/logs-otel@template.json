@@ -7,6 +7,7 @@
     "logs@settings",
     "otel@mappings",
     "logs-otel@mappings",
+    "semconv-resource-to-ecs@mappings",
     "logs@custom",
     "logs-otel@custom",
     "ecs@mappings"

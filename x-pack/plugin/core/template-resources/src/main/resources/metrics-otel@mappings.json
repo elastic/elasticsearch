@@ -6,15 +6,6 @@
           "type": "constant_keyword",
           "value": "metrics"
         },
-        "data_stream.dataset": {
-          "type": "constant_keyword"
-        },
-        "data_stream.namespace": {
-          "type": "constant_keyword"
-        },
-        "@timestamp": {
-          "type": "date_nanos"
-        },
         "start_time": {
           "type": "date_nanos"
         },
@@ -23,36 +14,10 @@
           "dynamic": true,
           "priority": 1
         },
-        "attributes": {
-          "type": "passthrough",
-          "time_series_dimension": true,
-          "dynamic": true,
-          "priority": 2
-        },
         "unit": {
           "type": "keyword",
           "time_series_dimension": true,
           "ignore_above": 1024
-        },
-        "scope": {
-          "properties": {
-            "attributes": {
-              "type": "passthrough",
-              "time_series_dimension": true,
-              "dynamic": true,
-              "priority": 3
-            }
-          }
-        },
-        "resource": {
-          "properties": {
-            "attributes": {
-              "type": "passthrough",
-              "time_series_dimension": true,
-              "dynamic": true,
-              "priority": 4
-            }
-          }
         }
       },
       "dynamic_templates": [

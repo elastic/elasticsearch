@@ -75,6 +75,7 @@ public class OtelMetircsDataStreamIT extends AbstractDataStreamIT {
         assertThat(new WriteField("aggregations.avg_value.value", () -> response).get(-1), equalTo(42.0));
 
         Map<String, Object> properties = getMappingProperties(client, getWriteBackingIndex(client, dataStream));
+        assertThat(getValueFromPath(properties, List.of("@timestamp", "type")), is("date_nanos"));
         assertThat(getValueFromPath(properties, List.of("scope", "properties", "name", "type")), is("keyword"));
         assertThat(getValueFromPath(properties, List.of("metrics", "properties", "my.gauge", "type")), is("long"));
         assertThat(getValueFromPath(properties, List.of("metrics", "properties", "my.gauge", "time_series_metric")), is("gauge"));
@@ -82,5 +83,12 @@ public class OtelMetircsDataStreamIT extends AbstractDataStreamIT {
         assertThat(getValueFromPath(properties, List.of("attributes", "properties", "host.ip", "type")), is("ip"));
         assertThat(getValueFromPath(properties, List.of("attributes", "properties", "foo", "type")), is("keyword"));
         assertThat(getValueFromPath(properties, List.of("attributes", "properties", "foo", "ignore_above")), is(1024));
+        assertThat(
+            getValueFromPath(
+                properties,
+                List.of("resource", "properties", "attributes", "properties", "service.name", "time_series_dimension")
+            ),
+            is(true)
+        );
     }
 }

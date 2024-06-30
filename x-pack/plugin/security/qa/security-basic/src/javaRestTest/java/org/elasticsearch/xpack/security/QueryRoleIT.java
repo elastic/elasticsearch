@@ -26,6 +26,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
@@ -251,6 +252,106 @@ public class QueryRoleIT extends SecurityInBasicRestTestCase {
     }
 
     @SuppressWarnings("unchecked")
+    public void testSortWithPagination() throws IOException {
+        int roleIdx = 0;
+        // some non-matching roles
+        int nOtherRoles = randomIntBetween(0, 5);
+        for (int i = 0; i < nOtherRoles; i++) {
+            createRole(
+                "role" + roleIdx++,
+                randomBoolean() ? null : randomDescription(),
+                randomBoolean() ? null : randomMetadata(),
+                randomApplicationPrivileges()
+            );
+        }
+        // first matching role
+        RoleDescriptor firstMatchingRole = createRole(
+            "role" + roleIdx++,
+            "some ZZZZmatchZZZZ descr",
+            randomBoolean() ? null : randomMetadata(),
+            randomApplicationPrivileges()
+        );
+        nOtherRoles = randomIntBetween(0, 5);
+        for (int i = 0; i < nOtherRoles; i++) {
+            createRole(
+                "role" + roleIdx++,
+                randomBoolean() ? null : randomDescription(),
+                randomBoolean() ? null : randomMetadata(),
+                randomApplicationPrivileges()
+            );
+        }
+        // second matching role
+        RoleDescriptor secondMatchingRole = createRole(
+            "role" + roleIdx++,
+            "other ZZZZmatchZZZZ meh",
+            randomBoolean() ? null : randomMetadata(),
+            randomApplicationPrivileges()
+        );
+        nOtherRoles = randomIntBetween(0, 5);
+        for (int i = 0; i < nOtherRoles; i++) {
+            createRole(
+                "role" + roleIdx++,
+                randomBoolean() ? null : randomDescription(),
+                randomBoolean() ? null : randomMetadata(),
+                randomApplicationPrivileges()
+            );
+        }
+        // third matching role
+        RoleDescriptor thirdMatchingRole = createRole(
+            "role" + roleIdx++,
+            "me ZZZZmatchZZZZ go",
+            randomBoolean() ? null : randomMetadata(),
+            randomApplicationPrivileges()
+        );
+        nOtherRoles = randomIntBetween(0, 5);
+        for (int i = 0; i < nOtherRoles; i++) {
+            createRole(
+                "role" + roleIdx++,
+                randomBoolean() ? null : randomDescription(),
+                randomBoolean() ? null : randomMetadata(),
+                randomApplicationPrivileges()
+            );
+        }
+        String query = """
+            {"query":{"match":{"description":{"query":"ZZZZmatchZZZZ"}}},
+             "size":1,
+             "sort":[{"name":{"order":"desc"}},{"applications.resources":{"order":"asc"}}]
+             %s
+            }""";
+        AtomicReference<String> searchAfter = new AtomicReference<>();
+        Consumer<Map<String, Object>> searchAfterChain = roleMap -> {
+            assertThat(roleMap.get("_sort"), instanceOf(List.class));
+            assertThat(((List<String>) roleMap.get("_sort")), iterableWithSize(2));
+            String firstSortValue = ((List<String>) roleMap.get("_sort")).get(0);
+            assertThat(firstSortValue, equalTo(roleMap.get("name")));
+            String secondSortValue = ((List<String>) roleMap.get("_sort")).get(1);
+            searchAfter.set(
+                ",\"search_after\":[\""
+                    + firstSortValue
+                    + "\","
+                    + (secondSortValue != null ? ("\"" + secondSortValue + "\"") : "null")
+                    + "]"
+            );
+        };
+        assertQuery(Strings.format(query, ""), 3, roles -> {
+            assertThat(roles, iterableWithSize(1));
+            assertRoleMap(roles.get(0), thirdMatchingRole);
+            searchAfterChain.accept(roles.get(0));
+        });
+        assertQuery(Strings.format(query, searchAfter.get()), 3, roles -> {
+            assertThat(roles, iterableWithSize(1));
+            assertRoleMap(roles.get(0), secondMatchingRole);
+            searchAfterChain.accept(roles.get(0));
+        });
+        assertQuery(Strings.format(query, searchAfter.get()), 3, roles -> {
+            assertThat(roles, iterableWithSize(1));
+            assertRoleMap(roles.get(0), firstMatchingRole);
+            searchAfterChain.accept(roles.get(0));
+        });
+        assertQuery(Strings.format(query, searchAfter.get()), 3, roles -> assertThat(roles, emptyIterable()));
+    }
+
+    @SuppressWarnings("unchecked")
     private String bestPrivilegeName(Map<String, Object> roleMap, Comparator<String> comparator) {
         String bestPrivilege = null;
         List<Map<String, Object>> applications = (List<Map<String, Object>>) roleMap.get("applications");
@@ -275,7 +376,7 @@ public class QueryRoleIT extends SecurityInBasicRestTestCase {
     private RoleDescriptor createRandomRole() throws IOException {
         return createRole(
             randomUUID(),
-            randomBoolean() ? null : randomAlphaOfLength(8),
+            randomBoolean() ? null : randomDescription(),
             randomBoolean() ? null : randomMetadata(),
             randomApplicationPrivileges()
         );
@@ -436,6 +537,15 @@ public class QueryRoleIT extends SecurityInBasicRestTestCase {
             .resources(resources)
             .privileges(randomList(1, 3, privilegeNameSupplier))
             .build();
+    }
+
+    private String randomDescription() {
+        StringBuilder randomDescriptionBuilder = new StringBuilder();
+        int nParts = randomIntBetween(1, 5);
+        for (int i = 0; i < nParts; i++) {
+            randomDescriptionBuilder.append(randomAlphaOfLengthBetween(1, 5));
+        }
+        return randomDescriptionBuilder.toString();
     }
 
     @SuppressWarnings("unchecked")

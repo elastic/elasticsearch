@@ -481,7 +481,14 @@ public class TransportWriteActionTests extends ESTestCase {
                 if (withDocumentFailureOnPrimary) {
                     throw new RuntimeException("simulated");
                 } else {
-                    return new WritePrimaryResult<>(request, new TestResponse(), Translog.Location.EMPTY, primary, logger, postWriteRefresh);
+                    return new WritePrimaryResult<>(
+                        request,
+                        new TestResponse(),
+                        Translog.Location.EMPTY,
+                        primary,
+                        logger,
+                        postWriteRefresh
+                    );
                 }
             });
         }

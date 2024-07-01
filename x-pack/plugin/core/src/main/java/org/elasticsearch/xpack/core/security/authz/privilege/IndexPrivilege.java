@@ -264,7 +264,8 @@ public final class IndexPrivilege extends Privilege {
 
     private IndexPrivilege(Set<String> name, Automaton automaton, boolean isSupportedInServerlessMode) {
         super(name, automaton);
-        assert false == isSupportedInServerlessMode || name.size() == 1 : "serverless mode only supports single privilege names";
+        assert false == isSupportedInServerlessMode || (name.size() == 1 && getNamedOrNull(name.stream().findFirst().get()) != null)
+            : "serverless mode flag can only be true for singleton predefined privileges";
         this.isSupportedInServerlessMode = isSupportedInServerlessMode;
     }
 
@@ -296,7 +297,7 @@ public final class IndexPrivilege extends Privilege {
             if (ACTION_MATCHER.test(part)) {
                 actions.add(actionToPattern(part));
             } else {
-                IndexPrivilege indexPrivilege = VALUES.get(part);
+                IndexPrivilege indexPrivilege = part == null ? null : VALUES.get(part);
                 if (indexPrivilege != null && size == 1) {
                     return indexPrivilege;
                 } else if (indexPrivilege != null) {
@@ -346,6 +347,8 @@ public final class IndexPrivilege extends Privilege {
     }
 
     public boolean isSupportedInServerlessMode() {
+        assert name.size() == 1 && getNamedOrNull(name.stream().findFirst().get()) != null
+            : "can only check serverless support mode for singleton predefined privileges";
         return isSupportedInServerlessMode;
     }
 }

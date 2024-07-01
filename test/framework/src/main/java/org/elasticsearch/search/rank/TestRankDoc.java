@@ -37,4 +37,9 @@ public class TestRankDoc extends RankDoc {
     public int doHashCode() {
         return 0;
     }
+
+    @Override
+    public String getWriteableName() {
+        return "test_rank_doc";
+    }
 }

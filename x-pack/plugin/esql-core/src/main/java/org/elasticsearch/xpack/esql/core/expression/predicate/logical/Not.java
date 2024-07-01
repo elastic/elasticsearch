@@ -6,21 +6,35 @@
  */
 package org.elasticsearch.xpack.esql.core.expression.predicate.logical;
 
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.function.scalar.UnaryScalarFunction;
-import org.elasticsearch.xpack.esql.core.expression.gen.processor.Processor;
 import org.elasticsearch.xpack.esql.core.expression.predicate.Negatable;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 
+import java.io.IOException;
+
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isBoolean;
 
 public class Not extends UnaryScalarFunction implements Negatable<Expression> {
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Not", Not::new);
 
     public Not(Source source, Expression child) {
         super(source, child);
+    }
+
+    private Not(StreamInput in) throws IOException {
+        super(in);
+    }
+
+    @Override
+    public String getWriteableName() {
+        return ENTRY.name;
     }
 
     @Override
@@ -43,12 +57,19 @@ public class Not extends UnaryScalarFunction implements Negatable<Expression> {
 
     @Override
     public Object fold() {
-        return NotProcessor.INSTANCE.process(field().fold());
+        return apply(field().fold());
     }
 
-    @Override
-    protected Processor makeProcessor() {
-        return NotProcessor.INSTANCE;
+    private static Boolean apply(Object input) {
+        if (input == null) {
+            return null;
+        }
+
+        if ((input instanceof Boolean) == false) {
+            throw new QlIllegalArgumentException("A boolean is required; received {}", input);
+        }
+
+        return ((Boolean) input).booleanValue() ? Boolean.FALSE : Boolean.TRUE;
     }
 
     @Override

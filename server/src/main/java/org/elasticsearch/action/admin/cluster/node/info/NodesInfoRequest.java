@@ -9,10 +9,7 @@
 package org.elasticsearch.action.admin.cluster.node.info;
 
 import org.elasticsearch.action.support.nodes.BaseNodesRequest;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 
-import java.io.IOException;
 import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
@@ -23,17 +20,6 @@ import java.util.TreeSet;
 public final class NodesInfoRequest extends BaseNodesRequest<NodesInfoRequest> {
 
     private final NodesInfoMetrics nodesInfoMetrics;
-
-    /**
-     * Create a new NodeInfoRequest from a {@link StreamInput} object.
-     *
-     * @param in A stream input object.
-     * @throws IOException if the stream cannot be deserialized.
-     */
-    public NodesInfoRequest(StreamInput in) throws IOException {
-        super(in);
-        nodesInfoMetrics = new NodesInfoMetrics(in);
-    }
 
     /**
      * Get information from nodes based on the nodes ids specified. If none are passed, information
@@ -109,12 +95,6 @@ public final class NodesInfoRequest extends BaseNodesRequest<NodesInfoRequest> {
         }
         nodesInfoMetrics.requestedMetrics().remove(metric);
         return this;
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        nodesInfoMetrics.writeTo(out);
     }
 
     public NodesInfoMetrics getNodesInfoMetrics() {

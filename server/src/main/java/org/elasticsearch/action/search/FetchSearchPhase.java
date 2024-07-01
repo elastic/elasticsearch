@@ -17,8 +17,13 @@ import org.elasticsearch.search.dfs.AggregatedDfs;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.fetch.ShardFetchSearchRequest;
 import org.elasticsearch.search.internal.ShardSearchContextId;
+import org.elasticsearch.search.rank.RankDoc;
+import org.elasticsearch.search.rank.RankDocShardInfo;
 
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.function.BiFunction;
 
 /**
@@ -117,6 +122,10 @@ final class FetchSearchPhase extends SearchPhase {
                     .forEach(searchPhaseShardResult -> releaseIrrelevantSearchContext(searchPhaseShardResult, context));
                 moveToNextPhase(fetchResults.getAtomicArray());
             } else {
+                final boolean shouldExplainRank = shouldExplainRankScores(context.getRequest());
+                final List<Map<Integer, RankDoc>> rankDocsPerShard = false == shouldExplainRank
+                    ? null
+                    : splitRankDocsPerShard(scoreDocs, numShards);
                 final ScoreDoc[] lastEmittedDocPerShard = context.getRequest().scroll() != null
                     ? SearchPhaseController.getLastEmittedDocPerShard(reducedQueryPhase, numShards)
                     : null;
@@ -129,6 +138,9 @@ final class FetchSearchPhase extends SearchPhase {
                 );
                 for (int i = 0; i < docIdsToLoad.length; i++) {
                     List<Integer> entry = docIdsToLoad[i];
+                    RankDocShardInfo rankDocs = rankDocsPerShard == null || rankDocsPerShard.get(i).isEmpty()
+                        ? null
+                        : new RankDocShardInfo(rankDocsPerShard.get(i));
                     SearchPhaseResult shardPhaseResult = searchPhaseShardResults.get(i);
                     if (entry == null) { // no results for this shard ID
                         if (shardPhaseResult != null) {
@@ -141,11 +153,32 @@ final class FetchSearchPhase extends SearchPhase {
                         // in any case we count down this result since we don't talk to this shard anymore
                         counter.countDown();
                     } else {
-                        executeFetch(shardPhaseResult, counter, entry, (lastEmittedDocPerShard != null) ? lastEmittedDocPerShard[i] : null);
+                        executeFetch(
+                            shardPhaseResult,
+                            counter,
+                            entry,
+                            rankDocs,
+                            (lastEmittedDocPerShard != null) ? lastEmittedDocPerShard[i] : null
+                        );
                     }
                 }
             }
         }
+    }
+
+    private List<Map<Integer, RankDoc>> splitRankDocsPerShard(ScoreDoc[] scoreDocs, int numShards) {
+        List<Map<Integer, RankDoc>> rankDocsPerShard = new ArrayList<>(numShards);
+        for (int i = 0; i < numShards; i++) {
+            rankDocsPerShard.add(new HashMap<>());
+        }
+        for (ScoreDoc scoreDoc : scoreDocs) {
+            assert scoreDoc instanceof RankDoc : "ScoreDoc is not a RankDoc";
+            assert scoreDoc.shardIndex >= 0 && scoreDoc.shardIndex <= numShards;
+            RankDoc rankDoc = (RankDoc) scoreDoc;
+            Map<Integer, RankDoc> shardScoreDocs = rankDocsPerShard.get(rankDoc.shardIndex);
+            shardScoreDocs.put(rankDoc.doc, rankDoc);
+        }
+        return rankDocsPerShard;
     }
 
     private boolean assertConsistentWithQueryAndFetchOptimization() {
@@ -159,6 +192,7 @@ final class FetchSearchPhase extends SearchPhase {
         SearchPhaseResult shardPhaseResult,
         final CountedCollector<FetchSearchResult> counter,
         final List<Integer> entry,
+        final RankDocShardInfo rankDocs,
         ScoreDoc lastEmittedDocForShard
     ) {
         final SearchShardTarget shardTarget = shardPhaseResult.getSearchShardTarget();
@@ -174,6 +208,7 @@ final class FetchSearchPhase extends SearchPhase {
                     contextId,
                     shardPhaseResult.getShardSearchRequest(),
                     entry,
+                    rankDocs,
                     lastEmittedDocForShard,
                     shardPhaseResult.getRescoreDocIds(),
                     aggregatedDfs
@@ -213,4 +248,12 @@ final class FetchSearchPhase extends SearchPhase {
         fetchResults.close();
         context.executeNextPhase(this, nextPhaseFactory.apply(resp, searchPhaseShardResults));
     }
+
+    private boolean shouldExplainRankScores(SearchRequest request) {
+        return request.source() != null
+            && request.source().explain() != null
+            && request.source().explain()
+            && request.source().rankBuilder() != null;
+    }
+
 }

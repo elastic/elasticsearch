@@ -39,6 +39,10 @@ public class BlockSerializationTests extends SerializationTestCase {
         assertConstantBlockImpl(blockFactory.newConstantLongBlockWith(randomLong(), randomIntBetween(1, 8192)));
     }
 
+    public void testConstantFloatBlock() throws IOException {
+        assertConstantBlockImpl(blockFactory.newConstantFloatBlockWith(randomFloat(), randomIntBetween(1, 8192)));
+    }
+
     public void testConstantDoubleBlock() throws IOException {
         assertConstantBlockImpl(blockFactory.newConstantDoubleBlockWith(randomDouble(), randomIntBetween(1, 8192)));
     }
@@ -77,6 +81,17 @@ public class BlockSerializationTests extends SerializationTestCase {
         }
         assertEmptyBlock(blockFactory.newLongVectorBuilder(0).build().asBlock());
         try (LongVector toFilter = blockFactory.newLongVectorBuilder(0).appendLong(randomLong()).build()) {
+            assertEmptyBlock(toFilter.filter().asBlock());
+        }
+    }
+
+    public void testEmptyFloatBlock() throws IOException {
+        assertEmptyBlock(blockFactory.newFloatBlockBuilder(0).build());
+        try (FloatBlock toFilter = blockFactory.newFloatBlockBuilder(0).appendNull().build()) {
+            assertEmptyBlock(toFilter.filter());
+        }
+        assertEmptyBlock(blockFactory.newFloatVectorBuilder(0).build().asBlock());
+        try (FloatVector toFilter = blockFactory.newFloatVectorBuilder(0).appendFloat(randomFloat()).build()) {
             assertEmptyBlock(toFilter.filter().asBlock());
         }
     }
@@ -136,6 +151,22 @@ public class BlockSerializationTests extends SerializationTestCase {
             assertFilterBlock(toFilter.filter(0).asBlock());
         }
         try (LongVector toFilter = blockFactory.newLongVectorBuilder(1).appendLong(randomLong()).appendLong(randomLong()).build()) {
+            assertFilterBlock(toFilter.filter(0).asBlock());
+        }
+    }
+
+    public void testFilterFloatBlock() throws IOException {
+        try (FloatBlock toFilter = blockFactory.newFloatBlockBuilder(0).appendFloat(1).appendFloat(2).build()) {
+            assertFilterBlock(toFilter.filter(1));
+        }
+        try (FloatBlock toFilter = blockFactory.newFloatBlockBuilder(1).appendFloat(randomFloat()).appendNull().build()) {
+            assertFilterBlock(toFilter.filter(0));
+        }
+        try (FloatVector toFilter = blockFactory.newFloatVectorBuilder(1).appendFloat(randomFloat()).build()) {
+            assertFilterBlock(toFilter.filter(0).asBlock());
+
+        }
+        try (FloatVector toFilter = blockFactory.newFloatVectorBuilder(1).appendFloat(randomFloat()).appendFloat(randomFloat()).build()) {
             assertFilterBlock(toFilter.filter(0).asBlock());
         }
     }

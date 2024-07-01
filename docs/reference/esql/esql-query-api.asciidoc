@@ -78,6 +78,11 @@ For syntax, refer to <<esql-locale-param>>.
 `query`::
 (Required, string) {esql} query to run. For syntax, refer to <<esql-syntax>>.
 
+ifeval::["{release-state}"=="unreleased"]
+`table`::
+(Optional, object) Named "table" parameters that can be referenced by the <<esql-lookup>> command.
+endif::[]
+
 [discrete]
 [role="child_attributes"]
 [[esql-query-api-response-body]]

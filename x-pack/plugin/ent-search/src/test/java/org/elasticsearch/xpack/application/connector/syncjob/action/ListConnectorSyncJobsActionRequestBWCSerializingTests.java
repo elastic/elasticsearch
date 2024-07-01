@@ -10,10 +10,10 @@ package org.elasticsearch.xpack.application.connector.syncjob.action;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.application.EnterpriseSearchModuleTestUtils;
 import org.elasticsearch.xpack.application.connector.ConnectorSyncStatus;
 import org.elasticsearch.xpack.application.connector.ConnectorTestUtils;
 import org.elasticsearch.xpack.application.connector.syncjob.ConnectorSyncJobType;
-import org.elasticsearch.xpack.application.search.SearchApplicationTestUtils;
 import org.elasticsearch.xpack.core.action.util.PageParams;
 import org.elasticsearch.xpack.core.ml.AbstractBWCSerializationTestCase;
 
@@ -29,7 +29,7 @@ public class ListConnectorSyncJobsActionRequestBWCSerializingTests extends Abstr
 
     @Override
     protected ListConnectorSyncJobsAction.Request createTestInstance() {
-        PageParams pageParams = SearchApplicationTestUtils.randomPageParams();
+        PageParams pageParams = EnterpriseSearchModuleTestUtils.randomPageParams();
         String connectorId = randomAlphaOfLength(10);
         ConnectorSyncStatus syncStatus = ConnectorTestUtils.getRandomSyncStatus();
         ConnectorSyncJobType syncJobType = ConnectorTestUtils.getRandomSyncJobType();

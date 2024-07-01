@@ -31,8 +31,7 @@ import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
-import org.elasticsearch.xpack.core.inference.results.ChunkedSparseEmbeddingResults;
-import org.elasticsearch.xpack.core.inference.results.ChunkedTextEmbeddingResults;
+import org.elasticsearch.xpack.core.inference.results.InferenceChunkedTextEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.ml.inference.results.ChunkedNlpInferenceResults;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
@@ -56,11 +55,12 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.xpack.core.inference.results.InferenceChunkedTextEmbeddingFloatResultsTests.asMapWithListsInsteadOfArrays;
+import static org.elasticsearch.xpack.inference.Utils.PersistedConfig;
 import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityPool;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
-import static org.elasticsearch.xpack.inference.results.ChunkedTextEmbeddingResultsTests.asMapWithListsInsteadOfArrays;
 import static org.elasticsearch.xpack.inference.results.TextEmbeddingResultsTests.buildExpectationFloat;
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
 import static org.elasticsearch.xpack.inference.services.huggingface.HuggingFaceServiceSettingsTests.getServiceSettingsMap;
@@ -279,7 +279,7 @@ public class HuggingFaceServiceTests extends ESTestCase {
     public void testParsePersistedConfigWithSecrets_DoesNotThrowWhenAnExtraKeyExistsInSecrets() throws IOException {
         try (var service = createHuggingFaceService()) {
             var persistedConfig = getPersistedConfigMap(getServiceSettingsMap("url"), getSecretSettingsMap("secret"));
-            persistedConfig.secrets.put("extra_key", "value");
+            persistedConfig.secrets().put("extra_key", "value");
 
             var model = service.parsePersistedConfigWithSecrets(
                 "id",
@@ -529,12 +529,15 @@ public class HuggingFaceServiceTests extends ESTestCase {
                 """;
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
-            var model = HuggingFaceEmbeddingsModelTests.createModel(getUrl(webServer), "secret", 1);
+            var model = HuggingFaceEmbeddingsModelTests.createModel(getUrl(webServer), "secret", 1, 1, SimilarityMeasure.DOT_PRODUCT);
             PlainActionFuture<Model> listener = new PlainActionFuture<>();
             service.checkModelConfig(model, listener);
 
             var result = listener.actionGet(TIMEOUT);
-            assertThat(result, is(HuggingFaceEmbeddingsModelTests.createModel(getUrl(webServer), "secret", 1, 1)));
+            assertThat(
+                result,
+                is(HuggingFaceEmbeddingsModelTests.createModel(getUrl(webServer), "secret", 1, 1, SimilarityMeasure.DOT_PRODUCT))
+            );
         }
     }
 
@@ -566,7 +569,7 @@ public class HuggingFaceServiceTests extends ESTestCase {
         }
     }
 
-    public void testCheckModelConfig_LeavesSimilarityAsNull_WhenUnspecified() throws IOException {
+    public void testCheckModelConfig_DefaultsSimilarityToCosine() throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
         try (var service = new HuggingFaceService(senderFactory, createWithEmptySettings(threadPool))) {
@@ -587,7 +590,10 @@ public class HuggingFaceServiceTests extends ESTestCase {
             service.checkModelConfig(model, listener);
 
             var result = listener.actionGet(TIMEOUT);
-            assertThat(result, is(HuggingFaceEmbeddingsModelTests.createModel(getUrl(webServer), "secret", 1, 1, null)));
+            assertThat(
+                result,
+                is(HuggingFaceEmbeddingsModelTests.createModel(getUrl(webServer), "secret", 1, 1, SimilarityMeasure.COSINE))
+            );
         }
     }
 
@@ -598,12 +604,12 @@ public class HuggingFaceServiceTests extends ESTestCase {
 
             String responseJson = """
                 {
-                    "embeddings": [
-                        [
-                            -0.0123,
-                            0.0123
-                        ]
-                    ]
+                "embeddings": [
+                [
+                -0.0123,
+                0.0123
+                ]
+                ]
                 {
                 """;
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
@@ -621,20 +627,15 @@ public class HuggingFaceServiceTests extends ESTestCase {
             );
 
             var result = listener.actionGet(TIMEOUT).get(0);
-            assertThat(result, CoreMatchers.instanceOf(ChunkedTextEmbeddingResults.class));
+            assertThat(result, CoreMatchers.instanceOf(InferenceChunkedTextEmbeddingFloatResults.class));
 
             MatcherAssert.assertThat(
-                asMapWithListsInsteadOfArrays((ChunkedTextEmbeddingResults) result),
+                asMapWithListsInsteadOfArrays((InferenceChunkedTextEmbeddingFloatResults) result),
                 Matchers.is(
                     Map.of(
-                        ChunkedTextEmbeddingResults.FIELD_NAME,
+                        InferenceChunkedTextEmbeddingFloatResults.FIELD_NAME,
                         List.of(
-                            Map.of(
-                                ChunkedNlpInferenceResults.TEXT,
-                                "abc",
-                                ChunkedNlpInferenceResults.INFERENCE,
-                                List.of((double) -0.0123f, (double) 0.0123f)
-                            )
+                            Map.of(ChunkedNlpInferenceResults.TEXT, "abc", ChunkedNlpInferenceResults.INFERENCE, List.of(-0.0123f, 0.0123f))
                         )
                     )
                 )
@@ -653,21 +654,22 @@ public class HuggingFaceServiceTests extends ESTestCase {
         }
     }
 
-    public void testChunkedInfer_CallsInfer_Elser_ConvertsFloatResponse() throws IOException {
+    public void testChunkedInfer() throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
         try (var service = new HuggingFaceService(senderFactory, createWithEmptySettings(threadPool))) {
 
             String responseJson = """
                 [
-                    {
-                        ".": 0.133155956864357
-                    }
+                      [
+                          0.123,
+                          -0.123
+                      ]
                 ]
                 """;
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
-            var model = HuggingFaceElserModelTests.createModel(getUrl(webServer), "secret");
+            var model = HuggingFaceEmbeddingsModelTests.createModel(getUrl(webServer), "secret");
             PlainActionFuture<List<ChunkedInferenceServiceResults>> listener = new PlainActionFuture<>();
             service.chunkedInfer(
                 model,
@@ -679,19 +681,15 @@ public class HuggingFaceServiceTests extends ESTestCase {
                 listener
             );
 
-            var result = listener.actionGet(TIMEOUT).get(0);
-
-            MatcherAssert.assertThat(
-                result.asMap(),
-                Matchers.is(
-                    Map.of(
-                        ChunkedSparseEmbeddingResults.FIELD_NAME,
-                        List.of(
-                            Map.of(ChunkedNlpInferenceResults.TEXT, "abc", ChunkedNlpInferenceResults.INFERENCE, Map.of(".", 0.13315596f))
-                        )
-                    )
-                )
-            );
+            var results = listener.actionGet(TIMEOUT);
+            assertThat(results, hasSize(1));
+            {
+                assertThat(results.get(0), CoreMatchers.instanceOf(InferenceChunkedTextEmbeddingFloatResults.class));
+                var floatResult = (InferenceChunkedTextEmbeddingFloatResults) results.get(0);
+                assertThat(floatResult.chunks(), hasSize(1));
+                assertEquals("abc", floatResult.chunks().get(0).matchedText());
+                assertArrayEquals(new float[] { 0.123f, -0.123f }, floatResult.chunks().get(0).embedding(), 0.0f);
+            }
 
             assertThat(webServer.requests(), hasSize(1));
             assertNull(webServer.requests().get(0).getUri().getQuery());
@@ -719,18 +717,15 @@ public class HuggingFaceServiceTests extends ESTestCase {
         return new HashMap<>(Map.of(ModelConfigurations.SERVICE_SETTINGS, builtServiceSettings));
     }
 
-    private HuggingFaceServiceTests.PeristedConfig getPersistedConfigMap(Map<String, Object> serviceSettings) {
+    private PersistedConfig getPersistedConfigMap(Map<String, Object> serviceSettings) {
         return getPersistedConfigMap(serviceSettings, Map.of(), null);
     }
 
-    private HuggingFaceServiceTests.PeristedConfig getPersistedConfigMap(
-        Map<String, Object> serviceSettings,
-        @Nullable Map<String, Object> secretSettings
-    ) {
+    private PersistedConfig getPersistedConfigMap(Map<String, Object> serviceSettings, @Nullable Map<String, Object> secretSettings) {
         return getPersistedConfigMap(serviceSettings, Map.of(), secretSettings);
     }
 
-    private HuggingFaceServiceTests.PeristedConfig getPersistedConfigMap(
+    private PersistedConfig getPersistedConfigMap(
         Map<String, Object> serviceSettings,
         Map<String, Object> taskSettings,
         Map<String, Object> secretSettings
@@ -738,11 +733,9 @@ public class HuggingFaceServiceTests extends ESTestCase {
 
         var secrets = secretSettings == null ? null : new HashMap<String, Object>(Map.of(ModelSecrets.SECRET_SETTINGS, secretSettings));
 
-        return new HuggingFaceServiceTests.PeristedConfig(
+        return new PersistedConfig(
             new HashMap<>(Map.of(ModelConfigurations.SERVICE_SETTINGS, serviceSettings, ModelConfigurations.TASK_SETTINGS, taskSettings)),
             secrets
         );
     }
-
-    private record PeristedConfig(Map<String, Object> config, Map<String, Object> secrets) {}
 }

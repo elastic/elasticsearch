@@ -335,7 +335,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
         String ioExecutor,
         BlobCacheMetrics blobCacheMetrics
     ) {
-        this(environment, settings, threadPool, ioExecutor, blobCacheMetrics, threadPool::relativeTimeInNanos);
+        this(environment, settings, threadPool, ioExecutor, blobCacheMetrics, System::nanoTime);
     }
 
     public SharedBlobCacheService(

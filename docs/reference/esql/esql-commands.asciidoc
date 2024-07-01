@@ -39,6 +39,9 @@ image::images/esql/processing-command.svg[A processing command changing an input
 * <<esql-grok>>
 * <<esql-keep>>
 * <<esql-limit>>
+ifeval::["{release-state}"=="unreleased"]
+* experimental:[] <<esql-lookup>>
+endif::[]
 * experimental:[] <<esql-mv_expand>>
 * <<esql-rename>>
 * <<esql-sort>>
@@ -58,6 +61,9 @@ include::processing-commands/eval.asciidoc[]
 include::processing-commands/grok.asciidoc[]
 include::processing-commands/keep.asciidoc[]
 include::processing-commands/limit.asciidoc[]
+ifeval::["{release-state}"=="unreleased"]
+include::processing-commands/lookup.asciidoc[]
+endif::[]
 include::processing-commands/mv_expand.asciidoc[]
 include::processing-commands/rename.asciidoc[]
 include::processing-commands/sort.asciidoc[]

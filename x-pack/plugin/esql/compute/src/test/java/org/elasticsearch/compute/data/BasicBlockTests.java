@@ -78,6 +78,10 @@ public class BasicBlockTests extends ESTestCase {
         assertZeroPositionsAndRelease(bf.newLongBlockBuilder(0).build());
         assertZeroPositionsAndRelease(bf.newLongArrayVector(new long[] {}, 0));
         assertZeroPositionsAndRelease(bf.newLongVectorBuilder(0).build());
+        assertZeroPositionsAndRelease(bf.newFloatArrayBlock(new float[] {}, 0, new int[] { 0 }, new BitSet(), randomOrdering()));
+        assertZeroPositionsAndRelease(bf.newFloatBlockBuilder(0).build());
+        assertZeroPositionsAndRelease(bf.newFloatArrayVector(new float[] {}, 0));
+        assertZeroPositionsAndRelease(bf.newFloatVectorBuilder(0).build());
         assertZeroPositionsAndRelease(bf.newDoubleArrayBlock(new double[] {}, 0, new int[] { 0 }, new BitSet(), randomOrdering()));
         assertZeroPositionsAndRelease(bf.newDoubleBlockBuilder(0).build());
         assertZeroPositionsAndRelease(bf.newDoubleArrayVector(new double[] {}, 0));
@@ -110,6 +114,17 @@ public class BasicBlockTests extends ESTestCase {
             try (var blockBuilder = blockFactory.newLongBlockBuilder(initialSize)) {
                 IntStream.range(0, 10).forEach(blockBuilder::appendLong);
                 LongBlock block = blockBuilder.build();
+                assertSingleValueDenseBlock(block);
+                block.close();
+            }
+        }
+    }
+
+    public void testSmallSingleValueDenseGrowthFloat() {
+        for (int initialSize : List.of(0, 1, 2, 3, 4, 5)) {
+            try (var blockBuilder = blockFactory.newFloatBlockBuilder(initialSize)) {
+                IntStream.range(0, 10).forEach(blockBuilder::appendFloat);
+                FloatBlock block = blockBuilder.build();
                 assertSingleValueDenseBlock(block);
                 block.close();
             }
@@ -169,6 +184,7 @@ public class BasicBlockTests extends ESTestCase {
             assertThat(block.mayHaveNulls(), is(false));
             assertThat(block.areAllValuesNull(), is(false));
             assertThat(block.mayHaveMultivaluedFields(), is(false));
+            assertThat(block.doesHaveMultivaluedFields(), is(false));
 
             initialBlock = block.asVector().asBlock();
         }
@@ -474,6 +490,100 @@ public class BasicBlockTests extends ESTestCase {
                     positions(blockFactory, 1, 2),
                     List.of(List.of(value), List.of(value)),
                     b -> assertThat(b.asVector(), instanceOf(ConstantDoubleVector.class))
+                );
+            }
+            assertLookup(
+                block,
+                positions(blockFactory, positionCount + 1000),
+                singletonList(null),
+                b -> assertThat(b, instanceOf(ConstantNullBlock.class))
+            );
+            assertEmptyLookup(blockFactory, block);
+            releaseAndAssertBreaker(block);
+        }
+    }
+
+    public void testFloatBlock() {
+        for (int i = 0; i < 1000; i++) {
+            assertThat(breaker.getUsed(), is(0L));
+            int positionCount = randomIntBetween(1, 16 * 1024);
+            FloatBlock block;
+            if (randomBoolean()) {
+                final int builderEstimateSize = randomBoolean() ? randomIntBetween(1, positionCount) : positionCount;
+                var blockBuilder = blockFactory.newFloatBlockBuilder(builderEstimateSize);
+                IntStream.range(0, positionCount).forEach(blockBuilder::appendFloat);
+                block = blockBuilder.build();
+            } else {
+                float[] fa = new float[positionCount];
+                IntStream.range(0, positionCount).forEach(v -> fa[v] = (float) v);
+                block = blockFactory.newFloatArrayVector(fa, positionCount).asBlock();
+            }
+
+            assertThat(positionCount, is(block.getPositionCount()));
+            assertThat(0f, is(block.getFloat(0)));
+            assertThat((float) positionCount - 1, is(block.getFloat(positionCount - 1)));
+            int pos = (int) block.getFloat(randomPosition(positionCount));
+            assertThat((float) pos, is(block.getFloat(pos)));
+            assertSingleValueDenseBlock(block);
+            if (positionCount > 2) {
+                assertLookup(block, positions(blockFactory, 1, 2, new int[] { 1, 2 }), List.of(List.of(1f), List.of(2f), List.of(1f, 2f)));
+            }
+            assertLookup(block, positions(blockFactory, positionCount + 1000), singletonList(null));
+            assertEmptyLookup(blockFactory, block);
+
+            try (FloatBlock.Builder blockBuilder = blockFactory.newFloatBlockBuilder(1)) {
+                FloatBlock copy = blockBuilder.copyFrom(block, 0, block.getPositionCount()).build();
+                assertThat(copy, equalTo(block));
+                releaseAndAssertBreaker(block, copy);
+            }
+
+            if (positionCount > 1) {
+                assertNullValues(
+                    positionCount,
+                    blockFactory::newFloatBlockBuilder,
+                    FloatBlock.Builder::appendFloat,
+                    position -> (float) position,
+                    FloatBlock.Builder::build,
+                    (randomNonNullPosition, b) -> {
+                        assertThat((float) randomNonNullPosition, is(b.getFloat(randomNonNullPosition.intValue())));
+                    }
+                );
+            }
+
+            try (
+                DoubleVector.Builder vectorBuilder = blockFactory.newDoubleVectorBuilder(
+                    randomBoolean() ? randomIntBetween(1, positionCount) : positionCount
+                )
+            ) {
+                IntStream.range(0, positionCount).mapToDouble(ii -> 1.0 / ii).forEach(vectorBuilder::appendDouble);
+                DoubleVector vector = vectorBuilder.build();
+                assertSingleValueDenseBlock(vector.asBlock());
+                releaseAndAssertBreaker(vector.asBlock());
+            }
+        }
+    }
+
+    public void testConstantFloatBlock() {
+        for (int i = 0; i < 1000; i++) {
+            int positionCount = randomIntBetween(1, 16 * 1024);
+            float value = randomFloat();
+            FloatBlock block = blockFactory.newConstantFloatBlockWith(value, positionCount);
+            assertThat(positionCount, is(block.getPositionCount()));
+            assertThat(value, is(block.getFloat(0)));
+            assertThat(value, is(block.getFloat(positionCount - 1)));
+            assertThat(value, is(block.getFloat(randomPosition(positionCount))));
+            assertSingleValueDenseBlock(block);
+            if (positionCount > 2) {
+                assertLookup(
+                    block,
+                    positions(blockFactory, 1, 2, new int[] { 1, 2 }),
+                    List.of(List.of(value), List.of(value), List.of(value, value))
+                );
+                assertLookup(
+                    block,
+                    positions(blockFactory, 1, 2),
+                    List.of(List.of(value), List.of(value)),
+                    b -> assertThat(b.asVector(), instanceOf(ConstantFloatVector.class))
                 );
             }
             assertLookup(
@@ -1030,6 +1140,7 @@ public class BasicBlockTests extends ESTestCase {
                 positionValues.add(switch (block.elementType()) {
                     case INT -> ((IntBlock) block).getInt(i++);
                     case LONG -> ((LongBlock) block).getLong(i++);
+                    case FLOAT -> ((FloatBlock) block).getFloat(i++);
                     case DOUBLE -> ((DoubleBlock) block).getDouble(i++);
                     case BYTES_REF -> ((BytesRefBlock) block).getBytesRef(i++, new BytesRef());
                     case BOOLEAN -> ((BooleanBlock) block).getBoolean(i++);
@@ -1148,6 +1259,11 @@ public class BasicBlockTests extends ESTestCase {
                             long l = randomLong();
                             valuesAtPosition.add(l);
                             ((LongBlock.Builder) builder).appendLong(l);
+                        }
+                        case FLOAT -> {
+                            float f = randomFloat();
+                            valuesAtPosition.add(f);
+                            ((FloatBlock.Builder) builder).appendFloat(f);
                         }
                         case DOUBLE -> {
                             double d = randomDouble();

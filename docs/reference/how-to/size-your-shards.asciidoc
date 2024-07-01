@@ -34,6 +34,9 @@ cluster sizing video]. As you test different shard configurations, use {kib}'s
 {kibana-ref}/elasticsearch-metrics.html[{es} monitoring tools] to track your
 cluster's stability and performance.
 
+The performance of an {es} node is often limited by the performance of the underlying storage. 
+Review our recommendations for optimizing your storage for <<indexing-use-faster-hardware,indexing>> and <<search-use-faster-hardware,search>>.
+
 The following sections provide some reminders and guidelines you should
 consider when designing your sharding strategy. If your cluster is already
 oversharded, see <<reduce-cluster-shard-count>>.
@@ -225,10 +228,7 @@ GET _cat/shards?v=true
 [[shard-count-per-node-recommendation]]
 ==== Add enough nodes to stay within the cluster shard limits
 
-The <<cluster-shard-limit,cluster shard limits>> prevent creation of more than
-1000 non-frozen shards per node, and 3000 frozen shards per dedicated frozen
-node. Make sure you have enough nodes of each type in your cluster to handle
-the number of shards you need.
+include::./shard-limits.asciidoc[]
 
 [discrete]
 [[field-count-recommendation]]

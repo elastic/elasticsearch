@@ -43,7 +43,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.elasticsearch.core.Strings.format;
 
 /**
- * Service for managing EQL requests
+ * Service for managing ESQL requests
  */
 public class AsyncTaskManagementService<
     Request extends TaskAwareRequest,
@@ -84,7 +84,7 @@ public class AsyncTaskManagementService<
     }
 
     /**
-     * Wrapper for EqlSearchRequest that creates an async version of EqlSearchTask
+     * Wrapper for EsqlQueryRequest that creates an async version of EsqlQueryTask
      */
     private class AsyncRequestWrapper implements TaskAwareRequest {
         private final Request request;
@@ -278,8 +278,7 @@ public class AsyncTaskManagementService<
                 ActionListener.wrap(
                     // We should only unregister after the result is saved
                     resp -> {
-                        // TODO: generalize the logging, not just eql
-                        logger.trace(() -> "stored eql search results for [" + searchTask.getExecutionId().getEncoded() + "]");
+                        logger.trace(() -> "stored ESQL search results for [" + searchTask.getExecutionId().getEncoded() + "]");
                         taskManager.unregister(searchTask);
                         if (storedResponse.getException() != null) {
                             searchTask.onFailure(storedResponse.getException());
@@ -297,8 +296,7 @@ public class AsyncTaskManagementService<
                         if (cause instanceof DocumentMissingException == false
                             && cause instanceof VersionConflictEngineException == false) {
                             logger.error(
-                                // TODO: generalize the logging, not just eql
-                                () -> format("failed to store eql search results for [%s]", searchTask.getExecutionId().getEncoded()),
+                                () -> format("failed to store ESQL search results for [%s]", searchTask.getExecutionId().getEncoded()),
                                 exc
                             );
                         }
@@ -311,7 +309,7 @@ public class AsyncTaskManagementService<
         } catch (Exception exc) {
             taskManager.unregister(searchTask);
             searchTask.onFailure(exc);
-            logger.error(() -> "failed to store eql search results for [" + searchTask.getExecutionId().getEncoded() + "]", exc);
+            logger.error(() -> "failed to store ESQL search results for [" + searchTask.getExecutionId().getEncoded() + "]", exc);
         }
     }
 

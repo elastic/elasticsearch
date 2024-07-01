@@ -117,7 +117,7 @@ public sealed interface DoubleVector extends Vector permits ConstantDoubleVector
     private static DoubleVector readValues(int positions, StreamInput in, BlockFactory blockFactory) throws IOException {
         try (var builder = blockFactory.newDoubleVectorFixedBuilder(positions)) {
             for (int i = 0; i < positions; i++) {
-                builder.appendDouble(in.readDouble());
+                builder.appendDouble(i, in.readDouble());
             }
             return builder.build();
         }
@@ -151,5 +151,8 @@ public sealed interface DoubleVector extends Vector permits ConstantDoubleVector
          */
         @Override
         FixedBuilder appendDouble(double value);
+
+        FixedBuilder appendDouble(int index, double value);
+
     }
 }

@@ -8,7 +8,9 @@
 
 package org.elasticsearch.search.rank;
 
+import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -77,6 +79,13 @@ public abstract class RankBuilder implements VersionedNamedWriteable, ToXContent
     public abstract boolean isCompoundBuilder();
 
     /**
+     * Generates an {@code Explanation} on how the final score for the provided {@code RankDoc} is computed for the given `RankBuilder`.
+     * In addition to the base explanation to enrich, we also have access to the query names that were provided in the request,
+     * so that we can have direct association with the user provided query.
+     */
+    public abstract Explanation explainHit(Explanation baseExplanation, RankDoc scoreDoc, List<String> queryNames);
+
+    /**
      * Generates a context used to execute required searches during the query phase on the shard.
      */
     public abstract QueryPhaseRankShardContext buildQueryPhaseShardContext(List<Query> queries, int from);
@@ -97,7 +106,7 @@ public abstract class RankBuilder implements VersionedNamedWriteable, ToXContent
      * on the coordinator based on all the individual shard results. The output of this will be a `size` ranked list of ordered results,
      * which will then be passed to fetch phase.
      */
-    public abstract RankFeaturePhaseRankCoordinatorContext buildRankFeaturePhaseCoordinatorContext(int size, int from);
+    public abstract RankFeaturePhaseRankCoordinatorContext buildRankFeaturePhaseCoordinatorContext(int size, int from, Client client);
 
     @Override
     public final boolean equals(Object obj) {

@@ -20,6 +20,8 @@ import java.util.Objects;
  */
 public class RankFeatureDoc extends RankDoc {
 
+    public static final String NAME = "rank_feature_doc";
+
     // todo: update to support more than 1 fields; and not restrict to string data
     public String featureData;
 
@@ -50,5 +52,10 @@ public class RankFeatureDoc extends RankDoc {
     @Override
     protected int doHashCode() {
         return Objects.hashCode(featureData);
+    }
+
+    @Override
+    public String getWriteableName() {
+        return NAME;
     }
 }

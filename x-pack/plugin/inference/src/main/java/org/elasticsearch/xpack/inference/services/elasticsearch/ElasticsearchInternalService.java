@@ -28,10 +28,10 @@ import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.ClientHelper;
-import org.elasticsearch.xpack.core.inference.results.ChunkedTextEmbeddingResults;
 import org.elasticsearch.xpack.core.inference.results.ErrorChunkedInferenceResults;
+import org.elasticsearch.xpack.core.inference.results.InferenceChunkedTextEmbeddingFloatResults;
+import org.elasticsearch.xpack.core.inference.results.InferenceTextEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.inference.results.RankedDocsResults;
-import org.elasticsearch.xpack.core.inference.results.TextEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
 import org.elasticsearch.xpack.core.ml.action.InferModelAction;
 import org.elasticsearch.xpack.core.ml.action.PutTrainedModelAction;
@@ -41,10 +41,13 @@ import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelInput;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelPrefixStrings;
 import org.elasticsearch.xpack.core.ml.inference.results.ErrorInferenceResults;
+import org.elasticsearch.xpack.core.ml.inference.results.MlChunkedTextEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextEmbeddingConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextSimilarityConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TokenizationConfigUpdate;
+import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
+import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.settings.InternalServiceSettings;
 
 import java.io.IOException;
@@ -126,26 +129,36 @@ public class ElasticsearchInternalService implements InferenceService {
                         + "]. You may need to load it into the cluster using eland."
                 );
             } else {
-                var customElandInternalServiceSettings = (CustomElandInternalServiceSettings) CustomElandInternalServiceSettings.fromMap(
-                    serviceSettingsMap
-                ).build();
-                throwIfNotEmptyMap(serviceSettingsMap, name());
+                var model = createCustomElandModel(
+                    inferenceEntityId,
+                    taskType,
+                    serviceSettingsMap,
+                    taskSettingsMap,
+                    ConfigurationParseContext.REQUEST
+                );
 
-                var taskSettings = CustomElandModel.taskSettingsFromMap(TaskType.RERANK, taskSettingsMap);
+                throwIfNotEmptyMap(serviceSettingsMap, name());
                 throwIfNotEmptyMap(taskSettingsMap, name());
 
-                var model = CustomElandModel.build(
-                    inferenceEntityId,
-                    TaskType.RERANK,
-                    name(),
-                    customElandInternalServiceSettings,
-                    taskSettings
-                );
                 delegate.onResponse(model);
             }
         });
 
         client.execute(GetTrainedModelsAction.INSTANCE, request, getModelsListener);
+    }
+
+    private static CustomElandModel createCustomElandModel(
+        String inferenceEntityId,
+        TaskType taskType,
+        Map<String, Object> serviceSettings,
+        Map<String, Object> taskSettings,
+        ConfigurationParseContext context
+    ) {
+        return switch (taskType) {
+            case TEXT_EMBEDDING -> new CustomElandEmbeddingModel(inferenceEntityId, taskType, NAME, serviceSettings, context);
+            case RERANK -> new CustomElandRerankModel(inferenceEntityId, taskType, NAME, serviceSettings, taskSettings, context);
+            default -> throw new ElasticsearchStatusException(TaskType.unsupportedTaskTypeErrorMsg(taskType, NAME), RestStatus.BAD_REQUEST);
+        };
     }
 
     private void e5Case(
@@ -192,7 +205,7 @@ public class ElasticsearchInternalService implements InferenceService {
     }
 
     @Override
-    public ElasticsearchModel parsePersistedConfigWithSecrets(
+    public Model parsePersistedConfigWithSecrets(
         String inferenceEntityId,
         TaskType taskType,
         Map<String, Object> config,
@@ -202,7 +215,7 @@ public class ElasticsearchInternalService implements InferenceService {
     }
 
     @Override
-    public ElasticsearchModel parsePersistedConfig(String inferenceEntityId, TaskType taskType, Map<String, Object> config) {
+    public Model parsePersistedConfig(String inferenceEntityId, TaskType taskType, Map<String, Object> config) {
         Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
         Map<String, Object> taskSettingsMap = removeFromMap(config, ModelConfigurations.TASK_SETTINGS);
 
@@ -219,12 +232,56 @@ public class ElasticsearchInternalService implements InferenceService {
                 (MultilingualE5SmallInternalServiceSettings) MultilingualE5SmallInternalServiceSettings.fromMap(serviceSettingsMap).build()
             );
         } else {
-            var serviceSettings = (CustomElandInternalServiceSettings) CustomElandInternalServiceSettings.fromMap(serviceSettingsMap)
-                .build();
-            var taskSettings = CustomElandModel.taskSettingsFromMap(taskType, taskSettingsMap);
-
-            return CustomElandModel.build(inferenceEntityId, taskType, name(), serviceSettings, taskSettings);
+            return createCustomElandModel(
+                inferenceEntityId,
+                taskType,
+                serviceSettingsMap,
+                taskSettingsMap,
+                ConfigurationParseContext.PERSISTENT
+            );
         }
+    }
+
+    @Override
+    public void checkModelConfig(Model model, ActionListener<Model> listener) {
+        if (model instanceof CustomElandEmbeddingModel elandModel && elandModel.getTaskType() == TaskType.TEXT_EMBEDDING) {
+            // At this point the inference endpoint configuration has not been persisted yet, if we attempt to do inference using the
+            // inference id we'll get an error because the trained model code needs to use the persisted inference endpoint to retrieve the
+            // model id. To get around this we'll have the getEmbeddingSize() method use the model id instead of inference id. So we need
+            // to create a temporary model that overrides the inference id with the model id.
+            var temporaryModelWithModelId = new CustomElandEmbeddingModel(
+                elandModel.getModelId(),
+                elandModel.getTaskType(),
+                elandModel.getConfigurations().getService(),
+                elandModel.getServiceSettings()
+            );
+
+            ServiceUtils.getEmbeddingSize(
+                temporaryModelWithModelId,
+                this,
+                listener.delegateFailureAndWrap((l, size) -> l.onResponse(updateModelWithEmbeddingDetails(elandModel, size)))
+            );
+        } else {
+            listener.onResponse(model);
+        }
+    }
+
+    private static CustomElandEmbeddingModel updateModelWithEmbeddingDetails(CustomElandEmbeddingModel model, int embeddingSize) {
+        CustomElandInternalTextEmbeddingServiceSettings serviceSettings = new CustomElandInternalTextEmbeddingServiceSettings(
+            model.getServiceSettings().getElasticsearchInternalServiceSettings().getNumAllocations(),
+            model.getServiceSettings().getElasticsearchInternalServiceSettings().getNumThreads(),
+            model.getServiceSettings().getElasticsearchInternalServiceSettings().getModelId(),
+            embeddingSize,
+            model.getServiceSettings().similarity(),
+            model.getServiceSettings().elementType()
+        );
+
+        return new CustomElandEmbeddingModel(
+            model.getInferenceEntityId(),
+            model.getTaskType(),
+            model.getConfigurations().getService(),
+            serviceSettings
+        );
     }
 
     @Override
@@ -267,7 +324,7 @@ public class ElasticsearchInternalService implements InferenceService {
             InferModelAction.INSTANCE,
             request,
             listener.delegateFailureAndWrap(
-                (l, inferenceResult) -> l.onResponse(TextEmbeddingResults.of(inferenceResult.getInferenceResults()))
+                (l, inferenceResult) -> l.onResponse(InferenceTextEmbeddingFloatResults.of(inferenceResult.getInferenceResults()))
             )
         );
     }
@@ -370,12 +427,12 @@ public class ElasticsearchInternalService implements InferenceService {
     }
 
     private static ChunkedInferenceServiceResults translateToChunkedResult(InferenceResults inferenceResult) {
-        if (inferenceResult instanceof org.elasticsearch.xpack.core.ml.inference.results.ChunkedTextEmbeddingResults mlChunkedResult) {
-            return ChunkedTextEmbeddingResults.ofMlResult(mlChunkedResult);
+        if (inferenceResult instanceof MlChunkedTextEmbeddingFloatResults mlChunkedResult) {
+            return InferenceChunkedTextEmbeddingFloatResults.ofMlResults(mlChunkedResult);
         } else if (inferenceResult instanceof ErrorInferenceResults error) {
             return new ErrorChunkedInferenceResults(error.getException());
         } else {
-            throw createInvalidChunkedResultException(inferenceResult.getWriteableName());
+            throw createInvalidChunkedResultException(MlChunkedTextEmbeddingFloatResults.NAME, inferenceResult.getWriteableName());
         }
     }
 
@@ -417,9 +474,8 @@ public class ElasticsearchInternalService implements InferenceService {
             return;
         } else if (model instanceof MultilingualE5SmallModel e5Model) {
             String modelId = e5Model.getServiceSettings().getModelId();
-            var fieldNames = List.<String>of();
-            var input = new TrainedModelInput(fieldNames);
-            var config = TrainedModelConfig.builder().setInput(input).setModelId(modelId).build();
+            var input = new TrainedModelInput(List.<String>of("text_field")); // by convention text_field is used
+            var config = TrainedModelConfig.builder().setInput(input).setModelId(modelId).validate(true).build();
             PutTrainedModelAction.Request putRequest = new PutTrainedModelAction.Request(config, false, true);
             executeAsyncWithOrigin(
                 client,

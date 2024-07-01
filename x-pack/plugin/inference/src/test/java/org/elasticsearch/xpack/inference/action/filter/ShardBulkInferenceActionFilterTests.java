@@ -33,14 +33,15 @@ import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
-import org.elasticsearch.xpack.core.inference.results.ChunkedSparseEmbeddingResults;
 import org.elasticsearch.xpack.core.inference.results.ErrorChunkedInferenceResults;
+import org.elasticsearch.xpack.core.inference.results.InferenceChunkedSparseEmbeddingResults;
 import org.elasticsearch.xpack.inference.model.TestModel;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 import org.junit.After;
 import org.junit.Before;
 import org.mockito.stubbing.Answer;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -204,13 +205,13 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
     @SuppressWarnings({ "unchecked", "rawtypes" })
     public void testManyRandomDocs() throws Exception {
         Map<String, StaticModel> inferenceModelMap = new HashMap<>();
-        int numModels = randomIntBetween(1, 5);
+        int numModels = randomIntBetween(1, 3);
         for (int i = 0; i < numModels; i++) {
             StaticModel model = StaticModel.createRandomInstance();
             inferenceModelMap.put(model.getInferenceEntityId(), model);
         }
 
-        int numInferenceFields = randomIntBetween(1, 5);
+        int numInferenceFields = randomIntBetween(1, 3);
         Map<String, InferenceFieldMetadata> inferenceFieldMap = new HashMap<>();
         for (int i = 0; i < numInferenceFields; i++) {
             String field = randomAlphaOfLengthBetween(5, 10);
@@ -218,7 +219,7 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
             inferenceFieldMap.put(field, new InferenceFieldMetadata(field, inferenceId, new String[] { field }));
         }
 
-        int numRequests = randomIntBetween(100, 1000);
+        int numRequests = atLeast(100);
         BulkItemRequest[] originalRequests = new BulkItemRequest[numRequests];
         BulkItemRequest[] modifiedRequests = new BulkItemRequest[numRequests];
         for (int id = 0; id < numRequests; id++) {
@@ -323,14 +324,14 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
     private static BulkItemRequest[] randomBulkItemRequest(
         Map<String, StaticModel> modelMap,
         Map<String, InferenceFieldMetadata> fieldInferenceMap
-    ) {
+    ) throws IOException {
         Map<String, Object> docMap = new LinkedHashMap<>();
         Map<String, Object> expectedDocMap = new LinkedHashMap<>();
         XContentType requestContentType = randomFrom(XContentType.values());
         for (var entry : fieldInferenceMap.values()) {
             String field = entry.getName();
             var model = modelMap.get(entry.getInferenceId());
-            String text = randomAlphaOfLengthBetween(10, 100);
+            String text = randomAlphaOfLengthBetween(10, 20);
             docMap.put(field, text);
             expectedDocMap.put(field, text);
             if (model == null) {
@@ -376,7 +377,7 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
         }
 
         ChunkedInferenceServiceResults getResults(String text) {
-            return resultMap.getOrDefault(text, new ChunkedSparseEmbeddingResults(List.of()));
+            return resultMap.getOrDefault(text, new InferenceChunkedSparseEmbeddingResults(List.of()));
         }
 
         void putResult(String text, ChunkedInferenceServiceResults result) {

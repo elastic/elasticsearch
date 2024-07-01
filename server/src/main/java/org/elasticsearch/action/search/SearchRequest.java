@@ -434,12 +434,6 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
                 if (source.pointInTimeBuilder() != null) {
                     validationException = addValidationError("[rank] cannot be used with [point in time]", validationException);
                 }
-                if (source.profile()) {
-                    validationException = addValidationError("[rank] requires [profile] is [false]", validationException);
-                }
-                if (source.explain() != null && source.explain()) {
-                    validationException = addValidationError("[rank] requires [explain] is [false]", validationException);
-                }
             }
             if (source.rescores() != null) {
                 for (@SuppressWarnings("rawtypes")

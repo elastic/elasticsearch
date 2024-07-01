@@ -48,6 +48,8 @@ public abstract class RetrieverBuilder implements ToXContent {
 
     public static final ParseField PRE_FILTER_FIELD = new ParseField("filter");
 
+    public static final ParseField NAME_FIELD = new ParseField("_name");
+
     protected static void declareBaseParserFields(
         String name,
         AbstractObjectParser<? extends RetrieverBuilder, RetrieverParserContext> parser
@@ -57,6 +59,11 @@ public abstract class RetrieverBuilder implements ToXContent {
             c.trackSectionUsage(name + ":" + PRE_FILTER_FIELD.getPreferredName());
             return preFilterQueryBuilder;
         }, PRE_FILTER_FIELD);
+        parser.declareString(RetrieverBuilder::retrieverName, NAME_FIELD);
+    }
+
+    private void retrieverName(String retrieverName) {
+        this.retrieverName = retrieverName;
     }
 
     /**
@@ -171,6 +178,8 @@ public abstract class RetrieverBuilder implements ToXContent {
     }
 
     protected List<QueryBuilder> preFilterQueryBuilders = new ArrayList<>();
+
+    protected String retrieverName;
 
     /**
      * Gets the filters for this retriever.

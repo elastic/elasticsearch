@@ -38,6 +38,8 @@ import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.logging.DeprecationCategory;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -412,6 +414,9 @@ import org.elasticsearch.xpack.security.transport.netty4.SecurityNetty4ServerTra
 import java.io.Closeable;
 import java.io.IOException;
 import java.net.InetSocketAddress;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.security.PrivilegedAction;
 import java.security.Provider;
 import java.time.Clock;
 import java.util.ArrayList;
@@ -436,6 +441,7 @@ import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static java.security.AccessController.doPrivileged;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
@@ -697,6 +703,29 @@ public class Security extends Plugin
         return this.reloadableComponents.get();
     }
 
+    /*
+     * Copied from XPackPlugin.resolveConfigFile so we don't go to a different codesource
+     * and so fail the secured file permission check on the users file.
+     * If there's a secured permission granted on this file (which there should be),
+     * ES has already checked the file is actually in the config directory
+     */
+    public static Path resolveSecuredConfigFile(Environment env, String file) {
+        Path config = env.configFile().resolve(file);
+        if (doPrivileged((PrivilegedAction<Boolean>) () -> Files.exists(config)) == false) {
+            Path legacyConfig = env.configFile().resolve("x-pack").resolve(file);
+            if (doPrivileged((PrivilegedAction<Boolean>) () -> Files.exists(legacyConfig))) {
+                DeprecationLogger.getLogger(XPackPlugin.class)
+                    .warn(
+                        DeprecationCategory.OTHER,
+                        "config_file_path",
+                        "Config file [" + file + "] is in a deprecated location. Move from " + legacyConfig + " to " + config
+                    );
+                return legacyConfig;
+            }
+        }
+        return config;
+    }
+
     @Override
     public Collection<?> createComponents(PluginServices services) {
         try {
@@ -759,7 +788,8 @@ public class Security extends Plugin
         this.persistentTasksService.set(persistentTasksService);
 
         systemIndices.getMainIndexManager().addStateListener((oldState, newState) -> {
-            if (clusterService.state().nodes().isLocalNodeElectedMaster()) {
+            // Only consider applying migrations if it's the master node and the security index exists
+            if (clusterService.state().nodes().isLocalNodeElectedMaster() && newState.indexExists()) {
                 applyPendingSecurityMigrations(newState);
             }
         });
@@ -1174,41 +1204,51 @@ public class Security extends Plugin
     }
 
     private void applyPendingSecurityMigrations(SecurityIndexManager.State newState) {
+        // If no migrations have been applied and the security index is on the latest version (new index), all migrations can be skipped
+        if (newState.migrationsVersion == 0 && newState.createdOnLatestVersion) {
+            submitPersistentMigrationTask(SecurityMigrations.MIGRATIONS_BY_VERSION.lastKey(), false);
+            return;
+        }
+
         Map.Entry<Integer, SecurityMigrations.SecurityMigration> nextMigration = SecurityMigrations.MIGRATIONS_BY_VERSION.higherEntry(
             newState.migrationsVersion
         );
 
-        if (nextMigration == null) {
-            return;
-        }
-
         // Check if next migration that has not been applied is eligible to run on the current cluster
-        if (systemIndices.getMainIndexManager().isEligibleSecurityMigration(nextMigration.getValue()) == false) {
+        if (nextMigration == null || systemIndices.getMainIndexManager().isEligibleSecurityMigration(nextMigration.getValue()) == false) {
             // Reset retry counter if all eligible migrations have been applied successfully
             nodeLocalMigrationRetryCount.set(0);
         } else if (nodeLocalMigrationRetryCount.get() > MAX_SECURITY_MIGRATION_RETRY_COUNT) {
             logger.warn("Security migration failed [" + nodeLocalMigrationRetryCount.get() + "] times, restart node to retry again.");
         } else if (systemIndices.getMainIndexManager().isReadyForSecurityMigration(nextMigration.getValue())) {
-            nodeLocalMigrationRetryCount.incrementAndGet();
-            persistentTasksService.get()
-                .sendStartRequest(
-                    SecurityMigrationTaskParams.TASK_NAME,
-                    SecurityMigrationTaskParams.TASK_NAME,
-                    new SecurityMigrationTaskParams(newState.migrationsVersion),
-                    null,
-                    ActionListener.wrap((response) -> {
-                        logger.debug("Security migration task submitted");
-                    }, (exception) -> {
-                        // Do nothing if the task is already in progress
-                        if (ExceptionsHelper.unwrapCause(exception) instanceof ResourceAlreadyExistsException) {
-                            // Do not count ResourceAlreadyExistsException as failure
-                            nodeLocalMigrationRetryCount.decrementAndGet();
-                        } else {
-                            logger.warn("Submit security migration task failed: " + exception.getCause());
-                        }
-                    })
-                );
+            submitPersistentMigrationTask(newState.migrationsVersion);
         }
+    }
+
+    private void submitPersistentMigrationTask(int migrationsVersion) {
+        submitPersistentMigrationTask(migrationsVersion, true);
+    }
+
+    private void submitPersistentMigrationTask(int migrationsVersion, boolean securityMigrationNeeded) {
+        nodeLocalMigrationRetryCount.incrementAndGet();
+        persistentTasksService.get()
+            .sendStartRequest(
+                SecurityMigrationTaskParams.TASK_NAME,
+                SecurityMigrationTaskParams.TASK_NAME,
+                new SecurityMigrationTaskParams(migrationsVersion, securityMigrationNeeded),
+                null,
+                ActionListener.wrap((response) -> {
+                    logger.debug("Security migration task submitted");
+                }, (exception) -> {
+                    // Do nothing if the task is already in progress
+                    if (ExceptionsHelper.unwrapCause(exception) instanceof ResourceAlreadyExistsException) {
+                        // Do not count ResourceAlreadyExistsException as failure
+                        nodeLocalMigrationRetryCount.decrementAndGet();
+                    } else {
+                        logger.warn("Submit security migration task failed: " + exception.getCause());
+                    }
+                })
+            );
     }
 
     private AuthorizationEngine getAuthorizationEngine() {

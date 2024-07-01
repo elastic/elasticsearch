@@ -199,7 +199,10 @@ public class TransportBulkActionTests extends ESTestCase {
         IndexRequest invalidRequest1 = new IndexRequest(backingIndexName).opType(DocWriteRequest.OpType.CREATE);
         Exception e = expectThrows(
             IllegalArgumentException.class,
-            () -> TransportBulkAction.prohibitAppendWritesInBackingIndices(invalidRequest1, metadata)
+            () -> TransportBulkAction.prohibitAppendWritesInBackingIndices(
+                invalidRequest1,
+                metadata.getIndicesLookup().get(invalidRequest1.index())
+            )
         );
         assertThat(
             e.getMessage(),
@@ -213,7 +216,10 @@ public class TransportBulkActionTests extends ESTestCase {
         IndexRequest invalidRequest2 = new IndexRequest(backingIndexName).opType(DocWriteRequest.OpType.INDEX);
         e = expectThrows(
             IllegalArgumentException.class,
-            () -> TransportBulkAction.prohibitAppendWritesInBackingIndices(invalidRequest2, metadata)
+            () -> TransportBulkAction.prohibitAppendWritesInBackingIndices(
+                invalidRequest2,
+                metadata.getIndicesLookup().get(invalidRequest2.index())
+            )
         );
         assertThat(
             e.getMessage(),
@@ -227,28 +233,28 @@ public class TransportBulkActionTests extends ESTestCase {
         DocWriteRequest<?> validRequest = new IndexRequest(backingIndexName).opType(DocWriteRequest.OpType.INDEX)
             .setIfSeqNo(1)
             .setIfPrimaryTerm(1);
-        TransportBulkAction.prohibitAppendWritesInBackingIndices(validRequest, metadata);
+        TransportBulkAction.prohibitAppendWritesInBackingIndices(validRequest, metadata.getIndicesLookup().get(validRequest.index()));
         validRequest = new DeleteRequest(backingIndexName);
-        TransportBulkAction.prohibitAppendWritesInBackingIndices(validRequest, metadata);
+        TransportBulkAction.prohibitAppendWritesInBackingIndices(validRequest, metadata.getIndicesLookup().get(validRequest.index()));
         validRequest = new UpdateRequest(backingIndexName, "_id");
-        TransportBulkAction.prohibitAppendWritesInBackingIndices(validRequest, metadata);
+        TransportBulkAction.prohibitAppendWritesInBackingIndices(validRequest, metadata.getIndicesLookup().get(validRequest.index()));
 
         // Testing append only write via ds name
         validRequest = new IndexRequest(dataStreamName).opType(DocWriteRequest.OpType.CREATE);
-        TransportBulkAction.prohibitAppendWritesInBackingIndices(validRequest, metadata);
+        TransportBulkAction.prohibitAppendWritesInBackingIndices(validRequest, metadata.getIndicesLookup().get(validRequest.index()));
 
         validRequest = new IndexRequest(dataStreamName).opType(DocWriteRequest.OpType.INDEX);
-        TransportBulkAction.prohibitAppendWritesInBackingIndices(validRequest, metadata);
+        TransportBulkAction.prohibitAppendWritesInBackingIndices(validRequest, metadata.getIndicesLookup().get(validRequest.index()));
 
         // Append only for a backing index that doesn't exist is allowed:
         validRequest = new IndexRequest(DataStream.getDefaultBackingIndexName("logs-barbaz", 1)).opType(DocWriteRequest.OpType.CREATE);
-        TransportBulkAction.prohibitAppendWritesInBackingIndices(validRequest, metadata);
+        TransportBulkAction.prohibitAppendWritesInBackingIndices(validRequest, metadata.getIndicesLookup().get(validRequest.index()));
 
         // Some other index names:
         validRequest = new IndexRequest("my-index").opType(DocWriteRequest.OpType.CREATE);
-        TransportBulkAction.prohibitAppendWritesInBackingIndices(validRequest, metadata);
+        TransportBulkAction.prohibitAppendWritesInBackingIndices(validRequest, metadata.getIndicesLookup().get(validRequest.index()));
         validRequest = new IndexRequest("foobar").opType(DocWriteRequest.OpType.CREATE);
-        TransportBulkAction.prohibitAppendWritesInBackingIndices(validRequest, metadata);
+        TransportBulkAction.prohibitAppendWritesInBackingIndices(validRequest, metadata.getIndicesLookup().get(validRequest.index()));
     }
 
     public void testProhibitCustomRoutingOnDataStream() throws Exception {
@@ -261,7 +267,10 @@ public class TransportBulkActionTests extends ESTestCase {
             .routing("custom");
         IllegalArgumentException exception = expectThrows(
             IllegalArgumentException.class,
-            () -> prohibitCustomRoutingOnDataStream(writeRequestAgainstDataStream, metadata)
+            () -> prohibitCustomRoutingOnDataStream(
+                writeRequestAgainstDataStream,
+                metadata.getIndicesLookup().get(writeRequestAgainstDataStream.index())
+            )
         );
         assertThat(
             exception.getMessage(),
@@ -275,7 +284,7 @@ public class TransportBulkActionTests extends ESTestCase {
         DocWriteRequest<?> writeRequestAgainstIndex = new IndexRequest(DataStream.getDefaultBackingIndexName(dataStreamName, 1L)).opType(
             DocWriteRequest.OpType.INDEX
         ).routing("custom");
-        prohibitCustomRoutingOnDataStream(writeRequestAgainstIndex, metadata);
+        prohibitCustomRoutingOnDataStream(writeRequestAgainstIndex, metadata.getIndicesLookup().get(writeRequestAgainstIndex.index()));
     }
 
     public void testOnlySystem() {

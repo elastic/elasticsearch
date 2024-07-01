@@ -14,10 +14,12 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.inference.services.ServiceUtils;
 
 import java.io.IOException;
 import java.util.Map;
+
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredPositiveInteger;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredString;
 
 public class CustomElandInternalServiceSettings extends ElasticsearchInternalServiceSettings {
 
@@ -39,14 +41,16 @@ public class CustomElandInternalServiceSettings extends ElasticsearchInternalSer
      * @return The {@code CustomElandServiceSettings} builder
      */
     public static CustomElandInternalServiceSettings fromMap(Map<String, Object> map) {
-
         ValidationException validationException = new ValidationException();
-        Integer numAllocations = ServiceUtils.removeAsType(map, NUM_ALLOCATIONS, Integer.class);
-        Integer numThreads = ServiceUtils.removeAsType(map, NUM_THREADS, Integer.class);
 
-        validateParameters(numAllocations, validationException, numThreads);
-
-        String modelId = ServiceUtils.extractRequiredString(map, MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        Integer numAllocations = extractRequiredPositiveInteger(
+            map,
+            NUM_ALLOCATIONS,
+            ModelConfigurations.SERVICE_SETTINGS,
+            validationException
+        );
+        Integer numThreads = extractRequiredPositiveInteger(map, NUM_THREADS, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        String modelId = extractRequiredString(map, MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
 
         if (validationException.validationErrors().isEmpty() == false) {
             throw validationException;

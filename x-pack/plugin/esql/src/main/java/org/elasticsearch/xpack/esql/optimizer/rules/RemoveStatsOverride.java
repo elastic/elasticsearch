@@ -50,7 +50,7 @@ public final class RemoveStatsOverride extends AnalyzerRules.AnalyzerRule<Aggreg
         aggregates = removeDuplicateNames(aggregates);
 
         // replace EsqlAggregate with Aggregate
-        return new Aggregate(agg.source(), agg.child(), groupings, aggregates);
+        return new Aggregate(agg.source(), agg.child(), agg.aggregateType(), groupings, aggregates);
     }
 
     private static <T extends Expression> List<T> removeDuplicateNames(List<T> list) {

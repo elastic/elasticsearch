@@ -257,16 +257,7 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
                                 );
                             }
                         } else {
-                            List<Expression> inputExpressions = new ArrayList<>();
-                            inputExpressions.add(field);
-                            for (Expression param : aggregateFunction.parameters()) {
-                                if (param.foldable() == false) {
-                                    inputExpressions.add(param);
-                                } else {
-                                    Object ignored = param.fold();
-                                }
-                            }
-                            sourceAttr = inputExpressions.stream().map(e -> {
+                            sourceAttr = aggregateFunction.inputExpressions().stream().map(e -> {
                                 Attribute attr = Expressions.attribute(e);
                                 if (attr == null) {
                                     throw new EsqlIllegalArgumentException(

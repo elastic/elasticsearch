@@ -7,6 +7,9 @@
 
 package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.RateDoubleAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.RateIntAggregatorFunctionSupplier;
@@ -35,6 +38,7 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 
 public class Rate extends AggregateFunction implements OptionalArgument, ToAggregator {
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Rate", Rate::readFrom);
     private static final TimeValue DEFAULT_UNIT = TimeValue.timeValueSeconds(1);
 
     private final Expression timestamp;
@@ -61,19 +65,21 @@ public class Rate extends AggregateFunction implements OptionalArgument, ToAggre
         return new Rate(source, field, new UnresolvedAttribute(source, "@timestamp"), unit);
     }
 
-    public static Rate readRate(PlanStreamInput in) throws IOException {
-        Source source = Source.readFrom(in);
-        Expression field = in.readExpression();
-        Expression timestamp = in.readOptionalWriteable(i -> in.readExpression());
-        Expression unit = in.readOptionalNamed(Expression.class);
+    private static Rate readFrom(StreamInput in) throws IOException {
+        PlanStreamInput planIn = (PlanStreamInput) in;
+        Source source = Source.readFrom(planIn);
+        Expression field = planIn.readExpression();
+        Expression timestamp = planIn.readExpression();
+        Expression unit = planIn.readOptionalNamed(Expression.class);
         return new Rate(source, field, timestamp, unit);
     }
 
-    public static void writeRate(PlanStreamOutput out, Rate rate) throws IOException {
-        rate.source().writeTo(out);
-        out.writeExpression(rate.field());
-        out.writeExpression(rate.timestamp);
-        out.writeOptionalExpression(rate.unit);
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        PlanStreamOutput planOut = (PlanStreamOutput) out;
+        planOut.writeExpression(timestamp);
+        planOut.writeOptionalExpression(unit);
     }
 
     @Override
@@ -139,6 +145,11 @@ public class Rate extends AggregateFunction implements OptionalArgument, ToAggre
             return duration.toMillis();
         }
         throw new IllegalArgumentException("function [" + sourceText() + "] has invalid unit [" + unit.sourceText() + "]");
+    }
+
+    @Override
+    public List<Expression> inputExpressions() {
+        return List.of(field(), timestamp);
     }
 
     @Override

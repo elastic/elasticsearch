@@ -427,7 +427,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                             );
                         }
 
-                        yield new KnnVectorQueryBuilder(inferenceResultsFieldName, inference, null, null);
+                        yield new KnnVectorQueryBuilder(inferenceResultsFieldName, inference, null, null, null);
                     }
                     default -> throw new IllegalStateException(
                         "Field ["
@@ -478,6 +478,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                     CHUNKED_EMBEDDINGS_FIELD,
                     indexVersionCreated
                 );
+
                 SimilarityMeasure similarity = modelSettings.similarity();
                 if (similarity != null) {
                     switch (similarity) {
@@ -490,6 +491,8 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                     }
                 }
                 denseVectorMapperBuilder.dimensions(modelSettings.dimensions());
+                denseVectorMapperBuilder.elementType(modelSettings.elementType());
+
                 yield denseVectorMapperBuilder;
             }
             default -> throw new IllegalArgumentException("Invalid task_type in model_settings [" + modelSettings.taskType().name() + "]");

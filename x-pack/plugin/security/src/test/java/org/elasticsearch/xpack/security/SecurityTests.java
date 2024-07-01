@@ -61,7 +61,6 @@ import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.telemetry.TelemetryProvider;
-import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.test.MockLog;
@@ -821,7 +820,7 @@ public class SecurityTests extends ESTestCase {
                 null,
                 usageService,
                 null,
-                Tracer.NOOP,
+                TelemetryProvider.NOOP,
                 mock(ClusterService.class),
                 null,
                 List.of(),

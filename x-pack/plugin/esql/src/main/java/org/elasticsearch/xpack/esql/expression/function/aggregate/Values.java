@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.ValuesBooleanAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.ValuesBytesRefAggregatorFunctionSupplier;
@@ -23,11 +25,14 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.planner.ToAggregator;
 
+import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 
 public class Values extends AggregateFunction implements ToAggregator {
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Values", Values::new);
+
     @FunctionInfo(
         returnType = { "boolean|date|double|integer|ip|keyword|long|text|version" },
         description = "Collect values for a field.",
@@ -38,6 +43,15 @@ public class Values extends AggregateFunction implements ToAggregator {
         @Param(name = "field", type = { "boolean|date|double|integer|ip|keyword|long|text|version" }) Expression v
     ) {
         super(source, v);
+    }
+
+    private Values(StreamInput in) throws IOException {
+        super(in);
+    }
+
+    @Override
+    public String getWriteableName() {
+        return ENTRY.name;
     }
 
     @Override

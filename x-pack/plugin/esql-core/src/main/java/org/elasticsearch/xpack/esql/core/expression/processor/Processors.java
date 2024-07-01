@@ -11,7 +11,6 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry.Entry;
 import org.elasticsearch.xpack.esql.core.expression.gen.processor.ConstantProcessor;
 import org.elasticsearch.xpack.esql.core.expression.gen.processor.Processor;
 import org.elasticsearch.xpack.esql.core.expression.predicate.logical.BinaryLogicProcessor;
-import org.elasticsearch.xpack.esql.core.expression.predicate.logical.NotProcessor;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.arithmetic.BinaryArithmeticOperation;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.arithmetic.BinaryArithmeticProcessor;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.arithmetic.DefaultBinaryArithmeticOperation;
@@ -41,7 +40,6 @@ public final class Processors {
 
         // logical
         entries.add(new Entry(Processor.class, BinaryLogicProcessor.NAME, BinaryLogicProcessor::new));
-        entries.add(new Entry(Processor.class, NotProcessor.NAME, NotProcessor::new));
 
         // arithmetic
         // binary arithmetics are pluggable

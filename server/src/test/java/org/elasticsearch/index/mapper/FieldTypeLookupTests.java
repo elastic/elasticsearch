@@ -519,6 +519,7 @@ public class FieldTypeLookupTests extends ESTestCase {
         assertEquals(foo.fieldType(), lookup.get("foo"));
     }
 
+    @SafeVarargs
     static <T> List<T> randomizedList(T... values) {
         ArrayList<T> list = new ArrayList<>(Arrays.asList(values));
         Collections.shuffle(list, random());

@@ -231,33 +231,25 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                 field -> assertThat("All multi-row fields must have the same number of rows", field.multiRowData(), hasSize(rowsCount))
             );
 
-        if (rowsCount == 0) {
-            var blocks = new Block[multirowFields.size()];
-            for (int i = 0; i < multirowFields.size(); i++) {
-                var field = multirowFields.get(i);
+        var blocks = new Block[multirowFields.size()];
+
+        for (int i = 0; i < multirowFields.size(); i++) {
+            var field = multirowFields.get(i);
+            try (
                 var wrapper = BlockUtils.wrapperFor(
                     TestBlockFactory.getNonBreakingInstance(),
                     PlannerUtils.toElementType(field.type()),
                     rowsCount
-                );
+                )
+            ) {
 
-                var data = field.multiRowData();
-                if (data.size() > 0) {
-                    wrapper.accept(field.multiRowData());
+                for (var row : field.multiRowData()) {
+                    wrapper.accept(row);
                 }
 
                 blocks[i] = wrapper.builder().build();
             }
-            return new Page(0, blocks);
         }
-
-        var rows = new ArrayList<List<Object>>();
-        for (int i = 0; i < rowsCount; i++) {
-            final int index = i;
-            rows.add(multirowFields.stream().map(l -> l.multiRowData().get(index)).toList());
-        }
-
-        var blocks = BlockUtils.fromList(TestBlockFactory.getNonBreakingInstance(), rows);
 
         return new Page(rowsCount, blocks);
     }

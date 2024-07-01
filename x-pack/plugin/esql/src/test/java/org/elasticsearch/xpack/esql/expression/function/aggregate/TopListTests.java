@@ -21,7 +21,6 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.function.Supplier;
-import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -34,7 +33,7 @@ public class TopListTests extends AbstractAggregationTestCase {
     public static Iterable<Object[]> parameters() {
         var suppliers = new ArrayList<TestCaseSupplier>();
 
-        for (var limitCaseSupplier : TestCaseSupplier.intCases(1, 100, false)) {
+        for (var limitCaseSupplier : TestCaseSupplier.intCases(1, 1000, false)) {
             for (String order : List.of("asc", "desc")) {
                 suppliers.add(
                     TopListTests.makeSupplier(
@@ -225,28 +224,6 @@ public class TopListTests extends AbstractAggregationTestCase {
     @Override
     protected Expression build(Source source, List<Expression> args) {
         return new TopList(source, args.get(0), args.get(1), args.get(2));
-    }
-
-    private static TestCaseSupplier.TypedDataSupplier toMultiRow(
-        int minRows,
-        int maxRows,
-        List<TestCaseSupplier.TypedDataSupplier> values
-    ) {
-        if (values.isEmpty()) {
-            throw new IllegalArgumentException("values cannot be empty");
-        }
-
-        var type = values.get(0).type();
-
-        return new TestCaseSupplier.TypedDataSupplier(
-            type + " rows",
-            () -> IntStream.range(0, randomIntBetween(minRows, maxRows))
-                .mapToObj(i -> values.get(randomIntBetween(1, values.size()) - 1).get().getValue())
-                .toList(),
-            values.get(0).type(),
-            false,
-            true
-        );
     }
 
     @SuppressWarnings("unchecked")

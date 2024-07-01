@@ -7,7 +7,7 @@ experimental[]
 Creates an {infer} endpoint to perform an {infer} task.
 
 IMPORTANT: The {infer} APIs enable you to use certain services, such as built-in
-{ml} models (ELSER, E5), models uploaded through Eland, Cohere, OpenAI, Mistral, Azure OpenAI, Google AI Studio or Hugging Face.
+{ml} models (ELSER, E5), models uploaded through Eland, Cohere, OpenAI, Mistral, Azure OpenAI, Google AI Studio, Google Vertex AI or Hugging Face.
 For built-in models and models uploaded though Eland, the {infer} APIs offer an alternative way to use and manage trained models.
 However, if you do not plan to use the {infer} APIs to use these models or if you want to use non-NLP models, use the
 <<ml-df-trained-models-apis>>.
@@ -40,6 +40,7 @@ The following services are available through the {infer} API:
 * Elasticsearch (for built-in models and models uploaded through Eland)
 * ELSER
 * Google AI Studio
+* Google Vertex AI
 * Hugging Face
 * Mistral
 * OpenAI
@@ -76,6 +77,7 @@ Available services:
 * `elasticsearch`: specify the `text_embedding` task type to use the E5 built-in model or text embedding models uploaded by Eland.
 * `elser`: specify the `sparse_embedding` task type to use the ELSER service.
 * `googleaistudio`: specify the `completion` or `text_embeddig` task to use the Google AI Studio service.
+* `googlevertexai`: specify the `text_embedding` task to use the Google Vertex AI service.
 * `hugging_face`: specify the `text_embedding` task type to use the Hugging Face service.
 * `mistral`: specify the `text_embedding` task type to use the Mistral service.
 * `openai`: specify the `completion` or `text_embedding` task type to use the OpenAI service.
@@ -261,7 +263,7 @@ The total number of allocations this model is assigned across machine learning n
 
 `num_threads`:::
 (Required, integer)
-Sets the number of threads used by each model allocation during inference. This generally increases the speed per inference request. The inference process is a compute-bound process; `threads_per_allocations` must not exceed the number of available allocated processors per node. 
+Sets the number of threads used by each model allocation during inference. This generally increases the speed per inference request. The inference process is a compute-bound process; `threads_per_allocations` must not exceed the number of available allocated processors per node.
 Must be a power of 2. Max allowed value is 32.
 
 =====
@@ -276,7 +278,7 @@ The total number of allocations this model is assigned across machine learning n
 
 `num_threads`:::
 (Required, integer)
-Sets the number of threads used by each model allocation during inference. This generally increases the speed per inference request. The inference process is a compute-bound process; `threads_per_allocations` must not exceed the number of available allocated processors per node. 
+Sets the number of threads used by each model allocation during inference. This generally increases the speed per inference request. The inference process is a compute-bound process; `threads_per_allocations` must not exceed the number of available allocated processors per node.
 Must be a power of 2. Max allowed value is 32.
 
 =====
@@ -298,6 +300,45 @@ You can find the supported models at https://ai.google.dev/gemini-api/docs/model
 (Optional, object)
 By default, the `googleaistudio` service sets the number of requests allowed per minute to `360`.
 This helps to minimize the number of rate limit errors returned from Google AI Studio.
+To modify this, set the `requests_per_minute` setting of this object in your service settings:
++
+--
+[source,text]
+----
+"rate_limit": {
+    "requests_per_minute": <<number_of_requests>>
+}
+----
+--
+
+=====
++
+.`service_settings` for the `googlevertexai` service
+[%collapsible%closed]
+=====
+
+`service_account_json`:::
+(Required, string)
+A valid service account in json format for the Google Vertex AI API.
+
+`model_id`:::
+(Required, string)
+The name of the model to use for the {infer} task.
+You can find the supported models at https://cloud.google.com/vertex-ai/generative-ai/docs/model-reference/text-embeddings-api[Text embeddings API].
+
+`location`:::
+(Required, string)
+The name of the location to use for the {infer} task.
+You find the supported locations at https://cloud.google.com/vertex-ai/generative-ai/docs/learn/locations[Generative AI on Vertex AI locations].
+
+`project_id`:::
+(Required, string)
+The name of the project to use for the {infer} task.
+
+`rate_limit`:::
+(Optional, object)
+By default, the `googlevertexai` service sets the number of requests allowed per minute to `30.000`.
+This helps to minimize the number of rate limit errors returned from Google Vertex AI.
 To modify this, set the `requests_per_minute` setting of this object in your service settings:
 +
 --
@@ -504,6 +545,11 @@ Valid values are:
 * `search`: use it for storing embeddings of search queries run against a vector database to find relevant documents.
 +
 IMPORTANT: The `input_type` field is required when using embedding models `v3` and higher.
+
+`auto_truncate`:::
+(Optional, string)
+For `googlevertexai` service only.
+Specifies if the API truncates inputs longer than the maximum token length automatically.
 
 `truncate`:::
 (Optional, string)
@@ -749,6 +795,27 @@ PUT _inference/completion/google_ai_studio_completion
 ------------------------------------------------------------
 // TEST[skip:TBD]
 
+[discrete]
+[[inference-example-googlevertexai]]
+===== Google Vertex AI service
+
+The following example shows how to create an {infer} endpoint called
+`google_vertex_ai_embeddings` to perform a `text_embedding` task type.
+
+[source,console]
+------------------------------------------------------------
+PUT _inference/text_embedding/google_vertex_ai_embeddings
+{
+    "service": "googlevertexai",
+    "service_settings": {
+        "service_account_json": "<service_account_json>",
+        "model_id": "<model_id>",
+        "location": "<location>",
+        "project_id": "<project_id>"
+    }
+}
+------------------------------------------------------------
+// TEST[skip:TBD]
 
 [discrete]
 [[inference-example-hugging-face]]

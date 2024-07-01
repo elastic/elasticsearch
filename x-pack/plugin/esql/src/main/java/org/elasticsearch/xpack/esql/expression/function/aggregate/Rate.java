@@ -148,6 +148,11 @@ public class Rate extends AggregateFunction implements OptionalArgument, ToAggre
     }
 
     @Override
+    public List<Expression> inputExpressions() {
+        return List.of(field(), timestamp);
+    }
+
+    @Override
     public AggregatorFunctionSupplier supplier(List<Integer> inputChannels) {
         if (inputChannels.size() != 2 && inputChannels.size() != 3) {
             throw new IllegalArgumentException("rate requires two for raw input or three channels for partial input; got " + inputChannels);

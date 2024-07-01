@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.ml.integration;
 
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.test.rest.ESRestTestCase;
@@ -18,6 +19,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -414,6 +416,71 @@ public class MlLearningToRankRescorerIT extends ESRestTestCase {
             response.toString(),
             (List<Double>) XContentMapValues.extractValue("hits.hits._score", response),
             contains(10.0, 1.0, 1.0, 1.0, 1.0)
+        );
+    }
+
+    public void testDuplicateFeatureExtractorsAreNotAllowed() throws IOException {
+        Exception ex = expectThrows(ResponseException.class, () -> putLearningToRankModel(MODEL_ID, """
+            {
+              "input": { "field_names": ["cost"] },
+              "inference_config": {
+                "learning_to_rank": {
+                  "feature_extractors": [
+                    {
+                      "query_extractor": {
+                        "feature_name": "cost",
+                        "query": {
+                          "script_score": {
+                            "query": { "match_all": {} },
+                            "script": { "source": "return doc[\\"cost\\"].value" }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              },
+              "definition": {
+                "trained_model": {
+                  "ensemble": {
+                    "feature_names": ["cost"],
+                    "target_type": "regression",
+                    "trained_models": [
+                      {
+                        "tree": {
+                          "feature_names": ["cost"],
+                          "tree_structure": [
+                            {
+                              "node_index": 0,
+                              "split_feature": 0,
+                              "split_gain": 12,
+                              "threshold": 1000,
+                              "decision_type": "lt",
+                              "default_left": true,
+                              "left_child": 1,
+                              "right_child": 2
+                            },
+                            {
+                              "node_index": 1,
+                              "leaf_value": 1.0
+                            },
+                            {
+                              "node_index": 2,
+                              "leaf_value": 10
+                            }
+                          ],
+                          "target_type": "regression"
+                        }
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+            """));
+        assertThat(
+            ex.getMessage(),
+            containsString("[input.field_names] and [inference_config.learning_to_rank.feature_extractors] contain duplicate names [cost]")
         );
     }
 

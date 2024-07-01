@@ -29,12 +29,14 @@ import org.elasticsearch.xpack.core.common.time.TimeUtils;
 import org.elasticsearch.xpack.core.ml.MlConfigVersion;
 import org.elasticsearch.xpack.core.ml.inference.persistence.InferenceIndexConstants;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.LearningToRankConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.LenientlyParsedInferenceConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.LenientlyParsedTrainedModelLocation;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ModelPackageConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.StrictlyParsedInferenceConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.StrictlyParsedTrainedModelLocation;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TrainedModelLocation;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ltr.LearningToRankFeatureExtractorBuilder;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.metadata.FeatureImportanceBaseline;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.metadata.Hyperparameters;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.metadata.TotalFeatureImportance;
@@ -977,6 +979,23 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
                     validationException
                 );
             }
+
+            if (input != null && inferenceConfig instanceof LearningToRankConfig) {
+                var featureNames = ((LearningToRankConfig) inferenceConfig).getFeatureExtractorBuilders()
+                    .stream()
+                    .map(LearningToRankFeatureExtractorBuilder::featureName);
+                var duplicateNames = featureNames.filter(input.getFieldNames()::contains).toList();
+
+                if (duplicateNames.isEmpty() == false) {
+                    validationException = addValidationError(
+                        "[input.field_names] and [inference_config.learning_to_rank.feature_extractors] contain duplicate names ["
+                            + String.join(",", duplicateNames)
+                            + "]",
+                        validationException
+                    );
+                }
+            }
+
             if (forCreation) {
                 validationException = checkIllegalSetting(version, VERSION.getPreferredName(), validationException);
                 validationException = checkIllegalSetting(createdBy, CREATED_BY.getPreferredName(), validationException);

@@ -26,13 +26,7 @@ import java.nio.charset.Charset
  *
  * Logging for the task is customizable for subclasses by overriding makeLogger.
  */
-public abstract class AntTask extends DefaultTask {
-
-    /**
-     * A buffer that will contain the output of the ant code run,
-     * if the output was not already written directly to stdout.
-     */
-    public final ByteArrayOutputStream outputBuffer = new ByteArrayOutputStream()
+abstract class AntTask extends DefaultTask {
 
     @Inject
     protected FileSystemOperations getFileSystemOperations() {
@@ -56,6 +50,11 @@ public abstract class AntTask extends DefaultTask {
 
         // otherwise groovy replaces System.out, and you have no chance to debug
         // ant.saveStreams = false
+        /**
+         * A buffer that will contain the output of the ant code run,
+         * if the output was not already written directly to stdout.
+         */
+        ByteArrayOutputStream outputBuffer = new ByteArrayOutputStream()
 
         final int outputLevel = logger.isDebugEnabled() ? Project.MSG_DEBUG : Project.MSG_INFO
         final PrintStream stream = useStdout() ? System.out : new PrintStream(outputBuffer, true, Charset.defaultCharset().name())
@@ -92,6 +91,4 @@ public abstract class AntTask extends DefaultTask {
     protected boolean useStdout() {
         return logger.isInfoEnabled()
     }
-
-
 }

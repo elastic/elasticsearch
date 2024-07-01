@@ -323,7 +323,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
             indexShard.postRecovery("peer recovery done", ActionListener.runBefore(new ActionListener<>() {
                 @Override
                 public void onResponse(Void unused) {
-                    listener.onRecoveryDone(state(), indexShard.getTimestampRange());
+                    listener.onRecoveryDone(state(), indexShard.getTimestampRange(), indexShard.getEventIngestedRange());
                 }
 
                 @Override

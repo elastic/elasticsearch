@@ -60,9 +60,12 @@ public class EsqlCapabilities {
         METADATA_IGNORED_FIELD,
 
         /**
-         * Support for the syntax {@code "tables": {"type": [<values>]}}.
+         * LOOKUP command with
+         * - tables using syntax {@code "tables": {"type": [<values>]}}
+         * - fixed variable shadowing
+         * - fixed Join.references(), requiring breaking change to Join serialization
          */
-        TABLES_TYPES(true),
+        LOOKUP_V4(true),
 
         /**
          * Support for requesting the "REPEAT" command.
@@ -82,7 +85,23 @@ public class EsqlCapabilities {
         /**
          * Support multiple field mappings if appropriate conversion function is used (union types)
          */
-        UNION_TYPES;
+        UNION_TYPES,
+
+        /**
+         * Support for function {@code ST_DISTANCE}. Done in #108764.
+         */
+        ST_DISTANCE,
+
+        /**
+         * Fix to GROK and DISSECT that allows extracting attributes with the same name as the input
+         * https://github.com/elastic/elasticsearch/issues/110184
+         */
+        GROK_DISSECT_MASKING,
+
+        /**
+         * Support for quoting index sources in double quotes.
+         */
+        DOUBLE_QUOTES_SOURCE_ENCLOSING;
 
         Cap() {
             snapshotOnly = false;

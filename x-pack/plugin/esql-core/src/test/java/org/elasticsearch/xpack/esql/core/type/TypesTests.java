@@ -103,16 +103,6 @@ public class TypesTests extends ESTestCase {
         assertThat(field, is(instanceOf(DateEsField.class)));
     }
 
-    public void testDateNanosField() {
-        Map<String, EsField> mapping = loadMapping("mapping-date_nanos.json");
-
-        assertThat(mapping.size(), is(1));
-        EsField field = mapping.get("date_nanos");
-        assertThat(field.getDataType(), is(DATETIME));
-        assertThat(field.isAggregatable(), is(true));
-        assertThat(field, is(instanceOf(DateEsField.class)));
-    }
-
     public void testDocValueField() {
         Map<String, EsField> mapping = loadMapping("mapping-docvalues.json");
 

@@ -46,6 +46,7 @@ public class EmbeddingRequestChunker {
             return switch (elementType) {
                 case BYTE -> EmbeddingType.BYTE;
                 case FLOAT -> EmbeddingType.FLOAT;
+                case BIT -> throw new IllegalArgumentException("Bit vectors are not supported");
             };
         }
     };

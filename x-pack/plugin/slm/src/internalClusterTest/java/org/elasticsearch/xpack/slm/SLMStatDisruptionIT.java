@@ -1,9 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
  * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.slm;
 
@@ -56,7 +55,6 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.equalTo;
-
 
 /**
  * Test that SLM stats can be lost due to master shutdown,
@@ -159,8 +157,7 @@ public class SLMStatDisruptionIT extends AbstractSnapshotIntegTestCase {
 
         // Listener that stops disrupting network only after snapshot completion
         CountDownLatch latch = new CountDownLatch(1);
-        internalCluster().clusterService(masterNode)
-            .addListener(new WaitForSnapshotListener(repoName, networkDisruption, latch));
+        internalCluster().clusterService(masterNode).addListener(new WaitForSnapshotListener(repoName, networkDisruption, latch));
 
         createRandomIndex(idxName, dataNode);
         createRepository(repoName, "mock");
@@ -176,7 +173,8 @@ public class SLMStatDisruptionIT extends AbstractSnapshotIntegTestCase {
         assertTrue(latch.await(1, TimeUnit.MINUTES));
 
         // restart master so failure stat is lost
-        // TODO this relies on a race condition. The node restart must happen before stats are stored in cluster state, but this is not guaranteed.
+        // TODO this relies on a race condition.
+        // The node restart must happen before stats are stored in cluster state, but this is not guaranteed.
         internalCluster().restartNode(masterNode);
 
         assertBusy(() -> {
@@ -241,8 +239,7 @@ public class SLMStatDisruptionIT extends AbstractSnapshotIntegTestCase {
 
         // Listener that stops disrupting network only after snapshot completion
         CountDownLatch latch = new CountDownLatch(1);
-        internalCluster().clusterService(masterNode)
-            .addListener(new WaitForSnapshotListener(repoName, networkDisruption, latch));
+        internalCluster().clusterService(masterNode).addListener(new WaitForSnapshotListener(repoName, networkDisruption, latch));
 
         createRandomIndex(idxName, dataNode);
         createRepository(repoName, "mock");
@@ -259,7 +256,8 @@ public class SLMStatDisruptionIT extends AbstractSnapshotIntegTestCase {
         assertTrue(latch.await(1, TimeUnit.MINUTES));
 
         // restart master so failure stat is lost
-        // TODO this relies on a race condition. The node restart must happen before stats are stored in cluster state, but this is not guaranteed.
+        // TODO this relies on a race condition.
+        // The node restart must happen before stats are stored in cluster state, but this is not guaranteed.
         internalCluster().restartNode(masterNode);
 
         assertBusy(() -> {
@@ -283,8 +281,7 @@ public class SLMStatDisruptionIT extends AbstractSnapshotIntegTestCase {
         // Now execute again, but don't fail the stat upload. The failure from the previous run will now be recorded.
         //
         CountDownLatch latch2 = new CountDownLatch(1);
-        internalCluster().clusterService(masterNode)
-            .addListener(new WaitForSnapshotListener(repoName, networkDisruption, latch2));
+        internalCluster().clusterService(masterNode).addListener(new WaitForSnapshotListener(repoName, networkDisruption, latch2));
 
         networkDisruption.startDisrupting();
         final String snapshotName2 = executePolicy(masterNode, policyName);
@@ -327,8 +324,7 @@ public class SLMStatDisruptionIT extends AbstractSnapshotIntegTestCase {
         internalCluster().setDisruptionScheme(networkDisruption);
 
         CountDownLatch latch = new CountDownLatch(1);
-        internalCluster().clusterService(masterNode)
-                .addListener(new WaitForSnapshotListener(repoName, networkDisruption, latch));
+        internalCluster().clusterService(masterNode).addListener(new WaitForSnapshotListener(repoName, networkDisruption, latch));
 
         createRandomIndex(idxName, dataNode);
         createRepository(repoName, "mock");
@@ -377,8 +373,7 @@ public class SLMStatDisruptionIT extends AbstractSnapshotIntegTestCase {
         internalCluster().setDisruptionScheme(networkDisruption);
 
         CountDownLatch latch = new CountDownLatch(1);
-        internalCluster().clusterService(masterNode)
-            .addListener(new WaitForSnapshotListener(repoName, networkDisruption, latch));
+        internalCluster().clusterService(masterNode).addListener(new WaitForSnapshotListener(repoName, networkDisruption, latch));
 
         createRandomIndex(idxName, dataNode);
         createRepository(repoName, "mock");
@@ -406,7 +401,7 @@ public class SLMStatDisruptionIT extends AbstractSnapshotIntegTestCase {
         }, 1, TimeUnit.MINUTES);
     }
 
-    private SnapshotLifecyclePolicyMetadata  getSnapshotLifecyclePolicyMetadata(String policyName) {
+    private SnapshotLifecyclePolicyMetadata getSnapshotLifecyclePolicyMetadata(String policyName) {
         final ClusterStateResponse clusterStateResponse = client().admin().cluster().state(new ClusterStateRequest()).actionGet();
         ClusterState state = clusterStateResponse.getState();
         SnapshotLifecycleMetadata slmeta = state.metadata().custom(SnapshotLifecycleMetadata.TYPE);
@@ -440,8 +435,7 @@ public class SLMStatDisruptionIT extends AbstractSnapshotIntegTestCase {
     }
 
     private void createRandomIndex(String idxName, String dataNodeName) throws InterruptedException {
-        Settings settings = indexSettings(1, 0)
-            .put("index.routing.allocation.require._name", dataNodeName).build();
+        Settings settings = indexSettings(1, 0).put("index.routing.allocation.require._name", dataNodeName).build();
         createIndex(idxName, settings);
 
         logger.info("--> indexing some data");
@@ -454,13 +448,7 @@ public class SLMStatDisruptionIT extends AbstractSnapshotIntegTestCase {
         indicesAdmin().refresh(new RefreshRequest(idxName)).actionGet();
     }
 
-    private void createSnapshotPolicy(
-        String policyName,
-        String snapshotNamePattern,
-        String schedule,
-        String repoId,
-        String indexPattern
-    ) {
+    private void createSnapshotPolicy(String policyName, String snapshotNamePattern, String schedule, String repoId, String indexPattern) {
         Map<String, Object> snapConfig = new HashMap<>();
         snapConfig.put("indices", Collections.singletonList(indexPattern));
         snapConfig.put("ignore_unavailable", false);
@@ -521,6 +509,7 @@ public class SLMStatDisruptionIT extends AbstractSnapshotIntegTestCase {
     private SnapshotsStatusResponse getSnapshotStatus(String repo, String snapshotName) {
         return clusterAdmin().prepareSnapshotStatus(repo).setSnapshots(snapshotName).get();
     }
+
     static class WaitForSnapshotListener implements ClusterStateListener {
         private final String repoName;
         private final NetworkDisruption networkDisruption;

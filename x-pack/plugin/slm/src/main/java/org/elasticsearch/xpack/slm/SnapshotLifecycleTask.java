@@ -218,7 +218,8 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
     private static long numPolicySnapshotsInProgress(String policyId, SnapshotsInProgress snapshots) {
         long numInProgress = 0;
         for (final List<SnapshotsInProgress.Entry> entriesForRepo : snapshots.entriesByRepo()) {
-            numInProgress += entriesForRepo.stream().map(SnapshotsInProgress.Entry::userMetadata)
+            numInProgress += entriesForRepo.stream()
+                .map(SnapshotsInProgress.Entry::userMetadata)
                 .filter(Objects::nonNull)
                 .map(meta -> meta.get(SnapshotsService.POLICY_ID_METADATA_FIELD))
                 .filter(policyId::equals)
@@ -253,11 +254,7 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
             Map<String, SnapshotLifecyclePolicyMetadata> snapLifecycles = new HashMap<>(snapMeta.getSnapshotConfigurations());
             SnapshotLifecyclePolicyMetadata policyMetadata = snapLifecycles.get(policyName);
             if (policyMetadata == null) {
-                logger.warn(
-                    "failed to pre-register snapshot [{}] in policy [{}]: policy not found",
-                    snapshotName,
-                    policyName
-                );
+                logger.warn("failed to pre-register snapshot [{}] in policy [{}]: policy not found", snapshotName, policyName);
                 return currentState;
             }
 
@@ -299,7 +296,6 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
             );
         }
     }
-
 
     /**
      * A cluster state update task to write the result of a snapshot job to the cluster metadata for the associated policy.
@@ -382,8 +378,8 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
             }
 
             // There are likely scenarios where inc/decrements to preRegisteredRuns can be lost, so lower bound to 0 after run.
-            assert policyMetadata.getPreRegisteredRuns() > 0:
-                "PreRegisteredRuns should be greater than 0 until a success/failures is emitted to acquiesce it.";
+            assert policyMetadata.getPreRegisteredRuns() > 0
+                : "PreRegisteredRuns should be greater than 0 until a success/failures is emitted to acquiesce it.";
             newPolicyMetadata.setPreRegisteredRuns(Math.min(0, policyMetadata.getPreRegisteredRuns() - 1L));
 
             snapLifecycles.put(policyName, newPolicyMetadata.build());

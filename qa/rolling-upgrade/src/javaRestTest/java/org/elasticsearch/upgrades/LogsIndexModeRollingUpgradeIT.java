@@ -16,8 +16,10 @@ import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.FormatNames;
+import org.elasticsearch.test.MapMatcher;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
+import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
 import org.junit.ClassRule;
 
@@ -27,7 +29,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
 
-import static org.hamcrest.Matchers.equalTo;
+import static org.elasticsearch.test.MapMatcher.assertMap;
+import static org.elasticsearch.test.MapMatcher.matchesMap;
 
 public class LogsIndexModeRollingUpgradeIT extends AbstractRollingUpgradeTestCase {
 
@@ -187,23 +190,24 @@ public class LogsIndexModeRollingUpgradeIT extends AbstractRollingUpgradeTestCas
             assertOK(bulkIndexResponse);
             assertThat(entityAsMap(bulkIndexResponse).get("errors"), Matchers.is(false));
 
-            assertThat(
-                getSettings(client(), getWriteBackingIndex(client(), "logs-apache-production", 0)).get("index.mode"),
-                Matchers.nullValue()
-            );
-            assertThat(
-                getSettings(client(), getWriteBackingIndex(client(), "logs-apache-production", 1)).get("index.mode"),
-                Matchers.nullValue()
-            );
-            assertThat(
-                getSettings(client(), getWriteBackingIndex(client(), "logs-apache-production", 2)).get("index.mode"),
-                Matchers.nullValue()
-            );
-            assertThat(
-                getSettings(client(), getWriteBackingIndex(client(), "logs-apache-production", 3)).get("index.mode"),
-                equalTo("logs")
+            assertIndexMappingsAndSettings(0, Matchers.nullValue(), matchesMap().extraOk());
+            assertIndexMappingsAndSettings(1, Matchers.nullValue(), matchesMap().extraOk());
+            assertIndexMappingsAndSettings(2, Matchers.nullValue(), matchesMap().extraOk());
+            assertIndexMappingsAndSettings(
+                3,
+                Matchers.equalTo("logs"),
+                matchesMap().extraOk().entry("_source", Map.of("mode", "synthetic"))
             );
         }
+    }
+
+    private void assertIndexMappingsAndSettings(int backingIndex, final Matcher<Object> indexModeMatcher, final MapMatcher mappingsMatcher)
+        throws IOException {
+        assertThat(
+            getSettings(client(), getWriteBackingIndex(client(), "logs-apache-production", backingIndex)).get("index.mode"),
+            indexModeMatcher
+        );
+        assertMap(getIndexMappingAsMap(getWriteBackingIndex(client(), "logs-apache-production", backingIndex)), mappingsMatcher);
     }
 
     private static Request createDataStream(final String dataStreamName) {

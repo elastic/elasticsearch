@@ -52,6 +52,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Predicate;
+import java.util.function.Supplier;
 import java.util.jar.JarEntry;
 import java.util.jar.JarInputStream;
 
@@ -127,7 +128,12 @@ public class NodeSubclassTests<T extends B, B extends Node<B>> extends ESTestCas
             Object originalArgValue = nodeCtorArgs[changedArgOffset];
 
             Type changedArgType = argTypes[changedArgOffset];
-            Object changedArgValue = randomValueOtherThan(nodeCtorArgs[changedArgOffset], () -> makeArg(changedArgType));
+            Object changedArgValue = randomValueOtherThanMaxTries(
+                nodeCtorArgs[changedArgOffset],
+                () -> makeArg(changedArgType),
+                // JoinType has only 1 permitted enum element. Limit the number of retries.
+                3
+            );
 
             B transformed = node.transformNodeProps(Object.class, prop -> Objects.equals(prop, originalArgValue) ? changedArgValue : prop);
 
@@ -707,5 +713,16 @@ public class NodeSubclassTests<T extends B, B extends Node<B>> extends ESTestCas
         } catch (ClassNotFoundException e) {
             return null;
         }
+    }
+
+    private static <T> T randomValueOtherThanManyMaxTries(Predicate<T> input, Supplier<T> randomSupplier, int maxTries) {
+        int[] maxTriesHolder = { maxTries };
+        Predicate<T> inputWithMaxTries = t -> input.test(t) && maxTriesHolder[0]-- > 0;
+
+        return ESTestCase.randomValueOtherThanMany(inputWithMaxTries, randomSupplier);
+    }
+
+    public static <T> T randomValueOtherThanMaxTries(T input, Supplier<T> randomSupplier, int maxTries) {
+        return randomValueOtherThanManyMaxTries(v -> Objects.equals(input, v), randomSupplier, maxTries);
     }
 }

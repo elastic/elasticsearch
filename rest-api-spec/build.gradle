@@ -39,7 +39,7 @@ dependencies {
   clusterModules project(':modules:analysis-common')
   clusterModules project(':modules:health-shards-availability')
   clusterModules project(':modules:data-streams')
-  clusterModules project(':modules:ent-search')
+  clusterModules project(':x-pack:plugin:ent-search')
 }
 
 tasks.named("yamlRestTestV7CompatTransform").configure { task

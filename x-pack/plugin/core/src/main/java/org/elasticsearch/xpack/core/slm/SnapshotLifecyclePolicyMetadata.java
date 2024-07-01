@@ -216,7 +216,16 @@ public class SnapshotLifecyclePolicyMetadata implements SimpleDiffable<SnapshotL
 
     @Override
     public int hashCode() {
-        return Objects.hash(policy, headers, version, modifiedDate, lastSuccess, lastFailure, invocationsSinceLastSuccess, preRegisteredRuns);
+        return Objects.hash(
+            policy,
+            headers,
+            version,
+            modifiedDate,
+            lastSuccess,
+            lastFailure,
+            invocationsSinceLastSuccess,
+            preRegisteredRuns
+        );
     }
 
     @Override

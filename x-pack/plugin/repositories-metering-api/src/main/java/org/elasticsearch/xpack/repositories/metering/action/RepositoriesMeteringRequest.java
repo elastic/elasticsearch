@@ -7,17 +7,10 @@
 
 package org.elasticsearch.xpack.repositories.metering.action;
 
-import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.support.nodes.BaseNodesRequest;
-import org.elasticsearch.common.io.stream.StreamOutput;
 
 public final class RepositoriesMeteringRequest extends BaseNodesRequest<RepositoriesMeteringRequest> {
     public RepositoriesMeteringRequest(String... nodesIds) {
         super(nodesIds);
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) {
-        TransportAction.localOnly();
     }
 }

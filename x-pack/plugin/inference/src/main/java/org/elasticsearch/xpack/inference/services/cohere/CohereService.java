@@ -247,7 +247,11 @@ public class CohereService extends SenderService {
         CohereModel cohereModel = (CohereModel) model;
         var actionCreator = new CohereActionCreator(getSender(), getServiceComponents());
 
-        var batchedRequests = new EmbeddingRequestChunker(input, EMBEDDING_MAX_BATCH_SIZE).batchRequestsWithListeners(listener);
+        var batchedRequests = new EmbeddingRequestChunker(
+            input,
+            EMBEDDING_MAX_BATCH_SIZE,
+            EmbeddingRequestChunker.EmbeddingType.fromDenseVectorElementType(model.getServiceSettings().elementType())
+        ).batchRequestsWithListeners(listener);
         for (var request : batchedRequests) {
             var action = cohereModel.accept(actionCreator, taskSettings, inputType);
             action.execute(new DocumentsOnlyInput(request.batch().inputs()), timeout, request.listener());
@@ -275,8 +279,8 @@ public class CohereService extends SenderService {
     }
 
     private CohereEmbeddingsModel updateModelWithEmbeddingDetails(CohereEmbeddingsModel model, int embeddingSize) {
-        var similarityFromModel = model.getServiceSettings().similarity();
-        var similarityToUse = similarityFromModel == null ? SimilarityMeasure.DOT_PRODUCT : similarityFromModel;
+        var userDefinedSimilarity = model.getServiceSettings().similarity();
+        var similarityToUse = userDefinedSimilarity == null ? defaultSimilarity() : userDefinedSimilarity;
 
         CohereEmbeddingsServiceSettings serviceSettings = new CohereEmbeddingsServiceSettings(
             new CohereServiceSettings(
@@ -291,6 +295,18 @@ public class CohereService extends SenderService {
         );
 
         return new CohereEmbeddingsModel(model, serviceSettings);
+    }
+
+    /**
+     * Return the default similarity measure for the embedding type.
+     * Cohere embeddings are normalized to unit vectors therefor Dot
+     * Product similarity can be used and is the default for all Cohere
+     * models.
+     *
+     * @return The default similarity.
+     */
+    static SimilarityMeasure defaultSimilarity() {
+        return SimilarityMeasure.DOT_PRODUCT;
     }
 
     @Override

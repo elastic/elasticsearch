@@ -139,3 +139,12 @@ the resulting embeddings.
 
 This imposes a restriction on bulk updates to documents with `semantic_text`. 
 In bulk requests, all fields that are copied to a `semantic_text` field must have a value to ensure every embedding is calculated correctly.
+
+[discrete]
+[[limitations]]
+==== Limitations
+
+`semantic_text` field types have the following limitations:
+
+* `semantic_text` fields are not currently supported as elements of <<nested,nested fields>>.
+* `semantic_text` fields can't be defined as <<multi-fields,multi-fields>> of another field, nor can they contain other fields as multi-fields.

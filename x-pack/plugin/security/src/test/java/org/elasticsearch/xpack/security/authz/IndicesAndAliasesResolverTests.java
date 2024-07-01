@@ -58,6 +58,7 @@ import org.elasticsearch.protocol.xpack.graph.GraphExploreRequest;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.EmptyRequest;
 import org.elasticsearch.transport.NoSuchRemoteClusterException;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.graph.action.GraphExploreAction;
@@ -2541,7 +2542,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
     }
 
     private AuthorizedIndices buildAuthorizedIndices(User user, String action) {
-        return buildAuthorizedIndices(user, action, TransportRequest.Empty.INSTANCE);
+        return buildAuthorizedIndices(user, action, new EmptyRequest());
     }
 
     private AuthorizedIndices buildAuthorizedIndices(User user, String action, TransportRequest request) {

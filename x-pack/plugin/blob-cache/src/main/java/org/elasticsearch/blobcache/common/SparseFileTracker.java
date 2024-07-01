@@ -18,6 +18,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.SortedSet;
 import java.util.TreeSet;
+import java.util.function.LongConsumer;
 
 /**
  * Keeps track of the contents of a file that may not be completely present.
@@ -199,7 +200,7 @@ public class SparseFileTracker {
                     final Range newPendingRange = new Range(
                         targetRange.start,
                         range.end(),
-                        new ProgressListenableActionFuture(targetRange.start, range.end())
+                        new ProgressListenableActionFuture(targetRange.start, range.end(), progressConsumer(targetRange.start))
                     );
                     ranges.add(newPendingRange);
                     pendingRanges.add(newPendingRange);
@@ -218,7 +219,7 @@ public class SparseFileTracker {
                         final Range newPendingRange = new Range(
                             targetRange.start,
                             newPendingRangeEnd,
-                            new ProgressListenableActionFuture(targetRange.start, newPendingRangeEnd)
+                            new ProgressListenableActionFuture(targetRange.start, newPendingRangeEnd, progressConsumer(targetRange.start))
                         );
                         ranges.add(newPendingRange);
                         pendingRanges.add(newPendingRange);
@@ -257,6 +258,15 @@ public class SparseFileTracker {
                 }
                 targetRange.start = Math.min(range.end(), lastEarlierRange.end);
             }
+        }
+    }
+
+    private LongConsumer progressConsumer(long rangeStart) {
+        assert Thread.holdsLock(ranges);
+        if (rangeStart == complete) {
+            return this::updateCompletePointer;
+        } else {
+            return null;
         }
     }
 
@@ -464,9 +474,25 @@ public class SparseFileTracker {
     private void maybeUpdateCompletePointer(Range gapRange) {
         assert Thread.holdsLock(ranges);
         if (gapRange.start == 0) {
-            assert complete <= gapRange.end;
-            complete = gapRange.end;
+            updateCompletePointerHoldingLock(gapRange.end);
         }
+    }
+
+    private void updateCompletePointerHoldingLock(long value) {
+        assert Thread.holdsLock(ranges);
+        assert complete <= value : complete + ">" + value;
+        complete = value;
+    }
+
+    private void updateCompletePointer(long value) {
+        synchronized (ranges) {
+            updateCompletePointerHoldingLock(value);
+        }
+    }
+
+    // used in tests
+    long getComplete() {
+        return complete;
     }
 
     private boolean assertGapRangePending(Range gapRange) {
@@ -535,9 +561,9 @@ public class SparseFileTracker {
         /**
          * Range in the file corresponding to the current gap
          */
-        public final Range range;
+        private final Range range;
 
-        Gap(Range range) {
+        private Gap(Range range) {
             assert range.start < range.end : range.start + "-" + range.end;
             this.range = range;
         }

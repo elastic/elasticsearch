@@ -295,6 +295,12 @@ This may be helpful when experimenting with specific search queries that you wan
 If your search application's name is `my_search_application`, your alias will be `my_search_application`.
 You can search this using the <<search-search,search API>>.
 
+[discrete]
+[[search-application-cross-cluster-search]]
+===== Cross cluster search
+
+Search applications do not currently support {ccs} because it is not possible to add a remote cluster's index or index pattern to an index alias.
+
 [NOTE]
 ====
 You should use the Search Applications management APIs to update your application and _not_ directly use {es} APIs such as the alias API.
@@ -411,11 +417,10 @@ PUT _application/search_application/my-search-app
               {
                 "standard": {
                   "query": {
-                    "text_expansion": {
-                      "ml.inference.{{.}}_expanded.predicted_value": {
-                        "model_text": "{{query_string}}",
-                        "model_id": "<elser_model_id>"
-                      }
+                    "sparse_vector": {
+                      "field": "ml.inference.{{.}}_expanded.predicted_value",
+                      "inference_id": "<elser_inference_id>",
+                      "query": "{{query_string}}"
                     }
                   }
                 }
@@ -503,12 +508,10 @@ PUT _application/search_application/my_search_application
               {{#elser}}
               {{#elser_fields}}
               {
-                "text_expansion": {
-                  "ml.inference.{{name}}_expanded.predicted_value": {
-                    "model_text": "{{query_string}}",
-                    "model_id": ".elser_model_1",
-                    "boost": "{{boost}}"
-                  }
+                "sparse_vector": {
+                  "field": "ml.inference.{{.}}_expanded.predicted_value",
+                  "inference_id": "<elser_inference_id>",
+                  "query": "{{query_string}}"
                 }
               },
               {{/elser_fields}}
@@ -667,12 +670,11 @@ PUT _application/search_application/my_search_application
               "should": [
                 {{#elser_fields}}
                 {
-                  "text_expansion": {
-                    "ml.inference.{{name}}_expanded.predicted_value": {
-                      "model_text": "{{query_string}}",
-                      "model_id": "<elser_model_id>"
+                  "sparse_vector": {
+                      "field": "ml.inference.{{.}}_expanded.predicted_value",
+                      "inference_id": "<elser_inference_id>",
+                      "query": "{{query_string}}"
                     }
-                  }
                 },
                 {{/elser_fields}}
                 ]

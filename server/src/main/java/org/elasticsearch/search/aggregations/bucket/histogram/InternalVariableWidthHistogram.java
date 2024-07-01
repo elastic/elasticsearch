@@ -37,7 +37,7 @@ public class InternalVariableWidthHistogram extends InternalMultiBucketAggregati
     InternalVariableWidthHistogram,
     InternalVariableWidthHistogram.Bucket> implements Histogram, HistogramFactory {
 
-    public static class Bucket extends InternalMultiBucketAggregation.InternalBucket implements Histogram.Bucket, KeyComparable<Bucket> {
+    public static class Bucket extends AbstractHistogramBucket implements KeyComparable<Bucket> {
 
         public static class BucketBounds {
             public double min;
@@ -72,28 +72,23 @@ public class InternalVariableWidthHistogram extends InternalMultiBucketAggregati
         }
 
         private final BucketBounds bounds;
-        private long docCount;
-        private InternalAggregations aggregations;
-        protected final transient DocValueFormat format;
-        private double centroid;
+        private final double centroid;
 
         public Bucket(double centroid, BucketBounds bounds, long docCount, DocValueFormat format, InternalAggregations aggregations) {
-            this.format = format;
+            super(docCount, aggregations, format);
             this.centroid = centroid;
             this.bounds = bounds;
-            this.docCount = docCount;
-            this.aggregations = aggregations;
         }
 
         /**
          * Read from a stream.
          */
-        public Bucket(StreamInput in, DocValueFormat format) throws IOException {
-            this.format = format;
-            centroid = in.readDouble();
-            docCount = in.readVLong();
-            bounds = new BucketBounds(in);
-            aggregations = InternalAggregations.readFrom(in);
+        public static Bucket readFrom(StreamInput in, DocValueFormat format) throws IOException {
+            final double centroid = in.readDouble();
+            final long docCount = in.readVLong();
+            final BucketBounds bounds = new BucketBounds(in);
+            final InternalAggregations aggregations = InternalAggregations.readFrom(in);
+            return new Bucket(centroid, bounds, docCount, format, aggregations);
         }
 
         @Override
@@ -123,7 +118,7 @@ public class InternalVariableWidthHistogram extends InternalMultiBucketAggregati
 
         @Override
         public String getKeyAsString() {
-            return format.format((double) getKey()).toString();
+            return format.format(centroid).toString();
         }
 
         /**
@@ -146,16 +141,6 @@ public class InternalVariableWidthHistogram extends InternalMultiBucketAggregati
 
         public double centroid() {
             return centroid;
-        }
-
-        @Override
-        public long getDocCount() {
-            return docCount;
-        }
-
-        @Override
-        public InternalAggregations getAggregations() {
-            return aggregations;
         }
 
         @Override
@@ -231,7 +216,7 @@ public class InternalVariableWidthHistogram extends InternalMultiBucketAggregati
         }
     }
 
-    private List<Bucket> buckets;
+    private final List<Bucket> buckets;
     private final DocValueFormat format;
     private final int targetNumBuckets;
     final EmptyBucketInfo emptyBucketInfo;
@@ -258,7 +243,7 @@ public class InternalVariableWidthHistogram extends InternalMultiBucketAggregati
         super(in);
         emptyBucketInfo = new EmptyBucketInfo(in);
         format = in.readNamedWriteable(DocValueFormat.class);
-        buckets = in.readCollectionAsList(stream -> new Bucket(stream, format));
+        buckets = in.readCollectionAsList(stream -> Bucket.readFrom(stream, format));
         targetNumBuckets = in.readVInt();
         // we changed the order format in 8.13 for partial reduce, therefore we need to order them to perform merge sort
         if (in.getTransportVersion().between(TransportVersions.V_8_13_0, TransportVersions.HISTOGRAM_AGGS_KEY_SORTED)) {

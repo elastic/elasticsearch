@@ -13,7 +13,7 @@ import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.core.inference.results.InferenceChunkedSparseEmbeddingResults;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.inference.results.ChunkedNlpInferenceResults;
-import org.elasticsearch.xpack.core.ml.inference.results.InferenceChunkedTextExpansionResults;
+import org.elasticsearch.xpack.core.ml.inference.results.MlChunkedTextExpansionResults;
 import org.elasticsearch.xpack.core.ml.search.WeightedToken;
 
 import java.io.IOException;
@@ -26,7 +26,7 @@ import static org.hamcrest.Matchers.is;
 public class InferenceChunkedSparseEmbeddingResultsTests extends AbstractWireSerializingTestCase<InferenceChunkedSparseEmbeddingResults> {
 
     public static InferenceChunkedSparseEmbeddingResults createRandomResults() {
-        var chunks = new ArrayList<InferenceChunkedTextExpansionResults.ChunkedResult>();
+        var chunks = new ArrayList<MlChunkedTextExpansionResults.ChunkedResult>();
         int numChunks = randomIntBetween(1, 5);
 
         for (int i = 0; i < numChunks; i++) {
@@ -35,7 +35,7 @@ public class InferenceChunkedSparseEmbeddingResultsTests extends AbstractWireSer
             for (int j = 0; j < numTokens; j++) {
                 tokenWeights.add(new WeightedToken(Integer.toString(j), (float) randomDoubleBetween(0.0, 5.0, false)));
             }
-            chunks.add(new InferenceChunkedTextExpansionResults.ChunkedResult(randomAlphaOfLength(6), tokenWeights));
+            chunks.add(new MlChunkedTextExpansionResults.ChunkedResult(randomAlphaOfLength(6), tokenWeights));
         }
 
         return new InferenceChunkedSparseEmbeddingResults(chunks);
@@ -43,7 +43,7 @@ public class InferenceChunkedSparseEmbeddingResultsTests extends AbstractWireSer
 
     public void testToXContent_CreatesTheRightJsonForASingleChunk() {
         var entity = new InferenceChunkedSparseEmbeddingResults(
-            List.of(new InferenceChunkedTextExpansionResults.ChunkedResult("text", List.of(new WeightedToken("token", 0.1f))))
+            List.of(new MlChunkedTextExpansionResults.ChunkedResult("text", List.of(new WeightedToken("token", 0.1f))))
         );
 
         assertThat(

@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.esql.expression;
 
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.esql.core.TestUtils;
+import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.core.expression.Expression.TypeResolution;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mul;
@@ -23,6 +23,6 @@ public class TyperResolutionTests extends ESTestCase {
     }
 
     private static Literal L(Object value) {
-        return TestUtils.of(EMPTY, value);
+        return EsqlTestUtils.of(EMPTY, value);
     }
 }

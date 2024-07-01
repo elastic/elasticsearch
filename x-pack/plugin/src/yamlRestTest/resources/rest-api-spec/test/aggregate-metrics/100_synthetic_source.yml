@@ -76,7 +76,6 @@ aggregate_metric_double with ignore_malformed:
       index:
         index:  test
         id:     "1"
-        refresh: true
         body:
           metric:
             min: 18.2
@@ -88,11 +87,22 @@ aggregate_metric_double with ignore_malformed:
             value_count: 50
 
   - do:
-      search:
+      index:
+        index:  test
+        id:     "2"
+        body:
+          metric: ["hey", {"value_count": 1, "min": 18.2,"max": 100}, [123, 456]]
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      get:
         index: test
+        id: "1"
 
   - match:
-      hits.hits.0._source:
+      _source:
         metric:
           min: 18.2
           max: 100
@@ -101,4 +111,13 @@ aggregate_metric_double with ignore_malformed:
             array: [1, 2, 3]
             field: "field"
           value_count: 50
+
+  - do:
+      get:
+        index: test
+        id: "2"
+
+  - match:
+      _source:
+        metric: [{"min": 18.2,"max": 100.0, "value_count": 1}, "hey", 123, 456]
 

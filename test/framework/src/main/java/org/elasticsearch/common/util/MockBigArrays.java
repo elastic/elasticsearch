@@ -389,8 +389,8 @@ public class MockBigArrays extends BigArrays {
         }
 
         @Override
-        public byte set(long index, byte value) {
-            return in.set(index, value);
+        public void set(long index, byte value) {
+            in.set(index, value);
         }
 
         @Override
@@ -469,8 +469,13 @@ public class MockBigArrays extends BigArrays {
         }
 
         @Override
-        public int set(long index, int value) {
-            return in.set(index, value);
+        public int getAndSet(long index, int value) {
+            return in.getAndSet(index, value);
+        }
+
+        @Override
+        public void set(long index, int value) {
+            in.set(index, value);
         }
 
         @Override
@@ -524,8 +529,13 @@ public class MockBigArrays extends BigArrays {
         }
 
         @Override
-        public long set(long index, long value) {
-            return in.set(index, value);
+        public long getAndSet(long index, long value) {
+            return in.getAndSet(index, value);
+        }
+
+        @Override
+        public void set(long index, long value) {
+            in.set(index, value);
         }
 
         @Override
@@ -584,8 +594,8 @@ public class MockBigArrays extends BigArrays {
         }
 
         @Override
-        public float set(long index, float value) {
-            return in.set(index, value);
+        public void set(long index, float value) {
+            in.set(index, value);
         }
 
         @Override
@@ -629,8 +639,8 @@ public class MockBigArrays extends BigArrays {
         }
 
         @Override
-        public double set(long index, double value) {
-            return in.set(index, value);
+        public void set(long index, double value) {
+            in.set(index, value);
         }
 
         @Override

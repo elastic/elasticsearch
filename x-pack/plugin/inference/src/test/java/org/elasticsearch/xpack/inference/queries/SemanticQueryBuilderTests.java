@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.inference.queries;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
+import org.apache.lucene.search.KnnByteVectorQuery;
 import org.apache.lucene.search.KnnFloatVectorQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
@@ -29,6 +30,7 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
@@ -79,6 +81,7 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
     private static final String INFERENCE_ID = "test_service";
 
     private static InferenceResultType inferenceResultType;
+    private static DenseVectorFieldMapper.ElementType denseVectorElementType;
 
     private enum InferenceResultType {
         NONE,
@@ -90,9 +93,13 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
 
     @BeforeClass
     public static void setInferenceResultType() {
-        // The inference result type is a class variable because it is used when initializing additional mappings,
-        // which happens once per test suite run in AbstractBuilderTestCase#beforeTest as part of service holder creation.
+        // These are class variables because they are used when initializing additional mappings, which happens once per test suite run in
+        // AbstractBuilderTestCase#beforeTest as part of service holder creation.
         inferenceResultType = randomFrom(InferenceResultType.values());
+        denseVectorElementType = randomValueOtherThan(
+            DenseVectorFieldMapper.ElementType.BIT,
+            () -> randomFrom(DenseVectorFieldMapper.ElementType.values())
+        ); // TODO: Support bit elements once KNN bit vector queries are available
     }
 
     @Override
@@ -133,7 +140,7 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
     private void applyRandomInferenceResults(MapperService mapperService) throws IOException {
         // Parse random inference results (or no inference results) to set up the dynamic inference result mappings under the semantic text
         // field
-        SourceToParse sourceToParse = buildSemanticTextFieldWithInferenceResults(inferenceResultType);
+        SourceToParse sourceToParse = buildSemanticTextFieldWithInferenceResults(inferenceResultType, denseVectorElementType);
         if (sourceToParse != null) {
             ParsedDocument parsedDocument = mapperService.documentMapper().parse(sourceToParse);
             mapperService.merge(
@@ -194,7 +201,13 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
 
     private void assertTextEmbeddingLuceneQuery(Query query) {
         Query innerQuery = assertOuterBooleanQuery(query);
-        assertThat(innerQuery, instanceOf(KnnFloatVectorQuery.class));
+
+        Class<? extends Query> expectedKnnQueryClass = switch (denseVectorElementType) {
+            case FLOAT -> KnnFloatVectorQuery.class;
+            case BYTE -> KnnByteVectorQuery.class;
+            default -> throw new IllegalStateException("Unhandled element type [" + denseVectorElementType + "]");
+        };
+        assertThat(innerQuery, instanceOf(expectedKnnQueryClass));
     }
 
     private Query assertOuterBooleanQuery(Query query) {
@@ -308,14 +321,18 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
         assertThat(rewritten, instanceOf(MatchNoneQueryBuilder.class));
     }
 
-    private static SourceToParse buildSemanticTextFieldWithInferenceResults(InferenceResultType inferenceResultType) throws IOException {
+    private static SourceToParse buildSemanticTextFieldWithInferenceResults(
+        InferenceResultType inferenceResultType,
+        DenseVectorFieldMapper.ElementType denseVectorElementType
+    ) throws IOException {
         SemanticTextField.ModelSettings modelSettings = switch (inferenceResultType) {
             case NONE -> null;
-            case SPARSE_EMBEDDING -> new SemanticTextField.ModelSettings(TaskType.SPARSE_EMBEDDING, null, null);
+            case SPARSE_EMBEDDING -> new SemanticTextField.ModelSettings(TaskType.SPARSE_EMBEDDING, null, null, null);
             case TEXT_EMBEDDING -> new SemanticTextField.ModelSettings(
                 TaskType.TEXT_EMBEDDING,
                 TEXT_EMBEDDING_DIMENSION_COUNT,
-                SimilarityMeasure.COSINE
+                SimilarityMeasure.COSINE,
+                denseVectorElementType
             );
         };
 

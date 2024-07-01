@@ -7,6 +7,9 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.multivalue;
 
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
@@ -15,7 +18,12 @@ import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.util.PlanStreamOutput;
 import org.elasticsearch.xpack.esql.expression.function.scalar.UnaryScalarFunction;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+
+import java.io.IOException;
+import java.util.List;
 
 /**
  * Base class for functions that reduce multivalued fields into single valued fields.
@@ -25,8 +33,37 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.UnaryScalarFuncti
  * </p>
  */
 public abstract class AbstractMultivalueFunction extends UnaryScalarFunction {
+    public static List<NamedWriteableRegistry.Entry> getNamedWriteables() {
+        return List.of(
+            MvAppend.ENTRY,
+            MvAvg.ENTRY,
+            MvConcat.ENTRY,
+            MvCount.ENTRY,
+            MvDedupe.ENTRY,
+            MvFirst.ENTRY,
+            MvLast.ENTRY,
+            MvMax.ENTRY,
+            MvMedian.ENTRY,
+            MvMin.ENTRY,
+            MvSlice.ENTRY,
+            MvSort.ENTRY,
+            MvSum.ENTRY,
+            MvZip.ENTRY
+        );
+    }
+
     protected AbstractMultivalueFunction(Source source, Expression field) {
         super(source, field);
+    }
+
+    protected AbstractMultivalueFunction(StreamInput in) throws IOException {
+        this(Source.readFrom((PlanStreamInput) in), ((PlanStreamInput) in).readExpression());
+    }
+
+    @Override
+    public final void writeTo(StreamOutput out) throws IOException {
+        Source.EMPTY.writeTo(out);
+        ((PlanStreamOutput) out).writeExpression(field);
     }
 
     /**

@@ -19,7 +19,6 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.parser.QueryParam;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
-import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -165,7 +164,7 @@ final class RequestXContent {
                                 )
                             );
                         }
-                        type = EsqlDataTypes.fromJava(entry.getValue());
+                        type = DataType.fromJava(entry.getValue());
                         if (type == null) {
                             errors.add(new XContentParseException(loc, entry + " is not supported as a parameter"));
                         }

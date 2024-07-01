@@ -412,12 +412,8 @@ public class HighlightBuilderTests extends ESTestCase {
             Object actualValue = fieldOptionsParameterAccessor.apply(options);
             if (actualValue instanceof String[]) {
                 assertArrayEquals((String[]) expectedValue, (String[]) actualValue);
-            } else if (actualValue instanceof Character[]) {
-                if (expectedValue instanceof char[]) {
-                    assertArrayEquals(HighlightBuilder.convertCharArray((char[]) expectedValue), (Character[]) actualValue);
-                } else {
-                    assertArrayEquals((Character[]) expectedValue, (Character[]) actualValue);
-                }
+            } else if (actualValue instanceof char[]) {
+                assertArrayEquals((char[]) expectedValue, (char[]) actualValue);
             } else {
                 assertEquals(expectedValue, actualValue);
             }

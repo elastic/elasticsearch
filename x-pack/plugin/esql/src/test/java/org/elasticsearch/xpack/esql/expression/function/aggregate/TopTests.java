@@ -22,8 +22,8 @@ import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class TopListTests extends AbstractAggregationTestCase {
-    public TopListTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
+public class TopTests extends AbstractAggregationTestCase {
+    public TopTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }
 
@@ -39,7 +39,7 @@ public class TopListTests extends AbstractAggregationTestCase {
                         new TestCaseSupplier.TypedData(limit, DataType.INTEGER, "limit").forceLiteral(),
                         new TestCaseSupplier.TypedData(new BytesRef("desc"), DataType.KEYWORD, "order").forceLiteral()
                     ),
-                    "TopList[field=Attribute[channel=0], limit=Attribute[channel=1], order=Attribute[channel=2]]",
+                    "Top[field=Attribute[channel=0], limit=Attribute[channel=1], order=Attribute[channel=2]]",
                     DataType.INTEGER,
                     equalTo(List.of(200, 8, 5, 0).subList(0, limit))
                 );
@@ -52,7 +52,7 @@ public class TopListTests extends AbstractAggregationTestCase {
                         new TestCaseSupplier.TypedData(limit, DataType.INTEGER, "limit").forceLiteral(),
                         new TestCaseSupplier.TypedData(new BytesRef("desc"), DataType.KEYWORD, "order").forceLiteral()
                     ),
-                    "TopList[field=Attribute[channel=0], limit=Attribute[channel=1], order=Attribute[channel=2]]",
+                    "Top[field=Attribute[channel=0], limit=Attribute[channel=1], order=Attribute[channel=2]]",
                     DataType.LONG,
                     equalTo(List.of(200L, 8L, 5L, 0L).subList(0, limit))
                 );
@@ -65,7 +65,7 @@ public class TopListTests extends AbstractAggregationTestCase {
                         new TestCaseSupplier.TypedData(limit, DataType.INTEGER, "limit").forceLiteral(),
                         new TestCaseSupplier.TypedData(new BytesRef("desc"), DataType.KEYWORD, "order").forceLiteral()
                     ),
-                    "TopList[field=Attribute[channel=0], limit=Attribute[channel=1], order=Attribute[channel=2]]",
+                    "Top[field=Attribute[channel=0], limit=Attribute[channel=1], order=Attribute[channel=2]]",
                     DataType.DOUBLE,
                     equalTo(List.of(200., 8., 5., 0.).subList(0, limit))
                 );
@@ -78,7 +78,7 @@ public class TopListTests extends AbstractAggregationTestCase {
                         new TestCaseSupplier.TypedData(limit, DataType.INTEGER, "limit").forceLiteral(),
                         new TestCaseSupplier.TypedData(new BytesRef("desc"), DataType.KEYWORD, "order").forceLiteral()
                     ),
-                    "TopList[field=Attribute[channel=0], limit=Attribute[channel=1], order=Attribute[channel=2]]",
+                    "Top[field=Attribute[channel=0], limit=Attribute[channel=1], order=Attribute[channel=2]]",
                     DataType.DATETIME,
                     equalTo(List.of(200L, 8L, 5L, 0L).subList(0, limit))
                 );
@@ -93,7 +93,7 @@ public class TopListTests extends AbstractAggregationTestCase {
                         new TestCaseSupplier.TypedData(1, DataType.INTEGER, "limit").forceLiteral(),
                         new TestCaseSupplier.TypedData(new BytesRef("desc"), DataType.KEYWORD, "order").forceLiteral()
                     ),
-                    "TopList[field=Attribute[channel=0], limit=Attribute[channel=1], order=Attribute[channel=2]]",
+                    "Top[field=Attribute[channel=0], limit=Attribute[channel=1], order=Attribute[channel=2]]",
                     DataType.INTEGER,
                     equalTo(200)
                 )
@@ -106,7 +106,7 @@ public class TopListTests extends AbstractAggregationTestCase {
                         new TestCaseSupplier.TypedData(1, DataType.INTEGER, "limit").forceLiteral(),
                         new TestCaseSupplier.TypedData(new BytesRef("desc"), DataType.KEYWORD, "order").forceLiteral()
                     ),
-                    "TopList[field=Attribute[channel=0], limit=Attribute[channel=1], order=Attribute[channel=2]]",
+                    "Top[field=Attribute[channel=0], limit=Attribute[channel=1], order=Attribute[channel=2]]",
                     DataType.LONG,
                     equalTo(200L)
                 )
@@ -119,7 +119,7 @@ public class TopListTests extends AbstractAggregationTestCase {
                         new TestCaseSupplier.TypedData(1, DataType.INTEGER, "limit").forceLiteral(),
                         new TestCaseSupplier.TypedData(new BytesRef("desc"), DataType.KEYWORD, "order").forceLiteral()
                     ),
-                    "TopList[field=Attribute[channel=0], limit=Attribute[channel=1], order=Attribute[channel=2]]",
+                    "Top[field=Attribute[channel=0], limit=Attribute[channel=1], order=Attribute[channel=2]]",
                     DataType.DOUBLE,
                     equalTo(200.)
                 )
@@ -132,7 +132,7 @@ public class TopListTests extends AbstractAggregationTestCase {
                         new TestCaseSupplier.TypedData(1, DataType.INTEGER, "limit").forceLiteral(),
                         new TestCaseSupplier.TypedData(new BytesRef("desc"), DataType.KEYWORD, "order").forceLiteral()
                     ),
-                    "TopList[field=Attribute[channel=0], limit=Attribute[channel=1], order=Attribute[channel=2]]",
+                    "Top[field=Attribute[channel=0], limit=Attribute[channel=1], order=Attribute[channel=2]]",
                     DataType.DATETIME,
                     equalTo(200L)
                 )
@@ -147,7 +147,7 @@ public class TopListTests extends AbstractAggregationTestCase {
                         new TestCaseSupplier.TypedData(1, DataType.INTEGER, "limit").forceLiteral(),
                         new TestCaseSupplier.TypedData(new BytesRef("desc"), DataType.KEYWORD, "order").forceLiteral()
                     ),
-                    "TopList[field=Attribute[channel=0], limit=Attribute[channel=1], order=Attribute[channel=2]]",
+                    "Top[field=Attribute[channel=0], limit=Attribute[channel=1], order=Attribute[channel=2]]",
                     DataType.INTEGER,
                     equalTo(200)
                 )
@@ -160,7 +160,7 @@ public class TopListTests extends AbstractAggregationTestCase {
                         new TestCaseSupplier.TypedData(1, DataType.INTEGER, "limit").forceLiteral(),
                         new TestCaseSupplier.TypedData(new BytesRef("desc"), DataType.KEYWORD, "order").forceLiteral()
                     ),
-                    "TopList[field=Attribute[channel=0], limit=Attribute[channel=1], order=Attribute[channel=2]]",
+                    "Top[field=Attribute[channel=0], limit=Attribute[channel=1], order=Attribute[channel=2]]",
                     DataType.LONG,
                     equalTo(200L)
                 )
@@ -173,7 +173,7 @@ public class TopListTests extends AbstractAggregationTestCase {
                         new TestCaseSupplier.TypedData(1, DataType.INTEGER, "limit").forceLiteral(),
                         new TestCaseSupplier.TypedData(new BytesRef("desc"), DataType.KEYWORD, "order").forceLiteral()
                     ),
-                    "TopList[field=Attribute[channel=0], limit=Attribute[channel=1], order=Attribute[channel=2]]",
+                    "Top[field=Attribute[channel=0], limit=Attribute[channel=1], order=Attribute[channel=2]]",
                     DataType.DOUBLE,
                     equalTo(200.)
                 )
@@ -186,7 +186,7 @@ public class TopListTests extends AbstractAggregationTestCase {
                         new TestCaseSupplier.TypedData(1, DataType.INTEGER, "limit").forceLiteral(),
                         new TestCaseSupplier.TypedData(new BytesRef("desc"), DataType.KEYWORD, "order").forceLiteral()
                     ),
-                    "TopList[field=Attribute[channel=0], limit=Attribute[channel=1], order=Attribute[channel=2]]",
+                    "Top[field=Attribute[channel=0], limit=Attribute[channel=1], order=Attribute[channel=2]]",
                     DataType.DATETIME,
                     equalTo(200L)
                 )
@@ -244,6 +244,6 @@ public class TopListTests extends AbstractAggregationTestCase {
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new TopList(source, args.get(0), args.get(1), args.get(2));
+        return new Top(source, args.get(0), args.get(1), args.get(2));
     }
 }

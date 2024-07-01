@@ -10,7 +10,7 @@ package org.elasticsearch.compute.aggregation;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
-import org.elasticsearch.compute.operator.SequenceFloatBlockSourceOperator;
+import org.elasticsearch.compute.operator.SequenceIntBlockSourceOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
 
 import java.util.List;
@@ -18,27 +18,27 @@ import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.contains;
 
-public class TopListFloatAggregatorFunctionTests extends AggregatorFunctionTestCase {
+public class TopIntAggregatorFunctionTests extends AggregatorFunctionTestCase {
     private static final int LIMIT = 100;
 
     @Override
     protected SourceOperator simpleInput(BlockFactory blockFactory, int size) {
-        return new SequenceFloatBlockSourceOperator(blockFactory, IntStream.range(0, size).mapToObj(l -> randomFloat()));
+        return new SequenceIntBlockSourceOperator(blockFactory, IntStream.range(0, size).map(l -> randomInt()));
     }
 
     @Override
     protected AggregatorFunctionSupplier aggregatorFunction(List<Integer> inputChannels) {
-        return new TopListFloatAggregatorFunctionSupplier(inputChannels, LIMIT, true);
+        return new TopIntAggregatorFunctionSupplier(inputChannels, LIMIT, true);
     }
 
     @Override
     protected String expectedDescriptionOfAggregator() {
-        return "top_list of floats";
+        return "top of ints";
     }
 
     @Override
     public void assertSimpleOutput(List<Block> input, Block result) {
-        Object[] values = input.stream().flatMap(b -> allFloats(b)).sorted().limit(LIMIT).toArray(Object[]::new);
+        Object[] values = input.stream().flatMapToInt(b -> allInts(b)).sorted().limit(LIMIT).boxed().toArray(Object[]::new);
         assertThat((List<?>) BlockUtils.toJavaObject(result, 0), contains(values));
     }
 }

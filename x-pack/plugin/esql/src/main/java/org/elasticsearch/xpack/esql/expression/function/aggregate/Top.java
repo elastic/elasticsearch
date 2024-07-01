@@ -12,9 +12,9 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
-import org.elasticsearch.compute.aggregation.TopListDoubleAggregatorFunctionSupplier;
-import org.elasticsearch.compute.aggregation.TopListIntAggregatorFunctionSupplier;
-import org.elasticsearch.compute.aggregation.TopListLongAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.TopDoubleAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.TopIntAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.TopLongAggregatorFunctionSupplier;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -40,8 +40,8 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNot
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 
-public class TopList extends AggregateFunction implements ToAggregator, SurrogateExpression {
-    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "TopList", TopList::new);
+public class Top extends AggregateFunction implements ToAggregator, SurrogateExpression {
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Top", Top::new);
 
     private static final String ORDER_ASC = "ASC";
     private static final String ORDER_DESC = "DESC";
@@ -50,9 +50,9 @@ public class TopList extends AggregateFunction implements ToAggregator, Surrogat
         returnType = { "double", "integer", "long", "date" },
         description = "Collects the top values for a field. Includes repeated values.",
         isAggregation = true,
-        examples = @Example(file = "stats_top_list", tag = "top-list")
+        examples = @Example(file = "stats_top", tag = "top")
     )
-    public TopList(
+    public Top(
         Source source,
         @Param(
             name = "field",
@@ -69,7 +69,7 @@ public class TopList extends AggregateFunction implements ToAggregator, Surrogat
         super(source, field, Arrays.asList(limit, order));
     }
 
-    private TopList(StreamInput in) throws IOException {
+    private Top(StreamInput in) throws IOException {
         this(
             Source.readFrom((PlanStreamInput) in),
             ((PlanStreamInput) in).readExpression(),
@@ -156,26 +156,26 @@ public class TopList extends AggregateFunction implements ToAggregator, Surrogat
     }
 
     @Override
-    protected NodeInfo<TopList> info() {
-        return NodeInfo.create(this, TopList::new, children().get(0), children().get(1), children().get(2));
+    protected NodeInfo<Top> info() {
+        return NodeInfo.create(this, Top::new, children().get(0), children().get(1), children().get(2));
     }
 
     @Override
-    public TopList replaceChildren(List<Expression> newChildren) {
-        return new TopList(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2));
+    public Top replaceChildren(List<Expression> newChildren) {
+        return new Top(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2));
     }
 
     @Override
     public AggregatorFunctionSupplier supplier(List<Integer> inputChannels) {
         DataType type = field().dataType();
         if (type == DataType.LONG || type == DataType.DATETIME) {
-            return new TopListLongAggregatorFunctionSupplier(inputChannels, limitValue(), orderValue());
+            return new TopLongAggregatorFunctionSupplier(inputChannels, limitValue(), orderValue());
         }
         if (type == DataType.INTEGER) {
-            return new TopListIntAggregatorFunctionSupplier(inputChannels, limitValue(), orderValue());
+            return new TopIntAggregatorFunctionSupplier(inputChannels, limitValue(), orderValue());
         }
         if (type == DataType.DOUBLE) {
-            return new TopListDoubleAggregatorFunctionSupplier(inputChannels, limitValue(), orderValue());
+            return new TopDoubleAggregatorFunctionSupplier(inputChannels, limitValue(), orderValue());
         }
         throw EsqlIllegalArgumentException.illegalDataType(type);
     }

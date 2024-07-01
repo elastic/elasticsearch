@@ -10,7 +10,7 @@ package org.elasticsearch.compute.aggregation;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
-import org.elasticsearch.compute.operator.SequenceDoubleBlockSourceOperator;
+import org.elasticsearch.compute.operator.SequenceFloatBlockSourceOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
 
 import java.util.List;
@@ -18,27 +18,27 @@ import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.contains;
 
-public class TopListDoubleAggregatorFunctionTests extends AggregatorFunctionTestCase {
+public class TopFloatAggregatorFunctionTests extends AggregatorFunctionTestCase {
     private static final int LIMIT = 100;
 
     @Override
     protected SourceOperator simpleInput(BlockFactory blockFactory, int size) {
-        return new SequenceDoubleBlockSourceOperator(blockFactory, IntStream.range(0, size).mapToDouble(l -> randomDouble()));
+        return new SequenceFloatBlockSourceOperator(blockFactory, IntStream.range(0, size).mapToObj(l -> randomFloat()));
     }
 
     @Override
     protected AggregatorFunctionSupplier aggregatorFunction(List<Integer> inputChannels) {
-        return new TopListDoubleAggregatorFunctionSupplier(inputChannels, LIMIT, true);
+        return new TopFloatAggregatorFunctionSupplier(inputChannels, LIMIT, true);
     }
 
     @Override
     protected String expectedDescriptionOfAggregator() {
-        return "top_list of doubles";
+        return "top of floats";
     }
 
     @Override
     public void assertSimpleOutput(List<Block> input, Block result) {
-        Object[] values = input.stream().flatMapToDouble(b -> allDoubles(b)).sorted().limit(LIMIT).boxed().toArray(Object[]::new);
+        Object[] values = input.stream().flatMap(b -> allFloats(b)).sorted().limit(LIMIT).toArray(Object[]::new);
         assertThat((List<?>) BlockUtils.toJavaObject(result, 0), contains(values));
     }
 }

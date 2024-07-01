@@ -10,23 +10,23 @@ import java.lang.String;
 import java.lang.StringBuilder;
 import java.util.List;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.DoubleBlock;
-import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.compute.data.FloatBlock;
+import org.elasticsearch.compute.data.FloatVector;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 
 /**
- * {@link GroupingAggregatorFunction} implementation for {@link TopListDoubleAggregator}.
+ * {@link GroupingAggregatorFunction} implementation for {@link TopFloatAggregator}.
  * This class is generated. Do not edit it.
  */
-public final class TopListDoubleGroupingAggregatorFunction implements GroupingAggregatorFunction {
+public final class TopFloatGroupingAggregatorFunction implements GroupingAggregatorFunction {
   private static final List<IntermediateStateDesc> INTERMEDIATE_STATE_DESC = List.of(
-      new IntermediateStateDesc("topList", ElementType.DOUBLE)  );
+      new IntermediateStateDesc("topList", ElementType.FLOAT)  );
 
-  private final TopListDoubleAggregator.GroupingState state;
+  private final TopFloatAggregator.GroupingState state;
 
   private final List<Integer> channels;
 
@@ -36,9 +36,9 @@ public final class TopListDoubleGroupingAggregatorFunction implements GroupingAg
 
   private final boolean ascending;
 
-  public TopListDoubleGroupingAggregatorFunction(List<Integer> channels,
-      TopListDoubleAggregator.GroupingState state, DriverContext driverContext, int limit,
-      boolean ascending) {
+  public TopFloatGroupingAggregatorFunction(List<Integer> channels,
+                                            TopFloatAggregator.GroupingState state, DriverContext driverContext, int limit,
+                                            boolean ascending) {
     this.channels = channels;
     this.state = state;
     this.driverContext = driverContext;
@@ -46,9 +46,9 @@ public final class TopListDoubleGroupingAggregatorFunction implements GroupingAg
     this.ascending = ascending;
   }
 
-  public static TopListDoubleGroupingAggregatorFunction create(List<Integer> channels,
-      DriverContext driverContext, int limit, boolean ascending) {
-    return new TopListDoubleGroupingAggregatorFunction(channels, TopListDoubleAggregator.initGrouping(driverContext.bigArrays(), limit, ascending), driverContext, limit, ascending);
+  public static TopFloatGroupingAggregatorFunction create(List<Integer> channels,
+                                                          DriverContext driverContext, int limit, boolean ascending) {
+    return new TopFloatGroupingAggregatorFunction(channels, TopFloatAggregator.initGrouping(driverContext.bigArrays(), limit, ascending), driverContext, limit, ascending);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -63,8 +63,8 @@ public final class TopListDoubleGroupingAggregatorFunction implements GroupingAg
   @Override
   public GroupingAggregatorFunction.AddInput prepareProcessPage(SeenGroupIds seenGroupIds,
       Page page) {
-    DoubleBlock valuesBlock = page.getBlock(channels.get(0));
-    DoubleVector valuesVector = valuesBlock.asVector();
+    FloatBlock valuesBlock = page.getBlock(channels.get(0));
+    FloatVector valuesVector = valuesBlock.asVector();
     if (valuesVector == null) {
       if (valuesBlock.mayHaveNulls()) {
         state.enableGroupIdTracking(seenGroupIds);
@@ -94,7 +94,7 @@ public final class TopListDoubleGroupingAggregatorFunction implements GroupingAg
     };
   }
 
-  private void addRawInput(int positionOffset, IntVector groups, DoubleBlock values) {
+  private void addRawInput(int positionOffset, IntVector groups, FloatBlock values) {
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       int groupId = Math.toIntExact(groups.getInt(groupPosition));
       if (values.isNull(groupPosition + positionOffset)) {
@@ -103,19 +103,19 @@ public final class TopListDoubleGroupingAggregatorFunction implements GroupingAg
       int valuesStart = values.getFirstValueIndex(groupPosition + positionOffset);
       int valuesEnd = valuesStart + values.getValueCount(groupPosition + positionOffset);
       for (int v = valuesStart; v < valuesEnd; v++) {
-        TopListDoubleAggregator.combine(state, groupId, values.getDouble(v));
+        TopFloatAggregator.combine(state, groupId, values.getFloat(v));
       }
     }
   }
 
-  private void addRawInput(int positionOffset, IntVector groups, DoubleVector values) {
+  private void addRawInput(int positionOffset, IntVector groups, FloatVector values) {
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       int groupId = Math.toIntExact(groups.getInt(groupPosition));
-      TopListDoubleAggregator.combine(state, groupId, values.getDouble(groupPosition + positionOffset));
+      TopFloatAggregator.combine(state, groupId, values.getFloat(groupPosition + positionOffset));
     }
   }
 
-  private void addRawInput(int positionOffset, IntBlock groups, DoubleBlock values) {
+  private void addRawInput(int positionOffset, IntBlock groups, FloatBlock values) {
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       if (groups.isNull(groupPosition)) {
         continue;
@@ -130,13 +130,13 @@ public final class TopListDoubleGroupingAggregatorFunction implements GroupingAg
         int valuesStart = values.getFirstValueIndex(groupPosition + positionOffset);
         int valuesEnd = valuesStart + values.getValueCount(groupPosition + positionOffset);
         for (int v = valuesStart; v < valuesEnd; v++) {
-          TopListDoubleAggregator.combine(state, groupId, values.getDouble(v));
+          TopFloatAggregator.combine(state, groupId, values.getFloat(v));
         }
       }
     }
   }
 
-  private void addRawInput(int positionOffset, IntBlock groups, DoubleVector values) {
+  private void addRawInput(int positionOffset, IntBlock groups, FloatVector values) {
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       if (groups.isNull(groupPosition)) {
         continue;
@@ -145,7 +145,7 @@ public final class TopListDoubleGroupingAggregatorFunction implements GroupingAg
       int groupEnd = groupStart + groups.getValueCount(groupPosition);
       for (int g = groupStart; g < groupEnd; g++) {
         int groupId = Math.toIntExact(groups.getInt(g));
-        TopListDoubleAggregator.combine(state, groupId, values.getDouble(groupPosition + positionOffset));
+        TopFloatAggregator.combine(state, groupId, values.getFloat(groupPosition + positionOffset));
       }
     }
   }
@@ -158,10 +158,10 @@ public final class TopListDoubleGroupingAggregatorFunction implements GroupingAg
     if (topListUncast.areAllValuesNull()) {
       return;
     }
-    DoubleBlock topList = (DoubleBlock) topListUncast;
+    FloatBlock topList = (FloatBlock) topListUncast;
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       int groupId = Math.toIntExact(groups.getInt(groupPosition));
-      TopListDoubleAggregator.combineIntermediate(state, groupId, topList, groupPosition + positionOffset);
+      TopFloatAggregator.combineIntermediate(state, groupId, topList, groupPosition + positionOffset);
     }
   }
 
@@ -170,9 +170,9 @@ public final class TopListDoubleGroupingAggregatorFunction implements GroupingAg
     if (input.getClass() != getClass()) {
       throw new IllegalArgumentException("expected " + getClass() + "; got " + input.getClass());
     }
-    TopListDoubleAggregator.GroupingState inState = ((TopListDoubleGroupingAggregatorFunction) input).state;
+    TopFloatAggregator.GroupingState inState = ((TopFloatGroupingAggregatorFunction) input).state;
     state.enableGroupIdTracking(new SeenGroupIds.Empty());
-    TopListDoubleAggregator.combineStates(state, groupId, inState, position);
+    TopFloatAggregator.combineStates(state, groupId, inState, position);
   }
 
   @Override
@@ -183,7 +183,7 @@ public final class TopListDoubleGroupingAggregatorFunction implements GroupingAg
   @Override
   public void evaluateFinal(Block[] blocks, int offset, IntVector selected,
       DriverContext driverContext) {
-    blocks[offset] = TopListDoubleAggregator.evaluateFinal(state, selected, driverContext);
+    blocks[offset] = TopFloatAggregator.evaluateFinal(state, selected, driverContext);
   }
 
   @Override

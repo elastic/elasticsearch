@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.core.expression.function.scalar;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.gen.processor.Processor;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.util.PlanStreamInput;
 import org.elasticsearch.xpack.esql.core.util.PlanStreamOutput;
@@ -49,15 +48,11 @@ public abstract class UnaryScalarFunction extends ScalarFunction {
         return field;
     }
 
-    protected abstract Processor makeProcessor();
-
     @Override
     public boolean foldable() {
         return field.foldable();
     }
 
     @Override
-    public Object fold() {
-        return makeProcessor().process(field().fold());
-    }
+    public abstract Object fold();
 }

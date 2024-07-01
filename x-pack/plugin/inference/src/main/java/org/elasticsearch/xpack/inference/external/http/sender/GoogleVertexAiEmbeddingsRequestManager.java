@@ -40,9 +40,17 @@ public class GoogleVertexAiEmbeddingsRequestManager extends GoogleVertexAiReques
     private final Truncator truncator;
 
     public GoogleVertexAiEmbeddingsRequestManager(GoogleVertexAiEmbeddingsModel model, Truncator truncator, ThreadPool threadPool) {
-        super(threadPool, model);
+        super(threadPool, model, RateLimitGrouping.of(model));
         this.model = Objects.requireNonNull(model);
         this.truncator = Objects.requireNonNull(truncator);
+    }
+
+    record RateLimitGrouping(int modelIdHash) {
+        public static RateLimitGrouping of(GoogleVertexAiEmbeddingsModel model) {
+            Objects.requireNonNull(model);
+
+            return new RateLimitGrouping(model.rateLimitServiceSettings().modelId().hashCode());
+        }
     }
 
     @Override

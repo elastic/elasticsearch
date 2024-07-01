@@ -145,7 +145,7 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
     }
 
     /**
-     * Aadd the specified {@link StatelessCommitRef} as {@link PendingCompoundCommit}
+     * Add the specified {@link StatelessCommitRef} as {@link PendingCompoundCommit}
      * No synchronization is needed for this method because its sole caller is itself synchronized
      * @return {@code true} if the append is successful or {@code false} if the VBCC is frozen and cannot be appended to
      */
@@ -181,7 +181,6 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
         var internalFiles = computeInternalFiles(reference);
         long compoundCommitFilesSize = internalFiles.stream().mapToLong(StatelessCompoundCommit.InternalFile::length).sum();
         var header = materializeCompoundCommitHeader(reference, internalFiles);
-        long compoundCommitSize = header.length + compoundCommitFilesSize;
 
         // Add padding to the previous CC if it exists
         if (pendingCompoundCommits.isEmpty() == false) {
@@ -228,7 +227,6 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
             createStatelessCompoundCommit(reference, header.length + compoundCommitFilesSize, internalFiles)
         );
         pendingCompoundCommits.add(pendingCompoundCommit);
-        logger.debug("appended new CC [{}] to VBCC [{}]", pendingCompoundCommit, primaryTermAndGeneration);
         assert currentOffset.get() == headerOffset + pendingCompoundCommit.getSizeInBytes()
             : "current offset "
                 + currentOffset.get()
@@ -616,6 +614,12 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
 
         @Override
         public void close() throws IOException {
+            logger.debug(
+                "{} releasing Lucene commit [term={}, gen={}]",
+                statelessCompoundCommit.shardId(),
+                reference.getPrimaryTerm(),
+                reference.getGeneration()
+            );
             reference.close();
         }
     }

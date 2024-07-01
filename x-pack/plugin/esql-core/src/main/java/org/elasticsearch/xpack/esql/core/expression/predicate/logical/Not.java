@@ -11,7 +11,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.function.scalar.UnaryScalarFunction;
-import org.elasticsearch.xpack.esql.core.expression.gen.processor.Processor;
 import org.elasticsearch.xpack.esql.core.expression.predicate.Negatable;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -71,11 +70,6 @@ public class Not extends UnaryScalarFunction implements Negatable<Expression> {
         }
 
         return ((Boolean) input).booleanValue() ? Boolean.FALSE : Boolean.TRUE;
-    }
-
-    @Override
-    protected Processor makeProcessor() {
-        throw new UnsupportedOperationException("No processor implemented for function [Not]");
     }
 
     @Override

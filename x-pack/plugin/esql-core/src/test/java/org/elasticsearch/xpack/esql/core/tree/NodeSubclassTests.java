@@ -17,8 +17,6 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttributeTests;
 import org.elasticsearch.xpack.esql.core.expression.function.Function;
-import org.elasticsearch.xpack.esql.core.expression.gen.processor.ConstantProcessor;
-import org.elasticsearch.xpack.esql.core.expression.gen.processor.Processor;
 import org.elasticsearch.xpack.esql.core.expression.predicate.fulltext.FullTextPredicate;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.Like;
@@ -439,14 +437,6 @@ public class NodeSubclassTests<T extends B, B extends Node<B>> extends ESTestCas
         if (EnrichPolicy.class == argClass) {
             List<String> enrichFields = randomSubsetOf(List.of("e1", "e2", "e3"));
             return new EnrichPolicy(randomFrom("match", "range"), null, List.of(), randomFrom("m1", "m2"), enrichFields);
-        }
-
-        if (Processor.class == argClass) {
-            /*
-             * Similar to expressions, mock pipes to avoid
-             * stackoverflow errors while building the tree.
-             */
-            return new ConstantProcessor(randomAlphaOfLength(16));
         }
 
         if (Node.class.isAssignableFrom(argClass)) {

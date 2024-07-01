@@ -95,7 +95,7 @@ public class MetadataMappingServiceTests extends ESSingleNodeTestCase {
             singleTask(request)
         );
         assertThat(resultingState.metadata().index("test").getMappingVersion(), equalTo(1 + previousVersion));
-        assertThat(resultingState.metadata().index("test").getMappingsUpdatedVersion(), equalTo(IndexVersion.current()));
+        assertThat(resultingState.metadata().index("test").getIndexVersionWatermark(), equalTo(IndexVersion.current()));
     }
 
     public void testMappingVersionUnchanged() throws Exception {

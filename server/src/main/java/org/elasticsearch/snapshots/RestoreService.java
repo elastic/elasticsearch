@@ -1757,7 +1757,7 @@ public final class RestoreService implements ClusterStateApplier {
             .state(IndexMetadata.State.OPEN)
             .version(Math.max(snapshotIndexMetadata.getVersion(), 1 + currentIndexMetadata.getVersion()))
             .mappingVersion(Math.max(snapshotIndexMetadata.getMappingVersion(), 1 + currentIndexMetadata.getMappingVersion()))
-            .mappingsUpdatedVersion(snapshotIndexMetadata.getMappingsUpdatedVersion())
+            .indexVersionWatermark(snapshotIndexMetadata.getIndexVersionWatermark())
             .settingsVersion(Math.max(snapshotIndexMetadata.getSettingsVersion(), 1 + currentIndexMetadata.getSettingsVersion()))
             .aliasesVersion(Math.max(snapshotIndexMetadata.getAliasesVersion(), 1 + currentIndexMetadata.getAliasesVersion()))
             .timestampRange(IndexLongFieldRange.NO_SHARDS)

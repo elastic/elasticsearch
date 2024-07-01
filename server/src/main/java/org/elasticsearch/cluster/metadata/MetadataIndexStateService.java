@@ -1132,6 +1132,7 @@ public class MetadataIndexStateService {
                         .state(IndexMetadata.State.OPEN)
                         .settingsVersion(indexMetadata.getSettingsVersion() + 1)
                         .settings(updatedSettings)
+                        .indexVersionWatermark(IndexVersion.current())
                         .timestampRange(IndexLongFieldRange.NO_SHARDS)
                         .eventIngestedRange(IndexLongFieldRange.NO_SHARDS, currentState.getMinTransportVersion())
                         .build();

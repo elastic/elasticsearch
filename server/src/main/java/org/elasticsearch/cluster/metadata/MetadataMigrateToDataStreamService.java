@@ -247,7 +247,7 @@ public class MetadataMigrateToDataStreamService {
         imb.settings(settingsUpdate.build())
             .settingsVersion(im.getSettingsVersion() + 1)
             .mappingVersion(im.getMappingVersion() + 1)
-            .mappingsUpdatedVersion(IndexVersion.current())
+            .indexVersionWatermark(IndexVersion.current())
             .putMapping(new MappingMetadata(mapper));
         b.put(imb);
     }

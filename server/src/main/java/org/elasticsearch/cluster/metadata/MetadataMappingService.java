@@ -201,7 +201,7 @@ public class MetadataMappingService {
                 }
                 if (updatedMapping) {
                     indexMetadataBuilder.mappingVersion(1 + indexMetadataBuilder.mappingVersion())
-                        .mappingsUpdatedVersion(IndexVersion.current());
+                        .indexVersionWatermark(IndexVersion.current());
                 }
                 /*
                  * This implicitly increments the index metadata version and builds the index metadata. This means that we need to have

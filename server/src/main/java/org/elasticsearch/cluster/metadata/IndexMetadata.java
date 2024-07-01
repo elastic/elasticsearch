@@ -538,7 +538,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     static final String KEY_MAPPINGS_HASH = "mappings_hash";
     static final String KEY_ALIASES = "aliases";
     static final String KEY_ROLLOVER_INFOS = "rollover_info";
-    static final String KEY_MAPPINGS_UPDATED_VERSION = "mappings_updated_version";
+    static final String KEY_INDEX_VERSION_WATERMARK = "index_version_watermark";
     static final String KEY_SYSTEM = "system";
     static final String KEY_TIMESTAMP_RANGE = "timestamp_range";
     static final String KEY_EVENT_INGESTED_RANGE = "event_ingested_range";
@@ -599,7 +599,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     private final DiscoveryNodeFilters initialRecoveryFilters;
 
     private final IndexVersion indexCreatedVersion;
-    private final IndexVersion mappingsUpdatedVersion;
+    private final IndexVersion indexVersionWatermark;
     private final IndexVersion indexCompatibilityVersion;
 
     private final ActiveShardCount waitForActiveShards;
@@ -668,7 +668,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         final DiscoveryNodeFilters includeFilters,
         final DiscoveryNodeFilters excludeFilters,
         final IndexVersion indexCreatedVersion,
-        final IndexVersion mappingsUpdatedVersion,
+        final IndexVersion indexVersionWatermark,
         final int routingNumShards,
         final int routingPartitionSize,
         final List<String> routingPaths,
@@ -700,7 +700,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         this.version = version;
         assert mappingVersion >= 0 : mappingVersion;
         this.mappingVersion = mappingVersion;
-        this.mappingsUpdatedVersion = mappingsUpdatedVersion;
+        this.indexVersionWatermark = indexVersionWatermark;
         assert settingsVersion >= 0 : settingsVersion;
         this.settingsVersion = settingsVersion;
         assert aliasesVersion >= 0 : aliasesVersion;
@@ -780,7 +780,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             this.includeFilters,
             this.excludeFilters,
             this.indexCreatedVersion,
-            this.mappingsUpdatedVersion,
+            this.indexVersionWatermark,
             this.routingNumShards,
             this.routingPartitionSize,
             this.routingPaths,
@@ -841,7 +841,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             this.includeFilters,
             this.excludeFilters,
             this.indexCreatedVersion,
-            this.mappingsUpdatedVersion,
+            this.indexVersionWatermark,
             this.routingNumShards,
             this.routingPartitionSize,
             this.routingPaths,
@@ -900,7 +900,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             this.includeFilters,
             this.excludeFilters,
             this.indexCreatedVersion,
-            this.mappingsUpdatedVersion,
+            this.indexVersionWatermark,
             this.routingNumShards,
             this.routingPartitionSize,
             this.routingPaths,
@@ -970,7 +970,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             this.includeFilters,
             this.excludeFilters,
             this.indexCreatedVersion,
-            this.mappingsUpdatedVersion,
+            this.indexVersionWatermark,
             this.routingNumShards,
             this.routingPartitionSize,
             this.routingPaths,
@@ -1025,7 +1025,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             this.includeFilters,
             this.excludeFilters,
             this.indexCreatedVersion,
-            this.mappingsUpdatedVersion,
+            this.indexVersionWatermark,
             this.routingNumShards,
             this.routingPartitionSize,
             this.routingPaths,
@@ -1071,8 +1071,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         return mappingVersion;
     }
 
-    public IndexVersion getMappingsUpdatedVersion() {
-        return mappingsUpdatedVersion;
+    public IndexVersion getIndexVersionWatermark() {
+        return indexVersionWatermark;
     }
 
     public long getSettingsVersion() {
@@ -1539,7 +1539,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         private final Diff<ImmutableOpenMap<String, DiffableStringMap>> customData;
         private final Diff<Map<Integer, Set<String>>> inSyncAllocationIds;
         private final Diff<ImmutableOpenMap<String, RolloverInfo>> rolloverInfos;
-        private final IndexVersion mappingsUpdatedVersion;
+        private final IndexVersion indexVersionWatermark;
         private final boolean isSystem;
 
         // range for the @timestamp field for the Index
@@ -1582,7 +1582,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 DiffableUtils.StringSetValueSerializer.getInstance()
             );
             rolloverInfos = DiffableUtils.diff(before.rolloverInfos, after.rolloverInfos, DiffableUtils.getStringKeySerializer());
-            mappingsUpdatedVersion = after.mappingsUpdatedVersion;
+            indexVersionWatermark = after.indexVersionWatermark;
             isSystem = after.isSystem;
             timestampRange = after.timestampRange;
             eventIngestedRange = after.eventIngestedRange;
@@ -1645,9 +1645,9 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 ROLLOVER_INFO_DIFF_VALUE_READER
             );
             if (in.getTransportVersion().onOrAfter(TransportVersions.INDEX_METADATA_MAPPINGS_UPDATED_VERSION)) {
-                mappingsUpdatedVersion = IndexVersion.readVersion(in);
+                indexVersionWatermark = IndexVersion.readVersion(in);
             } else {
-                mappingsUpdatedVersion = IndexVersions.ZERO;
+                indexVersionWatermark = IndexVersions.ZERO;
             }
             if (in.getTransportVersion().onOrAfter(SYSTEM_INDEX_FLAG_ADDED)) {
                 isSystem = in.readBoolean();
@@ -1699,7 +1699,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             inSyncAllocationIds.writeTo(out);
             rolloverInfos.writeTo(out);
             if (out.getTransportVersion().onOrAfter(TransportVersions.INDEX_METADATA_MAPPINGS_UPDATED_VERSION)) {
-                IndexVersion.writeVersion(mappingsUpdatedVersion, out);
+                IndexVersion.writeVersion(indexVersionWatermark, out);
             }
             if (out.getTransportVersion().onOrAfter(SYSTEM_INDEX_FLAG_ADDED)) {
                 out.writeBoolean(isSystem);
@@ -1736,7 +1736,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             builder.mapping = mappings.apply(
                 ImmutableOpenMap.<String, MappingMetadata>builder(1).fPut(MapperService.SINGLE_MAPPING_NAME, part.mapping).build()
             ).get(MapperService.SINGLE_MAPPING_NAME);
-            builder.mappingsUpdatedVersion = mappingsUpdatedVersion;
+            builder.indexVersionWatermark = indexVersionWatermark;
             builder.inferenceFields.putAllFromMap(inferenceFields.apply(part.inferenceFields));
             builder.aliases.putAllFromMap(aliases.apply(part.aliases));
             builder.customMetadata.putAllFromMap(customData.apply(part.customData));
@@ -1810,7 +1810,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             builder.putRolloverInfo(new RolloverInfo(in));
         }
         if (in.getTransportVersion().onOrAfter(TransportVersions.INDEX_METADATA_MAPPINGS_UPDATED_VERSION)) {
-            builder.mappingsUpdatedVersion(IndexVersion.readVersion(in));
+            builder.indexVersionWatermark(IndexVersion.readVersion(in));
         }
         if (in.getTransportVersion().onOrAfter(SYSTEM_INDEX_FLAG_ADDED)) {
             builder.system(in.readBoolean());
@@ -1868,7 +1868,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         );
         out.writeCollection(rolloverInfos.values());
         if (out.getTransportVersion().onOrAfter(TransportVersions.INDEX_METADATA_MAPPINGS_UPDATED_VERSION)) {
-            IndexVersion.writeVersion(mappingsUpdatedVersion, out);
+            IndexVersion.writeVersion(indexVersionWatermark, out);
         }
         if (out.getTransportVersion().onOrAfter(SYSTEM_INDEX_FLAG_ADDED)) {
             out.writeBoolean(isSystem);
@@ -1923,7 +1923,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         private long[] primaryTerms = null;
         private Settings settings = Settings.EMPTY;
         private MappingMetadata mapping;
-        private IndexVersion mappingsUpdatedVersion = IndexVersion.current();
+        private IndexVersion indexVersionWatermark = IndexVersion.current();
         private final ImmutableOpenMap.Builder<String, InferenceFieldMetadata> inferenceFields;
         private final ImmutableOpenMap.Builder<String, AliasMetadata> aliases;
         private final ImmutableOpenMap.Builder<String, DiffableStringMap> customMetadata;
@@ -1963,7 +1963,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             this.customMetadata = ImmutableOpenMap.builder(indexMetadata.customData);
             this.routingNumShards = indexMetadata.routingNumShards;
             this.inSyncAllocationIds = new HashMap<>(indexMetadata.inSyncAllocationIds);
-            this.mappingsUpdatedVersion = indexMetadata.mappingsUpdatedVersion;
+            this.indexVersionWatermark = indexMetadata.indexVersionWatermark;
             this.rolloverInfos = ImmutableOpenMap.builder(indexMetadata.rolloverInfos);
             this.isSystem = indexMetadata.isSystem;
             this.timestampRange = indexMetadata.timestampRange;
@@ -2056,8 +2056,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             return this;
         }
 
-        public Builder mappingsUpdatedVersion(IndexVersion indexVersion) {
-            this.mappingsUpdatedVersion = indexVersion;
+        public Builder indexVersionWatermark(IndexVersion indexVersion) {
+            this.indexVersionWatermark = indexVersion;
             return this;
         }
 
@@ -2412,7 +2412,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 includeFilters,
                 excludeFilters,
                 indexCreatedVersion,
-                mappingsUpdatedVersion,
+                indexVersionWatermark,
                 getRoutingNumShards(),
                 routingPartitionSize,
                 routingPaths,
@@ -2545,7 +2545,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             }
             builder.endObject();
 
-            builder.field(KEY_MAPPINGS_UPDATED_VERSION, indexMetadata.mappingsUpdatedVersion);
+            builder.field(KEY_INDEX_VERSION_WATERMARK, indexMetadata.indexVersionWatermark);
             builder.field(KEY_SYSTEM, indexMetadata.isSystem);
 
             builder.startObject(KEY_TIMESTAMP_RANGE);
@@ -2722,7 +2722,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                             }
                             builder.putMapping(mappingsByHash.get(parser.text()));
                         }
-                        case KEY_MAPPINGS_UPDATED_VERSION -> builder.mappingsUpdatedVersion(IndexVersion.fromId(parser.intValue()));
+                        case KEY_INDEX_VERSION_WATERMARK -> builder.indexVersionWatermark(IndexVersion.fromId(parser.intValue()));
                         case KEY_WRITE_LOAD_FORECAST -> builder.indexWriteLoadForecast(parser.doubleValue());
                         case KEY_SHARD_SIZE_FORECAST -> builder.shardSizeInBytesForecast(parser.longValue());
                         default -> throw new IllegalArgumentException("Unexpected field [" + currentFieldName + "]");

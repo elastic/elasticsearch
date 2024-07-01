@@ -6,8 +6,6 @@
 <titleabbrev>Rule</titleabbrev>
 ++++
 
-preview::[]
-
 [WARNING]
 ====
 `rule_query` was renamed to `rule` in 8.15.0.

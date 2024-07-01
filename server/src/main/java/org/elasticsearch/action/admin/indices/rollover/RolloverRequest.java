@@ -14,6 +14,7 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.RestApiVersion;
@@ -182,6 +183,13 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
         return indicesOptions;
     }
 
+    /**
+     * @return true of the rollover request targets the failure store, false otherwise.
+     */
+    public boolean targetsFailureStore() {
+        return DataStream.isFailureStoreFeatureFlagEnabled() && indicesOptions.failureStoreOptions().includeFailureIndices();
+    }
+
     public void setIndicesOptions(IndicesOptions indicesOptions) {
         this.indicesOptions = indicesOptions;
     }
@@ -192,14 +200,14 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
     }
 
     /**
-     * Sets the rollover target to rollover to another index
+     * Sets the rollover target to roll over to another index
      */
     public void setRolloverTarget(String rolloverTarget) {
         this.rolloverTarget = rolloverTarget;
     }
 
     /**
-     * Sets the alias to rollover to another index
+     * Sets the alias to roll over to another index
      */
     public void setNewIndexName(String newIndexName) {
         this.newIndexName = newIndexName;

@@ -257,16 +257,26 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
                                 );
                             }
                         } else {
-                            Attribute attr = Expressions.attribute(field);
-                            // cannot determine attribute
-                            if (attr == null) {
-                                throw new EsqlIllegalArgumentException(
-                                    "Cannot work with target field [{}] for agg [{}]",
-                                    field.sourceText(),
-                                    aggregateFunction.sourceText()
-                                );
+                            List<Expression> inputExpressions = new ArrayList<>();
+                            inputExpressions.add(field);
+                            for (Expression param : aggregateFunction.parameters()) {
+                                if (param.foldable() == false) {
+                                    inputExpressions.add(param);
+                                } else {
+                                    Object ignored = param.fold();
+                                }
                             }
-                            sourceAttr = List.of(attr);
+                            sourceAttr = inputExpressions.stream().map(e -> {
+                                Attribute attr = Expressions.attribute(e);
+                                if (attr == null) {
+                                    throw new EsqlIllegalArgumentException(
+                                        "Cannot work with target field [{}] for agg [{}]",
+                                        e.sourceText(),
+                                        aggregateFunction.sourceText()
+                                    );
+                                }
+                                return attr;
+                            }).toList();
                         }
                     } else if (mode == AggregatorMode.FINAL || mode == AggregatorMode.INTERMEDIATE) {
                         if (grouping) {
@@ -277,16 +287,8 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
                     } else {
                         throw new EsqlIllegalArgumentException("illegal aggregation mode");
                     }
-                    var aggParams = aggregateFunction.parameters();
-                    Object[] params = new Object[aggParams.size()];
-                    for (int i = 0; i < params.length; i++) {
-                        params[i] = aggParams.get(i).fold();
-                    }
-
                     List<Integer> inputChannels = sourceAttr.stream().map(attr -> layout.get(attr.id()).channel()).toList();
-                    if (inputChannels.size() > 0) {
-                        assert inputChannels.size() > 0 && inputChannels.stream().allMatch(i -> i >= 0);
-                    }
+                    assert inputChannels.stream().allMatch(i -> i >= 0) : inputChannels;
                     if (aggregateFunction instanceof ToAggregator agg) {
                         consumer.accept(new AggFunctionSupplierContext(agg.supplier(inputChannels), mode));
                     } else {

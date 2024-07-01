@@ -28,7 +28,9 @@ dependencies {
   // Also contains a dummy processor to allow compilation with unused annotations.
   annotationProcessor project('compute:gen')
 
-  testImplementation project('qa:testFixtures')
+  testImplementation(project('qa:testFixtures')) {
+    exclude(group:"org.elasticsearch.plugin", module: "esql")
+  }
   testImplementation project(':test:framework')
   testImplementation(testArtifact(project(xpackModule('core'))))
   testImplementation project(path: xpackModule('enrich'))
@@ -44,9 +46,9 @@ dependencies {
 }
 
 tasks.named("compileJava").configure {
-  options.compilerArgs.addAll(["-s", "${projectDir}/src/main/generated"])
+  options.compilerArgs.addAll(["-s", "src/main/generated"])
   // IntelliJ sticks generated files here and we can't stop it....
-  exclude { it.file.toString().startsWith("${projectDir}/src/main/generated-src/generated") }
+  exclude { it.file.toString().contains("src/main/generated-src/generated") }
 }
 
 interface Injected {

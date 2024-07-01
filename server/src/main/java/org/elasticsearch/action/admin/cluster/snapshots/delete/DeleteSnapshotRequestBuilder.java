@@ -11,6 +11,7 @@ package org.elasticsearch.action.admin.cluster.snapshots.delete;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
 import org.elasticsearch.client.internal.ElasticsearchClient;
+import org.elasticsearch.core.TimeValue;
 
 /**
  * Delete snapshot request builder
@@ -23,8 +24,8 @@ public class DeleteSnapshotRequestBuilder extends MasterNodeOperationRequestBuil
     /**
      * Constructs delete snapshot request builder with specified repository and snapshot names
      */
-    public DeleteSnapshotRequestBuilder(ElasticsearchClient client, String repository, String... snapshots) {
-        super(client, TransportDeleteSnapshotAction.TYPE, new DeleteSnapshotRequest(repository, snapshots));
+    public DeleteSnapshotRequestBuilder(ElasticsearchClient client, TimeValue masterNodeTimeout, String repository, String... snapshots) {
+        super(client, TransportDeleteSnapshotAction.TYPE, new DeleteSnapshotRequest(masterNodeTimeout, repository, snapshots));
     }
 
     /**

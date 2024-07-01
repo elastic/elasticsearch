@@ -139,6 +139,11 @@ public final class DoubleVectorVectorBlock extends AbstractNonThreadSafeRefCount
 
     @Override
     public boolean mayHaveMultivaluedFields() {
+        return true;
+    }
+
+    @Override
+    public boolean doesHaveMultivaluedFields() {
         return Arrays.stream(blocks).anyMatch(Block::mayHaveMultivaluedFields);
     }
 

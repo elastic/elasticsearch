@@ -1025,25 +1025,13 @@ public class EsqlBaseParserBaseListener implements EsqlBaseParserListener {
    *
    * <p>The default implementation does nothing.</p>
    */
-  @Override public void enterSearchQueryOrReference(EsqlBaseParser.SearchQueryOrReferenceContext ctx) { }
+  @Override public void enterSearchFilterExpression(EsqlBaseParser.SearchFilterExpressionContext ctx) { }
   /**
    * {@inheritDoc}
    *
    * <p>The default implementation does nothing.</p>
    */
-  @Override public void exitSearchQueryOrReference(EsqlBaseParser.SearchQueryOrReferenceContext ctx) { }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation does nothing.</p>
-   */
-  @Override public void enterSearchQueryIdentifier(EsqlBaseParser.SearchQueryIdentifierContext ctx) { }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation does nothing.</p>
-   */
-  @Override public void exitSearchQueryIdentifier(EsqlBaseParser.SearchQueryIdentifierContext ctx) { }
+  @Override public void exitSearchFilterExpression(EsqlBaseParser.SearchFilterExpressionContext ctx) { }
   /**
    * {@inheritDoc}
    *
@@ -1073,6 +1061,18 @@ public class EsqlBaseParserBaseListener implements EsqlBaseParserListener {
    *
    * <p>The default implementation does nothing.</p>
    */
+  @Override public void enterSearchRankExpression(EsqlBaseParser.SearchRankExpressionContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitSearchRankExpression(EsqlBaseParser.SearchRankExpressionContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
   @Override public void enterSearchSortCommmand(EsqlBaseParser.SearchSortCommmandContext ctx) { }
   /**
    * {@inheritDoc}
@@ -1080,30 +1080,6 @@ public class EsqlBaseParserBaseListener implements EsqlBaseParserListener {
    * <p>The default implementation does nothing.</p>
    */
   @Override public void exitSearchSortCommmand(EsqlBaseParser.SearchSortCommmandContext ctx) { }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation does nothing.</p>
-   */
-  @Override public void enterSearchQueryExpression(EsqlBaseParser.SearchQueryExpressionContext ctx) { }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation does nothing.</p>
-   */
-  @Override public void exitSearchQueryExpression(EsqlBaseParser.SearchQueryExpressionContext ctx) { }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation does nothing.</p>
-   */
-  @Override public void enterSearchMatchingExpression(EsqlBaseParser.SearchMatchingExpressionContext ctx) { }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation does nothing.</p>
-   */
-  @Override public void exitSearchMatchingExpression(EsqlBaseParser.SearchMatchingExpressionContext ctx) { }
   /**
    * {@inheritDoc}
    *

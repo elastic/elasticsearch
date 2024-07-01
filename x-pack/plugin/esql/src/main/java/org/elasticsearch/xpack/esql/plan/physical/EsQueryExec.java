@@ -26,13 +26,9 @@ import org.elasticsearch.xpack.esql.core.type.EsField;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.stream.Stream;
 
 public class EsQueryExec extends LeafExec implements EstimatesRowSize {
-    static final EsField DOC_ID_FIELD = new EsField("_doc", DataType.DOC_DATA_TYPE, Map.of(), false);
-    static final EsField TSID_FIELD = new EsField("_tsid", DataType.TSID_DATA_TYPE, Map.of(), true);
-    static final EsField TIMESTAMP_FIELD = new EsField("@timestamp", DataType.DATETIME, Map.of(), true);
-    static final EsField INTERVAL_FIELD = new EsField("@timestamp_interval", DataType.DATETIME, Map.of(), true);
+    public static final EsField DOC_ID_FIELD = new EsField("_doc", DataType.DOC_DATA_TYPE, Map.of(), false);
     public static final EsField SCORE_FIELD = new EsField("_score", DataType.FLOAT, Map.of(), false);
 
     private final EsIndex index;
@@ -58,8 +54,8 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
         }
     }
 
-    public EsQueryExec(Source source, EsIndex index, IndexMode indexMode, List<Attribute> attrs, QueryBuilder query) {
-        this(source, index, indexMode, sourceAttributes(source, indexMode, attrs), query, null, null, null);
+    public EsQueryExec(Source source, EsIndex index, IndexMode indexMode, List<Attribute> attributes, QueryBuilder query) {
+        this(source, index, indexMode, attributes, query, null, null, null);
     }
 
     public EsQueryExec(
@@ -80,21 +76,6 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
         this.limit = limit;
         this.sorts = sorts;
         this.estimatedRowSize = estimatedRowSize;
-    }
-
-    private static List<Attribute> sourceAttributes(Source source, IndexMode indexMode, List<Attribute> attrs) {
-        return switch (indexMode) {
-            case STANDARD, LOGS -> Stream.concat(
-                Stream.of(new FieldAttribute(source, DOC_ID_FIELD.getName(), DOC_ID_FIELD)),
-                attrs.stream().filter(a -> a.name().equals("_score"))
-            ).toList();
-            case TIME_SERIES -> List.of(
-                new FieldAttribute(source, DOC_ID_FIELD.getName(), DOC_ID_FIELD),
-                new FieldAttribute(source, TSID_FIELD.getName(), TSID_FIELD),
-                new FieldAttribute(source, TIMESTAMP_FIELD.getName(), TIMESTAMP_FIELD),
-                new FieldAttribute(source, INTERVAL_FIELD.getName(), INTERVAL_FIELD)
-            );
-        };
     }
 
     static boolean hasScoreAttribute(List<Attribute> attrs) {

@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.esql.core.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Sub;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
+import org.elasticsearch.xpack.esql.plan.logical.Aggregate.AggregateType;
 import org.elasticsearch.xpack.esql.plan.logical.EsqlAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsqlUnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Keep;
@@ -201,6 +202,7 @@ public class SearchStatementParserTests extends AbstractStatementParserTests {
                             greaterThan(attribute("_score"), literalDouble(0.1))
                         )
                     ),
+                    AggregateType.STANDARD,
                     List.of(attribute("rating")),
                     List.of(
                         new Alias(EMPTY, "c", new UnresolvedFunction(EMPTY, "COUNT", DEFAULT, List.of(attribute("votes")))),
@@ -225,11 +227,6 @@ public class SearchStatementParserTests extends AbstractStatementParserTests {
               | WHERE a > 1 ]
             | LIMIT -1
             """, "extraneous input '-' expecting INTEGER_LITERAL");
-
-        expectError("""
-            SEARCH index [
-              | WHERE MATCH a > 1 ]
-            """, "extraneous input 'MATCH'");
 
         // TODO: additional negative / expected error tests go here
     }

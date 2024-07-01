@@ -8,6 +8,9 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.string;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.data.BytesRefBlock;
@@ -22,7 +25,10 @@ import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 
+import java.io.IOException;
 import java.util.function.Function;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
@@ -33,6 +39,8 @@ import static org.elasticsearch.xpack.esql.expression.EsqlTypeResolutions.isStri
  * Splits a string on some delimiter into a multivalued string field.
  */
 public class Split extends BinaryScalarFunction implements EvaluatorMapper {
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Split", Split::new);
+
     @FunctionInfo(
         returnType = "keyword",
         description = "Split a single valued string into multiple strings.",
@@ -52,6 +60,22 @@ public class Split extends BinaryScalarFunction implements EvaluatorMapper {
         ) Expression delim
     ) {
         super(source, str, delim);
+    }
+
+    private Split(StreamInput in) throws IOException {
+        this(Source.readFrom((PlanStreamInput) in), ((PlanStreamInput) in).readExpression(), ((PlanStreamInput) in).readExpression());
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        source().writeTo(out);
+        ((PlanStreamOutput) out).writeExpression(str());
+        ((PlanStreamOutput) out).writeExpression(delim());
+    }
+
+    @Override
+    public String getWriteableName() {
+        return ENTRY.name;
     }
 
     @Override
@@ -149,5 +173,13 @@ public class Split extends BinaryScalarFunction implements EvaluatorMapper {
         if (delim.length != 1) {
             throw new InvalidArgumentException("delimiter must be single byte for now");
         }
+    }
+
+    Expression str() {
+        return children().get(0);
+    }
+
+    Expression delim() {
+        return children().get(1);
     }
 }

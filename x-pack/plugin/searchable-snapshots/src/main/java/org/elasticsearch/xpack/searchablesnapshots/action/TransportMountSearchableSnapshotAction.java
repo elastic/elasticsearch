@@ -237,7 +237,7 @@ public class TransportMountSearchableSnapshotAction extends TransportMasterNodeA
                 dataTierAllocationSetting.get(indexSettings);
             }
 
-            RestoreSnapshotRequest restoreSnapshotRequest = new RestoreSnapshotRequest(repoName, snapName)
+            RestoreSnapshotRequest restoreSnapshotRequest = new RestoreSnapshotRequest(request.masterNodeTimeout(), repoName, snapName)
                 // Restore the single index specified
                 .indices(indexName)
                 // Always rename it to the desired mounted index name
@@ -253,8 +253,6 @@ public class TransportMountSearchableSnapshotAction extends TransportMasterNodeA
                 .includeAliases(false)
                 // Pass through the wait-for-completion flag
                 .waitForCompletion(request.waitForCompletion())
-                // Pass through the master-node timeout
-                .masterNodeTimeout(request.masterNodeTimeout())
                 // Fail the restore if the snapshot found above is swapped out from under us before the restore happens
                 .snapshotUuid(snapshotId.getUUID())
                 // Log snapshot restore at the DEBUG log level

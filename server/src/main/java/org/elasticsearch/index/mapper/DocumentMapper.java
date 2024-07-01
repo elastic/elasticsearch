@@ -50,7 +50,7 @@ public class DocumentMapper {
         MapperMetrics mapperMetrics
     ) {
         this.documentParser = documentParser;
-        this.type = mapping.getRoot().name();
+        this.type = mapping.getRoot().fullPath();
         this.mappingLookup = MappingLookup.fromMapping(mapping);
         this.mappingSource = source;
         this.mapperMetrics = mapperMetrics;

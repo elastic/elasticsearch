@@ -45,13 +45,8 @@ public abstract sealed class RowInTableLookup implements Releasable permits Empt
                     "keys must have the same number of positions but [" + positions + "] != [" + keys[k].getPositionCount() + "]"
                 );
             }
-            if (keys[k].mayHaveMultivaluedFields()) {
-                for (int p = 0; p < keys[k].getPositionCount(); p++) {
-                    if (keys[k].getValueCount(p) > 1) {
-                        // TODO double check these errors over REST once we have LOOKUP
-                        throw new IllegalArgumentException("only single valued keys are supported");
-                    }
-                }
+            if (keys[k].doesHaveMultivaluedFields()) {
+                throw new IllegalArgumentException("only single valued keys are supported");
             }
         }
         if (positions == 0) {

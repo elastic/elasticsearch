@@ -69,6 +69,11 @@ final class ConstantNullBlock extends AbstractNonThreadSafeRefCounted
     }
 
     @Override
+    public boolean doesHaveMultivaluedFields() {
+        return false;
+    }
+
+    @Override
     public ElementType elementType() {
         return ElementType.NULL;
     }

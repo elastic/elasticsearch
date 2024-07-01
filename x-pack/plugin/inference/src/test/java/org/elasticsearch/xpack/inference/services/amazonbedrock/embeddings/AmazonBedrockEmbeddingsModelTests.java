@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services.amazonbedrock.embeddings;
 
+import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.EmptyTaskSettings;
@@ -17,7 +18,21 @@ import org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockPro
 import org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockSecretSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
+import java.util.Map;
+
+import static org.hamcrest.Matchers.containsString;
+
 public class AmazonBedrockEmbeddingsModelTests extends ESTestCase {
+
+    public void testCreateModel_withTaskSettings_shouldFail() {
+        var baseModel = createModel("id", "region", "model", AmazonBedrockProvider.AMAZONTITAN, "accesskey", "secretkey");
+        var thrownException = assertThrows(
+            ValidationException.class,
+            () -> AmazonBedrockEmbeddingsModel.of(baseModel, Map.of("testkey", "testvalue"))
+        );
+        assertThat(thrownException.getMessage(), containsString("Amazon Bedrock embeddings model cannot have task settings"));
+    }
+
     // model creation only - no tests to define, but we want to have the public createModel
     // method available
 

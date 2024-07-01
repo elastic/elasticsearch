@@ -20,7 +20,7 @@ import java.util.function.BiFunction;
 
 import static java.util.Collections.emptyMap;
 
-public final class AmazonBedrockInferenceClientCache extends AmazonBedrockClientCache {
+public final class AmazonBedrockInferenceClientCache implements AmazonBedrockClientCache {
 
     private final BiFunction<AmazonBedrockModel, TimeValue, AmazonBedrockBaseClient> creator;
     private volatile Map<Integer, AmazonBedrockBaseClient> clientsCache = emptyMap();

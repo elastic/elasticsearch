@@ -42,11 +42,15 @@ public class AmazonBedrockRequestSender implements Sender {
         }
 
         public Sender createSender() {
+            return createSender(new AmazonBedrockExecuteOnlyRequestSender());
+        }
+
+        public Sender createSender(RequestSender requestSender) {
             var sender = new AmazonBedrockRequestSender(
                 serviceComponents.threadPool(),
                 clusterService,
                 serviceComponents.settings(),
-                new AmazonBedrockExecuteOnlyRequestSender()
+                requestSender
             );
             // ensure this is started
             sender.start();

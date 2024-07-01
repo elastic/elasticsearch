@@ -17,7 +17,7 @@ import org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockMod
 
 import java.io.IOException;
 
-public class AmazonBedrockMockClientCache extends AmazonBedrockClientCache {
+public class AmazonBedrockMockClientCache implements AmazonBedrockClientCache {
     private ConverseResult converseResult = null;
     private InvokeModelResult invokeModelResult = null;
     private ElasticsearchException exceptionToThrow = null;

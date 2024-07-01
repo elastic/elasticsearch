@@ -24,7 +24,7 @@ import java.util.function.Supplier;
 import static org.elasticsearch.core.Strings.format;
 
 /**
- * The AWS SDK uses its own internal retrier and timeout values
+ * The AWS SDK uses its own internal retrier and timeout values on the client
  */
 public class AmazonBedrockExecuteOnlyRequestSender implements RequestSender {
 
@@ -41,20 +41,12 @@ public class AmazonBedrockExecuteOnlyRequestSender implements RequestSender {
     ) {
         if (request instanceof AmazonBedrockRequest awsRequest && responseHandler instanceof AmazonBedrockResponseHandler awsResponse) {
             try {
-                var executor = new AmazonBedrockExecutor(
-                    awsRequest.model(),
-                    awsRequest,
-                    awsResponse,
-                    logger,
-                    hasRequestTimedOutFunction,
-                    listener
-                );
+                var executor = createExecutor(awsRequest, awsResponse, logger, hasRequestTimedOutFunction, listener);
 
                 // the run method will call the listener to return the proper value
                 executor.run();
             } catch (Exception e) {
-                // TODO - change from static AmazonBedrock to request type specified
-                logException(logger, request, "Amazon Bedrock", e);
+                logException(logger, request, e);
                 listener.onFailure(wrapWithElasticsearchException(e, request.getInferenceEntityId()));
             }
         }
@@ -62,11 +54,22 @@ public class AmazonBedrockExecuteOnlyRequestSender implements RequestSender {
         listener.onFailure(new ElasticsearchException("Amazon Bedrock request was not the correct type"));
     }
 
-    private void logException(Logger logger, Request request, String requestType, Exception exception) {
+    // allow this to be overridden for testing
+    protected AmazonBedrockExecutor createExecutor(
+        AmazonBedrockRequest awsRequest,
+        AmazonBedrockResponseHandler awsResponse,
+        Logger logger,
+        Supplier<Boolean> hasRequestTimedOutFunction,
+        ActionListener<InferenceServiceResults> listener
+    ) {
+        return new AmazonBedrockExecutor(awsRequest.model(), awsRequest, awsResponse, logger, hasRequestTimedOutFunction, listener);
+    }
+
+    private void logException(Logger logger, Request request, Exception exception) {
         var causeException = ExceptionsHelper.unwrapCause(exception);
 
         logger.warn(
-            format("Failed while sending request from inference entity id [%s] of type [%s]", request.getInferenceEntityId(), requestType),
+            format("Failed while sending request from inference entity id [%s] of type [amazonbedrock]", request.getInferenceEntityId()),
             causeException
         );
     }

@@ -70,7 +70,7 @@ public class AmazonBedrockMockInferenceClient extends AmazonBedrockBaseClient {
 
     @Override
     public boolean tryToIncreaseReference() {
-        return false;
+        return true;
     }
 
     @Override
@@ -86,6 +86,6 @@ public class AmazonBedrockMockInferenceClient extends AmazonBedrockBaseClient {
 
     @Override
     public int hashCode() {
-        return this.hashCode();
+        return modelKeysAndRegionHashcode;
     }
 }

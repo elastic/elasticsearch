@@ -39,8 +39,8 @@ public class AmazonBedrockEmbeddingsResponse extends AmazonBedrockResponse {
         if (request instanceof AmazonBedrockEmbeddingsRequest asEmbeddingsRequest) {
             return fromResponse(asEmbeddingsRequest.result(), asEmbeddingsRequest.provider());
         }
-        // TODO -- throw
-        return null;
+
+        throw new ElasticsearchException("unexpected request type [" + request.getClass() + "]");
     }
 
     public static InferenceTextEmbeddingFloatResults fromResponse(InvokeModelResult response, AmazonBedrockProvider provider) {

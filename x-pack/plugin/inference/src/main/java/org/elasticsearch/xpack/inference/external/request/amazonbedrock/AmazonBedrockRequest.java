@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.inference.external.request.amazonbedrock;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.inference.external.amazonbedrock.AmazonBedrockBaseClient;
-import org.elasticsearch.xpack.inference.external.amazonbedrock.AmazonBedrockInferenceClient;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
 import org.elasticsearch.xpack.inference.external.request.Request;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockModel;

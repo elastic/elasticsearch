@@ -14,6 +14,6 @@ import org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockMod
 import java.io.Closeable;
 import java.io.IOException;
 
-public abstract class AmazonBedrockClientCache implements Closeable {
-    public abstract AmazonBedrockBaseClient getOrCreateClient(AmazonBedrockModel model, @Nullable TimeValue timeout) throws IOException;
+public interface AmazonBedrockClientCache extends Closeable {
+    AmazonBedrockBaseClient getOrCreateClient(AmazonBedrockModel model, @Nullable TimeValue timeout) throws IOException;
 }

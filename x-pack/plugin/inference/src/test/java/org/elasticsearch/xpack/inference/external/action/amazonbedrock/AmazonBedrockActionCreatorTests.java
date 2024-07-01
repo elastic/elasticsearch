@@ -54,7 +54,7 @@ public class AmazonBedrockActionCreatorTests extends ESTestCase {
         var mockedFloatResults = List.of(new InferenceTextEmbeddingFloatResults.InferenceFloatEmbedding(new float[] { 0.0123F, -0.0123F }));
         var mockedResult = new InferenceTextEmbeddingFloatResults(mockedFloatResults);
         try (var sender = new AmazonBedrockMockRequestSender()) {
-            sender.addResultItem(mockedResult);
+            sender.enqueue(mockedResult);
             var creator = new AmazonBedrockActionCreator(sender, serviceComponents, TIMEOUT);
             var model = AmazonBedrockEmbeddingsModelTests.createModel(
                 "test_id",
@@ -87,18 +87,13 @@ public class AmazonBedrockActionCreatorTests extends ESTestCase {
         var serviceComponents = ServiceComponentsTests.createWithEmptySettings(threadPool);
         var mockedResult = new ElasticsearchException("mock exception");
         try (var sender = new AmazonBedrockMockRequestSender()) {
-            sender.addResultItem(mockedResult);
+            sender.enqueue(mockedResult);
             var creator = new AmazonBedrockActionCreator(sender, serviceComponents, TIMEOUT);
             var model = AmazonBedrockEmbeddingsModelTests.createModel(
                 "test_id",
                 "test_region",
                 "test_model",
                 AmazonBedrockProvider.AMAZONTITAN,
-                null,
-                false,
-                null,
-                null,
-                null,
                 "accesskey",
                 "secretkey"
             );
@@ -118,7 +113,7 @@ public class AmazonBedrockActionCreatorTests extends ESTestCase {
         var mockedChatCompletionResults = List.of(new ChatCompletionResults.Result("test input string"));
         var mockedResult = new ChatCompletionResults(mockedChatCompletionResults);
         try (var sender = new AmazonBedrockMockRequestSender()) {
-            sender.addResultItem(mockedResult);
+            sender.enqueue(mockedResult);
             var creator = new AmazonBedrockActionCreator(sender, serviceComponents, TIMEOUT);
             var model = AmazonBedrockChatCompletionModelTests.createModel(
                 "test_id",
@@ -151,7 +146,7 @@ public class AmazonBedrockActionCreatorTests extends ESTestCase {
         var serviceComponents = ServiceComponentsTests.createWithEmptySettings(threadPool);
         var mockedResult = new ElasticsearchException("mock exception");
         try (var sender = new AmazonBedrockMockRequestSender()) {
-            sender.addResultItem(mockedResult);
+            sender.enqueue(mockedResult);
             var creator = new AmazonBedrockActionCreator(sender, serviceComponents, TIMEOUT);
             var model = AmazonBedrockChatCompletionModelTests.createModel(
                 "test_id",

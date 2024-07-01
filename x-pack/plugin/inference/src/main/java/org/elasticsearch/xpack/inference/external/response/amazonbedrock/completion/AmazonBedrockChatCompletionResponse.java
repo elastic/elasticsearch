@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.external.response.amazonbedrock.comple
 
 import com.amazonaws.services.bedrockruntime.model.ConverseResult;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.xpack.core.inference.results.ChatCompletionResults;
 import org.elasticsearch.xpack.inference.external.request.amazonbedrock.AmazonBedrockRequest;
@@ -25,14 +26,11 @@ public class AmazonBedrockChatCompletionResponse extends AmazonBedrockResponse {
             return fromResponse(asChatCompletionRequest.result());
         }
 
-        // TODO - throw
-        return null;
+        throw new ElasticsearchException("unexpected request type [" + request.getClass() + "]");
     }
 
     public static ChatCompletionResults fromResponse(ConverseResult response) {
         var responseMessage = response.getOutput().getMessage();
-
-        var tokenUsage = response.getUsage();
 
         var messageContents = responseMessage.getContent();
         var resultTexts = new ArrayList<ChatCompletionResults.Result>();

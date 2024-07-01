@@ -27,7 +27,7 @@ public class AmazonBedrockMockRequestSender implements Sender {
     private Queue<List<String>> inputs = new ConcurrentLinkedQueue<>();
     private int sendCounter = 0;
 
-    public void addResultItem(Object result) {
+    public void enqueue(Object result) {
         results.add(result);
     }
 

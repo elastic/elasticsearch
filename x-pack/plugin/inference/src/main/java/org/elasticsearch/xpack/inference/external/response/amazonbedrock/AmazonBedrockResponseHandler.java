@@ -19,6 +19,5 @@ public abstract class AmazonBedrockResponseHandler implements ResponseHandler {
     public final void validateResponse(ThrottlerManager throttlerManager, Logger logger, Request request, HttpResult result)
         throws RetryException {
         // do nothing as the AWS SDK will take care of validation for us
-        return;
     }
 }

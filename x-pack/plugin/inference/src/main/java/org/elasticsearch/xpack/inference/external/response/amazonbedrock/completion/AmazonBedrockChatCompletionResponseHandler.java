@@ -11,7 +11,7 @@ import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.http.retry.RetryException;
 import org.elasticsearch.xpack.inference.external.request.Request;
-import org.elasticsearch.xpack.inference.external.request.amazonbedrock.completion.AmazonBedrockChatCompletionRequest;
+import org.elasticsearch.xpack.inference.external.request.amazonbedrock.AmazonBedrockRequest;
 import org.elasticsearch.xpack.inference.external.response.amazonbedrock.AmazonBedrockResponseHandler;
 
 public class AmazonBedrockChatCompletionResponseHandler extends AmazonBedrockResponseHandler {
@@ -20,13 +20,8 @@ public class AmazonBedrockChatCompletionResponseHandler extends AmazonBedrockRes
 
     @Override
     public InferenceServiceResults parseResult(Request request, HttpResult result) throws RetryException {
-        if (request instanceof AmazonBedrockChatCompletionRequest awsRequest) {
-            var response = new AmazonBedrockChatCompletionResponse();
-            return response.accept(awsRequest);
-        }
-
-        // TODO -- throw
-        return null;
+        var response = new AmazonBedrockChatCompletionResponse();
+        return response.accept((AmazonBedrockRequest) request);
     }
 
     @Override

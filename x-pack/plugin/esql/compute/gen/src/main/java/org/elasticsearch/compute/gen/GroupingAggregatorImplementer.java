@@ -585,7 +585,7 @@ public class GroupingAggregatorImplementer {
     private boolean hasPrimitiveState() {
         return switch (stateType.toString()) {
             case "org.elasticsearch.compute.aggregation.IntArrayState", "org.elasticsearch.compute.aggregation.LongArrayState",
-                "org.elasticsearch.compute.aggregation.DoubleArrayState" -> true;
+                "org.elasticsearch.compute.aggregation.DoubleArrayState", "org.elasticsearch.compute.aggregation.FloatArrayState" -> true;
             default -> false;
         };
     }

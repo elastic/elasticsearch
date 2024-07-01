@@ -225,26 +225,10 @@ public class IndexResolver {
                 if (type == UNSUPPORTED) {
                     return unsupported(name, fc);
                 }
-                typesToIndices.computeIfAbsent(type.esType(), _key -> new TreeSet<>()).add(ir.getIndexName());
+                typesToIndices.computeIfAbsent(type.typeName(), _key -> new TreeSet<>()).add(ir.getIndexName());
             }
         }
-        StringBuilder errorMessage = new StringBuilder();
-        errorMessage.append("mapped as [");
-        errorMessage.append(typesToIndices.size());
-        errorMessage.append("] incompatible types: ");
-        boolean first = true;
-        for (Map.Entry<String, Set<String>> e : typesToIndices.entrySet()) {
-            if (first) {
-                first = false;
-            } else {
-                errorMessage.append(", ");
-            }
-            errorMessage.append("[");
-            errorMessage.append(e.getKey());
-            errorMessage.append("] in ");
-            errorMessage.append(e.getValue());
-        }
-        return new InvalidMappedField(name, errorMessage.toString());
+        return new InvalidMappedField(name, typesToIndices);
     }
 
     private EsField conflictingMetricTypes(String name, String fullName, FieldCapabilitiesResponse fieldCapsResponse) {

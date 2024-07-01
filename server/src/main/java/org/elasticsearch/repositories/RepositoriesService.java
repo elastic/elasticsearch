@@ -495,8 +495,8 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
          * Constructor used by {@link org.elasticsearch.action.admin.cluster.repositories.reservedstate.ReservedRepositoryAction}
          * @param name the repository name
          */
-        public UnregisterRepositoryTask(String name) {
-            this(new DeleteRepositoryRequest(name), null);
+        public UnregisterRepositoryTask(TimeValue dummyTimeout, String name) {
+            this(new DeleteRepositoryRequest(dummyTimeout, dummyTimeout, name), null);
         }
 
         @Override

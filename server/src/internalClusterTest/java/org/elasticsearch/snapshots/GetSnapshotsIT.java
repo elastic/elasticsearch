@@ -82,7 +82,10 @@ public class GetSnapshotsIT extends AbstractSnapshotIntegTestCase {
     }
 
     private void doTestSortOrder(String repoName, Collection<String> allSnapshotNames, SortOrder order) {
-        final List<SnapshotInfo> defaultSorting = clusterAdmin().prepareGetSnapshots(repoName).setOrder(order).get().getSnapshots();
+        final List<SnapshotInfo> defaultSorting = clusterAdmin().prepareGetSnapshots(TEST_REQUEST_TIMEOUT, repoName)
+            .setOrder(order)
+            .get()
+            .getSnapshots();
         assertSnapshotListSorted(defaultSorting, null, order);
         final String[] repos = { repoName };
         assertSnapshotListSorted(allSnapshotsSorted(allSnapshotNames, repos, SnapshotSortKey.NAME, order), SnapshotSortKey.NAME, order);
@@ -187,7 +190,7 @@ public class GetSnapshotsIT extends AbstractSnapshotIntegTestCase {
         assertStablePagination(repos, allSnapshotNames, SnapshotSortKey.START_TIME);
         assertStablePagination(repos, allSnapshotNames, SnapshotSortKey.NAME);
         assertStablePagination(repos, allSnapshotNames, SnapshotSortKey.INDICES);
-        final List<SnapshotInfo> currentSnapshots = clusterAdmin().prepareGetSnapshots(matchAllPattern())
+        final List<SnapshotInfo> currentSnapshots = clusterAdmin().prepareGetSnapshots(TEST_REQUEST_TIMEOUT, matchAllPattern())
             .setSnapshots(GetSnapshotsRequest.CURRENT_SNAPSHOT)
             .get()
             .getSnapshots();
@@ -196,7 +199,7 @@ public class GetSnapshotsIT extends AbstractSnapshotIntegTestCase {
         }
 
         assertThat(
-            clusterAdmin().prepareGetSnapshots(matchAllPattern())
+            clusterAdmin().prepareGetSnapshots(TEST_REQUEST_TIMEOUT, matchAllPattern())
                 .setSnapshots(GetSnapshotsRequest.CURRENT_SNAPSHOT, "-snap*")
                 .get()
                 .getSnapshots(),
@@ -219,14 +222,14 @@ public class GetSnapshotsIT extends AbstractSnapshotIntegTestCase {
         createNSnapshots(repoName, randomIntBetween(1, 5));
         expectThrows(
             ActionRequestValidationException.class,
-            clusterAdmin().prepareGetSnapshots(repoName)
+            clusterAdmin().prepareGetSnapshots(TEST_REQUEST_TIMEOUT, repoName)
                 .setVerbose(false)
                 .setSort(SnapshotSortKey.DURATION)
                 .setSize(GetSnapshotsRequest.NO_LIMIT)
         );
         expectThrows(
             ActionRequestValidationException.class,
-            clusterAdmin().prepareGetSnapshots(repoName)
+            clusterAdmin().prepareGetSnapshots(TEST_REQUEST_TIMEOUT, repoName)
                 .setVerbose(false)
                 .setSort(SnapshotSortKey.START_TIME)
                 .setSize(randomIntBetween(1, 100))
@@ -293,14 +296,23 @@ public class GetSnapshotsIT extends AbstractSnapshotIntegTestCase {
         );
         assertThat(allInOtherWithoutOtherExplicit, is(allInOther));
 
-        assertThat(clusterAdmin().prepareGetSnapshots(matchAllPattern()).setSnapshots("other*", "-o*").get().getSnapshots(), empty());
-        assertThat(clusterAdmin().prepareGetSnapshots("other*", "-o*").setSnapshots(matchAllPattern()).get().getSnapshots(), empty());
         assertThat(
-            clusterAdmin().prepareGetSnapshots("other*", otherRepo, "-o*").setSnapshots(matchAllPattern()).get().getSnapshots(),
+            clusterAdmin().prepareGetSnapshots(TEST_REQUEST_TIMEOUT, matchAllPattern()).setSnapshots("other*", "-o*").get().getSnapshots(),
             empty()
         );
         assertThat(
-            clusterAdmin().prepareGetSnapshots(matchAllPattern())
+            clusterAdmin().prepareGetSnapshots(TEST_REQUEST_TIMEOUT, "other*", "-o*").setSnapshots(matchAllPattern()).get().getSnapshots(),
+            empty()
+        );
+        assertThat(
+            clusterAdmin().prepareGetSnapshots(TEST_REQUEST_TIMEOUT, "other*", otherRepo, "-o*")
+                .setSnapshots(matchAllPattern())
+                .get()
+                .getSnapshots(),
+            empty()
+        );
+        assertThat(
+            clusterAdmin().prepareGetSnapshots(TEST_REQUEST_TIMEOUT, matchAllPattern())
                 .setSnapshots("non-existing*", otherPrefixSnapshot1, "-o*")
                 .get()
                 .getSnapshots(),
@@ -332,7 +344,7 @@ public class GetSnapshotsIT extends AbstractSnapshotIntegTestCase {
         final SnapshotInfo weirdSnapshot1InWeird2 = createFullSnapshot(weirdRepo2, weirdSnapshot1);
         final SnapshotInfo weirdSnapshot2InWeird2 = createFullSnapshot(weirdRepo2, weirdSnapshot2);
 
-        final List<SnapshotInfo> allSnapshots = clusterAdmin().prepareGetSnapshots(matchAllPattern())
+        final List<SnapshotInfo> allSnapshots = clusterAdmin().prepareGetSnapshots(TEST_REQUEST_TIMEOUT, matchAllPattern())
             .setSort(SnapshotSortKey.REPOSITORY)
             .get()
             .getSnapshots();
@@ -395,14 +407,18 @@ public class GetSnapshotsIT extends AbstractSnapshotIntegTestCase {
     }
 
     private List<SnapshotInfo> getAllByPatterns(String[] repos, String[] snapshots) {
-        return clusterAdmin().prepareGetSnapshots(repos).setSnapshots(snapshots).setSort(SnapshotSortKey.REPOSITORY).get().getSnapshots();
+        return clusterAdmin().prepareGetSnapshots(TEST_REQUEST_TIMEOUT, repos)
+            .setSnapshots(snapshots)
+            .setSort(SnapshotSortKey.REPOSITORY)
+            .get()
+            .getSnapshots();
     }
 
     public void testFilterBySLMPolicy() throws Exception {
         final String repoName = "test-repo";
         createRepository(repoName, "fs");
         createNSnapshots(repoName, randomIntBetween(1, 5));
-        final List<SnapshotInfo> snapshotsWithoutPolicy = clusterAdmin().prepareGetSnapshots(matchAllPattern())
+        final List<SnapshotInfo> snapshotsWithoutPolicy = clusterAdmin().prepareGetSnapshots(TEST_REQUEST_TIMEOUT, matchAllPattern())
             .setSnapshots(matchAllPattern())
             .setSort(SnapshotSortKey.NAME)
             .get()
@@ -410,7 +426,7 @@ public class GetSnapshotsIT extends AbstractSnapshotIntegTestCase {
         final String snapshotWithPolicy = "snapshot-with-policy";
         final String policyName = "some-policy";
         final SnapshotInfo withPolicy = assertSuccessful(
-            clusterAdmin().prepareCreateSnapshot(repoName, snapshotWithPolicy)
+            clusterAdmin().prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repoName, snapshotWithPolicy)
                 .setUserMetadata(Map.of(SnapshotsService.POLICY_ID_METADATA_FIELD, policyName))
                 .setWaitForCompletion(true)
                 .execute()
@@ -429,7 +445,7 @@ public class GetSnapshotsIT extends AbstractSnapshotIntegTestCase {
         final String snapshotWithOtherPolicy = "snapshot-with-other-policy";
         final String otherPolicyName = "other-policy";
         final SnapshotInfo withOtherPolicy = assertSuccessful(
-            clusterAdmin().prepareCreateSnapshot(repoName, snapshotWithOtherPolicy)
+            clusterAdmin().prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repoName, snapshotWithOtherPolicy)
                 .setUserMetadata(Map.of(SnapshotsService.POLICY_ID_METADATA_FIELD, otherPolicyName))
                 .setWaitForCompletion(true)
                 .execute()
@@ -438,7 +454,7 @@ public class GetSnapshotsIT extends AbstractSnapshotIntegTestCase {
         assertThat(getAllSnapshotsForPolicies(policyName, otherPolicyName), is(List.of(withOtherPolicy, withPolicy)));
         assertThat(getAllSnapshotsForPolicies(policyName, otherPolicyName, "no-such-policy*"), is(List.of(withOtherPolicy, withPolicy)));
 
-        final List<SnapshotInfo> allSnapshots = clusterAdmin().prepareGetSnapshots(matchAllPattern())
+        final List<SnapshotInfo> allSnapshots = clusterAdmin().prepareGetSnapshots(TEST_REQUEST_TIMEOUT, matchAllPattern())
             .setSnapshots(matchAllPattern())
             .setSort(SnapshotSortKey.NAME)
             .get()
@@ -459,7 +475,7 @@ public class GetSnapshotsIT extends AbstractSnapshotIntegTestCase {
         final SnapshotInfo snapshot3 = createFullSnapshotWithUniqueTimestamps(repoName, "snapshot-3", startTimes, durations);
         createIndexWithContent("index-3");
 
-        final List<SnapshotInfo> allSnapshotInfo = clusterAdmin().prepareGetSnapshots(matchAllPattern())
+        final List<SnapshotInfo> allSnapshotInfo = clusterAdmin().prepareGetSnapshots(TEST_REQUEST_TIMEOUT, matchAllPattern())
             .setSnapshots(matchAllPattern())
             .setSort(SnapshotSortKey.START_TIME)
             .get()
@@ -486,7 +502,7 @@ public class GetSnapshotsIT extends AbstractSnapshotIntegTestCase {
         assertThat(allAfterNameAscending(name3), is(List.of(snapshot3)));
         assertThat(allAfterNameAscending("z"), empty());
 
-        final List<SnapshotInfo> allSnapshotInfoDesc = clusterAdmin().prepareGetSnapshots(matchAllPattern())
+        final List<SnapshotInfo> allSnapshotInfoDesc = clusterAdmin().prepareGetSnapshots(TEST_REQUEST_TIMEOUT, matchAllPattern())
             .setSnapshots(matchAllPattern())
             .setSort(SnapshotSortKey.START_TIME)
             .setOrder(SortOrder.DESC)
@@ -507,7 +523,7 @@ public class GetSnapshotsIT extends AbstractSnapshotIntegTestCase {
         assertThat(allBeforeNameDescending(name1), is(List.of(snapshot1)));
         assertThat(allBeforeNameDescending("a"), empty());
 
-        final List<SnapshotInfo> allSnapshotInfoByDuration = clusterAdmin().prepareGetSnapshots(matchAllPattern())
+        final List<SnapshotInfo> allSnapshotInfoByDuration = clusterAdmin().prepareGetSnapshots(TEST_REQUEST_TIMEOUT, matchAllPattern())
             .setSnapshots(matchAllPattern())
             .setSort(SnapshotSortKey.DURATION)
             .get()
@@ -523,7 +539,7 @@ public class GetSnapshotsIT extends AbstractSnapshotIntegTestCase {
         assertThat(allAfterDurationAscending(duration3), is(List.of(allSnapshotInfoByDuration.get(2))));
         assertThat(allAfterDurationAscending(duration3 + 1), empty());
 
-        final List<SnapshotInfo> allSnapshotInfoByDurationDesc = clusterAdmin().prepareGetSnapshots(matchAllPattern())
+        final List<SnapshotInfo> allSnapshotInfoByDurationDesc = clusterAdmin().prepareGetSnapshots(TEST_REQUEST_TIMEOUT, matchAllPattern())
             .setSnapshots(matchAllPattern())
             .setSort(SnapshotSortKey.DURATION)
             .setOrder(SortOrder.DESC)
@@ -541,7 +557,7 @@ public class GetSnapshotsIT extends AbstractSnapshotIntegTestCase {
         assertThat(allSnapshots(new String[] { "snap*" }, SnapshotSortKey.NAME, SortOrder.ASC, "a"), is(allSnapshotInfo));
         assertThat(allSnapshots(new String[] { "o*" }, SnapshotSortKey.NAME, SortOrder.ASC, "a"), is(List.of(otherSnapshot)));
 
-        final GetSnapshotsResponse paginatedResponse = clusterAdmin().prepareGetSnapshots(matchAllPattern())
+        final GetSnapshotsResponse paginatedResponse = clusterAdmin().prepareGetSnapshots(TEST_REQUEST_TIMEOUT, matchAllPattern())
             .setSnapshots("snap*")
             .setSort(SnapshotSortKey.NAME)
             .setFromSortValue("a")
@@ -550,7 +566,7 @@ public class GetSnapshotsIT extends AbstractSnapshotIntegTestCase {
             .get();
         assertThat(paginatedResponse.getSnapshots(), is(List.of(snapshot2)));
         assertThat(paginatedResponse.totalCount(), is(3));
-        final GetSnapshotsResponse paginatedResponse2 = clusterAdmin().prepareGetSnapshots(matchAllPattern())
+        final GetSnapshotsResponse paginatedResponse2 = clusterAdmin().prepareGetSnapshots(TEST_REQUEST_TIMEOUT, matchAllPattern())
             .setSnapshots("snap*")
             .setSort(SnapshotSortKey.NAME)
             .setFromSortValue("a")
@@ -570,7 +586,7 @@ public class GetSnapshotsIT extends AbstractSnapshotIntegTestCase {
         final List<String> snapshotNames = createNSnapshots(repoName, randomIntBetween(1, 10));
         snapshotNames.sort(String::compareTo);
 
-        final GetSnapshotsResponse response = clusterAdmin().prepareGetSnapshots(repoName, missingRepoName)
+        final GetSnapshotsResponse response = clusterAdmin().prepareGetSnapshots(TEST_REQUEST_TIMEOUT, repoName, missingRepoName)
             .setSort(SnapshotSortKey.NAME)
             .get();
         assertThat(response.getSnapshots().stream().map(info -> info.snapshotId().getName()).toList(), equalTo(snapshotNames));
@@ -626,7 +642,7 @@ public class GetSnapshotsIT extends AbstractSnapshotIntegTestCase {
     }
 
     private static List<SnapshotInfo> allSnapshots(String[] snapshotNames, SnapshotSortKey sortBy, SortOrder order, Object fromSortValue) {
-        return clusterAdmin().prepareGetSnapshots(matchAllPattern())
+        return clusterAdmin().prepareGetSnapshots(TEST_REQUEST_TIMEOUT, matchAllPattern())
             .setSnapshots(snapshotNames)
             .setSort(sortBy)
             .setFromSortValue(fromSortValue.toString())
@@ -636,7 +652,7 @@ public class GetSnapshotsIT extends AbstractSnapshotIntegTestCase {
     }
 
     private static List<SnapshotInfo> getAllSnapshotsForPolicies(String... policies) {
-        return clusterAdmin().prepareGetSnapshots(matchAllPattern())
+        return clusterAdmin().prepareGetSnapshots(TEST_REQUEST_TIMEOUT, matchAllPattern())
             .setSnapshots(matchAllPattern())
             .setPolicies(policies)
             .setSort(SnapshotSortKey.NAME)
@@ -722,7 +738,7 @@ public class GetSnapshotsIT extends AbstractSnapshotIntegTestCase {
     }
 
     private static GetSnapshotsRequestBuilder baseGetSnapshotsRequest(String[] repoNames) {
-        return clusterAdmin().prepareGetSnapshots(repoNames)
+        return clusterAdmin().prepareGetSnapshots(TEST_REQUEST_TIMEOUT, repoNames)
             .setSnapshots("*", "-" + AbstractSnapshotIntegTestCase.OLD_VERSION_SNAPSHOT_PREFIX + "*");
     }
 }

@@ -102,7 +102,7 @@ public abstract class CentroidAggregationTestBase extends AbstractGeoTestCase {
                 assertThat(global.getName(), equalTo("global"));
                 assertThat(global.getDocCount(), equalTo((long) numDocs));
                 assertThat(global.getAggregations(), notNullValue());
-                assertThat(global.getAggregations().asMap().size(), equalTo(1));
+                assertThat(global.getAggregations().asList().size(), equalTo(1));
 
                 CentroidAggregation geoCentroid = global.getAggregations().get(aggName());
                 InternalAggregation agg = (InternalAggregation) global;

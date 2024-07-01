@@ -63,7 +63,7 @@ public class SpatialRelatesQuery extends Query {
 
     @Override
     protected String innerToString() {
-        throw new IllegalArgumentException("SpatialRelatesQuery.innerToString() not implemented");
+        return "field:" + field + ", dataType:" + dataType + ", queryRelation:" + queryRelation + ", shape:" + shape;
     }
 
     @Override

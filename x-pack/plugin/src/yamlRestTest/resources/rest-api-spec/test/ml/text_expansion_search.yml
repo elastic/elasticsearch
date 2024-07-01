@@ -247,7 +247,7 @@ setup:
           query:
             weighted_tokens:
               ml.tokens:
-                tokens: [ { "the": 1.0 }, { "comforter": 1.0 }, { "smells": 1.0 }, { "bad": 1.0 } ]
+                tokens: {"the": 1.0, "comforter": 1.0, "smells": 1.0, "bad": 1.0}
                 pruning_config:
                   tokens_freq_ratio_threshold: 1
                   tokens_weight_threshold: 0.4
@@ -272,7 +272,7 @@ setup:
           query:
             weighted_tokens:
               ml.tokens:
-                tokens: [ { "the": 1.0 }, { "comforter": 1.0 }, { "smells": 1.0 }, { "bad": 1.0 } ]
+                tokens: {"the": 1.0, "comforter": 1.0, "smells": 1.0, "bad": 1.0}
                 pruning_config: { }
       allowed_warnings:
         - "weighted_tokens is deprecated and will be removed. Use sparse_vector instead."
@@ -294,7 +294,7 @@ setup:
           query:
             weighted_tokens:
               ml.tokens:
-                tokens: [ { "the": 1.0 }, { "comforter": 1.0 }, { "smells": 1.0 }, { "bad": 1.0 } ]
+                tokens: {"the": 1.0, "comforter": 1.0, "smells": 1.0, "bad": 1.0}
                 pruning_config:
                   tokens_freq_ratio_threshold: 4
                   tokens_weight_threshold: 0.4
@@ -318,7 +318,7 @@ setup:
           query:
             weighted_tokens:
               ml.tokens:
-                tokens: [ { "the": 1.0 }, { "octopus": 1.0 }, { "comforter": 1.0 }, { "is": 1.0 }, { "the": 1.0 }, { "best": 1.0 }, { "of": 1.0 }, { "the": 1.0 }, { "bunch": 1.0 } ]
+                tokens: {"the": 1.0, "octopus": 1.0, "comforter": 1.0, "is": 1.0, "the": 1.0, "best": 1.0, "of": 1.0, "the": 1.0, "bunch": 1.0}
                 pruning_config:
                   tokens_freq_ratio_threshold: 3
                   tokens_weight_threshold: 0.4

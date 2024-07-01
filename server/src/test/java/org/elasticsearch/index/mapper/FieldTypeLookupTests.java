@@ -503,10 +503,18 @@ public class FieldTypeLookupTests extends ESTestCase {
 
     public void testNoRootAliasForPassThroughFieldOnConflictingField() {
         MockFieldMapper attributeFoo = new MockFieldMapper("attributes.foo");
+        MockFieldMapper resourceAttributeFoo = new MockFieldMapper("resource.attributes.foo");
         MockFieldMapper foo = new MockFieldMapper("foo");
         PassThroughObjectMapper attributes = createPassThroughMapper("attributes", Map.of("foo", attributeFoo), 0);
+        PassThroughObjectMapper resourceAttributes = createPassThroughMapper("resource.attributes", Map.of("foo", resourceAttributeFoo), 1);
 
-        FieldTypeLookup lookup = new FieldTypeLookup(List.of(foo, attributeFoo), List.of(), List.of(attributes), List.of());
+        FieldTypeLookup lookup = new FieldTypeLookup(
+            List.of(foo, attributeFoo, resourceAttributeFoo),
+            List.of(),
+            List.of(attributes, resourceAttributes),
+            List.of()
+        );
+
         assertEquals(foo.fieldType(), lookup.get("foo"));
     }
 }

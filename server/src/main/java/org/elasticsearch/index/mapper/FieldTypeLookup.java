@@ -108,7 +108,8 @@ final class FieldTypeLookup {
                             passThroughFieldAliases.put(name, conflict);
                             continue;
                         }
-                    } else if (fullNameToFieldType.containsKey(name)) {
+                    }
+                    if (fullNameToFieldType.containsKey(name)) {
                         // There's an existing field or alias for the same field.
                         continue;
                     }

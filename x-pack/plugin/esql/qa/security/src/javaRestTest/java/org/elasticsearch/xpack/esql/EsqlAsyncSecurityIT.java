@@ -13,7 +13,6 @@ import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.http.HttpUtils;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -123,7 +122,10 @@ public class EsqlAsyncSecurityIT extends EsqlSecurityIT {
             } catch (ResponseException e) {
                 if (e.getResponse().getStatusLine().getStatusCode() == 404
                     && EntityUtils.toString(e.getResponse().getEntity()).contains("no such index [.async-search]")) {
-
+                    /*
+                     * Work around https://github.com/elastic/elasticsearch/issues/110304 - the .async-search
+                     * index may not exist when we try the fetch, but it should exist on next attempt.
+                     */
                     logger.warn("async-search index does not exist", e);
                     try {
                         Thread.sleep(1000);

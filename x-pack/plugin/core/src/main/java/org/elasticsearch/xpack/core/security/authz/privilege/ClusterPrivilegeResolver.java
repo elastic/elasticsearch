@@ -350,13 +350,13 @@ public class ClusterPrivilegeResolver {
         "manage_search_application",
         MANAGE_SEARCH_APPLICATION_PATTERN
     );
-    public static final NamedClusterPrivilege MANAGE_CONNECTOR_STATE = new ActionClusterPrivilege(
-        "manage_connector_state",
+    public static final NamedClusterPrivilege MANAGE_CONNECTOR = new ActionClusterPrivilege(
+        "manage_connector",
         MANAGE_CONNECTOR_PATTERN,
         CONNECTOR_SECRETS_PATTERN
     );
-    public static final NamedClusterPrivilege MONITOR_CONNECTOR_STATE = new ActionClusterPrivilege(
-        "monitor_connector_state",
+    public static final NamedClusterPrivilege MONITOR_CONNECTOR = new ActionClusterPrivilege(
+        "monitor_connector",
         MONITOR_CONNECTOR_PATTERN
     );
     public static final NamedClusterPrivilege MANAGE_SEARCH_SYNONYMS = new ActionClusterPrivilege(
@@ -414,7 +414,7 @@ public class ClusterPrivilegeResolver {
             NONE,
             ALL,
             MONITOR,
-            MONITOR_CONNECTOR_STATE,
+            MONITOR_CONNECTOR,
             MONITOR_INFERENCE,
             MONITOR_ML,
             MONITOR_TEXT_STRUCTURE,
@@ -424,7 +424,7 @@ public class ClusterPrivilegeResolver {
             MONITOR_ROLLUP,
             MONITOR_ENRICH,
             MANAGE,
-            MANAGE_CONNECTOR_STATE,
+            MANAGE_CONNECTOR,
             MANAGE_INFERENCE,
             MANAGE_ML,
             MANAGE_TRANSFORM_DEPRECATED,

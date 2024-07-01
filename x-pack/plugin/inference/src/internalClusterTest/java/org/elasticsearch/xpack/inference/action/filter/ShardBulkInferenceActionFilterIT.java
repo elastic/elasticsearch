@@ -47,7 +47,8 @@ public class ShardBulkInferenceActionFilterIT extends ESIntegTestCase {
             randomIntBetween(1, 100),
             // dot product means that we need normalized vectors; it's not worth doing that in this test
             randomValueOtherThan(SimilarityMeasure.DOT_PRODUCT, () -> randomFrom(SimilarityMeasure.values())),
-            randomFrom(DenseVectorFieldMapper.ElementType.values())
+            // TODO: Allow element type BIT once TestDenseInferenceServiceExtension supports it
+            randomValueOtherThan(DenseVectorFieldMapper.ElementType.BIT, () -> randomFrom(DenseVectorFieldMapper.ElementType.values()))
         );
     }
 

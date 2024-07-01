@@ -72,6 +72,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.cache.query.TrivialQueryCachingPolicy;
 import org.elasticsearch.index.mapper.DocumentParser;
@@ -2728,6 +2729,10 @@ public class InternalEngine extends Engine {
         }
         if (config().getIndexSort() != null) {
             iwc.setIndexSort(config().getIndexSort());
+            if (config().getIndexSettings().getIndexVersionCreated().onOrAfter(IndexVersions.INDEX_SORTING_ON_NESTED)) {
+                // Needed to support index sorting in the presence of nested objects.
+                iwc.setParentField(ROOT_DOC_FIELD_NAME);
+            }
         }
         // Provide a custom leaf sorter, so that index readers opened from this writer
         // will have its leaves sorted according the given leaf sorter.

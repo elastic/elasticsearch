@@ -189,8 +189,7 @@
               "type": "geo_point"
             },
             "path_match": [
-              "location",
-              "*.location"
+              "*.geo.location"
             ]
           }
         },

@@ -8,8 +8,8 @@
 
 package org.elasticsearch.reservedstate.service;
 
-import org.apache.lucene.tests.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -35,7 +35,6 @@ import org.junit.Before;
 import org.mockito.stubbing.Answer;
 
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
@@ -55,7 +54,6 @@ import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
-@AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/106968")
 public class FileSettingsServiceTests extends ESTestCase {
     private Environment env;
     private ClusterService clusterService;
@@ -143,7 +141,7 @@ public class FileSettingsServiceTests extends ESTestCase {
         doAnswer((Answer<Void>) invocation -> {
             ((Consumer<Exception>) invocation.getArgument(2)).accept(new IllegalStateException("Some exception"));
             return null;
-        }).when(stateService).process(any(), (XContentParser) any(), any());
+        }).when(stateService).process(any(), any(XContentParser.class), any());
 
         AtomicBoolean settingsChanged = new AtomicBoolean(false);
         CountDownLatch latch = new CountDownLatch(1);
@@ -187,7 +185,7 @@ public class FileSettingsServiceTests extends ESTestCase {
         doAnswer((Answer<Void>) invocation -> {
             ((Consumer<Exception>) invocation.getArgument(2)).accept(null);
             return null;
-        }).when(stateService).process(any(), (XContentParser) any(), any());
+        }).when(stateService).process(any(), any(XContentParser.class), any());
 
         CountDownLatch latch = new CountDownLatch(1);
 
@@ -234,6 +232,12 @@ public class FileSettingsServiceTests extends ESTestCase {
             return new ReservedStateChunk(Collections.emptyMap(), new ReservedStateVersion(1L, Version.CURRENT));
         }).when(spiedController).parse(any(String.class), any());
 
+        doAnswer((Answer<Void>) invocation -> {
+            var completionListener = invocation.getArgument(1, ActionListener.class);
+            completionListener.onResponse(null);
+            return null;
+        }).when(spiedController).initEmpty(any(String.class), any());
+
         service.start();
         service.clusterChanged(new ClusterChangedEvent("test", clusterService.state(), ClusterState.EMPTY_STATE));
         assertTrue(service.watching());
@@ -255,60 +259,10 @@ public class FileSettingsServiceTests extends ESTestCase {
         deadThreadLatch.countDown();
     }
 
-    public void testStopWorksIfProcessingDidntReturnYet() throws Exception {
-        var spiedController = spy(controller);
-        var service = new FileSettingsService(clusterService, spiedController, env);
-
-        CountDownLatch processFileLatch = new CountDownLatch(1);
-        CountDownLatch deadThreadLatch = new CountDownLatch(1);
-
-        doAnswer((Answer<ReservedStateChunk>) invocation -> {
-            // allow the other thread to continue, but hold on a bit to avoid
-            // completing the task immediately in the main watcher loop
-            try {
-                Thread.sleep(1_000);
-            } catch (InterruptedException e) {
-                // pass it on
-                Thread.currentThread().interrupt();
-            }
-            processFileLatch.countDown();
-            new Thread(() -> {
-                // Simulate a thread that never allows the completion to complete
-                try {
-                    deadThreadLatch.await();
-                } catch (InterruptedException e) {
-                    throw new RuntimeException(e);
-                }
-            }).start();
-            return new ReservedStateChunk(Collections.emptyMap(), new ReservedStateVersion(1L, Version.CURRENT));
-        }).when(spiedController).parse(any(String.class), any());
-
-        service.start();
-        service.clusterChanged(new ClusterChangedEvent("test", clusterService.state(), ClusterState.EMPTY_STATE));
-        assertTrue(service.watching());
-
-        Files.createDirectories(service.watchedFileDir());
-
-        // Make some fake settings file to cause the file settings service to process it
-        writeTestFile(service.watchedFile(), "{}");
-
-        // we need to wait a bit, on MacOS it may take up to 10 seconds for the Java watcher service to notice the file,
-        // on Linux is instantaneous. Windows is instantaneous too.
-        assertTrue(processFileLatch.await(30, TimeUnit.SECONDS));
-
-        // Stopping the service should interrupt the watcher thread, allowing the whole thing to exit
-        service.stop();
-        assertFalse(service.watching());
-        service.close();
-        // let the deadlocked thread end, so we can cleanly exit the test
-        deadThreadLatch.countDown();
-    }
-
     // helpers
     private void writeTestFile(Path path, String contents) throws IOException {
         Path tempFilePath = createTempFile();
-
-        Files.write(tempFilePath, contents.getBytes(StandardCharsets.UTF_8));
+        Files.writeString(tempFilePath, contents);
         Files.move(tempFilePath, path, StandardCopyOption.ATOMIC_MOVE);
     }
 }

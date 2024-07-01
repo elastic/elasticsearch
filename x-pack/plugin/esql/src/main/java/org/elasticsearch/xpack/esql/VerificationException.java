@@ -7,8 +7,8 @@
 
 package org.elasticsearch.xpack.esql;
 
-import org.elasticsearch.xpack.ql.common.Failure;
-import org.elasticsearch.xpack.ql.common.Failures;
+import org.elasticsearch.xpack.esql.core.common.Failure;
+import org.elasticsearch.xpack.esql.core.common.Failures;
 
 import java.util.Collection;
 

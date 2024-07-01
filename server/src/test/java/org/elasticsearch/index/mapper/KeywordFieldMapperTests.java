@@ -234,8 +234,8 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         assertEquals(0, fields.size());
 
         fields = doc.rootDoc().getFields("_ignored");
-        assertEquals(1, fields.size());
-        assertEquals("field", fields.get(0).stringValue());
+        assertEquals(2, fields.size());
+        assertTrue(doc.rootDoc().getFields("_ignored").stream().anyMatch(field -> "field".equals(field.stringValue())));
     }
 
     public void testNullValue() throws IOException {
@@ -644,6 +644,12 @@ public class KeywordFieldMapperTests extends MapperTestCase {
     @Override
     protected boolean supportsIgnoreMalformed() {
         return false;
+    }
+
+    @Override
+    protected BlockReaderSupport getSupportedReaders(MapperService mapper, String loaderFieldName) {
+        MappedFieldType ft = mapper.fieldType(loaderFieldName);
+        return new BlockReaderSupport(ft.hasDocValues(), ft.hasDocValues() || ft.isStored(), mapper, loaderFieldName);
     }
 
     @Override

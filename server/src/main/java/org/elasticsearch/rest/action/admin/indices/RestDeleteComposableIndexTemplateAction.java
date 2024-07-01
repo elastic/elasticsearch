@@ -21,6 +21,7 @@ import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.DELETE;
+import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 
 @ServerlessScope(Scope.PUBLIC)
 public class RestDeleteComposableIndexTemplateAction extends BaseRestHandler {
@@ -40,7 +41,7 @@ public class RestDeleteComposableIndexTemplateAction extends BaseRestHandler {
 
         String[] names = Strings.splitStringByCommaToArray(request.param("name"));
         TransportDeleteComposableIndexTemplateAction.Request deleteReq = new TransportDeleteComposableIndexTemplateAction.Request(names);
-        deleteReq.masterNodeTimeout(request.paramAsTime("master_timeout", deleteReq.masterNodeTimeout()));
+        deleteReq.masterNodeTimeout(getMasterNodeTimeout(request));
 
         return channel -> client.execute(
             TransportDeleteComposableIndexTemplateAction.TYPE,

@@ -16,8 +16,13 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.RoutingMissingException;
+import org.elasticsearch.action.admin.indices.rollover.LazyRolloverAction;
+import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
+import org.elasticsearch.action.admin.indices.rollover.RolloverResponse;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.RefCountingRunnable;
+import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
@@ -32,6 +37,7 @@ import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
@@ -48,6 +54,7 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
@@ -55,6 +62,7 @@ import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.LongSupplier;
 
+import static org.elasticsearch.action.bulk.TransportBulkAction.LAZY_ROLLOVER_ORIGIN;
 import static org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.EXCLUDED_DATA_STREAMS_KEY;
 
 /**
@@ -80,6 +88,9 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
     private final FailureStoreDocumentConverter failureStoreDocumentConverter;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final NodeClient client;
+    private final OriginSettingClient rolloverClient;
+    private final Set<String> failureStoresToBeRolledOver = ConcurrentCollections.newConcurrentSet();
+    private final Set<Integer> failedRolloverRequests = ConcurrentCollections.newConcurrentSet();
 
     BulkOperation(
         Task task,
@@ -144,6 +155,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
         this.client = client;
         this.observer = observer;
         this.failureStoreDocumentConverter = failureStoreDocumentConverter;
+        this.rolloverClient = new OriginSettingClient(client, LAZY_ROLLOVER_ORIGIN);
     }
 
     @Override
@@ -168,8 +180,63 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
         )) {
             return;
         }
-        Map<ShardId, List<BulkItemRequest>> requestsByShard = drainAndGroupRedirectsByShards(clusterState);
-        executeBulkRequestsByShard(requestsByShard, clusterState, this::completeBulkOperation);
+        Runnable executeRedirectRequests = () -> {
+            // Get new cluster state that includes any potential failure store rollovers.
+            var rolledOverState = observer.setAndGetObservedState();
+            Map<ShardId, List<BulkItemRequest>> requestsByShard = drainAndGroupRedirectsByShards(rolledOverState);
+            executeBulkRequestsByShard(requestsByShard, rolledOverState, this::completeBulkOperation);
+        };
+        rollOverFailureStores(executeRedirectRequests);
+    }
+
+    /**
+     * Send rollover requests for all failure stores that need it. After all requests have completed, we execute the given runnable.
+     * Any failures while rolling over will be added to the {@link BulkItemResponse} entries of the index requests that were redirected to
+     * the failure store that failed to roll over.
+     */
+    private void rollOverFailureStores(Runnable runnable) {
+        // Skip allocation of some objects if we don't need to roll over anything.
+        if (failureStoresToBeRolledOver.isEmpty() || DataStream.isFailureStoreFeatureFlagEnabled() == false) {
+            runnable.run();
+            return;
+        }
+        try (RefCountingRunnable refs = new RefCountingRunnable(runnable)) {
+            for (String dataStream : failureStoresToBeRolledOver) {
+                RolloverRequest rolloverRequest = new RolloverRequest(dataStream, null);
+                rolloverRequest.setIndicesOptions(
+                    IndicesOptions.builder(rolloverRequest.indicesOptions())
+                        .failureStoreOptions(new IndicesOptions.FailureStoreOptions(false, true))
+                        .build()
+                );
+                // We are executing a lazy rollover because it is an action specialised for this situation, when we want an
+                // unconditional and performant rollover.
+                rolloverClient.execute(LazyRolloverAction.INSTANCE, rolloverRequest, ActionListener.releaseAfter(new ActionListener<>() {
+
+                    @Override
+                    public void onResponse(RolloverResponse result) {
+                        logger.debug(
+                            "Data stream failure store {} has {} over, the latest index is {}",
+                            dataStream,
+                            result.isRolledOver() ? "been successfully rolled" : "skipped rolling",
+                            result.getNewIndex()
+                        );
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        for (BulkItemRequest failureStoreRedirect : failureStoreRedirects) {
+                            // Both these values are the name of the _data stream_ that the failure store belongs to.
+                            if (failureStoreRedirect.index().equals(dataStream) == false) {
+                                continue;
+                            }
+                            addFailure(failureStoreRedirect.request(), failureStoreRedirect.id(), failureStoreRedirect.index(), e);
+                            failedRolloverRequests.add(failureStoreRedirect.id());
+                        }
+                    }
+
+                }, refs.acquire()));
+            }
+        }
     }
 
     private long buildTookInMillis(long startTimeNanos) {
@@ -219,13 +286,16 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
             if (addFailureIfRequiresDataStreamAndNoParentDataStream(docWriteRequest, bulkItemRequest.id(), metadata)) {
                 continue;
             }
+            if (failedRolloverRequests.contains(bulkItemRequest.id())) {
+                continue;
+            }
             IndexAbstraction ia = null;
             try {
                 ia = concreteIndices.resolveIfAbsent(docWriteRequest);
                 indexOperationValidator.accept(ia, docWriteRequest);
 
-                TransportBulkAction.prohibitCustomRoutingOnDataStream(docWriteRequest, metadata);
-                TransportBulkAction.prohibitAppendWritesInBackingIndices(docWriteRequest, metadata);
+                TransportBulkAction.prohibitCustomRoutingOnDataStream(docWriteRequest, ia);
+                TransportBulkAction.prohibitAppendWritesInBackingIndices(docWriteRequest, ia);
                 docWriteRequest.routing(metadata.resolveWriteIndexRouting(docWriteRequest.routing(), docWriteRequest.index()));
 
                 final Index concreteIndex = docWriteRequest.getConcreteWriteIndex(ia, metadata);
@@ -296,8 +366,13 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
                 BulkShardRequest bulkShardRequest = new BulkShardRequest(
                     shardId,
                     bulkRequest.getRefreshPolicy(),
-                    requests.toArray(new BulkItemRequest[0])
+                    requests.toArray(new BulkItemRequest[0]),
+                    bulkRequest.isSimulated()
                 );
+                var indexMetadata = clusterState.getMetadata().index(shardId.getIndexName());
+                if (indexMetadata != null && indexMetadata.getInferenceFields().isEmpty() == false) {
+                    bulkShardRequest.setInferenceFieldMap(indexMetadata.getInferenceFields());
+                }
                 bulkShardRequest.waitForActiveShards(bulkRequest.waitForActiveShards());
                 bulkShardRequest.timeout(bulkRequest.timeout());
                 bulkShardRequest.routedBasedOnClusterVersion(clusterState.version());
@@ -367,9 +442,11 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
                         BulkItemRequest bulkItemRequest = bulkShardRequest.items()[idx];
                         assert bulkItemRequest.id() == bulkItemResponse.getItemId() : "Bulk items were returned out of order";
 
-                        String failureStoreReference = getRedirectTarget(bulkItemRequest.request(), getClusterState().metadata());
+                        DataStream failureStoreReference = getRedirectTarget(bulkItemRequest.request(), getClusterState().metadata());
                         if (failureStoreReference != null) {
-                            addDocumentToRedirectRequests(bulkItemRequest, bulkItemResponse.getFailure().getCause(), failureStoreReference);
+                            maybeMarkFailureStoreForRollover(failureStoreReference);
+                            var cause = bulkItemResponse.getFailure().getCause();
+                            addDocumentToRedirectRequests(bulkItemRequest, cause, failureStoreReference.getName());
                         }
                         addFailure(bulkItemResponse);
                     } else {
@@ -387,9 +464,10 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
                     final String indexName = request.index();
                     DocWriteRequest<?> docWriteRequest = request.request();
 
-                    String failureStoreReference = getRedirectTarget(docWriteRequest, getClusterState().metadata());
+                    DataStream failureStoreReference = getRedirectTarget(docWriteRequest, getClusterState().metadata());
                     if (failureStoreReference != null) {
-                        addDocumentToRedirectRequests(request, e, failureStoreReference);
+                        maybeMarkFailureStoreForRollover(failureStoreReference);
+                        addDocumentToRedirectRequests(request, e, failureStoreReference.getName());
                     }
                     addFailure(docWriteRequest, request.id(), indexName, e);
                 }
@@ -411,10 +489,9 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
      *
      * @param docWriteRequest the write request to check
      * @param metadata cluster state metadata for resolving index abstractions
-     * @return a data stream name if the write request points to a data stream that has the failure store enabled,
-     *     or {@code null} if it does
+     * @return a data stream if the write request points to a data stream that has the failure store enabled, or {@code null} if it does not
      */
-    private static String getRedirectTarget(DocWriteRequest<?> docWriteRequest, Metadata metadata) {
+    private static DataStream getRedirectTarget(DocWriteRequest<?> docWriteRequest, Metadata metadata) {
         // Feature flag guard
         if (DataStream.isFailureStoreFeatureFlagEnabled() == false) {
             return null;
@@ -437,7 +514,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
             DataStream parentDataStream = writeIndexAbstraction.getParentDataStream();
             if (parentDataStream != null && parentDataStream.isFailureStoreEnabled()) {
                 // Keep the data stream name around to resolve the redirect to failure store if the shard level request fails.
-                return parentDataStream.getName();
+                return parentDataStream;
             }
         }
         return null;
@@ -482,6 +559,17 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
         // Store for second phase
         BulkItemRequest redirected = new BulkItemRequest(request.id(), failureStoreRequest);
         failureStoreRedirects.add(redirected);
+    }
+
+    /**
+     * Check whether the failure store of the given data stream is marked for lazy rollover.
+     * If so, we'll need to roll it over before we index the failed documents into the failure store.
+     */
+    private void maybeMarkFailureStoreForRollover(DataStream dataStream) {
+        if (dataStream.getFailureIndices().isRolloverOnWrite() == false) {
+            return;
+        }
+        failureStoresToBeRolledOver.add(dataStream.getName());
     }
 
     /**

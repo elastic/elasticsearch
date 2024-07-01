@@ -11,7 +11,7 @@ package org.elasticsearch.http.netty4;
 /**
  * Super-interface for responses handled by the Netty4 HTTP transport.
  */
-public sealed interface Netty4HttpResponse permits Netty4FullHttpResponse, Netty4ChunkedHttpResponse {
+sealed interface Netty4HttpResponse permits Netty4FullHttpResponse, Netty4ChunkedHttpResponse, Netty4ChunkedHttpContinuation {
     /**
      * @return The sequence number for the request which corresponds with this response, for making sure that we send responses to pipelined
      * requests in the correct order.

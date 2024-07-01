@@ -40,7 +40,10 @@ You can specify the following parameters in the request body:
 The query supports a subset of query types, including
 <<query-dsl-match-all-query,`match_all`>>, <<query-dsl-bool-query,`bool`>>,
 <<query-dsl-term-query,`term`>>, <<query-dsl-terms-query,`terms`>>,
-<<query-dsl-prefix-query,`prefix`>>, <<query-dsl-wildcard-query,`wildcard`>> and <<query-dsl-exists-query,`exists`>>.
+<<query-dsl-match-query,`match`>>, <<query-dsl-ids-query,`ids`>>,
+<<query-dsl-prefix-query,`prefix`>>, <<query-dsl-wildcard-query,`wildcard`>>,
+<<query-dsl-exists-query,`exists`>>, <<query-dsl-range-query,`range`>>,
+and <<query-dsl-simple-query-string-query,`simple query string`>>.
 +
 You can query the following public values associated with a user.
 +

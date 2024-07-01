@@ -25,7 +25,7 @@ public interface RoutingChangesObserver {
     /**
      * Called when relocation of a started shard is initiated.
      */
-    default void relocationStarted(ShardRouting startedShard, ShardRouting targetRelocatingShard) {}
+    default void relocationStarted(ShardRouting startedShard, ShardRouting targetRelocatingShard, String reason) {}
 
     /**
      * Called when an unassigned shard's unassigned information was updated
@@ -87,9 +87,9 @@ public interface RoutingChangesObserver {
         }
 
         @Override
-        public void relocationStarted(ShardRouting startedShard, ShardRouting targetRelocatingShard) {
+        public void relocationStarted(ShardRouting startedShard, ShardRouting targetRelocatingShard, String reason) {
             for (RoutingChangesObserver routingChangesObserver : routingChangesObservers) {
-                routingChangesObserver.relocationStarted(startedShard, targetRelocatingShard);
+                routingChangesObserver.relocationStarted(startedShard, targetRelocatingShard, reason);
             }
         }
 

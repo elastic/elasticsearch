@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
@@ -341,12 +342,15 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
             );
     }
 
+    @UpdateForV9 // use MINUS_ONE once that means no timeout
+    private static final TimeValue MASTER_TIMEOUT = TimeValue.MAX_VALUE;
+
     private void startTask(Runnable onFailure) {
         persistentTasksService.sendStartRequest(
             GEOIP_DOWNLOADER,
             GEOIP_DOWNLOADER,
             new GeoIpTaskParams(),
-            null,
+            MASTER_TIMEOUT,
             ActionListener.wrap(r -> logger.debug("Started geoip downloader task"), e -> {
                 Throwable t = e instanceof RemoteTransportException ? ExceptionsHelper.unwrapCause(e) : e;
                 if (t instanceof ResourceAlreadyExistsException == false) {
@@ -368,7 +372,7 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
                 }
             }
         );
-        persistentTasksService.sendRemoveRequest(GEOIP_DOWNLOADER, null, ActionListener.runAfter(listener, () -> {
+        persistentTasksService.sendRemoveRequest(GEOIP_DOWNLOADER, MASTER_TIMEOUT, ActionListener.runAfter(listener, () -> {
             IndexAbstraction databasesAbstraction = clusterService.state().metadata().getIndicesLookup().get(DATABASES_INDEX);
             if (databasesAbstraction != null) {
                 // regardless of whether DATABASES_INDEX is an alias, resolve it to a concrete index

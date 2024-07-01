@@ -9,40 +9,62 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.multivalue;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
+import org.elasticsearch.xpack.esql.core.expression.function.scalar.BinaryScalarFunction;
+import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
+import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.TypeResolutions;
-import org.elasticsearch.xpack.ql.expression.function.scalar.BinaryScalarFunction;
-import org.elasticsearch.xpack.ql.tree.NodeInfo;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypes;
 
+import java.io.IOException;
 import java.util.function.Function;
 
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isString;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
 
 /**
  * Reduce a multivalued string field to a single valued field by concatenating all values.
  */
 public class MvConcat extends BinaryScalarFunction implements EvaluatorMapper {
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "MvConcat", MvConcat::new);
+
     @FunctionInfo(
         returnType = "keyword",
-        description = "Reduce a multivalued string field to a single valued field by concatenating all values."
+        description = "Converts a multivalued string expression into a single valued column "
+            + "containing the concatenation of all values separated by a delimiter.",
+        examples = {
+            @Example(file = "string", tag = "mv_concat"),
+            @Example(
+                description = "To concat non-string columns, call <<esql-to_string>> first:",
+                file = "string",
+                tag = "mv_concat-to_string"
+            ) }
     )
     public MvConcat(
         Source source,
-        @Param(name = "string", type = { "text", "keyword" }, description = "values to join") Expression field,
-        @Param(name = "delim", type = { "text", "keyword" }, description = "delimiter") Expression delim
+        @Param(name = "string", type = { "text", "keyword" }, description = "Multivalue expression.") Expression field,
+        @Param(name = "delim", type = { "text", "keyword" }, description = "Delimiter.") Expression delim
     ) {
         super(source, field, delim);
+    }
+
+    private MvConcat(StreamInput in) throws IOException {
+        super(in);
+    }
+
+    @Override
+    public String getWriteableName() {
+        return ENTRY.name;
     }
 
     @Override
@@ -61,7 +83,7 @@ public class MvConcat extends BinaryScalarFunction implements EvaluatorMapper {
 
     @Override
     public DataType dataType() {
-        return DataTypes.KEYWORD;
+        return DataType.KEYWORD;
     }
 
     @Override

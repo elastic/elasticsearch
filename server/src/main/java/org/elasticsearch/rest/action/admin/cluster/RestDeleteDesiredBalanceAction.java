@@ -13,6 +13,7 @@ import org.elasticsearch.action.admin.cluster.allocation.TransportDeleteDesiredB
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
@@ -35,10 +36,7 @@ public class RestDeleteDesiredBalanceAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
-        return channel -> client.execute(
-            TransportDeleteDesiredBalanceAction.TYPE,
-            new DesiredBalanceRequest(),
-            new RestToXContentListener<>(channel)
-        );
+        final var req = new DesiredBalanceRequest(RestUtils.getMasterNodeTimeout(request));
+        return channel -> client.execute(TransportDeleteDesiredBalanceAction.TYPE, req, new RestToXContentListener<>(channel));
     }
 }

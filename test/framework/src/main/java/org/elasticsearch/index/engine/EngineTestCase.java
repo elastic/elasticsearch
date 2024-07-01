@@ -100,6 +100,7 @@ import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.index.translog.TranslogDeletionPolicy;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
+import org.elasticsearch.plugins.internal.DocumentSizeObserver;
 import org.elasticsearch.test.DummyShardLock;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
@@ -267,7 +268,8 @@ public abstract class EngineTestCase extends ESTestCase {
             config.getLeafSorter(),
             config.getRelativeTimeInNanosSupplier(),
             config.getIndexCommitListener(),
-            config.isPromotableToPrimary()
+            config.isPromotableToPrimary(),
+            config.getMapperService()
         );
     }
 
@@ -298,7 +300,8 @@ public abstract class EngineTestCase extends ESTestCase {
             config.getLeafSorter(),
             config.getRelativeTimeInNanosSupplier(),
             config.getIndexCommitListener(),
-            config.isPromotableToPrimary()
+            config.isPromotableToPrimary(),
+            config.getMapperService()
         );
     }
 
@@ -329,7 +332,8 @@ public abstract class EngineTestCase extends ESTestCase {
             config.getLeafSorter(),
             config.getRelativeTimeInNanosSupplier(),
             config.getIndexCommitListener(),
-            config.isPromotableToPrimary()
+            config.isPromotableToPrimary(),
+            config.getMapperService()
         );
     }
 
@@ -417,7 +421,17 @@ public abstract class EngineTestCase extends ESTestCase {
         } else {
             document.add(new StoredField(SourceFieldMapper.NAME, ref.bytes, ref.offset, ref.length));
         }
-        return new ParsedDocument(versionField, seqID, id, routing, Arrays.asList(document), source, XContentType.JSON, mappingUpdate);
+        return new ParsedDocument(
+            versionField,
+            seqID,
+            id,
+            routing,
+            Arrays.asList(document),
+            source,
+            XContentType.JSON,
+            mappingUpdate,
+            DocumentSizeObserver.EMPTY_INSTANCE
+        );
     }
 
     public static CheckedBiFunction<String, Integer, ParsedDocument, IOException> nestedParsedDocFactory() throws Exception {
@@ -843,7 +857,8 @@ public abstract class EngineTestCase extends ESTestCase {
             null,
             this::relativeTimeInNanos,
             indexCommitListener,
-            true
+            true,
+            null
         );
     }
 
@@ -882,7 +897,8 @@ public abstract class EngineTestCase extends ESTestCase {
             config.getLeafSorter(),
             config.getRelativeTimeInNanosSupplier(),
             config.getIndexCommitListener(),
-            config.isPromotableToPrimary()
+            config.isPromotableToPrimary(),
+            config.getMapperService()
         );
     }
 
@@ -903,12 +919,8 @@ public abstract class EngineTestCase extends ESTestCase {
         return new BytesArray(string.getBytes(Charset.defaultCharset()));
     }
 
-    public static Term newUid(String id) {
-        return new Term("_id", Uid.encodeId(id));
-    }
-
-    public static Term newUid(ParsedDocument doc) {
-        return newUid(doc.id());
+    public static BytesRef newUid(ParsedDocument doc) {
+        return Uid.encodeId(doc.id());
     }
 
     protected Engine.Get newGet(boolean realtime, ParsedDocument doc) {
@@ -939,7 +951,7 @@ public abstract class EngineTestCase extends ESTestCase {
     protected Engine.Delete replicaDeleteForDoc(String id, long version, long seqNo, long startTime) {
         return new Engine.Delete(
             id,
-            newUid(id),
+            Uid.encodeId(id),
             seqNo,
             1,
             version,
@@ -976,7 +988,7 @@ public abstract class EngineTestCase extends ESTestCase {
     ) {
         final int numOfOps = randomIntBetween(minOpCount, maxOpCount);
         final List<Engine.Operation> ops = new ArrayList<>();
-        final Term id = newUid(docId);
+        final BytesRef id = Uid.encodeId(docId);
         final int startWithSeqNo = 0;
         final String valuePrefix = (forReplica ? "r_" : "p_") + docId + "_";
         final boolean incrementTermWhenIntroducingSeqNo = randomBoolean();
@@ -1444,10 +1456,10 @@ public abstract class EngineTestCase extends ESTestCase {
         assertBusy(() -> assertThat(engine.getLocalCheckpointTracker().getProcessedCheckpoint(), greaterThanOrEqualTo(seqNo)));
     }
 
-    public static boolean hasSnapshottedCommits(Engine engine) {
+    public static boolean hasAcquiredIndexCommits(Engine engine) {
         assert engine instanceof InternalEngine : "only InternalEngines have snapshotted commits, got: " + engine.getClass();
         InternalEngine internalEngine = (InternalEngine) engine;
-        return internalEngine.hasSnapshottedCommits();
+        return internalEngine.hasAcquiredIndexCommits();
     }
 
     public static final class PrimaryTermSupplier implements LongSupplier {
@@ -1644,5 +1656,9 @@ public abstract class EngineTestCase extends ESTestCase {
         } catch (Exception e) {
             fail(e);
         }
+    }
+
+    public static void ensureOpen(Engine engine) {
+        engine.ensureOpen();
     }
 }

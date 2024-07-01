@@ -89,7 +89,8 @@ public class TransportGetDataStreamLifecycleAction extends TransportMasterNodeRe
                     .map(
                         dataStream -> new GetDataStreamLifecycleAction.Response.DataStreamLifecycle(
                             dataStream.getName(),
-                            dataStream.getLifecycle()
+                            dataStream.getLifecycle(),
+                            dataStream.isSystem()
                         )
                     )
                     .sorted(Comparator.comparing(GetDataStreamLifecycleAction.Response.DataStreamLifecycle::dataStreamName))

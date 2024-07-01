@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.ccr;
 
-import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplanation;
+import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplanationUtils;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -66,14 +66,7 @@ public class PrimaryFollowerAllocationIT extends CcrIntegTestCase {
         final PutFollowAction.Response response = followerClient().execute(PutFollowAction.INSTANCE, putFollowRequest).get();
         assertFalse(response.isFollowIndexShardsAcked());
         assertFalse(response.isIndexFollowingStarted());
-        final ClusterAllocationExplanation explanation = followerClient().admin()
-            .cluster()
-            .prepareAllocationExplain()
-            .setIndex(followerIndex)
-            .setShard(0)
-            .setPrimary(true)
-            .get()
-            .getExplanation();
+        final var explanation = ClusterAllocationExplanationUtils.getClusterAllocationExplanation(followerClient(), followerIndex, 0, true);
         for (NodeAllocationResult nodeDecision : explanation.getShardAllocationDecision().getAllocateDecision().getNodeDecisions()) {
             assertThat(nodeDecision.getNodeDecision(), equalTo(AllocationDecision.NO));
             if (dataOnlyNodes.contains(nodeDecision.getNode().getName())) {

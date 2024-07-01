@@ -230,8 +230,26 @@ public class Regex {
     }
 
     public static Pattern compile(String regex, String flags) {
-        int pFlags = flags == null ? 0 : flagsFromString(flags);
-        return Pattern.compile(regex, pFlags);
+        try {
+            int pFlags = flags == null ? 0 : flagsFromString(flags);
+            return Pattern.compile(regex, pFlags);
+        } catch (OutOfMemoryError e) {
+            if (e.getMessage().equals("Pattern too complex")) {
+                // Normally, we do try to handle OutOfMemoryError errors, as they typically indicate the JVM is not healthy.
+                //
+                // In the context of Pattern::compile, an OutOfMemoryError can occur if the pattern is too complex.
+                // In this case, the OutOfMemoryError is thrown by a pre-check rather than actual memory exhaustion.
+                //
+                // Because the JVM has not encountered a real memory issue, we can treat this as a recoverable exception by wrapping
+                // the original OutOfMemoryError in an IllegalArgumentException.
+                //
+                // For additional details, see:
+                // - https://bugs.openjdk.org/browse/JDK-8300207
+                // - https://github.com/openjdk/jdk/commit/030b071db1fb6197a2633a04b20aa95432a903bc
+                throw new IllegalArgumentException("Too complex regex pattern", e);
+            }
+            throw e;
+        }
     }
 
     public static int flagsFromString(String flags) {

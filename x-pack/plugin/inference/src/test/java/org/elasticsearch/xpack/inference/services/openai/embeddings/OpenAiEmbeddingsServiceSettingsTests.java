@@ -22,7 +22,6 @@ import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.openai.OpenAiServiceFields;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettingsTests;
-import org.hamcrest.CoreMatchers;
 
 import java.io.IOException;
 import java.net.URI;
@@ -336,7 +335,9 @@ public class OpenAiEmbeddingsServiceSettingsTests extends AbstractWireSerializin
 
         assertThat(
             thrownException.getMessage(),
-            is(Strings.format("Validation Failed: 1: [service_settings] Invalid url [%s] received for field [%s];", url, ServiceFields.URL))
+            containsString(
+                Strings.format("Validation Failed: 1: [service_settings] Invalid url [%s] received for field [%s]", url, ServiceFields.URL)
+            )
         );
     }
 
@@ -366,7 +367,7 @@ public class OpenAiEmbeddingsServiceSettingsTests extends AbstractWireSerializin
         entity.toXContent(builder, null);
         String xContentResult = Strings.toString(builder);
 
-        assertThat(xContentResult, CoreMatchers.is("""
+        assertThat(xContentResult, is("""
             {"model_id":"model","url":"url","organization_id":"org",""" + """
             "rate_limit":{"requests_per_minute":3000},"dimensions_set_by_user":true}"""));
     }
@@ -378,7 +379,7 @@ public class OpenAiEmbeddingsServiceSettingsTests extends AbstractWireSerializin
         entity.toXContent(builder, null);
         String xContentResult = Strings.toString(builder);
 
-        assertThat(xContentResult, CoreMatchers.is("""
+        assertThat(xContentResult, is("""
             {"model_id":"model","url":"url","organization_id":"org",""" + """
             "rate_limit":{"requests_per_minute":3000},"dimensions_set_by_user":false}"""));
     }
@@ -390,7 +391,7 @@ public class OpenAiEmbeddingsServiceSettingsTests extends AbstractWireSerializin
         entity.toXContent(builder, null);
         String xContentResult = Strings.toString(builder);
 
-        assertThat(xContentResult, CoreMatchers.is("""
+        assertThat(xContentResult, is("""
             {"model_id":"model","url":"url","organization_id":"org","similarity":"dot_product",""" + """
             "dimensions":1,"max_input_tokens":2,"rate_limit":{"requests_per_minute":3000},"dimensions_set_by_user":false}"""));
     }
@@ -403,7 +404,7 @@ public class OpenAiEmbeddingsServiceSettingsTests extends AbstractWireSerializin
         filteredXContent.toXContent(builder, null);
         String xContentResult = Strings.toString(builder);
 
-        assertThat(xContentResult, CoreMatchers.is("""
+        assertThat(xContentResult, is("""
             {"model_id":"model","url":"url","organization_id":"org","similarity":"dot_product",""" + """
             "dimensions":1,"max_input_tokens":2,"rate_limit":{"requests_per_minute":3000}}"""));
     }
@@ -425,7 +426,7 @@ public class OpenAiEmbeddingsServiceSettingsTests extends AbstractWireSerializin
         filteredXContent.toXContent(builder, null);
         String xContentResult = Strings.toString(builder);
 
-        assertThat(xContentResult, CoreMatchers.is("""
+        assertThat(xContentResult, is("""
             {"model_id":"model","url":"url","organization_id":"org","similarity":"dot_product",""" + """
             "dimensions":1,"max_input_tokens":2,"rate_limit":{"requests_per_minute":2000}}"""));
     }
@@ -442,7 +443,7 @@ public class OpenAiEmbeddingsServiceSettingsTests extends AbstractWireSerializin
 
     @Override
     protected OpenAiEmbeddingsServiceSettings mutateInstance(OpenAiEmbeddingsServiceSettings instance) throws IOException {
-        return createRandomWithNonNullUrl();
+        return randomValueOtherThan(instance, OpenAiEmbeddingsServiceSettingsTests::createRandomWithNonNullUrl);
     }
 
     public static Map<String, Object> getServiceSettingsMap(String modelId, @Nullable String url, @Nullable String org) {

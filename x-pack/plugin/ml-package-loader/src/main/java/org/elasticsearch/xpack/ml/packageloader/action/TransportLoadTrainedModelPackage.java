@@ -141,6 +141,8 @@ public class TransportLoadTrainedModelPackage extends TransportMasterNodeAction<
         try {
             final long relativeStartNanos = System.nanoTime();
 
+            logAndWriteNotificationAtInfo(auditClient, modelId, "starting model import");
+
             modelImporter.doImport();
 
             final long totalRuntimeNanos = System.nanoTime() - relativeStartNanos;

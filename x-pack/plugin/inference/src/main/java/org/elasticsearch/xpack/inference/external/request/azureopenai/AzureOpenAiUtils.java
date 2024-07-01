@@ -13,6 +13,8 @@ public class AzureOpenAiUtils {
     public static final String OPENAI_PATH = "openai";
     public static final String DEPLOYMENTS_PATH = "deployments";
     public static final String EMBEDDINGS_PATH = "embeddings";
+    public static final String CHAT_PATH = "chat";
+    public static final String COMPLETIONS_PATH = "completions";
     public static final String API_VERSION_PARAMETER = "api-version";
     public static final String API_KEY_HEADER = "api-key";
 

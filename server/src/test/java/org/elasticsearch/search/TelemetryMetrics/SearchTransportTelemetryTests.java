@@ -70,6 +70,7 @@ public class SearchTransportTelemetryTests extends ESSingleNodeTestCase {
         return pluginList(TestTelemetryPlugin.class);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/103810")
     public void testSearchTransportMetricsDfsQueryThenFetch() throws InterruptedException {
         assertSearchHitsWithoutFailures(
             client().prepareSearch(indexName).setSearchType(SearchType.DFS_QUERY_THEN_FETCH).setQuery(simpleQueryStringQuery("doc1")),

@@ -22,6 +22,7 @@ import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
+import org.elasticsearch.compute.data.OrdinalBytesRefBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupe;
 import org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupeBytesRef;
@@ -87,6 +88,10 @@ final class BytesRefBlockHash extends BlockHash {
     }
 
     IntBlock add(BytesRefBlock block) {
+        var ordinals = block.asOrdinals();
+        if (ordinals != null) {
+            return addOrdinalsBlock(ordinals);
+        }
         MultivalueDedupe.HashResult result = new MultivalueDedupeBytesRef(block).hashAdd(blockFactory, hash);
         seenNull |= result.sawNull();
         return result.ords();
@@ -106,6 +111,38 @@ final class BytesRefBlockHash extends BlockHash {
             return ReleasableIterator.single(lookup(castBlock));
         }
         return ReleasableIterator.single(lookup(vector));
+    }
+
+    private IntBlock addOrdinalsBlock(OrdinalBytesRefBlock inputBlock) {
+        var inputOrds = inputBlock.getOrdinalsBlock();
+        try (
+            var builder = blockFactory.newIntBlockBuilder(inputOrds.getPositionCount());
+            var hashOrds = add(inputBlock.getDictionaryVector())
+        ) {
+            for (int i = 0; i < inputOrds.getPositionCount(); i++) {
+                int valueCount = inputOrds.getValueCount(i);
+                int firstIndex = inputOrds.getFirstValueIndex(i);
+                switch (valueCount) {
+                    case 0 -> {
+                        builder.appendInt(0);
+                        seenNull = true;
+                    }
+                    case 1 -> {
+                        int ord = hashOrds.getInt(inputOrds.getInt(firstIndex));
+                        builder.appendInt(ord);
+                    }
+                    default -> {
+                        builder.beginPositionEntry();
+                        for (int v = 0; v < valueCount; v++) {
+                            int ord = hashOrds.getInt(inputOrds.getInt(firstIndex + i));
+                            builder.appendInt(ord);
+                        }
+                        builder.endPositionEntry();
+                    }
+                }
+            }
+            return builder.build();
+        }
     }
 
     private IntBlock lookup(BytesRefVector vector) {

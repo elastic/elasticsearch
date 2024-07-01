@@ -20,7 +20,7 @@ import java.util.Map;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 
-public class HealthNodeUpgradeIT extends ParameterizedRollingUpgradeTestCase {
+public class HealthNodeUpgradeIT extends AbstractRollingUpgradeTestCase {
 
     public HealthNodeUpgradeIT(@Name("upgradedNodes") int upgradedNodes) {
         super(upgradedNodes);

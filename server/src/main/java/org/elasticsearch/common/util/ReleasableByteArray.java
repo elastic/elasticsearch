@@ -17,6 +17,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
+import java.io.InputStream;
 
 import static org.elasticsearch.common.util.BigArrays.indexIsInt;
 
@@ -61,7 +62,7 @@ public class ReleasableByteArray implements ByteArray {
     }
 
     @Override
-    public byte set(long index, byte value) {
+    public void set(long index, byte value) {
         throw new UnsupportedOperationException();
     }
 
@@ -96,7 +97,7 @@ public class ReleasableByteArray implements ByteArray {
     }
 
     @Override
-    public void fillWith(StreamInput in) {
+    public void fillWith(InputStream in) {
         throw new UnsupportedOperationException("read-only ByteArray");
     }
 

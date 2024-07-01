@@ -17,11 +17,17 @@ module org.elasticsearch.inference {
     requires org.apache.httpcomponents.httpasyncclient;
     requires org.apache.httpcomponents.httpcore.nio;
     requires org.apache.lucene.core;
+    requires org.apache.lucene.join;
     requires com.ibm.icu;
+    requires com.google.auth.oauth2;
+    requires com.google.api.client;
+    requires com.google.gson;
 
     exports org.elasticsearch.xpack.inference.action;
     exports org.elasticsearch.xpack.inference.registry;
     exports org.elasticsearch.xpack.inference.rest;
     exports org.elasticsearch.xpack.inference.services;
     exports org.elasticsearch.xpack.inference;
+
+    provides org.elasticsearch.features.FeatureSpecification with org.elasticsearch.xpack.inference.InferenceFeatures;
 }

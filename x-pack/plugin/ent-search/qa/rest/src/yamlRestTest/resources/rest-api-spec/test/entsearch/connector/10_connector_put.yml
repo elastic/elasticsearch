@@ -115,7 +115,40 @@ setup:
           is_native: false
           service_type: super-connector
 
+---
+'Create Connector - Id returned as part of response':
+  - do:
+      connector.put:
+        connector_id: test-connector-1
+        body:
+          index_name: search-test
 
+  - match: { result: 'created' }
+  - match: { id: test-connector-1 }
+
+---
+'Create Connector - Succeeds if body not provided':
+  - do:
+      connector.put:
+        connector_id: test-connector-1
+
+  - match: { result: 'created' }
+  - match: { id: test-connector-1 }
+
+
+---
+'Create Connector - Succeeds if body not provided and id not provided':
+  - do:
+      connector.put: { }
+
+  - set:  { id: id }
+  - match: { id: $id }
+
+  - do:
+      connector.get:
+        connector_id: $id
+
+  - match: { id: $id }
 
 ---
 'Create Connector - Index name used by another connector':

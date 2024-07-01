@@ -637,6 +637,7 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
     }
 
     public void testCreationOnPutWithRollup() throws Exception {
+        createDummyRollupIndex();
         setupDataAccessRole("airline-data-aggs-rollup");
         String jobId = "privs-put-job-rollup";
         String datafeedId = "datafeed-" + jobId;
@@ -1248,6 +1249,7 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
     }
 
     public void testLookbackOnlyGivenAggregationsWithHistogramAndRollupIndex() throws Exception {
+        createDummyRollupIndex();
         String jobId = "aggs-histogram-rollup-job";
         Request createJobRequest = new Request("PUT", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId);
         createJobRequest.setJsonEntity("""
@@ -1351,6 +1353,7 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
     }
 
     public void testLookbackWithoutPermissionsAndRollup() throws Exception {
+        createDummyRollupIndex();
         setupFullAccessRole("airline-data-aggs-rollup");
         String jobId = "rollup-permission-test-network-job";
         String datafeedId = "datafeed-" + jobId;
@@ -1877,5 +1880,22 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
         return new DatafeedBuilder(datafeedId, jobId, "airline-data-aggs-rollup").setAggregations(aggregations)
             .setAuthHeader(BASIC_AUTH_VALUE_ML_ADMIN_WITH_SOME_DATA_ACCESS)
             .build();
+    }
+
+    private static void createDummyRollupIndex() throws IOException {
+        // create dummy rollup index to circumvent the check that prohibits rollup usage in empty clusters:
+        Request req = new Request("PUT", "dummy-rollup-index");
+        req.setJsonEntity("""
+            {
+                "mappings":{
+                    "_meta": {
+                        "_rollup":{
+                            "my-id": {}
+                        }
+                    }
+                }
+            }
+            """);
+        client().performRequest(req);
     }
 }

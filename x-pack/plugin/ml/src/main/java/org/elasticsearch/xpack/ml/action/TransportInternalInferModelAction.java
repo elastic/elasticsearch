@@ -290,6 +290,7 @@ public class TransportInternalInferModelAction extends HandledTransportAction<Re
             deploymentRequest.setPrefixType(request.getPrefixType());
             deploymentRequest.setNodes(node.v1());
             deploymentRequest.setParentTask(parentTaskId);
+            deploymentRequest.setChunkResults(request.isChunked());
 
             startPos += node.v2();
 

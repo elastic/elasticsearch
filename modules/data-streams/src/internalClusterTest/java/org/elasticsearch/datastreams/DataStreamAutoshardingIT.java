@@ -11,6 +11,7 @@ import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.rollover.Condition;
 import org.elasticsearch.action.admin.indices.rollover.MaxDocsCondition;
+import org.elasticsearch.action.admin.indices.rollover.MetadataRolloverService;
 import org.elasticsearch.action.admin.indices.rollover.OptimalShardCountCondition;
 import org.elasticsearch.action.admin.indices.rollover.RolloverConditions;
 import org.elasticsearch.action.admin.indices.rollover.RolloverInfo;
@@ -25,6 +26,7 @@ import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.datastreams.CreateDataStreamAction;
+import org.elasticsearch.action.datastreams.autosharding.AutoShardingType;
 import org.elasticsearch.action.datastreams.autosharding.DataStreamAutoShardingService;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.ClusterState;
@@ -49,7 +51,11 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.store.StoreStats;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.telemetry.InstrumentType;
+import org.elasticsearch.telemetry.Measurement;
+import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.xcontent.XContentType;
@@ -60,6 +66,7 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -67,7 +74,9 @@ import java.util.Map;
 import static org.elasticsearch.action.datastreams.autosharding.DataStreamAutoShardingService.DATA_STREAMS_AUTO_SHARDING_ENABLED;
 import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.DEFAULT_TIMESTAMP_FIELD;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
@@ -77,7 +86,12 @@ public class DataStreamAutoshardingIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(DataStreamsPlugin.class, MockTransportService.TestPlugin.class, TestAutoshardingPlugin.class);
+        return List.of(
+            DataStreamsPlugin.class,
+            MockTransportService.TestPlugin.class,
+            TestAutoshardingPlugin.class,
+            TestTelemetryPlugin.class
+        );
     }
 
     @Before
@@ -109,6 +123,7 @@ public class DataStreamAutoshardingIT extends ESIntegTestCase {
         indexDocs(dataStreamName, randomIntBetween(100, 200));
 
         {
+            resetTelemetry();
             ClusterState clusterStateBeforeRollover = internalCluster().getCurrentMasterNodeInstance(ClusterService.class).state();
             DataStream dataStreamBeforeRollover = clusterStateBeforeRollover.getMetadata().dataStreams().get(dataStreamName);
             String assignedShardNodeId = clusterStateBeforeRollover.routingTable()
@@ -152,11 +167,14 @@ public class DataStreamAutoshardingIT extends ESIntegTestCase {
             assertThat(metConditions.get(0).value(), instanceOf(Integer.class));
             int autoShardingRolloverInfo = (int) metConditions.get(0).value();
             assertThat(autoShardingRolloverInfo, is(5));
+
+            assertTelemetry(MetadataRolloverService.AUTO_SHARDING_METRIC_NAMES.get(AutoShardingType.INCREASE_SHARDS));
         }
 
         // let's do another rollover now that will not increase the number of shards because the increase shards cooldown has not lapsed,
         // however the rollover will use the existing/previous auto shard configuration and the new generation index will have 5 shards
         {
+            resetTelemetry();
             ClusterState clusterStateBeforeRollover = internalCluster().getCurrentMasterNodeInstance(ClusterService.class).state();
             DataStream dataStreamBeforeRollover = clusterStateBeforeRollover.getMetadata().dataStreams().get(dataStreamName);
             String assignedShardNodeId = clusterStateBeforeRollover.routingTable()
@@ -193,6 +211,8 @@ public class DataStreamAutoshardingIT extends ESIntegTestCase {
 
             // we remained on 5 shards due to the increase shards cooldown
             assertThat(thirdGenerationMeta.getNumberOfShards(), is(5));
+
+            assertTelemetry(MetadataRolloverService.AUTO_SHARDING_METRIC_NAMES.get(AutoShardingType.COOLDOWN_PREVENTED_INCREASE));
         }
 
         {
@@ -565,5 +585,45 @@ public class DataStreamAutoshardingIT extends ESIntegTestCase {
                     });
             }
         }
+    }
+
+    private static void resetTelemetry() {
+        for (PluginsService pluginsService : internalCluster().getInstances(PluginsService.class)) {
+            final TestTelemetryPlugin telemetryPlugin = pluginsService.filterPlugins(TestTelemetryPlugin.class).findFirst().orElseThrow();
+            telemetryPlugin.resetMeter();
+        }
+    }
+
+    private static void assertTelemetry(String expectedEmittedMetric) {
+        Map<String, List<Measurement>> measurements = new HashMap<>();
+        for (PluginsService pluginsService : internalCluster().getInstances(PluginsService.class)) {
+            final TestTelemetryPlugin telemetryPlugin = pluginsService.filterPlugins(TestTelemetryPlugin.class).findFirst().orElseThrow();
+
+            telemetryPlugin.collect();
+
+            List<String> autoShardingMetrics = telemetryPlugin.getRegisteredMetrics(InstrumentType.LONG_COUNTER)
+                .stream()
+                .filter(metric -> metric.startsWith("es.auto_sharding."))
+                .sorted()
+                .toList();
+
+            assertEquals(autoShardingMetrics, MetadataRolloverService.AUTO_SHARDING_METRIC_NAMES.values().stream().sorted().toList());
+
+            for (String metricName : MetadataRolloverService.AUTO_SHARDING_METRIC_NAMES.values()) {
+                measurements.computeIfAbsent(metricName, n -> new ArrayList<>())
+                    .addAll(telemetryPlugin.getLongCounterMeasurement(metricName));
+            }
+        }
+
+        // assert other metrics not emitted
+        MetadataRolloverService.AUTO_SHARDING_METRIC_NAMES.values()
+            .stream()
+            .filter(metric -> metric.equals(expectedEmittedMetric) == false)
+            .forEach(metric -> assertThat(measurements.get(metric), empty()));
+
+        assertThat(measurements.get(expectedEmittedMetric), hasSize(1));
+        Measurement measurement = measurements.get(expectedEmittedMetric).get(0);
+        assertThat(measurement.getLong(), is(1L));
+        assertFalse(measurement.isDouble());
     }
 }

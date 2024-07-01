@@ -36,6 +36,7 @@ public class CreateTrainedModelAssignmentAction extends ActionType<CreateTrained
         private final StartTrainedModelDeploymentAction.TaskParams taskParams;
 
         public Request(StartTrainedModelDeploymentAction.TaskParams taskParams) {
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
             this.taskParams = ExceptionsHelper.requireNonNull(taskParams, "taskParams");
         }
 

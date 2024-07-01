@@ -54,7 +54,7 @@ public class ByteArrayIndexInput extends IndexInput implements RandomAccessInput
 
     private int position(long p) throws EOFException {
         if (p < 0) {
-            throw new IllegalArgumentException("Seeking to negative position: " + pos);
+            throw new IllegalArgumentException("Seeking to negative position: " + p);
         } else if (p > length) {
             throw new EOFException("seek past EOF");
         }

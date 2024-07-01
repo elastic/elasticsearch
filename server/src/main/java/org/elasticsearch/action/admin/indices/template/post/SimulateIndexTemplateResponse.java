@@ -69,20 +69,8 @@ public class SimulateIndexTemplateResponse extends ActionResponse implements ToX
         this.globalRetention = globalRetention;
     }
 
-    public Template getResolvedTemplate() {
-        return resolvedTemplate;
-    }
-
-    public Map<String, List<String>> getOverlappingTemplates() {
-        return overlappingTemplates;
-    }
-
     public RolloverConfiguration getRolloverConfiguration() {
         return rolloverConfiguration;
-    }
-
-    public DataStreamGlobalRetention getGlobalRetention() {
-        return globalRetention;
     }
 
     public SimulateIndexTemplateResponse(StreamInput in) throws IOException {
@@ -132,7 +120,7 @@ public class SimulateIndexTemplateResponse extends ActionResponse implements ToX
         builder.startObject();
         if (this.resolvedTemplate != null) {
             builder.field(TEMPLATE.getPreferredName());
-            this.resolvedTemplate.toXContent(builder, params, rolloverConfiguration, globalRetention);
+            this.resolvedTemplate.toXContent(builder, params, rolloverConfiguration);
         }
         if (this.overlappingTemplates != null) {
             builder.startArray(OVERLAPPING.getPreferredName());

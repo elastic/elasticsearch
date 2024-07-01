@@ -77,7 +77,12 @@ public class MetadataDataStreamsService {
                 ClusterState clusterState
             ) {
                 return new Tuple<>(
-                    setRolloverOnWrite(clusterState, setRolloverOnWriteTask.getDataStreamName(), setRolloverOnWriteTask.rolloverOnWrite()),
+                    setRolloverOnWrite(
+                        clusterState,
+                        setRolloverOnWriteTask.getDataStreamName(),
+                        setRolloverOnWriteTask.rolloverOnWrite(),
+                        setRolloverOnWriteTask.targetFailureStore()
+                    ),
                     setRolloverOnWriteTask
                 );
             }
@@ -152,13 +157,14 @@ public class MetadataDataStreamsService {
     public void setRolloverOnWrite(
         String dataStreamName,
         boolean rolloverOnWrite,
+        boolean targetFailureStore,
         TimeValue ackTimeout,
         TimeValue masterTimeout,
         ActionListener<AcknowledgedResponse> listener
     ) {
         setRolloverOnWriteTaskQueue.submitTask(
             "set-rollover-on-write",
-            new SetRolloverOnWriteTask(dataStreamName, rolloverOnWrite, ackTimeout, listener),
+            new SetRolloverOnWriteTask(dataStreamName, rolloverOnWrite, targetFailureStore, ackTimeout, listener),
             masterTimeout
         );
     }
@@ -208,12 +214,17 @@ public class MetadataDataStreamsService {
     ClusterState updateDataLifecycle(ClusterState currentState, List<String> dataStreamNames, @Nullable DataStreamLifecycle lifecycle) {
         Metadata metadata = currentState.metadata();
         Metadata.Builder builder = Metadata.builder(metadata);
+        boolean atLeastOneDataStreamIsNotSystem = false;
         for (var dataStreamName : dataStreamNames) {
             var dataStream = validateDataStream(metadata, dataStreamName);
             builder.put(dataStream.copy().setLifecycle(lifecycle).build());
+            atLeastOneDataStreamIsNotSystem = atLeastOneDataStreamIsNotSystem || dataStream.isSystem() == false;
         }
         if (lifecycle != null) {
-            lifecycle.addWarningHeaderIfDataRetentionNotEffective(globalRetentionResolver.resolve(currentState));
+            if (atLeastOneDataStreamIsNotSystem) {
+                // We don't issue any warnings if all data streams are system data streams
+                lifecycle.addWarningHeaderIfDataRetentionNotEffective(globalRetentionResolver.resolve(currentState));
+            }
         }
         return ClusterState.builder(currentState).metadata(builder.build()).build();
     }
@@ -225,16 +236,25 @@ public class MetadataDataStreamsService {
      * @param currentState the initial cluster state
      * @param dataStreamName the name of the data stream to be updated
      * @param rolloverOnWrite the value of the flag
+     * @param targetFailureStore whether this rollover targets the failure store or the backing indices
      * @return the updated cluster state
      */
-    public static ClusterState setRolloverOnWrite(ClusterState currentState, String dataStreamName, boolean rolloverOnWrite) {
+    public static ClusterState setRolloverOnWrite(
+        ClusterState currentState,
+        String dataStreamName,
+        boolean rolloverOnWrite,
+        boolean targetFailureStore
+    ) {
         Metadata metadata = currentState.metadata();
         var dataStream = validateDataStream(metadata, dataStreamName);
-        if (dataStream.rolloverOnWrite() == rolloverOnWrite) {
+        var indices = dataStream.getDataStreamIndices(targetFailureStore);
+        if (indices.isRolloverOnWrite() == rolloverOnWrite) {
             return currentState;
         }
         Metadata.Builder builder = Metadata.builder(metadata);
-        builder.put(dataStream.copy().setRolloverOnWrite(rolloverOnWrite).build());
+        builder.put(
+            dataStream.copy().setDataStreamIndices(targetFailureStore, indices.copy().setRolloverOnWrite(rolloverOnWrite).build()).build()
+        );
         return ClusterState.builder(currentState).metadata(builder.build()).build();
     }
 
@@ -281,7 +301,7 @@ public class MetadataDataStreamsService {
     ) {
         boolean indexNotRemoved = true;
         DataStream dataStream = validateDataStream(metadata, dataStreamName);
-        List<Index> targetIndices = failureStore ? dataStream.getFailureIndices() : dataStream.getIndices();
+        List<Index> targetIndices = failureStore ? dataStream.getFailureIndices().getIndices() : dataStream.getIndices();
         for (Index backingIndex : targetIndices) {
             if (backingIndex.getName().equals(indexName)) {
                 if (failureStore) {
@@ -360,16 +380,19 @@ public class MetadataDataStreamsService {
 
         private final String dataStreamName;
         private final boolean rolloverOnWrite;
+        private final boolean targetFailureStore;
 
         SetRolloverOnWriteTask(
             String dataStreamName,
             boolean rolloverOnWrite,
+            boolean targetFailureStore,
             TimeValue ackTimeout,
             ActionListener<AcknowledgedResponse> listener
         ) {
             super(ackTimeout, listener);
             this.dataStreamName = dataStreamName;
             this.rolloverOnWrite = rolloverOnWrite;
+            this.targetFailureStore = targetFailureStore;
         }
 
         public String getDataStreamName() {
@@ -378,6 +401,10 @@ public class MetadataDataStreamsService {
 
         public boolean rolloverOnWrite() {
             return rolloverOnWrite;
+        }
+
+        public boolean targetFailureStore() {
+            return targetFailureStore;
         }
     }
 }

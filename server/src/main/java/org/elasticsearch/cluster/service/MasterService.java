@@ -524,6 +524,24 @@ public class MasterService extends AbstractLifecycleComponent {
         return ClusterState.builder(clusterState).incrementVersion();
     }
 
+    private static boolean versionNumbersPreserved(ClusterState oldState, ClusterState newState) {
+        if (oldState.nodes().getMasterNodeId() == null && newState.nodes().getMasterNodeId() != null) {
+            return true; // NodeJoinExecutor is special, we trust it to do the right thing with versions
+        }
+
+        if (oldState.version() != newState.version()) {
+            return false;
+        }
+        if (oldState.metadata().version() != newState.metadata().version()) {
+            return false;
+        }
+        if (oldState.routingTable().version() != newState.routingTable().version()) {
+            // GatewayService is special and for odd legacy reasons gets to do this:
+            return oldState.clusterRecovered() == false && newState.clusterRecovered() && newState.routingTable().version() == 0;
+        }
+        return true;
+    }
+
     /**
      * Submits an unbatched cluster state update task. This method exists for legacy reasons but is deprecated and forbidden in new
      * production code because unbatched tasks are a source of performance and stability bugs. You should instead implement your update
@@ -711,6 +729,14 @@ public class MasterService extends AbstractLifecycleComponent {
                 assert false : "ackTimeout must always be present: " + contextPreservingAckListener;
                 ackTimeout = TimeValue.ZERO;
             }
+
+            if (ackTimeout.millis() < 0) {
+                if (countDown.countDown()) {
+                    finish();
+                }
+                return;
+            }
+
             final TimeValue timeLeft = TimeValue.timeValueNanos(Math.max(0, ackTimeout.nanos() - commitTime.nanos()));
             if (timeLeft.nanos() == 0L) {
                 onTimeout();
@@ -1027,6 +1053,8 @@ public class MasterService extends AbstractLifecycleComponent {
         return true;
     }
 
+    static final String TEST_ONLY_EXECUTOR_MAY_CHANGE_VERSION_NUMBER_TRANSIENT_NAME = "test_only_executor_may_change_version_number";
+
     private static <T extends ClusterStateTaskListener> ClusterState innerExecuteTasks(
         ClusterState previousClusterState,
         List<ExecutionResult<T>> executionResults,
@@ -1039,13 +1067,23 @@ public class MasterService extends AbstractLifecycleComponent {
             // to avoid leaking headers in production that were missed by tests
 
             try {
-                return executor.execute(
+                final var updatedState = executor.execute(
                     new ClusterStateTaskExecutor.BatchExecutionContext<>(
                         previousClusterState,
                         executionResults,
                         threadContext::newStoredContext
                     )
                 );
+                if (versionNumbersPreserved(previousClusterState, updatedState) == false) {
+                    // Shenanigans! Executors mustn't meddle with version numbers. Perhaps the executor based its update on the wrong
+                    // initial state, potentially losing an intervening cluster state update. That'd be very bad!
+                    final var exception = new IllegalStateException(
+                        "cluster state update executor did not preserve version numbers: [" + summary.toString() + "]"
+                    );
+                    assert threadContext.getTransient(TEST_ONLY_EXECUTOR_MAY_CHANGE_VERSION_NUMBER_TRANSIENT_NAME) != null : exception;
+                    throw exception;
+                }
+                return updatedState;
             } catch (Exception e) {
                 logger.trace(
                     () -> format(

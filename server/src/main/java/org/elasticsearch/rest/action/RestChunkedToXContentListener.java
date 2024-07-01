@@ -10,7 +10,7 @@ package org.elasticsearch.rest.action;
 
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.core.Releasable;
-import org.elasticsearch.rest.ChunkedRestResponseBody;
+import org.elasticsearch.rest.ChunkedRestResponseBodyPart;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
@@ -40,7 +40,7 @@ public class RestChunkedToXContentListener<Response extends ChunkedToXContent> e
         channel.sendResponse(
             RestResponse.chunked(
                 getRestStatus(response),
-                ChunkedRestResponseBody.fromXContent(response, params, channel),
+                ChunkedRestResponseBodyPart.fromXContent(response, params, channel),
                 releasableFromResponse(response)
             )
         );

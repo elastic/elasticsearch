@@ -11,9 +11,7 @@ package org.elasticsearch.test.rest.yaml;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.logging.log4j.Level;
-import org.apache.logging.log4j.LogManager;
-import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 
 import java.io.IOException;
@@ -35,13 +33,9 @@ public class ESClientYamlSuiteTestCaseFailLogIT extends ESClientYamlSuiteTestCas
     )
     @Override
     public void test() throws IOException {
-        final MockLogAppender mockLogAppender = new MockLogAppender();
-        try {
-            mockLogAppender.start();
-            Loggers.addAppender(LogManager.getLogger(ESClientYamlSuiteTestCaseFailLogIT.class), mockLogAppender);
-
-            mockLogAppender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+        try (var mockLog = MockLog.capture(ESClientYamlSuiteTestCaseFailLogIT.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
                     "message with dump of the test yaml",
                     ESClientYamlSuiteTestCaseFailLogIT.class.getCanonicalName(),
                     Level.INFO,
@@ -49,8 +43,8 @@ public class ESClientYamlSuiteTestCaseFailLogIT extends ESClientYamlSuiteTestCas
                 )
             );
 
-            mockLogAppender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
                     "message with stash dump of response",
                     ESClientYamlSuiteTestCaseFailLogIT.class.getCanonicalName(),
                     Level.INFO,
@@ -67,10 +61,7 @@ public class ESClientYamlSuiteTestCaseFailLogIT extends ESClientYamlSuiteTestCas
                 }
             }
 
-            mockLogAppender.assertAllExpectationsMatched();
-        } finally {
-            Loggers.removeAppender(LogManager.getLogger(ESClientYamlSuiteTestCaseFailLogIT.class), mockLogAppender);
-            mockLogAppender.stop();
+            mockLog.assertAllExpectationsMatched();
         }
     }
 }

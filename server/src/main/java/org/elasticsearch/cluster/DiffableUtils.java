@@ -13,9 +13,9 @@ import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
-import org.elasticsearch.common.util.Maps;
 
 import java.io.IOException;
+import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -154,7 +154,9 @@ public final class DiffableUtils {
                 inserts++;
             } else if (entry.getValue().equals(previousValue) == false) {
                 if (valueSerializer.supportsDiffableValues()) {
-                    diffs.add(new Maps.ImmutableEntry<>(entry.getKey(), valueSerializer.diff(entry.getValue(), previousValue)));
+                    diffs.add(
+                        new AbstractMap.SimpleImmutableEntry<>(entry.getKey(), valueSerializer.diff(entry.getValue(), previousValue))
+                    );
                 } else {
                     upserts.add(entry);
                 }
@@ -308,14 +310,14 @@ public final class DiffableUtils {
             for (int i = 0; i < diffsCount; i++) {
                 K key = keySerializer.readKey(in);
                 Diff<T> diff = valueSerializer.readDiff(in, key);
-                diffs.add(new Maps.ImmutableEntry<>(key, diff));
+                diffs.add(new AbstractMap.SimpleImmutableEntry<>(key, diff));
             }
             int upsertsCount = in.readVInt();
             upserts = upsertsCount == 0 ? List.of() : new ArrayList<>(upsertsCount);
             for (int i = 0; i < upsertsCount; i++) {
                 K key = keySerializer.readKey(in);
                 T newValue = valueSerializer.read(in, key);
-                upserts.add(new Maps.ImmutableEntry<>(key, newValue));
+                upserts.add(new AbstractMap.SimpleImmutableEntry<>(key, newValue));
             }
             this.builderCtor = builderCtor;
         }

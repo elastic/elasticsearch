@@ -1,6 +1,6 @@
 setup:
-  - skip:
-      version: ' - 8.5.99'
+  - requires:
+      cluster_features: "gte_v8.6.0"
       reason: 'byte-sized kNN search added in 8.6'
 
   - do:
@@ -164,8 +164,8 @@ setup:
 
 ---
 "Vector similarity search only":
-  - skip:
-      version: ' - 8.7.99'
+  - requires:
+      cluster_features: "gte_v8.8.0"
       reason: 'kNN similarity added in 8.8'
   - do:
       search:
@@ -185,8 +185,8 @@ setup:
   - match: {hits.hits.0.fields.name.0: "rabbit.jpg"}
 ---
 "Vector similarity with filter only":
-  - skip:
-      version: ' - 8.7.99'
+  - requires:
+      cluster_features: "gte_v8.8.0"
       reason: 'kNN similarity added in 8.8'
   - do:
       search:

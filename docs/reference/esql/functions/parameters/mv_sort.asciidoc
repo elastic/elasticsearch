@@ -3,7 +3,7 @@
 *Parameters*
 
 `field`::
-A multivalued field
+Multivalue expression. If `null`, the function returns `null`.
 
 `order`::
-sort order
+Sort order. The valid options are ASC and DESC, the default is ASC.

@@ -323,12 +323,12 @@ public class TransportPutTrainedModelAction extends TransportMasterNodeAction<Re
             }
         }, finalResponseListener::onFailure);
 
-        checkForExistingTask(
+        checkForExistingModelDownloadTask(
             client,
             trainedModelConfig.getModelId(),
             request.isWaitForCompletion(),
             finalResponseListener,
-            handlePackageAndTagsListener,
+            () -> handlePackageAndTagsListener.onResponse(null),
             request.ackTimeout()
         );
     }
@@ -371,14 +371,26 @@ public class TransportPutTrainedModelAction extends TransportMasterNodeAction<Re
     }
 
     /**
-     * This method is package private for testing
+     * Check if the model is being downloaded.
+     * If the download is in progress then the response will be on
+     * the {@code isBeingDownloadedListener} otherwise {@code createModelAction}
+     * is called to trigger the next step in the model install.
+     * Should only be called for Elasticsearch hosted models.
+     *
+     * @param client Client
+     * @param modelId Model Id
+     * @param isWaitForCompletion Wait for the download to complete
+     * @param isBeingDownloadedListener The listener called if the download is in progress
+     * @param createModelAction If no download is in progress this is called to continue
+     *                          the model install process.
+     * @param timeout Model download timeout
      */
-    static void checkForExistingTask(
+    static void checkForExistingModelDownloadTask(
         Client client,
         String modelId,
         boolean isWaitForCompletion,
-        ActionListener<Response> sendResponseListener,
-        ActionListener<Void> storeModelListener,
+        ActionListener<Response> isBeingDownloadedListener,
+        Runnable createModelAction,
         TimeValue timeout
     ) {
         TaskRetriever.getDownloadTaskInfo(
@@ -389,12 +401,12 @@ public class TransportPutTrainedModelAction extends TransportMasterNodeAction<Re
             () -> "Timed out waiting for model download to complete",
             ActionListener.wrap(taskInfo -> {
                 if (taskInfo != null) {
-                    getModelInformation(client, modelId, sendResponseListener);
+                    getModelInformation(client, modelId, isBeingDownloadedListener);
                 } else {
                     // no task exists so proceed with creating the model
-                    storeModelListener.onResponse(null);
+                    createModelAction.run();
                 }
-            }, sendResponseListener::onFailure)
+            }, isBeingDownloadedListener::onFailure)
         );
     }
 
@@ -554,5 +566,4 @@ public class TransportPutTrainedModelAction extends TransportMasterNodeAction<Re
             return inferenceConfig;
         }
     }
-
 }

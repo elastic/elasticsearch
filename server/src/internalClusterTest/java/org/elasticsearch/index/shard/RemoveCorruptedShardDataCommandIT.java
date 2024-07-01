@@ -19,8 +19,8 @@ import org.apache.lucene.store.Lock;
 import org.apache.lucene.store.LockObtainFailedException;
 import org.apache.lucene.store.NativeFSLockFactory;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplanation;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
+import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteUtils;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
@@ -37,7 +37,6 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.AllocationDecision;
-import org.elasticsearch.cluster.routing.allocation.ShardAllocationDecision;
 import org.elasticsearch.cluster.routing.allocation.command.AllocateStalePrimaryAllocationCommand;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -78,6 +77,7 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
+import static org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplanationUtils.getClusterAllocationExplanation;
 import static org.elasticsearch.common.util.CollectionUtils.iterableAsArrayList;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -173,14 +173,7 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
 
         // shard should be failed due to a corrupted index
         assertBusy(() -> {
-            final ClusterAllocationExplanation explanation = clusterAdmin().prepareAllocationExplain()
-                .setIndex(indexName)
-                .setShard(0)
-                .setPrimary(true)
-                .get()
-                .getExplanation();
-
-            final ShardAllocationDecision shardAllocationDecision = explanation.getShardAllocationDecision();
+            final var shardAllocationDecision = getClusterAllocationExplanation(client(), indexName, 0, true).getShardAllocationDecision();
             assertThat(shardAllocationDecision.isDecisionTaken(), equalTo(true));
             assertThat(
                 shardAllocationDecision.getAllocateDecision().getAllocationDecision(),
@@ -219,14 +212,7 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
 
         // there is only _stale_ primary (due to new allocation id)
         assertBusy(() -> {
-            final ClusterAllocationExplanation explanation = clusterAdmin().prepareAllocationExplain()
-                .setIndex(indexName)
-                .setShard(0)
-                .setPrimary(true)
-                .get()
-                .getExplanation();
-
-            final ShardAllocationDecision shardAllocationDecision = explanation.getShardAllocationDecision();
+            final var shardAllocationDecision = getClusterAllocationExplanation(client(), indexName, 0, true).getShardAllocationDecision();
             assertThat(shardAllocationDecision.isDecisionTaken(), equalTo(true));
             assertThat(
                 shardAllocationDecision.getAllocateDecision().getAllocationDecision(),
@@ -234,16 +220,10 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
             );
         });
 
-        clusterAdmin().prepareReroute().add(new AllocateStalePrimaryAllocationCommand(indexName, 0, nodeId, true)).get();
+        ClusterRerouteUtils.reroute(client(), new AllocateStalePrimaryAllocationCommand(indexName, 0, nodeId, true));
 
         assertBusy(() -> {
-            final ClusterAllocationExplanation explanation = clusterAdmin().prepareAllocationExplain()
-                .setIndex(indexName)
-                .setShard(0)
-                .setPrimary(true)
-                .get()
-                .getExplanation();
-
+            final var explanation = getClusterAllocationExplanation(client(), indexName, 0, true);
             assertThat(explanation.getCurrentNode(), notNullValue());
             assertThat(explanation.getShardState(), equalTo(ShardRoutingState.STARTED));
         });
@@ -331,15 +311,9 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
 
         // all shards should be failed due to a corrupted translog
         assertBusy(() -> {
-            final UnassignedInfo unassignedInfo = clusterAdmin().prepareAllocationExplain()
-                .setIndex(indexName)
-                .setShard(0)
-                .setPrimary(true)
-                .get()
-                .getExplanation()
-                .getUnassignedInfo();
-            assertThat(unassignedInfo.getReason(), equalTo(UnassignedInfo.Reason.ALLOCATION_FAILED));
-            assertThat(ExceptionsHelper.unwrap(unassignedInfo.getFailure(), TranslogCorruptedException.class), not(nullValue()));
+            final UnassignedInfo unassignedInfo = getClusterAllocationExplanation(client(), indexName, 0, true).getUnassignedInfo();
+            assertThat(unassignedInfo.reason(), equalTo(UnassignedInfo.Reason.ALLOCATION_FAILED));
+            assertThat(ExceptionsHelper.unwrap(unassignedInfo.failure(), TranslogCorruptedException.class), not(nullValue()));
         });
 
         // have to shut down primary node - otherwise node lock is present
@@ -392,14 +366,7 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
 
         // there is only _stale_ primary (due to new allocation id)
         assertBusy(() -> {
-            final ClusterAllocationExplanation explanation = clusterAdmin().prepareAllocationExplain()
-                .setIndex(indexName)
-                .setShard(0)
-                .setPrimary(true)
-                .get()
-                .getExplanation();
-
-            final ShardAllocationDecision shardAllocationDecision = explanation.getShardAllocationDecision();
+            final var shardAllocationDecision = getClusterAllocationExplanation(client(), indexName, 0, true).getShardAllocationDecision();
             assertThat(shardAllocationDecision.isDecisionTaken(), equalTo(true));
             assertThat(
                 shardAllocationDecision.getAllocateDecision().getAllocationDecision(),
@@ -407,16 +374,10 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
             );
         });
 
-        clusterAdmin().prepareReroute().add(new AllocateStalePrimaryAllocationCommand(indexName, 0, primaryNodeId, true)).get();
+        ClusterRerouteUtils.reroute(client(), new AllocateStalePrimaryAllocationCommand(indexName, 0, primaryNodeId, true));
 
         assertBusy(() -> {
-            final ClusterAllocationExplanation explanation = clusterAdmin().prepareAllocationExplain()
-                .setIndex(indexName)
-                .setShard(0)
-                .setPrimary(true)
-                .get()
-                .getExplanation();
-
+            final var explanation = getClusterAllocationExplanation(client(), indexName, 0, true);
             assertThat(explanation.getCurrentNode(), notNullValue());
             assertThat(explanation.getShardState(), equalTo(ShardRoutingState.STARTED));
         });

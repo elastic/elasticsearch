@@ -207,7 +207,9 @@ public class BlockHashRandomizedTests extends ESTestCase {
                     assertMap(keyList, keyMatcher);
                 }
 
-                if (blockHash instanceof LongLongBlockHash == false && blockHash instanceof BytesRefLongBlockHash == false) {
+                if (blockHash instanceof LongLongBlockHash == false
+                    && blockHash instanceof BytesRefLongBlockHash == false
+                    && blockHash instanceof BytesRef3BlockHash == false) {
                     assertLookup(blockFactory, expectedOrds, types, blockHash, oracle);
                 }
             } finally {
@@ -335,7 +337,7 @@ public class BlockHashRandomizedTests extends ESTestCase {
         return keys.stream().distinct().toList();
     }
 
-    private static class KeyComparator implements Comparator<List<?>> {
+    static class KeyComparator implements Comparator<List<?>> {
         @Override
         public int compare(List<?> lhs, List<?> rhs) {
             for (int i = 0; i < lhs.size(); i++) {
@@ -410,7 +412,7 @@ public class BlockHashRandomizedTests extends ESTestCase {
         return types.stream().map(BlockHashRandomizedTests::randomKeyElement).toList();
     }
 
-    private static Object randomKeyElement(ElementType type) {
+    public static Object randomKeyElement(ElementType type) {
         return switch (type) {
             case INT -> randomInt();
             case LONG -> randomLong();

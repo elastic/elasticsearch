@@ -83,11 +83,7 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
 
     public static class Builder extends FieldMapper.Builder {
 
-        private final Parameter<Boolean> store = Parameter.storeParam(m -> builder(m).store.getValue(), false);
-
-        final TextParams.Analyzers analyzers;
         final Parameter<SimilarityProvider> similarity = TextParams.similarity(m -> builder(m).similarity.getValue());
-
         final Parameter<String> indexOptions = TextParams.textIndexOptions(m -> builder(m).indexOptions.getValue());
         final Parameter<Boolean> norms = TextParams.norms(true, m -> builder(m).norms.getValue());
         final Parameter<String> termVectors = TextParams.termVectors(m -> builder(m).termVectors.getValue());
@@ -95,8 +91,16 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
         private final IndexVersion indexCreatedVersion;
+        private final TextParams.Analyzers analyzers;
+        private final boolean isSyntheticSourceEnabledViaIndexMode;
+        private final Parameter<Boolean> store;
 
-        public Builder(String name, IndexVersion indexCreatedVersion, IndexAnalyzers indexAnalyzers) {
+        public Builder(
+            String name,
+            IndexVersion indexCreatedVersion,
+            IndexAnalyzers indexAnalyzers,
+            boolean isSyntheticSourceEnabledViaIndexMode
+        ) {
             super(name);
             this.indexCreatedVersion = indexCreatedVersion;
             this.analyzers = new TextParams.Analyzers(
@@ -104,6 +108,11 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
                 m -> builder(m).analyzers.getIndexAnalyzer(),
                 m -> builder(m).analyzers.positionIncrementGap.getValue(),
                 indexCreatedVersion
+            );
+            this.isSyntheticSourceEnabledViaIndexMode = isSyntheticSourceEnabledViaIndexMode;
+            this.store = Parameter.storeParam(
+                m -> builder(m).store.getValue(),
+                () -> isSyntheticSourceEnabledViaIndexMode && multiFieldsBuilder.hasSyntheticSourceCompatibleKeywordField() == false
             );
         }
 
@@ -130,7 +139,7 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
                 wrapAnalyzer(analyzers.getSearchQuoteAnalyzer())
             );
             return new AnnotatedTextFieldType(
-                context.buildFullName(name()),
+                context.buildFullName(leafName()),
                 store.getValue(),
                 tsi,
                 context.isSourceSynthetic(),
@@ -149,12 +158,12 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
             if (analyzers.positionIncrementGap.isConfigured()) {
                 if (fieldType.indexOptions().compareTo(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS) < 0) {
                     throw new IllegalArgumentException(
-                        "Cannot set position_increment_gap on field [" + name() + "] without positions enabled"
+                        "Cannot set position_increment_gap on field [" + leafName() + "] without positions enabled"
                     );
                 }
             }
             return new AnnotatedTextFieldMapper(
-                name(),
+                leafName(),
                 fieldType,
                 buildFieldType(fieldType, context, multiFields),
                 multiFields,
@@ -164,7 +173,9 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
         }
     }
 
-    public static TypeParser PARSER = new TypeParser((n, c) -> new Builder(n, c.indexVersionCreated(), c.getIndexAnalyzers()));
+    public static TypeParser PARSER = new TypeParser(
+        (n, c) -> new Builder(n, c.indexVersionCreated(), c.getIndexAnalyzers(), c.getIndexSettings().getMode().isSyntheticSourceEnabled())
+    );
 
     /**
      * Parses markdown-like syntax into plain text and AnnotationTokens with offsets for
@@ -552,18 +563,28 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(simpleName(), builder.indexCreatedVersion, builder.analyzers.indexAnalyzers).init(this);
+        return new Builder(
+            leafName(),
+            builder.indexCreatedVersion,
+            builder.analyzers.indexAnalyzers,
+            builder.isSyntheticSourceEnabledViaIndexMode
+        ).init(this);
+    }
+
+    @Override
+    protected SyntheticSourceMode syntheticSourceMode() {
+        return SyntheticSourceMode.NATIVE;
     }
 
     @Override
     public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
         if (copyTo.copyToFields().isEmpty() != true) {
             throw new IllegalArgumentException(
-                "field [" + name() + "] of type [" + typeName() + "] doesn't support synthetic source because it declares copy_to"
+                "field [" + fullPath() + "] of type [" + typeName() + "] doesn't support synthetic source because it declares copy_to"
             );
         }
         if (fieldType.stored()) {
-            return new StringStoredFieldFieldLoader(name(), simpleName(), null) {
+            return new StringStoredFieldFieldLoader(fullPath(), leafName(), null) {
                 @Override
                 protected void write(XContentBuilder b, Object value) throws IOException {
                     b.value((String) value);
@@ -573,7 +594,7 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
 
         var kwd = TextFieldMapper.SyntheticSourceHelper.getKeywordFieldMapperForSyntheticSource(this);
         if (kwd != null) {
-            return kwd.syntheticFieldLoader(simpleName());
+            return kwd.syntheticFieldLoader(leafName());
         }
 
         throw new IllegalArgumentException(
@@ -581,7 +602,7 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
                 Locale.ROOT,
                 "field [%s] of type [%s] doesn't support synthetic source unless it is stored or has a sub-field of"
                     + " type [keyword] with doc values or stored and without a normalizer",
-                name(),
+                fullPath(),
                 typeName()
             )
         );

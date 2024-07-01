@@ -6,6 +6,9 @@
 |===
 field | result
 boolean | double
+counter_double | double
+counter_integer | double
+counter_long | double
 datetime | double
 double | double
 integer | double

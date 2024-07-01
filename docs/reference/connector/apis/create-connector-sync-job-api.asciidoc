@@ -4,10 +4,12 @@
 <titleabbrev>Create connector sync job</titleabbrev>
 ++++
 
-preview::[]
+beta::[]
 
 
 Creates a connector sync job.
+
+To get started with Connector APIs, check out the {enterprise-search-ref}/connectors-tutorial-api.html[tutorial^].
 
 [source, console]
 --------------------------------------------------

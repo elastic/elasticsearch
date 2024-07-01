@@ -119,9 +119,9 @@ teardown:
 
 ---
 profile fetch:
-  - skip:
-      version: ' - 8.13.99'
-      reason: fetch fields and stored_fields using ValueFetcher
+  - requires:
+      cluster_features: "gte_v8.15.0"
+      reason: "fetch fields and stored_fields using ValueFetcher"
 
   - do:
       search:
@@ -140,7 +140,7 @@ profile fetch:
   - gt: { profile.shards.0.fetch.breakdown.next_reader: 0 }
   - gt: { profile.shards.0.fetch.breakdown.load_stored_fields_count: 0 }
   - gt: { profile.shards.0.fetch.breakdown.load_stored_fields: 0 }
-  - match: { profile.shards.0.fetch.debug.stored_fields: [_id, _ignored, _routing, _source] }
+  - match: { profile.shards.0.fetch.debug.stored_fields: [_id, _routing, _source] }
   - length: { profile.shards.0.fetch.children: 4 }
   - match: { profile.shards.0.fetch.children.0.type: FetchFieldsPhase }
   - gt: { profile.shards.0.fetch.children.0.breakdown.next_reader_count: 0 }

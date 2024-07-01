@@ -59,16 +59,16 @@ public class AzureOpenAiServiceUpgradeIT extends InferenceUpgradeTestCase {
             openAiEmbeddingsServer.enqueue(new MockResponse().setResponseCode(200).setBody(OpenAiServiceUpgradeIT.embeddingResponse()));
             put(oldClusterId, embeddingConfig(getUrl(openAiEmbeddingsServer)), TaskType.TEXT_EMBEDDING);
 
-            var configs = (List<Map<String, Object>>) get(TaskType.TEXT_EMBEDDING, oldClusterId).get("models");
+            var configs = (List<Map<String, Object>>) get(TaskType.TEXT_EMBEDDING, oldClusterId).get("endpoints");
             assertThat(configs, hasSize(1));
         } else if (isMixedCluster()) {
-            var configs = (List<Map<String, Object>>) get(TaskType.TEXT_EMBEDDING, oldClusterId).get("models");
+            var configs = (List<Map<String, Object>>) get(TaskType.TEXT_EMBEDDING, oldClusterId).get("endpoints");
             assertEquals("azureopenai", configs.get(0).get("service"));
 
             assertEmbeddingInference(oldClusterId);
         } else if (isUpgradedCluster()) {
             // check old cluster model
-            var configs = (List<Map<String, Object>>) get(TaskType.TEXT_EMBEDDING, oldClusterId).get("models");
+            var configs = (List<Map<String, Object>>) get(TaskType.TEXT_EMBEDDING, oldClusterId).get("endpoints");
             var serviceSettings = (Map<String, Object>) configs.get(0).get("service_settings");
 
             // Inference on old cluster model
@@ -77,7 +77,7 @@ public class AzureOpenAiServiceUpgradeIT extends InferenceUpgradeTestCase {
             openAiEmbeddingsServer.enqueue(new MockResponse().setResponseCode(200).setBody(OpenAiServiceUpgradeIT.embeddingResponse()));
             put(upgradedClusterId, embeddingConfig(getUrl(openAiEmbeddingsServer)), TaskType.TEXT_EMBEDDING);
 
-            configs = (List<Map<String, Object>>) get(TaskType.TEXT_EMBEDDING, upgradedClusterId).get("models");
+            configs = (List<Map<String, Object>>) get(TaskType.TEXT_EMBEDDING, upgradedClusterId).get("endpoints");
             assertThat(configs, hasSize(1));
 
             // Inference on the new config

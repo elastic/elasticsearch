@@ -179,7 +179,7 @@ setup:
 "Cannot be used as a nested field on nested objects":
 
     - do:
-        catch: /semantic_text field \[nested.semantic\] cannot be nested/
+        catch: /semantic_text field \[nested.nested_object.semantic\] cannot be nested/
         indices.create:
           index: test-nested-index
           body:

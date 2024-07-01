@@ -16,7 +16,6 @@ dependencies {
   compileOnly project(':modules:lang-painless:spi')
   compileOnly project(':modules:lang-mustache')
   compileOnly project(':modules:ingest-common')
-//  compileOnly project(':modules:ingest-geoip')
 }
 
 tasks.named('forbiddenApisMain').configure {

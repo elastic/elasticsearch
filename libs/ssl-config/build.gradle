@@ -14,9 +14,9 @@ dependencies {
     exclude group: 'org.elasticsearch', module: 'elasticsearch-ssl-config'
   }
 
-  testImplementation "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
-  testImplementation "junit:junit:${versions.junit}"
-  testImplementation "org.hamcrest:hamcrest:${versions.hamcrest}"
+  testImplementation libs.randomizedtesting.runner
+  testImplementation libs.junit
+  testImplementation libs.hamcrest
 }
 
 tasks.named('forbiddenApisMain').configure {

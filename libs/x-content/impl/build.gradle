@@ -17,11 +17,11 @@ String jacksonVersion = "2.15.0"
 dependencies {
   compileOnly project(':libs:elasticsearch-core')
   compileOnly project(':libs:elasticsearch-x-content')
-  implementation "com.fasterxml.jackson.core:jackson-core:${jacksonVersion}"
-  implementation "com.fasterxml.jackson.dataformat:jackson-dataformat-smile:${jacksonVersion}"
-  implementation "com.fasterxml.jackson.dataformat:jackson-dataformat-yaml:${jacksonVersion}"
-  implementation "com.fasterxml.jackson.dataformat:jackson-dataformat-cbor:${jacksonVersion}"
-  implementation "org.yaml:snakeyaml:${versions.snakeyaml}"
+  implementation libs.jackson.core
+  implementation libs.jackson.dataformat.smile
+  implementation libs.jackson.dataformat.yaml
+  implementation libs.jackson.dataformat.cbor
+  implementation libs.snakeyaml
 
   testImplementation(project(":test:framework")) {
     exclude group: 'org.elasticsearch', module: 'elasticsearch-x-content'

@@ -19,10 +19,10 @@ dependencies {
   api project(':libs:elasticsearch-plugin-api')
   api project(":libs:elasticsearch-x-content")
 
-  api 'org.ow2.asm:asm:9.7'
-  api 'org.ow2.asm:asm-tree:9.7'
+  api libs.asm
+  api libs.asm.tree
 
-  testImplementation "junit:junit:${versions.junit}"
+  testImplementation libs.junit
   testImplementation(project(":test:framework")) {
     exclude group: 'org.elasticsearch', module: 'elasticsearch-plugin-scanner'
   }

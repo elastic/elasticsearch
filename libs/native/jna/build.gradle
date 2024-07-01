@@ -16,7 +16,7 @@ dependencies {
   compileOnly project(':libs:elasticsearch-core')
   compileOnly project(':libs:elasticsearch-native')
   // TODO: this will become an implementation dep onces jna is removed from server
-  compileOnly "net.java.dev.jna:jna:${versions.jna}"
+  compileOnly libs.jna
 
   testImplementation(project(":test:framework")) {
     exclude group: 'org.elasticsearch', module: 'elasticsearch-native'

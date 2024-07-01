@@ -8,10 +8,8 @@
 apply plugin: 'elasticsearch.publish'
 
 dependencies {
-  api 'org.jruby.joni:joni:2.1.29'
-  // joni dependencies:
-  api 'org.jruby.jcodings:jcodings:1.0.44'
-
+  api libs.joni
+  api libs.jcodings
   testImplementation(project(":test:framework")) {
     exclude group: 'org.elasticsearch', module: 'elasticsearch-grok'
   }

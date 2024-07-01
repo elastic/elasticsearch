@@ -53,6 +53,7 @@ import java.util.Map;
 import java.util.function.Function;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
+import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.analyze;
 import static org.elasticsearch.xpack.esql.core.expression.Literal.FALSE;
 import static org.elasticsearch.xpack.esql.core.expression.Literal.TRUE;
 import static org.elasticsearch.xpack.esql.core.expression.function.FunctionResolutionStrategy.DEFAULT;
@@ -1274,6 +1275,11 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     private void assertStringAsIndexPattern(String string, String statement) {
+        if (Build.current().isProductionRelease() && statement.contains("METRIC")) {
+            var e = expectThrows(IllegalArgumentException.class, () -> statement(statement));
+            assertThat(e.getMessage(), containsString("METRICS command currently requires a snapshot build"));
+            return;
+        }
         LogicalPlan from = statement(statement);
         assertThat(from, instanceOf(EsqlUnresolvedRelation.class));
         EsqlUnresolvedRelation table = (EsqlUnresolvedRelation) from;
@@ -1281,6 +1287,11 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     private void assertStringAsLookupIndexPattern(String string, String statement) {
+        if (Build.current().isProductionRelease()) {
+            var e = expectThrows(ParsingException.class, () -> statement(statement));
+            assertThat(e.getMessage(), containsString("line 1:14: LOOKUP is in preview and only available in SNAPSHOT build"));
+            return;
+        }
         var plan = statement(statement);
         var lookup = as(plan, Lookup.class);
         var tableName = as(lookup.tableName(), Literal.class);
@@ -1343,7 +1354,13 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testLookup() {
-        var plan = statement("ROW a = 1 | LOOKUP t ON j");
+        String query = "ROW a = 1 | LOOKUP t ON j";
+        if (Build.current().isProductionRelease()) {
+            var e = expectThrows(ParsingException.class, () -> statement(query));
+            assertThat(e.getMessage(), containsString("line 1:14: LOOKUP is in preview and only available in SNAPSHOT build"));
+            return;
+        }
+        var plan = statement(query);
         var lookup = as(plan, Lookup.class);
         var tableName = as(lookup.tableName(), Literal.class);
         assertThat(tableName.fold(), equalTo("t"));

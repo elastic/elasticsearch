@@ -11,6 +11,7 @@ package org.elasticsearch.datastreams;
 import org.elasticsearch.script.field.WriteField;
 
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -30,7 +31,7 @@ public class OtelMetircsDataStreamIT extends AbstractDataStreamIT {
 
         bulk(client, dataStream, List.of("""
             { "create" : {"dynamic_templates": {"metrics.my.gauge": "gauge_long"} } }
-            """, """
+            """, String.format(Locale.ROOT, """
               {
               "@timestamp": "%s",
               "data_stream": {
@@ -53,7 +54,7 @@ public class OtelMetircsDataStreamIT extends AbstractDataStreamIT {
                 "my.gauge": 42
               }
             }
-            """.formatted(System.currentTimeMillis() + ".123456")));
+            """, System.currentTimeMillis() + ".123456")));
         Map<String, Object> response = search(client, dataStream, """
             {
               "query": {

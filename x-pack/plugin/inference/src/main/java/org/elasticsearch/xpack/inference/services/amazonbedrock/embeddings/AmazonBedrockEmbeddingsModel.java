@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services.amazonbedrock.embeddings;
 
+import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.inference.EmptyTaskSettings;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
@@ -23,6 +24,17 @@ import org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockSec
 import java.util.Map;
 
 public class AmazonBedrockEmbeddingsModel extends AmazonBedrockModel {
+
+    public static AmazonBedrockEmbeddingsModel of(AmazonBedrockEmbeddingsModel embeddingsModel, Map<String, Object> taskSettings) {
+        if (taskSettings != null && taskSettings.isEmpty() == false) {
+            // no task settings allowed
+            var validationException = new ValidationException();
+            validationException.addValidationError("Amazon Bedrock embeddings model cannot have task settings");
+            throw validationException;
+        }
+
+        return embeddingsModel;
+    }
 
     public AmazonBedrockEmbeddingsModel(
         String inferenceEntityId,
@@ -43,11 +55,6 @@ public class AmazonBedrockEmbeddingsModel extends AmazonBedrockModel {
         );
     }
 
-    public static AmazonBedrockEmbeddingsModel of(AmazonBedrockEmbeddingsModel embeddingsModel, Map<String, Object> taskSettings) {
-        // no task settings to apply
-        return embeddingsModel;
-    }
-
     public AmazonBedrockEmbeddingsModel(
         String inferenceEntityId,
         TaskType taskType,
@@ -62,20 +69,8 @@ public class AmazonBedrockEmbeddingsModel extends AmazonBedrockModel {
         );
     }
 
-    public AmazonBedrockEmbeddingsModel(ModelConfigurations configurations, ModelSecrets secrets) {
-        super(configurations, secrets);
-    }
-
-    public AmazonBedrockEmbeddingsModel(Model model, TaskSettings taskSettings) {
-        super(model, taskSettings);
-    }
-
     public AmazonBedrockEmbeddingsModel(Model model, ServiceSettings serviceSettings) {
         super(model, serviceSettings);
-    }
-
-    public AmazonBedrockEmbeddingsModel(ModelConfigurations configurations) {
-        super(configurations);
     }
 
     @Override

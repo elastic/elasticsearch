@@ -23,11 +23,11 @@ import java.util.Objects;
 
 import static org.elasticsearch.TransportVersions.ML_INFERENCE_AMAZON_BEDROCK_ADDED;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredSecureString;
+import static org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockConstants.ACCESS_KEY_FIELD;
+import static org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockConstants.SECRET_KEY_FIELD;
 
 public class AmazonBedrockSecretSettings implements SecretSettings {
     public static final String NAME = "amazon_bedrock_secret_settings";
-    public static final String ACCESS_KEY = "access_key";
-    public static final String SECRET_KEY = "secret_key";
 
     public final SecureString accessKey;
     public final SecureString secretKey;
@@ -38,8 +38,18 @@ public class AmazonBedrockSecretSettings implements SecretSettings {
         }
 
         ValidationException validationException = new ValidationException();
-        SecureString secureAccessKey = extractRequiredSecureString(map, ACCESS_KEY, ModelSecrets.SECRET_SETTINGS, validationException);
-        SecureString secureSecretKey = extractRequiredSecureString(map, SECRET_KEY, ModelSecrets.SECRET_SETTINGS, validationException);
+        SecureString secureAccessKey = extractRequiredSecureString(
+            map,
+            ACCESS_KEY_FIELD,
+            ModelSecrets.SECRET_SETTINGS,
+            validationException
+        );
+        SecureString secureSecretKey = extractRequiredSecureString(
+            map,
+            SECRET_KEY_FIELD,
+            ModelSecrets.SECRET_SETTINGS,
+            validationException
+        );
 
         if (validationException.validationErrors().isEmpty() == false) {
             throw validationException;
@@ -78,8 +88,8 @@ public class AmazonBedrockSecretSettings implements SecretSettings {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
 
-        builder.field(ACCESS_KEY, accessKey.toString());
-        builder.field(SECRET_KEY, secretKey.toString());
+        builder.field(ACCESS_KEY_FIELD, accessKey.toString());
+        builder.field(SECRET_KEY_FIELD, secretKey.toString());
 
         builder.endObject();
         return builder;

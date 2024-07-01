@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.inference.external.http.sender;
 
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockModel;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockSecretSettings;
@@ -17,11 +19,13 @@ import java.util.Objects;
 public abstract class AmazonBedrockRequestManager implements RequestManager {
 
     protected final ThreadPool threadPool;
+    protected final TimeValue timeout;
     private final AmazonBedrockModel baseModel;
 
-    protected AmazonBedrockRequestManager(AmazonBedrockModel baseModel, ThreadPool threadPool) {
+    protected AmazonBedrockRequestManager(AmazonBedrockModel baseModel, ThreadPool threadPool, @Nullable TimeValue timeout) {
         this.baseModel = baseModel;
         this.threadPool = threadPool;
+        this.timeout = timeout;
     }
 
     @Override

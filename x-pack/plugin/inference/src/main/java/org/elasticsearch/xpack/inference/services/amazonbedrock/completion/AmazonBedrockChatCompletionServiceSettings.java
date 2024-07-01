@@ -90,5 +90,4 @@ public class AmazonBedrockChatCompletionServiceSettings extends AmazonBedrockSer
     public int hashCode() {
         return Objects.hash(region, model, provider, rateLimitSettings);
     }
-
 }

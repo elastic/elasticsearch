@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.inference.services.amazonbedrock.completion;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
-import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
@@ -22,6 +21,19 @@ import org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockSec
 import java.util.Map;
 
 public class AmazonBedrockChatCompletionModel extends AmazonBedrockModel {
+
+    public static AmazonBedrockChatCompletionModel of(AmazonBedrockChatCompletionModel completionModel, Map<String, Object> taskSettings) {
+        if (taskSettings == null || taskSettings.isEmpty()) {
+            return completionModel;
+        }
+
+        var requestTaskSettings = AmazonBedrockChatCompletionRequestTaskSettings.fromMap(taskSettings);
+        var taskSettingsToUse = AmazonBedrockChatCompletionTaskSettings.of(
+            (AmazonBedrockChatCompletionTaskSettings) completionModel.getTaskSettings(),
+            requestTaskSettings
+        );
+        return new AmazonBedrockChatCompletionModel(completionModel, taskSettingsToUse);
+    }
 
     public AmazonBedrockChatCompletionModel(
         String inferenceEntityId,
@@ -53,33 +65,8 @@ public class AmazonBedrockChatCompletionModel extends AmazonBedrockModel {
         super(new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings), new ModelSecrets(secrets));
     }
 
-    public static AmazonBedrockChatCompletionModel of(AmazonBedrockChatCompletionModel completionModel, Map<String, Object> taskSettings) {
-        if (taskSettings == null || taskSettings.isEmpty()) {
-            return completionModel;
-        }
-
-        var requestTaskSettings = AmazonBedrockChatCompletionRequestTaskSettings.fromMap(taskSettings);
-        var taskSettingsToUse = AmazonBedrockChatCompletionTaskSettings.of(
-            (AmazonBedrockChatCompletionTaskSettings) completionModel.getTaskSettings(),
-            requestTaskSettings
-        );
-        return new AmazonBedrockChatCompletionModel(completionModel, taskSettingsToUse);
-    }
-
-    public AmazonBedrockChatCompletionModel(ModelConfigurations modelConfigurations, ModelSecrets secrets) {
-        super(modelConfigurations, secrets);
-    }
-
     public AmazonBedrockChatCompletionModel(Model model, TaskSettings taskSettings) {
         super(model, taskSettings);
-    }
-
-    public AmazonBedrockChatCompletionModel(Model model, ServiceSettings serviceSettings) {
-        super(model, serviceSettings);
-    }
-
-    public AmazonBedrockChatCompletionModel(ModelConfigurations modelConfigurations) {
-        super(modelConfigurations);
     }
 
     @Override

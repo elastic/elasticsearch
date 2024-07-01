@@ -10,40 +10,47 @@ package org.elasticsearch.xpack.inference.external.amazonbedrock;
 import com.amazonaws.http.IdleConnectionReaper;
 
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockModel;
 
-import java.io.Closeable;
 import java.io.IOException;
 import java.util.Map;
+import java.util.function.BiFunction;
 
 import static java.util.Collections.emptyMap;
 
-public final class AmazonBedrockInferenceClientCache implements Closeable {
+public final class AmazonBedrockInferenceClientCache extends AmazonBedrockClientCache {
 
-    private volatile Map<Integer, AmazonBedrockInferenceClient> clientsCache = emptyMap();
+    private final BiFunction<AmazonBedrockModel, TimeValue, AmazonBedrockBaseClient> creator;
+    private volatile Map<Integer, AmazonBedrockBaseClient> clientsCache = emptyMap();
 
-    public AmazonBedrockInferenceClient getOrCreateClient(AmazonBedrockModel model) throws IOException {
-        var returnClient = internalGetOrCreateClient(model);
+    public AmazonBedrockInferenceClientCache(BiFunction<AmazonBedrockModel, TimeValue, AmazonBedrockBaseClient> creator) {
+        this.creator = creator;
+    }
+
+    public AmazonBedrockBaseClient getOrCreateClient(AmazonBedrockModel model, @Nullable TimeValue timeout) throws IOException {
+        var returnClient = internalGetOrCreateClient(model, timeout);
         flushExpiredClients();
         return returnClient;
     }
 
-    private AmazonBedrockInferenceClient internalGetOrCreateClient(AmazonBedrockModel model) throws IOException {
-        final Integer modelHash = AmazonBedrockInferenceClient.getModelKeysAndRegionHashcode(model);
+    private AmazonBedrockBaseClient internalGetOrCreateClient(AmazonBedrockModel model, @Nullable TimeValue timeout) throws IOException {
+        final Integer modelHash = AmazonBedrockInferenceClient.getModelKeysAndRegionHashcode(model, timeout);
         {
-            final AmazonBedrockInferenceClient client = clientsCache.get(modelHash);
+            final AmazonBedrockBaseClient client = clientsCache.get(modelHash);
             if (client != null && client.tryToIncreaseReference()) {
                 return client;
             }
         }
 
         synchronized (this) {
-            final AmazonBedrockInferenceClient existing = clientsCache.get(modelHash);
+            final AmazonBedrockBaseClient existing = clientsCache.get(modelHash);
             if (existing != null && existing.tryIncRef()) {
                 return existing;
             }
 
-            final AmazonBedrockInferenceClient builtClient = new AmazonBedrockInferenceClient(model);
+            final AmazonBedrockBaseClient builtClient = creator.apply(model, timeout);
 
             builtClient.mustIncRef();
             clientsCache = Maps.copyMapWithAddedEntry(clientsCache, builtClient.hashCode(), builtClient);
@@ -55,7 +62,7 @@ public final class AmazonBedrockInferenceClientCache implements Closeable {
     private void flushExpiredClients() {
         var currentTimestampMs = System.currentTimeMillis();
         synchronized (this) {
-            for (final AmazonBedrockInferenceClient client : clientsCache.values()) {
+            for (final AmazonBedrockBaseClient client : clientsCache.values()) {
                 if (client.isExpired(currentTimestampMs)) {
                     client.decRef();
                 }
@@ -70,7 +77,7 @@ public final class AmazonBedrockInferenceClientCache implements Closeable {
 
     private void releaseCachedClients() {
         // the clients will shutdown when they will not be used anymore
-        for (final AmazonBedrockInferenceClient client : clientsCache.values()) {
+        for (final AmazonBedrockBaseClient client : clientsCache.values()) {
             client.decRef();
         }
 

@@ -99,7 +99,7 @@ public class AmazonBedrockEmbeddingsServiceSettings extends AmazonBedrockService
         dimensions = in.readOptionalVInt();
         dimensionsSetByUser = in.readBoolean();
         maxInputTokens = in.readOptionalVInt();
-        similarity = in.readEnum(SimilarityMeasure.class);
+        similarity = in.readOptionalEnum(SimilarityMeasure.class);
     }
 
     public AmazonBedrockEmbeddingsServiceSettings(

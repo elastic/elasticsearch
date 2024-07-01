@@ -10,7 +10,10 @@ package org.elasticsearch.xpack.inference.external.request.amazonbedrock.complet
 import com.amazonaws.services.bedrockruntime.model.ConverseRequest;
 import com.amazonaws.services.bedrockruntime.model.ConverseResult;
 
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.common.socket.SocketAccess;
+import org.elasticsearch.xpack.inference.external.amazonbedrock.AmazonBedrockBaseClient;
 import org.elasticsearch.xpack.inference.external.amazonbedrock.AmazonBedrockInferenceClient;
 import org.elasticsearch.xpack.inference.external.request.amazonbedrock.AmazonBedrockRequest;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.completion.AmazonBedrockChatCompletionModel;
@@ -22,8 +25,12 @@ public class AmazonBedrockChatCompletionRequest extends AmazonBedrockRequest {
     private final AmazonBedrockConverseRequestEntity requestEntity;
     private ConverseResult result;
 
-    public AmazonBedrockChatCompletionRequest(AmazonBedrockChatCompletionModel model, AmazonBedrockConverseRequestEntity requestEntity) {
-        super(model);
+    public AmazonBedrockChatCompletionRequest(
+        AmazonBedrockChatCompletionModel model,
+        AmazonBedrockConverseRequestEntity requestEntity,
+        @Nullable TimeValue timeout
+    ) {
+        super(model, timeout);
         this.requestEntity = requestEntity;
     }
 
@@ -32,7 +39,7 @@ public class AmazonBedrockChatCompletionRequest extends AmazonBedrockRequest {
     }
 
     @Override
-    public void executeRequest(AmazonBedrockInferenceClient client) {
+    public void executeRequest(AmazonBedrockBaseClient client) {
         var converseRequest = getConverseRequest();
 
         try {

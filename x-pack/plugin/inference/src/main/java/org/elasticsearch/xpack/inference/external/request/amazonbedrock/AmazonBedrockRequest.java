@@ -7,6 +7,9 @@
 
 package org.elasticsearch.xpack.inference.external.request.amazonbedrock;
 
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.xpack.inference.external.amazonbedrock.AmazonBedrockBaseClient;
 import org.elasticsearch.xpack.inference.external.amazonbedrock.AmazonBedrockInferenceClient;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
 import org.elasticsearch.xpack.inference.external.request.Request;
@@ -18,13 +21,15 @@ public abstract class AmazonBedrockRequest implements Request {
 
     protected final AmazonBedrockModel amazonBedrockModel;
     protected final String inferenceId;
+    private final TimeValue timeout;
 
-    protected AmazonBedrockRequest(AmazonBedrockModel model) {
+    protected AmazonBedrockRequest(AmazonBedrockModel model, @Nullable TimeValue timeout) {
         this.amazonBedrockModel = model;
         this.inferenceId = model.getInferenceEntityId();
+        this.timeout = timeout;
     }
 
-    public abstract void executeRequest(AmazonBedrockInferenceClient client);
+    public abstract void executeRequest(AmazonBedrockBaseClient client);
 
     public AmazonBedrockModel model() {
         return amazonBedrockModel;
@@ -70,5 +75,9 @@ public abstract class AmazonBedrockRequest implements Request {
     @Override
     public String getInferenceEntityId() {
         return amazonBedrockModel.getInferenceEntityId();
+    }
+
+    public TimeValue timeout() {
+        return timeout;
     }
 }

@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.inference.external.action.amazonbedrock;
 
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.external.http.sender.AmazonBedrockChatCompletionRequestManager;
 import org.elasticsearch.xpack.inference.external.http.sender.AmazonBedrockEmbeddingsRequestManager;
@@ -23,10 +25,12 @@ import static org.elasticsearch.xpack.inference.external.action.ActionUtils.cons
 public class AmazonBedrockActionCreator implements AmazonBedrockActionVisitor {
     private final Sender sender;
     private final ServiceComponents serviceComponents;
+    private final TimeValue timeout;
 
-    public AmazonBedrockActionCreator(Sender sender, ServiceComponents serviceComponents) {
+    public AmazonBedrockActionCreator(Sender sender, ServiceComponents serviceComponents, @Nullable TimeValue timeout) {
         this.sender = Objects.requireNonNull(sender);
         this.serviceComponents = Objects.requireNonNull(serviceComponents);
+        this.timeout = timeout;
     }
 
     @Override
@@ -35,7 +39,8 @@ public class AmazonBedrockActionCreator implements AmazonBedrockActionVisitor {
         var requestManager = new AmazonBedrockEmbeddingsRequestManager(
             overriddenModel,
             serviceComponents.truncator(),
-            serviceComponents.threadPool()
+            serviceComponents.threadPool(),
+            timeout
         );
         var errorMessage = constructFailedToSendRequestMessage(null, "Amazon Bedrock embeddings");
         return new AmazonBedrockEmbeddingsAction(sender, requestManager, errorMessage);
@@ -44,7 +49,7 @@ public class AmazonBedrockActionCreator implements AmazonBedrockActionVisitor {
     @Override
     public ExecutableAction create(AmazonBedrockChatCompletionModel completionModel, Map<String, Object> taskSettings) {
         var overriddenModel = AmazonBedrockChatCompletionModel.of(completionModel, taskSettings);
-        var requestManager = new AmazonBedrockChatCompletionRequestManager(overriddenModel, serviceComponents.threadPool());
+        var requestManager = new AmazonBedrockChatCompletionRequestManager(overriddenModel, serviceComponents.threadPool(), timeout);
         var errorMessage = constructFailedToSendRequestMessage(null, "Amazon Bedrock completion");
         return new AmazonBedrockChatCompletionAction(sender, requestManager, errorMessage);
     }

@@ -10,6 +10,8 @@ package org.elasticsearch.xpack.inference.external.http.sender;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.external.http.retry.RequestSender;
@@ -25,8 +27,12 @@ public class AmazonBedrockChatCompletionRequestManager extends AmazonBedrockRequ
     private static final Logger logger = LogManager.getLogger(AmazonBedrockChatCompletionRequestManager.class);
     private final AmazonBedrockChatCompletionModel model;
 
-    public AmazonBedrockChatCompletionRequestManager(AmazonBedrockChatCompletionModel model, ThreadPool threadPool) {
-        super(model, threadPool);
+    public AmazonBedrockChatCompletionRequestManager(
+        AmazonBedrockChatCompletionModel model,
+        ThreadPool threadPool,
+        @Nullable TimeValue timeout
+    ) {
+        super(model, threadPool, timeout);
         this.model = model;
     }
 
@@ -39,7 +45,7 @@ public class AmazonBedrockChatCompletionRequestManager extends AmazonBedrockRequ
         ActionListener<InferenceServiceResults> listener
     ) {
         var requestEntity = AmazonBedrockChatCompletionEntityFactory.createEntity(model, input);
-        var request = new AmazonBedrockChatCompletionRequest(model, requestEntity);
+        var request = new AmazonBedrockChatCompletionRequest(model, requestEntity, timeout);
 
         var responseHandler = new AmazonBedrockChatCompletionResponseHandler();
         var inferenceRequest = new ExecutableInferenceRequest(

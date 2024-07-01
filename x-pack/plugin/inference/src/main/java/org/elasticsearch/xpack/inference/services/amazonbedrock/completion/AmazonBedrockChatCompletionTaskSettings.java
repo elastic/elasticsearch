@@ -18,6 +18,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.Objects;
 
 import static org.elasticsearch.TransportVersions.ML_INFERENCE_AMAZON_BEDROCK_ADDED;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalDoubleInRange;
@@ -29,6 +30,13 @@ import static org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBed
 
 public class AmazonBedrockChatCompletionTaskSettings implements TaskSettings {
     public static final String NAME = "amazon_bedrock_chat_completion_task_settings";
+
+    public static final AmazonBedrockChatCompletionRequestTaskSettings EMPTY_SETTINGS = new AmazonBedrockChatCompletionRequestTaskSettings(
+        null,
+        null,
+        null,
+        null
+    );
 
     public static AmazonBedrockChatCompletionTaskSettings fromMap(Map<String, Object> settings) {
         ValidationException validationException = new ValidationException();
@@ -132,19 +140,35 @@ public class AmazonBedrockChatCompletionTaskSettings implements TaskSettings {
         builder.startObject();
         {
             if (temperature != null) {
-                builder.field("temperature", temperature);
+                builder.field(TEMPERATURE_FIELD, temperature);
             }
             if (topP != null) {
-                builder.field("topP", topP);
+                builder.field(TOP_P_FIELD, topP);
             }
             if (topK != null) {
-                builder.field("topK", topK);
+                builder.field(TOP_K_FIELD, topK);
             }
             if (maxNewTokens != null) {
-                builder.field("maxNewTokens", maxNewTokens);
+                builder.field(MAX_NEW_TOKENS_FIELD, maxNewTokens);
             }
         }
         builder.endObject();
         return builder;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        AmazonBedrockChatCompletionTaskSettings that = (AmazonBedrockChatCompletionTaskSettings) o;
+        return Objects.equals(temperature, that.temperature)
+            && Objects.equals(topP, that.topP)
+            && Objects.equals(topK, that.topK)
+            && Objects.equals(maxNewTokens, that.maxNewTokens);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(temperature, topP, topK, maxNewTokens);
     }
 }

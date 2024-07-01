@@ -61,7 +61,7 @@ public class AmazonBedrockRequestSender implements Sender {
     private final AtomicBoolean started = new AtomicBoolean(false);
     private final CountDownLatch startCompleted = new CountDownLatch(1);
 
-    private AmazonBedrockRequestSender(
+    protected AmazonBedrockRequestSender(
         ThreadPool threadPool,
         ClusterService clusterService,
         Settings settings,

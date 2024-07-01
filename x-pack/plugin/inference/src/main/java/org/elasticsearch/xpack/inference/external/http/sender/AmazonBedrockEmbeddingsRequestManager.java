@@ -10,6 +10,8 @@ package org.elasticsearch.xpack.inference.external.http.sender;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.common.Truncator;
@@ -29,8 +31,13 @@ public class AmazonBedrockEmbeddingsRequestManager extends AmazonBedrockRequestM
     private final AmazonBedrockEmbeddingsModel embeddingsModel;
     private final Truncator truncator;
 
-    public AmazonBedrockEmbeddingsRequestManager(AmazonBedrockEmbeddingsModel model, Truncator truncator, ThreadPool threadPool) {
-        super(model, threadPool);
+    public AmazonBedrockEmbeddingsRequestManager(
+        AmazonBedrockEmbeddingsModel model,
+        Truncator truncator,
+        ThreadPool threadPool,
+        @Nullable TimeValue timeout
+    ) {
+        super(model, threadPool, timeout);
         this.embeddingsModel = model;
         this.truncator = truncator;
     }
@@ -50,7 +57,7 @@ public class AmazonBedrockEmbeddingsRequestManager extends AmazonBedrockRequestM
             truncator,
             serviceSettings.maxInputTokens()
         );
-        var request = new AmazonBedrockEmbeddingsRequest(embeddingsModel, requestEntity);
+        var request = new AmazonBedrockEmbeddingsRequest(embeddingsModel, requestEntity, timeout);
         var responseHandler = new AmazonBedrockEmbeddingsResponseHandler();
         var inferenceRequest = new ExecutableInferenceRequest(
             requestSender,

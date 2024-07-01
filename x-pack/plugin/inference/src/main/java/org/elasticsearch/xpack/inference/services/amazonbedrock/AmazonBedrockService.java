@@ -50,6 +50,7 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.parsePersi
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrDefaultEmpty;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrThrowIfNull;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwIfNotEmptyMap;
+import static org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockProviderCapabilities.providerAllowsTaskType;
 
 public class AmazonBedrockService extends SenderService {
     public static final String NAME = "amazonbedrock";
@@ -74,7 +75,7 @@ public class AmazonBedrockService extends SenderService {
         TimeValue timeout,
         ActionListener<InferenceServiceResults> listener
     ) {
-        var actionCreator = new AmazonBedrockActionCreator(amazonBedrockSenderFactory.createSender(), this.getServiceComponents());
+        var actionCreator = new AmazonBedrockActionCreator(amazonBedrockSenderFactory.createSender(), this.getServiceComponents(), timeout);
         if (model instanceof AmazonBedrockModel baseAmazonBedrockModel) {
             var action = baseAmazonBedrockModel.accept(actionCreator, taskSettings);
             action.execute(new DocumentsOnlyInput(input), timeout, listener);
@@ -213,7 +214,7 @@ public class AmazonBedrockService extends SenderService {
     ) {
         switch (taskType) {
             case TEXT_EMBEDDING -> {
-                return new AmazonBedrockEmbeddingsModel(
+                var model = new AmazonBedrockEmbeddingsModel(
                     inferenceEntityId,
                     taskType,
                     NAME,
@@ -222,9 +223,11 @@ public class AmazonBedrockService extends SenderService {
                     secretSettings,
                     context
                 );
+                checkProviderForTask(TaskType.TEXT_EMBEDDING, model.provider());
+                return model;
             }
             case COMPLETION -> {
-                return new AmazonBedrockChatCompletionModel(
+                var model = new AmazonBedrockChatCompletionModel(
                     inferenceEntityId,
                     taskType,
                     NAME,
@@ -233,6 +236,8 @@ public class AmazonBedrockService extends SenderService {
                     secretSettings,
                     context
                 );
+                checkProviderForTask(TaskType.COMPLETION, model.provider());
+                return model;
             }
             default -> throw new ElasticsearchStatusException(failureMessage, RestStatus.BAD_REQUEST);
         }
@@ -295,5 +300,14 @@ public class AmazonBedrockService extends SenderService {
         );
 
         return new AmazonBedrockEmbeddingsModel(model, settingsToUse);
+    }
+
+    private static void checkProviderForTask(TaskType taskType, AmazonBedrockProvider provider) {
+        if (providerAllowsTaskType(provider, taskType) == false) {
+            throw new ElasticsearchStatusException(
+                Strings.format("The [%s] task type for provider [%s] is not available", taskType, provider),
+                RestStatus.BAD_REQUEST
+            );
+        }
     }
 }

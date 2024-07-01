@@ -10,7 +10,10 @@ package org.elasticsearch.xpack.inference.external.request.amazonbedrock.embeddi
 import com.amazonaws.services.bedrockruntime.model.InvokeModelRequest;
 import com.amazonaws.services.bedrockruntime.model.InvokeModelResult;
 
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.common.socket.SocketAccess;
+import org.elasticsearch.xpack.inference.external.amazonbedrock.AmazonBedrockBaseClient;
 import org.elasticsearch.xpack.inference.external.amazonbedrock.AmazonBedrockInferenceClient;
 import org.elasticsearch.xpack.inference.external.request.amazonbedrock.AmazonBedrockJsonBuilder;
 import org.elasticsearch.xpack.inference.external.request.amazonbedrock.AmazonBedrockJsonWriter;
@@ -27,8 +30,12 @@ public class AmazonBedrockEmbeddingsRequest extends AmazonBedrockRequest {
     private InvokeModelResult result;
     private AmazonBedrockProvider provider;
 
-    public AmazonBedrockEmbeddingsRequest(AmazonBedrockEmbeddingsModel model, AmazonBedrockJsonWriter requestEntity) {
-        super(model);
+    public AmazonBedrockEmbeddingsRequest(
+        AmazonBedrockEmbeddingsModel model,
+        AmazonBedrockJsonWriter requestEntity,
+        @Nullable TimeValue timeout
+    ) {
+        super(model, timeout);
         this.embeddingsModel = model;
         this.provider = model.provider();
         this.requestEntity = requestEntity;
@@ -43,7 +50,7 @@ public class AmazonBedrockEmbeddingsRequest extends AmazonBedrockRequest {
     }
 
     @Override
-    public void executeRequest(AmazonBedrockInferenceClient client) {
+    public void executeRequest(AmazonBedrockBaseClient client) {
         try {
             var jsonBuilder = new AmazonBedrockJsonBuilder(requestEntity);
             var bodyAsString = jsonBuilder.getStringContent();

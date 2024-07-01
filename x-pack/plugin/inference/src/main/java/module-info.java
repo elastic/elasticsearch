@@ -20,6 +20,7 @@ module org.elasticsearch.inference {
     requires org.apache.lucene.join;
     requires com.ibm.icu;
     requires com.google.auth.oauth2;
+    requires com.google.auth;
     requires com.google.api.client;
     requires com.google.gson;
     requires aws.java.sdk.bedrockruntime;
